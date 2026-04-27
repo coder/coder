@@ -767,72 +767,94 @@ func sanitizeAnthropicProviderToolContent(
 		return content, stats
 	}
 
-	histories := make(map[string]*anthropicProviderToolContentHistory)
-	ids := make([]string, 0)
-	for index, block := range content {
-		if toolCall, ok := safeToolCallContent(block); ok && toolCall.ProviderExecuted {
-			history := ensureAnthropicProviderToolContentHistory(
-				histories,
-				&ids,
-				toolCall.ToolCallID,
-			)
-			history.calls = append(history.calls, anthropicProviderToolContentCall{
-				index:    index,
-				toolCall: toolCall,
-			})
+	partIndexByContentIndex := make([]int, len(content))
+	for index := range partIndexByContentIndex {
+		partIndexByContentIndex[index] = noMappedToolPartIndex
+	}
+	contentKinds := make([]mappedToolContentKind, len(content))
+	parts := make([]fantasy.MessagePart, 0, len(content))
+	providerCalls := make(map[string][]mappedProviderToolCall)
+	providerResultNames := make(map[string][]string)
+	for contentIndex, block := range content {
+		if toolCall, ok := safeToolCallContent(block); ok {
+			partIndex := len(parts)
+			parts = append(parts, toolCallContentToPart(toolCall))
+			partIndexByContentIndex[contentIndex] = partIndex
+			contentKinds[contentIndex] = mappedToolContentCall
+			if toolCall.ProviderExecuted {
+				providerCalls[toolCall.ToolCallID] = append(
+					providerCalls[toolCall.ToolCallID],
+					mappedProviderToolCall{
+						partIndex: partIndex,
+						toolName:  toolCall.ToolName,
+					},
+				)
+			}
 			continue
 		}
-		if toolResult, ok := safeToolResultContent(block); ok && toolResult.ProviderExecuted {
-			history := ensureAnthropicProviderToolContentHistory(
-				histories,
-				&ids,
-				toolResult.ToolCallID,
-			)
-			history.results = append(history.results, anthropicProviderToolContentResult{
-				index:      index,
-				toolResult: toolResult,
-			})
-		}
-	}
-
-	remove := make(map[int]struct{})
-	for _, id := range ids {
-		history := histories[id]
-		switch {
-		case len(history.calls) > 1 || len(history.results) > 1:
-			markAnthropicProviderToolContentHistory(remove, history)
-		case len(history.calls) == 1 && len(history.results) == 0:
-			remove[history.calls[0].index] = struct{}{}
-		case len(history.calls) == 0 && len(history.results) == 1:
-			remove[history.results[0].index] = struct{}{}
-		case len(history.calls) == 1 && len(history.results) == 1:
-			call := history.calls[0]
-			result := history.results[0]
-			switch {
-			case call.index >= result.index:
-				markAnthropicProviderToolContentHistory(remove, history)
-			case !isSerializableAnthropicProviderToolCallContent(call.toolCall):
-				markAnthropicProviderToolContentHistory(remove, history)
-			case !isSerializableAnthropicProviderToolResultContent(result.toolResult, call.toolCall):
-				markAnthropicProviderToolContentHistory(remove, history)
+		if toolResult, ok := safeToolResultContent(block); ok {
+			partIndex := len(parts)
+			parts = append(parts, toolResultContentToPart(toolResult))
+			partIndexByContentIndex[contentIndex] = partIndex
+			contentKinds[contentIndex] = mappedToolContentResult
+			if toolResult.ProviderExecuted {
+				providerResultNames[toolResult.ToolCallID] = append(
+					providerResultNames[toolResult.ToolCallID],
+					toolResult.ToolName,
+				)
 			}
 		}
 	}
-	if len(remove) == 0 {
+	if len(parts) == 0 {
+		return content, stats
+	}
+
+	// ToolResultContent carries ToolName, but ToolResultPart does not. Preserve
+	// the content sanitizer mismatch check by invalidating the synthetic call.
+	for id, calls := range providerCalls {
+		for _, call := range calls {
+			for _, resultToolName := range providerResultNames[id] {
+				if resultToolName == "" || resultToolName == call.toolName {
+					continue
+				}
+				toolCall, ok := parts[call.partIndex].(fantasy.ToolCallPart)
+				if !ok {
+					break
+				}
+				toolCall.ToolName = ""
+				parts[call.partIndex] = toolCall
+				break
+			}
+		}
+	}
+
+	removeParts, _ := chatprompt.AnthropicProviderToolPartsToRemove(provider, parts)
+	if len(removeParts) == 0 {
+		return content, stats
+	}
+
+	removeContent := make(map[int]struct{}, len(removeParts))
+	for contentIndex, partIndex := range partIndexByContentIndex {
+		if partIndex == noMappedToolPartIndex {
+			continue
+		}
+		if _, remove := removeParts[partIndex]; remove {
+			removeContent[contentIndex] = struct{}{}
+		}
+	}
+	if len(removeContent) == 0 {
 		return content, stats
 	}
 
 	out := make([]fantasy.Content, 0, len(content))
-	for index, block := range content {
-		if _, removeBlock := remove[index]; removeBlock {
-			if toolCall, ok := safeToolCallContent(block); ok && toolCall.ProviderExecuted {
+	for contentIndex, block := range content {
+		if _, remove := removeContent[contentIndex]; remove {
+			switch contentKinds[contentIndex] {
+			case mappedToolContentCall:
 				stats.RemovedToolCalls++
-			}
-			if toolResult, ok := safeToolResultContent(block); ok && toolResult.ProviderExecuted {
+			case mappedToolContentResult:
 				stats.RemovedToolResults++
 			}
-			// Remove-set membership wins even if a future content type
-			// cannot be counted here.
 			continue
 		}
 		out = append(out, block)
@@ -840,53 +862,26 @@ func sanitizeAnthropicProviderToolContent(
 	return out, stats
 }
 
+const noMappedToolPartIndex = -1
+
+type mappedToolContentKind int
+
+const (
+	_ mappedToolContentKind = iota
+	mappedToolContentCall
+	mappedToolContentResult
+)
+
+type mappedProviderToolCall struct {
+	partIndex int
+	toolName  string
+}
+
 func isAnthropicProviderExecutedToolCall(
 	provider string,
 	toolCall fantasy.ToolCallContent,
 ) bool {
 	return provider == fantasyanthropic.Name && toolCall.ProviderExecuted
-}
-
-type anthropicProviderToolContentCall struct {
-	index    int
-	toolCall fantasy.ToolCallContent
-}
-
-type anthropicProviderToolContentResult struct {
-	index      int
-	toolResult fantasy.ToolResultContent
-}
-
-type anthropicProviderToolContentHistory struct {
-	calls   []anthropicProviderToolContentCall
-	results []anthropicProviderToolContentResult
-}
-
-func ensureAnthropicProviderToolContentHistory(
-	histories map[string]*anthropicProviderToolContentHistory,
-	ids *[]string,
-	id string,
-) *anthropicProviderToolContentHistory {
-	history, ok := histories[id]
-	if ok {
-		return history
-	}
-	history = &anthropicProviderToolContentHistory{}
-	histories[id] = history
-	*ids = append(*ids, id)
-	return history
-}
-
-func markAnthropicProviderToolContentHistory(
-	remove map[int]struct{},
-	history *anthropicProviderToolContentHistory,
-) {
-	for _, call := range history.calls {
-		remove[call.index] = struct{}{}
-	}
-	for _, result := range history.results {
-		remove[result.index] = struct{}{}
-	}
 }
 
 func safeToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {
@@ -966,23 +961,6 @@ func toolResultContentToPart(toolResult fantasy.ToolResultContent) fantasy.ToolR
 		ProviderExecuted: toolResult.ProviderExecuted,
 		ProviderOptions:  fantasy.ProviderOptions(toolResult.ProviderMetadata),
 	}
-}
-
-func isSerializableAnthropicProviderToolCallContent(toolCall fantasy.ToolCallContent) bool {
-	return chatprompt.IsSerializableAnthropicProviderToolCall(toolCallContentToPart(toolCall))
-}
-
-func isSerializableAnthropicProviderToolResultContent(
-	toolResult fantasy.ToolResultContent,
-	matchedCall fantasy.ToolCallContent,
-) bool {
-	if toolResult.ToolName != "" && toolResult.ToolName != matchedCall.ToolName {
-		return false
-	}
-	return chatprompt.IsSerializableAnthropicProviderToolResult(
-		toolResultContentToPart(toolResult),
-		toolCallContentToPart(matchedCall),
-	)
 }
 
 func allowedAnthropicProviderToolNames(provider string, providerTools []ProviderTool) map[string]struct{} {

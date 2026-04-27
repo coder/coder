@@ -171,6 +171,35 @@ func ValidateAnthropicProviderToolHistory(
 	return analysis.violations
 }
 
+// AnthropicProviderToolPartsToRemove returns provider-executed tool parts
+// that cannot be serialized safely in a single Anthropic assistant message.
+// Violation MessageIndex values refer to the synthetic assistant message, so
+// they are always 0.
+func AnthropicProviderToolPartsToRemove(
+	provider string,
+	parts []fantasy.MessagePart,
+) (map[int]struct{}, []AnthropicProviderToolHistoryViolation) {
+	remove := make(map[int]struct{})
+	if provider != fantasyanthropic.Name || len(parts) == 0 {
+		return remove, nil
+	}
+
+	analysis := analyzeAnthropicProviderToolHistory([]fantasy.Message{{
+		Role:    fantasy.MessageRoleAssistant,
+		Content: parts,
+	}})
+	for key := range analysis.remove {
+		if key.messageIndex != 0 {
+			continue
+		}
+		remove[key.partIndex] = struct{}{}
+	}
+
+	violations := make([]AnthropicProviderToolHistoryViolation, len(analysis.violations))
+	copy(violations, analysis.violations)
+	return remove, violations
+}
+
 // SanitizeAnthropicProviderToolHistory removes Anthropic provider-executed
 // tool history that cannot be serialized safely.
 func SanitizeAnthropicProviderToolHistory(
@@ -185,6 +214,7 @@ func SanitizeAnthropicProviderToolHistory(
 	current := messages
 	changed := false
 	for {
+		// Each pass shrinks the finite part set, so the loop terminates.
 		analysis := analyzeAnthropicProviderToolHistory(current)
 		if len(analysis.remove) == 0 {
 			if !changed {

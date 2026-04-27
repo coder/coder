@@ -675,6 +675,162 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 	}
 }
 
+func TestAnthropicProviderToolPartsToRemove(t *testing.T) {
+	t.Parallel()
+
+	providerCall := func(id string) fantasy.ToolCallPart {
+		return fantasy.ToolCallPart{
+			ToolCallID:       id,
+			ToolName:         "web_search",
+			Input:            `{"query":"coder"}`,
+			ProviderExecuted: true,
+		}
+	}
+	providerResult := func(id string) fantasy.ToolResultPart {
+		return fantasy.ToolResultPart{
+			ToolCallID:       id,
+			Output:           fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+			ProviderExecuted: true,
+		}
+	}
+
+	testCases := []struct {
+		name           string
+		provider       string
+		parts          []fantasy.MessagePart
+		wantRemove     []int
+		wantViolations []chatprompt.AnthropicProviderToolHistoryViolation
+	}{
+		{
+			name:           "empty input",
+			provider:       fantasyanthropic.Name,
+			wantRemove:     []int{},
+			wantViolations: []chatprompt.AnthropicProviderToolHistoryViolation{},
+		},
+		{
+			name:     "valid provider call and result",
+			provider: fantasyanthropic.Name,
+			parts: []fantasy.MessagePart{
+				providerCall("srvtoolu_search"),
+				providerResult("srvtoolu_search"),
+			},
+			wantRemove:     []int{},
+			wantViolations: []chatprompt.AnthropicProviderToolHistoryViolation{},
+		},
+		{
+			name:     "orphan provider call",
+			provider: fantasyanthropic.Name,
+			parts: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "keep"},
+				providerCall("srvtoolu_orphan_call"),
+			},
+			wantRemove: []int{1},
+			wantViolations: []chatprompt.AnthropicProviderToolHistoryViolation{{
+				MessageIndex: 0,
+				PartIndex:    1,
+				ID:           "srvtoolu_orphan_call",
+				Reason:       "provider_executed_call_without_result",
+			}},
+		},
+		{
+			name:     "orphan provider result",
+			provider: fantasyanthropic.Name,
+			parts: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "keep"},
+				providerResult("srvtoolu_orphan_result"),
+			},
+			wantRemove: []int{1},
+			wantViolations: []chatprompt.AnthropicProviderToolHistoryViolation{{
+				MessageIndex: 0,
+				PartIndex:    1,
+				ID:           "srvtoolu_orphan_result",
+				Reason:       "provider_executed_result_without_call",
+			}},
+		},
+		{
+			name:     "provider result before call",
+			provider: fantasyanthropic.Name,
+			parts: []fantasy.MessagePart{
+				providerResult("srvtoolu_search"),
+				providerCall("srvtoolu_search"),
+			},
+			wantRemove: []int{0, 1},
+			wantViolations: []chatprompt.AnthropicProviderToolHistoryViolation{
+				{
+					MessageIndex: 0,
+					PartIndex:    0,
+					ID:           "srvtoolu_search",
+					Reason:       "provider_executed_result_before_call",
+				},
+				{
+					MessageIndex: 0,
+					PartIndex:    1,
+					ID:           "srvtoolu_search",
+					Reason:       "provider_executed_result_before_call",
+				},
+			},
+		},
+		{
+			name:     "duplicate provider IDs",
+			provider: fantasyanthropic.Name,
+			parts: []fantasy.MessagePart{
+				providerCall("srvtoolu_duplicate"),
+				providerResult("srvtoolu_duplicate"),
+				providerResult("srvtoolu_duplicate"),
+			},
+			wantRemove: []int{0, 1, 2},
+			wantViolations: []chatprompt.AnthropicProviderToolHistoryViolation{
+				{
+					MessageIndex: 0,
+					PartIndex:    0,
+					ID:           "srvtoolu_duplicate",
+					Reason:       "duplicate_provider_executed_id",
+				},
+				{
+					MessageIndex: 0,
+					PartIndex:    1,
+					ID:           "srvtoolu_duplicate",
+					Reason:       "duplicate_provider_executed_id",
+				},
+				{
+					MessageIndex: 0,
+					PartIndex:    2,
+					ID:           "srvtoolu_duplicate",
+					Reason:       "duplicate_provider_executed_id",
+				},
+			},
+		},
+		{
+			name:     "non Anthropic provider",
+			provider: "fake",
+			parts: []fantasy.MessagePart{
+				providerResult("srvtoolu_orphan_result"),
+			},
+			wantRemove:     []int{},
+			wantViolations: []chatprompt.AnthropicProviderToolHistoryViolation{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			remove, violations := chatprompt.AnthropicProviderToolPartsToRemove(
+				tc.provider,
+				tc.parts,
+			)
+			require.NotNil(t, remove)
+
+			gotRemove := make([]int, 0, len(remove))
+			for partIndex := range remove {
+				gotRemove = append(gotRemove, partIndex)
+			}
+			require.ElementsMatch(t, tc.wantRemove, gotRemove)
+			require.ElementsMatch(t, tc.wantViolations, violations)
+		})
+	}
+}
+
 func TestValidateAnthropicProviderToolHistory(t *testing.T) {
 	t.Parallel()
 
