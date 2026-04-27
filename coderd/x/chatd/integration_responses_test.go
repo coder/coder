@@ -63,7 +63,7 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 		}
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, false, true)
 	server := newActiveTestServer(t, db, ps)
 
@@ -145,7 +145,7 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 		}
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	firstModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
 	secondModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
 	server := newActiveTestServer(t, db, ps)
@@ -205,7 +205,7 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 		return resp
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, false)
 	chat := insertOpenAIResponsesChat(ctx, t, db, org.ID, user.ID, model.ID, "local-pending")
 
@@ -272,7 +272,7 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 		return resp
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
 	chat := insertOpenAIResponsesChat(ctx, t, db, org.ID, user.ID, model.ID, "provider-only")
 
@@ -392,7 +392,6 @@ func insertOpenAIResponsesModelConfig(
 ) database.ChatModelConfig {
 	t.Helper()
 	return insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		userID,
