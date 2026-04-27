@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { CONCRETE_THEMES } from "#/theme/colorblind";
 import { users } from "../../constants";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
@@ -7,13 +8,9 @@ test.beforeEach(({ page }) => {
 	beforeCoderTest(page);
 });
 
-const NON_LIGHT_THEME_CLASSES = [
-	"dark",
-	"dark-protan-deuter",
-	"light-protan-deuter",
-	"dark-tritan",
-	"light-tritan",
-] as const;
+const NON_LIGHT_THEME_CLASSES = CONCRETE_THEMES.filter(
+	(themeClassName) => themeClassName !== "light",
+);
 
 const expectPlainLightTheme = async (page: Page) => {
 	const classes = await page
