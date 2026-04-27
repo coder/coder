@@ -156,7 +156,7 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	require.False(t, debugEnabled)
 	require.Empty(t, resolvedProvider)
 	require.Empty(t, resolvedModel)
-	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.2"`)
+	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.5"`)
 	require.Contains(t, err.Error(), "OPENAI_API_KEY is not set")
 	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
 }

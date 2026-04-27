@@ -51,7 +51,7 @@ func DefaultComputerUseModel(provider string) (modelProvider, modelName string, 
 		return ComputerUseModelProvider, ComputerUseModelName, true
 	case ComputerUseProviderOpenAI:
 		// Keep OpenAI isolated here because computer-use models may advance.
-		return ComputerUseProviderOpenAI, "gpt-5.2", true
+		return ComputerUseProviderOpenAI, "gpt-5.5", true
 	default:
 		return "", "", false
 	}

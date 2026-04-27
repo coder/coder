@@ -52,7 +52,7 @@ func TestDefaultComputerUseModel(t *testing.T) {
 			name:              "OpenAI",
 			provider:          chattool.ComputerUseProviderOpenAI,
 			wantModelProvider: chattool.ComputerUseProviderOpenAI,
-			wantModelName:     "gpt-5.2",
+			wantModelName:     "gpt-5.5",
 			wantOK:            true,
 		},
 		{
