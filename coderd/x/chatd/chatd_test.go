@@ -23,6 +23,7 @@ import (
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -825,6 +826,17 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		ClientType:   database.ChatClientTypeApi,
 	})
 
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        exploreChat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: webSearchModel.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`[{"type":"text","text":"inspect the codebase"}]`),
+			Valid:      true,
+		},
+	})
+
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
@@ -1564,7 +1576,6 @@ func insertParentWithActiveChild(
 	org database.Organization,
 	model database.ChatModelConfig,
 ) (parent database.Chat, child database.Chat) {
-	t.Helper()
 	t.Helper()
 	parent = dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,

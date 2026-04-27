@@ -1624,7 +1624,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 			require.NoError(t, err)
 
 			setChatStatus(ctx, t, db, childID, database.ChatStatusWaiting, "")
-			insertAssistantMessage(ctx, t, db, childID, model.ID, "task complete")
+			insertAssistantMessage(t, db, childID, model.ID, "task complete")
 			waitResult := requireToolResponseMap(t, runSubagentTool(
 				ctx,
 				t,
@@ -2141,7 +2141,6 @@ func setChatStatus(
 // insertAssistantMessage inserts an assistant message with v1 content
 // into a chat.
 func insertAssistantMessage(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -2222,7 +2221,7 @@ func TestWaitAgentDoesNotRelayComputerUseSubagentAttachments(t *testing.T) {
 		"image/png",
 		[]byte("fake-png"),
 	)
-	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Shared the screenshot.")
+	insertAssistantMessage(t, db, child.ID, model.ID, "Shared the screenshot.")
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
@@ -2288,7 +2287,7 @@ func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
 		"text/plain",
 		[]byte("release notes"),
 	)
-	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Shared the release notes.")
+	insertAssistantMessage(t, db, child.ID, model.ID, "Shared the release notes.")
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 	resp, err := invokeWaitAgentTool(ctx, t, server, db, parent.ID, child.ID, 5)
@@ -2357,7 +2356,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
-		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "task complete")
+		insertAssistantMessage(t, db, child.ID, model.ID, "task complete")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
 			ctx, parent.ID, child.ID, time.Second,
@@ -2375,7 +2374,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "something broke")
-		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "partial work done")
+		insertAssistantMessage(t, db, child.ID, model.ID, "partial work done")
 
 		_, _, err := server.awaitSubagentCompletion(
 			ctx, parent.ID, child.ID, time.Second,
@@ -2438,7 +2437,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		// Now set the state and advance the clock to the next
 		// tick so the poll detects the transition.
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
-		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "poll result")
+		insertAssistantMessage(t, db, child.ID, model.ID, "poll result")
 		mClock.Advance(subagentAwaitPollInterval).MustWait(ctx)
 
 		result := testutil.RequireReceive(ctx, t, resultCh)
@@ -2516,7 +2515,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		// see done=true (Waiting) with an empty report. By
 		// inserting the message first, the report is guaranteed
 		// to be committed before the status makes it visible.
-		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "pubsub result")
+		insertAssistantMessage(t, db, child.ID, model.ID, "pubsub result")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			chat, report, done, err := server.checkSubagentCompletion(ctx, child.ID)
@@ -2637,7 +2636,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// Pre-complete the child so it returns immediately.
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
-		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "zero timeout ok")
+		insertAssistantMessage(t, db, child.ID, model.ID, "zero timeout ok")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
 			ctx, parent.ID, child.ID, 0,

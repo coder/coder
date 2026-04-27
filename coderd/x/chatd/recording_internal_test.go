@@ -198,7 +198,7 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 	}
 
 	// Add an assistant message so the report is extracted.
-	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "I opened Firefox.")
+	insertAssistantMessage(t, db, child.ID, model.ID, "I opened Firefox.")
 
 	// Set child to waiting (terminal success state).
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
@@ -282,7 +282,7 @@ func TestWaitAgentComputerUseRecordingWithThumbnail(t *testing.T) {
 		return mockConn, func() {}, nil
 	}
 
-	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "I opened Firefox and took a screenshot.")
+	insertAssistantMessage(t, db, child.ID, model.ID, "I opened Firefox and took a screenshot.")
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
@@ -365,7 +365,7 @@ func TestWaitAgentNonComputerUseNoRecording(t *testing.T) {
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 	// Add an assistant message so the report is extracted.
-	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Done.")
+	insertAssistantMessage(t, db, child.ID, model.ID, "Done.")
 
 	// Wait for background processing triggered by CreateChat to
 	// settle before setting up the mock agent connection.
@@ -426,7 +426,7 @@ func TestWaitAgentRecordingStartFails(t *testing.T) {
 		return mockConn, func() {}, nil
 	}
 
-	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Opened the browser.")
+	insertAssistantMessage(t, db, child.ID, model.ID, "Opened the browser.")
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 	// StartDesktopRecording fails. StopDesktopRecording must NOT
@@ -480,7 +480,7 @@ func TestWaitAgentRecordingStopFails(t *testing.T) {
 		return mockConn, func() {}, nil
 	}
 
-	insertAssistantMessage(ctx, t, db, child.ID, model.ID, "Checked settings.")
+	insertAssistantMessage(t, db, child.ID, model.ID, "Checked settings.")
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 	// Start succeeds, stop fails.

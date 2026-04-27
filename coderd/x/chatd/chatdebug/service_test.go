@@ -98,11 +98,11 @@ func TestService_CreateRun(t *testing.T) {
 	t.Parallel()
 
 	fixture := newFixture(t)
-	rootChat := insertChat(fixture.ctx, t, fixture.db, fixture.org.ID, fixture.owner.ID, fixture.model.ID)
-	parentChat := insertChat(fixture.ctx, t, fixture.db, fixture.org.ID, fixture.owner.ID, fixture.model.ID)
-	triggerMsg := insertMessage(fixture.ctx, t, fixture.db, fixture.chat.ID,
+	rootChat := insertChat(t, fixture.db, fixture.org.ID, fixture.owner.ID, fixture.model.ID)
+	parentChat := insertChat(t, fixture.db, fixture.org.ID, fixture.owner.ID, fixture.model.ID)
+	triggerMsg := insertMessage(t, fixture.db, fixture.chat.ID,
 		fixture.owner.ID, fixture.model.ID, database.ChatMessageRoleUser, "trigger")
-	historyTipMsg := insertMessage(fixture.ctx, t, fixture.db, fixture.chat.ID,
+	historyTipMsg := insertMessage(t, fixture.db, fixture.chat.ID,
 		fixture.owner.ID, fixture.model.ID, database.ChatMessageRoleAssistant,
 		"history-tip")
 
@@ -279,7 +279,7 @@ func TestService_CreateStep(t *testing.T) {
 
 	fixture := newFixture(t)
 	run := createRun(t, fixture)
-	historyTipMsg := insertMessage(fixture.ctx, t, fixture.db, fixture.chat.ID,
+	historyTipMsg := insertMessage(t, fixture.db, fixture.chat.ID,
 		fixture.owner.ID, fixture.model.ID, database.ChatMessageRoleAssistant,
 		"history-tip")
 
@@ -424,7 +424,7 @@ func TestService_CreateStep_ChatIDMismatchReportsNotFound(t *testing.T) {
 	// attach a step to the existing run using the wrong chat_id.
 	// The insert's locked_run WHERE fails on chat_id, producing
 	// sql.ErrNoRows; classifyMissingRun must report not-found.
-	otherChat := insertChat(fixture.ctx, t, fixture.db, fixture.org.ID,
+	otherChat := insertChat(t, fixture.db, fixture.org.ID,
 		fixture.owner.ID, fixture.model.ID)
 
 	_, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
@@ -454,7 +454,7 @@ func TestService_UpdateStep(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assistantMsg := insertMessage(fixture.ctx, t, fixture.db, fixture.chat.ID,
+	assistantMsg := insertMessage(t, fixture.db, fixture.chat.ID,
 		fixture.owner.ID, fixture.model.ID, database.ChatMessageRoleAssistant,
 		"assistant")
 	finishedAt := time.Now().UTC().Round(time.Microsecond)
@@ -598,12 +598,12 @@ func TestService_DeleteAfterMessageID(t *testing.T) {
 	t.Parallel()
 
 	fixture := newFixture(t)
-	low := insertMessage(fixture.ctx, t, fixture.db, fixture.chat.ID, fixture.owner.ID,
+	low := insertMessage(t, fixture.db, fixture.chat.ID, fixture.owner.ID,
 		fixture.model.ID, database.ChatMessageRoleAssistant, "low")
-	threshold := insertMessage(fixture.ctx, t, fixture.db, fixture.chat.ID,
+	threshold := insertMessage(t, fixture.db, fixture.chat.ID,
 		fixture.owner.ID, fixture.model.ID, database.ChatMessageRoleAssistant,
 		"threshold")
-	high := insertMessage(fixture.ctx, t, fixture.db, fixture.chat.ID, fixture.owner.ID,
+	high := insertMessage(t, fixture.db, fixture.chat.ID, fixture.owner.ID,
 		fixture.model.ID, database.ChatMessageRoleAssistant, "high")
 	require.Less(t, low.ID, threshold.ID)
 	require.Less(t, threshold.ID, high.ID)
@@ -1101,12 +1101,11 @@ func seedChat(
 		IsDefault: true,
 	})
 
-	chat := insertChat(ctx, t, db, org.ID, owner.ID, model.ID)
+	chat := insertChat(t, db, org.ID, owner.ID, model.ID)
 	return org, owner, chat, model
 }
 
 func insertChat(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	orgID uuid.UUID,
@@ -1125,7 +1124,6 @@ func insertChat(
 }
 
 func insertMessage(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,

@@ -217,7 +217,6 @@ func enableDailyChatUsageLimit(
 }
 
 func insertAssistantCostMessage(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
@@ -683,7 +682,7 @@ func TestPostChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "existing-limit-chat",
 		})
-		insertAssistantCostMessage(ctx, t, db, existingChat.ID, modelConfig.ID, 100)
+		insertAssistantCostMessage(t, db, existingChat.ID, modelConfig.ID, 100)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
@@ -1768,7 +1767,6 @@ func TestWatchChats(t *testing.T) {
 		refreshedAt := time.Now().UTC().Truncate(time.Second)
 		staleAt := refreshedAt.Add(time.Hour)
 		_, err := db.UpsertChatDiffStatusReference(
-
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
 				ChatID:          chat.ID,
@@ -2705,7 +2703,7 @@ func TestDeleteChatProvider(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, configToDelete.ID, chat.LastModelConfigID)
 
-		insertAssistantCostMessage(ctx, t, db, chat.ID, configToDelete.ID, 500)
+		insertAssistantCostMessage(t, db, chat.ID, configToDelete.ID, 500)
 
 		_, err = client.UpsertUserChatProviderKey(ctx, providerToDelete.ID, codersdk.CreateUserChatProviderKeyRequest{
 			APIKey: "user-delete-key",
@@ -2812,7 +2810,7 @@ func TestDeleteChatProvider(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, config.ID, chat.LastModelConfigID)
 
-		insertAssistantCostMessage(ctx, t, db, chat.ID, config.ID, 250)
+		insertAssistantCostMessage(t, db, chat.ID, config.ID, 250)
 
 		err = client.DeleteChatProvider(ctx, provider.ID)
 		require.NoError(t, err)
@@ -5738,7 +5736,7 @@ func TestPostChatMessages(t *testing.T) {
 		require.NoError(t, err)
 
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
-		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
+		insertAssistantCostMessage(t, db, chat.ID, modelConfig.ID, 100)
 
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -7080,7 +7078,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NotZero(t, userMessageID)
 
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
-		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
+		insertAssistantCostMessage(t, db, chat.ID, modelConfig.ID, 100)
 
 		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -7558,7 +7556,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.NoError(t, err)
 
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
-		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
+		insertAssistantCostMessage(t, db, chat.ID, modelConfig.ID, 100)
 
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,
@@ -8232,7 +8230,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
+		insertAssistantCostMessage(t, db, chat.ID, modelConfig.ID, 100)
 
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,
