@@ -1463,7 +1463,89 @@ func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
 	require.True(t, unavailableResp.IsError)
-	require.Contains(t, unavailableResp.Content, `type "computer_use" is unavailable because computer use is not configured`)
+	require.Contains(t, unavailableResp.Content, `type "computer_use" is unavailable because the configured provider "anthropic" is not configured`)
+}
+
+func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
+	require.NoError(t, db.UpsertChatComputerUseProvider(
+		ctx,
+		chattool.ComputerUseProviderOpenAI,
+	))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-computer-use",
+	)
+
+	ids := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.Contains(t, ids, subagentTypeComputerUse)
+}
+
+func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
+	require.NoError(t, db.UpsertChatComputerUseProvider(
+		ctx,
+		chattool.ComputerUseProviderOpenAI,
+	))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	model := insertInternalChatModelConfigForProvider(
+		ctx,
+		t,
+		db,
+		user.ID,
+		chattool.ComputerUseProviderOpenAI,
+		"gpt-4o-mini",
+		true,
+	)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-missing",
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, `configured provider "openai" is not configured`)
+}
+
+func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-desktop-disabled",
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, `type "computer_use" is unavailable because desktop access is not enabled`)
 }
 
 func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
@@ -1778,10 +1860,12 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.True(t, childChat.Mode.Valid)
 	assert.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
-	assert.NotEqual(t, model.Provider, chattool.ComputerUseModelProvider,
+	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(chattool.ComputerUseProviderAnthropic)
+	require.True(t, ok)
+	assert.NotEqual(t, model.Provider, computerUseModelProvider,
 		"computer use model provider must differ from parent model provider")
-	assert.Equal(t, "anthropic", chattool.ComputerUseModelProvider)
-	assert.NotEmpty(t, chattool.ComputerUseModelName)
+	assert.Equal(t, "anthropic", computerUseModelProvider)
+	assert.NotEmpty(t, computerUseModelName)
 }
 
 func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {

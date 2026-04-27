@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"charm.land/fantasy"
@@ -103,8 +104,21 @@ func allSubagentDefinitions() []subagentDefinition {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}
-				if !p.isAnthropicConfigured(ctx) || !p.isDesktopEnabled(ctx) {
-					return `type "computer_use" is unavailable because computer use is not configured`
+				if !p.isDesktopEnabled(ctx) {
+					return `type "computer_use" is unavailable because desktop access is not enabled`
+				}
+				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				if err != nil {
+					return fmt.Sprintf(
+						`type "computer_use" is unavailable because %s`,
+						err.Error(),
+					)
+				}
+				if !p.isProviderConfigured(ctx, provider) {
+					return fmt.Sprintf(
+						`type "computer_use" is unavailable because the configured provider %q is not configured`,
+						provider,
+					)
 				}
 				return ""
 			},

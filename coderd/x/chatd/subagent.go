@@ -77,18 +77,24 @@ type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
 }
 
-// isAnthropicConfigured reports whether an Anthropic API key is
-// available, either from static provider keys or from the database.
-func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
-	if p.providerAPIKeys.APIKey("anthropic") != "" {
+// isProviderConfigured reports whether a provider has an API key from
+// static configuration or from the database provider configuration.
+func (p *Server) isProviderConfigured(ctx context.Context, provider string) bool {
+	normalizedProvider := chatprovider.NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return false
+	}
+	if p.providerAPIKeys.APIKey(normalizedProvider) != "" {
 		return true
 	}
+
 	dbProviders, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
 		return false
 	}
 	for _, prov := range dbProviders {
-		if chatprovider.NormalizeProvider(prov.Provider) == "anthropic" && strings.TrimSpace(prov.APIKey) != "" {
+		if chatprovider.NormalizeProvider(prov.Provider) == normalizedProvider &&
+			strings.TrimSpace(prov.APIKey) != "" {
 			return true
 		}
 	}
