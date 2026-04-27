@@ -63,7 +63,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - Prefer `for...of` over `forEach` for iteration
 - **Biome** handles both linting and formatting (not ESLint/Prettier)
 - Access browser globals like `location`, `navigator`, and `document`
-  directly — do not prefix them with `window.` (e.g., write
+  directly. Do not prefix them with `window.` (e.g., write
   `location.href`, not `window.location.href`). They are globally
   available in every browser context.
 - Always use react-query for data fetching. Do not attempt to manage any
