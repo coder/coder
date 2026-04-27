@@ -9,6 +9,7 @@ import {
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
+	addCreatedChatToCaches,
 	archiveChat,
 	cancelChatListRefetches,
 	chatCostSummary,
@@ -1841,6 +1842,45 @@ describe("addChildToParentInCache", () => {
 	});
 });
 
+describe("addCreatedChatToCaches", () => {
+	it("prepends a root chat and seeds its detail cache", () => {
+		const queryClient = createTestQueryClient();
+		const existingChat = makeChat("existing-chat");
+		const createdChat = makeChat("created-chat", {
+			status: "pending",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		seedInfiniteChats(queryClient, [existingChat]);
+
+		addCreatedChatToCaches(queryClient, createdChat);
+
+		expect(readInfiniteChats(queryClient)?.map((chat) => chat.id)).toEqual([
+			"created-chat",
+			"existing-chat",
+		]);
+		expect(queryClient.getQueryData(chatKey(createdChat.id))).toEqual(
+			createdChat,
+		);
+	});
+
+	it("adds a child chat to its parent and seeds its detail cache", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		const child = makeChat("child-1", {
+			parent_chat_id: parent.id,
+			root_chat_id: parent.id,
+			status: "pending",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		seedInfiniteChats(queryClient, [parent]);
+
+		addCreatedChatToCaches(queryClient, child);
+
+		expect(readInfiniteChats(queryClient)?.[0].children?.[0]).toEqual(child);
+		expect(queryClient.getQueryData(chatKey(child.id))).toEqual(child);
+	});
+});
+
 describe("updateChildInParentCache", () => {
 	it("applies the updater to a child nested under its parent", () => {
 		const queryClient = createTestQueryClient();
@@ -2147,6 +2187,64 @@ describe("mergeWatchedChatSummary", () => {
 });
 
 describe("mergeWatchedChatIntoCaches", () => {
+	it("seeds the per-chat cache when no detail cache exists", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const watchedChat = makeChat(chatId, {
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		seedInfiniteChats(queryClient, [watchedChat]);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChat, {
+			eventKind: "status_change",
+		});
+
+		expect(queryClient.getQueryData(chatKey(chatId))).toEqual(watchedChat);
+	});
+
+	it("merges an existing detail cache without replacing REST-only fields", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const files: TypesGen.ChatFileMetadata[] = [
+			{
+				id: "file-1",
+				owner_id: "owner-1",
+				organization_id: "test-org-id",
+				name: "context.md",
+				mime_type: "text/markdown",
+				created_at: "2025-01-01T00:00:00.000Z",
+			},
+		];
+		const cachedChat = makeChat(chatId, {
+			files,
+			warnings: ["REST detail warning"],
+			status: "pending",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat(chatId, {
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		queryClient.setQueryData(chatKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChat, {
+			eventKind: "status_change",
+		});
+
+		const mergedChat = queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId));
+		expect(mergedChat).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		expect(mergedChat?.files).toBe(files);
+		expect(mergedChat?.warnings).toEqual(["REST detail warning"]);
+	});
+
 	it("merges last_model_config_id into the root list cache and per-chat cache", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

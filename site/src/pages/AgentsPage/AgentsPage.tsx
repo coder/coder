@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
-	addChildToParentInCache,
+	addCreatedChatToCaches,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -22,7 +22,6 @@ import {
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
 	pinChat,
-	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
@@ -561,24 +560,8 @@ const AgentsPage: FC = () => {
 						});
 					}
 
-					// For "created" events, use a cross-page existence
-					// check and prepend only to the first page.
-					// updateInfiniteChatsCache runs the updater per
-					// page, so a naive prepend would duplicate the
-					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
-						if (updatedChat.parent_chat_id) {
-							// Child chat: add to its parent's children
-							// array. If the parent is not in any loaded
-							// page, the child is silently dropped.
-							addChildToParentInCache(
-								queryClient,
-								updatedChat,
-								updatedChat.parent_chat_id,
-							);
-						} else {
-							prependToInfiniteChatsCache(queryClient, updatedChat);
-						}
+						addCreatedChatToCaches(queryClient, updatedChat);
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
 							eventKind: chatEvent.kind,

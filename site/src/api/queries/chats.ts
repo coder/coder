@@ -62,7 +62,7 @@ export const updateInfiniteChatsCache = (
  * a prepend updater were passed to updateInfiniteChatsCache, which
  * runs independently on each page.
  */
-export const prependToInfiniteChatsCache = (
+const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
@@ -322,6 +322,46 @@ export const mergeWatchedChatSummary = (
 	};
 };
 
+const mergeChatIntoDetailCache = (
+	queryClient: QueryClient,
+	watchedChat: TypesGen.Chat,
+	options: MergeWatchedChatOptions,
+) => {
+	queryClient.setQueryData<TypesGen.Chat>(
+		chatKey(watchedChat.id),
+		(cachedChat) => {
+			if (!cachedChat) {
+				return watchedChat;
+			}
+			return mergeWatchedChatSummary(cachedChat, watchedChat, options);
+		},
+	);
+};
+
+/**
+ * Adds a created chat to list or parent caches and seeds the per-chat
+ * detail cache without replacing fresher cached metadata.
+ */
+export const addCreatedChatToCaches = (
+	queryClient: QueryClient,
+	createdChat: TypesGen.Chat,
+) => {
+	if (createdChat.parent_chat_id) {
+		// If the parent is not in any loaded page, the child is
+		// silently dropped and will appear when the parent loads.
+		addChildToParentInCache(
+			queryClient,
+			createdChat,
+			createdChat.parent_chat_id,
+		);
+	} else {
+		// Use a cross-page existence check and prepend only to the
+		// first page so the chat is not duplicated in every page.
+		prependToInfiniteChatsCache(queryClient, createdChat);
+	}
+	mergeChatIntoDetailCache(queryClient, createdChat, { eventKind: "created" });
+};
+
 /**
  * Applies the same event-scoped merge and stale guard across the list,
  * parent-child, and per-chat caches, covering all three cache layers.
@@ -350,15 +390,7 @@ export const mergeWatchedChatIntoCaches = (
 	});
 
 	updateChildInParentCache(queryClient, mergeCachedChat, watchedChat.id);
-	queryClient.setQueryData<TypesGen.Chat | undefined>(
-		chatKey(watchedChat.id),
-		(cachedChat) => {
-			if (!cachedChat) {
-				return cachedChat;
-			}
-			return mergeCachedChat(cachedChat);
-		},
-	);
+	mergeChatIntoDetailCache(queryClient, watchedChat, options);
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
