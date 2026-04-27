@@ -84,6 +84,13 @@ const mockAvailableRoles = [
 	assignableRole(MockAuditorRole, true),
 ];
 
+export const RolesLoading: Story = {
+	args: {
+		rolesLoading: true,
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
 export const WithRoles: Story = {
 	args: {
 		availableRoles: mockAvailableRoles,

@@ -2,6 +2,7 @@ import { UserIcon } from "lucide-react";
 import { type FC, useId } from "react";
 import type { AssignableRoles } from "#/api/typesGenerated";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 
 const roleDescriptions: Record<string, string> = {
 	owner:
@@ -18,12 +19,14 @@ interface RoleSelectorProps {
 	roles: AssignableRoles[];
 	selectedRoles: string[];
 	onChange: (roles: string[]) => void;
+	loading?: boolean;
 }
 
 export const RoleSelector: FC<RoleSelectorProps> = ({
 	roles,
 	selectedRoles,
 	onChange,
+	loading,
 }) => {
 	const baseId = useId();
 	const selectableRoles = roles.filter(
@@ -37,6 +40,34 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 			onChange([...selectedRoles, roleName]);
 		}
 	};
+
+	if (loading) {
+		return (
+			<div className="flex flex-col gap-2">
+				<span className="text-sm font-medium">Roles</span>
+				<div className="border border-border border-solid rounded-md">
+					<div className="p-3 flex flex-col gap-2">
+						{Array.from({ length: 4 }, (_, i) => (
+							<div key={i} className="flex items-start gap-2">
+								<Skeleton className="mt-1 shrink-0 size-4 rounded" />
+								<div className="flex flex-col gap-1 flex-1">
+									<Skeleton variant="text" className="w-24" />
+									<Skeleton variant="text" className="w-48" />
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+				<div className="border-t border-border py-2 flex items-start gap-2 text-content-disabled">
+					<UserIcon className="size-4 mt-1 shrink-0" />
+					<div className="flex flex-col">
+						<span className="text-sm font-medium">Member</span>
+						<span className="text-sm">{roleDescriptions.member}</span>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex flex-col gap-2">

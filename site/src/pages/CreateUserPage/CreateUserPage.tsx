@@ -65,6 +65,7 @@ const CreateUserPage: FC = () => {
 				showOrganizations={showOrganizations}
 				serviceAccountsEnabled={serviceAccountsEnabled}
 				availableRoles={rolesQuery.data}
+				rolesLoading={rolesQuery.isLoading}
 			/>
 		</Margins>
 	);
