@@ -755,19 +755,37 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "triggered update")
 			best = m.bestMappings(m.c.getLatestMapping())
 		}
-		update := m.bestToUpdate(best)
-		if update == nil {
+		su := m.bestToUpdate(best)
+		if su == nil {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		for _, chunk := range update.Chunked() {
+		failed := false
+		for _, chunk := range su.resp.Chunked() {
 			if err := m.c.Enqueue(chunk); err != nil {
 				// lots of reasons this could happen, most usually, the peer has disconnected.
 				m.logger.Debug(m.ctx, "failed to enqueue chunk", slog.Error(err))
+				failed = true
 				break
 			}
 		}
+		// Only commit the sent cache mutations once all chunks have been
+		// enqueued successfully. If any Enqueue failed (e.g. the peer's
+		// response channel was full and dropped the update), leave m.sent
+		// unchanged so the mapper retries on the next cycle.
+		if !failed {
+			m.commitSent(su)
+		}
 	}
+}
+
+// sentUpdate captures a coordinate response together with the pending
+// mutations to the mapper's sent cache. The mutations are only applied to
+// m.sent after the response has been successfully enqueued for delivery.
+type sentUpdate struct {
+	resp    *proto.CoordinateResponse
+	upserts map[uuid.UUID]mapping
+	deletes []uuid.UUID
 }
 
 // bestMappings takes a set of mappings and resolves the best set of nodes.  We may get several mappings for a
@@ -797,8 +815,16 @@ func (m *mapper) bestMappings(mappings []mapping) map[uuid.UUID]mapping {
 	return best
 }
 
-func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateResponse {
+// bestToUpdate computes the CoordinateResponse needed to bring the peer's
+// view in line with the current "best" mappings. It does NOT mutate m.sent;
+// instead, it returns a *sentUpdate describing the pending mutations to apply
+// once the response has been successfully enqueued. This avoids losing track
+// of pending updates if Enqueue fails (for example because the peer's
+// response channel is full and the update gets dropped).
+func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *sentUpdate {
 	resp := new(proto.CoordinateResponse)
+	upserts := make(map[uuid.UUID]mapping)
+	var deletes []uuid.UUID
 
 	for k, mpng := range best {
 		var reason string
@@ -833,7 +859,7 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 			Kind:   mpng.kind,
 			Reason: reason,
 		})
-		m.sent[k] = mpng
+		upserts[k] = mpng
 	}
 
 	for k := range m.sent {
@@ -843,14 +869,31 @@ func (m *mapper) bestToUpdate(best map[uuid.UUID]mapping) *proto.CoordinateRespo
 				Kind:   proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 				Reason: "disconnected",
 			})
-			delete(m.sent, k)
+			deletes = append(deletes, k)
 		}
 	}
 
 	if len(resp.PeerUpdates) == 0 {
 		return nil
 	}
-	return resp
+	return &sentUpdate{
+		resp:    resp,
+		upserts: upserts,
+		deletes: deletes,
+	}
+}
+
+// commitSent applies the pending sent-cache mutations from a sentUpdate.
+// Callers must only invoke this after the response has been successfully
+// enqueued, so that a failure to enqueue does not desynchronize m.sent from
+// what the peer has actually received.
+func (m *mapper) commitSent(su *sentUpdate) {
+	for k, mpng := range su.upserts {
+		m.sent[k] = mpng
+	}
+	for _, k := range su.deletes {
+		delete(m.sent, k)
+	}
 }
 
 // querier is responsible for monitoring pubsub notifications and querying the database for the
