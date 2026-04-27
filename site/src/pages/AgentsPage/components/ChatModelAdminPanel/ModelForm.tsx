@@ -75,6 +75,7 @@ const validationSchema = Yup.object({
 interface ModelFormProps {
 	/** When set, the form is in "edit" mode for the given model. */
 	editingModel?: TypesGen.ChatModelConfig;
+	duplicateSourceModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
@@ -95,6 +96,7 @@ interface ModelFormProps {
 
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,
+	duplicateSourceModel,
 	providerStates,
 	selectedProvider,
 	selectedProviderState,
@@ -107,21 +109,40 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onCancel,
 	onDeleteModel,
 }) => {
+	const initialModel = editingModel ?? duplicateSourceModel;
 	const isEditing = Boolean(editingModel);
-	const isDefaultModel = isEditing && editingModel?.is_default === true;
+	const isDuplicating = Boolean(duplicateSourceModel) && !isEditing;
+	const effectiveProvider =
+		editingModel?.provider ??
+		duplicateSourceModel?.provider ??
+		selectedProvider;
+	const matchingProviderState = effectiveProvider
+		? providerStates.find((ps) => ps.provider === effectiveProvider)
+		: undefined;
+	const effectiveProviderState = effectiveProvider
+		? (matchingProviderState ?? null)
+		: selectedProviderState;
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [showPricing, setShowPricing] = useState(false);
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
-		selectedProviderState?.providerConfig &&
-			(selectedProviderState.hasEffectiveAPIKey ||
-				selectedProviderState.providerConfig.allow_user_api_key),
+		effectiveProviderState?.providerConfig &&
+			(effectiveProviderState.hasEffectiveAPIKey ||
+				effectiveProviderState.providerConfig.allow_user_api_key),
 	);
+	const formTitle = isEditing
+		? "Edit Model"
+		: isDuplicating
+			? "Duplicate Model"
+			: "Add Model";
+	const formDescription = isDuplicating
+		? "Review the copied settings, then save to create a new model."
+		: undefined;
 
 	const form = useFormik<ModelFormValues>({
-		initialValues: buildInitialModelFormValues(editingModel),
+		initialValues: buildInitialModelFormValues(initialModel),
 		validationSchema,
 		validateOnMount: true,
 		validateOnBlur: false,
@@ -137,7 +158,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				selectedProviderState?.provider,
+				effectiveProvider,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -174,12 +195,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfig) return;
+				if (!effectiveProvider || !effectiveProviderState?.providerConfig)
+					return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: selectedProviderState.provider,
+					provider: effectiveProvider,
 					model: trimmedModel,
-					enabled: true,
+					enabled: values.enabled,
+					is_default: values.isDefault,
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -188,9 +211,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 					}),
 					...(trimmedDisplayName && {
 						display_name: trimmedDisplayName,
-					}),
-					...(values.isDefault && {
-						is_default: true,
 					}),
 					...(builtModelConfig && {
 						model_config: builtModelConfig,
@@ -208,13 +228,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		selectedProviderState?.provider,
+		effectiveProvider,
 		form.values.config,
 	);
 
 	const hasFieldErrors =
 		Object.keys(modelConfigFormBuildResult.fieldErrors).length > 0;
-	const defaultModelDisableGuard = isDefaultModel && form.values.enabled;
+	const defaultModelDisableGuard = form.values.isDefault && form.values.enabled;
 
 	// ── Provider select (shared across all form states) ───────
 
@@ -227,9 +247,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 				Provider
 			</Label>
 			<Select
-				value={selectedProvider ?? ""}
+				value={effectiveProvider ?? ""}
 				onValueChange={onSelectedProviderChange}
-				disabled={isEditing || providerStates.length === 0}
+				disabled={isEditing || isDuplicating || providerStates.length === 0}
 			>
 				<SelectTrigger
 					id="providerSelect"
@@ -252,12 +272,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 	);
 
 	// No provider selected or configs unavailable.
-	if (!selectedProviderState || modelConfigsUnavailable) {
+	if (!effectiveProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
 				<BackButton onClick={onCancel} />
 				<h2 className="m-0 text-lg font-medium text-content-primary">
-					{isEditing ? "Edit Model" : "Add Model"}
+					{formTitle}
 				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">{providerSelect}</div>
@@ -271,13 +291,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<div>
 				<BackButton onClick={onCancel} />
 				<h2 className="m-0 text-lg font-medium text-content-primary">
-					Add Model
+					{formTitle}
 				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">
 					{providerSelect}
 					<p className="text-sm text-content-secondary">
-						{!selectedProviderState.providerConfig
+						{!effectiveProviderState.providerConfig
 							? "Create a managed provider config on the Providers tab before adding models."
 							: "Set an API key for this provider on the Providers tab before adding models."}
 					</p>
@@ -295,11 +315,22 @@ export const ModelForm: FC<ModelFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<BackButton onClick={onCancel} /> {/* Header - editable display name */}
+			<BackButton onClick={onCancel} />
+			<div className="mb-4">
+				<h2 className="m-0 text-lg font-medium text-content-primary">
+					{formTitle}
+				</h2>
+				{formDescription && (
+					<p className="m-0 mt-1 text-sm text-content-secondary">
+						{formDescription}
+					</p>
+				)}
+			</div>
+			{/* Header - editable display name */}
 			<div className="flex items-center gap-3">
-				{selectedProviderState && (
+				{effectiveProviderState && (
 					<ProviderIcon
-						provider={selectedProviderState.provider}
+						provider={effectiveProviderState.provider}
 						className="h-8 w-8"
 					/>
 				)}
@@ -309,10 +340,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
 							aria-hidden="true"
 						>
-							{form.values.displayName ||
-								(isEditing
-									? (editingModel?.model ?? "Model name")
-									: "Model name")}
+							{form.values.displayName || initialModel?.model || "Model name"}
 						</span>
 						<input
 							type="text"
@@ -320,14 +348,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 							disabled={isSaving}
 							spellCheck={false}
 							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-							placeholder={
-								isEditing ? (editingModel?.model ?? "Model name") : "Model name"
-							}
+							placeholder={initialModel?.model ?? "Model name"}
 						/>
 					</div>
 					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 				</div>{" "}
-				{editingModel && (
+				{initialModel && (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<span className="ml-auto inline-flex">
@@ -343,7 +369,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
 							{defaultModelDisableGuard
-								? "Default model cannot be disabled. Remove default status first."
+								? isEditing
+									? "Default model cannot be disabled. Remove default status first."
+									: "A duplicated default model must stay enabled."
 								: form.values.enabled
 									? "Disable this model. It will be hidden from users."
 									: "Enable this model. It will be visible to users."}
@@ -483,7 +511,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showPricing && (
 							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
 								<PricingModelConfigFields
-									provider={selectedProviderState.provider}
+									provider={effectiveProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -517,7 +545,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showProviderConfig && (
 							<div className="pt-3">
 								<ModelConfigFields
-									provider={selectedProviderState.provider}
+									provider={effectiveProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -551,7 +579,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showAdvanced && (
 							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
 								<GeneralModelConfigFields
-									provider={selectedProviderState.provider}
+									provider={effectiveProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -633,7 +661,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 							disabled={isSaving || !form.isValid || hasFieldErrors}
 						>
 							{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
-							{isEditing ? "Save" : "Add model"}
+							{isEditing
+								? "Save"
+								: isDuplicating
+									? "Create duplicate"
+									: "Add model"}
 						</Button>
 					</div>
 				</div>
