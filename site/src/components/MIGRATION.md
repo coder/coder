@@ -56,17 +56,17 @@ points for MUI replacement work.
 
 ## Canonical mapping
 
-| MUI component or API | Replacement pattern | Notes |
-| --- | --- | --- |
-| `TextField` | `FormField` for form-backed labeled inputs, or `Input` for bare inputs | `FormField` already wires label, helper text, errors, and accessible descriptions. |
-| `Link` | `#/components/Link/Link` | Use `asChild` when composing with router links or another anchor-like child. |
-| `Select` plus `MenuItem` | `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, and `SelectItem` | This is the default closed-list replacement for finite options. |
-| `MenuItem` in action menus | Menu primitives in a later slice | Do not map action-menu items to `SelectItem`. Slice 1 documents the direction only. |
-| `FormControlLabel` | `Checkbox` or `Switch` plus `Label` | Keep explicit `id` and `htmlFor` wiring so the label activates the control. |
-| `Checkbox` | `#/components/Checkbox/Checkbox` | Use controlled state when indeterminate behavior is required. |
-| `CircularProgress` | `#/components/Spinner/Spinner` | Use `loading` when wrapping fallback children. |
-| `DialogActions` | `DialogFooter` when dialog wrappers are migrated | Existing dialog wrappers remain slice 2 scope. |
-| `sx`, MUI `styled`, and MUI `useTheme` | Tailwind classes, design tokens, and CVA variants | Emotion cleanup remains final-cleanup scope. |
+| MUI component or API                   | Replacement pattern                                                         | Notes                                                                               |
+|----------------------------------------|-----------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| `TextField`                            | `FormField` for form-backed labeled inputs, or `Input` for bare inputs      | `FormField` already wires label, helper text, errors, and accessible descriptions.  |
+| `Link`                                 | `#/components/Link/Link`                                                    | Use `asChild` when composing with router links or another anchor-like child.        |
+| `Select` plus `MenuItem`               | `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, and `SelectItem` | This is the default closed-list replacement for finite options.                     |
+| `MenuItem` in action menus             | Menu primitives in a later slice                                            | Do not map action-menu items to `SelectItem`. Slice 1 documents the direction only. |
+| `FormControlLabel`                     | `Checkbox` or `Switch` plus `Label`                                         | Keep explicit `id` and `htmlFor` wiring so the label activates the control.         |
+| `Checkbox`                             | `#/components/Checkbox/Checkbox`                                            | Use controlled state when indeterminate behavior is required.                       |
+| `CircularProgress`                     | `#/components/Spinner/Spinner`                                              | Use `loading` when wrapping fallback children.                                      |
+| `DialogActions`                        | `DialogFooter` when dialog wrappers are migrated                            | Existing dialog wrappers remain slice 2 scope.                                      |
+| `sx`, MUI `styled`, and MUI `useTheme` | Tailwind classes, design tokens, and CVA variants                           | Emotion cleanup remains final-cleanup scope.                                        |
 
 ## Examples
 
