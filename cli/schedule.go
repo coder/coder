@@ -109,7 +109,7 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 			if len(inv.Args) == 1 {
 				// If the argument contains a slash, we assume it's a full owner/name reference
 				if strings.Contains(inv.Args[0], "/") {
-					_, workspaceName, err := splitNamedWorkspace(inv.Args[0])
+					_, workspaceName, err := codersdk.SplitWorkspaceIdentifier(inv.Args[0])
 					if err != nil {
 						return err
 					}

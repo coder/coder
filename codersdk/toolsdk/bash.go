@@ -190,7 +190,7 @@ func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspa
 	}
 
 	// Get workspace
-	workspace, err := namedWorkspace(ctx, client, workspaceName)
+	workspace, err := client.ResolveWorkspace(ctx, workspaceName)
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
@@ -272,10 +272,6 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (codersdk
 	}
 
 	return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
-}
-
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	return client.ResolveWorkspace(ctx, identifier)
 }
 
 // executeCommandWithTimeout executes a command with timeout support

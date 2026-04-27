@@ -47,7 +47,7 @@ func (r *RootCmd) statePull() *serpent.Command {
 				}
 				build = workspace.LatestBuild
 			} else {
-				owner, workspace, err := splitNamedWorkspace(inv.Args[0])
+				owner, workspace, err := codersdk.SplitWorkspaceIdentifier(inv.Args[0])
 				if err != nil {
 					return err
 				}
@@ -107,7 +107,7 @@ func (r *RootCmd) statePush() *serpent.Command {
 			if buildNumber == 0 {
 				build = workspace.LatestBuild
 			} else {
-				owner, workspace, err := splitNamedWorkspace(inv.Args[0])
+				owner, workspace, err := codersdk.SplitWorkspaceIdentifier(inv.Args[0])
 				if err != nil {
 					return err
 				}
