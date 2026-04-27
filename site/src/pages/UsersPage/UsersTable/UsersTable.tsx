@@ -66,20 +66,20 @@ export const UsersTable: FC<UsersTableProps> = ({
 						<div className="flex flex-row gap-2 items-center">
 							<span>Roles</span>
 							<TableColumnHelpPopover variant="roles" />
-						</div>{" "}
+						</div>
 					</TableHead>
 					<TableHead className="w-1/6">
 						<div className="flex flex-row gap-2 items-center">
 							<span>Groups</span>
 							<TableColumnHelpPopover variant="groups" />
-						</div>{" "}
+						</div>
 					</TableHead>
 					{showAISeatColumn && (
 						<TableHead className="w-1/6">
 							<div className="flex flex-row gap-2 items-center">
 								<span>AI add-on</span>
 								<TableColumnHelpPopover variant="ai_addon" />
-							</div>{" "}
+							</div>
 						</TableHead>
 					)}
 					<TableHead className="w-1/6">Login Type</TableHead>

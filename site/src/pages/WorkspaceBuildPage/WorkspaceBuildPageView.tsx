@@ -101,7 +101,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
 				<div className="flex flex-row gap-4">
-					{" "}
 					<BuildAvatar build={build} size="lg" />
 					<div>
 						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>

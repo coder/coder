@@ -13,14 +13,13 @@ const Template: FC<FullPageFormProps> = (props) => (
 			}}
 		>
 			<div className="flex flex-col gap-4">
-				{" "}
 				<TextField fullWidth label="Field 1" name="field1" />
 				<TextField fullWidth label="Field 2" name="field2" />
 				<FormFooter>
 					<Button variant="outline">Cancel</Button>
 					<Button type="submit">Save</Button>
 				</FormFooter>
-			</div>{" "}
+			</div>
 		</form>
 	</FullPageForm>
 );

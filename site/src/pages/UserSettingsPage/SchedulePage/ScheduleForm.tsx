@@ -102,7 +102,6 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 				)}
 
 				<div className="flex flex-row gap-4">
-					{" "}
 					<TextField
 						{...getFieldHelpers("time")}
 						disabled={isLoading || !initialValues.user_can_set}
@@ -124,6 +123,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 						))}
 					</TextField>
 				</div>
+
 				<TextField
 					disabled
 					fullWidth

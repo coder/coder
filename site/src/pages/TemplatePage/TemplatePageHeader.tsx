@@ -250,7 +250,6 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 				}
 			>
 				<div className="flex flex-row gap-4">
-					{" "}
 					<Avatar
 						size="lg"
 						variant="icon"

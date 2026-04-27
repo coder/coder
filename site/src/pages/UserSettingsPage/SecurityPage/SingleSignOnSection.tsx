@@ -258,7 +258,6 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 			confirmLoading={loading}
 			description={
 				<div className="flex flex-col gap-8">
-					{" "}
 					<p>
 						After changing your login type, you will not be able to change it
 						again. Are you sure you want to proceed and change your login type?

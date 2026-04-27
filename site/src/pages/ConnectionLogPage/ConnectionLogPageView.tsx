@@ -55,10 +55,9 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
-						{" "}
 						<span>Connection Log</span>
 						<ConnectionLogHelpPopover />
-					</div>{" "}
+					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					View workspace connection events.

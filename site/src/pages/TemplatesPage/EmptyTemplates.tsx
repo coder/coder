@@ -71,7 +71,6 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 				}
 				cta={
 					<div className="flex flex-col gap-8 items-center">
-						{" "}
 						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
 								<TemplateExampleCard example={example} key={example.id} />

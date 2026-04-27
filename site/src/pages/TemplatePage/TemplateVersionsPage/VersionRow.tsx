@@ -44,7 +44,6 @@ export const VersionRow: FC<VersionRowProps> = ({
 					className="flex flex-row items-center justify-between gap-4"
 					css={styles.versionWrapper}
 				>
-					{" "}
 					<div className="flex flex-row items-center gap-4">
 						<Avatar
 							fallback={version.created_by.username}
@@ -54,7 +53,6 @@ export const VersionRow: FC<VersionRowProps> = ({
 							className="flex flex-row items-center gap-2"
 							css={styles.versionSummary}
 						>
-							{" "}
 							<span>
 								<strong>{version.created_by.username}</strong> created the
 								version <strong>{version.name}</strong>

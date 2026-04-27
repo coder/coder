@@ -37,7 +37,6 @@ export const WorkspaceSettingsLayout: FC = () => {
 
 			<Margins>
 				<div className="flex flex-row gap-20 py-12">
-					{" "}
 					{error ? (
 						<ErrorAlert error={error} />
 					) : (

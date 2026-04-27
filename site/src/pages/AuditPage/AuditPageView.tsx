@@ -56,10 +56,9 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
-						{" "}
 						<span>Audit</span>
 						<AuditHelpPopover />
-					</div>{" "}
+					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
 			</PageHeader>

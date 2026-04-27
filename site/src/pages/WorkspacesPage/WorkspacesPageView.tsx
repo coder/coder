@@ -101,7 +101,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					<div className="flex flex-row gap-2 items-center">
 						<span>Workspaces</span>
 						<WorkspaceHelpPopover />
-					</div>{" "}
+					</div>
 				</PageHeaderTitle>
 			</PageHeader>
 
@@ -118,6 +118,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					organizationsMenu={filterState.menus.organizations}
 				/>
 			</div>
+
 			<TableToolbar>
 				{checkedWorkspaces.length > 0 ? (
 					<>

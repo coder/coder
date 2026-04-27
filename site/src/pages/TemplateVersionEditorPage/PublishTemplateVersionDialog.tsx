@@ -74,7 +74,6 @@ export const PublishTemplateVersionDialog: FC<
 			description={
 				<form id="publish-version" onSubmit={form.handleSubmit}>
 					<div className="flex flex-col gap-4">
-						{" "}
 						<p>You are about to publish a new version of this template.</p>
 						<FormFields>
 							<TextField

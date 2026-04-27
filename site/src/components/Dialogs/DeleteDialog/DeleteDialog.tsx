@@ -62,7 +62,6 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 			description={
 				<>
 					<div className="flex flex-col gap-3">
-						{" "}
 						<p>
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>

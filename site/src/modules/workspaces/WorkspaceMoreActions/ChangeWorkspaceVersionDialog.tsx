@@ -102,7 +102,6 @@ export const ChangeWorkspaceVersionDialog: FC<
 																/>
 															)}
 														</div>
-
 														{workspace.template_active_version_id ===
 															option.id && <Pill type="success">Active</Pill>}
 													</div>

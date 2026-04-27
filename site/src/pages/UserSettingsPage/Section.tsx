@@ -41,7 +41,6 @@ export const Section: FC<SectionProps> = ({
 						<div>
 							{title && (
 								<div className="flex flex-row items-center gap-4">
-									{" "}
 									<h4 className="text-2xl font-medium m-0 mb-2">{title}</h4>
 									{featureStage && (
 										<FeatureStageBadge
