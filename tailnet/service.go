@@ -332,6 +332,13 @@ func (c communicator) loopResp() {
 					continue
 				}
 				resp.PeerUpdates = append(resp.PeerUpdates, next.PeerUpdates...)
+				// Cap the merged batch so we don't reassemble chunked
+				// responses into a single DRPC message that exceeds the
+				// 4 MiB transport limit. The remaining queued responses
+				// will be picked up by the next outer-loop iteration.
+				if len(resp.PeerUpdates) >= proto.MaxPeerUpdatesPerMessage {
+					draining = false
+				}
 			default:
 				draining = false
 			}
