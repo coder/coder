@@ -16,7 +16,7 @@ import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useClipboard } from "hooks/useClipboard";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import themes from "theme";
@@ -34,6 +34,7 @@ import {
 	WebsocketEvent,
 } from "websocket-ts";
 import { TerminalAlerts } from "./TerminalAlerts";
+import { TerminalCommandConsentDialog } from "./TerminalCommandConsentDialog";
 import type { ConnectionStatus } from "./types";
 
 export const Language = {
@@ -57,6 +58,7 @@ const TerminalPage: FC = () => {
 	const [terminal, setTerminal] = useState<Terminal>();
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
+	const [commandConfirmed, setCommandConfirmed] = useState(false);
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -64,8 +66,10 @@ const TerminalPage: FC = () => {
 	// a round-trip, and must be a UUIDv4.
 	const reconnectionToken = searchParams.get("reconnect") ?? uuidv4();
 	const command = searchParams.get("command") || undefined;
+	const appSlug = searchParams.get("app") || undefined;
 	const containerName = searchParams.get("container") || undefined;
 	const containerUser = searchParams.get("container_user") || undefined;
+
 	// The workspace name is in the format:
 	// <workspace name>[.<agent name>]
 	const workspaceNameParts = params.workspace?.split(".");
@@ -75,6 +79,26 @@ const TerminalPage: FC = () => {
 	const workspaceAgent = workspace.data
 		? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
 		: undefined;
+
+	// Resolve the ?app= slug to a command from the agent's app list.
+	// These commands are admin-configured in the template and trusted,
+	// so they skip the confirmation dialog.
+	const appCommand = useMemo(() => {
+		if (!appSlug || !workspaceAgent) {
+			return undefined;
+		}
+		const app = workspaceAgent.apps.find((a) => a.slug === appSlug);
+		return app?.command || undefined;
+	}, [appSlug, workspaceAgent]);
+
+	// Raw ?command= params require explicit user confirmation.
+	// Trusted ?app= commands bypass the dialog.
+	const commandPendingConfirmation = !!command && !appSlug && !commandConfirmed;
+	const initialCommand = appCommand
+		? appCommand
+		: command && commandConfirmed
+			? command
+			: undefined;
 	const selectedProxy = proxy.proxy;
 	const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
@@ -254,6 +278,12 @@ const TerminalPage: FC = () => {
 			return;
 		}
 
+		// Block the websocket connection while the confirmation dialog
+		// is waiting for user input.
+		if (commandPendingConfirmation) {
+			return;
+		}
+
 		// The terminal should be cleared on each reconnect
 		// because all data is re-rendered from the backend.
 		terminal.clear();
@@ -315,7 +345,7 @@ const TerminalPage: FC = () => {
 				: undefined,
 			reconnectionToken,
 			workspaceAgent.id,
-			command,
+			initialCommand,
 			terminal.rows,
 			terminal.cols,
 			containerName,
@@ -396,7 +426,8 @@ const TerminalPage: FC = () => {
 			websocketRef.current = undefined;
 		};
 	}, [
-		command,
+		commandPendingConfirmation,
+		initialCommand,
 		proxy.preferredPathAppURL,
 		reconnectionToken,
 		terminal,
@@ -448,6 +479,19 @@ const TerminalPage: FC = () => {
 				>
 					Latency: {latency.latencyMS.toFixed(0)}ms
 				</span>
+			)}
+
+			{command && !appSlug && (
+				<TerminalCommandConsentDialog
+					open={!commandConfirmed}
+					command={command}
+					onConfirm={() => {
+						setCommandConfirmed(true);
+					}}
+					onDeny={() => {
+						window.close();
+					}}
+				/>
 			)}
 		</ThemeOverride>
 	);
