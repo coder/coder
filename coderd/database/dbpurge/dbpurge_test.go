@@ -2620,6 +2620,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.False(t, refreshedChild.Archived, "child must stay active")
 
 				require.Empty(t, auditor.AuditLogs(), "no chats should be archived")
+				require.Empty(t, enqueuer.Sent(), "no notifications should be sent")
 			},
 		},
 		{
@@ -3085,9 +3086,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Equal(t, int32(2), calls.Load(),
 					"loop must attempt every owner even when one fails")
 
-				// The second attempt succeeded for one of the two
-				// owners. Map iteration order is nondeterministic,
-				// so we don't pin which.
+				// The second attempt succeeded for one of the two owners.
 				require.Contains(t, []uuid.UUID{deps.user.ID, user2.ID}, successUserID,
 					"successful digest must belong to one of the two owners")
 			},

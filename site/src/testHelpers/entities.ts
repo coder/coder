@@ -4810,8 +4810,9 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			title_template:
 				"Chats auto-archived after {{.Data.auto_archive_days}} days of inactivity",
 			body_template:
-				'The following chats were automatically archived because they have been inactive for more than {{.Data.auto_archive_days}} days:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}',
-			actions: '[{"label": "View chats", "url": "{{base_url}}/agents"}]',
+				'The following chats were automatically archived:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}',
+			actions:
+				'[{"label": "View chats", "url": "{{base_url}}/agents?archived=archived"}]',
 			group: "Chat Events",
 			method: "",
 			kind: "system",

@@ -1333,6 +1333,10 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			// Default branch: multiple visible chats, retention enabled,
+			// no overflow. Body phrasing is number-neutral so this also
+			// covers the n>1 grammar shape without a dedicated branch in
+			// the template.
 			name: "TemplateChatAutoArchiveDigest",
 			id:   notifications.TemplateChatAutoArchiveDigest,
 			payload: types.MessagePayload{
@@ -1346,6 +1350,28 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"archived_chats": []map[string]any{
 						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
 						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Pins the n=1 rendering so future edits to the body cannot
+			// reintroduce a count-conditional that breaks the singular
+			// case. The list-introduction sentence and retention sentence
+			// both use plural-form pronouns ("them", "they") that read
+			// naturally for a single item.
+			name: "TemplateChatAutoArchiveDigestSingular",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
 					},
 				},
 			},
@@ -1371,10 +1397,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		},
 		{
 			// Covers the additional_archived_count overflow sentence.
-			// Production cannot produce overflow with a single
-			// visible chat (the cap is chatAutoArchiveDigestMaxChats
-			// and overflow only triggers when len > cap), so we use
-			// a realistic shape: multiple visible plus overflow.
 			name: "TemplateChatAutoArchiveDigestOverflow",
 			id:   notifications.TemplateChatAutoArchiveDigest,
 			payload: types.MessagePayload{

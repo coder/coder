@@ -12,8 +12,7 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-The following chats were automatically archived because they have been inac=
-tive for more than 90 days:
+The following chats were automatically archived:
 
 "Onboarding kickoff" (last active 3 months ago)
 "Quarterly planning draft" (last active 4 months ago)
@@ -55,8 +54,7 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <p>The following chats were automatically archived because they hav=
-e been inactive for more than 90 days:</p>
+        <p>The following chats were automatically archived:</p>
 
 <ul>
 <li>&ldquo;Onboarding kickoff&rdquo; (last active 3 months ago)<br>

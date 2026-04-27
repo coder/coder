@@ -1,6 +1,7 @@
 package dbpurge
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io"
@@ -186,12 +187,12 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	// iteration is operator-visible via metric and logs.
 	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
 	if chatRetentionErr != nil {
-		i.logger.Error(ctx, "failed to read chat retention config; will skip chat purge and auto-archive this tick", slog.Error(chatRetentionErr))
+		i.logger.Error(ctx, "failed to read chat retention config: skipping chat purge and auto-archive this tick", slog.Error(chatRetentionErr))
 	}
 
 	chatAutoArchiveDays, chatAutoArchiveErr := db.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
 	if chatAutoArchiveErr != nil {
-		i.logger.Error(ctx, "failed to read chat auto-archive config; will skip chat purge and auto-archive this tick", slog.Error(chatAutoArchiveErr))
+		i.logger.Error(ctx, "failed to read chat auto-archive config: skipping chat purge and auto-archive this tick", slog.Error(chatAutoArchiveErr))
 	}
 
 	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
@@ -303,43 +304,11 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		// Delete old archived chats first, then orphaned files
-		// (cascade clears chat_file_links but not chat_files).
-		// Both passes skip on chatConfigErr so unrelated purges
-		// in this tx still commit; the error surfaces after InTx.
-		var purgedChats int64
-		var purgedChatFiles int64
-		if chatConfigErr == nil && chatRetentionDays > 0 {
-			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour
-			deleteChatsBefore := start.Add(-chatRetention)
-
-			purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
-				BeforeTime: deleteChatsBefore,
-				LimitCount: chatsBatchSize,
-			})
+		var purgedChats, purgedChatFiles int64
+		if chatConfigErr == nil {
+			purgedChats, purgedChatFiles, archivedChats, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays, chatAutoArchiveDays)
 			if err != nil {
-				return xerrors.Errorf("failed to delete old chats: %w", err)
-			}
-
-			purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
-				BeforeTime: deleteChatsBefore,
-				LimitCount: chatFilesBatchSize,
-			})
-			if err != nil {
-				return xerrors.Errorf("failed to delete old chat files: %w", err)
-			}
-		}
-
-		// Auto-archive runs after the delete pass so newly
-		// archived chats aren't eligible for deletion this tick.
-		if chatConfigErr == nil && chatAutoArchiveDays > 0 {
-			archiveCutoff := start.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
-			archivedChats, err = tx.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
-				ArchiveCutoff: archiveCutoff,
-				LimitCount:    i.chatAutoArchiveBatchSize,
-			})
-			if err != nil {
-				return xerrors.Errorf("failed to auto-archive inactive chats: %w", err)
+				return xerrors.Errorf("failed to purge chats: %w", err)
 			}
 		}
 
@@ -386,8 +355,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	// Notification enqueue uses the cancellable parent context to avoid
 	// stalling shutdown.
 	// Owners with more eligible chats than batch size will get a
-	// notification per tick until there backlog drains.
-	// drains. If this is deemed too noisy, users can disable the
+	// notification per tick until their backlog drains.
+	// If this is deemed too noisy, users can disable the
 	// "Chats Auto-Archived" template from their notification preferences.
 	if len(archivedChats) > 0 {
 		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
@@ -462,6 +431,44 @@ func chatFromAutoArchiveRow(logger slog.Logger, r database.AutoArchiveInactiveCh
 	}
 }
 
+// purgeChatsInTx MUST BE CALLED WITH A TRANSACTION
+func (i *instance) purgeChatsInTx(ctx context.Context, tx database.Store, start time.Time, chatRetentionDays, chatAutoArchiveDays int32) (purgedChats, purgedChatFiles int64, archivedChats []database.AutoArchiveInactiveChatsRow, err error) {
+	// Delete old archived chats first, then orphaned files
+	// (cascade clears chat_file_links but not chat_files).
+	if chatRetentionDays > 0 {
+		deleteChatsBefore := start.Add(-time.Duration(chatRetentionDays) * 24 * time.Hour)
+		purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+			BeforeTime: deleteChatsBefore,
+			LimitCount: chatsBatchSize,
+		})
+		if err != nil {
+			return 0, 0, nil, xerrors.Errorf("failed to delete old chats: %w", err)
+		}
+
+		purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+			BeforeTime: deleteChatsBefore,
+			LimitCount: chatFilesBatchSize,
+		})
+		if err != nil {
+			return 0, 0, nil, xerrors.Errorf("failed to delete old chat files: %w", err)
+		}
+	}
+
+	// Auto-archive runs after the delete pass so newly
+	// archived chats aren't eligible for deletion this tick.
+	if chatAutoArchiveDays > 0 {
+		archiveCutoff := start.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
+		archivedChats, err = tx.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
+			ArchiveCutoff: archiveCutoff,
+			LimitCount:    i.chatAutoArchiveBatchSize,
+		})
+		if err != nil {
+			return 0, 0, nil, xerrors.Errorf("failed to auto-archive inactive chats: %w", err)
+		}
+	}
+	return purgedChats, purgedChatFiles, archivedChats, nil
+}
+
 // dispatchChatAutoArchive audits every archived root chat and enqueues one
 // notification per owner covering the roots archived in this tick. Children
 // inherit their root's archival decision and are skipped for audit, matching
@@ -512,7 +519,7 @@ func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context,
 		ownerIDs = append(ownerIDs, id)
 	}
 	slices.SortFunc(ownerIDs, func(a, b uuid.UUID) int {
-		return slice.Ascending(a.String(), b.String())
+		return cmp.Compare(a.String(), b.String())
 	})
 
 	dispatched := 0
