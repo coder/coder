@@ -2598,9 +2598,11 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		eg          errgroup.Group
 	)
 	eg.Go(func() (err error) {
-		templates, err = api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-			IDs: templateIDs,
-		})
+		// Hot-path: avoid GetTemplatesWithFilter's expensive CASE chain and
+		// LEFT JOIN template_versions when we only need a lookup by ID.
+		// template_with_names (the underlying view) is the same source used
+		// by GetTemplatesWithFilter, so the row shape is identical.
+		templates, err = api.Database.GetTemplatesByIDs(ctx, templateIDs)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get templates: %w", err)
 		}
