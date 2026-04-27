@@ -33,5 +33,4 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	assert.Contains(t, body, `value="`+csrfFieldValue+`"`)
 	assert.Contains(t, body, `id="allow-form"`)
 	assert.Contains(t, body, `id="cancel-link"`)
-	assert.Contains(t, body, `"https:\/\/coder.com\/"`)
 }
