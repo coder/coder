@@ -81,13 +81,15 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.resources,
-		data.metadata,
-		data.agents,
-		data.apps,
-		data.appStatuses,
-		data.scripts,
-		data.logSources,
+		groupWorkspaceBuildChildren(
+			data.resources,
+			data.metadata,
+			data.agents,
+			data.apps,
+			data.appStatuses,
+			data.scripts,
+			data.logSources,
+		),
 		data.templateVersions[0],
 		nil,
 	)
@@ -291,13 +293,15 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.resources,
-		data.metadata,
-		data.agents,
-		data.apps,
-		data.appStatuses,
-		data.scripts,
-		data.logSources,
+		groupWorkspaceBuildChildren(
+			data.resources,
+			data.metadata,
+			data.agents,
+			data.apps,
+			data.appStatuses,
+			data.scripts,
+			data.logSources,
+		),
 		data.templateVersions[0],
 		data.provisionerDaemons,
 	)
@@ -538,13 +542,7 @@ func (api *API) postWorkspaceBuildsInternal(
 		*workspaceBuild,
 		workspace,
 		queuePos,
-		[]database.WorkspaceResource{},
-		[]database.WorkspaceResourceMetadatum{},
-		[]database.WorkspaceAgent{},
-		[]database.WorkspaceApp{},
-		[]database.WorkspaceAppStatus{},
-		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
-		[]database.WorkspaceAgentLogSource{},
+		groupWorkspaceBuildChildren(nil, nil, nil, nil, nil, nil, nil),
 		database.TemplateVersion{},
 		provisionerDaemons,
 	)
@@ -993,18 +991,43 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
-		IDs:             jobIDs,
-		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
-	})
+	// Cheap lookup first, so we only ask for queue position on jobs that are
+	// actually pending. For non-pending jobs the expensive query returns
+	// queue_position=0, queue_size=0 anyway (via its LEFT JOIN + COALESCE),
+	// so we synthesize the same shape locally.
+	rawJobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
 	}
 	pendingJobIDs := []uuid.UUID{}
-	for _, job := range jobs {
-		if job.ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-			pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
+	nonPendingJobs := make([]database.ProvisionerJob, 0, len(rawJobs))
+	for _, j := range rawJobs {
+		if j.JobStatus == database.ProvisionerJobStatusPending {
+			pendingJobIDs = append(pendingJobIDs, j.ID)
+		} else {
+			nonPendingJobs = append(nonPendingJobs, j)
 		}
+	}
+	var jobs []database.GetProvisionerJobsByIDsWithQueuePositionRow
+	if len(pendingJobIDs) > 0 {
+		jobs, err = api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             pendingJobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs with queue position: %w", err)
+		}
+	}
+	// Synthesize the same row shape for non-pending jobs with zeroed queue
+	// position and size (matches what the SQL would have returned for them).
+	for _, j := range nonPendingJobs {
+		jobs = append(jobs, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ID:             j.ID,
+			CreatedAt:      j.CreatedAt,
+			ProvisionerJob: j,
+			QueuePosition:  0,
+			QueueSize:      0,
+		})
 	}
 
 	pendingJobProvisioners, err := api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
@@ -1148,6 +1171,19 @@ func (api *API) convertWorkspaceBuilds(
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
 
+	// Build the seven groupings once for the entire page rather than rebuilding
+	// them inside every convertWorkspaceBuild call (which would be O(N*M) where
+	// N is workspaces in the page and M is total child rows).
+	groupings := groupWorkspaceBuildChildren(
+		workspaceResources,
+		resourceMetadata,
+		resourceAgents,
+		agentApps,
+		agentAppStatuses,
+		agentScripts,
+		agentLogSources,
+	)
+
 	// Should never be nil for API consistency
 	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
@@ -1168,13 +1204,7 @@ func (api *API) convertWorkspaceBuilds(
 			build,
 			workspace,
 			job,
-			workspaceResources,
-			resourceMetadata,
-			resourceAgents,
-			agentApps,
-			agentAppStatuses,
-			agentScripts,
-			agentLogSources,
+			groupings,
 			templateVersion,
 			provisionerDaemons,
 		)
@@ -1188,10 +1218,21 @@ func (api *API) convertWorkspaceBuilds(
 	return apiBuilds, nil
 }
 
-func (api *API) convertWorkspaceBuild(
-	build database.WorkspaceBuild,
-	workspace database.Workspace,
-	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
+// workspaceBuildChildGroupings holds the seven id->slice maps built once per
+// page in convertWorkspaceBuilds and reused across every convertWorkspaceBuild
+// call. Hoisting these out of the per-build conversion path turns the
+// O(builds * total_children) cost into O(total_children).
+type workspaceBuildChildGroupings struct {
+	resourcesByJobID     map[uuid.UUID][]database.WorkspaceResource
+	metadataByResourceID map[uuid.UUID][]database.WorkspaceResourceMetadatum
+	agentsByResourceID   map[uuid.UUID][]database.WorkspaceAgent
+	appsByAgentID        map[uuid.UUID][]database.WorkspaceApp
+	scriptsByAgentID     map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow
+	logSourcesByAgentID  map[uuid.UUID][]database.WorkspaceAgentLogSource
+	statusesByAgentID    map[uuid.UUID][]database.WorkspaceAppStatus
+}
+
+func groupWorkspaceBuildChildren(
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
@@ -1199,33 +1240,61 @@ func (api *API) convertWorkspaceBuild(
 	agentAppStatuses []database.WorkspaceAppStatus,
 	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
 	agentLogSources []database.WorkspaceAgentLogSource,
+) workspaceBuildChildGroupings {
+	g := workspaceBuildChildGroupings{
+		resourcesByJobID:     map[uuid.UUID][]database.WorkspaceResource{},
+		metadataByResourceID: map[uuid.UUID][]database.WorkspaceResourceMetadatum{},
+		agentsByResourceID:   map[uuid.UUID][]database.WorkspaceAgent{},
+		appsByAgentID:        map[uuid.UUID][]database.WorkspaceApp{},
+		scriptsByAgentID:     map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
+		logSourcesByAgentID:  map[uuid.UUID][]database.WorkspaceAgentLogSource{},
+		statusesByAgentID:    map[uuid.UUID][]database.WorkspaceAppStatus{},
+	}
+	for _, resource := range workspaceResources {
+		g.resourcesByJobID[resource.JobID] = append(g.resourcesByJobID[resource.JobID], resource)
+	}
+	for _, metadata := range resourceMetadata {
+		g.metadataByResourceID[metadata.WorkspaceResourceID] = append(g.metadataByResourceID[metadata.WorkspaceResourceID], metadata)
+	}
+	for _, agent := range resourceAgents {
+		g.agentsByResourceID[agent.ResourceID] = append(g.agentsByResourceID[agent.ResourceID], agent)
+	}
+	for _, app := range agentApps {
+		g.appsByAgentID[app.AgentID] = append(g.appsByAgentID[app.AgentID], app)
+	}
+	for _, script := range agentScripts {
+		g.scriptsByAgentID[script.WorkspaceAgentID] = append(g.scriptsByAgentID[script.WorkspaceAgentID], script)
+	}
+	for _, logSource := range agentLogSources {
+		g.logSourcesByAgentID[logSource.WorkspaceAgentID] = append(g.logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
+	}
+	for _, status := range agentAppStatuses {
+		g.statusesByAgentID[status.AgentID] = append(g.statusesByAgentID[status.AgentID], status)
+	}
+	return g
+}
+
+// convertWorkspaceBuild converts a single workspace build using pre-built
+// per-page groupings. Single-build callers can construct a groupings struct
+// inline via groupWorkspaceBuildChildren; convertWorkspaceBuilds builds it
+// once per page and reuses it across builds. The provisionerDaemons slice is
+// filtered per-build here (it is small relative to the other slices).
+func (api *API) convertWorkspaceBuild(
+	build database.WorkspaceBuild,
+	workspace database.Workspace,
+	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
+	groupings workspaceBuildChildGroupings,
 	templateVersion database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) (codersdk.WorkspaceBuild, error) {
-	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
-	for _, resource := range workspaceResources {
-		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
-	}
-	metadataByResourceID := map[uuid.UUID][]database.WorkspaceResourceMetadatum{}
-	for _, metadata := range resourceMetadata {
-		metadataByResourceID[metadata.WorkspaceResourceID] = append(metadataByResourceID[metadata.WorkspaceResourceID], metadata)
-	}
-	agentsByResourceID := map[uuid.UUID][]database.WorkspaceAgent{}
-	for _, agent := range resourceAgents {
-		agentsByResourceID[agent.ResourceID] = append(agentsByResourceID[agent.ResourceID], agent)
-	}
-	appsByAgentID := map[uuid.UUID][]database.WorkspaceApp{}
-	for _, app := range agentApps {
-		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
-	}
-	scriptsByAgentID := map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow{}
-	for _, script := range agentScripts {
-		scriptsByAgentID[script.WorkspaceAgentID] = append(scriptsByAgentID[script.WorkspaceAgentID], script)
-	}
-	logSourcesByAgentID := map[uuid.UUID][]database.WorkspaceAgentLogSource{}
-	for _, logSource := range agentLogSources {
-		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
-	}
+	resourcesByJobID := groupings.resourcesByJobID
+	metadataByResourceID := groupings.metadataByResourceID
+	agentsByResourceID := groupings.agentsByResourceID
+	appsByAgentID := groupings.appsByAgentID
+	scriptsByAgentID := groupings.scriptsByAgentID
+	logSourcesByAgentID := groupings.logSourcesByAgentID
+	statusesByAgentID := groupings.statusesByAgentID
+
 	provisionerDaemonsForThisWorkspaceBuild := []database.ProvisionerDaemon{}
 	for _, provisionerDaemon := range provisionerDaemons {
 		if provisionerDaemon.JobID != job.ProvisionerJob.ID {
@@ -1234,10 +1303,6 @@ func (api *API) convertWorkspaceBuild(
 		provisionerDaemonsForThisWorkspaceBuild = append(provisionerDaemonsForThisWorkspaceBuild, provisionerDaemon.ProvisionerDaemon)
 	}
 	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
-	statusesByAgentID := map[uuid.UUID][]database.WorkspaceAppStatus{}
-	for _, status := range agentAppStatuses {
-		statusesByAgentID[status.AgentID] = append(statusesByAgentID[status.AgentID], status)
-	}
 
 	resources := resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
