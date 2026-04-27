@@ -15,7 +15,7 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 				src={template.icon}
 				fallback={template.name}
 			/>
-			<div className="flex flex-col gap-0">
+			<div className="flex flex-col">
 				<span className="text-base">
 					{"display_name" in template && template.display_name.length > 0
 						? template.display_name
