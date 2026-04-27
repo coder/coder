@@ -66,14 +66,14 @@ type Manager struct {
 	execer    agentexec.Execer
 	updateEnv func(current []string) ([]string, error)
 
-	mu          sync.RWMutex
-	logger      slog.Logger
-	closed      bool
-	servers     map[string]*serverEntry
-	tools       []workspacesdk.MCPToolInfo
-	snapshot    map[string]fileSnapshot
-	serverGen   uint64
-	reloadGroup tailscalesingleflight.Group[string, struct{}]
+	mu        sync.RWMutex
+	logger    slog.Logger
+	closed    bool
+	servers   map[string]*serverEntry
+	tools     []workspacesdk.MCPToolInfo
+	snapshot  map[string]fileSnapshot
+	serverGen uint64
+	sf        tailscalesingleflight.Group[string, struct{}]
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -102,235 +102,43 @@ func NewManager(
 	}
 }
 
-// doReload reads MCP config files and performs a differential
-// reconnect. Unchanged servers keep their existing client; new or
-// changed servers get a fresh connection; removed servers are
-// closed.
-func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
-	allConfigs, snap := m.parseAndDedup(ctx, mcpConfigFiles)
-
-	wantedConfigs := make(map[string]ServerConfig, len(allConfigs))
-	for _, cfg := range allConfigs {
-		wantedConfigs[cfg.Name] = cfg
+// Reload checks whether config files have changed and, if so,
+// performs a differential reconnect. Concurrent callers are
+// coalesced via singleflight; the reload body runs under the
+// Manager's lifetime context so it survives caller cancellation.
+func (m *Manager) Reload(ctx context.Context, paths []string) error {
+	m.mu.RLock()
+	closed := m.closed
+	hasSnapshot := len(m.snapshot) > 0
+	m.mu.RUnlock()
+	if closed {
+		return xerrors.New("manager closed")
 	}
 
-	toConnect, toClose, keepSet, prevServers, err := m.classifyServers(wantedConfigs)
-	if err != nil {
-		return err
+	// Double-check: another goroutine may have completed a
+	// reload between the caller's SnapshotChanged and this
+	// call. The singleflight body uses its own resolved paths.
+	if hasSnapshot && !m.SnapshotChanged(paths) {
+		return nil
 	}
 
-	connected := m.connectAll(ctx, toConnect)
+	// All concurrent callers share one in-flight reload keyed
+	// by "". If a concurrent caller resolves different paths
+	// (e.g. after a manifest reconnect), its paths are not
+	// consulted; the next SnapshotChanged check after this
+	// reload completes will detect the mismatch and trigger
+	// a fresh reload.
+	ch := m.sf.DoChan("reload", func() (struct{}, error) {
+		err := m.doReload(m.ctx, paths)
+		return struct{}{}, err
+	})
 
-	closePrev, err := m.installServers(wantedConfigs, connected, keepSet, prevServers, snap)
-	if err != nil {
-		return err
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case res := <-ch:
+		return res.Err
 	}
-
-	// Close removed and replaced servers outside the lock to
-	// avoid blocking concurrent readers on subprocess I/O.
-	// Note: a concurrent CallTool that captured a removed
-	// entry's client before the swap may call a closed client.
-	// This is a narrow race that self-heals on the next request.
-	for _, entry := range toClose {
-		_ = entry.client.Close()
-	}
-	for _, entry := range closePrev {
-		_ = entry.client.Close()
-	}
-
-	// Refresh tools outside the lock to avoid blocking
-	// concurrent reads during network I/O.
-	if err := m.RefreshTools(ctx); err != nil {
-		m.logger.Warn(ctx, "failed to refresh MCP tools after connect", slog.Error(err))
-	}
-	return nil
-}
-
-// parseAndDedup reads all config files and returns a deduplicated
-// list of server configs. Missing files and parse errors are
-// logged and skipped.
-func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, map[string]fileSnapshot) {
-	var allConfigs []ServerConfig
-	for _, configPath := range mcpConfigFiles {
-		configs, err := ParseConfig(configPath)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			m.logger.Warn(ctx, "failed to parse MCP config",
-				slog.F("path", configPath),
-				slog.Error(err),
-			)
-			continue
-		}
-		allConfigs = append(allConfigs, configs...)
-	}
-
-	// Deduplicate by server name; first occurrence wins.
-	seen := make(map[string]struct{})
-	deduped := make([]ServerConfig, 0, len(allConfigs))
-	for _, cfg := range allConfigs {
-		if _, ok := seen[cfg.Name]; ok {
-			continue
-		}
-		seen[cfg.Name] = struct{}{}
-		deduped = append(deduped, cfg)
-	}
-	return deduped, captureSnapshot(mcpConfigFiles)
-}
-
-// classifyServers compares wanted configs against the current
-// server map and returns three sets: servers to connect (new or
-// changed), servers to close (removed), and servers to keep
-// (unchanged). Also returns a snapshot of the previous server map
-// for rollback. Acquires and releases m.mu.
-func (m *Manager) classifyServers(wantedConfigs map[string]ServerConfig) (
-	toConnect []ServerConfig,
-	toClose []*serverEntry,
-	keepSet map[string]*serverEntry,
-	prevServers map[string]*serverEntry,
-	err error,
-) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.closed {
-		return nil, nil, nil, nil, xerrors.New("manager closed")
-	}
-
-	keepSet = make(map[string]*serverEntry)
-	for name, wantCfg := range wantedConfigs {
-		if existing, ok := m.servers[name]; ok {
-			if reflect.DeepEqual(existing.config, wantCfg) {
-				keepSet[name] = existing
-			} else {
-				toConnect = append(toConnect, wantCfg)
-			}
-		} else {
-			toConnect = append(toConnect, wantCfg)
-		}
-	}
-
-	for name, entry := range m.servers {
-		if _, wanted := wantedConfigs[name]; !wanted {
-			toClose = append(toClose, entry)
-		}
-	}
-
-	prevServers = maps.Clone(m.servers)
-	return toConnect, toClose, keepSet, prevServers, nil
-}
-
-// connectAll runs connectServer in parallel for the given configs.
-// Failed connects are logged and skipped.
-func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
-	var (
-		mu        sync.Mutex
-		connected []connectedServer
-	)
-	var eg errgroup.Group
-	for _, cfg := range toConnect {
-		eg.Go(func() error {
-			c, err := m.connectServer(ctx, cfg)
-			if err != nil {
-				m.logger.Warn(ctx, "skipping MCP server",
-					slog.F("server", cfg.Name),
-					slog.F("transport", cfg.Transport),
-					slog.Error(err),
-				)
-				return nil
-			}
-			mu.Lock()
-			connected = append(connected, connectedServer{
-				name: cfg.Name, config: cfg, client: c,
-			})
-			mu.Unlock()
-			return nil
-		})
-	}
-	_ = eg.Wait()
-	return connected
-}
-
-type connectedServer struct {
-	name   string
-	config ServerConfig
-	client *client.Client
-}
-
-// installServers builds the new server map from keep, connect, and
-// close sets. Returns the list of old server entries that should be
-// closed (for changed servers whose new connect succeeded).
-// Acquires and releases m.mu.
-func (m *Manager) installServers(
-	wantedConfigs map[string]ServerConfig,
-	connected []connectedServer,
-	keepSet map[string]*serverEntry,
-	prevServers map[string]*serverEntry,
-	snap map[string]fileSnapshot,
-) ([]*serverEntry, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.closed {
-		for _, cs := range connected {
-			_ = cs.client.Close()
-		}
-		return nil, xerrors.New("manager closed")
-	}
-
-	newConnected := make(map[string]connectedServer, len(connected))
-	for _, cs := range connected {
-		newConnected[cs.name] = cs
-	}
-
-	newServers := make(map[string]*serverEntry, len(wantedConfigs))
-	for name, entry := range keepSet {
-		newServers[name] = entry
-	}
-
-	var closePrev []*serverEntry
-	for name, wantCfg := range wantedConfigs {
-		if _, kept := keepSet[name]; kept {
-			continue
-		}
-		if cs, ok := newConnected[wantCfg.Name]; ok {
-			newServers[wantCfg.Name] = &serverEntry{
-				config: cs.config,
-				client: cs.client,
-			}
-			if prev, existed := prevServers[wantCfg.Name]; existed {
-				closePrev = append(closePrev, prev)
-			}
-		} else if prev, existed := prevServers[wantCfg.Name]; existed {
-			// Connect failed; retain the old client.
-			newServers[wantCfg.Name] = prev
-		}
-	}
-
-	m.servers = newServers
-	m.serverGen++
-	m.snapshot = snap
-	return closePrev, nil
-}
-
-// captureSnapshot stats each path and returns the current
-// snapshot map.
-func captureSnapshot(paths []string) map[string]fileSnapshot {
-	snap := make(map[string]fileSnapshot, len(paths))
-	for _, p := range paths {
-		info, err := os.Stat(p)
-		if err != nil {
-			snap[p] = fileSnapshot{exists: false}
-		} else {
-			snap[p] = fileSnapshot{
-				exists:  true,
-				modTime: info.ModTime(),
-				size:    info.Size(),
-			}
-		}
-	}
-	return snap
 }
 
 // SnapshotChanged checks whether any config file has changed
@@ -382,152 +190,244 @@ func (m *Manager) SnapshotChanged(paths []string) bool {
 	return false
 }
 
-// Reload checks whether config files have changed and, if so,
-// performs a differential reconnect. Concurrent callers are
-// coalesced via singleflight; the reload body runs under the
-// Manager's lifetime context so it survives caller cancellation.
-func (m *Manager) Reload(ctx context.Context, paths []string) error {
-	m.mu.RLock()
-	closed := m.closed
-	hasSnapshot := len(m.snapshot) > 0
-	m.mu.RUnlock()
-	if closed {
-		return xerrors.New("manager closed")
+// serverDiff is the output of classifyServers: which servers to
+// connect, which to close, which to keep, and a snapshot of the
+// previous map for fallback on connect failure.
+type serverDiff struct {
+	toConnect []ServerConfig
+	toClose   []*serverEntry
+	keep      map[string]*serverEntry
+	prev      map[string]*serverEntry
+}
+
+type connectedServer struct {
+	name   string
+	config ServerConfig
+	client *client.Client
+}
+
+// doReload reads MCP config files and performs a differential
+// reconnect. Unchanged servers keep their existing client; new or
+// changed servers get a fresh connection; removed servers are
+// closed.
+func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
+	allConfigs, snap := m.parseAndDedup(ctx, mcpConfigFiles)
+
+	wanted := make(map[string]ServerConfig, len(allConfigs))
+	for _, cfg := range allConfigs {
+		wanted[cfg.Name] = cfg
 	}
 
-	// Double-check: another goroutine may have completed a
-	// reload between the caller's SnapshotChanged and this
-	// call. The singleflight body uses its own resolved paths.
-	if hasSnapshot && !m.SnapshotChanged(paths) {
-		return nil
+	diff, err := m.classifyServers(wanted)
+	if err != nil {
+		return err
 	}
 
-	// All concurrent callers share one in-flight reload keyed
-	// by "". If a concurrent caller resolves different paths
-	// (e.g. after a manifest reconnect), its paths are not
-	// consulted; the next SnapshotChanged check after this
-	// reload completes will detect the mismatch and trigger
-	// a fresh reload.
-	ch := m.reloadGroup.DoChan("", func() (struct{}, error) {
-		err := m.doReload(m.ctx, paths)
-		return struct{}{}, err
-	})
+	connected := m.connectAll(ctx, diff.toConnect)
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case res := <-ch:
-		return res.Err
+	replaced, err := m.installServers(wanted, diff, connected, snap)
+	if err != nil {
+		return err
 	}
+
+	// Close removed and replaced servers outside the lock to
+	// avoid leaking child processes and to avoid blocking
+	// concurrent readers on subprocess I/O.
+	// Note: a concurrent CallTool that captured a removed
+	// entry's client before the swap may call a closed client.
+	// This is a narrow race that self-heals on the next request.
+	for _, entry := range diff.toClose {
+		_ = entry.client.Close()
+	}
+	for _, entry := range replaced {
+		_ = entry.client.Close()
+	}
+
+	// Refresh tools outside the lock to avoid blocking
+	// concurrent reads during network I/O.
+	if err := m.RefreshTools(ctx); err != nil {
+		m.logger.Warn(ctx, "failed to refresh MCP tools after connect", slog.Error(err))
+	}
+	return nil
+}
+
+// parseAndDedup reads all config files and returns a deduplicated
+// list of server configs. Missing files are silently skipped;
+// parse errors are logged and skipped.
+func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, map[string]fileSnapshot) {
+	var allConfigs []ServerConfig
+	for _, configPath := range mcpConfigFiles {
+		configs, err := ParseConfig(configPath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			m.logger.Warn(ctx, "failed to parse MCP config",
+				slog.F("path", configPath),
+				slog.Error(err),
+			)
+			continue
+		}
+		allConfigs = append(allConfigs, configs...)
+	}
+
+	// Deduplicate by server name; first occurrence wins.
+	seen := make(map[string]struct{})
+	deduped := make([]ServerConfig, 0, len(allConfigs))
+	for _, cfg := range allConfigs {
+		if _, ok := seen[cfg.Name]; ok {
+			continue
+		}
+		seen[cfg.Name] = struct{}{}
+		deduped = append(deduped, cfg)
+	}
+	return deduped, captureSnapshot(mcpConfigFiles)
+}
+
+// classifyServers compares wanted configs against the current
+// server map and returns a diff describing what changed.
+// Acquires and releases m.mu.
+func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return nil, xerrors.New("manager closed")
+	}
+
+	diff := &serverDiff{
+		keep: make(map[string]*serverEntry),
+	}
+
+	for name, wantCfg := range wanted {
+		if existing, ok := m.servers[name]; ok {
+			if reflect.DeepEqual(existing.config, wantCfg) {
+				diff.keep[name] = existing
+			} else {
+				diff.toConnect = append(diff.toConnect, wantCfg)
+			}
+		} else {
+			diff.toConnect = append(diff.toConnect, wantCfg)
+		}
+	}
+
+	for name, entry := range m.servers {
+		if _, ok := wanted[name]; !ok {
+			diff.toClose = append(diff.toClose, entry)
+		}
+	}
+
+	diff.prev = maps.Clone(m.servers)
+	return diff, nil
+}
+
+// connectAll runs connectServer in parallel for the given configs.
+// Failed connects are logged and skipped.
+func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
+	var (
+		mu        sync.Mutex
+		connected []connectedServer
+	)
+	var eg errgroup.Group
+	for _, cfg := range toConnect {
+		eg.Go(func() error {
+			c, err := m.connectServer(ctx, cfg)
+			if err != nil {
+				m.logger.Warn(ctx, "skipping MCP server",
+					slog.F("server", cfg.Name),
+					slog.F("transport", cfg.Transport),
+					slog.Error(err),
+				)
+				return nil // Don't fail the group.
+			}
+			mu.Lock()
+			connected = append(connected, connectedServer{
+				name: cfg.Name, config: cfg, client: c,
+			})
+			mu.Unlock()
+			return nil
+		})
+	}
+	_ = eg.Wait()
+	return connected
+}
+
+// installServers builds the new server map from diff.keep and the
+// connected list, falling back to diff.prev when a connect failed.
+// Returns old entries replaced by successful connects (caller
+// closes them). Acquires and releases m.mu.
+func (m *Manager) installServers(
+	wanted map[string]ServerConfig,
+	diff *serverDiff,
+	connected []connectedServer,
+	snap map[string]fileSnapshot,
+) ([]*serverEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		for _, cs := range connected {
+			_ = cs.client.Close()
+		}
+		return nil, xerrors.New("manager closed")
+	}
+
+	newConnected := make(map[string]connectedServer, len(connected))
+	for _, cs := range connected {
+		newConnected[cs.name] = cs
+	}
+
+	newServers := make(map[string]*serverEntry, len(wanted))
+	for name, entry := range diff.keep {
+		newServers[name] = entry
+	}
+
+	var replaced []*serverEntry
+	for name, wantCfg := range wanted {
+		if _, kept := diff.keep[name]; kept {
+			continue
+		}
+		if cs, ok := newConnected[wantCfg.Name]; ok {
+			newServers[wantCfg.Name] = &serverEntry{
+				config: cs.config,
+				client: cs.client,
+			}
+			if prev, existed := diff.prev[wantCfg.Name]; existed {
+				replaced = append(replaced, prev)
+			}
+		} else if prev, existed := diff.prev[wantCfg.Name]; existed {
+			// Connect failed; retain the old client.
+			newServers[wantCfg.Name] = prev
+		}
+	}
+
+	m.servers = newServers
+	m.serverGen++
+	m.snapshot = snap
+	return replaced, nil
+}
+
+// captureSnapshot stats each path and returns the current
+// snapshot map.
+func captureSnapshot(paths []string) map[string]fileSnapshot {
+	snap := make(map[string]fileSnapshot, len(paths))
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil {
+			snap[p] = fileSnapshot{exists: false}
+		} else {
+			snap[p] = fileSnapshot{
+				exists:  true,
+				modTime: info.ModTime(),
+				size:    info.Size(),
+			}
+		}
+	}
+	return snap
 }
 
 // connectServer establishes a connection to a single MCP server
 // and returns the connected client. It does not modify any Manager
-// state.
-func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Client, error) {
-	tr, err := m.createTransport(ctx, cfg)
-	if err != nil {
-		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
-	}
-
-	c := client.NewClient(tr)
-
-	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
-	defer cancel()
-
-	// Use the parent ctx (not connectCtx) so the subprocess outlives
-	// the connect/initialize handshake. connectCtx bounds only the
-	// Initialize call below. The subprocess is cleaned up when the
-	// Manager is closed or ctx is canceled.
-	if err := c.Start(ctx); err != nil {
-		_ = c.Close()
-		return nil, xerrors.Errorf("start %q: %w", cfg.Name, err)
-	}
-
-	_, err = c.Initialize(connectCtx, mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "coder-agent",
-				Version: buildinfo.Version(),
-			},
-		},
-	})
-	if err != nil {
-		_ = c.Close()
-		return nil, xerrors.Errorf("initialize %q: %w", cfg.Name, err)
-	}
-
-	return c, nil
-}
-
-// createTransport builds the mcp-go transport for a server config.
-func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transport.Interface, error) {
-	switch cfg.Transport {
-	case "stdio":
-		env := m.buildEnv(ctx, cfg.Env)
-		return transport.NewStdioWithOptions(
-			cfg.Command,
-			env,
-			cfg.Args,
-			transport.WithCommandFunc(func(ctx context.Context, command string, cmdEnv []string, args []string) (*exec.Cmd, error) {
-				cmd := m.execer.CommandContext(ctx, command, args...)
-				cmd.Env = cmdEnv
-				return cmd, nil
-			}),
-		), nil
-	case "http", "":
-		return transport.NewStreamableHTTP(
-			cfg.URL,
-			transport.WithHTTPHeaders(cfg.Headers),
-		)
-	case "sse":
-		return transport.NewSSE(
-			cfg.URL,
-			transport.WithHeaders(cfg.Headers),
-		)
-	default:
-		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
-	}
-}
-
-// buildEnv enriches the process environment via the agent's
-// updateCommandEnv callback, then merges explicit overrides
-// from the server config on top.
-func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []string {
-	env := usershell.SystemEnvInfo{}.Environ()
-	if m.updateEnv != nil {
-		var err error
-		env, err = m.updateEnv(env)
-		if err != nil {
-			m.logger.Warn(ctx, "failed to enrich MCP server environment",
-				slog.Error(err),
-			)
-			env = usershell.SystemEnvInfo{}.Environ()
-		}
-	}
-	if len(explicit) == 0 {
-		return env
-	}
-
-	// Index existing env so explicit keys can override in-place.
-	existing := make(map[string]int, len(env))
-	for i, kv := range env {
-		if k, _, ok := strings.Cut(kv, "="); ok {
-			existing[k] = i
-		}
-	}
-
-	for k, v := range explicit {
-		entry := k + "=" + v
-		if idx, ok := existing[k]; ok {
-			env[idx] = entry
-		} else {
-			env = append(env, entry)
-		}
-	}
-	return env
-}
 
 // Tools returns the cached tool list. Thread-safe.
 func (m *Manager) Tools() []workspacesdk.MCPToolInfo {
@@ -566,68 +466,6 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	}
 
 	return convertResult(result), nil
-}
-
-// splitToolName extracts the server name and original tool name
-// from a prefixed tool name like "server__tool".
-func splitToolName(prefixed string) (serverName, toolName string, err error) {
-	server, tool, ok := strings.Cut(prefixed, ToolNameSep)
-	if !ok || server == "" || tool == "" {
-		return "", "", xerrors.Errorf("%w: expected format \"server%stool\", got %q", ErrInvalidToolName, ToolNameSep, prefixed)
-	}
-	return server, tool, nil
-}
-
-// convertResult translates an MCP CallToolResult into a
-// workspacesdk.CallMCPToolResponse. It iterates over content
-// items and maps each recognized type.
-func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse {
-	if result == nil {
-		return workspacesdk.CallMCPToolResponse{}
-	}
-
-	var content []workspacesdk.MCPToolContent
-	for _, item := range result.Content {
-		switch c := item.(type) {
-		case mcp.TextContent:
-			content = append(content, workspacesdk.MCPToolContent{
-				Type: "text",
-				Text: c.Text,
-			})
-		case mcp.ImageContent:
-			content = append(content, workspacesdk.MCPToolContent{
-				Type:      "image",
-				Data:      c.Data,
-				MediaType: c.MIMEType,
-			})
-		case mcp.AudioContent:
-			content = append(content, workspacesdk.MCPToolContent{
-				Type:      "audio",
-				Data:      c.Data,
-				MediaType: c.MIMEType,
-			})
-		case mcp.EmbeddedResource:
-			content = append(content, workspacesdk.MCPToolContent{
-				Type: "resource",
-				Text: fmt.Sprintf("[embedded resource: %T]", c.Resource),
-			})
-		case mcp.ResourceLink:
-			content = append(content, workspacesdk.MCPToolContent{
-				Type: "resource",
-				Text: fmt.Sprintf("[resource link: %s]", c.URI),
-			})
-		default:
-			content = append(content, workspacesdk.MCPToolContent{
-				Type: "text",
-				Text: fmt.Sprintf("[unsupported content type: %T]", item),
-			})
-		}
-	}
-
-	return workspacesdk.CallMCPToolResponse{
-		Content: content,
-		IsError: result.IsError,
-	}
 }
 
 // RefreshTools re-fetches tool lists from all connected servers
@@ -749,4 +587,171 @@ func (m *Manager) Close() error {
 	m.servers = make(map[string]*serverEntry)
 	m.tools = nil
 	return errors.Join(errs...)
+}
+
+func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Client, error) {
+	tr, err := m.createTransport(ctx, cfg)
+	if err != nil {
+		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
+	}
+
+	c := client.NewClient(tr)
+
+	connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	defer cancel()
+
+	// Use the parent ctx (not connectCtx) so the subprocess outlives
+	// the connect/initialize handshake. connectCtx bounds only the
+	// Initialize call below. The subprocess is cleaned up when the
+	// Manager is closed or ctx is canceled.
+	if err := c.Start(ctx); err != nil {
+		_ = c.Close()
+		return nil, xerrors.Errorf("start %q: %w", cfg.Name, err)
+	}
+
+	_, err = c.Initialize(connectCtx, mcp.InitializeRequest{
+		Params: mcp.InitializeParams{
+			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+			ClientInfo: mcp.Implementation{
+				Name:    "coder-agent",
+				Version: buildinfo.Version(),
+			},
+		},
+	})
+	if err != nil {
+		_ = c.Close()
+		return nil, xerrors.Errorf("initialize %q: %w", cfg.Name, err)
+	}
+
+	return c, nil
+}
+
+// createTransport builds the mcp-go transport for a server config.
+func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transport.Interface, error) {
+	switch cfg.Transport {
+	case "stdio":
+		env := m.buildEnv(ctx, cfg.Env)
+		return transport.NewStdioWithOptions(
+			cfg.Command,
+			env,
+			cfg.Args,
+			transport.WithCommandFunc(func(ctx context.Context, command string, cmdEnv []string, args []string) (*exec.Cmd, error) {
+				cmd := m.execer.CommandContext(ctx, command, args...)
+				cmd.Env = cmdEnv
+				return cmd, nil
+			}),
+		), nil
+	case "http", "":
+		return transport.NewStreamableHTTP(
+			cfg.URL,
+			transport.WithHTTPHeaders(cfg.Headers),
+		)
+	case "sse":
+		return transport.NewSSE(
+			cfg.URL,
+			transport.WithHeaders(cfg.Headers),
+		)
+	default:
+		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
+	}
+}
+
+// buildEnv enriches the process environment via the agent's
+// updateCommandEnv callback, then merges explicit overrides
+// from the server config on top.
+func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []string {
+	env := usershell.SystemEnvInfo{}.Environ()
+	if m.updateEnv != nil {
+		var err error
+		env, err = m.updateEnv(env)
+		if err != nil {
+			m.logger.Warn(ctx, "failed to enrich MCP server environment",
+				slog.Error(err),
+			)
+			env = usershell.SystemEnvInfo{}.Environ()
+		}
+	}
+	if len(explicit) == 0 {
+		return env
+	}
+
+	// Index existing env so explicit keys can override in-place.
+	existing := make(map[string]int, len(env))
+	for i, kv := range env {
+		if k, _, ok := strings.Cut(kv, "="); ok {
+			existing[k] = i
+		}
+	}
+
+	for k, v := range explicit {
+		entry := k + "=" + v
+		if idx, ok := existing[k]; ok {
+			env[idx] = entry
+		} else {
+			env = append(env, entry)
+		}
+	}
+	return env
+}
+
+// splitToolName extracts the server name and original tool name
+// from a prefixed tool name like "server__tool".
+func splitToolName(prefixed string) (serverName, toolName string, err error) {
+	server, tool, ok := strings.Cut(prefixed, ToolNameSep)
+	if !ok || server == "" || tool == "" {
+		return "", "", xerrors.Errorf("%w: expected format \"server%stool\", got %q", ErrInvalidToolName, ToolNameSep, prefixed)
+	}
+	return server, tool, nil
+}
+
+// convertResult translates an MCP CallToolResult into a
+// workspacesdk.CallMCPToolResponse. It iterates over content
+// items and maps each recognized type.
+func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse {
+	if result == nil {
+		return workspacesdk.CallMCPToolResponse{}
+	}
+
+	var content []workspacesdk.MCPToolContent
+	for _, item := range result.Content {
+		switch c := item.(type) {
+		case mcp.TextContent:
+			content = append(content, workspacesdk.MCPToolContent{
+				Type: "text",
+				Text: c.Text,
+			})
+		case mcp.ImageContent:
+			content = append(content, workspacesdk.MCPToolContent{
+				Type:      "image",
+				Data:      c.Data,
+				MediaType: c.MIMEType,
+			})
+		case mcp.AudioContent:
+			content = append(content, workspacesdk.MCPToolContent{
+				Type:      "audio",
+				Data:      c.Data,
+				MediaType: c.MIMEType,
+			})
+		case mcp.EmbeddedResource:
+			content = append(content, workspacesdk.MCPToolContent{
+				Type: "resource",
+				Text: fmt.Sprintf("[embedded resource: %T]", c.Resource),
+			})
+		case mcp.ResourceLink:
+			content = append(content, workspacesdk.MCPToolContent{
+				Type: "resource",
+				Text: fmt.Sprintf("[resource link: %s]", c.URI),
+			})
+		default:
+			content = append(content, workspacesdk.MCPToolContent{
+				Type: "text",
+				Text: fmt.Sprintf("[unsupported content type: %T]", item),
+			})
+		}
+	}
+
+	return workspacesdk.CallMCPToolResponse{
+		Content: content,
+		IsError: result.IsError,
+	}
 }
