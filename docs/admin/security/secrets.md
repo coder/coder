@@ -44,7 +44,7 @@ Users can view their public key in their account settings:
 > SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
 
-## User secrets (beta)
+## User secrets (Early Access)
 
 User secrets are personal credentials that developers manage for their own
 workspaces. They are injected into all of their workspaces. See the

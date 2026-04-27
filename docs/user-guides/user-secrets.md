@@ -1,4 +1,4 @@
-# User secrets (beta)
+# User secrets (Early Access)
 
 User secrets let you store personal credentials in Coder and automatically
 inject them into your workspaces without adding those values to template code.
@@ -6,8 +6,8 @@ They are a good fit for per-user credentials such as API keys, cloud
 credentials, or other values that should follow you across workspaces.
 
 > [!NOTE]
-> User secrets are in beta and may change. For more information, see
-> [feature stages](../install/releases/feature-stages.md#beta).
+> User secrets are in Early Access and may change. For more information, see
+> [feature stages](../install/releases/feature-stages.md#early-access-features).
 
 Use the CLI to create and manage user secrets. You can inject each secret as an
 environment variable, a file, or both.
