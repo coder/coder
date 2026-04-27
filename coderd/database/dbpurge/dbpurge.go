@@ -2,6 +2,7 @@ package dbpurge
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -177,30 +178,29 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purgeTick performs a single purge iteration. It returns an error if the
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
-	// Read chat retention config outside the transaction to
-	// avoid poisoning the tx if the stored value is corrupt.
-	// A SQL-level cast error (e.g. non-numeric text) puts PG
-	// into error state, failing all subsequent queries in the
-	// same transaction.
-	chatRetentionDays, err := db.GetChatRetentionDays(ctx)
-	if err != nil {
-		i.logger.Warn(ctx, "failed to read chat retention config, skipping chat purge", slog.Error(err))
-		chatRetentionDays = 0
+	// Read chat configs outside the tx so a corrupt value can't
+	// poison subsequent queries. On error we log and stash, then
+	// run unrelated purges best-effort and skip only chat work;
+	// purgeTick returns chatConfigErr after the tx so the failed
+	// iteration is operator-visible via metric and logs.
+	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
+	if chatRetentionErr != nil {
+		i.logger.Error(ctx, "failed to read chat retention config; will skip chat purge and auto-archive this tick", slog.Error(chatRetentionErr))
 	}
 
-	// Same rationale as chat_retention_days: read outside the tx.
-	chatAutoArchiveDays, err := db.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
-	if err != nil {
-		i.logger.Warn(ctx, "failed to read chat auto-archive config, skipping auto-archive", slog.Error(err))
-		chatAutoArchiveDays = 0
+	chatAutoArchiveDays, chatAutoArchiveErr := db.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
+	if chatAutoArchiveErr != nil {
+		i.logger.Error(ctx, "failed to read chat auto-archive config; will skip chat purge and auto-archive this tick", slog.Error(chatAutoArchiveErr))
 	}
+
+	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
 
 	// Populated inside the tx; dispatched post-commit.
 	var archivedChats []database.AutoArchiveInactiveChatsRow
 
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
-	err = db.InTx(func(tx database.Store) error {
+	err := db.InTx(func(tx database.Store) error {
 		// Acquire a lock to ensure that only one instance of the
 		// purge is running at a time.
 		ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
@@ -302,16 +302,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		// Chat retention is configured via site_configs. When
-		// enabled, old archived chats are deleted first, then
-		// orphaned chat files. Deleting a chat cascades to
-		// chat_file_links (removing references) but not to
-		// chat_files directly, so files from deleted chats
-		// become orphaned and are caught by DeleteOldChatFiles
-		// in the same tick.
+		// Delete old archived chats first, then orphaned files
+		// (cascade clears chat_file_links but not chat_files).
+		// Both passes skip on chatConfigErr so unrelated purges
+		// in this tx still commit; the error surfaces after InTx.
 		var purgedChats int64
 		var purgedChatFiles int64
-		if chatRetentionDays > 0 {
+		if chatConfigErr == nil && chatRetentionDays > 0 {
 			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour
 			deleteChatsBefore := start.Add(-chatRetention)
 
@@ -334,7 +331,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 		// Auto-archive runs after the delete pass so newly
 		// archived chats aren't eligible for deletion this tick.
-		if chatAutoArchiveDays > 0 {
+		if chatConfigErr == nil && chatAutoArchiveDays > 0 {
 			archiveCutoff := start.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
 			archivedChats, err = tx.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
 				ArchiveCutoff: archiveCutoff,
@@ -377,21 +374,20 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		return err
 	}
 
-	// Dispatch audits and digests post-commit. Audits run on a detached
-	// context so ticker cancellation cannot truncate the audit trail:
-	// every archived root must be audited. Digest enqueue uses the
-	// cancellable parent context: each call is a few DB round trips and
-	// a stuck owner would otherwise stall shutdown (Close waits on this
-	// goroutine). On shutdown we abandon any remaining digests; skipped
-	// owners are not re-notified on the next tick because
-	// AutoArchiveInactiveChats only returns rows with archived = false,
-	// but that's preferable to hanging. Digest enqueue is per-tick, not
-	// per-day: owners with more eligible roots than one tick can
-	// archive will receive one notification per tick until the backlog
-	// drains. notification_messages dedupe will not collapse these,
-	// because each tick's payload carries a different title list. Users
-	// who find this noisy can disable the "Chats Auto-Archived"
-	// template from their notification preferences.
+	// Surface the deferred chat-config error so doTick records
+	// the failed iteration metric.
+	if chatConfigErr != nil {
+		return xerrors.Errorf("chat config read failed this tick: %w", chatConfigErr)
+	}
+
+	// Dispatch audits and digests post-commit. Detached context for audit
+	// so that ticker cancellation cannot truncate the audit trail.
+	// Notification enqueue uses the cancellable parent context to avoid
+	// stalling shutdown.
+	// Owners with more eligible chats than batch size will get a
+	// notification per tick until there backlog drains.
+	// drains. If this is deemed too noisy, users can disable the
+	// "Chats Auto-Archived" template from their notification preferences.
 	if len(archivedChats) > 0 {
 		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
 		auditCtx := context.WithoutCancel(ctx)
