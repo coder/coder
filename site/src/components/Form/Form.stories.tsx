@@ -1,5 +1,6 @@
-import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import { Form, FormFields, FormSection } from "./Form";
 
 const meta: Meta<typeof Form> = {
@@ -12,8 +13,14 @@ const meta: Meta<typeof Form> = {
 				description="The name of the workspace and its owner. Only admins can create workspaces for other users."
 			>
 				<FormFields>
-					<TextField label="Workspace Name" />
-					<TextField label="Owner" />
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="form-story-workspace-name">Workspace Name</Label>
+						<Input id="form-story-workspace-name" name="workspaceName" />
+					</div>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="form-story-owner">Owner</Label>
+						<Input id="form-story-owner" name="owner" />
+					</div>
 				</FormFields>
 			</FormSection>
 		),

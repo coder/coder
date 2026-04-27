@@ -1,8 +1,9 @@
-import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { FormFooter } from "#/components/Form/Form";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import { Stack } from "../Stack/Stack";
 import { FullPageForm, type FullPageFormProps } from "./FullPageForm";
 
@@ -14,8 +15,14 @@ const Template: FC<FullPageFormProps> = (props) => (
 			}}
 		>
 			<Stack>
-				<TextField fullWidth label="Field 1" name="field1" />
-				<TextField fullWidth label="Field 2" name="field2" />
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="full-page-form-story-field-1">Field 1</Label>
+					<Input id="full-page-form-story-field-1" name="field1" />
+				</div>
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="full-page-form-story-field-2">Field 2</Label>
+					<Input id="full-page-form-story-field-2" name="field2" />
+				</div>
 				<FormFooter>
 					<Button variant="outline">Cancel</Button>
 					<Button type="submit">Save</Button>
