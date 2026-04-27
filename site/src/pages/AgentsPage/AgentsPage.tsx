@@ -37,6 +37,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { clearPersistedSidebarTabId } from "./AgentChatPage";
@@ -58,6 +59,11 @@ import {
 
 export type { AgentsOutletContext } from "./AgentsPageView";
 
+type ArchivedFilter = "active" | "archived";
+
+const toArchivedFilter = (value: string): ArchivedFilter =>
+	value === "archived" ? "archived" : "active";
+
 const AgentsPage: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
@@ -67,9 +73,13 @@ const AgentsPage: FC = () => {
 	const { appearance } = useDashboard();
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
-	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
-		"active",
-	);
+	const archivedFilterParam = useSearchParamsKey({
+		key: "archived",
+		defaultValue: "active",
+	});
+	const archivedFilter = toArchivedFilter(archivedFilterParam.value);
+	const setArchivedFilter = (filter: ArchivedFilter) =>
+		archivedFilterParam.setValue(filter);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
