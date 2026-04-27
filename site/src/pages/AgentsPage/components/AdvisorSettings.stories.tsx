@@ -63,6 +63,7 @@ const meta = {
 		modelConfigs: mockModelConfigs,
 		modelConfigsError: undefined,
 		isLoadingModelConfigs: false,
+		isFetchingModelConfigs: false,
 		onSaveAdvisorConfig: fn((_req, options) => {
 			options?.onSuccess?.();
 		}),
@@ -637,6 +638,58 @@ export const DisableAdvisorWithModelConfigsErrorPreservesOverride: Story = {
 		});
 	},
 };
+
+export const DisableAdvisorWhileModelConfigsRefetchingPreservesOverride: Story =
+	{
+		args: {
+			advisorConfigData: {
+				enabled: true,
+				max_uses_per_run: 5,
+				max_output_tokens: 2048,
+				reasoning_effort: "high",
+				model_config_id: "22222222-2222-2222-2222-222222222222",
+			},
+			// Simulate a background refetch with stale cached data: react-query
+			// keeps `isLoading` false once cached data exists, so only
+			// `isFetching` flags the in-flight refetch. The cached list does not
+			// contain the override ID.
+			modelConfigs: mockModelConfigs,
+			isLoadingModelConfigs: false,
+			isFetchingModelConfigs: true,
+		},
+		play: async ({ canvasElement, args }) => {
+			const canvas = within(canvasElement);
+			const enableAdvisorSwitch = await canvas.findByRole("switch", {
+				name: /Enable advisor/i,
+			});
+
+			await userEvent.click(enableAdvisorSwitch);
+
+			const saveButton = canvas.getByRole("button", { name: /Save/i });
+			await waitFor(() => {
+				expect(saveButton).toBeEnabled();
+			});
+			await userEvent.click(saveButton);
+
+			await waitFor(() => {
+				expect(args.onSaveAdvisorConfig).toHaveBeenCalled();
+			});
+
+			// While a background refetch is in flight the cached model list may
+			// be stale, so the scrub guard must treat the absence of the
+			// override as indeterminate and forward the ID unchanged. Otherwise
+			// a still-valid override could be silently dropped just because the
+			// cache lags behind the server.
+			const [request] = args.onSaveAdvisorConfig.mock.calls[0];
+			expect(request).toEqual({
+				enabled: false,
+				max_uses_per_run: 5,
+				max_output_tokens: 2048,
+				reasoning_effort: "high",
+				model_config_id: "22222222-2222-2222-2222-222222222222",
+			});
+		},
+	};
 
 export const DisableAdvisorWithDeletedModelAndEmptyModelConfigs: Story = {
 	args: {

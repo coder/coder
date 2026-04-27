@@ -30,6 +30,7 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 	modelConfigsData: [],
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
+	isFetchingModelConfigs: false,
 	onSaveAdvisorConfig: fn(),
 	isSavingAdvisorConfig: false,
 	isSaveAdvisorConfigError: false,

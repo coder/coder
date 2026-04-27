@@ -40,6 +40,7 @@ interface AdvisorSettingsProps {
 	modelConfigs: readonly ChatModelConfig[];
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
+	isFetchingModelConfigs: boolean;
 	onSaveAdvisorConfig: (
 		req: UpdateAdvisorConfigRequest,
 		options?: MutationCallbacks,
@@ -170,6 +171,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	modelConfigs,
 	modelConfigsError,
 	isLoadingModelConfigs,
+	isFetchingModelConfigs,
 	onSaveAdvisorConfig,
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
@@ -211,10 +213,15 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// 400. When disabling, clear the override so a simple disable
 			// stays reliable in that edge case; the override is unusable
 			// anyway and the admin will reselect one on re-enable. Only scrub
-			// when model configs have loaded successfully: during an in-flight
-			// fetch or on error we cannot distinguish "truly missing" from
-			// "not loaded yet", and silently dropping the override would lose
-			// configuration the admin would otherwise keep on re-enable. An
+			// when model configs have loaded successfully and no refetch is in
+			// flight: during an initial load, a background refetch, or on
+			// error we cannot distinguish "truly missing" from "not loaded
+			// yet", and deciding from stale cache could either preserve a
+			// now-deleted ID (causing a 400 on disable/save) or silently drop
+			// an override that is actually still valid but missing from a
+			// stale cache. `isLoading` alone is insufficient because
+			// react-query keeps it false during background refetches when
+			// cached data already exists, so `isFetching` covers that gap. An
 			// empty list after a successful load is a definitive answer, so
 			// the scrub still fires (covers the recovery case where every
 			// model config has been deleted).
@@ -222,6 +229,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				!source.enabled &&
 				!isUnsetModelConfigId(source.model_config_id) &&
 				!isLoadingModelConfigs &&
+				!isFetchingModelConfigs &&
 				!modelConfigsError &&
 				!modelConfigs.some((config) => config.id === source.model_config_id)
 			) {

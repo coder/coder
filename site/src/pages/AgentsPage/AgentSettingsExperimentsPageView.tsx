@@ -37,6 +37,7 @@ export interface AgentSettingsExperimentsPageViewProps {
 	modelConfigsData: readonly TypesGen.ChatModelConfig[];
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
+	isFetchingModelConfigs: boolean;
 	onSaveAdvisorConfig: (
 		req: TypesGen.UpdateAdvisorConfigRequest,
 		options?: MutationCallbacks,
@@ -64,6 +65,7 @@ export const AgentSettingsExperimentsPageView: FC<
 	modelConfigsData,
 	modelConfigsError,
 	isLoadingModelConfigs,
+	isFetchingModelConfigs,
 	onSaveAdvisorConfig,
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
@@ -89,6 +91,7 @@ export const AgentSettingsExperimentsPageView: FC<
 				modelConfigs={modelConfigsData}
 				modelConfigsError={modelConfigsError}
 				isLoadingModelConfigs={isLoadingModelConfigs}
+				isFetchingModelConfigs={isFetchingModelConfigs}
 				onSaveAdvisorConfig={onSaveAdvisorConfig}
 				isSavingAdvisorConfig={isSavingAdvisorConfig}
 				isSaveAdvisorConfigError={isSaveAdvisorConfigError}

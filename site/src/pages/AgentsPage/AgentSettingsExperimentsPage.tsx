@@ -60,6 +60,7 @@ const AgentSettingsExperimentsPage: FC = () => {
 				modelConfigsData={modelConfigsQuery.data ?? []}
 				modelConfigsError={modelConfigsQuery.error}
 				isLoadingModelConfigs={modelConfigsQuery.isLoading}
+				isFetchingModelConfigs={modelConfigsQuery.isFetching}
 				onSaveAdvisorConfig={saveAdvisorConfigMutation.mutate}
 				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
 				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
