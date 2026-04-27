@@ -1,0 +1,81 @@
+-- request --
+{
+  "input": "This was a large input...",
+  "model": "gpt-4.1",
+  "prompt_cache_key": "key-123",
+  "prompt_cache_retention": "24h",
+  "stream": false
+}
+
+-- non-streaming --
+{
+  "id": "resp_0cd5d6b8310055d600696a1776b42c81a199fbb02248a8bfa0",
+  "object": "response",
+  "created_at": 1768560502,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1768560504,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-4.1-2025-04-14",
+  "output": [
+    {
+      "id": "msg_0cd5d6b8310055d600696a177708b881a1bb53034def764104",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "- I provide clear, accurate, and concise answers tailored to your requests.\n- I can process and summarize large volumes of information quickly.\n- I adapt my responses based on your needs and instructions for precision and relevance."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": "key-123",
+  "prompt_cache_retention": "24h",
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 12033,
+    "input_tokens_details": {
+      "cached_tokens": 11904
+    },
+    "output_tokens": 44,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 12077
+  },
+  "user": null,
+  "metadata": {}
+}

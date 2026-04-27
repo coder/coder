@@ -44,8 +44,12 @@ const (
 	// scanCooldown is the minimum interval between successive scans.
 	scanCooldown = 1 * time.Second
 	// fallbackPollInterval is the safety-net poll period used when no
-	// filesystem events arrive.
-	fallbackPollInterval = 30 * time.Second
+	// filesystem events arrive. scanCooldown caps the actual scan
+	// frequency; an outer guard in RunLoop further skips the tick
+	// when a trigger-driven scan already ran within this interval.
+	// Each tick forks 6 git subprocesses per subscribed repo plus
+	// one diff --no-index per untracked file.
+	fallbackPollInterval = 5 * time.Second
 	// maxTotalDiffSize is the maximum size of the combined
 	// unified diff for an entire repository sent over the wire.
 	// This must stay under the WebSocket message size limit.
@@ -224,10 +228,9 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 
 	h.lastScanAt = now
 
-	if len(repos) == 0 {
-		return nil
-	}
-
+	// Always emit when any root is subscribed. A no-delta scan sends
+	// ScannedAt + empty Repositories (omitted via omitempty) so the
+	// client's "checked Ns ago" label stays honest on idle repos.
 	return &codersdk.WorkspaceAgentGitServerMessage{
 		Type:         codersdk.WorkspaceAgentGitServerMessageTypeChanges,
 		ScannedAt:    &now,
@@ -252,6 +255,15 @@ func (h *Handler) RunLoop(ctx context.Context, scanFn func()) {
 			h.rateLimitedScan(ctx, scanFn)
 
 		case <-fallbackTicker.C:
+			// Skip when a recent trigger-driven scan already covered
+			// this interval, so a busy chat pays near-zero poll cost.
+			h.mu.Lock()
+			recent := !h.lastScanAt.IsZero() &&
+				h.clock.Since(h.lastScanAt) < fallbackPollInterval
+			h.mu.Unlock()
+			if recent {
+				continue
+			}
 			h.rateLimitedScan(ctx, scanFn)
 		}
 	}

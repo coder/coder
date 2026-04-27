@@ -56,6 +56,24 @@ func (s *attemptSink) record(a Attempt) {
 	s.attempts = append(s.attempts, a)
 }
 
+// replaceByNumber overwrites a previously recorded attempt whose Number
+// matches. If no match is found, the attempt is appended. This supports
+// the provisional-then-upgrade flow used for SSE bodies where Read()
+// records a completed attempt on EOF and Close() later needs to replace
+// it with a failed attempt when inner.Close() surfaces an error.
+func (s *attemptSink) replaceByNumber(number int, a Attempt) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.attempts {
+		if s.attempts[i].Number == number {
+			s.attempts[i] = a
+			return
+		}
+	}
+	s.attempts = append(s.attempts, a)
+}
+
 func (s *attemptSink) snapshot() []Attempt {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -1,0 +1,43 @@
+Simple request + error which occurs before streaming begins (where applicable).
+
+-- request --
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "how many angels can dance on the head of a pin\n"
+    }
+  ],
+  "model": "gpt-4.1",
+  "stream": true
+}
+
+-- streaming --
+HTTP/2.0 400 Bad Request
+Content-Length: 281
+Content-Type: application/json
+
+{
+  "error": {
+    "message": "Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 3148588 tokens. Please reduce the length of the messages.",
+    "type": "invalid_request_error",
+    "param": "messages",
+    "code": "context_length_exceeded"
+  }
+}
+
+
+-- non-streaming --
+HTTP/2.0 400 Bad Request
+Content-Length: 281
+Content-Type: application/json
+
+{
+  "error": {
+    "message": "Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 3148588 tokens. Please reduce the length of the messages.",
+    "type": "invalid_request_error",
+    "param": "messages",
+    "code": "context_length_exceeded"
+  }
+}
+

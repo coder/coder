@@ -249,7 +249,7 @@ export const AgentSettingsAPIKeysPageView: FC<
 		<div>
 			<section className="flex flex-col gap-8">
 				<SectionHeader
-					label="Personal API Keys"
+					label="Secrets (API keys)"
 					description="Add a personal API key for each provider. Your personal key takes precedence over the shared deployment key when both are available."
 				/>
 				<div>

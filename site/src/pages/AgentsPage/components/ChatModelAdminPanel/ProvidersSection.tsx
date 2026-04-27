@@ -1,5 +1,5 @@
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -14,7 +14,6 @@ type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 interface ProvidersSectionProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	providerStates: readonly ProviderState[];
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
@@ -26,20 +25,17 @@ interface ProvidersSectionProps {
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	onSelectedProviderChange: (provider: string) => void;
 }
 
 export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	providerStates,
 	providerConfigsUnavailable,
 	isProviderMutationPending,
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
-	onSelectedProviderChange,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const navigate = useNavigate();
@@ -134,7 +130,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 					description={
 						sectionDescription ?? "Configure AI providers to use with Agents."
 					}
-					badge={sectionBadge}
 				/>
 			)}
 			<div>
@@ -144,7 +139,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						key={providerState.provider}
 						aria-label={providerState.label}
 						onClick={() => {
-							onSelectedProviderChange(providerState.provider);
 							setSearchParams(
 								{ provider: providerState.provider },
 								{ state: { pushed: true } },

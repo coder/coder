@@ -15,12 +15,11 @@ import {
 	selectSubagentStatusOverrides,
 	useChatSelector,
 } from "./chatStore";
-import type { useChatStore } from "./useChatStore";
-
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
 import { StreamingOutput } from "./StreamingOutput";
 import { buildStreamTools } from "./streamState";
 import type { MergedTool, StreamState } from "./types";
+import type { useChatStore } from "./useChatStore";
 
 const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "streaming" ||

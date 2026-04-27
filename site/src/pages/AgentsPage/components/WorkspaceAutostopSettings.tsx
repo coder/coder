@@ -6,7 +6,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { AdminBadge } from "./AdminBadge";
 import { DurationField } from "./DurationField/DurationField";
 import {
 	TemporarySavedState,
@@ -124,7 +123,6 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						Workspace Autostop Fallback
 					</h3>
-					<AdminBadge />
 				</div>
 				<Switch
 					checked={isAutostopEnabled}

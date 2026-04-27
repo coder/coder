@@ -9,7 +9,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import { AdminBadge } from "./AdminBadge";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
@@ -79,7 +78,6 @@ export const SystemInstructionsSettings: FC<
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
 						System Instructions
 					</h3>
-					<AdminBadge />
 				</div>
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex min-w-0 items-center gap-2 text-xs font-medium text-content-primary">

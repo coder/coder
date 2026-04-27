@@ -1,7 +1,7 @@
 rules:
   cache-poisoning:
     ignore:
-      - "ci.yaml:187"
+      - "ci.yaml:188"
   dangerous-triggers:
     ignore:
       # Both workflows use pull_request_target intentionally: they need

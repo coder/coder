@@ -74,6 +74,13 @@ func ProviderDisplayName(provider string) string {
 	return normalized
 }
 
+// ProviderAllowsAmbientCredentials reports whether provider can use
+// ambient credentials from the Coder server instead of an explicit
+// API key.
+func ProviderAllowsAmbientCredentials(provider string) bool {
+	return NormalizeProvider(provider) == fantasybedrock.Name
+}
+
 // ProviderAPIKeys contains API keys for provider calls.
 type ProviderAPIKeys struct {
 	OpenAI            string
@@ -134,6 +141,17 @@ func (k ProviderAPIKeys) APIKey(provider string) string {
 	default:
 		return ""
 	}
+}
+
+// HasProvider reports whether a provider has an explicit resolved entry
+// in the provider key map, even when the resolved key is empty.
+func (k ProviderAPIKeys) HasProvider(provider string) bool {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" || k.ByProvider == nil {
+		return false
+	}
+	_, ok := k.ByProvider[normalized]
+	return ok
 }
 
 // BaseURL returns the configured base URL for a provider.
@@ -295,6 +313,15 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
+		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
+			// Bedrock can use ambient AWS credentials from the Coder server
+			// without an explicit key, but only when the credential policy
+			// allows central credentials to satisfy the request.
+			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
+				resolved.Available = true
+			} else {
+				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+			}
 		case provider.AllowUserAPIKey && provider.AllowCentralAPIKeyFallback && provider.CentralAPIKeyEnabled:
 			// When users can add their own key, a missing central fallback key is
 			// still something the user can remedy.
@@ -305,14 +332,18 @@ func ResolveUserProviderKeys(
 			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
 		}
 
-		setResolvedProviderAPIKey(&merged, normalizedProvider, chosenKey)
+		setResolvedProviderAPIKey(&merged, normalizedProvider, chosenKey, resolved)
 		availabilityByProvider[normalizedProvider] = resolved
 	}
 
 	return merged, availabilityByProvider
 }
 
-func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey string) {
+// setResolvedProviderAPIKey keeps ByProvider presence aligned with
+// resolved provider availability. An empty value means ambient
+// credentials may satisfy the provider. An absent entry means the
+// provider is not resolvable.
+func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey string, availability ProviderAvailability) {
 	normalizedProvider := NormalizeProvider(provider)
 	if normalizedProvider == "" {
 		return
@@ -329,7 +360,7 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	case fantasyanthropic.Name:
 		keys.Anthropic = trimmedKey
 	}
-	if trimmedKey != "" {
+	if trimmedKey != "" || (availability.Available && ProviderAllowsAmbientCredentials(normalizedProvider)) {
 		keys.ByProvider[normalizedProvider] = trimmedKey
 	}
 }
@@ -1132,7 +1163,8 @@ func ModelFromConfig(
 	}
 
 	apiKey := providerKeys.APIKey(provider)
-	if apiKey == "" {
+	if apiKey == "" &&
+		!(ProviderAllowsAmbientCredentials(provider) && providerKeys.HasProvider(provider)) {
 		return nil, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
@@ -1173,11 +1205,16 @@ func ModelFromConfig(
 		providerClient, err = fantasyazure.New(azureOpts...)
 	case fantasybedrock.Name:
 		bedrockOpts := []fantasybedrock.Option{
-			fantasybedrock.WithAPIKey(apiKey),
 			fantasybedrock.WithUserAgent(userAgent),
+		}
+		if apiKey != "" {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))
 		}
 		if len(extraHeaders) > 0 {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHeaders(extraHeaders))
+		}
+		if baseURL != "" {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithBaseURL(baseURL))
 		}
 		if httpClient != nil {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHTTPClient(httpClient))
@@ -1260,7 +1297,7 @@ func ModelFromConfig(
 		return nil, xerrors.Errorf("unsupported model provider %q", provider)
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("create %s provider: %w", provider, err)
+		return nil, providerCreationError(provider, err)
 	}
 
 	model, err := providerClient.LanguageModel(context.Background(), modelID)
@@ -1270,14 +1307,19 @@ func ModelFromConfig(
 	return model, nil
 }
 
+func providerCreationError(provider string, err error) error {
+	return xerrors.Errorf("create %s provider: %w", provider, err)
+}
+
+// Providers that allow ambient credentials, such as Bedrock, bypass
+// this helper only after ResolveUserProviderKeys marks them
+// available.
 func missingProviderAPIKeyError(provider string) error {
 	switch provider {
 	case fantasyanthropic.Name:
 		return xerrors.New("ANTHROPIC_API_KEY is not set")
 	case fantasyazure.Name:
 		return xerrors.New("AZURE_OPENAI_API_KEY is not set")
-	case fantasybedrock.Name:
-		return xerrors.New("BEDROCK_API_KEY is not set")
 	case fantasygoogle.Name:
 		return xerrors.New("GOOGLE_API_KEY is not set")
 	case fantasyopenai.Name:
