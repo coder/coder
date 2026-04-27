@@ -20,11 +20,11 @@ VALUES (
     '764031be-4863-4220-867b-6ce1a1b7a5f5',
     'Chats Auto-Archived',
     E'Chats auto-archived after {{.Data.auto_archive_days}} days of inactivity',
-    E'The following chat{{if ne (len .Data.archived_chats) 1}}s were{{else}} was{{end}} automatically archived because {{if ne (len .Data.archived_chats) 1}}they have{{else}}it has{{end}} been inactive for more than {{.Data.auto_archive_days}} days:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}{{with .Data.additional_archived_count}}...and {{.}} more.\n\n{{end}}\n{{if eq .Data.retention_days "0"}}You can restore any of them from the Agents page; archived chats are kept indefinitely.{{else}}You can restore any of them from the Agents page within {{.Data.retention_days}} days, after which they will be permanently deleted.{{end}}',
+    E'The following chat{{if ne (len .Data.archived_chats) 1}}s were{{else}} was{{end}} automatically archived because {{if ne (len .Data.archived_chats) 1}}they have{{else}}it has{{end}} been inactive for more than {{.Data.auto_archive_days}} days:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}{{with .Data.additional_archived_count}}\n...and {{.}} more.\n\n{{end}}\n{{if eq .Data.retention_days "0"}}You can restore any of them from the Agents page; archived chats are kept indefinitely.{{else}}You can restore any of them from the Agents page within {{.Data.retention_days}} days, after which they will be permanently deleted.{{end}}',
     '[
         {
             "label": "View chats",
-            "url": "{{base_url}}/agents"
+            "url": "{{base_url}}/agents?archived=archived"
         }
     ]'::jsonb,
     'Chat Events',

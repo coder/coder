@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationsmock"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
@@ -1814,37 +1815,6 @@ func mockAuditorPtr(m *audit.MockAuditor) *atomic.Pointer[audit.Auditor] {
 	return &p
 }
 
-// blockingEnqueuer blocks each enqueue call until its context is
-// canceled. The first call closes started so a test can
-// deterministically observe that an enqueue is in flight, then trigger
-// shutdown and assert that ctx cancellation propagates through to the
-// blocked call. Used to verify dbpurge.dispatchChatAutoArchive does not
-// hang shutdown on a stuck enqueuer.
-type blockingEnqueuer struct {
-	started chan struct{}
-	calls   atomic.Int32
-}
-
-func newBlockingEnqueuer() *blockingEnqueuer {
-	return &blockingEnqueuer{started: make(chan struct{})}
-}
-
-func (b *blockingEnqueuer) Enqueue(ctx context.Context, _, _ uuid.UUID, _ map[string]string, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
-	return b.block(ctx)
-}
-
-func (b *blockingEnqueuer) EnqueueWithData(ctx context.Context, _, _ uuid.UUID, _ map[string]string, _ map[string]any, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
-	return b.block(ctx)
-}
-
-func (b *blockingEnqueuer) block(ctx context.Context) ([]uuid.UUID, error) {
-	if b.calls.Add(1) == 1 {
-		close(b.started)
-	}
-	<-ctx.Done()
-	return nil, ctx.Err()
-}
-
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldChatFiles(t *testing.T) {
 	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
@@ -3020,12 +2990,12 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 		{
 			name: "ShutdownCancelsDigestDispatch",
 			run: func(t *testing.T) {
-				// Two owners with one stale root each. A blocking
-				// enqueuer holds the first EnqueueWithData call until
-				// ctx is canceled. Closing the purger must propagate
-				// cancellation into the in-flight call and short-
-				// circuit the rest of the loop, so Close returns
-				// promptly instead of hanging on dispatch.
+				// Two owners with one stale root each. The first
+				// EnqueueWithData call blocks until ctx is canceled.
+				// Closing the purger must propagate cancellation
+				// into the in-flight call and short-circuit the
+				// rest of the loop, so Close returns promptly
+				// instead of hanging on dispatch.
 				h := newArchiveHarness(t, now)
 				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 				user2 := dbgen.User(t, db, database.User{})
@@ -3038,33 +3008,88 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-stale", now.Add(-60*24*time.Hour))
 				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-stale", now.Add(-60*24*time.Hour))
 
-				enqueuer := newBlockingEnqueuer()
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
+				// Dispatch iterates owner IDs in ascending UUID order (convention).
+				expectedFirst := deps.user.ID
+				if user2.ID.String() < deps.user.ID.String() {
+					expectedFirst = user2.ID
+				}
+
+				ctrl := gomock.NewController(t)
+				mockEnq := notificationsmock.NewMockEnqueuer(ctrl)
+				started := make(chan struct{})
+				mockEnq.EXPECT().EnqueueWithData(gomock.Any(), gomock.Eq(expectedFirst), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, _ map[string]string, _ map[string]any, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
+						close(started)
+						<-ctx.Done()
+						return nil, ctx.Err()
+					}).Times(1)
+
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithNotificationsEnqueuer(mockEnq), dbpurge.WithClock(clk))
 
 				// Wait for the forced initial tick to reach the first
 				// enqueue, which then blocks on ctx.Done().
-				testutil.TryReceive(ctx, t, enqueuer.started)
+				testutil.TryReceive(ctx, t, started)
 
-				// Close must return promptly. The blocked enqueue
-				// receives ctx cancellation via the parent context;
-				// the loop-head check then abandons the remaining
-				// owner instead of trying to enqueue them.
-				closeCtx, closeCancel := context.WithTimeout(ctx, testutil.WaitShort)
-				defer closeCancel()
-				done := make(chan error, 1)
+				// Blocked enqueue receives ctx cancellation via the parent context.
+				// Loop-head check abandons the remaining owner instead of trying to enqueue.
+				done := make(chan error)
 				go func() { done <- closer.Close() }()
-				select {
-				case err := <-done:
-					require.NoError(t, err)
-				case <-closeCtx.Done():
-					t.Fatal("Close did not return; shutdown is hanging on dispatch")
-				}
+				testutil.RequireReceive(ctx, t, done)
+			},
+		},
+		{
+			// A transient enqueue failure for one owner must not abort the dispatch loop.
+			name: "TransientEnqueueFailureDoesNotAbortLoop",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+				user2 := dbgen.User(t, db, database.User{})
+				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: deps.org.ID})
 
-				// Exactly one enqueue was attempted: the call we
-				// caught blocked. The remaining owner was abandoned
-				// by the inter-iteration ctx check.
-				require.Equal(t, int32(1), enqueuer.calls.Load(),
-					"shutdown should abandon remaining digests")
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				u1Deps := deps
+				u2Deps := chatAutoArchiveDeps{user: user2, org: deps.org, modelConfig: deps.modelConfig}
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-stale", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-stale", now.Add(-60*24*time.Hour))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+
+				ctrl := gomock.NewController(t)
+				mockEnq := notificationsmock.NewMockEnqueuer(ctrl)
+				var calls atomic.Int32
+				var successUserID uuid.UUID
+				mockEnq.EXPECT().EnqueueWithData(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, userID, _ uuid.UUID, _ map[string]string, _ map[string]any, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
+						if calls.Add(1) == 1 {
+							return nil, xerrors.New("simulated transient enqueue failure")
+						}
+						successUserID = userID
+						return nil, nil
+					}).Times(2)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(mockEnq), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Both owners must have been audited regardless of
+				// digest enqueue outcomes; the audit and digest
+				// paths are independent.
+				require.Len(t, auditor.AuditLogs(), 2, "both archived roots must be audited")
+
+				// gomock's .Times(2) already enforces both calls
+				// happened; this assertion makes the contract
+				// explicit at the test site.
+				require.Equal(t, int32(2), calls.Load(),
+					"loop must attempt every owner even when one fails")
+
+				// The second attempt succeeded for one of the two
+				// owners. Map iteration order is nondeterministic,
+				// so we don't pin which.
+				require.Contains(t, []uuid.UUID{deps.user.ID, user2.ID}, successUserID,
+					"successful digest must belong to one of the two owners")
 			},
 		},
 	}

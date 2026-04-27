@@ -12,7 +12,7 @@
     "actions": [
       {
         "label": "View chats",
-        "url": "http://test.com/agents"
+        "url": "http://test.com/agents?archived=archived"
       }
     ],
     "labels": {},

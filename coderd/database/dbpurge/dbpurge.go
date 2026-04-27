@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -504,8 +505,18 @@ func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context,
 	for _, row := range roots {
 		rootsByOwner[row.OwnerID] = append(rootsByOwner[row.OwnerID], row)
 	}
+
+	// Sort owner IDs so shutdown abandons a deterministic tail of the dispatch list.
+	ownerIDs := make([]uuid.UUID, 0, len(rootsByOwner))
+	for id := range rootsByOwner {
+		ownerIDs = append(ownerIDs, id)
+	}
+	slices.SortFunc(ownerIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
+	})
+
 	dispatched := 0
-	for ownerID, ownerRoots := range rootsByOwner {
+	for _, ownerID := range ownerIDs {
 		// Check between iterations so shutdown unblocks promptly. A
 		// hung in-flight enqueue is unblocked by enqueueCtx propagating
 		// cancellation into the DB call. Skipped owners are not
@@ -514,12 +525,13 @@ func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context,
 		// tradeoff over hanging shutdown.
 		if err := enqueueCtx.Err(); err != nil {
 			i.logger.Warn(enqueueCtx, "chat auto-archive digest dispatch canceled",
-				slog.F("remaining_owners", len(rootsByOwner)-dispatched),
+				slog.F("remaining_owners", len(ownerIDs)-dispatched),
 				slog.Error(err))
 			return
 		}
 		dispatched++
 
+		ownerRoots := rootsByOwner[ownerID]
 		data := buildDigestData(ownerRoots, autoArchiveDays, retentionDays, tickStart)
 
 		// nolint:gocritic // Background digest runs as the notifier subject.

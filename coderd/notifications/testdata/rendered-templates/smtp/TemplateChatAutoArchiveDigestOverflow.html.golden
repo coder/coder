@@ -17,13 +17,14 @@ tive for more than 90 days:
 
 "Onboarding kickoff" (last active 3 months ago)
 "Quarterly planning draft" (last active 4 months ago)
+
 ...and 6 more.
 
 You can restore any of them from the Agents page within 30 days, after whic=
 h they will be permanently deleted.
 
 
-View chats: http://test.com/agents
+View chats: http://test.com/agents?archived=3Darchived
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -61,18 +62,19 @@ e been inactive for more than 90 days:</p>
 <li>&ldquo;Onboarding kickoff&rdquo; (last active 3 months ago)<br>
 </li>
 <li>&ldquo;Quarterly planning draft&rdquo; (last active 4 months ago)<br>
-&hellip;and 6 more.<br>
 </li>
 </ul>
+
+<p>&hellip;and 6 more.</p>
 
 <p>You can restore any of them from the Agents page within 30 days, after w=
 hich they will be permanently deleted.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/agents" style=3D"display: inline-block; =
-padding: 13px 24px; background-color: #020617; color: #f8fafc; text-decorat=
-ion: none; border-radius: 8px; margin: 0 4px;">
+        <a href=3D"http://test.com/agents?archived=3Darchived" style=3D"dis=
+play: inline-block; padding: 13px 24px; background-color: #020617; color: #=
+f8fafc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
           View chats
         </a>
        =20
