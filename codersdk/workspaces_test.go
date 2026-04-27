@@ -63,7 +63,6 @@ func TestResolveWorkspace(t *testing.T) {
 		// Expected outcomes.
 		wantErr        bool
 		wantStatusCode int
-		wantWSID       uuid.UUID
 		wantUUIDHits   int64
 		wantNameHits   int64
 	}{
@@ -156,6 +155,20 @@ func TestResolveWorkspace(t *testing.T) {
 			wantStatusCode: http.StatusInternalServerError,
 			wantUUIDHits:   1,
 			wantNameHits:   0,
+		},
+		{
+			name:       "NameNotFound",
+			identifier: "nonexistent",
+			nameEndpoint: &endpointResponse{
+				status: http.StatusNotFound,
+				errMsg: "Resource not found.",
+			},
+			expectedOwner: "me",
+			expectedName:  "nonexistent",
+			wantErr:        true,
+			wantStatusCode: http.StatusNotFound,
+			wantUUIDHits:   0,
+			wantNameHits:   1,
 		},
 		{
 			name:       "Forbidden",
