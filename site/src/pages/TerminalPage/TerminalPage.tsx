@@ -69,7 +69,6 @@ const TerminalPage: FC = () => {
 	const appSlug = searchParams.get("app") || undefined;
 	const containerName = searchParams.get("container") || undefined;
 	const containerUser = searchParams.get("container_user") || undefined;
-
 	// The workspace name is in the format:
 	// <workspace name>[.<agent name>]
 	const workspaceNameParts = params.workspace?.split(".");
@@ -99,6 +98,7 @@ const TerminalPage: FC = () => {
 		: command && commandConfirmed
 			? command
 			: undefined;
+
 	const selectedProxy = proxy.proxy;
 	const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
@@ -278,12 +278,6 @@ const TerminalPage: FC = () => {
 			return;
 		}
 
-		// Block the websocket connection while the confirmation dialog
-		// is waiting for user input.
-		if (commandPendingConfirmation) {
-			return;
-		}
-
 		// The terminal should be cleared on each reconnect
 		// because all data is re-rendered from the backend.
 		terminal.clear();
@@ -297,6 +291,10 @@ const TerminalPage: FC = () => {
 
 		// Show a message if we failed to find the workspace or agent.
 		if (workspace.isLoading) {
+			return;
+		}
+
+		if (commandPendingConfirmation) {
 			return;
 		}
 
