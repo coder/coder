@@ -518,6 +518,73 @@ func TestRefreshToken(t *testing.T) {
 			"DB should have the new refresh token despite context cancellation")
 	})
 
+	// SaveBeforeValidate_RateLimited tests the full path: refresh
+	// succeeds, early save persists the token, validation returns
+	// rate-limited optimistic true, and RefreshToken returns success
+	// with no InvalidTokenError. Uses httptest.NewServer for the
+	// validate endpoint to set rate-limit headers that the FakeIDP's
+	// WithDynamicUserInfo hook cannot control.
+	t.Run("SaveBeforeValidate_RateLimited", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		var refreshCalls atomic.Int64
+		// rateLimitValidate returns 403 with rate-limit headers.
+		rateLimitValidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(rateLimitValidate.Close)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					return nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				cfg.ValidateURL = rateLimitValidate.URL
+			},
+			DB: db,
+		})
+
+		// Use a real HTTP transport for non-IDP requests so the
+		// validate request can reach the httptest server.
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(&http.Client{
+			Transport: http.DefaultTransport,
+		}))
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+
+		// Expire the token to force a refresh.
+		link.OAuthExpiry = expired
+
+		// RefreshToken should succeed: the IDP refresh works, the
+		// early save persists the token, and ValidateToken returns
+		// (true, nil, nil) because the 403 has rate-limit headers.
+		updated, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err, "RefreshToken should succeed when validation is rate-limited")
+		require.Equal(t, int64(1), refreshCalls.Load(), "IDP refresh should have been called")
+		require.NotEqual(t, oldAccessToken, updated.OAuthAccessToken,
+			"returned token should be the new one from the refresh")
+
+		// Verify the DB has the new token.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the refreshed access token")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token (old one was rotated by the IDP)")
+	})
+
 	// SaveBeforeValidate_DBError tests that when the early DB save
 	// fails after a successful IDP refresh, the error is surfaced
 	// as a non-InvalidTokenError. This is a degraded state (token
@@ -619,6 +686,169 @@ func TestRefreshToken(t *testing.T) {
 			"caller A's refresh token should still be in DB")
 		require.Empty(t, dbLink.OauthRefreshFailureReason,
 			"caller B's failure reason should not have been written")
+	})
+}
+
+func TestValidateToken(t *testing.T) {
+	t.Parallel()
+
+	// These tests use httptest.NewServer to control response headers
+	// (X-RateLimit-Remaining, Retry-After) that the FakeIDP's
+	// WithDynamicUserInfo hook does not expose.
+
+	newValidateConfig := func(t *testing.T, validateURL string) *externalauth.Config {
+		t.Helper()
+		f := promoauth.NewFactory(prometheus.NewRegistry())
+		return &externalauth.Config{
+			InstrumentedOAuth2Config: f.New("test-validate", &oauth2.Config{}),
+			ID:                       "test-validate",
+			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			ValidateURL:              validateURL,
+		}
+	}
+
+	newToken := func() *oauth2.Token {
+		return &oauth2.Token{
+			AccessToken: "test-access-token",
+			Expiry:      time.Now().Add(time.Hour),
+		}
+	}
+
+	// RateLimitRemaining: 403 with X-RateLimit-Remaining: 0 should be
+	// treated as rate-limited, not as an invalid token.
+	t.Run("RateLimitRemaining", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "rate-limited 403 should be treated as optimistically valid")
+		assert.Nil(t, user)
+	})
+
+	// RetryAfter: 403 with Retry-After header (secondary rate limit)
+	// should be treated as rate-limited.
+	t.Run("RetryAfter", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "rate-limited 403 with Retry-After should be optimistically valid")
+		assert.Nil(t, user)
+	})
+
+	// Forbidden_WithNonZeroRateLimit: a 403 with non-zero
+	// X-RateLimit-Remaining is a genuine token revocation, not a
+	// rate limit. GitHub includes X-RateLimit-* headers on all
+	// authenticated responses; the value matters, not the presence.
+	t.Run("Forbidden_WithNonZeroRateLimit", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "5000")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "403 with non-zero rate limit remaining means token is invalid")
+		assert.Nil(t, user)
+	})
+
+	// Forbidden_NoRateLimitHeaders: a plain 403 without rate-limit
+	// headers is a genuine token revocation / permission error.
+	t.Run("Forbidden_NoRateLimitHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "plain 403 without rate-limit headers means token is invalid")
+		assert.Nil(t, user)
+	})
+
+	// Unauthorized: 401 is always a token revocation regardless of
+	// rate-limit headers.
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "401 always means token is invalid")
+		assert.Nil(t, user)
+	})
+
+	// Unauthorized_WithRateLimitHeaders: 401 is always a revocation,
+	// even when rate-limit headers are present. Locks the ordering
+	// invariant that the 401 branch precedes the rate-limit check.
+	t.Run("Unauthorized_WithRateLimitHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "401 is always invalid, even with rate-limit headers")
+		assert.Nil(t, user)
+	})
+
+	// TooManyRequests: 429 is treated optimistically, same as a
+	// rate-limited 403. GitHub can return either status code for
+	// rate limits.
+	t.Run("TooManyRequests", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(context.Background(), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "429 should be treated as optimistically valid")
+		assert.Nil(t, user)
 	})
 }
 

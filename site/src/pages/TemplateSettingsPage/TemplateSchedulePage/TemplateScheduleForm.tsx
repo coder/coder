@@ -56,7 +56,7 @@ const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
  * The default form field space is 4 but since this form is quite heavy I think
  * increase the space can make it feels lighter.
  */
-const FORM_FIELDS_SPACING = 8;
+const FORM_FIELDS_GAP = "gap-16";
 
 export interface TemplateScheduleForm {
 	template: Template;
@@ -287,7 +287,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 				title="Autostop"
 				description="Define when workspaces created from this template are stopped."
 			>
-				<FormFields spacing={FORM_FIELDS_SPACING}>
+				<FormFields className={FORM_FIELDS_GAP}>
 					<TextField
 						{...getFieldHelpers("default_ttl_ms", {
 							helperText: (
@@ -443,7 +443,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					title="Dormancy"
 					description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
 				>
-					<FormFields spacing={FORM_FIELDS_SPACING}>
+					<FormFields className={FORM_FIELDS_GAP}>
 						<div className="flex flex-col gap-8">
 							<div className="flex items-start">
 								<Switch

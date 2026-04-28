@@ -113,9 +113,7 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Gateway.
 
-This section applies when you want template admins to preconfigure tools inside
-Coder workspaces. For tools running outside a workspace, see
-[External and Desktop Clients](#external-and-desktop-clients).
+This section applies when you want template admins to preconfigure tools inside Coder workspaces. For tools running outside of a workspace, see [External and Desktop Clients](#external-and-desktop-clients).
 
 While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Gateway base URL into the workspace environment.
 
@@ -146,10 +144,9 @@ For base URL setup, the client machine must have network access to the AI Gatewa
 
 Users can generate a long-lived API token from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
-For complete setup instructions, see the [supported client examples](#all-supported-clients).
-
 <details>
-<summary>Claude Code example</summary>
+<summary>Example</summary>
+For clients supporting [base URL](#base-urls), eg. [Claude Code](./claude-code.md):
 
 ```sh
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
@@ -158,18 +155,19 @@ export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 
 Replace `coder.example.com` with your Coder deployment URL.
 
-If the client uses [AI Gateway Proxy](../ai-gateway-proxy/index.md) instead of a
-base URL, configure the proxy endpoint and CA trust locally:
+For other clients setup [AI Gateway Proxy](../ai-gateway-proxy/index.md). Configure the proxy endpoint and [CA certificates](../ai-gateway-proxy/setup.md#environment-variables):
 
 ```sh
 export HTTPS_PROXY="https://coder:<your-coder-api-token>@<proxy-host>:8888"
-export NODE_EXTRA_CA_CERTS="/path/to/coder-aibridge-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
 ```
 
-For BYOK and workspace template examples, see [Claude Code](./claude-code.md).
 For proxy setup details, see [AI Gateway Proxy setup](../ai-gateway-proxy/setup.md).
 
+For BYOK and workspace template examples, see full [Claude Code](./claude-code.md) example.
 </details>
+
+For complete setup instructions, see the [supported client examples](#all-supported-clients).
 
 ## All Supported Clients
 
