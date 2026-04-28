@@ -112,7 +112,10 @@ coder server --aibridge-allow-byok=false
 ### 1. Generate a long-lived API token
 
 Create a token from the Coder dashboard or CLI. This token authenticates
-you with AI Gateway and does not require a workspace.
+you with AI Gateway and does not require a workspace. If you do not have
+a Coder account, ask your admin to provision a
+[service account](#users-without-individual-coder-accounts) and provide
+you with a token.
 
 <div class="tabs">
 
