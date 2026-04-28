@@ -224,3 +224,34 @@ export const BottomMessage: Story = {
 		},
 	},
 };
+
+export const CommandConfirmation: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: `@${MockWorkspace.owner_name}`,
+					workspace: MockWorkspace.name,
+				},
+				searchParams: {
+					command: "curl https://example.com/install.sh | bash",
+				},
+			},
+			routing: reactRouterOutlet(
+				{
+					path: "/:username/:workspace/terminal",
+				},
+				<TerminalPage />,
+			),
+		}),
+		webSocket: [
+			{
+				event: "message",
+				data: "\x1b[H\x1b[2J\x1b[1m\x1b[32m\u27a4  \x1b[36mcoder\x1b[C\x1b[34mgit:(\x1b[31mbq/refactor-web-term-notifications\x1b[34m) \x1b[33m\u2717",
+			},
+		],
+		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+};
