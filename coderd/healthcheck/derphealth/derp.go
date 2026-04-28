@@ -113,13 +113,6 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			mu.Unlock()
 		}()
 	}
-	if !hasDERP {
-		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, health.Messagef(
-			health.CodeDERPNoNodes, noDERP,
-		))
-	}
-
 	ncLogf := func(format string, args ...interface{}) {
 		mu.Lock()
 		r.NetcheckLogs = append(r.NetcheckLogs, fmt.Sprintf(format, args...))
@@ -134,10 +127,19 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Netcheck = ncReport
 	r.NetcheckErr = convertError(netcheckErr)
 	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
+		mu.Lock()
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNMapVaryDest, stunMapVaryDest))
+		mu.Unlock()
 	}
 
 	wg.Wait()
+
+	if !hasDERP {
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(
+			health.CodeDERPNoNodes, noDERP,
+		))
+	}
 
 	// Count the number of STUN-capable nodes.
 	var stunCapableNodes int

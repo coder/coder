@@ -128,14 +128,20 @@ func main() {
 				Value:       serpent.BoolOf(&cfg.useProxy),
 			},
 			{
-				Flag:        "multi-organization",
-				Description: "Create a second organization.",
-				Value:       serpent.BoolOf(&cfg.multiOrg),
-			},
-			{
 				Flag:        "debug",
 				Description: "Run under Delve debugger.",
 				Value:       serpent.BoolOf(&cfg.debug),
+			},
+			{
+				Flag:        "skip-setup",
+				Env:         "CODER_DEV_SKIP_SETUP",
+				Description: "Don't attempt to create a first user or other resources. Will cause multi-organization, starter-template, and use-proxy to be ignored.",
+				Value:       serpent.BoolOf(&cfg.skipSetup),
+			},
+			{
+				Flag:        "multi-organization",
+				Description: "Create a second organization.",
+				Value:       serpent.BoolOf(&cfg.multiOrg),
 			},
 			{
 				Flag:        "starter-template",
@@ -194,8 +200,9 @@ type devConfig struct {
 	accessURL        string
 	password         string
 	useProxy         bool
-	multiOrg         bool
 	debug            bool
+	skipSetup        bool
+	multiOrg         bool
 	starterTemplate  string
 	dbRollback       bool
 	dbReset          bool
@@ -469,24 +476,6 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		return err
 	}
 
-	client, err := setupFirstUser(ctx, logger, cfg, apiURL)
-	if err != nil {
-		return xerrors.Errorf("setup: %w", err)
-	}
-
-	if cfg.multiOrg {
-		if err := setupMultiOrg(ctx, logger, cfg, client, group); err != nil {
-			logger.Warn(ctx, "multi-org setup failed, continuing",
-				slog.Error(err))
-		}
-	}
-
-	if cfg.starterTemplate != "" {
-		if err := setupStarterTemplate(ctx, logger, cfg, client); err != nil {
-			logger.Warn(ctx, "starter template setup failed, continuing", slog.Error(err))
-		}
-	}
-
 	// Update migration tracking after the server has applied
 	// any new migrations. This keeps the cache current so the
 	// next run detects mismatches correctly.
@@ -495,10 +484,30 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 			slog.Error(err))
 	}
 
-	if cfg.useProxy {
-		if err := setupWorkspaceProxy(ctx, cfg, client, group); err != nil {
-			logger.Warn(ctx, "proxy setup failed, continuing",
-				slog.Error(err))
+	if !cfg.skipSetup {
+		client, err := setupFirstUser(ctx, logger, cfg, apiURL)
+		if err != nil {
+			return xerrors.Errorf("setup: %w", err)
+		}
+
+		if cfg.multiOrg {
+			if err := setupMultiOrg(ctx, logger, cfg, client, group); err != nil {
+				logger.Warn(ctx, "multi-org setup failed, continuing",
+					slog.Error(err))
+			}
+		}
+
+		if cfg.starterTemplate != "" {
+			if err := setupStarterTemplate(ctx, logger, cfg, client); err != nil {
+				logger.Warn(ctx, "starter template setup failed, continuing", slog.Error(err))
+			}
+		}
+
+		if cfg.useProxy {
+			if err := setupWorkspaceProxy(ctx, cfg, client, group); err != nil {
+				logger.Warn(ctx, "proxy setup failed, continuing",
+					slog.Error(err))
+			}
 		}
 	}
 
