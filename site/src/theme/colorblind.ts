@@ -39,26 +39,6 @@ export const isConcreteThemeName = (
 };
 
 /**
- * Resolves a stored theme name to the concrete theme that should be
- * rendered. Unknown, empty, or legacy `auto-*` values fall back to the
- * OS color scheme, which matches the pre-existing contract of tolerating
- * stale database values.
- *
- * Callers that want to preserve the semantics of a legacy `auto-*` value
- * (sync mode with colorblind slots) should call `legacyAutoToSync` first
- * and feed the resulting concrete slot to this resolver.
- */
-export const resolveThemeName = (
-	preference: string | undefined,
-	osScheme: "dark" | "light",
-): ConcreteThemeName => {
-	if (isConcreteThemeName(preference)) {
-		return preference;
-	}
-	return osScheme;
-};
-
-/**
  * Minimal "sync mode" shape. Kept in this module (rather than in
  * `themeMode.ts`) because the mapping from legacy auto-family strings to
  * a sync pair is pure data and naturally lives next to the registry.

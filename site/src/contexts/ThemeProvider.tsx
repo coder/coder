@@ -16,8 +16,6 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useEffect,
-	useMemo,
-	useState,
 } from "react";
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
@@ -28,6 +26,7 @@ import {
 	migrateLegacyPreference,
 	resolveActiveThemeName,
 } from "#/theme/themeMode";
+import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 
 /**
  * Root theme provider for the web UI.
@@ -52,29 +51,7 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
 	);
-	const themeQuery = useMemo(
-		() => window.matchMedia?.("(prefers-color-scheme: light)"),
-		[],
-	);
-	const [preferredColorScheme, setPreferredColorScheme] = useState<
-		"dark" | "light"
-	>(themeQuery?.matches ? "light" : "dark");
-
-	useEffect(() => {
-		if (!themeQuery) {
-			return;
-		}
-
-		const listener = (event: MediaQueryListEvent) => {
-			setPreferredColorScheme(event.matches ? "light" : "dark");
-		};
-
-		// `addEventListener` here is a recent API that isn't mocked in tests.
-		themeQuery.addEventListener?.("change", listener);
-		return () => {
-			themeQuery.removeEventListener?.("change", listener);
-		};
-	}, [themeQuery]);
+	const preferredColorScheme = usePreferredColorScheme();
 
 	// Prefer the JS-fetched settings; fall back to the SSR meta tag so
 	// the first paint picks the right theme even before the React Query

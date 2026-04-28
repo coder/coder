@@ -9,12 +9,6 @@ interface ThemePreviewProps {
 	 */
 	theme: ConcreteThemeName;
 	/**
-	 * When true, a blue outline ring highlights the preview card. Used
-	 * in single-theme mode to indicate the currently selected tile and
-	 * in sync mode to indicate the Active card for the current OS scheme.
-	 */
-	active?: boolean;
-	/**
 	 * `sm` matches the legacy 224px tile used by the single-theme grid;
 	 * `lg` fills its container so the sync cards can be any width.
 	 */
@@ -31,7 +25,6 @@ interface ThemePreviewProps {
  */
 export const ThemePreview: FC<ThemePreviewProps> = ({
 	theme,
-	active,
 	size = "sm",
 	className,
 	style,
@@ -41,7 +34,6 @@ export const ThemePreview: FC<ThemePreviewProps> = ({
 			<div
 				className={cn(
 					"overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",
-					active && "outline outline-2 outline-content-link",
 					size === "sm" ? "w-56" : "w-full",
 					className,
 				)}

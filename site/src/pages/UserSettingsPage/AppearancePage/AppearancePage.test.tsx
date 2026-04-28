@@ -39,12 +39,13 @@ describe("appearance page", () => {
 		await userEvent.click(lightDefault);
 
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				theme_mode: "single",
-				theme_preference: "light",
-			}),
-		);
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
+			theme_preference: "light",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "geist-mono",
+		});
 	});
 
 	it("switches to sync mode and sends the expected payload", async () => {
@@ -68,13 +69,13 @@ describe("appearance page", () => {
 		await userEvent.click(syncOption);
 
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				theme_mode: "sync",
-				theme_light: "light",
-				theme_dark: "dark",
-			}),
-		);
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
+			theme_preference: "dark",
+			theme_mode: "sync",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "geist-mono",
+		});
 	});
 
 	it("updates the terminal font", async () => {
@@ -91,19 +92,21 @@ describe("appearance page", () => {
 		await userEvent.click(firaCode);
 
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				terminal_font: "fira-code",
-			}),
-		);
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
+			theme_preference: "dark",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "fira-code",
+		});
 	});
 
 	it("ignores repeated submits while an update is in flight", async () => {
-		let resolveSubmit: ((value: UserAppearanceSettings) => void) | undefined;
+		const submitResolvers: Array<(value: UserAppearanceSettings) => void> = [];
 		const onSubmit = vi.fn(
 			() =>
 				new Promise<UserAppearanceSettings>((resolve) => {
-					resolveSubmit = resolve;
+					submitResolvers.push(resolve);
 				}),
 		);
 
@@ -119,8 +122,12 @@ describe("appearance page", () => {
 		fireEvent.click(screen.getByRole("radio", { name: /dark default/i }));
 
 		expect(onSubmit).toHaveBeenCalledTimes(1);
-		expect(resolveSubmit).toBeDefined();
-		resolveSubmit?.(putResponse());
+		submitResolvers[0]?.(putResponse());
+		await Promise.resolve();
+
+		fireEvent.click(screen.getByRole("radio", { name: /dark default/i }));
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+		submitResolvers[1]?.(putResponse());
 		await Promise.resolve();
 	});
 });

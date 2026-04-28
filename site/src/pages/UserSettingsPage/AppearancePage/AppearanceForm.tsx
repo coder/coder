@@ -24,8 +24,8 @@ import {
 } from "#/theme/constants";
 import {
 	draftFromState,
+	draftToUpdate,
 	migrateLegacyPreference,
-	stateToUpdate,
 	switchToSingle,
 	type ThemeModeDraft,
 } from "#/theme/themeMode";
@@ -89,7 +89,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		submitInFlightRef.current = true;
 		setDraft(next);
 		try {
-			const submitted = onSubmit(stateToUpdate(next, terminalFont));
+			const submitted = onSubmit(draftToUpdate(next, terminalFont));
 			const resetSubmitInFlight = () => {
 				submitInFlightRef.current = false;
 			};

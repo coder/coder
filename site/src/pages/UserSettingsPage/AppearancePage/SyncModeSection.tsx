@@ -92,6 +92,7 @@ const SyncCard: FC<SyncCardProps> = ({
 				{themes.map((theme) => (
 					<ThemeSwatch
 						key={theme}
+						name={`theme-sync-${scheme}`}
 						theme={theme}
 						selected={theme === selected}
 						onSelect={() => onSelect(theme)}

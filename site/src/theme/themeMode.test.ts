@@ -1,11 +1,10 @@
 import { DEFAULT_THEME } from ".";
 import {
 	draftFromState,
+	draftToUpdate,
 	migrateLegacyPreference,
 	resolveActiveThemeName,
-	stateToUpdate,
 	switchToSingle,
-	switchToSync,
 } from "./themeMode";
 
 // A fake `UserAppearanceSettings` shape. We avoid importing the real
@@ -89,7 +88,7 @@ describe("migrateLegacyPreference", () => {
 		).toEqual({ mode: "sync", light: "light", dark: "dark" });
 	});
 
-	it("migrates legacy auto-protan-deuter to the tritan pair", () => {
+	it("migrates legacy auto-protan-deuter to the protan-deuter pair", () => {
 		expect(
 			migrateLegacyPreference(
 				settings({ theme_preference: "auto-protan-deuter" }),
@@ -185,51 +184,14 @@ describe("switchToSingle", () => {
 	});
 });
 
-describe("switchToSync", () => {
-	it("pairs a dark-tritan single theme with its light counterpart", () => {
-		expect(switchToSync({ mode: "single", theme: "dark-tritan" })).toEqual({
-			mode: "sync",
-			light: "light-tritan",
-			dark: "dark-tritan",
-		});
-	});
-
-	it("pairs a light-protan-deuter single theme with its dark counterpart", () => {
-		expect(
-			switchToSync({ mode: "single", theme: "light-protan-deuter" }),
-		).toEqual({
-			mode: "sync",
-			light: "light-protan-deuter",
-			dark: "dark-protan-deuter",
-		});
-	});
-
-	it("pairs a plain dark with the plain light", () => {
-		expect(switchToSync({ mode: "single", theme: "dark" })).toEqual({
-			mode: "sync",
-			light: "light",
-			dark: "dark",
-		});
-	});
-
-	it("is a no-op when the input is already sync", () => {
-		const state = {
-			mode: "sync" as const,
-			light: "light" as const,
-			dark: "dark-tritan" as const,
-		};
-		expect(switchToSync(state)).toEqual(state);
-	});
-});
-
-describe("stateToUpdate", () => {
+describe("draftToUpdate", () => {
 	// The form's internal draft always carries all four values (mode +
-	// single theme + light slot + dark slot). stateToUpdate is a flat
+	// single theme + light slot + dark slot). draftToUpdate is a flat
 	// mapping to the API request shape with no computation: switching
 	// mode on the form does not erase the "other" slots.
 	it("encodes a sync draft straight through", () => {
 		expect(
-			stateToUpdate(
+			draftToUpdate(
 				{
 					mode: "sync",
 					single: "dark",
@@ -252,7 +214,7 @@ describe("stateToUpdate", () => {
 
 	it("encodes a single draft so the legacy field mirrors the single pick", () => {
 		expect(
-			stateToUpdate(
+			draftToUpdate(
 				{
 					mode: "single",
 					single: "dark-protan-deuter",

@@ -175,19 +175,6 @@ export const switchToSingle = (
 };
 
 /**
- * Switches from single to sync mode, seeding both slots with the
- * matching light/dark pair of the current single choice. No-op when
- * already in sync mode.
- */
-export const switchToSync = (state: ThemeModeState): SyncState => {
-	if (state.mode === "sync") {
-		return state;
-	}
-	const pair = FAMILY_PAIR[state.theme];
-	return { mode: "sync", light: pair.light, dark: pair.dark };
-};
-
-/**
  * Flat request shape sent to the backend. Kept in sync with
  * `codersdk.UpdateUserAppearanceSettingsRequest`; this helper lets the
  * form code stay ignorant of the exact field ordering.
@@ -210,7 +197,7 @@ type AppearanceUpdate = {
  * - Sync mode: mirror the dark slot (matches the historical default of
  *   preferring dark when ambiguous).
  */
-export const stateToUpdate = (
+export const draftToUpdate = (
 	draft: ThemeModeDraft,
 	terminalFont: TerminalFontName,
 ): AppearanceUpdate => {

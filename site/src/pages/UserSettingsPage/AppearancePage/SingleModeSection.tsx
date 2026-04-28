@@ -1,10 +1,9 @@
 import type { FC } from "react";
 import { PreviewBadge } from "#/components/Badges/Badges";
 import type { ConcreteThemeName } from "#/theme/colorblind";
-import { CONCRETE_THEMES } from "#/theme/colorblind";
 import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
-import { THEME_COPY } from "./themeCopy";
+import { DARK_THEMES, LIGHT_THEMES, THEME_COPY } from "./themeCopy";
 
 interface SingleModeSectionProps {
 	selected: ConcreteThemeName;
@@ -15,12 +14,8 @@ interface SingleModeSectionProps {
 // then dark row. The default variant in each row leads, followed by
 // the colorblind variants.
 const SINGLE_MODE_ORDER: ConcreteThemeName[] = [
-	"light",
-	"light-protan-deuter",
-	"light-tritan",
-	"dark",
-	"dark-protan-deuter",
-	"dark-tritan",
+	...LIGHT_THEMES,
+	...DARK_THEMES,
 ];
 
 export const SingleModeSection: FC<SingleModeSectionProps> = ({
@@ -101,12 +96,3 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 		</label>
 	);
 };
-
-// Sanity: every concrete theme must have a tile. Asserted at module
-// load time so a future theme addition without a matching entry in
-// SINGLE_MODE_ORDER is impossible to ship.
-if (SINGLE_MODE_ORDER.length !== CONCRETE_THEMES.length) {
-	throw new Error(
-		"SINGLE_MODE_ORDER is out of sync with CONCRETE_THEMES. Update both together.",
-	);
-}

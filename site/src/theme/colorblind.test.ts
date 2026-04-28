@@ -4,41 +4,7 @@ import {
 	CONCRETE_THEMES,
 	isConcreteThemeName,
 	legacyAutoToSync,
-	resolveThemeName,
 } from "./colorblind";
-
-describe("resolveThemeName", () => {
-	it("returns the stored preference as-is for concrete themes", () => {
-		expect(resolveThemeName("dark", "light")).toBe("dark");
-		expect(resolveThemeName("light", "dark")).toBe("light");
-		expect(resolveThemeName("dark-protan-deuter", "light")).toBe(
-			"dark-protan-deuter",
-		);
-		expect(resolveThemeName("light-protan-deuter", "dark")).toBe(
-			"light-protan-deuter",
-		);
-		expect(resolveThemeName("dark-tritan", "light")).toBe("dark-tritan");
-		expect(resolveThemeName("light-tritan", "dark")).toBe("light-tritan");
-	});
-
-	it("falls back to the OS scheme for unknown, empty, or legacy auto values", () => {
-		// Empty string is persisted when the user has never set a preference,
-		// so it must resolve to the OS scheme rather than erroring.
-		expect(resolveThemeName("", "dark")).toBe("dark");
-		expect(resolveThemeName("", "light")).toBe("light");
-		expect(resolveThemeName(undefined, "dark")).toBe("dark");
-		// Legacy "auto" family preferences are no longer resolved by this
-		// function. `themeMode.ts` unwraps them first and feeds
-		// resolveThemeName a concrete name (or nothing). Anything else is
-		// treated as "user does not care" and falls back to the OS scheme,
-		// which matches the pre-existing contract.
-		expect(resolveThemeName("auto", "light")).toBe("light");
-		expect(resolveThemeName("auto-protan-deuter", "dark")).toBe("dark");
-		expect(resolveThemeName("auto-tritan", "light")).toBe("light");
-		expect(resolveThemeName("darkBlue", "light")).toBe("light");
-		expect(resolveThemeName("garbage", "dark")).toBe("dark");
-	});
-});
 
 describe("theme registry", () => {
 	it("contains every concrete theme name", () => {
@@ -49,24 +15,6 @@ describe("theme registry", () => {
 
 	it("exports exactly the themes registered in CONCRETE_THEMES", () => {
 		expect(new Set(Object.keys(themes))).toEqual(new Set(CONCRETE_THEMES));
-	});
-
-	// ThemeProvider does `themes[resolveThemeName(...)]` without a null
-	// check, so every value the resolver can return must be a real key of
-	// the `themes` object. Enumerate every preference the UI can feed in,
-	// paired with both OS color schemes, and assert the lookup succeeds.
-	it("always resolves to a theme that exists in the registry", () => {
-		const preferences: (string | undefined)[] = [
-			undefined,
-			"",
-			...CONCRETE_THEMES,
-		];
-		for (const pref of preferences) {
-			for (const scheme of ["dark", "light"] as const) {
-				const resolved = resolveThemeName(pref, scheme);
-				expect(themes[resolved]).toBeDefined();
-			}
-		}
 	});
 });
 

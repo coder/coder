@@ -8034,17 +8034,19 @@ export interface UpdateTemplateMeta {
  * UpdateUserAppearanceSettingsRequest is the payload for updating a
  * user's theme and terminal-font preferences. ThemePreference is the
  * legacy mirror field and is intentionally not validated against a
- * server-side allowlist; clients sanitize unknown legacy names on read
- * via resolveThemeName and migrateLegacyPreference. ThemeLight and
- * ThemeDark are concrete sync slots. They are required in sync mode
- * and must be scheme-specific concrete theme names when present.
+ * server-side allowlist; clients should treat unknown values as the
+ * default theme. ThemeLight and ThemeDark are concrete sync slots.
+ * They are required in sync mode and must be scheme-specific concrete
+ * theme names when present.
  */
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
 	/**
-	 * ThemeMode is optional for backward compatibility. An empty value is
-	 * treated as "single" so older CLI clients that only send
-	 * theme_preference continue to work.
+	 * ThemeMode is optional for backward compatibility. When empty,
+	 * the server leaves theme_mode, theme_light, and theme_dark
+	 * unchanged so older CLI clients do not erase sync-mode settings.
+	 * Legacy auto preferences are the exception: they clear theme_mode
+	 * so clients can migrate the old sync-with-system setting.
 	 */
 	readonly theme_mode: ThemeMode;
 	readonly theme_light: string;
@@ -8340,8 +8342,10 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	/**
 	 * ThemePreference is the legacy single-field appearance setting. In
-	 * "single" mode it mirrors the active theme; in "sync" mode it holds
-	 * the dark slot so older clients still see a plausible value.
+	 * "single" mode it mirrors the active theme. In "sync" mode modern
+	 * clients normally mirror the dark slot, but older clients can update
+	 * only this field, so it may diverge from ThemeDark until a modern
+	 * client saves the full appearance state again.
 	 */
 	readonly theme_preference: string;
 	readonly theme_mode: ThemeMode;

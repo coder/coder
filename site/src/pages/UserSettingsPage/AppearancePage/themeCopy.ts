@@ -1,4 +1,4 @@
-import type { ConcreteThemeName } from "#/theme/colorblind";
+import { CONCRETE_THEMES, type ConcreteThemeName } from "#/theme/colorblind";
 
 /**
  * Display copy for each concrete theme. The descriptions are surfaced
@@ -65,3 +65,15 @@ export const DARK_THEMES: ConcreteThemeName[] = [
 	"dark-protan-deuter",
 	"dark-tritan",
 ];
+
+const syncModeThemes = [...LIGHT_THEMES, ...DARK_THEMES];
+const themeCopyKeys = Object.keys(THEME_COPY);
+if (
+	syncModeThemes.length !== CONCRETE_THEMES.length ||
+	themeCopyKeys.length !== CONCRETE_THEMES.length ||
+	!CONCRETE_THEMES.every((theme) => syncModeThemes.includes(theme))
+) {
+	throw new Error(
+		"Theme copy registries are out of sync with CONCRETE_THEMES.",
+	);
+}

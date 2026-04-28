@@ -25104,6 +25104,47 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 	return i, err
 }
 
+const getUserAppearanceSettings = `-- name: GetUserAppearanceSettings :one
+SELECT
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_preference'), '')::text AS theme_preference,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key IN (
+		'theme_preference',
+		'theme_mode',
+		'theme_light',
+		'theme_dark',
+		'terminal_font'
+	)
+`
+
+type GetUserAppearanceSettingsRow struct {
+	ThemePreference string `db:"theme_preference" json:"theme_preference"`
+	ThemeMode       string `db:"theme_mode" json:"theme_mode"`
+	ThemeLight      string `db:"theme_light" json:"theme_light"`
+	ThemeDark       string `db:"theme_dark" json:"theme_dark"`
+	TerminalFont    string `db:"terminal_font" json:"terminal_font"`
+}
+
+func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (GetUserAppearanceSettingsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserAppearanceSettings, userID)
+	var i GetUserAppearanceSettingsRow
+	err := row.Scan(
+		&i.ThemePreference,
+		&i.ThemeMode,
+		&i.ThemeLight,
+		&i.ThemeDark,
+		&i.TerminalFont,
+	)
+	return i, err
+}
+
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros

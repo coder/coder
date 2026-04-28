@@ -19796,7 +19796,7 @@
 					"enum": ["light", "light-protan-deuter", "light-tritan"]
 				},
 				"theme_mode": {
-					"description": "ThemeMode is optional for backward compatibility. An empty value is\ntreated as \"single\" so older CLI clients that only send\ntheme_preference continue to work.",
+					"description": "ThemeMode is optional for backward compatibility. When empty,\nthe server leaves theme_mode, theme_light, and theme_dark\nunchanged so older CLI clients do not erase sync-mode settings.\nLegacy auto preferences are the exception: they clear theme_mode\nso clients can migrate the old sync-with-system setting.",
 					"enum": ["sync", "single"],
 					"allOf": [
 						{
@@ -20192,7 +20192,7 @@
 					"$ref": "#/definitions/codersdk.ThemeMode"
 				},
 				"theme_preference": {
-					"description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme; in \"sync\" mode it holds\nthe dark slot so older clients still see a plausible value.",
+					"description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the dark slot, but older clients can update\nonly this field, so it may diverge from ThemeDark until a modern\nclient saves the full appearance state again.",
 					"type": "string"
 				}
 			}
