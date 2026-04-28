@@ -3095,7 +3095,6 @@ func TestResolveChainMode_AllowsResolvedLocalCall(t *testing.T) {
 	))
 }
 
-
 func TestResolveChainMode_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
 	t.Parallel()
 

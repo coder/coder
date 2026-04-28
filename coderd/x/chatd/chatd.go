@@ -3271,7 +3271,6 @@ type chainModeInfo struct {
 	providerMissingToolResults bool
 }
 
-
 func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 	parts, err := chatprompt.ParseContent(msg)
 	if err != nil {
@@ -3401,7 +3400,6 @@ func providerNeverReceivedToolResults(
 	return true
 }
 
-
 // shouldActivateChainMode reports whether a follow-up turn can use
 // previous_response_id instead of replaying history. It requires store=true,
 // a matching model config, meaningful trailing user input, non-plan mode,
@@ -3421,7 +3419,6 @@ func shouldActivateChainMode(
 		!info.hasUnresolvedLocalToolCalls &&
 		!info.providerMissingToolResults
 }
-
 
 // resolveChainMode scans DB messages from the end to count trailing user
 // messages for the current turn and detect whether the immediately
@@ -3452,7 +3449,6 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 					info.providerMissingToolResults = providerNeverReceivedToolResults(messages, i)
 				}
 				return info
-
 			}
 			return info
 		case database.ChatMessageRoleTool:
