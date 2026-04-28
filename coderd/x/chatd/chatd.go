@@ -3348,13 +3348,13 @@ func assistantHasUnresolvedLocalToolCalls(
 	return len(resolvedCallIDs) != len(localCallIDs)
 }
 
-// providerNeverReceivedToolResults reports whether the assistant message
+// providerHasMissingToolResults reports whether the assistant message
 // at assistantIdx has local tool calls whose results exist in the DB
 // but were never sent back to the provider. This is detected by the
 // absence of a follow-up assistant message after the tool results:
 // in normal flow the LLM processes tool results and produces a
 // follow-up response, but StopAfterTool skips that round-trip.
-func providerNeverReceivedToolResults(
+func providerHasMissingToolResults(
 	messages []database.ChatMessage,
 	assistantIdx int,
 ) bool {
@@ -3369,15 +3369,9 @@ func providerNeverReceivedToolResults(
 		return false
 	}
 
-	hasLocalToolCalls := false
-	for _, part := range parts {
-		if part.Type == codersdk.ChatMessagePartTypeToolCall &&
-			!part.ProviderExecuted {
-			hasLocalToolCalls = true
-			break
-		}
-	}
-	if !hasLocalToolCalls {
+	if !slices.ContainsFunc(parts, func(p codersdk.ChatMessagePart) bool {
+		return p.Type == codersdk.ChatMessagePartTypeToolCall && !p.ProviderExecuted
+	}) {
 		return false
 	}
 
@@ -3446,7 +3440,7 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 				}
 				info.hasUnresolvedLocalToolCalls = assistantHasUnresolvedLocalToolCalls(messages, i)
 				if !info.hasUnresolvedLocalToolCalls {
-					info.providerMissingToolResults = providerNeverReceivedToolResults(messages, i)
+					info.providerMissingToolResults = providerHasMissingToolResults(messages, i)
 				}
 				return info
 			}
@@ -6824,6 +6818,15 @@ func (p *Server) runChat(
 		modelConfig.ID,
 		isPlanModeTurn,
 	)
+	if !chainModeActive && chainInfo.previousResponseID != "" {
+		logger.Debug(ctx, "chain mode disabled",
+			slog.F("has_unresolved_local_tool_calls", chainInfo.hasUnresolvedLocalToolCalls),
+			slog.F("provider_missing_tool_results", chainInfo.providerMissingToolResults),
+			slog.F("is_plan_mode_turn", isPlanModeTurn),
+			slog.F("model_config_match", chainInfo.modelConfigID == modelConfig.ID),
+			slog.F("store_enabled", chatprovider.IsResponsesStoreEnabled(providerOptions)),
+		)
+	}
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,

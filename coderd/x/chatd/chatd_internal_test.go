@@ -3011,6 +3011,7 @@ func TestResolveChainMode_AllowsProviderExecutedOnly(t *testing.T) {
 
 	require.Equal(t, "resp-123", chainInfo.previousResponseID)
 	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
 	require.True(t, shouldActivateChainMode(
 		chainModeProviderOptions(),
 		chainInfo,
@@ -3184,47 +3185,6 @@ func TestResolveChainMode_BlocksWhenToolResultNeverSentToProvider(t *testing.T) 
 	))
 }
 
-func TestResolveChainMode_AllowsWhenFollowUpAssistantExists(t *testing.T) {
-	t.Parallel()
-
-	modelConfigID := uuid.New()
-	toolCall := codersdk.ChatMessageToolCall(
-		"call-local",
-		"read_file",
-		json.RawMessage(`{"path":"main.go"}`),
-	)
-	toolResult := codersdk.ChatMessageToolResult(
-		"call-local",
-		"read_file",
-		json.RawMessage(`{"ok":true}`),
-		false,
-		false,
-	)
-
-	chainInfo := resolveChainMode([]database.ChatMessage{
-		chainModeSystemMessage(),
-		chainModeUserMessage("read the file"),
-		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
-		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
-		// Follow-up assistant proves tool result was sent to provider.
-		chainModeAssistantMessage(modelConfigID, nil),
-		chainModeUserMessage("thanks"),
-	})
-
-	// resolveChainMode finds the LAST assistant with a provider
-	// response ID. That follow-up has no tool calls, so
-	// providerMissingToolResults is false.
-	require.Equal(t, "resp-123", chainInfo.previousResponseID)
-	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
-	require.False(t, chainInfo.providerMissingToolResults)
-	require.True(t, shouldActivateChainMode(
-		chainModeProviderOptions(),
-		chainInfo,
-		modelConfigID,
-		false,
-	))
-}
-
 func TestResolveChainMode_BlocksProviderMissingWithMultipleToolCalls(t *testing.T) {
 	t.Parallel()
 
@@ -3261,7 +3221,7 @@ func TestResolveChainMode_BlocksProviderMissingWithMultipleToolCalls(t *testing.
 	))
 }
 
-func TestResolveChainMode_NoToolCallsNoProviderMissing(t *testing.T) {
+func TestResolveChainMode_AllowsWhenNoToolCalls(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -3274,30 +3234,6 @@ func TestResolveChainMode_NoToolCallsNoProviderMissing(t *testing.T) {
 	})
 
 	require.Equal(t, "resp-123", chainInfo.previousResponseID)
-	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
-	require.False(t, chainInfo.providerMissingToolResults)
-	require.True(t, shouldActivateChainMode(
-		chainModeProviderOptions(), chainInfo, modelConfigID, false,
-	))
-}
-
-func TestResolveChainMode_ProviderExecutedOnlyNotBlocked(t *testing.T) {
-	t.Parallel()
-
-	modelConfigID := uuid.New()
-	providerCall := codersdk.ChatMessageToolCall(
-		"call-web", "web_search",
-		json.RawMessage(`{"q":"test"}`),
-	)
-	providerCall.ProviderExecuted = true
-
-	chainInfo := resolveChainMode([]database.ChatMessage{
-		chainModeSystemMessage(),
-		chainModeUserMessage("search for test"),
-		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{providerCall}),
-		chainModeUserMessage("thanks"),
-	})
-
 	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
 	require.False(t, chainInfo.providerMissingToolResults)
 	require.True(t, shouldActivateChainMode(
