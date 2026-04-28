@@ -5,10 +5,10 @@ more information about how to use secrets and other security tips, visit our
 guide to
 [security best practices](../../tutorials/best-practices/security-best-practices.md#secrets).
 
-This article explains template administrator approaches to using secrets in a
-workspace. To authenticate the workspace provisioner, see the
+Use this guide to configure how templates make secrets available to Coder
+workspaces. To authenticate workspace provisioners with Coder, see the
 <a href="../provisioners/index.md#authentication">provisioners documentation</a>.
-To manage personal secret values, see
+For personal credentials that developers manage themselves, see
 [User secrets](../../user-guides/user-secrets.md).
 
 ## Before you begin
@@ -46,8 +46,9 @@ Users can view their public key in their account settings:
 
 ## User secrets (Early Access)
 
-User secrets are personal credentials that developers manage for their own
-workspaces. They are injected into all of their workspaces. See the
+User secrets are personal credentials that developers manage themselves. They
+are not configured in template code, and Coder injects them into all workspaces
+owned by that developer. See the
 [User secrets guide](../../user-guides/user-secrets.md).
 
 ## Dynamic Secrets
