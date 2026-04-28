@@ -122,5 +122,4 @@ shown below when adding new failures.
   docs unless the route is intentionally experimental.
 - Proposed prevention: Add swagger annotations in the same change as stable
   endpoints. For experimental or unstable API paths, add
-  `// @x-apidocgen {"skip": true}` after `@Router`. Do not add swagger comments
-  to experimental chat endpoints in `coderd/exp_chats.go`.
+  `// @x-apidocgen {"skip": true}` after `@Router`.
