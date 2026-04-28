@@ -1717,11 +1717,8 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// When both cursors are set, reject the transposed or equal case.
-	// The strict `id > after AND id < before` predicate would silently
-	// return an empty page if a client bug swapped the two, which is
-	// indistinguishable from "no messages in this range." Fail loudly
-	// instead.
+	// Reject transposed or equal cursors so an empty open range is loud,
+	// not silently indistinguishable from "no messages in this range."
 	if beforeID > 0 && afterID > 0 && afterID >= beforeID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "after_id must be less than before_id.",
@@ -1729,12 +1726,10 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Dispatch by access shape. A polling caller that sets only
-	// after_id needs the OLDEST new messages first so it can advance
-	// its cursor monotonically. Returning the newest-N from a
-	// DESC-limited query would silently drop rows in between when a
-	// burst larger than `limit` lands between polls. Fetch limit+1 in
-	// both paths to detect whether more pages exist.
+	// Polling with only after_id uses ASC so the cursor advances
+	// monotonically; a DESC limit would drop rows when a burst larger
+	// than `limit` lands between polls. Fetch limit+1 in both paths to
+	// detect whether more pages exist.
 	var messages []database.ChatMessage
 	var err error
 	switch {
