@@ -278,6 +278,20 @@ export const WorkspaceTerminal = ({
 	}, [isVisible, refit]);
 
 	useEffect(() => {
+		if (!terminal || !isVisible || !autoFocus || loading) {
+			return;
+		}
+
+		const frame = requestAnimationFrame(() => {
+			terminal.focus();
+		});
+
+		return () => {
+			cancelAnimationFrame(frame);
+		};
+	}, [terminal, isVisible, autoFocus, loading]);
+
+	useEffect(() => {
 		if (!terminal || !hasBeenVisible) {
 			return;
 		}
