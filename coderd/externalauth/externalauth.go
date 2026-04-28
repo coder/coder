@@ -363,11 +363,12 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		return false, nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized {
+	switch res.StatusCode {
+	case http.StatusUnauthorized:
 		// The token is no longer valid!
 		return false, nil, nil
-	}
-	if res.StatusCode == http.StatusForbidden {
+
+	case http.StatusForbidden:
 		// Some providers (notably GitHub) use 403 for both "token
 		// revoked" and "rate limit exceeded." If standard rate-limit
 		// headers are present, the token may still be valid and the
@@ -380,15 +381,18 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// No rate-limit headers: genuine token revocation or
 		// permission error.
 		return false, nil, nil
-	}
-	if res.StatusCode == http.StatusTooManyRequests {
+
+	case http.StatusTooManyRequests:
 		// GitHub can return either 403 or 429 for rate limits.
 		// Treat 429 the same as a rate-limited 403: optimistically
 		// valid. The token was likely just issued by the IDP; the
 		// validation endpoint is transiently overloaded.
 		return true, nil, nil
-	}
-	if res.StatusCode != http.StatusOK {
+
+	case http.StatusOK:
+		// Success, handled below.
+
+	default:
 		data, _ := io.ReadAll(res.Body)
 		return false, nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
@@ -1279,29 +1283,19 @@ func IsGithubDotComURL(str string) bool {
 	return ghURL.Host == "github.com"
 }
 
-// isRateLimited checks whether an HTTP response indicates a rate limit
-// rather than a genuine authorization failure. It inspects two signals
-// using OR logic (either is sufficient):
-//   - Primary rate limit: X-RateLimit-Remaining header is "0".
-//   - Secondary rate limit: Retry-After header is present.
+// isRateLimited checks whether an HTTP response indicates a rate
+// limit rather than a genuine authorization failure. It returns
+// true if either X-RateLimit-Remaining is "0" (primary) or
+// Retry-After is present (secondary). OR logic is intentional:
+// GitHub secondary limits can include Retry-After without
+// X-RateLimit-Remaining: 0 (the remaining count tracks the
+// primary quota, not secondary).
 //
-// OR is intentional. GitHub secondary rate limits sometimes include
-// Retry-After without X-RateLimit-Remaining: 0 (the remaining count
-// tracks the primary quota, not secondary). Requiring both headers
-// would miss those cases. See octokit/plugin-throttling.js#566 and
-// gofri/go-github-ratelimit#9 for observed response patterns.
-//
-// CDN/WAF false positives are not a practical concern: Cloudflare,
-// AWS CloudFront, Azure Front Door, and nginx pass upstream response
-// headers through unmodified. They add Retry-After only to their own
-// self-generated responses (429, 503), not to passthrough 403s.
-//
-// This does not catch every secondary rate limit. GitHub can return
-// 403 with positive X-RateLimit-Remaining and no Retry-After (the
-// most common secondary pattern per community reports). Reliable
-// detection of those requires response body inspection, which is
-// out of scope for this check. Missing them is not a regression
-// since all 403s were previously treated as invalid.
+// Does not catch every secondary rate limit. GitHub can return
+// 403 with positive X-RateLimit-Remaining and no Retry-After.
+// Reliable detection of those requires response body inspection.
+// Missing them is not a regression since all 403s were previously
+// treated as invalid.
 func isRateLimited(resp *http.Response) bool {
 	if resp == nil {
 		return false
