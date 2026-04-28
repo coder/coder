@@ -3263,7 +3263,14 @@ type chainModeInfo struct {
 	// hasUnresolvedLocalToolCalls is true when previousResponseID
 	// points at an assistant message with pending local tool calls.
 	hasUnresolvedLocalToolCalls bool
+	// providerMissingToolResults is true when the assistant message
+	// has local tool calls with local results, but no follow-up
+	// assistant message exists to confirm the results were sent
+	// back to the provider. This happens when StopAfterTool
+	// terminates a turn before the results are round-tripped.
+	providerMissingToolResults bool
 }
+
 
 func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 	parts, err := chatprompt.ParseContent(msg)
