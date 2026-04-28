@@ -55,14 +55,17 @@ const AgentSettingsExperimentsPage: FC = () => {
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<AgentSettingsExperimentsPageView
 				desktopEnabledData={desktopEnabledQuery.data}
+				isLoadingDesktopEnabled={desktopEnabledQuery.isLoading}
 				onSaveDesktopEnabled={saveDesktopEnabledMutation.mutate}
 				isSavingDesktopEnabled={saveDesktopEnabledMutation.isPending}
 				isSaveDesktopEnabledError={saveDesktopEnabledMutation.isError}
 				computerUseProviderData={computerUseProviderQuery.data}
+				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
 				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}
 				isSavingComputerUseProvider={saveComputerUseProviderMutation.isPending}
 				computerUseProviderSaveError={saveComputerUseProviderMutation.error}
 				debugLoggingData={debugLoggingQuery.data}
+				isLoadingDebugLogging={debugLoggingQuery.isLoading}
 				onSaveDebugLogging={saveDebugLoggingMutation.mutate}
 				isSavingDebugLogging={saveDebugLoggingMutation.isPending}
 				isSaveDebugLoggingError={saveDebugLoggingMutation.isError}

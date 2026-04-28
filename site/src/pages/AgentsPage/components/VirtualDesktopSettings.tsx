@@ -11,6 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Switch } from "#/components/Switch/Switch";
 
 interface MutationCallbacks {
@@ -20,6 +21,7 @@ interface MutationCallbacks {
 
 interface VirtualDesktopSettingsProps {
 	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
+	isLoadingDesktopEnabled: boolean;
 	onSaveDesktopEnabled: (
 		req: TypesGen.UpdateChatDesktopEnabledRequest,
 		options?: MutationCallbacks,
@@ -27,6 +29,7 @@ interface VirtualDesktopSettingsProps {
 	isSavingDesktopEnabled: boolean;
 	isSaveDesktopEnabledError: boolean;
 	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
+	isLoadingComputerUseProvider: boolean;
 	onSaveComputerUseProvider: (
 		req: TypesGen.UpdateChatComputerUseProviderRequest,
 		options?: MutationCallbacks,
@@ -34,8 +37,6 @@ interface VirtualDesktopSettingsProps {
 	isSavingComputerUseProvider: boolean;
 	computerUseProviderSaveError: Error | null;
 }
-
-const defaultComputerUseProvider = "anthropic";
 
 const computerUseProviderOptions = [
 	{ label: "Anthropic", value: "anthropic" },
@@ -51,17 +52,22 @@ const getComputerUseProviderLabel = (provider: string) => {
 
 export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 	desktopEnabledData,
+	isLoadingDesktopEnabled,
 	onSaveDesktopEnabled,
 	isSavingDesktopEnabled,
 	isSaveDesktopEnabledError,
 	computerUseProviderData,
+	isLoadingComputerUseProvider,
 	onSaveComputerUseProvider,
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
 }) => {
 	const desktopEnabled = desktopEnabledData?.enable_desktop ?? false;
-	const computerUseProvider =
-		computerUseProviderData?.provider || defaultComputerUseProvider;
+	const computerUseProvider = computerUseProviderData?.provider ?? "";
+	const isDesktopSwitchDisabled =
+		isSavingDesktopEnabled || isLoadingDesktopEnabled;
+	const isComputerUseProviderSelectDisabled =
+		isSavingComputerUseProvider || isLoadingComputerUseProvider;
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -75,14 +81,19 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 						Experimental feature
 					</Badge>
 				</div>
-				<Switch
-					checked={desktopEnabled}
-					onCheckedChange={(checked) =>
-						onSaveDesktopEnabled({ enable_desktop: checked })
-					}
-					aria-label="Enable"
-					disabled={isSavingDesktopEnabled}
-				/>
+				<div className="flex items-center gap-2">
+					{isLoadingDesktopEnabled && (
+						<Skeleton className="h-5 w-10 rounded-full" aria-hidden="true" />
+					)}
+					<Switch
+						checked={desktopEnabled}
+						onCheckedChange={(checked) =>
+							onSaveDesktopEnabled({ enable_desktop: checked })
+						}
+						aria-label="Enable"
+						disabled={isDesktopSwitchDisabled}
+					/>
+				</div>
 			</div>
 			<div className="m-0 flex-1 text-xs text-content-secondary">
 				<p className="m-0">
@@ -117,15 +128,19 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 				<Select
 					value={computerUseProvider}
 					onValueChange={(provider) => onSaveComputerUseProvider({ provider })}
-					disabled={isSavingComputerUseProvider}
+					disabled={isComputerUseProviderSelectDisabled}
 				>
 					<SelectTrigger
 						aria-labelledby="computer-use-provider-label"
 						aria-describedby="computer-use-provider-description"
 						className="w-full sm:w-44"
 					>
-						<SelectValue>
-							{getComputerUseProviderLabel(computerUseProvider)}
+						<SelectValue placeholder="Select provider">
+							{isLoadingComputerUseProvider ? (
+								<Skeleton className="h-4 w-20" aria-hidden="true" />
+							) : computerUseProvider ? (
+								getComputerUseProviderLabel(computerUseProvider)
+							) : undefined}
 						</SelectValue>
 					</SelectTrigger>
 					<SelectContent align="end" className="min-w-[11rem]">

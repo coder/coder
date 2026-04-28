@@ -7,10 +7,12 @@ import {
 
 const baseArgs: AgentSettingsExperimentsPageViewProps = {
 	desktopEnabledData: { enable_desktop: false },
+	isLoadingDesktopEnabled: false,
 	onSaveDesktopEnabled: fn(),
 	isSavingDesktopEnabled: false,
 	isSaveDesktopEnabledError: false,
 	computerUseProviderData: { provider: "anthropic" },
+	isLoadingComputerUseProvider: false,
 	onSaveComputerUseProvider: fn(),
 	isSavingComputerUseProvider: false,
 	computerUseProviderSaveError: null,
@@ -18,6 +20,7 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 		allow_users: false,
 		forced_by_deployment: false,
 	},
+	isLoadingDebugLogging: false,
 	onSaveDebugLogging: fn(),
 	isSavingDebugLogging: false,
 	isSaveDebugLoggingError: false,
@@ -52,7 +55,7 @@ type Story = StoryObj<typeof AgentSettingsExperimentsPageView>;
 
 const getComputerUseProviderSelect = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	return await canvas.findByRole("combobox", {
+	return canvas.findByRole("combobox", {
 		name: "Computer use provider",
 	});
 };
@@ -131,6 +134,23 @@ export const DesktopSetting: Story = {
 			/Allow agents to use a virtual, graphical desktop within workspaces./i,
 		);
 		await canvas.findByRole("switch", { name: "Enable" });
+	},
+};
+
+export const VirtualDesktopLoading: Story = {
+	args: {
+		desktopEnabledData: undefined,
+		isLoadingDesktopEnabled: true,
+		computerUseProviderData: undefined,
+		isLoadingComputerUseProvider: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", { name: "Enable" });
+		const providerSelect = await getComputerUseProviderSelect(canvasElement);
+
+		expect(toggle).toBeDisabled();
+		expect(providerSelect).toBeDisabled();
 	},
 };
 
