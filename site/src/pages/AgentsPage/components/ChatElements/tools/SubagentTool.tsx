@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
 import { Response } from "../Response";
@@ -182,6 +182,7 @@ export const SubagentTool: React.FC<{
 	recordingFileId,
 	thumbnailFileId,
 }) => {
+	const location = useLocation();
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
 	const hasPrompt = Boolean(prompt?.trim());
@@ -220,7 +221,7 @@ export const SubagentTool: React.FC<{
 					)}
 					{chatId && (
 						<Link
-							to={`/agents/${chatId}`}
+							to={{ pathname: `/agents/${chatId}`, search: location.search }}
 							onClick={(e) => e.stopPropagation()}
 							className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 							aria-label="View agent"

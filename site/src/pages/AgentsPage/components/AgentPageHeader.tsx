@@ -11,7 +11,13 @@ import {
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation, useOutletContext } from "react-router";
+import {
+	Link,
+	NavLink,
+	type To,
+	useLocation,
+	useOutletContext,
+} from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
@@ -33,7 +39,7 @@ interface AgentPageHeaderProps {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the settings/analytics nav buttons. */
-	mobileBack?: { to: string; label: string };
+	mobileBack?: { to: To; label: string };
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
 	webPush?: ReturnType<typeof useWebpushNotifications>;
