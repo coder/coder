@@ -1099,6 +1099,11 @@
 											"path": "./ai-coder/ai-gateway/clients/claude-code.md"
 										},
 										{
+											"title": "Claude Desktop",
+											"description": "Configure Claude Desktop to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/claude-desktop.md"
+										},
+										{
 											"title": "Codex",
 											"description": "Configure Codex to use AI Gateway",
 											"path": "./ai-coder/ai-gateway/clients/codex.md"
