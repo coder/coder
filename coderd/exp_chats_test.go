@@ -11923,7 +11923,6 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 	// the chat and the inserted message IDs in the order they were
 	// persisted (ascending). Callers use these IDs as cursor values.
 	seedChat := func(
-		ctx context.Context,
 		t *testing.T,
 		db database.Store,
 		ownerID uuid.UUID,
@@ -11933,71 +11932,28 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 	) (database.Chat, []int64) {
 		t.Helper()
 
-		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    organizationID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelConfigID,
 			Title:             "pagination-test",
 		})
-		require.NoError(t, err)
 
-		createdBy := make([]uuid.UUID, count)
-		modelIDs := make([]uuid.UUID, count)
-		roles := make([]database.ChatMessageRole, count)
-		contents := make([]string, count)
-		contentVersions := make([]int16, count)
-		visibility := make([]database.ChatMessageVisibility, count)
-		inputTokens := make([]int64, count)
-		outputTokens := make([]int64, count)
-		totalTokens := make([]int64, count)
-		reasoningTokens := make([]int64, count)
-		cacheCreationTokens := make([]int64, count)
-		cacheReadTokens := make([]int64, count)
-		contextLimit := make([]int64, count)
-		compressed := make([]bool, count)
-		totalCost := make([]int64, count)
-		runtime := make([]int64, count)
+		ids := make([]int64, count)
 		for i := range count {
-			part, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 				codersdk.ChatMessageText(fmt.Sprintf("msg %d", i)),
 			})
 			require.NoError(t, err)
 
-			createdBy[i] = ownerID
-			modelIDs[i] = modelConfigID
-			roles[i] = database.ChatMessageRoleUser
-			contents[i] = string(part.RawMessage)
-			contentVersions[i] = chatprompt.CurrentContentVersion
-			visibility[i] = database.ChatMessageVisibilityBoth
-		}
-
-		results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           createdBy,
-			ModelConfigID:       modelIDs,
-			Role:                roles,
-			Content:             contents,
-			ContentVersion:      contentVersions,
-			Visibility:          visibility,
-			InputTokens:         inputTokens,
-			OutputTokens:        outputTokens,
-			TotalTokens:         totalTokens,
-			ReasoningTokens:     reasoningTokens,
-			CacheCreationTokens: cacheCreationTokens,
-			CacheReadTokens:     cacheReadTokens,
-			ContextLimit:        contextLimit,
-			Compressed:          compressed,
-			TotalCostMicros:     totalCost,
-			RuntimeMs:           runtime,
-		})
-		require.NoError(t, err)
-		require.Len(t, results, count)
-
-		ids := make([]int64, count)
-		for i, m := range results {
-			ids[i] = m.ID
+			message := dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:        chat.ID,
+				CreatedBy:     uuid.NullUUID{UUID: ownerID, Valid: true},
+				ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+				Role:          database.ChatMessageRoleUser,
+				Content:       content,
+			})
+			ids[i] = message.ID
 		}
 		return chat, ids
 	}
@@ -12032,7 +11988,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
 		seedQueuedMessage(ctx, t, db, chat.ID)
 
 		resp, err := client.GetChatMessages(ctx, chat.ID, nil)
@@ -12057,7 +12013,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
 		seedQueuedMessage(ctx, t, db, chat.ID)
 
 		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
@@ -12083,7 +12039,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
 		seedQueuedMessage(ctx, t, db, chat.ID)
 
 		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
@@ -12111,7 +12067,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
 		seedQueuedMessage(ctx, t, db, chat.ID)
 
 		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
@@ -12138,7 +12094,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
 		// Seed a queued message so the Empty assertion below verifies
 		// the cursor suppresses queued rows, not just that none exist.
 		seedQueuedMessage(ctx, t, db, chat.ID)
@@ -12170,7 +12126,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, _ := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
+		chat, _ := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
 
 		res, err := client.Request(
 			ctx,
@@ -12201,7 +12157,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, _ := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
+		chat, _ := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
 
 		res, err := client.Request(
 			ctx,
@@ -12232,7 +12188,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
 		// Seed a queued message to prove the cursor path suppresses
 		// it even when nothing else comes back.
 		seedQueuedMessage(ctx, t, db, chat.ID)
@@ -12252,12 +12208,11 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 	t.Run("AfterIDGreaterThanOrEqualBeforeIDReturns400", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
 
 		// Transposed cursors: after >= before. Fail loudly rather
 		// than return an empty page indistinguishable from
@@ -12302,7 +12257,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		const pageSize = 25
 		// Seed burstSize+1 rows; ids[0] is the "already acknowledged"
 		// message the client saw before the burst.
-		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, burstSize+1)
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, burstSize+1)
 
 		var seen []int64
 		cursor := ids[0]
