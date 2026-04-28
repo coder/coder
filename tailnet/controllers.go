@@ -1199,6 +1199,14 @@ func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate, updateKind U
 	t.Lock()
 	defer t.Unlock()
 
+	// Snapshots represent the complete state, not a diff. Clear any
+	// inherited or previously accumulated workspace data so that
+	// workspaces absent from the snapshot (e.g. stopped while we
+	// were disconnected) do not linger.
+	if updateKind == Snapshot {
+		t.workspaces = make(map[uuid.UUID]*Workspace)
+	}
+
 	currentUpdate := WorkspaceUpdate{
 		UpsertedWorkspaces: []*Workspace{},
 		UpsertedAgents:     []*Agent{},
