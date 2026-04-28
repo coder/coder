@@ -1,4 +1,4 @@
-import Checkbox from "@mui/material/Checkbox";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import type { SlimRole } from "#/api/typesGenerated";
@@ -54,8 +54,6 @@ const Option: FC<OptionProps> = ({
 			<div className="flex items-start gap-4">
 				<Checkbox
 					id={name}
-					size="small"
-					className="p-0 relative top-px"
 					value={value}
 					checked={isChecked}
 					onChange={(e) => {
