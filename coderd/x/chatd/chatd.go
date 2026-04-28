@@ -3349,10 +3349,64 @@ func assistantHasUnresolvedLocalToolCalls(
 	return len(resolvedCallIDs) != len(localCallIDs)
 }
 
+// providerNeverReceivedToolResults reports whether the assistant message
+// at assistantIdx has local tool calls whose results exist in the DB
+// but were never sent back to the provider. This is detected by the
+// absence of a follow-up assistant message after the tool results:
+// in normal flow the LLM processes tool results and produces a
+// follow-up response, but StopAfterTool skips that round-trip.
+func providerNeverReceivedToolResults(
+	messages []database.ChatMessage,
+	assistantIdx int,
+) bool {
+	if assistantIdx < 0 || assistantIdx >= len(messages) {
+		return false
+	}
+
+	parts, err := chatprompt.ParseContent(messages[assistantIdx])
+	if err != nil {
+		// Parsing errors are already handled by
+		// assistantHasUnresolvedLocalToolCalls.
+		return false
+	}
+
+	hasLocalToolCalls := false
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeToolCall &&
+			!part.ProviderExecuted {
+			hasLocalToolCalls = true
+			break
+		}
+	}
+	if !hasLocalToolCalls {
+		return false
+	}
+
+	// Scan forward past tool messages. If the first non-tool message
+	// is not an assistant, the tool results were never round-tripped
+	// to the provider.
+	for i := assistantIdx + 1; i < len(messages); i++ {
+		switch messages[i].Role {
+		case database.ChatMessageRoleTool:
+			continue
+		case database.ChatMessageRoleAssistant:
+			// A follow-up assistant exists; results were sent.
+			return false
+		default:
+			// User or system message with no follow-up assistant.
+			return true
+		}
+	}
+	// Reached end of messages without a follow-up assistant.
+	return true
+}
+
+
 // shouldActivateChainMode reports whether a follow-up turn can use
 // previous_response_id instead of replaying history. It requires store=true,
-// a matching model config, meaningful trailing user input, non-plan mode, and
-// complete local tool state so the provider has all required outputs.
+// a matching model config, meaningful trailing user input, non-plan mode,
+// complete local tool state, and confirmation that tool results were
+// actually sent to the provider (not just persisted locally).
 func shouldActivateChainMode(
 	providerOptions fantasy.ProviderOptions,
 	info chainModeInfo,
@@ -3364,8 +3418,10 @@ func shouldActivateChainMode(
 		info.contributingTrailingUserCount > 0 &&
 		info.modelConfigID == modelConfigID &&
 		!isPlanModeTurn &&
-		!info.hasUnresolvedLocalToolCalls
+		!info.hasUnresolvedLocalToolCalls &&
+		!info.providerMissingToolResults
 }
+
 
 // resolveChainMode scans DB messages from the end to count trailing user
 // messages for the current turn and detect whether the immediately
@@ -3392,7 +3448,11 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 					info.modelConfigID = messages[i].ModelConfigID.UUID
 				}
 				info.hasUnresolvedLocalToolCalls = assistantHasUnresolvedLocalToolCalls(messages, i)
+				if !info.hasUnresolvedLocalToolCalls {
+					info.providerMissingToolResults = providerNeverReceivedToolResults(messages, i)
+				}
 				return info
+
 			}
 			return info
 		case database.ChatMessageRoleTool:

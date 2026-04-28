@@ -3072,16 +3072,21 @@ func TestResolveChainMode_AllowsResolvedLocalCall(t *testing.T) {
 		false,
 	)
 
+	// A follow-up assistant after the tool result confirms the
+	// result was sent back to the provider. Chain mode should
+	// activate from the follow-up assistant's response ID.
 	chainInfo := resolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
 		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		chainModeAssistantMessage(modelConfigID, nil),
 		chainModeUserMessage("latest user message"),
 	})
 
 	require.Equal(t, "resp-123", chainInfo.previousResponseID)
 	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
 	require.True(t, shouldActivateChainMode(
 		chainModeProviderOptions(),
 		chainInfo,
@@ -3089,6 +3094,7 @@ func TestResolveChainMode_AllowsResolvedLocalCall(t *testing.T) {
 		false,
 	))
 }
+
 
 func TestResolveChainMode_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
 	t.Parallel()
