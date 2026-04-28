@@ -737,7 +737,6 @@ func TestComputerUseTool_Run_OpenAI_KeyNormalization(t *testing.T) {
 		{name: "special keys", keysJSON: `["enter","escape","tab","space","backspace","delete"]`, wantText: "Return+Escape+Tab+space+BackSpace+Delete"},
 		{name: "arrows", keysJSON: `["ArrowUp","arrowdown","left","Right"]`, wantText: "Up+Down+Left+Right"},
 		{name: "function letters digits", keysJSON: `["f1","F12","5","Z"]`, wantText: "F1+F12+5+z"},
-		{name: "unknown passthrough", keysJSON: `["PageDown"]`, wantText: "PageDown"},
 	}
 
 	for _, tt := range tests {
@@ -773,6 +772,9 @@ func TestComputerUseTool_Run_OpenAI_KeyNormalizationErrors(t *testing.T) {
 	}{
 		{name: "empty array", keysJSON: `[]`, want: "requires at least one key"},
 		{name: "empty token", keysJSON: `["ctrl",""]`, want: "contains an empty key"},
+		{name: "unsupported punctuation", keysJSON: `["!"]`, want: `unsupported OpenAI keypress "!"`},
+		{name: "unsupported function key", keysJSON: `["f99"]`, want: `unsupported OpenAI keypress "f99"`},
+		{name: "unsupported named key", keysJSON: `["PageDown"]`, want: `unsupported OpenAI keypress "PageDown"`},
 	}
 
 	for _, tt := range tests {

@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -4089,27 +4090,6 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-const (
-	chatComputerUseProviderAnthropic = "anthropic"
-	chatComputerUseProviderOpenAI    = "openai"
-)
-
-func chatComputerUseProviderOrDefault(provider string) string {
-	if provider == "" {
-		return chatComputerUseProviderAnthropic
-	}
-	return provider
-}
-
-func validChatComputerUseProvider(provider string) bool {
-	switch provider {
-	case chatComputerUseProviderAnthropic, chatComputerUseProviderOpenAI:
-		return true
-	default:
-		return false
-	}
-}
-
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -4124,7 +4104,7 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
-		Provider: chatComputerUseProviderOrDefault(provider),
+		Provider: chattool.DefaultComputerUseProvider(provider),
 	})
 }
 
@@ -4140,10 +4120,14 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if !validChatComputerUseProvider(req.Provider) {
+	if !chattool.IsSupportedComputerUseProvider(req.Provider) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid computer use provider.",
-			Detail:  fmt.Sprintf("Expected one of anthropic, openai. Got %q.", req.Provider),
+			Detail: fmt.Sprintf(
+				"Expected one of: %s. Got %q.",
+				strings.Join(chattool.SupportedComputerUseProviders, ", "),
+				req.Provider,
+			),
 		})
 		return
 	}

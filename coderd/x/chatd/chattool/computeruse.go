@@ -24,7 +24,8 @@ const (
 	ComputerUseProviderAnthropic = "anthropic"
 	// ComputerUseProviderOpenAI identifies OpenAI computer use.
 	ComputerUseProviderOpenAI = "openai"
-	// ComputerUseModelProvider is the default provider for computer use models.
+	// ComputerUseModelProvider is the default model provider name for
+	// computer use, equal to ComputerUseProviderAnthropic.
 	ComputerUseModelProvider = ComputerUseProviderAnthropic
 	// ComputerUseModelName is the default model used for computer use subagents.
 	ComputerUseModelName = "claude-opus-4-6"
@@ -34,6 +35,16 @@ const (
 var SupportedComputerUseProviders = []string{
 	ComputerUseProviderAnthropic,
 	ComputerUseProviderOpenAI,
+}
+
+// IsSupportedComputerUseProvider reports whether provider supports computer use.
+func IsSupportedComputerUseProvider(provider string) bool {
+	for _, supported := range SupportedComputerUseProviders {
+		if provider == supported {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultComputerUseProvider returns the effective computer use provider.
@@ -290,10 +301,15 @@ func (t *computerUseTool) runOpenAIComputerUse(
 				moveAction := t.desktopAction("mouse_move", declaredWidth, declaredHeight)
 				moveAction.Coordinate = &coord
 				if resp, done := t.executeDesktopAction(ctx, conn, moveAction); done {
-					_, _ = conn.ExecuteDesktopAction(
+					_, err := conn.ExecuteDesktopAction(
 						ctx,
 						t.desktopAction("left_mouse_up", declaredWidth, declaredHeight),
 					)
+					if err != nil {
+						t.logger.Warn(ctx, "failed to release mouse after OpenAI drag error",
+							slog.Error(err),
+						)
+					}
 					return resp, nil
 				}
 			}
@@ -517,9 +533,10 @@ func normalizeOpenAIKey(key string) (string, error) {
 		if unicode.IsDigit(r) {
 			return trimmed, nil
 		}
+		return "", xerrors.Errorf("unsupported OpenAI keypress %q", trimmed)
 	}
 
-	return trimmed, nil
+	return "", xerrors.Errorf("unsupported OpenAI keypress %q", trimmed)
 }
 
 func isFunctionKey(key string) bool {
@@ -527,7 +544,7 @@ func isFunctionKey(key string) bool {
 		return false
 	}
 	n, err := strconv.Atoi(key[1:])
-	return err == nil && n > 0
+	return err == nil && n >= 1 && n <= 35
 }
 
 func (t *computerUseTool) captureScreenshot(

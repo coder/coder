@@ -18,6 +18,11 @@ import (
 	"github.com/coder/quartz"
 )
 
+// computerUseConfigContext lets internal and worker callers read
+// deployment-wide chat settings when they lack an HTTP-derived actor. HTTP
+// handlers always carry an actor, so the AsChatd fallback never elevates user
+// contexts and this function is a no-op in that path. The setting it gates is
+// global and readable by any authenticated actor, not a back-door.
 func computerUseConfigContext(ctx context.Context) context.Context {
 	if _, ok := dbauthz.ActorFromContext(ctx); ok {
 		return ctx
