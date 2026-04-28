@@ -2,6 +2,10 @@ import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	ERROR_STATUSES,
+	SUCCESS_STATUSES,
+} from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
@@ -9,6 +13,7 @@ import {
 	cancelChatListRefetches,
 	chatCostSummary,
 	chatCostSummaryKey,
+	chatDebugRunsKey,
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
@@ -20,12 +25,15 @@ import {
 	infiniteChats,
 	interruptChat,
 	invalidateChatListQueries,
+	mergeWatchedChatIntoCaches,
+	mergeWatchedChatSummary,
 	paginatedChatCostUsers,
 	pinChat,
 	promoteChatQueuedMessage,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
 	updateChatPlanMode,
@@ -737,6 +745,8 @@ describe("mutation invalidation scope", () => {
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 		// Messages: ["chats", chatId, "messages"]
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		// Debug runs: ["chats", chatId, "debug-runs"]
+		queryClient.setQueryData(chatDebugRunsKey(chatId), []);
 		// Diff contents: ["chats", chatId, "diff-contents"]
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		// Cost summary: ["chats", "costSummary", "me", undefined]
@@ -758,13 +768,9 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// createChatMessage has no onSuccess handler — the WebSocket
-		// stream covers all real-time updates. Verify that constructing
-		// the mutation config does not define one.
 		const mutation = createChatMessage(queryClient, chatId);
-		expect(mutation).not.toHaveProperty("onSuccess");
+		await mutation.onSuccess?.();
 
-		// Since there is no onSuccess, no queries should be invalidated.
 		for (const { label, key } of unrelatedKeys(chatId)) {
 			const state = queryClient.getQueryState(key);
 			expect(
@@ -774,14 +780,18 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("createChatMessage does not invalidate chat detail or messages (WebSocket handles these)", async () => {
+	it("createChatMessage invalidates only debug runs, not chat detail or messages", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// No onSuccess handler exists.
 		const mutation = createChatMessage(queryClient, chatId);
-		expect(mutation).not.toHaveProperty("onSuccess");
+		await mutation.onSuccess?.();
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+			"chatDebugRunsKey should be invalidated",
+		).toBe(true);
 
 		const chatState = queryClient.getQueryState(chatKey(chatId));
 		expect(
@@ -815,7 +825,7 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("editChatMessage invalidates only chat detail and messages", async () => {
+	it("editChatMessage invalidates chat detail and debug runs, not messages", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -825,17 +835,57 @@ describe("mutation invalidation scope", () => {
 
 		await new Promise((r) => setTimeout(r, 0));
 
-		// These two should still be invalidated — editing changes
-		// message content and potentially the chat's updated_at.
+		// Chat metadata and debug runs should be invalidated because
+		// editing changes the chat's updated_at and can start a new
+		// debug run.
 		const chatState = queryClient.getQueryState(chatKey(chatId));
 		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
 			true,
 		);
 
+		// Messages are NOT invalidated. The per-chat WebSocket handles
+		// post-edit message delivery, making REST invalidation
+		// unnecessary.
 		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
 		expect(
 			messagesState?.isInvalidated,
-			"chatMessagesKey should be invalidated",
+			"chatMessagesKey should not be invalidated",
+		).not.toBe(true);
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+			"chatDebugRunsKey should be invalidated",
+		).toBe(true);
+	});
+
+	it("editChatMessage onError invalidates messages", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
+
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		mutation.onError(
+			new Error("fail"),
+			{ messageId: 2, req: editReq },
+			{
+				previousData: {
+					pages: [{ messages, queued_messages: [], has_more: false }],
+					pageParams: [undefined],
+				},
+			},
+		);
+
+		await new Promise((r) => setTimeout(r, 0));
+
+		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		expect(
+			messagesState?.isInvalidated,
+			"chatMessagesKey should be invalidated on error",
 		).toBe(true);
 	});
 
@@ -1069,7 +1119,7 @@ describe("mutation invalidation scope", () => {
 
 		const mutation = editChatMessage(queryClient, chatId);
 
-		// Pass undefined context — simulates onMutate throwing before
+		// Pass undefined context. This simulates onMutate throwing before
 		// it could return a snapshot.
 		mutation.onError(
 			new Error("fail"),
@@ -1077,9 +1127,16 @@ describe("mutation invalidation scope", () => {
 			undefined,
 		);
 
-		// Cache should be untouched — no crash, no corruption.
+		// Cache should be untouched: no crash, no corruption.
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
 		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([3, 2, 1]);
+
+		await new Promise((r) => setTimeout(r, 0));
+		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		expect(
+			messagesState?.isInvalidated,
+			"chatMessagesKey should be invalidated even without context",
+		).toBe(true);
 	});
 
 	it("editChatMessage onMutate updates the first page and preserves older pages", async () => {
@@ -1170,15 +1227,18 @@ describe("mutation invalidation scope", () => {
 		);
 	});
 
-	it("interruptChat does not invalidate unrelated queries", async () => {
+	it("interruptChat invalidates debug runs without touching unrelated queries", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
-		// interruptChat has no onSuccess handler — the WebSocket
-		// delivers status changes in real-time.
 		const mutation = interruptChat(queryClient, chatId);
-		expect(mutation).not.toHaveProperty("onSuccess");
+		await mutation.onSuccess?.();
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+			"chatDebugRunsKey should be invalidated",
+		).toBe(true);
 
 		for (const { label, key } of unrelatedKeys(chatId)) {
 			const state = queryClient.getQueryState(key);
@@ -1189,19 +1249,46 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("promoteChatQueuedMessage does not invalidate unrelated queries", async () => {
+	it("promoteChatQueuedMessage invalidates debug runs without touching unrelated queries", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
 		const mutation = promoteChatQueuedMessage(queryClient, chatId);
-		expect(mutation).not.toHaveProperty("onSuccess");
+		await mutation.onSuccess?.();
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+			"chatDebugRunsKey should be invalidated",
+		).toBe(true);
 
 		for (const { label, key } of unrelatedKeys(chatId)) {
 			const state = queryClient.getQueryState(key);
 			expect(
 				state?.isInvalidated,
 				`${label} should NOT be invalidated by promoteChatQueuedMessage`,
+			).not.toBe(true);
+		}
+	});
+
+	it("regenerateChatTitle invalidates debug runs so the title_generation run surfaces immediately", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedAllActiveQueries(queryClient, chatId);
+
+		const mutation = regenerateChatTitle(queryClient);
+		await mutation.onSettled(undefined, undefined, chatId);
+
+		expect(
+			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+			"chatDebugRunsKey should be invalidated",
+		).toBe(true);
+
+		for (const { label, key } of unrelatedKeys(chatId)) {
+			const state = queryClient.getQueryState(key);
+			expect(
+				state?.isInvalidated,
+				`${label} should NOT be invalidated by regenerateChatTitle`,
 			).not.toBe(true);
 		}
 	});
@@ -1807,6 +1894,382 @@ describe("updateChildInParentCache", () => {
 	});
 });
 
+describe("mergeWatchedChatSummary", () => {
+	it("merges fresh status updates without clobbering a newer title snapshot", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "pending",
+			title: "Fresh title",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Stale title",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+
+	it("merges last_model_config_id when watched updated_at equals cached updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_model_config_id: "11111111-1111-4111-8111-111111111111",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_model_config_id: "22222222-2222-4222-8222-222222222222",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).last_model_config_id,
+		).toBe("22222222-2222-4222-8222-222222222222");
+	});
+
+	it("compares updated_at values as instants instead of strings", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "pending",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.12Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:00:00.1203Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:00:00.1203Z",
+		});
+	});
+
+	it("merges fresh title updates without clobbering a newer status snapshot", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Fresh title",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			title: "Updated title",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "title_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Updated title",
+		});
+	});
+
+	it("merges title updates even when chat updated_at is older", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Fresh title",
+			updated_at: "2025-01-01T00:10:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			title: "Newer generated title",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "title_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Newer generated title",
+			updated_at: "2025-01-01T00:10:00.000Z",
+		});
+	});
+
+	it("merges fresh diff status updates without clobbering status or title", () => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Old title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/2",
+			pull_request_state: "merged",
+			pull_request_title: "New title",
+			pull_request_draft: false,
+			changes_requested: true,
+			additions: 4,
+			deletions: 5,
+			changed_files: 6,
+			refreshed_at: "2025-01-01T00:05:00.000Z",
+			stale_at: "2025-01-01T01:05:00.000Z",
+		};
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Fresh title",
+			diff_status: cachedDiffStatus,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			title: "Stale title",
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "diff_status_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Fresh title",
+			diff_status: watchedDiffStatus,
+		});
+	});
+
+	it("merges diff status updates even when chat updated_at is older", () => {
+		const cachedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/1",
+			pull_request_state: "open",
+			pull_request_title: "Old title",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 2,
+			changed_files: 3,
+			refreshed_at: "2025-01-01T00:00:00.000Z",
+			stale_at: "2025-01-01T01:00:00.000Z",
+		};
+		const watchedDiffStatus = {
+			chat_id: "chat-1",
+			url: "https://example.com/pr/2",
+			pull_request_state: "open",
+			pull_request_title: "New title",
+			pull_request_draft: true,
+			changes_requested: true,
+			additions: 4,
+			deletions: 5,
+			changed_files: 6,
+			refreshed_at: "2025-01-01T00:10:00.000Z",
+			stale_at: "2025-01-01T01:10:00.000Z",
+		};
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			title: "Fresh title",
+			diff_status: cachedDiffStatus,
+			updated_at: "2025-01-01T00:10:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			title: "Stale title",
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "diff_status_change",
+			}),
+		).toMatchObject({
+			status: "running",
+			title: "Fresh title",
+			diff_status: watchedDiffStatus,
+			updated_at: "2025-01-01T00:10:00.000Z",
+		});
+	});
+
+	it("marks other chats unread on fresh status updates", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(true);
+	});
+
+	it("preserves has_unread for the active chat", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "completed",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-1",
+			}).has_unread,
+		).toBe(false);
+	});
+});
+
+describe("mergeWatchedChatIntoCaches", () => {
+	it("merges last_model_config_id into the root list cache and per-chat cache", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			status: "pending",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat(chatId, {
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		seedInfiniteChats(queryClient, [cachedChat]);
+		queryClient.setQueryData(chatKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChat, {
+			eventKind: "status_change",
+		});
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+		).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+
+	it("merges last_model_config_id into the parent-embedded child snapshot and child cache", () => {
+		const queryClient = createTestQueryClient();
+		const childId = "child-1";
+		const cachedChild = makeChat(childId, {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			status: "pending",
+			last_model_config_id: "model-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const parent = makeChat("parent-1", { children: [cachedChild] });
+		const watchedChild = makeChat(childId, {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		seedInfiniteChats(queryClient, [parent]);
+		queryClient.setQueryData(chatKey(childId), cachedChild);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChild, {
+			eventKind: "status_change",
+		});
+
+		expect(readInfiniteChats(queryClient)?.[0].children?.[0]).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(childId)),
+		).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+
+	it("does not let an older watch payload clobber newer cached metadata", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			status: "completed",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			workspace_id: "workspace-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		const staleWatchChat = makeChat(chatId, {
+			status: "running",
+			title: "Stale title",
+			last_model_config_id: "model-old",
+			workspace_id: "workspace-old",
+			build_id: "build-old",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		seedInfiniteChats(queryClient, [cachedChat]);
+		queryClient.setQueryData(chatKey(chatId), cachedChat);
+
+		mergeWatchedChatIntoCaches(queryClient, staleWatchChat, {
+			eventKind: "status_change",
+		});
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			status: "completed",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			workspace_id: "workspace-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+		).toMatchObject({
+			status: "completed",
+			title: "Fresh title",
+			last_model_config_id: "model-new",
+			workspace_id: "workspace-new",
+			build_id: "build-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+});
+
 describe("removeChildFromParentInCache", () => {
 	it("removes the child from its parent's children array", () => {
 		const queryClient = createTestQueryClient();
@@ -1852,5 +2315,33 @@ describe("removeChildFromParentInCache", () => {
 		const after = readInfiniteChats(queryClient)?.[0];
 
 		expect(after).toBe(before);
+	});
+});
+
+describe("TERMINAL_RUN_STATUSES", () => {
+	// `TERMINAL_RUN_STATUSES` lives in the api/queries layer to avoid a
+	// dependency on the page tree, but it must stay in sync with the
+	// debug panel's display classification. This test pins that invariant
+	// so adding a new success/error status in the panel is immediately
+	// caught if the polling set is forgotten.
+	it("contains every SUCCESS and ERROR status from the debug panel", () => {
+		for (const status of SUCCESS_STATUSES) {
+			expect(TERMINAL_RUN_STATUSES.has(status)).toBe(true);
+		}
+		for (const status of ERROR_STATUSES) {
+			expect(TERMINAL_RUN_STATUSES.has(status)).toBe(true);
+		}
+	});
+
+	// The reverse direction catches a TERMINAL status that stops polling
+	// but renders a neutral badge. Adding e.g. "timed_out" to TERMINAL
+	// without SUCCESS or ERROR would paint a finished run gray, so the
+	// status classification must stay bidirectional.
+	it("covers every TERMINAL status with SUCCESS or ERROR", () => {
+		for (const status of TERMINAL_RUN_STATUSES) {
+			const classified =
+				SUCCESS_STATUSES.has(status) || ERROR_STATUSES.has(status);
+			expect(classified).toBe(true);
+		}
 	});
 });

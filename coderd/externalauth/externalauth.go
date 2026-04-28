@@ -334,8 +334,12 @@ validate:
 	return externalAuthLink, nil
 }
 
-// ValidateToken ensures the Git token provided is valid!
+// ValidateToken checks if the Git token provided is valid.
 // The user is optionally returned if the provider supports it.
+// Returns valid=true when: the provider confirmed the token,
+// no ValidateURL is configured, or the validation endpoint
+// returned a rate-limited response (403 with rate-limit headers
+// or 429).
 func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
 	if link == nil {
 		return false, nil, xerrors.New("validate external auth token: token is nil")
@@ -359,11 +363,36 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		return false, nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+	switch res.StatusCode {
+	case http.StatusUnauthorized:
 		// The token is no longer valid!
 		return false, nil, nil
-	}
-	if res.StatusCode != http.StatusOK {
+
+	case http.StatusForbidden:
+		// Some providers (notably GitHub) use 403 for both "token
+		// revoked" and "rate limit exceeded." If standard rate-limit
+		// headers are present, the token may still be valid and the
+		// validation endpoint is rejecting for a transient reason.
+		// Treat it as optimistically valid rather than discarding
+		// the token.
+		if isRateLimited(res) {
+			return true, nil, nil
+		}
+		// No rate-limit headers: genuine token revocation or
+		// permission error.
+		return false, nil, nil
+
+	case http.StatusTooManyRequests:
+		// GitHub can return either 403 or 429 for rate limits.
+		// Treat 429 the same as a rate-limited 403: optimistically
+		// valid. The token was likely just issued by the IDP; the
+		// validation endpoint is transiently overloaded.
+		return true, nil, nil
+
+	case http.StatusOK:
+		// Success, handled below.
+
+	default:
 		data, _ := io.ReadAll(res.Body)
 		return false, nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
@@ -1254,6 +1283,32 @@ func IsGithubDotComURL(str string) bool {
 	return ghURL.Host == "github.com"
 }
 
+// isRateLimited checks whether an HTTP response indicates a rate
+// limit rather than a genuine authorization failure. It returns
+// true if either X-RateLimit-Remaining is "0" (primary) or
+// Retry-After is present (secondary). OR logic is intentional:
+// GitHub secondary limits can include Retry-After without
+// X-RateLimit-Remaining: 0 (the remaining count tracks the
+// primary quota, not secondary).
+//
+// Does not catch every secondary rate limit. GitHub can return
+// 403 with positive X-RateLimit-Remaining and no Retry-After.
+// Reliable detection of those requires response body inspection.
+// Missing them is not a regression since all 403s were previously
+// treated as invalid.
+func isRateLimited(resp *http.Response) bool {
+	if resp == nil {
+		return false
+	}
+	if resp.Header.Get("Retry-After") != "" {
+		return true
+	}
+	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
+		return true
+	}
+	return false
+}
+
 // isFailedRefresh returns true if the error returned by the TokenSource.Token()
 // is due to a failed refresh. The failure being the refresh token itself.
 // If this returns true, no amount of retries will fix the issue.
@@ -1282,15 +1337,21 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 		// Known error codes that indicate a failed refresh.
 		// 'Spec' means the code is defined in the spec.
 		case "bad_refresh_token", // Github
-			"invalid_grant",          // Gitlab & Spec
-			"unauthorized_client",    // Gitea & Spec
-			"unsupported_grant_type": // Spec, refresh not supported
+			"invalid_grant",                // Gitlab & Spec
+			"unauthorized_client",          // Gitea & Spec
+			"unsupported_grant_type",       // Spec, refresh not supported
+			"incorrect_client_credentials", // GitHub, wrong client_id/secret (HTTP 200)
+			"invalid_client":               // RFC 6749 Section 5.2, client auth failed
 			return true
 		}
 
 		switch oauthErr.Response.StatusCode {
-		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusOK:
-			// Status codes that indicate the request was processed, and rejected.
+		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusOK:
+			// Status codes that indicate the request was processed
+			// and rejected. 403 is intentionally excluded: no known
+			// provider returns 403 from the token endpoint, and the
+			// previous 403 case caused token destruction on
+			// rate-limited refresh attempts.
 			return true
 		case http.StatusInternalServerError, http.StatusTooManyRequests:
 			// These do not indicate a failed refresh, but could be a temporary issue.

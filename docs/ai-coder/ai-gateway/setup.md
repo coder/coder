@@ -61,6 +61,10 @@ If both are set, `CODER_AIBRIDGE_BEDROCK_BASE_URL` takes precedence.
 - `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
 - `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
 
+> [!NOTE]
+> These Bedrock settings configure AI Gateway only. To configure Bedrock as an
+> Agents provider, see [Configuring AWS Bedrock](../agents/models.md#configuring-aws-bedrock).
+
 **Optional:**
 
 - `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY` or `--aibridge-bedrock-access-key`

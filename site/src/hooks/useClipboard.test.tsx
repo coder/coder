@@ -129,7 +129,7 @@ type RenderResult = ReturnType<typeof renderUseClipboard>["result"];
 // execCommand is the workaround for copying text to the clipboard on HTTP-only
 // connections
 const originalExecCommand = global.document.execCommand;
-const originalNavigator = window.navigator;
+const originalNavigator = navigator;
 
 // Not a big fan of describe.each most of the time, but since we need to test
 // the exact same test cases against different inputs, and we want them to run

@@ -1074,6 +1074,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 // @Param templatename path string true "Template name"
 // @Param templateversionname path string true "Template version name"
 // @Success 200 {object} codersdk.TemplateVersion
+// @Success 204
 // @Router /organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous [get]
 func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1126,9 +1127,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 	})
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
-			})
+			rw.WriteHeader(http.StatusNoContent)
 			return
 		}
 

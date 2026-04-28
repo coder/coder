@@ -881,8 +881,15 @@ pre-push:
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
-		test-storybook \
 		site/out/index.html
+	# Storybook tests run after Go tests and the site build to avoid
+	# CPU starvation. Rolldown's tokio workers in Vite's transform
+	# pipeline stall when competing with Go compilation and the
+	# production build, causing browser import() calls to hang
+	# indefinitely (vitest has no import-phase timeout).
+	echo "test storybook:"
+	$(MAKE) --no-print-directory MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		test-storybook
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push

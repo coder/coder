@@ -127,16 +127,18 @@ export const getAppHref = (
 	}
 
 	if (app.command) {
-		// Terminal links are relative. The terminal page knows how
-		// to select the correct workspace proxy for the websocket
-		// connection.
+		// Pass the app slug instead of the raw command. The terminal
+		// page resolves the command from the workspace agent's app
+		// list, which avoids exposing the command in the URL and
+		// lets us skip the confirmation dialog for trusted,
+		// admin-configured template apps.
 		return `/@${workspace.owner_name}/${workspace.name}.${
 			agent.name
-		}/terminal?command=${encodeURIComponent(app.command)}`;
+		}/terminal?app=${encodeURIComponent(app.slug)}`;
 	}
 
 	if (host && app.subdomain && app.subdomain_name) {
-		const baseUrl = `${window.location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
+		const baseUrl = `${location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
 		url.pathname = "/";
 		return url.toString();

@@ -707,26 +707,30 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 }) => {
-	// The result can be a single object with {data, text, mime_type}
-	// or an array of content blocks.
 	let imageData = "";
 	let mimeType = "image/png";
 	let text = "";
+	let attachmentFileId = "";
+	let attachmentName = "";
 
 	if (Array.isArray(result)) {
 		for (const block of result) {
 			const blockRec = asRecord(block);
-			if (blockRec) {
-				if (blockRec.type === "image" || asString(blockRec.data)) {
-					imageData = asString(blockRec.data);
-					mimeType = asString(blockRec.mime_type) || "image/png";
-				}
-				if (
-					blockRec.type === "text" ||
-					(!imageData && asString(blockRec.text))
-				) {
-					text = asString(blockRec.text);
-				}
+			if (!blockRec) {
+				continue;
+			}
+			if (blockRec.type === "image" || asString(blockRec.data)) {
+				imageData = asString(blockRec.data);
+				mimeType = asString(blockRec.mime_type) || "image/png";
+			}
+			if (blockRec.type === "text" || (!imageData && asString(blockRec.text))) {
+				text = asString(blockRec.text);
+			}
+			if (!attachmentFileId) {
+				attachmentFileId = asString(blockRec.attachment_file_id);
+			}
+			if (!attachmentName) {
+				attachmentName = asString(blockRec.attachment_name);
 			}
 		}
 	} else {
@@ -735,6 +739,17 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 			imageData = asString(rec.data);
 			mimeType = asString(rec.mime_type) || "image/png";
 			text = asString(rec.text);
+			attachmentFileId = asString(rec.attachment_file_id);
+			attachmentName = asString(rec.attachment_name);
+		}
+	}
+
+	if (attachmentFileId) {
+		imageData = "";
+		if (!text) {
+			text = attachmentName
+				? `Attached ${attachmentName}`
+				: "Attached screenshot";
 		}
 	}
 
@@ -798,7 +813,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 						serverName={mcpServer?.display_name}
 					/>
 					{modelIntent ? (
-						<span className="truncate text-sm text-content-secondary">
+						<span className="truncate text-[13px]">
 							{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
 						</span>
 					) : (
@@ -812,7 +827,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Tool call failed"}
@@ -820,7 +835,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}
@@ -973,12 +988,18 @@ export const Tool = memo(
 		return (
 			<div
 				ref={ref}
+				data-tool-call=""
 				className={cn(
 					name === "execute" ||
 						name === "process_output" ||
 						name === "propose_plan"
 						? "w-full py-0.5"
 						: "py-0.5",
+					// Collapse padding between adjacent tool calls so they hug.
+					// Bottom padding is removed on a tool followed by a tool, and
+					// top padding is removed on a tool preceded by a tool.
+					"[&:has(+[data-tool-call])]:pb-0",
+					"[[data-tool-call]+&]:pt-0",
 					className,
 				)}
 				{...props}

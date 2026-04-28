@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { FormFooter } from "#/components/Form/Form";
-import { Stack } from "../Stack/Stack";
 import { FullPageForm, type FullPageFormProps } from "./FullPageForm";
 
 const Template: FC<FullPageFormProps> = (props) => (
@@ -13,14 +12,14 @@ const Template: FC<FullPageFormProps> = (props) => (
 				e.preventDefault();
 			}}
 		>
-			<Stack>
+			<div className="flex flex-col gap-4">
 				<TextField fullWidth label="Field 1" name="field1" />
 				<TextField fullWidth label="Field 2" name="field2" />
 				<FormFooter>
 					<Button variant="outline">Cancel</Button>
 					<Button type="submit">Save</Button>
 				</FormFooter>
-			</Stack>
+			</div>
 		</form>
 	</FullPageForm>
 );

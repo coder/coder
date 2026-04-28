@@ -1,10 +1,8 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC, ReactNode } from "react";
 import {
 	FeatureStageBadge,
 	type featureStageBadgeTypes,
 } from "#/components/FeatureStageBadge/FeatureStageBadge";
-import { Stack } from "#/components/Stack/Stack";
 
 type SectionLayout = "fixed" | "fluid";
 
@@ -21,6 +19,9 @@ interface SectionProps {
 	featureStage?: keyof typeof featureStageBadgeTypes;
 }
 
+const DESCRIPTION_CLASS =
+	"text-content-secondary text-base m-0 mt-1 leading-normal";
+
 export const Section: FC<SectionProps> = ({
 	id,
 	title,
@@ -36,10 +37,10 @@ export const Section: FC<SectionProps> = ({
 		<section className={className} id={id} data-testid={id}>
 			<div className={layout === "fluid" ? "max-w-full" : "max-w-[500px]"}>
 				{(title || description) && (
-					<div css={styles.header}>
+					<div className="mb-6 flex flex-row justify-between">
 						<div>
 							{title && (
-								<Stack direction="row" alignItems="center">
+								<div className="flex flex-row items-center gap-4">
 									<h4 className="text-2xl font-medium m-0 mb-2">{title}</h4>
 									{featureStage && (
 										<FeatureStageBadge
@@ -48,13 +49,13 @@ export const Section: FC<SectionProps> = ({
 											className="mb-[5px]"
 										/>
 									)}
-								</Stack>
+								</div>
 							)}
 							{description && typeof description === "string" && (
-								<p css={styles.description}>{description}</p>
+								<p className={DESCRIPTION_CLASS}>{description}</p>
 							)}
 							{description && typeof description !== "string" && (
-								<div css={styles.description}>{description}</div>
+								<div className={DESCRIPTION_CLASS}>{description}</div>
 							)}
 						</div>
 						{toolbar && <div>{toolbar}</div>}
@@ -66,19 +67,3 @@ export const Section: FC<SectionProps> = ({
 		</section>
 	);
 };
-
-const styles = {
-	header: {
-		marginBottom: 24,
-		display: "flex",
-		flexDirection: "row",
-		justifyContent: "space-between",
-	},
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 16,
-		margin: 0,
-		marginTop: 4,
-		lineHeight: "140%",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

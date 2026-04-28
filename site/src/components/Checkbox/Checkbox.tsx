@@ -29,7 +29,7 @@ export const Checkbox: React.FC<
 				"data-[state=indeterminate]:bg-surface-invert-primary",
 				"data-[state=indeterminate]:text-content-invert",
 				"data-[state=indeterminate]:border-surface-invert-primary",
-				"hover:enabled:border-border-hover",
+				"hover:enabled:border-border-secondary",
 				"hover:data-[state=checked]:bg-surface-invert-secondary",
 				"hover:data-[state=checked]:border-surface-invert-secondary",
 				"hover:data-[state=indeterminate]:bg-surface-invert-secondary",
