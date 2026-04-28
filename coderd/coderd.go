@@ -380,7 +380,7 @@ func New(options *Options) *API {
 	}
 
 	if options.DataProtection == nil {
-		options.DataProtection = dataprotection.NewConfig(false, nil, 5)
+		options.DataProtection = dataprotection.NewConfig(0, nil, 5)
 	}
 
 	experiments := ReadExperiments(

@@ -3032,17 +3032,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "string"
   ],
   "enabled": true,
-  "min_group_size": 0
+  "min_group_size": 0,
+  "mode": "string"
 }
 ```
 
 ### Properties
 
-| Name             | Type            | Required | Restrictions | Description |
-|------------------|-----------------|----------|--------------|-------------|
-| `auditors`       | array of string | false    |              |             |
-| `enabled`        | boolean         | false    |              |             |
-| `min_group_size` | integer         | false    |              |             |
+| Name             | Type            | Required | Restrictions | Description                   |
+|------------------|-----------------|----------|--------------|-------------------------------|
+| `auditors`       | array of string | false    |              |                               |
+| `enabled`        | boolean         | false    |              | Deprecated: Use Mode instead. |
+| `min_group_size` | integer         | false    |              |                               |
+| `mode`           | string          | false    |              |                               |
 
 ## codersdk.DeleteExternalAuthByIDResponse
 
@@ -3202,7 +3204,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "string"
       ],
       "enabled": true,
-      "min_group_size": 0
+      "min_group_size": 0,
+      "mode": "string"
     },
     "derp": {
       "config": {
@@ -3787,7 +3790,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "string"
     ],
     "enabled": true,
-    "min_group_size": 0
+    "min_group_size": 0,
+    "mode": "string"
   },
   "derp": {
     "config": {

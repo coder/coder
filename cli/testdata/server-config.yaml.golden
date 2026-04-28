@@ -911,9 +911,13 @@ retention:
 # regulations (e.g., German labor law). When enabled, individual user identifiers
 # are obfuscated in all reporting surfaces.
 dataProtection:
-  # Enable Data Protection Mode. When enabled, individual user identifiers are
-  # obfuscated in reports and analytics. Designated auditors can still access
-  # unobfuscated data. Requires a server restart to change.
+  # Set the Data Protection Mode tier. 'off' disables protection, 'tier-1'
+  # obfuscates UI reporting surfaces, 'tier-2' extends obfuscation to all API
+  # endpoints with statistical data. Requires a server restart to change.
+  # (default: off, type: string)
+  mode: "off"
+  # Deprecated: use --data-protection-mode instead. When true, equivalent to
+  # --data-protection-mode=tier-1.
   # (default: false, type: bool)
   enabled: false
   # Minimum number of users in a report group before individual (obfuscated) data is

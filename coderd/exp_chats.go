@@ -617,7 +617,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	// Data Protection Mode: non-auditors can only view their own
 	// cost summary to prevent individual performance monitoring.
-	if api.DataProtection != nil && api.DataProtection.Enabled {
+	if api.DataProtection != nil && api.DataProtection.IsTier1OrAbove() {
 		if targetUser.ID != apiKey.UserID {
 			//nolint:gocritic // System lookup to resolve email for DPM check.
 			reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)

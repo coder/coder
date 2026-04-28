@@ -260,15 +260,20 @@ are obfuscated in all reporting surfaces.
           reports when Data Protection Mode is enabled. Changes require a server
           restart.
 
+      --data-protection-enabled bool, $CODER_DATA_PROTECTION_ENABLED (default: false)
+          Deprecated: use --data-protection-mode instead. When true, equivalent
+          to --data-protection-mode=tier-1.
+
       --data-protection-min-group-size int, $CODER_DATA_PROTECTION_MIN_GROUP_SIZE (default: 5)
           Minimum number of users in a report group before individual
           (obfuscated) data is shown. Groups smaller than this threshold are
           suppressed entirely to prevent indirect identification.
 
-      --data-protection-enabled bool, $CODER_DATA_PROTECTION_ENABLED (default: false)
-          Enable Data Protection Mode. When enabled, individual user identifiers
-          are obfuscated in reports and analytics. Designated auditors can still
-          access unobfuscated data. Requires a server restart to change.
+      --data-protection-mode string, $CODER_DATA_PROTECTION_MODE (default: off)
+          Set the Data Protection Mode tier. 'off' disables protection, 'tier-1'
+          obfuscates UI reporting surfaces, 'tier-2' extends obfuscation to all
+          API endpoints with statistical data. Requires a server restart to
+          change.
 
 EMAIL OPTIONS: 
 Configure how emails are sent.

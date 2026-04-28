@@ -842,7 +842,7 @@ func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, 
 // auditor. When an auditor accesses unobfuscated data, the access is
 // recorded in the audit log.
 func (api *API) shouldObfuscateInsights(r *http.Request) bool {
-	if api.DataProtection == nil || !api.DataProtection.Enabled {
+	if api.DataProtection == nil || !api.DataProtection.IsTier1OrAbove() {
 		return false
 	}
 	key := httpmw.APIKey(r)
@@ -893,7 +893,11 @@ func (api *API) LogDataProtectionAccess(r *http.Request, userID uuid.UUID, resou
 // a designated auditor.
 func (api *API) dataProtectionStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	enabled := api.DataProtection != nil && api.DataProtection.Enabled
+	tier := 0
+	if api.DataProtection != nil {
+		tier = api.DataProtection.Tier
+	}
+	enabled := tier >= 1
 	auditor := false
 	if enabled {
 		key := httpmw.APIKey(r)
@@ -905,6 +909,7 @@ func (api *API) dataProtectionStatus(rw http.ResponseWriter, r *http.Request) {
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.DataProtectionStatus{
 		Enabled: enabled,
+		Tier:    tier,
 		Auditor: auditor,
 	})
 }

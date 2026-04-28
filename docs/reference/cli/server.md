@@ -2015,6 +2015,17 @@ How long expired API keys are retained before being deleted. Keeping expired key
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
 
+### --data-protection-mode
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_DATA_PROTECTION_MODE</code> |
+| YAML        | <code>dataProtection.mode</code>         |
+| Default     | <code>off</code>                         |
+
+Set the Data Protection Mode tier. 'off' disables protection, 'tier-1' obfuscates UI reporting surfaces, 'tier-2' extends obfuscation to all API endpoints with statistical data. Requires a server restart to change.
+
 ### --data-protection-enabled
 
 |             |                                             |
@@ -2024,7 +2035,7 @@ How long workspace agent logs are retained. Logs from non-latest builds are dele
 | YAML        | <code>dataProtection.enabled</code>         |
 | Default     | <code>false</code>                          |
 
-Enable Data Protection Mode. When enabled, individual user identifiers are obfuscated in reports and analytics. Designated auditors can still access unobfuscated data. Requires a server restart to change.
+Deprecated: use --data-protection-mode instead. When true, equivalent to --data-protection-mode=tier-1.
 
 ### --data-protection-auditors
 

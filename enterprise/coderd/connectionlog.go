@@ -54,7 +54,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	// non-auditors to prevent using filters to discover real
 	// usernames.
 	dpCfg := api.AGPL.DataProtection
-	if dpCfg != nil && dpCfg.Enabled {
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
@@ -103,7 +103,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	// in connection logs. This layers on top of the existing RBAC
 	// auditor gating because an RBAC auditor may be a team manager
 	// who should not see individual user data.
-	if dpCfg != nil && dpCfg.Enabled {
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {

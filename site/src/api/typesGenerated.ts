@@ -2931,7 +2931,11 @@ export interface DangerousConfig {
 
 // From codersdk/deployment.go
 export interface DataProtectionConfig {
+	/**
+	 * Deprecated: Use Mode instead.
+	 */
 	readonly enabled?: boolean;
+	readonly mode?: string;
 	readonly auditors?: string;
 	readonly min_group_size?: number;
 }
@@ -2943,6 +2947,7 @@ export interface DataProtectionConfig {
  */
 export interface DataProtectionStatus {
 	readonly enabled: boolean;
+	readonly tier: number;
 	readonly auditor: boolean;
 }
 

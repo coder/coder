@@ -15378,10 +15378,14 @@ const docTemplate = `{
                     }
                 },
                 "enabled": {
+                    "description": "Deprecated: Use Mode instead.",
                     "type": "boolean"
                 },
                 "min_group_size": {
                     "type": "integer"
+                },
+                "mode": {
+                    "type": "string"
                 }
             }
         },

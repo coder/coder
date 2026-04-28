@@ -135,7 +135,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	// Data Protection Mode: strip user-identity filter to prevent
 	// discovery of real users.
 	dpCfg := api.AGPL.DataProtection
-	if dpCfg != nil && dpCfg.Enabled {
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
@@ -203,7 +203,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	}
 
 	// Apply Data Protection Mode obfuscation to initiator identities.
-	if dpCfg != nil && dpCfg.Enabled {
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
@@ -279,7 +279,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	// Data Protection Mode: strip user-identity filter to prevent
 	// discovery of real users.
 	dpCfg := api.AGPL.DataProtection
-	if dpCfg != nil && dpCfg.Enabled {
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
@@ -356,7 +356,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply Data Protection Mode obfuscation to initiator identities.
-	if dpCfg != nil && dpCfg.Enabled {
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
@@ -570,7 +570,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 
 	// Apply Data Protection Mode obfuscation to initiator identity.
 	dpCfg := api.AGPL.DataProtection
-	if dpCfg != nil && dpCfg.Enabled {
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {

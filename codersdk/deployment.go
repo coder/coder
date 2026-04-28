@@ -751,7 +751,9 @@ type StatsCollectionConfig struct {
 }
 
 type DataProtectionConfig struct {
+	// Deprecated: Use Mode instead.
 	Enabled      serpent.Bool        `json:"enabled,omitempty" typescript:",notnull"`
+	Mode         serpent.String      `json:"mode,omitempty" typescript:",notnull"`
 	Auditors     serpent.StringArray `json:"auditors,omitempty" typescript:",notnull"`
 	MinGroupSize serpent.Int64       `json:"min_group_size,omitempty" typescript:",notnull"`
 }
@@ -760,6 +762,7 @@ type DataProtectionConfig struct {
 // GET /deployment/data-protection-status.
 type DataProtectionStatus struct {
 	Enabled bool `json:"enabled"`
+	Tier    int  `json:"tier"`
 	Auditor bool `json:"auditor"`
 }
 
@@ -4032,7 +4035,17 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Data Protection Mode",
-			Description: "Enable Data Protection Mode. When enabled, individual user identifiers are obfuscated in reports and analytics. Designated auditors can still access unobfuscated data. Requires a server restart to change.",
+			Description: "Set the Data Protection Mode tier. 'off' disables protection, 'tier-1' obfuscates UI reporting surfaces, 'tier-2' extends obfuscation to all API endpoints with statistical data. Requires a server restart to change.",
+			Flag:        "data-protection-mode",
+			Env:         "CODER_DATA_PROTECTION_MODE",
+			Default:     "off",
+			Value:       &c.DataProtection.Mode,
+			Group:       &deploymentGroupDataProtection,
+			YAML:        "mode",
+		},
+		{
+			Name:        "Data Protection Enabled (deprecated)",
+			Description: "Deprecated: use --data-protection-mode instead. When true, equivalent to --data-protection-mode=tier-1.",
 			Flag:        "data-protection-enabled",
 			Env:         "CODER_DATA_PROTECTION_ENABLED",
 			Default:     "false",

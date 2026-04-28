@@ -677,11 +677,30 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Entitlements:          entitlements.New(),
 				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
+			// Resolve Data Protection Mode tier from config.
+			// --data-protection-mode takes precedence over the
+			// deprecated --data-protection-enabled flag.
+			dpTier := 0
+			dpMode := vals.DataProtection.Mode.Value()
+			switch dpMode {
+			case "tier-1":
+				dpTier = 1
+			case "tier-2":
+				dpTier = 2
+			case "off", "":
+				// Fall back to deprecated boolean flag.
+				if vals.DataProtection.Enabled.Value() {
+					dpTier = 1
+				}
+			default:
+				return xerrors.Errorf("invalid --data-protection-mode value: %q (must be off, tier-1, or tier-2)", dpMode)
+			}
 			options.DataProtection = dataprotection.NewConfig(
-				vals.DataProtection.Enabled.Value(),
+				dpTier,
 				vals.DataProtection.Auditors.Value(),
 				int(vals.DataProtection.MinGroupSize.Value()),
 			)
+
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
 			}

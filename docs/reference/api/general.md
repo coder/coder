@@ -234,7 +234,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "string"
       ],
       "enabled": true,
-      "min_group_size": 0
+      "min_group_size": 0,
+      "mode": "string"
     },
     "derp": {
       "config": {
