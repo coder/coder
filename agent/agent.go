@@ -114,6 +114,7 @@ type Options struct {
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
 	BoundaryLogProxySocketPath   string
+	ContextConfig                agentcontextconfig.Config
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 }
@@ -233,6 +234,7 @@ func New(options Options) Agent {
 		socketPath:                 options.SocketPath,
 		socketServerEnabled:        options.SocketServerEnabled,
 		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
+		contextConfig:              options.ContextConfig,
 		derpTLSConfig:              options.DERPTLSConfig,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
@@ -312,6 +314,7 @@ type agent struct {
 	// It may be nil if there is a problem starting the server.
 	boundaryLogProxy           *boundarylogproxy.Server
 	boundaryLogProxySocketPath string
+	contextConfig              agentcontextconfig.Config
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -427,7 +430,7 @@ func (a *agent) init() {
 			return m.Directory
 		}
 		return ""
-	})
+	}, a.contextConfig)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
