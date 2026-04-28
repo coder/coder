@@ -6,10 +6,10 @@ not add new readiness or debug endpoints for these workflows.
 
 ## Default local ports
 
-`scripts/develop/main.go` defines these defaults:
+`scripts/develop/main.go` defines these base defaults:
 
-| Resource | Default | Override |
-|----------|---------|----------|
+| Resource | Base default | Override |
+|----------|--------------|----------|
 | API server | `3000` | `--port`, `CODER_DEV_PORT` |
 | Frontend dev server | `8080` | `--web-port`, `CODER_DEV_WEB_PORT` |
 | Workspace proxy | `3010` | `--proxy-port`, `CODER_DEV_PROXY_PORT` |
@@ -17,10 +17,20 @@ not add new readiness or debug endpoints for these workflows.
 | Embedded Prometheus UI | `9090` | Fixed in `scripts/develop/main.go` |
 | Delve debugger | `12345` | Fixed when `--debug` is used |
 
-The workspace proxy is only started when `--use-proxy` is set. The embedded
-Prometheus UI is only started when `--prometheus-server` or
+By default, plain `./scripts/develop.sh` uses the base defaults exactly:
+`3000`, `8080`, `3010`, and `2114` for Coder Prometheus metrics. Set
+`--port-offset` or `CODER_DEV_PORT_OFFSET=true` to opt in to a deterministic
+per-worktree offset for API, frontend, workspace proxy, and Coder Prometheus
+metrics ports.
+
+When enabled, the develop script hashes the project root with FNV-64a, maps it
+into one of 50 buckets, multiplies by 20, and adds that value to each unset base
+default. The same worktree path always gets the same effective ports. A flag or
+environment variable overrides only that port. Other unset ports still receive
+the opt-in offset. The workspace proxy is only started when `--use-proxy` is
+set. The embedded Prometheus UI is only started when `--prometheus-server` or
 `CODER_DEV_PROMETHEUS_SERVER` is set, Docker is available, and the host is
-Linux.
+Linux. The Prometheus UI port `9090` and Delve port `12345` remain hardcoded.
 
 ## Other useful develop flags and environment variables
 
@@ -29,6 +39,7 @@ variables:
 
 | Purpose | Flag | Environment variable |
 |---------|------|----------------------|
+| Per-worktree port offset | `--port-offset` | `CODER_DEV_PORT_OFFSET` |
 | Access URL | `--access-url` | `CODER_DEV_ACCESS_URL` |
 | Admin password | `--password` | `CODER_DEV_ADMIN_PASSWORD` |
 | Starter template | `--starter-template` | `CODER_DEV_STARTER_TEMPLATE` |
@@ -46,8 +57,14 @@ sets the global config directory to `<project-root>/.coderv2`. This isolates
 built-in Postgres data, local session data, and Prometheus container storage on
 disk.
 
-Ports are not isolated by worktree. When running multiple worktrees at once,
-choose a unique port set for every worktree. For example:
+The configurable develop ports use canonical defaults unless you opt in with
+`--port-offset` or `CODER_DEV_PORT_OFFSET=true`. Enable the offset when running
+multiple worktrees in parallel and you want most concurrent runs to avoid manual
+port selection. When the offset is enabled, the startup banner prints the
+effective API, web, proxy, and Coder metrics ports with their offset status.
+
+Use overrides when you need fixed ports or when two worktree paths hash to the
+same offset. For example:
 
 ```sh
 CODER_DEV_PORT=3100 \
@@ -59,18 +76,21 @@ CODER_DEV_PROMETHEUS_PORT=2214 \
 
 If you also need the embedded Prometheus UI in more than one worktree, use only
 one at a time. The UI port is fixed at `9090`, and the Docker container name is
-fixed to `coder-prometheus`.
+fixed to `coder-prometheus`. Delve is fixed at `127.0.0.1:12345` when `--debug`
+is used.
 
 ## Known collision risks
 
-- API, frontend, proxy, and Coder metrics ports collide if two worktrees use
-  the same values.
+- Two worktree paths can hash to the same opt-in offset. If preflight reports a
+  busy effective port, set the relevant `CODER_DEV_*` environment variables or
+  flags for one worktree.
 - The embedded Prometheus UI always uses port `9090`.
 - The embedded Prometheus Docker container name is always `coder-prometheus`.
 - The Delve debugger always listens on `127.0.0.1:12345` when `--debug` is
   used.
 - The develop script only checks the proxy port when `--use-proxy` is set, so
-  a stale process on `3010` can go unnoticed until the proxy is enabled.
+  a stale process on the effective proxy port can go unnoticed until the proxy
+  is enabled.
 - External databases configured through `CODER_PG_CONNECTION_URL` are shared if
   multiple worktrees point at the same database.
 
@@ -79,8 +99,8 @@ fixed to `coder-prometheus`.
 Do not invent a new readiness probe. The develop script already waits for the
 API server to answer `GET /healthz` for up to 60 seconds, then logs `server is
 ready to accept connections`. After setup completes, it prints a banner with
-`Coder is now running in development mode`, followed by the API and Web UI
-URLs.
+`Coder is now running in development mode`, the effective port list, and the API
+and Web UI URLs.
 
 For agent-driven runs, treat the banner as the ready signal for browser work.
 If the banner does not appear, inspect the preceding `api`, `site`, database
