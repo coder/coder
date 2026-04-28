@@ -1,10 +1,4 @@
 import "jest-canvas-mock";
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type { Workspace } from "api/typesGenerated";
-import WS from "jest-websocket-mock";
-import { HttpResponse, http } from "msw";
 import {
 	MockUserOwner,
 	MockWorkspace,
@@ -13,6 +7,12 @@ import {
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import type { Workspace } from "api/typesGenerated";
+import WS from "jest-websocket-mock";
+import { HttpResponse, http } from "msw";
 import TerminalPage, { Language } from "./TerminalPage";
 
 // Renders the terminal page and waits for the terminal to finish

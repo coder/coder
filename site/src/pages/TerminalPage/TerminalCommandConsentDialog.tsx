@@ -1,5 +1,3 @@
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -9,6 +7,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
+import { TriangleAlertIcon } from "lucide-react";
+import type { FC } from "react";
 
 interface TerminalCommandConsentDialogProps {
 	open: boolean;
