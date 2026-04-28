@@ -8,6 +8,7 @@ import (
 	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -22,20 +23,20 @@ func ProviderOptionsFromChatConfig(
 		include := EnsureResponseIncludes(IncludeFromChat(options.Include))
 		providerOptions := &fantasyopenai.ResponsesProviderOptions{
 			Include:           include,
-			Instructions:      NormalizedStringPointer(options.Instructions),
+			Instructions:      chatutil.NormalizedStringPointer(options.Instructions),
 			Logprobs:          ResponsesLogProbsFromChatConfig(options),
 			MaxToolCalls:      options.MaxToolCalls,
 			Metadata:          options.Metadata,
 			ParallelToolCalls: options.ParallelToolCalls,
-			PromptCacheKey:    NormalizedStringPointer(options.PromptCacheKey),
+			PromptCacheKey:    chatutil.NormalizedStringPointer(options.PromptCacheKey),
 			ReasoningEffort:   reasoningEffort,
-			ReasoningSummary:  NormalizedStringPointer(options.ReasoningSummary),
-			SafetyIdentifier:  NormalizedStringPointer(options.SafetyIdentifier),
+			ReasoningSummary:  chatutil.NormalizedStringPointer(options.ReasoningSummary),
+			SafetyIdentifier:  chatutil.NormalizedStringPointer(options.SafetyIdentifier),
 			ServiceTier:       ServiceTierFromChat(options.ServiceTier),
 			StrictJSONSchema:  options.StrictJSONSchema,
 			Store:             boolPtrOrDefault(options.Store, true),
 			TextVerbosity:     TextVerbosityFromChat(options.TextVerbosity),
-			User:              NormalizedStringPointer(options.User),
+			User:              chatutil.NormalizedStringPointer(options.User),
 		}
 		return providerOptions
 	}
@@ -45,16 +46,16 @@ func ProviderOptionsFromChatConfig(
 		LogProbs:            options.LogProbs,
 		TopLogProbs:         options.TopLogProbs,
 		ParallelToolCalls:   options.ParallelToolCalls,
-		User:                NormalizedStringPointer(options.User),
+		User:                chatutil.NormalizedStringPointer(options.User),
 		ReasoningEffort:     reasoningEffort,
 		MaxCompletionTokens: options.MaxCompletionTokens,
-		TextVerbosity:       NormalizedStringPointer(options.TextVerbosity),
+		TextVerbosity:       chatutil.NormalizedStringPointer(options.TextVerbosity),
 		Prediction:          options.Prediction,
 		Store:               boolPtrOrDefault(options.Store, true),
 		Metadata:            options.Metadata,
-		PromptCacheKey:      NormalizedStringPointer(options.PromptCacheKey),
-		SafetyIdentifier:    NormalizedStringPointer(options.SafetyIdentifier),
-		ServiceTier:         NormalizedStringPointer(options.ServiceTier),
+		PromptCacheKey:      chatutil.NormalizedStringPointer(options.PromptCacheKey),
+		SafetyIdentifier:    chatutil.NormalizedStringPointer(options.SafetyIdentifier),
+		ServiceTier:         chatutil.NormalizedStringPointer(options.ServiceTier),
 		StructuredOutputs:   options.StructuredOutputs,
 	}
 }
@@ -71,7 +72,7 @@ func TextVerbosityFromChat(value *string) *fantasyopenai.TextVerbosity {
 		return nil
 	}
 
-	verbosity := NormalizedEnumValue(
+	verbosity := chatutil.NormalizedEnumValue(
 		normalized,
 		string(fantasyopenai.TextVerbosityLow),
 		string(fantasyopenai.TextVerbosityMedium),
@@ -144,7 +145,7 @@ func ReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
 		return nil
 	}
 
-	effort := NormalizedEnumValue(
+	effort := chatutil.NormalizedEnumValue(
 		normalized,
 		string(fantasyopenai.ReasoningEffortMinimal),
 		string(fantasyopenai.ReasoningEffortLow),
@@ -162,7 +163,7 @@ func ReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
 // ServiceTierFromChat normalizes chat-config service tier values for OpenAI
 // Responses API and returns the canonical provider service tier value.
 func ServiceTierFromChat(value *string) *fantasyopenai.ServiceTier {
-	normalized := NormalizedStringPointer(value)
+	normalized := chatutil.NormalizedStringPointer(value)
 	if normalized == nil {
 		return nil
 	}
@@ -224,29 +225,4 @@ func boolPtrOrDefault(value *bool, def bool) *bool {
 		return value
 	}
 	return &def
-}
-
-// NormalizedStringPointer trims a string pointer and returns nil for nil or
-// empty values.
-func NormalizedStringPointer(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-// NormalizedEnumValue returns the canonical allowed value matching value after
-// case normalization, or nil when no value matches.
-func NormalizedEnumValue(value string, allowed ...string) *string {
-	for _, candidate := range allowed {
-		if value == strings.ToLower(candidate) {
-			match := candidate
-			return &match
-		}
-	}
-	return nil
 }

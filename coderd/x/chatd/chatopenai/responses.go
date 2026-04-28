@@ -189,12 +189,12 @@ func ExtractResponseIDIfStored(
 	return extractResponseID(metadata)
 }
 
-// ShouldActivateChainModeInfo reports whether a follow-up turn can use
+// ShouldActivateChainMode reports whether a follow-up turn can use
 // previous_response_id instead of replaying history. It requires store=true, a
 // matching model config, meaningful trailing user input, non-plan mode,
 // complete local tool state, and confirmation that tool results were sent to
 // the provider.
-func ShouldActivateChainModeInfo(
+func ShouldActivateChainMode(
 	providerOptions fantasy.ProviderOptions,
 	info ChainModeInfo,
 	modelConfigID uuid.UUID,
@@ -209,10 +209,10 @@ func ShouldActivateChainModeInfo(
 		!info.providerMissingToolResults
 }
 
-// ResolveChainModeInfo scans DB messages from the end to count trailing user
+// ResolveChainMode scans DB messages from the end to count trailing user
 // messages for the current turn and detect whether the immediately preceding
 // assistant/tool block can chain from a provider response ID.
-func ResolveChainModeInfo(messages []database.ChatMessage) ChainModeInfo {
+func ResolveChainMode(messages []database.ChatMessage) ChainModeInfo {
 	var info ChainModeInfo
 	i := len(messages) - 1
 	for ; i >= 0; i-- {
@@ -220,7 +220,7 @@ func ResolveChainModeInfo(messages []database.ChatMessage) ChainModeInfo {
 			break
 		}
 		info.trailingUserCount++
-		if userMessageContributesToChainModeInfo(messages[i]) {
+		if userMessageContributesToChainMode(messages[i]) {
 			info.contributingTrailingUserCount++
 		}
 	}
@@ -249,11 +249,11 @@ func ResolveChainModeInfo(messages []database.ChatMessage) ChainModeInfo {
 	return info
 }
 
-// FilterPromptForChainModeInfo keeps only system messages and the trailing user
+// FilterPromptForChainMode keeps only system messages and the trailing user
 // messages that still contribute model-visible content to the current turn.
 // Assistant and tool messages are dropped because the provider already has
 // them via the previous_response_id chain.
-func FilterPromptForChainModeInfo(
+func FilterPromptForChainMode(
 	prompt []fantasy.Message,
 	info ChainModeInfo,
 ) []fantasy.Message {
@@ -295,7 +295,7 @@ func FilterPromptForChainModeInfo(
 	return filtered
 }
 
-func userMessageContributesToChainModeInfo(msg database.ChatMessage) bool {
+func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 	parts, err := chatprompt.ParseContent(msg)
 	if err != nil {
 		return false

@@ -94,11 +94,11 @@ func TestIsResponsesStoreEnabledIgnoresMalformedNonOpenAIKey(t *testing.T) {
 	require.False(t, chatopenai.IsResponsesStoreEnabled(opts))
 }
 
-func TestShouldActivateChainModeInfo(t *testing.T) {
+func TestShouldActivateChainMode(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
-	baseInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	baseInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, nil),
@@ -110,7 +110,7 @@ func TestShouldActivateChainModeInfo(t *testing.T) {
 		"read_file",
 		json.RawMessage(`{"path":"main.go"}`),
 	)
-	unresolvedLocalInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	unresolvedLocalInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{localCall}),
@@ -123,20 +123,20 @@ func TestShouldActivateChainModeInfo(t *testing.T) {
 		false,
 		false,
 	)
-	missingToolResultsInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	missingToolResultsInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{localCall}),
 		chainModeToolMessage([]codersdk.ChatMessagePart{localResult}),
 		chainModeUserMessage("latest user message"),
 	})
-	skillOnlyInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	skillOnlyInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, nil),
 		chainModeSkillOnlyUserMessage(),
 	})
-	missingResponseInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	missingResponseInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessageWithoutResponse(modelConfigID),
@@ -207,7 +207,7 @@ func TestShouldActivateChainModeInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := chatopenai.ShouldActivateChainModeInfo(
+			got := chatopenai.ShouldActivateChainMode(
 				tt.providerOpts,
 				tt.info,
 				tt.modelConfigID,
@@ -407,7 +407,7 @@ func TestExtractResponseIDIfStored(t *testing.T) {
 	))
 }
 
-func TestResolveChainModeInfoIgnoresSkillOnlySentinelMessages(t *testing.T) {
+func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -423,14 +423,14 @@ func TestResolveChainModeInfoIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	}})
 	user.Role = database.ChatMessageRoleUser
 
-	got := chatopenai.ResolveChainModeInfo([]database.ChatMessage{assistant, skillOnly, user})
+	got := chatopenai.ResolveChainMode([]database.ChatMessage{assistant, skillOnly, user})
 	require.Equal(t, "resp-123", got.PreviousResponseID())
 	require.Equal(t, modelConfigID, got.ModelConfigID())
 	require.Equal(t, 2, got.TrailingUserCount())
 	require.Equal(t, 1, got.ContributingTrailingUserCount())
 }
 
-func TestResolveChainModeInfo_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
+func TestResolveChainMode_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -440,7 +440,7 @@ func TestResolveChainModeInfo_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
 		json.RawMessage(`{"path":"main.go"}`),
 	)
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
@@ -449,7 +449,7 @@ func TestResolveChainModeInfo_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
 
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.True(t, chainInfo.HasUnresolvedLocalToolCalls())
-	require.False(t, chatopenai.ShouldActivateChainModeInfo(
+	require.False(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -457,11 +457,11 @@ func TestResolveChainModeInfo_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
 	))
 }
 
-func TestResolveChainModeInfo_BlocksWhenAssistantContentCannotParse(t *testing.T) {
+func TestResolveChainMode_BlocksWhenAssistantContentCannotParse(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeCorruptAssistantMessage(modelConfigID),
@@ -470,7 +470,7 @@ func TestResolveChainModeInfo_BlocksWhenAssistantContentCannotParse(t *testing.T
 
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.True(t, chainInfo.HasUnresolvedLocalToolCalls())
-	require.False(t, chatopenai.ShouldActivateChainModeInfo(
+	require.False(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -478,7 +478,7 @@ func TestResolveChainModeInfo_BlocksWhenAssistantContentCannotParse(t *testing.T
 	))
 }
 
-func TestResolveChainModeInfo_BlocksWhenToolContentCannotParse(t *testing.T) {
+func TestResolveChainMode_BlocksWhenToolContentCannotParse(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -488,7 +488,7 @@ func TestResolveChainModeInfo_BlocksWhenToolContentCannotParse(t *testing.T) {
 		json.RawMessage(`{"path":"main.go"}`),
 	)
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
@@ -498,7 +498,7 @@ func TestResolveChainModeInfo_BlocksWhenToolContentCannotParse(t *testing.T) {
 
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.True(t, chainInfo.HasUnresolvedLocalToolCalls())
-	require.False(t, chatopenai.ShouldActivateChainModeInfo(
+	require.False(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -506,7 +506,7 @@ func TestResolveChainModeInfo_BlocksWhenToolContentCannotParse(t *testing.T) {
 	))
 }
 
-func TestResolveChainModeInfo_AllowsProviderExecutedOnly(t *testing.T) {
+func TestResolveChainMode_AllowsProviderExecutedOnly(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -517,7 +517,7 @@ func TestResolveChainModeInfo_AllowsProviderExecutedOnly(t *testing.T) {
 	)
 	toolCall.ProviderExecuted = true
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
@@ -527,7 +527,7 @@ func TestResolveChainModeInfo_AllowsProviderExecutedOnly(t *testing.T) {
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.False(t, chainInfo.HasUnresolvedLocalToolCalls())
 	require.False(t, chainInfo.ProviderMissingToolResults())
-	require.True(t, chatopenai.ShouldActivateChainModeInfo(
+	require.True(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -535,7 +535,7 @@ func TestResolveChainModeInfo_AllowsProviderExecutedOnly(t *testing.T) {
 	))
 }
 
-func TestResolveChainModeInfo_BlocksOnMixedProviderExecutedAndUnresolvedLocalCall(t *testing.T) {
+func TestResolveChainMode_BlocksOnMixedProviderExecutedAndUnresolvedLocalCall(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -551,7 +551,7 @@ func TestResolveChainModeInfo_BlocksOnMixedProviderExecutedAndUnresolvedLocalCal
 		json.RawMessage(`{"path":"main.go"}`),
 	)
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(
@@ -563,7 +563,7 @@ func TestResolveChainModeInfo_BlocksOnMixedProviderExecutedAndUnresolvedLocalCal
 
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.True(t, chainInfo.HasUnresolvedLocalToolCalls())
-	require.False(t, chatopenai.ShouldActivateChainModeInfo(
+	require.False(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -571,7 +571,7 @@ func TestResolveChainModeInfo_BlocksOnMixedProviderExecutedAndUnresolvedLocalCal
 	))
 }
 
-func TestResolveChainModeInfo_AllowsResolvedLocalCall(t *testing.T) {
+func TestResolveChainMode_AllowsResolvedLocalCall(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -590,7 +590,7 @@ func TestResolveChainModeInfo_AllowsResolvedLocalCall(t *testing.T) {
 	followUp := chainModeAssistantMessage(modelConfigID, nil)
 	followUp.ProviderResponseID = sql.NullString{String: "resp-follow-up", Valid: true}
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
@@ -602,7 +602,7 @@ func TestResolveChainModeInfo_AllowsResolvedLocalCall(t *testing.T) {
 	require.Equal(t, "resp-follow-up", chainInfo.PreviousResponseID())
 	require.False(t, chainInfo.HasUnresolvedLocalToolCalls())
 	require.False(t, chainInfo.ProviderMissingToolResults())
-	require.True(t, chatopenai.ShouldActivateChainModeInfo(
+	require.True(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -610,7 +610,7 @@ func TestResolveChainModeInfo_AllowsResolvedLocalCall(t *testing.T) {
 	))
 }
 
-func TestResolveChainModeInfo_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
+func TestResolveChainMode_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -632,7 +632,7 @@ func TestResolveChainModeInfo_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
 		false,
 	)
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("prior user message"),
 		chainModeAssistantMessage(
@@ -645,7 +645,7 @@ func TestResolveChainModeInfo_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
 
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.True(t, chainInfo.HasUnresolvedLocalToolCalls())
-	require.False(t, chatopenai.ShouldActivateChainModeInfo(
+	require.False(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -653,7 +653,7 @@ func TestResolveChainModeInfo_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
 	))
 }
 
-func TestResolveChainModeInfo_BlocksWhenToolResultNeverSentToProvider(t *testing.T) {
+func TestResolveChainMode_BlocksWhenToolResultNeverSentToProvider(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -670,7 +670,7 @@ func TestResolveChainModeInfo_BlocksWhenToolResultNeverSentToProvider(t *testing
 		false,
 	)
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("make a plan"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
@@ -681,7 +681,7 @@ func TestResolveChainModeInfo_BlocksWhenToolResultNeverSentToProvider(t *testing
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.False(t, chainInfo.HasUnresolvedLocalToolCalls())
 	require.True(t, chainInfo.ProviderMissingToolResults())
-	require.False(t, chatopenai.ShouldActivateChainModeInfo(
+	require.False(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -689,7 +689,7 @@ func TestResolveChainModeInfo_BlocksWhenToolResultNeverSentToProvider(t *testing
 	))
 }
 
-func TestResolveChainModeInfo_BlocksProviderMissingWithMultipleToolCalls(t *testing.T) {
+func TestResolveChainMode_BlocksProviderMissingWithMultipleToolCalls(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -718,7 +718,7 @@ func TestResolveChainModeInfo_BlocksProviderMissingWithMultipleToolCalls(t *test
 		false,
 	)
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("do it"),
 		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{call1, call2}),
@@ -728,7 +728,7 @@ func TestResolveChainModeInfo_BlocksProviderMissingWithMultipleToolCalls(t *test
 
 	require.False(t, chainInfo.HasUnresolvedLocalToolCalls())
 	require.True(t, chainInfo.ProviderMissingToolResults())
-	require.False(t, chatopenai.ShouldActivateChainModeInfo(
+	require.False(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -736,12 +736,12 @@ func TestResolveChainModeInfo_BlocksProviderMissingWithMultipleToolCalls(t *test
 	))
 }
 
-func TestResolveChainModeInfo_AllowsWhenNoToolCalls(t *testing.T) {
+func TestResolveChainMode_AllowsWhenNoToolCalls(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		chainModeSystemMessage(),
 		chainModeUserMessage("hello"),
 		chainModeAssistantMessage(modelConfigID, nil),
@@ -751,7 +751,7 @@ func TestResolveChainModeInfo_AllowsWhenNoToolCalls(t *testing.T) {
 	require.Equal(t, "resp-123", chainInfo.PreviousResponseID())
 	require.False(t, chainInfo.HasUnresolvedLocalToolCalls())
 	require.False(t, chainInfo.ProviderMissingToolResults())
-	require.True(t, chatopenai.ShouldActivateChainModeInfo(
+	require.True(t, chatopenai.ShouldActivateChainMode(
 		chainModeProviderOptions(true),
 		chainInfo,
 		modelConfigID,
@@ -759,7 +759,7 @@ func TestResolveChainModeInfo_AllowsWhenNoToolCalls(t *testing.T) {
 	))
 }
 
-func TestFilterPromptForChainModeInfoKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {
+func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -785,7 +785,7 @@ func TestFilterPromptForChainModeInfoKeepsContributingUsersAcrossSkippedSentinel
 	}})
 	lastTrailingUser.Role = database.ChatMessageRoleUser
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		priorUser,
 		assistant,
 		firstTrailingUser,
@@ -828,7 +828,7 @@ func TestFilterPromptForChainModeInfoKeepsContributingUsersAcrossSkippedSentinel
 		},
 	}
 
-	got := chatopenai.FilterPromptForChainModeInfo(prompt, chainInfo)
+	got := chatopenai.FilterPromptForChainMode(prompt, chainInfo)
 	require.Len(t, got, 3)
 	require.Equal(t, fantasy.MessageRoleSystem, got[0].Role)
 	require.Equal(t, fantasy.MessageRoleUser, got[1].Role)
@@ -842,7 +842,7 @@ func TestFilterPromptForChainModeInfoKeepsContributingUsersAcrossSkippedSentinel
 	require.Equal(t, "last trailing user", lastPart.Text)
 }
 
-func TestFilterPromptForChainModeInfoUsesContributingTrailingUsers(t *testing.T) {
+func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
@@ -863,7 +863,7 @@ func TestFilterPromptForChainModeInfoUsesContributingTrailingUsers(t *testing.T)
 	}})
 	latestUser.Role = database.ChatMessageRoleUser
 
-	chainInfo := chatopenai.ResolveChainModeInfo([]database.ChatMessage{
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
 		priorUser,
 		assistant,
 		skillOnly,
@@ -899,7 +899,7 @@ func TestFilterPromptForChainModeInfoUsesContributingTrailingUsers(t *testing.T)
 		},
 	}
 
-	got := chatopenai.FilterPromptForChainModeInfo(prompt, chainInfo)
+	got := chatopenai.FilterPromptForChainMode(prompt, chainInfo)
 	require.Len(t, got, 2)
 	require.Equal(t, fantasy.MessageRoleSystem, got[0].Role)
 	require.Equal(t, fantasy.MessageRoleUser, got[1].Role)

@@ -157,10 +157,10 @@ type RunOptions struct {
 	)
 	// Callers should attach correlation fields (chat_id, owner_id, etc.)
 	// using Logger.With before passing the logger in.
-	Logger               slog.Logger
-	Compaction           *CompactionOptions
-	ReloadMessages       func(context.Context) ([]fantasy.Message, error)
-	DisableChainModeInfo func()
+	Logger           slog.Logger
+	Compaction       *CompactionOptions
+	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
+	DisableChainMode func()
 	// PrepareMessages is called before each LLM step with the
 	// current message history. If it returns non-nil, the returned
 	// slice replaces messages for this and all subsequent steps.
@@ -540,8 +540,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 			stepMessages := result.toResponseMessages()
 			if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
 				opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
-				if opts.DisableChainModeInfo != nil {
-					opts.DisableChainModeInfo()
+				if opts.DisableChainMode != nil {
+					opts.DisableChainMode()
 				}
 				switch {
 				case opts.ReloadMessages != nil:

@@ -6016,7 +6016,7 @@ func (p *Server) runChat(
 		advisorPromptSnapshot = slices.Clone(msgs)
 	}
 
-	chainInfo := chatopenai.ResolveChainModeInfo(messages)
+	chainInfo := chatopenai.ResolveChainMode(messages)
 	result.PushSummaryModel = model
 	result.ProviderKeys = providerKeys
 	result.FallbackProvider = modelConfig.Provider
@@ -6832,7 +6832,7 @@ func (p *Server) runChat(
 	// we set previous_response_id and send only system instructions
 	// plus the new user input, avoiding redundant replay of prior
 	// assistant and tool messages that the provider already has.
-	chainModeActive := chatopenai.ShouldActivateChainModeInfo(
+	chainModeActive := chatopenai.ShouldActivateChainMode(
 		providerOptions,
 		chainInfo,
 		modelConfig.ID,
@@ -6853,7 +6853,7 @@ func (p *Server) runChat(
 			providerOptions,
 			chainInfo.PreviousResponseID(),
 		)
-		prompt = chatopenai.FilterPromptForChainModeInfo(prompt, chainInfo)
+		prompt = chatopenai.FilterPromptForChainMode(prompt, chainInfo)
 	}
 	activeToolNames := activeToolNamesForTurn(
 		tools,
@@ -7008,14 +7008,14 @@ func (p *Server) runChat(
 			// history is unavailable.
 			setAdvisorPromptSnapshot(reloadedPrompt)
 			if chainModeActive {
-				reloadedPrompt = chatopenai.FilterPromptForChainModeInfo(
+				reloadedPrompt = chatopenai.FilterPromptForChainMode(
 					reloadedPrompt,
 					chainInfo,
 				)
 			}
 			return reloadedPrompt, nil
 		},
-		DisableChainModeInfo: func() {
+		DisableChainMode: func() {
 			chainModeActive = false
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
