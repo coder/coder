@@ -514,7 +514,7 @@ require (
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/openai/openai-go/v3 v3.28.0
 	github.com/shopspring/decimal v1.4.0
-	github.com/sony/gobreaker/v2 v2.3.0
+	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5
 	gonum.org/v1/gonum v0.17.0
 )
