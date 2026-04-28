@@ -432,12 +432,45 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(2);
 		fireEvent.error(images[0]);
+		fireEvent.error(images[1]);
 		await waitFor(() =>
 			expect(
 				canvas.getAllByRole("img", { name: "Image expired" }),
 			).toHaveLength(2),
 		);
 		expect(getAttachmentFetchCount("storybook-expired-image")).toBe(1);
+		expect(
+			canvas.queryByRole("button", { name: "View Attached image" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Duplicate file IDs with a non-expired probe reuse the first result. */
+export const UserMessageWithRepeatedFailedImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			id: 1,
+			text: "First reference to the failed upload",
+			files: [buildImageAttachmentPart("storybook-failed-image")],
+		}),
+		buildUserMessage({
+			id: 2,
+			text: "Second reference to the same failed upload",
+			files: [buildImageAttachmentPart("storybook-failed-image")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(2);
+		fireEvent.error(images[0]);
+		fireEvent.error(images[1]);
+		await waitFor(() =>
+			expect(
+				canvas.getAllByRole("img", { name: "Image failed to load" }),
+			).toHaveLength(2),
+		);
+		expect(getAttachmentFetchCount("storybook-failed-image")).toBe(1);
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();

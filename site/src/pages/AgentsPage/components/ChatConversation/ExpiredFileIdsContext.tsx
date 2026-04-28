@@ -3,23 +3,37 @@ import {
 	type FC,
 	type PropsWithChildren,
 	useContext,
+	useRef,
 	useState,
 } from "react";
 
 type ExpiredFileIdsContextValue = {
 	hasExpired: (fileId: string) => boolean;
 	markExpired: (fileId: string) => void;
+	// isPending and markPending track in-flight probes so that when the same
+	// file ID appears in multiple blocks, only the first onError handler starts
+	// a network probe. The others fall through to the optimistic "failed" tile
+	// and will be upgraded to "expired" if markExpired is later called.
+	isPending: (fileId: string) => boolean;
+	markPending: (fileId: string) => void;
+	clearPending: (fileId: string) => void;
 };
 
 const ExpiredFileIdsContext = createContext<ExpiredFileIdsContextValue>({
 	hasExpired: () => false,
 	markExpired: () => {},
+	isPending: () => false,
+	markPending: () => {},
+	clearPending: () => {},
 });
 
 export const ExpiredFileIdsProvider: FC<PropsWithChildren> = ({ children }) => {
 	const [expiredFileIds, setExpiredFileIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Use a ref so pending-state changes don't trigger re-renders; we only
+	// need re-renders when expiredFileIds changes.
+	const pendingProbeFileIds = useRef<Set<string>>(new Set());
 
 	return (
 		<ExpiredFileIdsContext.Provider
@@ -34,6 +48,13 @@ export const ExpiredFileIdsProvider: FC<PropsWithChildren> = ({ children }) => {
 						next.add(fileId);
 						return next;
 					});
+				},
+				isPending: (fileId) => pendingProbeFileIds.current.has(fileId),
+				markPending: (fileId) => {
+					pendingProbeFileIds.current.add(fileId);
+				},
+				clearPending: (fileId) => {
+					pendingProbeFileIds.current.delete(fileId);
 				},
 			}}
 		>
