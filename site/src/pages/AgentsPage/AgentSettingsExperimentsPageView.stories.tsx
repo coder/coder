@@ -146,10 +146,13 @@ export const VirtualDesktopLoading: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const toggle = await canvas.findByRole("switch", { name: "Enable" });
-		const providerSelect = await getComputerUseProviderSelect(canvasElement);
 
-		expect(toggle).toBeDisabled();
+		// While loading, the Switch is replaced by a skeleton placeholder.
+		expect(
+			canvas.queryByRole("switch", { name: "Enable" }),
+		).not.toBeInTheDocument();
+
+		const providerSelect = await getComputerUseProviderSelect(canvasElement);
 		expect(providerSelect).toBeDisabled();
 	},
 };
