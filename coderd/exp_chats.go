@@ -4282,7 +4282,7 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Produce json
 // @Success 200 {object} codersdk.ChatRetentionDaysResponse
-// @Router /experimental/chats/config/retention-days [get]
+// @Router /api/experimental/chats/config/retention-days [get]
 // @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -4312,7 +4312,7 @@ const retentionDaysMaximum = 3650 // ~10 years
 // @Accept json
 // @Param request body codersdk.UpdateChatRetentionDaysRequest true "Request body"
 // @Success 204
-// @Router /experimental/chats/config/retention-days [put]
+// @Router /api/experimental/chats/config/retention-days [put]
 // @x-apidocgen {"skip": true}
 func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -6737,7 +6737,7 @@ func (api *API) hasEffectiveCentralProviderAPIKey(
 // @Param start_date query string true "Start date (RFC3339)"
 // @Param end_date query string true "End date (RFC3339)"
 // @Success 200 {object} codersdk.PRInsightsResponse
-// @Router /chats/insights/pull-requests [get]
+// @Router /api/experimental/chats/insights/pull-requests [get]
 // @x-apidocgen {"skip": true}
 func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

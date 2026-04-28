@@ -15,7 +15,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.DeploymentConfig
-// @Router /deployment/config [get]
+// @Router /api/v2/deployment/config [get]
 func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -43,7 +43,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.DeploymentStats
-// @Router /deployment/stats [get]
+// @Router /api/v2/deployment/stats [get]
 func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentStats) {
 		httpapi.Forbidden(rw)
@@ -66,7 +66,7 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.BuildInfoResponse
-// @Router /buildinfo [get]
+// @Router /api/v2/buildinfo [get]
 func buildInfoHandler(resp codersdk.BuildInfoResponse) http.HandlerFunc {
 	// This is in a handler so that we can generate API docs info.
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -80,7 +80,7 @@ func buildInfoHandler(resp codersdk.BuildInfoResponse) http.HandlerFunc {
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.SSHConfigResponse
-// @Router /deployment/ssh [get]
+// @Router /api/v2/deployment/ssh [get]
 func (api *API) sshConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, api.SSHConfig)
 }

@@ -40,7 +40,7 @@ const auditLogCountCap = 2000
 // @Param limit query int true "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.AuditLogResponse
-// @Router /audit [get]
+// @Router /api/v2/audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -115,7 +115,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 // @Tags Audit
 // @Param request body codersdk.CreateTestAuditLogRequest true "Audit log request"
 // @Success 204
-// @Router /audit/testgenerate [post]
+// @Router /api/v2/audit/testgenerate [post]
 // @x-apidocgen {"skip": true}
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

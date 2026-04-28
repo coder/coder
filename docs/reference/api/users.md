@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users`
+`GET /api/v2/users`
 
 ### Parameters
 
@@ -79,7 +79,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users`
+`POST /api/v2/users`
 
 > Body parameter
 
@@ -155,7 +155,7 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/authmethods`
+`GET /api/v2/users/authmethods`
 
 ### Example responses
 
@@ -198,7 +198,7 @@ curl -X GET http://coder-server:8080/api/v2/users/first \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/first`
+`GET /api/v2/users/first`
 
 ### Example responses
 
@@ -237,7 +237,7 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/first`
+`POST /api/v2/users/first`
 
 > Body parameter
 
@@ -300,7 +300,7 @@ curl -X POST http://coder-server:8080/api/v2/users/logout \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/logout`
+`POST /api/v2/users/logout`
 
 ### Example responses
 
@@ -337,7 +337,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oauth2/github/callback`
+`GET /api/v2/users/oauth2/github/callback`
 
 ### Responses
 
@@ -358,7 +358,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oauth2/github/device`
+`GET /api/v2/users/oauth2/github/device`
 
 ### Example responses
 
@@ -393,7 +393,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oidc-claims \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oidc-claims`
+`GET /api/v2/users/oidc-claims`
 
 ### Example responses
 
@@ -423,7 +423,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oidc/callback \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oidc/callback`
+`GET /api/v2/users/oidc/callback`
 
 ### Responses
 
@@ -444,7 +444,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}`
+`GET /api/v2/users/{user}`
 
 ### Parameters
 
@@ -502,7 +502,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /users/{user}`
+`DELETE /api/v2/users/{user}`
 
 ### Parameters
 
@@ -529,7 +529,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/appearance \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/appearance`
+`GET /api/v2/users/{user}/appearance`
 
 ### Parameters
 
@@ -568,7 +568,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/appearance`
+`PUT /api/v2/users/{user}/appearance`
 
 > Body parameter
 
@@ -616,7 +616,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/autofill-parameters?tem
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/autofill-parameters`
+`GET /api/v2/users/{user}/autofill-parameters`
 
 ### Parameters
 
@@ -667,7 +667,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/gitsshkey \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/gitsshkey`
+`GET /api/v2/users/{user}/gitsshkey`
 
 ### Parameters
 
@@ -707,7 +707,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/gitsshkey \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/gitsshkey`
+`PUT /api/v2/users/{user}/gitsshkey`
 
 ### Parameters
 
@@ -747,7 +747,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/keys`
+`POST /api/v2/users/{user}/keys`
 
 ### Parameters
 
@@ -784,7 +784,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/tokens`
+`GET /api/v2/users/{user}/keys/tokens`
 
 ### Parameters
 
@@ -873,7 +873,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/keys/tokens`
+`POST /api/v2/users/{user}/keys/tokens`
 
 > Body parameter
 
@@ -930,7 +930,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/tokens/{keyname}`
+`GET /api/v2/users/{user}/keys/tokens/{keyname}`
 
 ### Parameters
 
@@ -986,7 +986,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/{keyid}`
+`GET /api/v2/users/{user}/keys/{keyid}`
 
 ### Parameters
 
@@ -1041,7 +1041,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /users/{user}/keys/{keyid}`
+`DELETE /api/v2/users/{user}/keys/{keyid}`
 
 ### Parameters
 
@@ -1069,7 +1069,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/keys/{keyid}/expire \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/keys/{keyid}/expire`
+`PUT /api/v2/users/{user}/keys/{keyid}/expire`
 
 ### Parameters
 
@@ -1103,7 +1103,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/login-type \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/login-type`
+`GET /api/v2/users/{user}/login-type`
 
 ### Parameters
 
@@ -1140,7 +1140,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/organizations`
+`GET /api/v2/users/{user}/organizations`
 
 ### Parameters
 
@@ -1202,7 +1202,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/organizations/{organizationname}`
+`GET /api/v2/users/{user}/organizations/{organizationname}`
 
 ### Parameters
 
@@ -1247,7 +1247,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/password`
+`PUT /api/v2/users/{user}/password`
 
 > Body parameter
 
@@ -1284,7 +1284,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/preferences`
+`GET /api/v2/users/{user}/preferences`
 
 ### Parameters
 
@@ -1323,7 +1323,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/preferences`
+`PUT /api/v2/users/{user}/preferences`
 
 > Body parameter
 
@@ -1372,7 +1372,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/profile`
+`PUT /api/v2/users/{user}/profile`
 
 > Body parameter
 
@@ -1441,7 +1441,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/roles`
+`GET /api/v2/users/{user}/roles`
 
 ### Parameters
 
@@ -1501,7 +1501,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/roles`
+`PUT /api/v2/users/{user}/roles`
 
 > Body parameter
 
@@ -1571,7 +1571,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/status/activate`
+`PUT /api/v2/users/{user}/status/activate`
 
 ### Parameters
 
@@ -1630,7 +1630,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/status/suspend`
+`PUT /api/v2/users/{user}/status/suspend`
 
 ### Parameters
 

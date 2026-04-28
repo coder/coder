@@ -284,8 +284,6 @@ func TestSwagger(t *testing.T) {
 		bodyString := string(body)
 		require.Contains(t, bodyString, "Swagger UI")
 		require.Contains(t, bodyString, "requestInterceptor")
-		require.Contains(t, bodyString, "/api/v2/scim/v2")
-		require.Contains(t, bodyString, "/scim/v2")
 	})
 	t.Run("doc.json exposed", func(t *testing.T) {
 		t.Parallel()
@@ -305,30 +303,22 @@ func TestSwagger(t *testing.T) {
 		defer resp.Body.Close()
 
 		bodyString := string(body)
-		require.Contains(t, bodyString, `"swagger": "2.0"`)
-
 		require.NotContains(t, bodyString, `"/api/v2/scim/v2`)
 
 		var doc struct {
-			Paths map[string]map[string]struct {
-				Apidocgen struct {
-					BasePath string `json:"base_path"`
-				} `json:"x-apidocgen"`
-			} `json:"paths"`
+			Swagger  string                                `json:"swagger"`
+			BasePath string                                `json:"basePath"`
+			Paths    map[string]map[string]json.RawMessage `json:"paths"`
 		}
 		require.NoError(t, json.Unmarshal(body, &doc))
-		scimOperations := 0
-		for path, methods := range doc.Paths {
-			if !strings.HasPrefix(path, "/scim/v2") {
-				continue
-			}
-			for method, operation := range methods {
-				scimOperations++
-				require.Equalf(t, "/", operation.Apidocgen.BasePath,
-					"%s %s must override the global swagger basePath", method, path)
-			}
-		}
-		require.Positive(t, scimOperations, "expected at least one SCIM operation")
+		require.Equal(t, "2.0", doc.Swagger)
+		require.Equal(t, "/", doc.BasePath)
+		require.Contains(t, doc.Paths, "/api/v2/users")
+		require.Contains(t, doc.Paths, "/api/v2/oauth2-provider/apps")
+		require.Contains(t, doc.Paths, "/api/experimental/watch-all-workspacebuilds")
+		require.Contains(t, doc.Paths, "/.well-known/oauth-authorization-server")
+		require.Contains(t, doc.Paths, "/oauth2/tokens")
+		require.Contains(t, doc.Paths, "/scim/v2/Users")
 	})
 	t.Run("endpoint disabled by default", func(t *testing.T) {
 		t.Parallel()
