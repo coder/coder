@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -637,7 +638,7 @@ func isChatModelForProvider(provider, modelID string) bool {
 	case fantasyopenai.Name:
 		return strings.HasPrefix(normalizedModel, "gpt-") ||
 			strings.HasPrefix(normalizedModel, "chatgpt-") ||
-			isOpenAIReasoningModel(normalizedModel)
+			chatopenai.IsReasoningModel(normalizedModel)
 	case fantasyanthropic.Name:
 		return strings.HasPrefix(normalizedModel, "claude-")
 	case fantasygoogle.Name:
@@ -646,25 +647,6 @@ func isChatModelForProvider(provider, modelID string) bool {
 	default:
 		return false
 	}
-}
-
-func isOpenAIReasoningModel(modelID string) bool {
-	if len(modelID) < 2 || modelID[0] != 'o' {
-		return false
-	}
-
-	index := 1
-	for index < len(modelID) && modelID[index] >= '0' && modelID[index] <= '9' {
-		index++
-	}
-	if index == 1 {
-		return false
-	}
-
-	if index == len(modelID) {
-		return true
-	}
-	return modelID[index] == '-' || modelID[index] == '.'
 }
 
 // ReasoningEffortFromChat normalizes chat-config reasoning effort values for a
@@ -857,31 +839,6 @@ func applyReasoningEffortDispatch(
 			}
 		}
 	}
-}
-
-// OpenAITextVerbosityFromChat normalizes chat-config text verbosity values for
-// OpenAI and returns the canonical provider verbosity value.
-func OpenAITextVerbosityFromChat(value *string) *fantasyopenai.TextVerbosity {
-	if value == nil {
-		return nil
-	}
-
-	normalized := strings.ToLower(strings.TrimSpace(*value))
-	if normalized == "" {
-		return nil
-	}
-
-	verbosity := normalizedEnumValue(
-		normalized,
-		string(fantasyopenai.TextVerbosityLow),
-		string(fantasyopenai.TextVerbosityMedium),
-		string(fantasyopenai.TextVerbosityHigh),
-	)
-	if verbosity == nil {
-		return nil
-	}
-	valueCopy := fantasyopenai.TextVerbosity(*verbosity)
-	return &valueCopy
 }
 
 func normalizedEnumValue(value string, allowed ...string) *string {
@@ -1487,7 +1444,7 @@ func ProviderOptionsFromChatModelConfig(
 	result := fantasy.ProviderOptions{}
 
 	if options.OpenAI != nil {
-		result[fantasyopenai.Name] = openAIProviderOptionsFromChatConfig(
+		result[fantasyopenai.Name] = chatopenai.ProviderOptionsFromChatConfig(
 			model,
 			options.OpenAI,
 		)
@@ -1522,52 +1479,6 @@ func ProviderOptionsFromChatModelConfig(
 		return nil
 	}
 	return result
-}
-
-func openAIProviderOptionsFromChatConfig(
-	model fantasy.LanguageModel,
-	options *codersdk.ChatModelOpenAIProviderOptions,
-) fantasy.ProviderOptionsData {
-	reasoningEffort := openAIReasoningEffortFromChat(options.ReasoningEffort)
-	if useOpenAIResponsesOptions(model) {
-		include := ensureOpenAIResponseIncludes(openAIIncludeFromChat(options.Include))
-		providerOptions := &fantasyopenai.ResponsesProviderOptions{
-			Include:           include,
-			Instructions:      normalizedStringPointer(options.Instructions),
-			Logprobs:          openAIResponsesLogProbsFromChat(options),
-			MaxToolCalls:      options.MaxToolCalls,
-			Metadata:          options.Metadata,
-			ParallelToolCalls: options.ParallelToolCalls,
-			PromptCacheKey:    normalizedStringPointer(options.PromptCacheKey),
-			ReasoningEffort:   reasoningEffort,
-			ReasoningSummary:  normalizedStringPointer(options.ReasoningSummary),
-			SafetyIdentifier:  normalizedStringPointer(options.SafetyIdentifier),
-			ServiceTier:       openAIServiceTierFromChat(options.ServiceTier),
-			StrictJSONSchema:  options.StrictJSONSchema,
-			Store:             boolPtrOrDefault(options.Store, true),
-			TextVerbosity:     OpenAITextVerbosityFromChat(options.TextVerbosity),
-			User:              normalizedStringPointer(options.User),
-		}
-		return providerOptions
-	}
-
-	return &fantasyopenai.ProviderOptions{
-		LogitBias:           options.LogitBias,
-		LogProbs:            options.LogProbs,
-		TopLogProbs:         options.TopLogProbs,
-		ParallelToolCalls:   options.ParallelToolCalls,
-		User:                normalizedStringPointer(options.User),
-		ReasoningEffort:     reasoningEffort,
-		MaxCompletionTokens: options.MaxCompletionTokens,
-		TextVerbosity:       normalizedStringPointer(options.TextVerbosity),
-		Prediction:          options.Prediction,
-		Store:               boolPtrOrDefault(options.Store, true),
-		Metadata:            options.Metadata,
-		PromptCacheKey:      normalizedStringPointer(options.PromptCacheKey),
-		SafetyIdentifier:    normalizedStringPointer(options.SafetyIdentifier),
-		ServiceTier:         normalizedStringPointer(options.ServiceTier),
-		StructuredOutputs:   options.StructuredOutputs,
-	}
 }
 
 func anthropicProviderOptionsFromChatConfig(
@@ -1620,7 +1531,7 @@ func openAICompatProviderOptionsFromChatConfig(
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
 		User:            normalizedStringPointer(options.User),
-		ReasoningEffort: openAIReasoningEffortFromChat(options.ReasoningEffort),
+		ReasoningEffort: chatopenai.ReasoningEffortFromChat(options.ReasoningEffort),
 	}
 }
 
@@ -1686,69 +1597,6 @@ func vercelProviderOptionsFromChatConfig(
 	return result
 }
 
-func openAIResponsesLogProbsFromChat(
-	options *codersdk.ChatModelOpenAIProviderOptions,
-) any {
-	if options.TopLogProbs != nil {
-		return *options.TopLogProbs
-	}
-	if options.LogProbs != nil {
-		return *options.LogProbs
-	}
-	return nil
-}
-
-func openAIIncludeFromChat(values []string) []fantasyopenai.IncludeType {
-	if values == nil {
-		return nil
-	}
-
-	result := make([]fantasyopenai.IncludeType, 0, len(values))
-	for _, value := range values {
-		switch strings.TrimSpace(value) {
-		case string(fantasyopenai.IncludeReasoningEncryptedContent):
-			result = append(result, fantasyopenai.IncludeReasoningEncryptedContent)
-		case string(fantasyopenai.IncludeFileSearchCallResults):
-			result = append(result, fantasyopenai.IncludeFileSearchCallResults)
-		case string(fantasyopenai.IncludeMessageOutputTextLogprobs):
-			result = append(result, fantasyopenai.IncludeMessageOutputTextLogprobs)
-		}
-	}
-	return result
-}
-
-func ensureOpenAIResponseIncludes(
-	values []fantasyopenai.IncludeType,
-) []fantasyopenai.IncludeType {
-	const required = fantasyopenai.IncludeReasoningEncryptedContent
-
-	for _, value := range values {
-		if value == required {
-			return values
-		}
-	}
-	return append(values, required)
-}
-
-func useOpenAIResponsesOptions(model fantasy.LanguageModel) bool {
-	if model == nil {
-		return false
-	}
-	switch model.Provider() {
-	case fantasyopenai.Name, fantasyazure.Name:
-		return fantasyopenai.IsResponsesModel(model.Model())
-	default:
-		return false
-	}
-}
-
-func boolPtrOrDefault(value *bool, def bool) *bool {
-	if value != nil {
-		return value
-	}
-	return &def
-}
-
 func normalizedStringPointer(value *string) *string {
 	if value == nil {
 		return nil
@@ -1758,15 +1606,6 @@ func normalizedStringPointer(value *string) *string {
 		return nil
 	}
 	return &trimmed
-}
-
-func openAIReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
-	effort := ReasoningEffortFromChat(fantasyopenai.Name, value)
-	if effort == nil {
-		return nil
-	}
-	valueCopy := fantasyopenai.ReasoningEffort(*effort)
-	return &valueCopy
 }
 
 func anthropicEffortFromChat(value *string) *fantasyanthropic.Effort {
@@ -1794,24 +1633,4 @@ func vercelReasoningEffortFromChat(value *string) *fantasyvercel.ReasoningEffort
 	}
 	valueCopy := fantasyvercel.ReasoningEffort(*effort)
 	return &valueCopy
-}
-
-func openAIServiceTierFromChat(value *string) *fantasyopenai.ServiceTier {
-	normalized := normalizedStringPointer(value)
-	if normalized == nil {
-		return nil
-	}
-	switch strings.ToLower(*normalized) {
-	case string(fantasyopenai.ServiceTierAuto):
-		serviceTier := fantasyopenai.ServiceTierAuto
-		return &serviceTier
-	case string(fantasyopenai.ServiceTierFlex):
-		serviceTier := fantasyopenai.ServiceTierFlex
-		return &serviceTier
-	case string(fantasyopenai.ServiceTierPriority):
-		serviceTier := fantasyopenai.ServiceTierPriority
-		return &serviceTier
-	default:
-		return nil
-	}
 }
