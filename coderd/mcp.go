@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,10 +22,10 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/promoauth"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -32,10 +33,12 @@ import (
 )
 
 // oidcMCPTokenSource implements mcpclient.UserOIDCTokenSource by
-// delegating to provisionerdserver.ObtainOIDCAccessToken, which already
-// handles refresh-on-expiry and writing the refreshed token back to
-// user_links. Keeping the adapter in coderd avoids leaking the
-// provisionerdserver dependency into the chatd / mcpclient packages.
+// reading the calling user's OIDC link from user_links, refreshing
+// the access token transparently if it has expired, and writing the
+// refreshed token back. The logic mirrors
+// provisionerdserver.ObtainOIDCAccessToken; it is duplicated here to
+// avoid an awkward MCP -> provisionerdserver dependency. Keep the two
+// implementations in sync.
 type oidcMCPTokenSource struct {
 	db     database.Store
 	config promoauth.OAuth2Config
@@ -61,7 +64,74 @@ func newOIDCMCPTokenSource(db database.Store, config promoauth.OAuth2Config, log
 // has no OIDC link or a non-fatal refresh error occurred, matching the
 // contract documented on mcpclient.UserOIDCTokenSource.
 func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error) {
-	return provisionerdserver.ObtainOIDCAccessToken(ctx, s.logger, s.db, s.config, userID)
+	link, err := s.db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    userID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", xerrors.Errorf("get oidc user link: %w", err)
+	}
+
+	if shouldRefresh, expiresAt := shouldRefreshOIDCToken(link); shouldRefresh {
+		token, err := s.config.TokenSource(ctx, &oauth2.Token{
+			AccessToken:  link.OAuthAccessToken,
+			RefreshToken: link.OAuthRefreshToken,
+			// shouldRefreshOIDCToken returns an expiresAt in the past
+			// to force the TokenSource to refresh.
+			Expiry: expiresAt,
+		}).Token()
+		if err != nil {
+			// Treat refresh failures as a missing token. The MCP request
+			// will go out without an Authorization header and the upstream
+			// server can decide how to respond.
+			s.logger.Warn(ctx, "failed to refresh OIDC token for MCP request",
+				slog.F("user_id", userID),
+				slog.Error(err),
+			)
+			return "", nil
+		}
+		link.OAuthAccessToken = token.AccessToken
+		link.OAuthRefreshToken = token.RefreshToken
+		link.OAuthExpiry = token.Expiry
+
+		link, err = s.db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			UserID:                 userID,
+			LoginType:              database.LoginTypeOIDC,
+			OAuthAccessToken:       link.OAuthAccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // set by dbcrypt if required
+			OAuthRefreshToken:      link.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
+			OAuthExpiry:            link.OAuthExpiry,
+			Claims:                 link.Claims,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("update user link after oidc refresh: %w", err)
+		}
+		s.logger.Info(ctx, "refreshed expired OIDC token for MCP request",
+			slog.F("user_id", userID),
+		)
+	}
+
+	return link.OAuthAccessToken, nil
+}
+
+// shouldRefreshOIDCToken decides whether to refresh the user's OIDC
+// access token. It mirrors the same-named helper in
+// provisionerdserver and applies the same 10-minute pre-expiry buffer
+// so that an in-flight request is unlikely to outlive the token.
+func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
+	if link.OAuthRefreshToken == "" {
+		return false, link.OAuthExpiry
+	}
+	if link.OAuthExpiry.IsZero() {
+		// Zero means the token never expires.
+		return false, link.OAuthExpiry
+	}
+	expiresAt := link.OAuthExpiry.Add(-time.Minute * 10)
+	return expiresAt.Before(dbtime.Now()), expiresAt
 }
 
 // @Summary List MCP server configs
