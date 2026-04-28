@@ -423,3 +423,40 @@ func TestConfig_ObfuscateMinimalUser(t *testing.T) {
 		assert.Equal(t, "Alice", u.Name)
 	})
 }
+
+func TestConfig_MatchPseudonym(t *testing.T) {
+	t.Parallel()
+
+	fixedKey := []byte("test-key-for-deterministic-tests")
+	cfg := dataprotection.NewConfigForTest(1, nil, 5, fixedKey)
+
+	uid := uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000001")
+	slug := cfg.PseudoSlug(uid)
+	pid := cfg.ObfuscateUserID(uid)
+
+	t.Run("MatchesSlug", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, cfg.MatchPseudonym(slug, uid))
+	})
+
+	t.Run("MatchesDisplayName", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, cfg.MatchPseudonym(dataprotection.PseudoUsername(pid), uid))
+	})
+
+	t.Run("MatchesPseudonymUUID", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, cfg.MatchPseudonym(pid.String(), uid))
+	})
+
+	t.Run("NoMatchWrongUser", func(t *testing.T) {
+		t.Parallel()
+		other := uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000002")
+		assert.False(t, cfg.MatchPseudonym(slug, other))
+	})
+
+	t.Run("NoMatchGarbage", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, cfg.MatchPseudonym("not-a-pseudonym", uid))
+	})
+}

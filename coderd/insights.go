@@ -913,3 +913,66 @@ func (api *API) dataProtectionStatus(rw http.ResponseWriter, r *http.Request) {
 		Auditor: auditor,
 	})
 }
+
+// dataProtectionResolve maps a pseudonym (slug, display name, or
+// pseudonym UUID) back to the real user identity. Access is
+// restricted to designated DPM auditors. The resolution iterates all
+// users and computes each pseudonym on-the-fly — no persistent
+// reverse index is needed. For 10,000 users this takes ~10ms.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) dataProtectionResolve(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if api.DataProtection == nil || !api.DataProtection.IsTier1OrAbove() {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Data Protection Mode is not enabled.",
+		})
+		return
+	}
+
+	// Only designated DPM auditors may resolve pseudonyms.
+	key := httpmw.APIKey(r)
+	//nolint:gocritic // System lookup to resolve email for DPM check.
+	reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+	if err != nil || !api.DataProtection.IsAuditor(reqUser.Email) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only designated data protection auditors may resolve pseudonyms.",
+		})
+		return
+	}
+
+	query := r.URL.Query().Get("pseudonym")
+	if query == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing required query parameter 'pseudonym'.",
+		})
+		return
+	}
+
+	// Iterate all users and find the one whose pseudonym matches.
+	// This is O(n) but only called by auditors during investigations.
+	//nolint:gocritic // System query to resolve pseudonym across all users.
+	allUsers, err := api.Database.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	for _, u := range allUsers {
+		if api.DataProtection.MatchPseudonym(query, u.ID) {
+			api.LogDataProtectionAccess(r, reqUser.ID, "resolve:"+query)
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.DataProtectionResolveResponse{
+				UserID:   u.ID,
+				Username: u.Username,
+				Email:    u.Email,
+				Name:     u.Name,
+			})
+			return
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		Message: "No user found matching the given pseudonym.",
+	})
+}

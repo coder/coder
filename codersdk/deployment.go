@@ -766,6 +766,16 @@ type DataProtectionStatus struct {
 	Auditor bool `json:"auditor"`
 }
 
+// DataProtectionResolveResponse is returned by
+// GET /deployment/data-protection/resolve. Only accessible to
+// designated DPM auditors.
+type DataProtectionResolveResponse struct {
+	UserID   uuid.UUID `json:"user_id" format:"uuid"`
+	Username string    `json:"username"`
+	Email    string    `json:"email"`
+	Name     string    `json:"name"`
+}
+
 type PrometheusConfig struct {
 	Enable                serpent.Bool        `json:"enable" typescript:",notnull"`
 	Address               serpent.HostPort    `json:"address" typescript:",notnull"`

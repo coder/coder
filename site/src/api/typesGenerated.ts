@@ -2942,6 +2942,19 @@ export interface DataProtectionConfig {
 
 // From codersdk/deployment.go
 /**
+ * DataProtectionResolveResponse is returned by
+ * GET /deployment/data-protection/resolve. Only accessible to
+ * designated DPM auditors.
+ */
+export interface DataProtectionResolveResponse {
+	readonly user_id: string;
+	readonly username: string;
+	readonly email: string;
+	readonly name: string;
+}
+
+// From codersdk/deployment.go
+/**
  * DataProtectionStatus is the per-request DPM status returned by
  * GET /deployment/data-protection-status.
  */

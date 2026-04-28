@@ -211,3 +211,24 @@ func (c *Config) ObfuscateChatCostUsers(users []codersdk.ChatCostUserRollup) []c
 	}
 	return result
 }
+
+// MatchPseudonym checks whether the given pseudonym slug, display
+// name, or pseudonym UUID matches a specific real user ID. This is
+// used by the resolve endpoint to brute-force a match across all
+// users without keeping a full reverse index in memory.
+func (c *Config) MatchPseudonym(query string, candidateID uuid.UUID) bool {
+	pid := c.ObfuscateUserID(candidateID)
+	// Match against slug format ("protected-xxxxxxxx").
+	if query == "protected-"+pid.String()[:8] {
+		return true
+	}
+	// Match against display format ("Protected User xxxxxxxx").
+	if query == PseudoUsername(pid) {
+		return true
+	}
+	// Match against raw pseudonym UUID.
+	if query == pid.String() {
+		return true
+	}
+	return false
+}
