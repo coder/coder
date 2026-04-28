@@ -88,7 +88,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					size="icon"
 					className="inline-flex h-7 w-7 min-w-0 shrink-0 md:hidden"
 				>
-					<Link to={{ pathname: "/agents", search: location.search }} aria-label="Back">
+					<Link
+						to={{ pathname: "/agents", search: location.search }}
+						aria-label="Back"
+					>
 						<ArrowLeftIcon />
 					</Link>
 				</Button>

@@ -1105,7 +1105,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									isSettingsPanel && "text-content-primary",
 								)}
 							>
-								<Link to="/agents/settings" state={{ from: location.pathname + location.search }}>
+								<Link
+									to="/agents/settings"
+									state={{ from: location.pathname + location.search }}
+								>
 									<SettingsIcon />
 								</Link>
 							</Button>

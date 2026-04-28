@@ -167,7 +167,10 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
 					>
 						<DropdownMenuItem asChild>
-							<Link to="/agents/settings" state={{ from: location.pathname + location.search }}>
+							<Link
+								to="/agents/settings"
+								state={{ from: location.pathname + location.search }}
+							>
 								<SettingsIcon className="size-icon-sm" />
 								Settings
 							</Link>
