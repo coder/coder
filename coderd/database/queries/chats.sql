@@ -266,6 +266,10 @@ WHERE
         WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
         ELSE true
     END
+    AND CASE
+        WHEN @after_id::bigint > 0 THEN id > @after_id::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY

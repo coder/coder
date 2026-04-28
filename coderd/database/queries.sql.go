@@ -6545,22 +6545,32 @@ WHERE
         WHEN $2::bigint > 0 THEN id < $2::bigint
         ELSE true
     END
+    AND CASE
+        WHEN $3::bigint > 0 THEN id > $3::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
     id DESC
 LIMIT
-    COALESCE(NULLIF($3::int, 0), 50)
+    COALESCE(NULLIF($4::int, 0), 50)
 `
 
 type GetChatMessagesByChatIDDescPaginatedParams struct {
 	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
 	BeforeID int64     `db:"before_id" json:"before_id"`
+	AfterID  int64     `db:"after_id" json:"after_id"`
 	LimitVal int32     `db:"limit_val" json:"limit_val"`
 }
 
 func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDDescPaginated, arg.ChatID, arg.BeforeID, arg.LimitVal)
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDDescPaginated,
+		arg.ChatID,
+		arg.BeforeID,
+		arg.AfterID,
+		arg.LimitVal,
+	)
 	if err != nil {
 		return nil, err
 	}

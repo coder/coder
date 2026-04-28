@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12183,6 +12184,422 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Duplicate dynamic tool name.", sdkErr.Message)
+	})
+}
+
+func TestGetChatMessages_Pagination(t *testing.T) {
+	t.Parallel()
+
+	// seedChat creates a chat and inserts `count` user messages, returning
+	// the chat and the inserted message IDs in the order they were
+	// persisted (ascending). Callers use these IDs as cursor values.
+	seedChat := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		ownerID uuid.UUID,
+		organizationID uuid.UUID,
+		modelConfigID uuid.UUID,
+		count int,
+	) (database.Chat, []int64) {
+		t.Helper()
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    organizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "pagination-test",
+		})
+		require.NoError(t, err)
+
+		createdBy := make([]uuid.UUID, count)
+		modelIDs := make([]uuid.UUID, count)
+		roles := make([]database.ChatMessageRole, count)
+		contents := make([]string, count)
+		contentVersions := make([]int16, count)
+		visibility := make([]database.ChatMessageVisibility, count)
+		inputTokens := make([]int64, count)
+		outputTokens := make([]int64, count)
+		totalTokens := make([]int64, count)
+		reasoningTokens := make([]int64, count)
+		cacheCreationTokens := make([]int64, count)
+		cacheReadTokens := make([]int64, count)
+		contextLimit := make([]int64, count)
+		compressed := make([]bool, count)
+		totalCost := make([]int64, count)
+		runtime := make([]int64, count)
+		for i := range count {
+			part, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(fmt.Sprintf("msg %d", i)),
+			})
+			require.NoError(t, err)
+
+			createdBy[i] = ownerID
+			modelIDs[i] = modelConfigID
+			roles[i] = database.ChatMessageRoleUser
+			contents[i] = string(part.RawMessage)
+			contentVersions[i] = chatprompt.CurrentContentVersion
+			visibility[i] = database.ChatMessageVisibilityBoth
+		}
+
+		results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           createdBy,
+			ModelConfigID:       modelIDs,
+			Role:                roles,
+			Content:             contents,
+			ContentVersion:      contentVersions,
+			Visibility:          visibility,
+			InputTokens:         inputTokens,
+			OutputTokens:        outputTokens,
+			TotalTokens:         totalTokens,
+			ReasoningTokens:     reasoningTokens,
+			CacheCreationTokens: cacheCreationTokens,
+			CacheReadTokens:     cacheReadTokens,
+			ContextLimit:        contextLimit,
+			Compressed:          compressed,
+			TotalCostMicros:     totalCost,
+			RuntimeMs:           runtime,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, count)
+
+		ids := make([]int64, count)
+		for i, m := range results {
+			ids[i] = m.ID
+		}
+		return chat, ids
+	}
+
+	seedQueuedMessage := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		chatID uuid.UUID,
+	) {
+		t.Helper()
+
+		content, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chatID,
+				Content: content,
+			},
+		)
+		require.NoError(t, err)
+	}
+
+	t.Run("NoCursorReturnsAllDESCPlusQueued", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		seedQueuedMessage(ctx, t, db, chat.ID)
+
+		resp, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, resp.Messages, 5)
+		require.False(t, resp.HasMore)
+		require.Len(t, resp.QueuedMessages, 1)
+
+		want := []int64{ids[4], ids[3], ids[2], ids[1], ids[0]}
+		got := make([]int64, len(resp.Messages))
+		for i, m := range resp.Messages {
+			got[i] = m.ID
+		}
+		require.Equal(t, want, got)
+	})
+
+	t.Run("BeforeIDReturnsOlderAndSuppressesQueued", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		seedQueuedMessage(ctx, t, db, chat.ID)
+
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			BeforeID: ids[2],
+		})
+		require.NoError(t, err)
+		require.False(t, resp.HasMore)
+		require.Empty(t, resp.QueuedMessages)
+
+		want := []int64{ids[1], ids[0]}
+		got := make([]int64, len(resp.Messages))
+		for i, m := range resp.Messages {
+			got[i] = m.ID
+		}
+		require.Equal(t, want, got)
+	})
+
+	t.Run("AfterIDReturnsNewerInASCOrderForMonotonicPolling", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		seedQueuedMessage(ctx, t, db, chat.ID)
+
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			AfterID: ids[1],
+		})
+		require.NoError(t, err)
+		require.False(t, resp.HasMore)
+		require.Empty(t, resp.QueuedMessages)
+
+		// ASC order so a polling caller can advance its cursor to
+		// max(returned_ids) without gaps.
+		want := []int64{ids[2], ids[3], ids[4]}
+		got := make([]int64, len(resp.Messages))
+		for i, m := range resp.Messages {
+			got[i] = m.ID
+		}
+		require.Equal(t, want, got)
+	})
+
+	t.Run("AfterAndBeforeIDReturnsOpenRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		seedQueuedMessage(ctx, t, db, chat.ID)
+
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			AfterID:  ids[0],
+			BeforeID: ids[4],
+		})
+		require.NoError(t, err)
+		require.False(t, resp.HasMore)
+		require.Empty(t, resp.QueuedMessages)
+
+		want := []int64{ids[3], ids[2], ids[1]}
+		got := make([]int64, len(resp.Messages))
+		for i, m := range resp.Messages {
+			got[i] = m.ID
+		}
+		require.Equal(t, want, got)
+	})
+
+	t.Run("LimitCapsAfterIDPageToOldestAndSetsHasMore", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
+		// Seed a queued message so the Empty assertion below verifies
+		// the cursor suppresses queued rows, not just that none exist.
+		seedQueuedMessage(ctx, t, db, chat.ID)
+
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			AfterID: ids[0],
+			Limit:   2,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.HasMore)
+		require.Empty(t, resp.QueuedMessages)
+
+		// The ASC polling path returns the OLDEST unseen messages
+		// first. A burst larger than `limit` would otherwise silently
+		// drop the oldest rows between polls on the DESC path.
+		want := []int64{ids[1], ids[2]}
+		got := make([]int64, len(resp.Messages))
+		for i, m := range resp.Messages {
+			got[i] = m.ID
+		}
+		require.Equal(t, want, got)
+	})
+
+	t.Run("NegativeAfterIDReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, _ := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/%s/messages?after_id=-1", chat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var sdkResp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&sdkResp))
+		require.Equal(t, "Query parameters have invalid values.", sdkResp.Message)
+		require.True(t,
+			slices.ContainsFunc(sdkResp.Validations, func(v codersdk.ValidationError) bool {
+				return v.Field == "after_id"
+			}),
+			"expected validation error for after_id field",
+		)
+	})
+
+	t.Run("NonNumericAfterIDReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, _ := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/%s/messages?after_id=abc", chat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var sdkResp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&sdkResp))
+		require.Equal(t, "Query parameters have invalid values.", sdkResp.Message)
+		require.True(t,
+			slices.ContainsFunc(sdkResp.Validations, func(v codersdk.ValidationError) bool {
+				return v.Field == "after_id"
+			}),
+			"expected validation error for after_id field",
+		)
+	})
+
+	t.Run("AfterIDAtOrAboveMaxReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+		// Seed a queued message to prove the cursor path suppresses
+		// it even when nothing else comes back.
+		seedQueuedMessage(ctx, t, db, chat.ID)
+
+		// The steady-state polling case: the caller already has every
+		// message, so after_id equals the largest seen id. The server
+		// must return an empty page, not the last row again.
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			AfterID: ids[len(ids)-1],
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.Messages)
+		require.False(t, resp.HasMore)
+		require.Empty(t, resp.QueuedMessages)
+	})
+
+	t.Run("AfterIDGreaterThanOrEqualBeforeIDReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+
+		// Transposed cursors: after >= before. Fail loudly rather
+		// than return an empty page indistinguishable from
+		// "no messages in this range."
+		for _, tc := range []struct {
+			name   string
+			after  int64
+			before int64
+		}{
+			{"Transposed", ids[2], ids[0]},
+			{"Equal", ids[1], ids[1]},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				_, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+					AfterID:  tc.after,
+					BeforeID: tc.before,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "after_id must be less than before_id.", sdkErr.Message)
+			})
+		}
+	})
+
+	t.Run("AfterIDPollingWalksBurstWithoutGaps", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Simulate a polling client that has already acknowledged the
+		// first message (cursor = ids[0]) when a burst of
+		// `burstSize` new messages arrives. With `limit=pageSize` and
+		// `burstSize > pageSize`, the naive DESC-ordered path would
+		// silently drop the oldest rows between polls. The ASC
+		// dispatch lets the client walk the whole burst by advancing
+		// after_id to max(returned_ids) on each tick.
+		const burstSize = 60
+		const pageSize = 25
+		// Seed burstSize+1 rows; ids[0] is the "already acknowledged"
+		// message the client saw before the burst.
+		chat, ids := seedChat(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, burstSize+1)
+
+		var seen []int64
+		cursor := ids[0]
+		maxPages := (burstSize / pageSize) + 2
+		for range maxPages {
+			resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+				AfterID: cursor,
+				Limit:   pageSize,
+			})
+			require.NoError(t, err)
+			if len(resp.Messages) == 0 {
+				require.False(t, resp.HasMore)
+				break
+			}
+			for _, m := range resp.Messages {
+				seen = append(seen, m.ID)
+			}
+			// Advance to max(returned). On the ASC path this is the
+			// last element of the returned slice.
+			cursor = resp.Messages[len(resp.Messages)-1].ID
+			if !resp.HasMore {
+				break
+			}
+		}
+		require.Equal(t, ids[1:], seen,
+			"polling walk must return every burst row exactly once in ascending order")
 	})
 }
 
