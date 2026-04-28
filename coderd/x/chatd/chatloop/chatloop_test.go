@@ -22,8 +22,8 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -43,6 +43,79 @@ func validWebSearchProviderMetadataForTest() fantasy.ProviderMetadata {
 				},
 			},
 		},
+	}
+}
+
+func safeToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {
+	var zero fantasy.ToolCallContent
+	switch value := block.(type) {
+	case fantasy.ToolCallContent:
+		return value, true
+	case *fantasy.ToolCallContent:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func safeToolResultContent(block fantasy.Content) (fantasy.ToolResultContent, bool) {
+	var zero fantasy.ToolResultContent
+	switch value := block.(type) {
+	case fantasy.ToolResultContent:
+		return value, true
+	case *fantasy.ToolResultContent:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func safeToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	var zero fantasy.ToolCallPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolCallPart); ok && value == nil {
+		return zero, false
+	}
+	type toolCallPart = fantasy.ToolCallPart
+	return fantasy.AsMessagePart[toolCallPart](part)
+}
+
+func safeToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	var zero fantasy.ToolResultPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolResultPart); ok && value == nil {
+		return zero, false
+	}
+	type toolResultPart = fantasy.ToolResultPart
+	return fantasy.AsMessagePart[toolResultPart](part)
+}
+
+func toolCallContentToPart(toolCall fantasy.ToolCallContent) fantasy.ToolCallPart {
+	return fantasy.ToolCallPart{
+		ToolCallID:       toolCall.ToolCallID,
+		ToolName:         toolCall.ToolName,
+		Input:            toolCall.Input,
+		ProviderExecuted: toolCall.ProviderExecuted,
+		ProviderOptions:  fantasy.ProviderOptions(toolCall.ProviderMetadata),
+	}
+}
+
+func toolResultContentToPart(toolResult fantasy.ToolResultContent) fantasy.ToolResultPart {
+	return fantasy.ToolResultPart{
+		ToolCallID:       toolResult.ToolCallID,
+		Output:           toolResult.Result,
+		ProviderExecuted: toolResult.ProviderExecuted,
+		ProviderOptions:  fantasy.ProviderOptions(toolResult.ProviderMetadata),
 	}
 }
 
@@ -1193,7 +1266,7 @@ func requireProviderExecutedToolResultPrompt(
 func requireAnthropicProviderToolPromptSafe(t *testing.T, prompt []fantasy.Message) {
 	t.Helper()
 
-	require.Empty(t, chatprompt.ValidateAnthropicProviderToolHistory(prompt))
+	require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory(prompt))
 }
 
 func requireLogField(t *testing.T, entry slog.SinkEntry, name string) any {
@@ -2500,7 +2573,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 		if len(parts) == 0 {
 			return
 		}
-		require.Empty(t, chatprompt.ValidateAnthropicProviderToolHistory([]fantasy.Message{
+		require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory([]fantasy.Message{
 			{
 				Role:    fantasy.MessageRoleAssistant,
 				Content: parts,
@@ -2709,7 +2782,7 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			sanitized, stats := sanitizeAnthropicProviderToolContent(tc.provider, tc.content)
+			sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolContent(tc.provider, tc.content)
 			require.Equal(t, tc.wantRemovedCalls, stats.RemovedToolCalls)
 			require.Equal(t, tc.wantRemovedResults, stats.RemovedToolResults)
 			require.Zero(t, stats.DroppedMessages)
@@ -2842,7 +2915,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 	t.Run("direct guard textifies orphaned provider result", func(t *testing.T) {
 		t.Parallel()
 
-		guarded := applyAnthropicProviderToolGuard(
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			fantasyanthropic.Name,
@@ -2880,7 +2953,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		content := []fantasy.MessagePart{fantasy.TextPart{Text: "keep"}}
 		content = append(content, providerPair("ws-one")...)
 		content = append(content, providerPair("ws-two")...)
-		guarded := applyAnthropicProviderToolGuard(
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			fantasyanthropic.Name,
@@ -2906,7 +2979,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				Content: providerPair("ws-other-provider"),
 			},
 		}
-		guarded := applyAnthropicProviderToolGuard(
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			"fake",
@@ -2922,7 +2995,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		logSink := testutil.NewFakeSink(t)
 		logger := logSink.Logger()
 		logPair := providerPair("ws-log")
-		guarded := applyAnthropicProviderToolGuard(
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			logger,
 			fantasyanthropic.Name,
@@ -2950,134 +3023,6 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_results"))
 	})
-}
-
-func TestProviderExecutedToolMessageIndexes(t *testing.T) {
-	t.Parallel()
-
-	messages := []fantasy.Message{
-		textMessage(fantasy.MessageRoleUser, "plain"),
-		{
-			Role: fantasy.MessageRoleAssistant,
-			Content: []fantasy.MessagePart{
-				fantasy.ToolResultPart{
-					ToolCallID:       "ws-result-only",
-					ProviderExecuted: true,
-				},
-			},
-		},
-		{
-			Role: fantasy.MessageRoleAssistant,
-			Content: []fantasy.MessagePart{
-				fantasy.ToolCallPart{
-					ToolCallID:       "ws-call",
-					ToolName:         "web_search",
-					Input:            `{"query":"coder"}`,
-					ProviderExecuted: true,
-				},
-			},
-		},
-		{
-			Role: fantasy.MessageRoleAssistant,
-			Content: []fantasy.MessagePart{
-				fantasy.ToolCallPart{
-					ToolCallID: "local-call",
-					ToolName:   "read_file",
-					Input:      `{"path":"main.go"}`,
-				},
-			},
-		},
-	}
-
-	require.Equal(t, map[int]struct{}{1: {}, 2: {}}, providerExecutedToolMessageIndexes(messages))
-}
-
-func TestAnthropicProviderToolFallbackStripHelpers(t *testing.T) {
-	t.Parallel()
-
-	providerCall := fantasy.ToolCallPart{
-		ToolCallID:       "ws-strip",
-		ToolName:         "web_search",
-		Input:            `{"query":"coder"}`,
-		ProviderExecuted: true,
-	}
-	providerResult := fantasy.ToolResultPart{
-		ToolCallID:       "ws-strip",
-		Output:           fantasy.ToolResultOutputContentText{Text: "ok"},
-		ProviderExecuted: true,
-	}
-	messages := []fantasy.Message{
-		textMessage(fantasy.MessageRoleAssistant, "first"),
-		{
-			Role: fantasy.MessageRoleAssistant,
-			Content: []fantasy.MessagePart{
-				providerCall,
-				providerResult,
-			},
-		},
-		textMessage(fantasy.MessageRoleAssistant, "second"),
-		{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: "keep"},
-				fantasy.ToolResultPart{
-					ToolCallID:       "ws-user",
-					ProviderExecuted: true,
-				},
-			},
-		},
-	}
-
-	stripped, stats := stripAnthropicProviderToolHistoryFromMessages(
-		messages,
-		map[int]struct{}{1: {}, 3: {}},
-	)
-	require.Equal(t, 1, stats.RemovedToolCalls)
-	require.Equal(t, 2, stats.RemovedToolResults)
-	require.Zero(t, stats.DroppedMessages)
-
-	sanitized, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolHistory(
-		fantasyanthropic.Name,
-		stripped,
-	)
-	require.Zero(t, sanitizeStats.RemovedToolCalls)
-	require.Zero(t, sanitizeStats.RemovedToolResults)
-	require.Empty(t, chatprompt.ValidateAnthropicProviderToolHistory(sanitized))
-	require.Len(t, sanitized, 2)
-	require.Equal(t, fantasy.MessageRoleAssistant, sanitized[0].Role)
-	require.Len(t, sanitized[0].Content, 3)
-	firstText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[0])
-	require.True(t, ok)
-	require.Equal(t, "first", firstText.Text)
-	stripText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[1])
-	require.True(t, ok)
-	require.Equal(t, "ok", stripText.Text)
-	secondText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[0].Content[2])
-	require.True(t, ok)
-	require.Equal(t, "second", secondText.Text)
-	require.Equal(t, fantasy.MessageRoleUser, sanitized[1].Role)
-	require.Len(t, sanitized[1].Content, 1)
-	keepText, ok := fantasy.AsMessagePart[fantasy.TextPart](sanitized[1].Content[0])
-	require.True(t, ok)
-	require.Equal(t, "keep", keepText.Text)
-
-	violations := make([]chatprompt.AnthropicProviderToolHistoryViolation, 33)
-	for i := range violations {
-		violations[i] = chatprompt.AnthropicProviderToolHistoryViolation{
-			MessageIndex: i,
-			PartIndex:    i + 1,
-			ID:           "ws-detail",
-			Reason:       "test_reason",
-		}
-	}
-	details, truncated := anthropicProviderToolViolationLogDetails(violations)
-	require.True(t, truncated)
-	require.Len(t, details, maxAnthropicProviderToolViolationLogDetails)
-	require.Len(t, details[0], 4)
-	require.Equal(t, 0, details[0]["message_index"])
-	require.Equal(t, 1, details[0]["part_index"])
-	require.Equal(t, "ws-detail", details[0]["id"])
-	require.Equal(t, "test_reason", details[0]["reason"])
 }
 
 // TestRun_PersistStepInterruptedFallback verifies that when the normal
