@@ -830,6 +830,13 @@ jobs:
             ./site/playwright-report/**
           retention-days: 7
 
+      - name: Publish Playwright failure summary
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        env:
+          MATRIX_VARIANT: ${{ matrix.variant.name }}
+          GITHUB_SHA_SHORT: ${{ github.sha }}
+        run: bash scripts/playwright-failure-summary.sh site/test-results/results.json >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload debug log
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

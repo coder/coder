@@ -48,7 +48,15 @@ export default defineConfig({
 			timeout: 30_000,
 		},
 	],
-	reporter: [["list"], ["html", { open: "never" }], ["./reporter.ts"]],
+	reporter: [
+		["list"],
+		["html", { open: "never" }],
+		[
+			"json",
+			{ outputFile: path.join(__dirname, "../test-results/results.json") },
+		],
+		["./reporter.ts"],
+	],
 	use: {
 		actionTimeout: 5000,
 		baseURL: `http://localhost:${coderPort}`,
