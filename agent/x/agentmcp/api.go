@@ -74,7 +74,8 @@ func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Allow callers to force a tool re-scan before listing.
-	// Skip if a reload just ran, since it already refreshes.
+	// Skip if a config reload ran above, since it already
+	// refreshes tools as part of the reload.
 	if r.URL.Query().Get("refresh") == "true" && !reloaded {
 		if err := api.manager.RefreshTools(ctx); err != nil {
 			api.logger.Warn(ctx, "failed to refresh MCP tools", slog.Error(err))

@@ -405,9 +405,9 @@ func TestReload(t *testing.T) {
 func TestDifferentialReload(t *testing.T) {
 	t.Parallel()
 
-	// These tests verify D12: differential close behavior.
-	// They use the real fake server pattern to confirm client
-	// reuse vs. reconnect.
+	// These tests verify differential reload behavior: client
+	// reuse for unchanged servers, reconnect for changed ones,
+	// and close for removed ones.
 
 	t.Run("UnchangedServerReusesClient", func(t *testing.T) {
 		t.Parallel()

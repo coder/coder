@@ -172,12 +172,14 @@ func (m *Manager) SnapshotChanged(paths []string) bool {
 
 		info, err := os.Stat(p)
 		if err != nil {
+			// Stat failed; changed only if the file existed before.
 			if prev.exists {
 				return true
 			}
 			continue
 		}
 
+		// Stat succeeded but file was absent before: it appeared.
 		if !prev.exists {
 			return true
 		}
@@ -423,12 +425,12 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 		info, err := os.Stat(p)
 		if err != nil {
 			snap[p] = fileSnapshot{exists: false}
-		} else {
-			snap[p] = fileSnapshot{
-				exists:  true,
-				modTime: info.ModTime(),
-				size:    info.Size(),
-			}
+			continue
+		}
+		snap[p] = fileSnapshot{
+			exists:  true,
+			modTime: info.ModTime(),
+			size:    info.Size(),
 		}
 	}
 	return snap
