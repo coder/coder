@@ -201,6 +201,59 @@ func TestRecordingTransport_CaptureRequestRestoresSharedGetBody(t *testing.T) {
 	require.JSONEq(t, `{"message":"hello","api_key":"[REDACTED]"}`, string(attempts[0].RequestBody))
 }
 
+func TestRecordingTransport_CaptureRequestResetFailureFailsRequest(t *testing.T) {
+	t.Parallel()
+
+	const requestBody = `{"message":"hello"}`
+
+	gotRequest := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		gotRequest <- struct{}{}
+		_, _ = rw.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	ctx, sink := newTestSinkContext(t)
+	client := &http.Client{
+		Transport: &RecordingTransport{Base: server.Client().Transport},
+	}
+
+	reader := bytes.NewReader([]byte(requestBody))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		server.URL,
+		io.NopCloser(reader),
+	)
+	require.NoError(t, err)
+	req.ContentLength = int64(len(requestBody))
+	getBodyCalls := 0
+	req.GetBody = func() (io.ReadCloser, error) {
+		getBodyCalls++
+		if getBodyCalls == 2 {
+			return nil, xerrors.New("reset failed")
+		}
+		_, err := reader.Seek(0, io.SeekStart)
+		if err != nil {
+			return nil, err
+		}
+		return io.NopCloser(reader), nil
+	}
+
+	resp, err := client.Do(req)
+	if resp != nil {
+		require.NoError(t, resp.Body.Close())
+	}
+	require.ErrorContains(t, err, "chatdebug: reset request body: reset failed")
+	require.Nil(t, resp)
+	require.Empty(t, sink.snapshot())
+	select {
+	case <-gotRequest:
+		t.Fatal("request should not be sent with a drained body")
+	default:
+	}
+}
+
 func TestRecordingTransport_RedactsSensitiveQueryParameters(t *testing.T) {
 	t.Parallel()
 
