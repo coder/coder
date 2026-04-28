@@ -2140,14 +2140,14 @@ export const WithEveryTool: Story = {
 		const canvas = within(canvasElement);
 
 		// All five streamed tool calls should appear simultaneously.
-		// read_file always renders "Read <name>" regardless of state
-		// (the spinner conveys progress); write_file and edit_files
-		// switch to "Writing" / "Editing" while running.
+		// read_file, write_file, and edit_files all switch to a
+		// progressive label ("Reading" / "Writing" / "Editing")
+		// while running; the spinner conveys progress.
 		await waitFor(() => {
-			expect(canvas.getByText(/Read validate\.go/)).toBeInTheDocument();
+			expect(canvas.getByText(/Reading validate\.go/)).toBeInTheDocument();
 			expect(canvas.getByText(/Writing validation\.go/)).toBeInTheDocument();
 			expect(canvas.getByText(/Editing 2 files/)).toBeInTheDocument();
-			expect(canvas.getByText(/Read CHANGELOG\.md/)).toBeInTheDocument();
+			expect(canvas.getByText(/Reading CHANGELOG\.md/)).toBeInTheDocument();
 			expect(canvas.getByText(/Writing CHANGELOG\.md/)).toBeInTheDocument();
 		});
 	},
