@@ -19,9 +19,9 @@ Each user secret has:
 A secret without an environment variable target or file target is stored, but is
 not injected into workspaces.
 
-User secrets apply to all workspaces that you own. Coder loads user secrets when
-a workspace starts. If you create, update, or delete a secret while a workspace
-is running, restart the workspace before relying on that change.
+User secrets apply to all workspaces that you own. Coder injects user secrets
+when a workspace starts. If you create, update, or delete a secret while a
+workspace is running, restart the workspace before relying on that change.
 
 Environment variable secrets are available to startup scripts and workspace
 sessions. File secrets are written before startup scripts run.
@@ -68,9 +68,9 @@ coder secret create tool-config \
 Coder creates parent directories as needed. If the file already exists, Coder
 updates the contents and preserves the existing permissions.
 
-### Use both injection targets
+### Create a secret with environment variable and file targets
 
-You can expose the same secret as both an environment variable and a file:
+You can inject the same secret as both an environment variable and a file:
 
 ```sh
 echo -n "$TOKEN" | coder secret create service-token \
