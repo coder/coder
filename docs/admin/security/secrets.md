@@ -46,10 +46,11 @@ Users can view their public key in their account settings:
 
 ## User secrets (Early Access)
 
-User secrets are secret values that developers manage themselves. At workspace
-start, they can override template-defined environment variables with the same
-name and replace files at matching paths. Template admins cannot currently
-configure or prevent this behavior. See the
+User secrets are developer-managed values that Coder applies at workspace start.
+If a user secret targets the same environment variable name or file path as a
+template-provided variable or file, the user secret is applied in that
+developer's workspace, matching their existing ability to customize their own
+workspace while keeping the value managed by Coder. See the
 [User secrets guide](../../user-guides/user-secrets.md).
 
 ## Dynamic Secrets
