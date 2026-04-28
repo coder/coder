@@ -108,7 +108,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 				<div className="flex items-center justify-between">
 					<span>
 						{formatDateTime(
-							new Date(session.started_at),
+							new Date(session.last_active_at),
 							DATE_FORMAT.FULL_DATETIME,
 						)}
 					</span>

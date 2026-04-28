@@ -62,3 +62,8 @@ var (
 	TemplateTaskPaused    = uuid.MustParse("2a74f3d3-ab09-4123-a4a5-ca238f4f65a1")
 	TemplateTaskResumed   = uuid.MustParse("843ee9c3-a8fb-4846-afa9-977bec578649")
 )
+
+// Chat-related events.
+var (
+	TemplateChatAutoArchiveDigest = uuid.MustParse("764031be-4863-4220-867b-6ce1a1b7a5f5")
+)

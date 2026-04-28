@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
 	BanIcon,
-	EllipsisVertical,
+	EllipsisVerticalIcon,
 	KeyIcon,
 	ShieldIcon,
 	TrashIcon,
@@ -207,7 +207,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 											variant="subtle"
 											aria-label="Open menu"
 										>
-											<EllipsisVertical aria-hidden="true" />
+											<EllipsisVerticalIcon aria-hidden="true" />
 											<span className="sr-only">Open menu</span>
 										</Button>
 									</DropdownMenuTrigger>

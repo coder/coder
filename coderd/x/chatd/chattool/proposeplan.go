@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -18,7 +17,7 @@ const maxProposePlanSize = 32 * 1024 // 32 KiB
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
-	StoreFile        func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error)
+	StoreFile        StoreFileFunc
 	IsPlanTurn       bool
 }
 
@@ -72,7 +71,7 @@ func executeProposePlanTool(
 	conn workspacesdk.AgentConn,
 	args ProposePlanArgs,
 	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
-	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
+	storeFile StoreFileFunc,
 ) (fantasy.ToolResponse, error) {
 	requestedPath := strings.TrimSpace(args.Path)
 	if requestedPath == "" {
@@ -113,16 +112,16 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse("plan file exceeds 32 KiB size limit"), nil
 	}
 
-	fileID, err := storeFile(ctx, filepath.Base(requestedPath), "text/markdown", data)
+	attachment, err := storeFile(ctx, filepath.Base(requestedPath), requestedPath, data)
 	if err != nil {
 		return fantasy.NewTextErrorResponse("failed to store plan file: " + err.Error()), nil
 	}
 
-	return toolResponse(map[string]any{
+	return WithAttachments(toolResponse(map[string]any{
 		"ok":         true,
 		"path":       requestedPath,
 		"kind":       "plan",
-		"file_id":    fileID.String(),
-		"media_type": "text/markdown",
-	}), nil
+		"file_id":    attachment.FileID.String(),
+		"media_type": attachment.MediaType,
+	}), attachment), nil
 }

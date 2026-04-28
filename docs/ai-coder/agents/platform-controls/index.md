@@ -107,7 +107,8 @@ See [MCP Servers](./mcp-servers.md) for configuration details.
 ### Virtual desktop
 
 Administrators can enable a virtual desktop within agent workspaces.
-When enabled, agents can use `spawn_computer_use_agent` to interact with a
+When enabled, agents can use `spawn_agent` with
+`type=computer_use` to interact with a
 desktop environment using screenshots, mouse, and keyboard input.
 
 This setting is available under **Agents** > **Settings** > **Behavior**.
@@ -136,6 +137,22 @@ provides visibility into per-user spending, token consumption, and per-model
 breakdowns.
 
 See [Spend Management](./usage-insights.md) for details.
+
+### Git providers
+
+Coder Agents leverages your existing
+[external authentication](../../../admin/external-auth/index.md) configuration to
+power the in-chat diff viewer and PR Insights. Self-hosted GitHub Enterprise
+deployments require additional configuration for these features.
+
+See [Git Providers](./git-providers.md) for details.
+
+### PR Insights
+
+PR Insights tracks pull requests created by Coder Agents and surfaces
+analytics on PR activity, merge rates, and cost efficiency.
+
+See [PR Insights](./pr-insights.md) for requirements and dashboard details.
 
 ### Data retention
 

@@ -148,6 +148,9 @@ lines of output, so you might have to scroll up to find it.
 
 ## Step 4: Create your First Template and Workspace
 
+> [!TIP]
+> If you use an AI coding assistant, the [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md) agent skill can guide you through creating and customizing templates with best practices built-in.
+
 Templates define what's in your development environment. Let's start simple:
 
 1. Click **"Templates"** → **"New Template"**

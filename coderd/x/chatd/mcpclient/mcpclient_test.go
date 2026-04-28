@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -1270,4 +1271,78 @@ func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.True(t, resp.IsError, "malformed input should produce an error response")
+}
+
+func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		result       *mcp.CallToolResult
+		wantContains []string
+	}{
+		{
+			name: "InvalidUTF8InTextContent",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Text: "Hello" + string([]byte{0xFF, 0xFE, 0x80}) + "World",
+					},
+				},
+			},
+			wantContains: []string{"Hello", "World", "\uFFFD"},
+		},
+		{
+			name: "InvalidUTF8InEmbeddedResourceText",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.EmbeddedResource{
+						Resource: mcp.TextResourceContents{
+							Text: "Content" + string([]byte{0x80, 0x81, 0x82}),
+						},
+					},
+				},
+			},
+			wantContains: []string{"Content"},
+		},
+		{
+			name: "ValidUTF8PassesThrough",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Text: "Hello, 世界! 🌍",
+					},
+				},
+			},
+			wantContains: []string{"Hello, 世界! 🌍"},
+		},
+		{
+			name: "MultipleTextPartsAllSanitized",
+			result: &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Text: "Part1" + string([]byte{0xFF}),
+					},
+					mcp.TextContent{
+						Text: "Part2" + string([]byte{0xFE}),
+					},
+				},
+			},
+			wantContains: []string{"Part1", "Part2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := mcpclient.ConvertCallResultForTest(tt.result)
+
+			require.True(t, utf8.ValidString(resp.Content),
+				"response content must be valid UTF-8")
+			for _, want := range tt.wantContains {
+				require.Contains(t, resp.Content, want)
+			}
+		})
+	}
 }

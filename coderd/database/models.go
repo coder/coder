@@ -1294,6 +1294,7 @@ type ChatMode string
 
 const (
 	ChatModeComputerUse ChatMode = "computer_use"
+	ChatModeExplore     ChatMode = "explore"
 )
 
 func (e *ChatMode) Scan(src interface{}) error {
@@ -1333,7 +1334,8 @@ func (ns NullChatMode) Value() (driver.Value, error) {
 
 func (e ChatMode) Valid() bool {
 	switch e {
-	case ChatModeComputerUse:
+	case ChatModeComputerUse,
+		ChatModeExplore:
 		return true
 	}
 	return false
@@ -1342,6 +1344,7 @@ func (e ChatMode) Valid() bool {
 func AllChatModeValues() []ChatMode {
 	return []ChatMode{
 		ChatModeComputerUse,
+		ChatModeExplore,
 	}
 }
 
@@ -3202,6 +3205,7 @@ const (
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
+	ResourceTypeChat                        ResourceType = "chat"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3267,7 +3271,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
-		ResourceTypeAiSeat:
+		ResourceTypeAiSeat,
+		ResourceTypeChat:
 		return true
 	}
 	return false
@@ -3302,6 +3307,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
+		ResourceTypeChat,
 	}
 }
 
@@ -4503,10 +4509,11 @@ type ChatProvider struct {
 }
 
 type ChatQueuedMessage struct {
-	ID        int64           `db:"id" json:"id"`
-	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content   json.RawMessage `db:"content" json:"content"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	ID            int64           `db:"id" json:"id"`
+	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content       json.RawMessage `db:"content" json:"content"`
+	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
+	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -4723,6 +4730,7 @@ type MCPServerConfig struct {
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 }
 
 type MCPServerUserToken struct {

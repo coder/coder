@@ -1,5 +1,4 @@
-import { useTheme } from "@emotion/react";
-import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
+import { EllipsisVerticalIcon, RefreshCcwIcon } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { externalAuthProvider } from "#/api/queries/externalAuth";
@@ -114,7 +113,6 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	onUnlinkExternalAuth,
 	onValidateExternalAuth,
 }) => {
-	const theme = useTheme();
 	const name = app.display_name || app.id || app.type;
 	const authURL = `/external-auth/${app.id}`;
 
@@ -152,11 +150,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 
 					{link?.validate_error && (
 						<span>
-							<span
-								css={{ paddingLeft: "1em", color: theme.palette.error.light }}
-							>
-								Error:{" "}
-							</span>
+							<span className="pl-[1em] text-content-destructive">Error: </span>
 							{link?.validate_error}
 						</span>
 					)}
@@ -178,7 +172,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-							<EllipsisVertical aria-hidden="true" />
+							<EllipsisVerticalIcon aria-hidden="true" />
 							<span className="sr-only">Open menu</span>
 						</Button>
 					</DropdownMenuTrigger>

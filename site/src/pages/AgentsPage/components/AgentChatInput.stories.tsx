@@ -81,6 +81,47 @@ export const SendsAndClearsInput: Story = {
 	},
 };
 
+/**
+ * CODAGT-210: On mobile viewports, Enter must insert a newline rather
+ * than submit the message, because Shift+Enter is cumbersome on
+ * on-screen keyboards. Users submit via the send button instead.
+ */
+export const MobileEnterInsertsNewline: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Line one",
+	},
+	play: async ({ canvasElement, args }) => {
+		const originalMatchMedia = window.matchMedia;
+		window.matchMedia = ((query: string) =>
+			({
+				matches: query === "(max-width: 639px)",
+				media: query,
+				onchange: null,
+				addEventListener: () => undefined,
+				removeEventListener: () => undefined,
+				dispatchEvent: () => true,
+				addListener: () => undefined,
+				removeListener: () => undefined,
+			}) as MediaQueryList) as typeof window.matchMedia;
+
+		try {
+			const canvas = within(canvasElement);
+			const editor = canvas.getByTestId("chat-message-input");
+			await waitFor(() => {
+				expect(editor.textContent).toBe("Line one");
+			});
+
+			await userEvent.click(editor);
+			await userEvent.keyboard("{Enter}");
+
+			expect(args.onSend).not.toHaveBeenCalled();
+		} finally {
+			window.matchMedia = originalMatchMedia;
+		}
+	},
+};
+
 export const DisabledInput: Story = {
 	args: {
 		isDisabled: true,
@@ -487,6 +528,7 @@ const makeMCPServer = (
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
+	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -611,6 +653,39 @@ export const PlanningIndicator: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Disable plan mode" }),
+		).toBeVisible();
+	},
+};
+
+export const DisablePlanModeFromBadge: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dismiss = canvas.getByRole("button", {
+			name: "Disable plan mode",
+		});
+		await userEvent.click(dismiss);
+		expect(args.onPlanModeToggle).toHaveBeenCalledTimes(1);
+		expect(args.onPlanModeToggle).toHaveBeenCalledWith(false);
+	},
+};
+
+export const PlanningIndicatorWithoutToggle: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Disable plan mode" }),
+		).not.toBeInTheDocument();
 	},
 };
 

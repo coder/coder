@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
@@ -269,7 +269,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 										>
 											<span className="absolute right-2 top-2 flex items-center justify-center">
 												<SelectPrimitive.ItemIndicator>
-													<Check className="size-icon-sm" />
+													<CheckIcon className="size-icon-sm" />
 												</SelectPrimitive.ItemIndicator>
 											</span>
 											<div className="flex flex-col py-0.5">

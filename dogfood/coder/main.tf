@@ -501,6 +501,7 @@ resource "coder_agent" "dev" {
   env = merge(
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+      CODER_AGENT_EXP_MCP_CONFIG_FILES : "~/.mcp.json,.mcp.json",
     },
     data.coder_parameter.use_ai_bridge.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
@@ -893,7 +894,7 @@ resource "coder_metadata" "container_info" {
 locals {
   claude_system_prompt = <<-EOT
     -- Framing --
-    You are a helpful Coding assistant. Aim to autonomously investigate
+    You are a helpful coding assistant. Aim to autonomously investigate
     and solve issues the user gives you and test your work, whenever possible.
 
     Avoid shortcuts like mocking tests. When you get stuck, you can ask the user

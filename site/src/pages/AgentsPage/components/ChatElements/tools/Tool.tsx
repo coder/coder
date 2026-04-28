@@ -31,6 +31,13 @@ import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
 import { SubagentTool } from "./SubagentTool";
+import {
+	getProvidedSubagentTitle,
+	getSubagentChatId,
+	getSubagentDescriptor,
+	isSubagentToolName,
+	type SubagentVariant,
+} from "./subagentDescriptor";
 import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
@@ -50,10 +57,13 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseServerEditDiffText,
+	parseServerEditResults,
 	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
+
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
@@ -63,10 +73,10 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	result?: unknown;
 	isError?: boolean;
 	killedBySignal?: "kill" | "terminate";
-	/** Maps sub-agent chat IDs to their titles, built from spawn tool results. */
+	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
 	subagentTitles?: Map<string, string>;
-	/** Set of chat IDs spawned by `spawn_computer_use_agent`. */
-	computerUseSubagentIds?: Set<string>;
+	/** Maps sub-agent chat IDs to their normalized variants. */
+	subagentVariants?: Map<string, SubagentVariant>;
 	/** When false, suppresses inline VNC previews while still
 	 * allowing the MonitorIcon variant to render. */
 	showDesktopPreviews?: boolean;
@@ -95,7 +105,7 @@ type ToolRendererProps = {
 	isError: boolean;
 	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, string>;
 	onImplementPlan?: () => Promise<void> | void;
@@ -383,9 +393,17 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
-	const editDiffs = editFiles.map((file) =>
-		buildEditDiff(file.path, file.edits),
-	);
+	// On error, render no diff: the agent rejected the edit, so a
+	// synthetic args-derived diff would misrepresent it as applied.
+	const serverResults = parseServerEditResults(result);
+	const editDiffs = isError
+		? editFiles.map(() => null)
+		: editFiles.map((file) => {
+				const entry = serverResults?.find((d) => d.path === file.path);
+				return entry
+					? parseServerEditDiffText(entry.diff)
+					: buildEditDiff(file.path, file.edits);
+			});
 
 	return (
 		<EditFilesTool
@@ -432,22 +450,34 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	subagentTitles,
-	computerUseSubagentIds,
+	subagentVariants,
 	showDesktopPreviews = true,
 	subagentStatusOverrides,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const rec = asRecord(result);
-	// wait_agent and message_agent have chat_id in args, so
-	// check both result and args.
-	const chatId =
-		(rec ? asString(rec.chat_id) : "") ||
-		(parsedArgs ? asString(parsedArgs.chat_id) : "");
+	const chatId = getSubagentChatId({
+		args: parsedArgs ?? args,
+		result: rec ?? result,
+	});
+	const inferredVariant = chatId ? subagentVariants?.get(chatId) : undefined;
+	const descriptor = getSubagentDescriptor({
+		name,
+		args: parsedArgs ?? args,
+		result: rec ?? result,
+		inferredVariant,
+	});
+	if (!descriptor) {
+		return null;
+	}
+
 	const resultSubagentStatus = rec
 		? asString(rec.status || rec.subagent_status)
 		: "";
-	const streamSubagentStatus =
-		(chatId && subagentStatusOverrides?.get(chatId)) || "";
+	let streamSubagentStatus = "";
+	if (chatId) {
+		streamSubagentStatus = subagentStatusOverrides?.get(chatId) || "";
+	}
 	const subagentStatus = streamSubagentStatus || resultSubagentStatus;
 	const durationMs = rec
 		? asNumber(rec.duration_ms, { parseString: true })
@@ -457,51 +487,66 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
-	const title =
-		(rec ? asString(rec.title) : "") ||
-		(parsedArgs ? asString(parsedArgs.title) : "") ||
-		(chatId && subagentTitles?.get(chatId)) ||
-		(name === "spawn_computer_use_agent"
-			? "Computer use sub-agent"
-			: "Sub-agent");
+	const rawTitle = getProvidedSubagentTitle({
+		args: parsedArgs ?? args,
+		result: rec ?? result,
+	});
+	let title =
+		descriptor.fallbackTitle.charAt(0).toUpperCase() +
+		descriptor.fallbackTitle.slice(1);
+	if (chatId) {
+		const mappedTitle = subagentTitles?.get(chatId);
+		if (mappedTitle) {
+			title = mappedTitle;
+		}
+	}
+	if (rawTitle) {
+		title = rawTitle;
+	}
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
 		status,
 	);
-	const subagentIsError =
-		subagentToolStatus === "error" ||
-		((status === "error" || isError) && !subagentCompleted);
+	let subagentIsError = subagentToolStatus === "error";
+	if (!subagentIsError) {
+		const toolFailed = status === "error" || isError;
+		if (toolFailed && !subagentCompleted) {
+			subagentIsError = true;
+		}
+	}
 
 	// Detect timeout from the result. A timed-out wait_agent
 	// typically returns an error string or an object with an
 	// error field containing "timed out".
 	const resultStr = typeof result === "string" ? result : "";
 	const errorStr = rec ? asString(rec.error) : "";
-	const isTimeout =
-		subagentIsError &&
-		(resultStr.toLowerCase().includes("timed out") ||
-			errorStr.toLowerCase().includes("timed out"));
-
-	// Postpone rendering wait_agent / message_agent until the
-	// chat_id has been parsed from the streaming args. Without it
-	// we can't determine variant or title, which causes a brief
-	// flash of the generic "Waiting for Sub-agent" text.
-	if (
-		!chatId &&
-		status === "running" &&
-		(name === "wait_agent" || name === "message_agent")
-	) {
-		return null;
+	let isTimeout = false;
+	if (subagentIsError) {
+		const timedOutInResult = resultStr.toLowerCase().includes("timed out");
+		const timedOutInError = errorStr.toLowerCase().includes("timed out");
+		if (timedOutInResult || timedOutInError) {
+			isTimeout = true;
+		}
 	}
 
-	const variant =
-		name === "spawn_computer_use_agent" || computerUseSubagentIds?.has(chatId)
-			? "computer-use"
-			: "default";
+	// Postpone rendering wait_agent, message_agent, and close_agent
+	// until the chat_id has been parsed from the streaming args.
+	// Without it we cannot determine variant or title, which causes
+	// a brief flash of the generic lifecycle copy.
+	if (!chatId && status === "running") {
+		if (
+			descriptor.action === "wait" ||
+			descriptor.action === "message" ||
+			descriptor.action === "close"
+		) {
+			return null;
+		}
+	}
+
 	return (
 		<SubagentTool
-			toolName={name}
+			descriptor={descriptor}
 			title={title}
 			chatId={chatId}
 			subagentStatus={subagentStatus}
@@ -513,9 +558,10 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			isError={subagentIsError}
 			isTimeout={isTimeout}
 			showDesktopPreview={
-				showDesktopPreviews && computerUseSubagentIds?.has(chatId)
+				Boolean(chatId) &&
+				showDesktopPreviews &&
+				descriptor.supportsDesktopAffordance
 			}
-			variant={variant}
 			recordingFileId={recordingFileId || undefined}
 			thumbnailFileId={thumbnailFileId || undefined}
 		/>
@@ -661,26 +707,30 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 }) => {
-	// The result can be a single object with {data, text, mime_type}
-	// or an array of content blocks.
 	let imageData = "";
 	let mimeType = "image/png";
 	let text = "";
+	let attachmentFileId = "";
+	let attachmentName = "";
 
 	if (Array.isArray(result)) {
 		for (const block of result) {
 			const blockRec = asRecord(block);
-			if (blockRec) {
-				if (blockRec.type === "image" || asString(blockRec.data)) {
-					imageData = asString(blockRec.data);
-					mimeType = asString(blockRec.mime_type) || "image/png";
-				}
-				if (
-					blockRec.type === "text" ||
-					(!imageData && asString(blockRec.text))
-				) {
-					text = asString(blockRec.text);
-				}
+			if (!blockRec) {
+				continue;
+			}
+			if (blockRec.type === "image" || asString(blockRec.data)) {
+				imageData = asString(blockRec.data);
+				mimeType = asString(blockRec.mime_type) || "image/png";
+			}
+			if (blockRec.type === "text" || (!imageData && asString(blockRec.text))) {
+				text = asString(blockRec.text);
+			}
+			if (!attachmentFileId) {
+				attachmentFileId = asString(blockRec.attachment_file_id);
+			}
+			if (!attachmentName) {
+				attachmentName = asString(blockRec.attachment_name);
 			}
 		}
 	} else {
@@ -689,6 +739,17 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 			imageData = asString(rec.data);
 			mimeType = asString(rec.mime_type) || "image/png";
 			text = asString(rec.text);
+			attachmentFileId = asString(rec.attachment_file_id);
+			attachmentName = asString(rec.attachment_name);
+		}
+	}
+
+	if (attachmentFileId) {
+		imageData = "";
+		if (!text) {
+			text = attachmentName
+				? `Attached ${attachmentName}`
+				: "Attached screenshot";
 		}
 	}
 
@@ -886,11 +947,6 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
-	spawn_agent: SubagentRenderer,
-	wait_agent: SubagentRenderer,
-	message_agent: SubagentRenderer,
-	close_agent: SubagentRenderer,
-	spawn_computer_use_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
@@ -911,7 +967,7 @@ export const Tool = memo(
 		isError = false,
 		killedBySignal,
 		subagentTitles,
-		computerUseSubagentIds,
+		subagentVariants,
 		showDesktopPreviews,
 		subagentStatusOverrides,
 		mcpServerConfigId,
@@ -925,7 +981,9 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer = toolRenderers[name] ?? GenericToolRenderer;
+		const Renderer = isSubagentToolName(name)
+			? SubagentRenderer
+			: (toolRenderers[name] ?? GenericToolRenderer);
 
 		return (
 			<div
@@ -948,7 +1006,7 @@ export const Tool = memo(
 					isError={isError}
 					killedBySignal={killedBySignal}
 					subagentTitles={subagentTitles}
-					computerUseSubagentIds={computerUseSubagentIds}
+					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={subagentStatusOverrides}
 					mcpServerConfigId={mcpServerConfigId}

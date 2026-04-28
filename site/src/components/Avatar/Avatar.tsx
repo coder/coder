@@ -78,7 +78,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 			<AvatarPrimitive.Image
 				src={src}
 				className="aspect-square size-full object-contain"
-				css={getExternalImageStylesFromUrl(theme.externalImages, src)}
+				style={getExternalImageStylesFromUrl(theme.externalImages, src)}
 			/>
 			{fallback && (
 				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">

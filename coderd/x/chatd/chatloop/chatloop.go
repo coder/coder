@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -19,10 +20,14 @@ import (
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -145,6 +150,9 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
+	// Callers should attach correlation fields (chat_id, owner_id, etc.)
+	// using Logger.With before passing the logger in.
+	Logger           slog.Logger
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
@@ -171,8 +179,6 @@ type RunOptions struct {
 	Metrics *Metrics
 
 	// BuiltinToolNames lists tool names that are built into chatd.
-	// Tool results from tools not in this set are recorded under
-	// the "mcp" label to bound cardinality.
 	BuiltinToolNames map[string]bool
 }
 
@@ -188,7 +194,7 @@ type ProviderTool struct {
 
 // stepResult holds the accumulated output of a single streaming
 // step. Since we own the stream consumer, all content is tracked
-// directly here — no shadow draft state needed.
+// directly here, no shadow draft state needed.
 type stepResult struct {
 	content             []fantasy.Content
 	usage               fantasy.Usage
@@ -371,7 +377,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
 			provider := opts.Model.Provider()
-			opts.Metrics.StepsTotal.WithLabelValues(provider).Inc()
+			modelName := opts.Model.Model()
+			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 			stepStart := time.Now()
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
@@ -385,11 +392,20 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 			prepared := make([]fantasy.Message, len(messages))
 			copy(prepared, messages)
+			prepared, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prepared)
+			chatsanitize.LogAnthropicProviderToolSanitization(
+				ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
+				slog.F("step_index", step),
+				slog.F("total_steps", totalSteps),
+			)
+			prepared = chatsanitize.ApplyAnthropicProviderToolGuard(
+				ctx, opts.Logger, provider, modelName, prepared,
+			)
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
 			}
-			opts.Metrics.MessageCount.WithLabelValues(provider).Observe(float64(len(prepared)))
-			opts.Metrics.PromptSizeBytes.WithLabelValues(provider).Observe(float64(EstimatePromptSize(prepared)))
+			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
+			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
 			call := fantasy.Call{
 				Prompt:           prepared,
@@ -404,10 +420,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 
 			var result stepResult
-			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+			stepCtx := chatdebug.ReuseStep(ctx)
+			err := chatretry.Retry(stepCtx, func(retryCtx context.Context) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					provider,
+					modelName,
 					opts.Clock,
 					opts.StartupTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
@@ -435,8 +453,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
+				// Record before OnRetry so a panicking callback can't
+				// drop the sample. The metric's provider label comes
+				// from the outer local; WithProvider only affects the
+				// classified payload handed to OnRetry.
+				classified = classified.WithProvider(provider)
+				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 				if opts.OnRetry != nil {
-					classified = classified.WithProvider(opts.Model.Provider())
 					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
 			})
@@ -481,9 +504,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 
 				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, provider, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Logger, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
 					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
-					ssePart := chatprompt.PartFromContent(tr)
+					publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
+					ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 					ssePart.CreatedAt = &completedAt
 					publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 				})
@@ -504,12 +528,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 						})
 					}
 
-					contextLimit := extractContextLimit(result.providerMetadata)
-					if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
-						contextLimit = sql.NullInt64{
-							Int64: opts.ContextLimitFallback,
-							Valid: true,
-						}
+					contextLimit := extractContextLimitWithFallback(
+						result.providerMetadata,
+						opts.ContextLimitFallback,
+					)
+
+					result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
+						ctx, opts.Logger, provider, modelName,
+						"dynamic_tool_persist", step, result.finishReason, result.content,
+					)
+					if len(result.content) == 0 && len(pending) == 0 {
+						tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
+						return ErrDynamicToolCall
 					}
 
 					if err := opts.PersistStep(ctx, PersistedStep{
@@ -546,13 +576,21 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 			}
 			// Extract context limit from provider metadata.
-			contextLimit := extractContextLimit(result.providerMetadata)
-			if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
-				contextLimit = sql.NullInt64{
-					Int64: opts.ContextLimitFallback,
-					Valid: true,
-				}
+			contextLimit := extractContextLimitWithFallback(
+				result.providerMetadata,
+				opts.ContextLimitFallback,
+			)
+			result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
+				ctx, opts.Logger, provider, modelName,
+				"normal_persist", step, result.finishReason, result.content,
+			)
+			if len(result.content) == 0 {
+				lastUsage = result.usage
+				lastProviderMetadata = result.providerMetadata
+				stoppedByModel = true
+				break
 			}
+
 			// Persist the step. If persistence fails because
 			// the chat was interrupted between the previous
 			// check and here, fall back to the interrupt-safe
@@ -625,7 +663,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 					result.providerMetadata,
 					messages,
 				)
-				opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
+				opts.Metrics.RecordCompaction(provider, modelName, did, compactErr)
 				if compactErr != nil && opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(compactErr)
 				}
@@ -667,7 +705,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				lastProviderMetadata,
 				messages,
 			)
-			opts.Metrics.RecordCompaction(opts.Model.Provider(), did, err)
+			opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, err)
 			if err != nil {
 				if opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(err)
@@ -762,7 +800,7 @@ func classifyStartupTimeout(
 
 func guardedStream(
 	parent context.Context,
-	provider string,
+	provider, model string,
 	clock quartz.Clock,
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
@@ -787,7 +825,7 @@ func guardedStream(
 	}
 
 	recordTTFT := sync.OnceFunc(func() {
-		metrics.TTFTSeconds.WithLabelValues(provider).Observe(
+		metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
 			clock.Since(streamStart).Seconds(),
 		)
 	})
@@ -1041,7 +1079,8 @@ func executeTools(
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
-	provider string,
+	logger slog.Logger,
+	provider, model string,
 	builtinToolNames map[string]bool,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
@@ -1100,7 +1139,7 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, provider, builtinToolNames, activeTools, providerRunnerNames)
+			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, logger, provider, model, builtinToolNames, activeTools, providerRunnerNames)
 		}()
 	}
 	wg.Wait()
@@ -1122,7 +1161,8 @@ func executeSingleTool(
 	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
 	metrics *Metrics,
-	provider string,
+	logger slog.Logger,
+	provider, model string,
 	builtinToolNames map[string]bool,
 	activeTools []string,
 	providerRunnerNames map[string]struct{},
@@ -1133,16 +1173,20 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		toolLabel := tc.ToolName
-		if !builtinToolNames[tc.ToolName] {
-			toolLabel = "mcp"
+		metricLabel := tc.ToolName
+		if metricLabel == "" {
+			metricLabel = "unknown"
 		}
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, toolLabel).Observe(
+		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
 			float64(ToolResultSize(result)),
 		)
+		if _, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
+			metrics.RecordToolError(provider, model, metricLabel)
+		}
 	}()
 
-	if _, isProviderRunner := providerRunnerNames[tc.ToolName]; !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
+	_, isProviderRunner := providerRunnerNames[tc.ToolName]
+	if !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
 		}
@@ -1157,6 +1201,12 @@ func executeSingleTool(
 		return result
 	}
 
+	logger.Debug(ctx, "tool execution",
+		slog.F("tool_name", tc.ToolName),
+		slog.F("tool_call_id", tc.ToolCallID),
+		slog.F("builtin", builtinToolNames[tc.ToolName]),
+		slog.F("is_provider_runner", isProviderRunner),
+	)
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
 		Name:  tc.ToolName,
@@ -1167,6 +1217,11 @@ func executeSingleTool(
 			Error: err,
 		}
 		result.ClientMetadata = resp.Metadata
+		logger.Error(ctx, "tool execution failed",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.Error(err),
+		)
 		return result
 	}
 
@@ -1176,15 +1231,20 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New(resp.Content),
 		}
+		logger.Info(ctx, "tool returned error result",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.F("tool_error", resp.Content),
+		)
 	case resp.Type == "image" || resp.Type == "media":
 		result.Result = fantasy.ToolResultOutputContentMedia{
-			Data:      string(resp.Data),
+			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      resp.Content,
+			Text:      strings.ToValidUTF8(resp.Content, "\uFFFD"),
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
-			Text: resp.Content,
+			Text: strings.ToValidUTF8(resp.Content, "\uFFFD"),
 		}
 	}
 	return result
@@ -1245,9 +1305,9 @@ func flushActiveState(
 	}
 }
 
-// persistInterruptedStep saves all accumulated content from a
-// partial stream. Since we own the stepResult directly, no shadow
-// state is needed.
+// persistInterruptedStep saves durable content from a partial stream.
+// Provider-executed calls without results are removed because their
+// result metadata cannot be synthesized safely.
 func persistInterruptedStep(
 	ctx context.Context,
 	opts RunOptions,
@@ -1256,6 +1316,18 @@ func persistInterruptedStep(
 	if result == nil || (len(result.content) == 0 && len(result.toolCalls) == 0) {
 		return
 	}
+
+	provider := ""
+	modelName := ""
+	if opts.Model != nil {
+		provider = opts.Model.Provider()
+		modelName = opts.Model.Model()
+	}
+	var sanitizeStats chatsanitize.AnthropicProviderToolSanitizationStats
+	result.content, sanitizeStats = chatsanitize.SanitizeAnthropicProviderToolContent(provider, result.content)
+	chatsanitize.LogAnthropicProviderToolSanitization(
+		ctx, opts.Logger, "interrupted_persist", provider, modelName, sanitizeStats,
+	)
 
 	// Track which tool calls already have results in the content.
 	answeredToolCalls := make(map[string]struct{})
@@ -1291,6 +1363,9 @@ func persistInterruptedStep(
 		if _, exists := answeredToolCalls[tc.ToolCallID]; exists {
 			continue
 		}
+		if chatsanitize.IsAnthropicProviderExecutedToolCall(provider, tc) {
+			continue
+		}
 		content = append(content, fantasy.ToolResultContent{
 			ToolCallID:       tc.ToolCallID,
 			ToolName:         tc.ToolName,
@@ -1306,6 +1381,10 @@ func persistInterruptedStep(
 			toolResultCreatedAt[tc.ToolCallID] = interruptedAt
 		}
 		answeredToolCalls[tc.ToolCallID] = struct{}{}
+	}
+
+	if len(content) == 0 {
+		return
 	}
 
 	persistCtx := context.WithoutCancel(ctx)
@@ -1347,7 +1426,7 @@ func tryCompactOnExit(
 		metadata,
 		reloaded,
 	)
-	opts.Metrics.RecordCompaction(opts.Model.Provider(), did, compactErr)
+	opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, compactErr)
 	if compactErr != nil && opts.Compaction.OnError != nil {
 		opts.Compaction.OnError(compactErr)
 	}
@@ -1536,6 +1615,33 @@ func recordToolResultTimestamp(result *stepResult, toolCallID string, ts time.Ti
 	result.toolResultCreatedAt[toolCallID] = ts
 }
 
+func publishToolAttachments(
+	ctx context.Context,
+	logger slog.Logger,
+	tr fantasy.ToolResultContent,
+	createdAt time.Time,
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) {
+	attachments, err := chattool.AttachmentsFromMetadata(tr.ClientMetadata)
+	if err != nil {
+		logger.Warn(ctx, "skipping malformed tool attachment metadata",
+			slog.F("tool_name", tr.ToolName),
+			slog.F("tool_call_id", tr.ToolCallID),
+			slog.Error(err),
+		)
+		return
+	}
+	for _, attachment := range attachments {
+		filePart := codersdk.ChatMessageFile(
+			attachment.FileID,
+			attachment.MediaType,
+			attachment.Name,
+		)
+		filePart.CreatedAt = &createdAt
+		publishMessagePart(codersdk.ChatMessageRoleAssistant, filePart)
+	}
+}
+
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {
 	if len(metadata) == 0 {
 		return sql.NullInt64{}
@@ -1558,6 +1664,17 @@ func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {
 
 	return sql.NullInt64{
 		Int64: limit,
+		Valid: true,
+	}
+}
+
+func extractContextLimitWithFallback(metadata fantasy.ProviderMetadata, fallback int64) sql.NullInt64 {
+	contextLimit := extractContextLimit(metadata)
+	if contextLimit.Valid || fallback <= 0 {
+		return contextLimit
+	}
+	return sql.NullInt64{
+		Int64: fallback,
 		Valid: true,
 	}
 }
