@@ -30,7 +30,7 @@ const (
 	ToolNameListWorkspaces              = "coder_list_workspaces"
 	ToolNameListTemplates               = "coder_list_templates"
 	ToolNameListTemplateVersionParams   = "coder_template_version_parameters"
-	ToolNameListTemplateVersionPresets  = "coder_template_version_presets"
+	ToolNameGetTemplate                 = "coder_get_template"
 	ToolNameGetAuthenticatedUser        = "coder_get_authenticated_user"
 	ToolNameCreateWorkspaceBuild        = "coder_create_workspace_build"
 	ToolNameCreateTemplateVersion       = "coder_create_template_version"
@@ -311,7 +311,7 @@ var All = []GenericTool{
 	DeleteTemplate.Generic(),
 	ListTemplates.Generic(),
 	ListTemplateVersionParameters.Generic(),
-	ListTemplateVersionPresets.Generic(),
+	GetTemplate.Generic(),
 	ListWorkspaces.Generic(),
 	GetAuthenticatedUser.Generic(),
 	GetTemplateVersionLogs.Generic(),
@@ -445,8 +445,9 @@ This returns more data than list_workspaces to reduce token usage.`,
 type CreateWorkspaceArgs struct {
 	Name                    string            `json:"name"`
 	RichParameters          map[string]string `json:"rich_parameters"`
-	TemplateVersionID       string            `json:"template_version_id"`
-	TemplateVersionPresetID string            `json:"template_version_preset_id"`
+	TemplateID              string            `json:"template_id,omitempty"`
+	TemplateVersionID       string            `json:"template_version_id,omitempty"`
+	TemplateVersionPresetID string            `json:"template_version_preset_id,omitempty"`
 	User                    string            `json:"user"`
 }
 
@@ -477,13 +478,17 @@ be ready before trying to use or connect to the workspace.
 					"type":        "string",
 					"description": userDescription("create a workspace"),
 				},
+				"template_id": map[string]any{
+					"type":        "string",
+					"description": "ID of the template to create the workspace from. The server resolves the active version. Prefer this over template_version_id unless you specifically need to pin a non-active version. Obtain this from coder_list_templates or coder_get_template.",
+				},
 				"template_version_id": map[string]any{
 					"type":        "string",
-					"description": "ID of the template version to create the workspace from.",
+					"description": "ID of a specific template version to create the workspace from. Use only when pinning a non-active version is required; otherwise prefer template_id. Mutually exclusive with template_id.",
 				},
 				"template_version_preset_id": map[string]any{
 					"type":        "string",
-					"description": "Optional ID of the template version preset to create the workspace from.",
+					"description": "Optional ID of a template version preset to create the workspace from. Obtain available presets from coder_get_template. When set, the preset's parameter values take precedence over conflicting entries in rich_parameters.",
 				},
 				"name": map[string]any{
 					"type":        "string",
@@ -494,14 +499,34 @@ be ready before trying to use or connect to the workspace.
 					"description": "Key/value pairs of rich parameters to pass to the template version to create the workspace.",
 				},
 			},
-			Required: []string{"user", "template_version_id", "name", "rich_parameters"},
+			Required: []string{"user", "name", "rich_parameters"},
 		},
 	},
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateWorkspaceArgs) (codersdk.Workspace, error) {
-		tvID, err := uuid.Parse(args.TemplateVersionID)
-		if err != nil {
-			return codersdk.Workspace{}, xerrors.New("template_version_id must be a valid UUID")
+		// The REST API requires exactly one of template_id or
+		// template_version_id. Pre-validate here so the LLM gets a
+		// clear, actionable error instead of an opaque server-side
+		// validation failure.
+		if (args.TemplateID == "") == (args.TemplateVersionID == "") {
+			return codersdk.Workspace{}, xerrors.New("exactly one of template_id or template_version_id must be provided")
+		}
+		var (
+			tID  uuid.UUID
+			tvID uuid.UUID
+			err  error
+		)
+		if args.TemplateID != "" {
+			tID, err = uuid.Parse(args.TemplateID)
+			if err != nil {
+				return codersdk.Workspace{}, xerrors.New("template_id must be a valid UUID")
+			}
+		}
+		if args.TemplateVersionID != "" {
+			tvID, err = uuid.Parse(args.TemplateVersionID)
+			if err != nil {
+				return codersdk.Workspace{}, xerrors.New("template_version_id must be a valid UUID")
+			}
 		}
 
 		var tvPresetID uuid.UUID
@@ -522,6 +547,7 @@ be ready before trying to use or connect to the workspace.
 			})
 		}
 		req := codersdk.CreateWorkspaceRequest{
+			TemplateID:          tID,
 			TemplateVersionID:   tvID,
 			Name:                args.Name,
 			RichParameterValues: buildParams,
@@ -529,6 +555,10 @@ be ready before trying to use or connect to the workspace.
 		if tvPresetID != uuid.Nil {
 			req.TemplateVersionPresetID = tvPresetID
 		}
+		// When no preset is supplied, wsbuilder may still auto-bind a
+		// preset whose parameter values exactly match RichParameterValues.
+		// This is intentional pre-existing server-side behavior; the tool
+		// surface does not suppress it.
 		workspace, err := deps.coderClient.CreateUserWorkspace(ctx, args.User, req)
 		if err != nil {
 			return codersdk.Workspace{}, err
@@ -645,30 +675,113 @@ var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []co
 	},
 }
 
-var ListTemplateVersionPresets = Tool[ListTemplateVersionParametersArgs, []codersdk.Preset]{
+type GetTemplateArgs struct {
+	TemplateID string `json:"template_id"`
+}
+
+// TemplateDetail extends MinimalTemplate with the active version's
+// rich parameters and presets. Presets are omitted when the template
+// has none, to mirror the chattool read_template response shape.
+type TemplateDetail struct {
+	MinimalTemplate
+	Parameters []codersdk.TemplateVersionParameter `json:"parameters"`
+	Presets    []presetView                        `json:"presets,omitempty"`
+}
+
+// presetView is a tool-local projection of codersdk.Preset with
+// snake_case JSON keys that match the field names referenced in
+// the create_workspace tool description. codersdk.Preset has no
+// JSON tags, so its fields would otherwise serialize as PascalCase
+// and the LLM would look for keys that do not exist on the wire.
+type presetView struct {
+	ID                       uuid.UUID             `json:"id"`
+	Name                     string                `json:"name"`
+	Description              string                `json:"description,omitempty"`
+	Default                  bool                  `json:"default"`
+	DesiredPrebuildInstances *int                  `json:"desired_prebuild_instances,omitempty"`
+	Parameters               []presetParameterView `json:"parameters"`
+}
+
+type presetParameterView struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+func toPresetView(p codersdk.Preset) presetView {
+	params := make([]presetParameterView, 0, len(p.Parameters))
+	for _, pp := range p.Parameters {
+		params = append(params, presetParameterView{
+			Name:  pp.Name,
+			Value: pp.Value,
+		})
+	}
+	return presetView{
+		ID:                       p.ID,
+		Name:                     p.Name,
+		Description:              p.Description,
+		Default:                  p.Default,
+		DesiredPrebuildInstances: p.DesiredPrebuildInstances,
+		Parameters:               params,
+	}
+}
+
+var GetTemplate = Tool[GetTemplateArgs, TemplateDetail]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameListTemplateVersionPresets,
-		Description: "Get the presets for a template version. Use these to choose a template_version_preset_id for task or workspace creation.",
+		Name: ToolNameGetTemplate,
+		Description: `Get details about a workspace template, including its configurable parameters and available presets for the active version.
+
+Use this after finding a template with coder_list_templates and before creating a workspace with coder_create_workspace. Presets, when present, can be passed to coder_create_workspace as template_version_preset_id.
+
+When selecting a preset: if a preset is marked default and the user has not specified preferences, prefer that preset. Presets with desired_prebuild_instances > 0 may have prebuilt workspaces available for faster startup; prefer those when startup speed matters.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
-				"template_version_id": map[string]any{
-					"type": "string",
+				"template_id": map[string]any{
+					"type":        "string",
+					"description": "ID of the template to read details for. Obtain this from coder_list_templates.",
 				},
 			},
-			Required: []string{"template_version_id"},
+			Required: []string{"template_id"},
 		},
 	},
 	MCPAnnotations: mcpReadOnlyAnnotations,
-	Handler: func(ctx context.Context, deps Deps, args ListTemplateVersionParametersArgs) ([]codersdk.Preset, error) {
-		templateVersionID, err := uuid.Parse(args.TemplateVersionID)
+	Handler: func(ctx context.Context, deps Deps, args GetTemplateArgs) (TemplateDetail, error) {
+		templateID, err := uuid.Parse(args.TemplateID)
 		if err != nil {
-			return nil, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
+			return TemplateDetail{}, xerrors.Errorf("template_id must be a valid UUID: %w", err)
 		}
-		presets, err := deps.coderClient.TemplateVersionPresets(ctx, templateVersionID)
+		template, err := deps.coderClient.Template(ctx, templateID)
 		if err != nil {
-			return nil, err
+			return TemplateDetail{}, xerrors.Errorf("get template: %w", err)
 		}
-		return presets, nil
+		// A template without an active version would cause the
+		// follow-up calls to issue confusing "not found" errors
+		// against a zero UUID. Fail clearly instead.
+		if template.ActiveVersionID == uuid.Nil {
+			return TemplateDetail{}, xerrors.New("template has no active version")
+		}
+		parameters, err := deps.coderClient.TemplateVersionRichParameters(ctx, template.ActiveVersionID)
+		if err != nil {
+			return TemplateDetail{}, xerrors.Errorf("get template parameters: %w", err)
+		}
+		presets, err := deps.coderClient.TemplateVersionPresets(ctx, template.ActiveVersionID)
+		if err != nil {
+			return TemplateDetail{}, xerrors.Errorf("get template presets: %w", err)
+		}
+		detail := TemplateDetail{
+			MinimalTemplate: MinimalTemplate{
+				DisplayName:     template.DisplayName,
+				ID:              template.ID.String(),
+				Name:            template.Name,
+				Description:     template.Description,
+				ActiveVersionID: template.ActiveVersionID,
+				ActiveUserCount: template.ActiveUserCount,
+			},
+			Parameters: parameters,
+		}
+		for _, p := range presets {
+			detail.Presets = append(detail.Presets, toPresetView(p))
+		}
+		return detail, nil
 	},
 }
 

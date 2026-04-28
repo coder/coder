@@ -124,6 +124,14 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			idempotentHint:  true,
 			openWorldHint:   false,
 		},
+		{
+			name:            "GetTemplateIsReadOnly",
+			toolName:        toolsdk.ToolNameGetTemplate,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -390,18 +398,114 @@ func TestTools(t *testing.T) {
 		require.Empty(t, params)
 	})
 
-	t.Run("ListTemplateVersionPresets", func(t *testing.T) {
-		tb, err := toolsdk.NewDeps(memberClient)
-		require.NoError(t, err)
-		presets, err := testTool(t, toolsdk.ListTemplateVersionPresets, tb, toolsdk.ListTemplateVersionParametersArgs{
-			TemplateVersionID: r.TemplateVersion.ID.String(),
+	t.Run("GetTemplate", func(t *testing.T) {
+		// Build an isolated fixture so the existing fixture's
+		// assertions (no parameters, single preset with no
+		// preset parameters) stay intact.
+		gtBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).Do()
+		// Add a rich parameter to the active version so
+		// `parameters` is non-empty in the response.
+		dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+			TemplateVersionID: gtBuild.TemplateVersion.ID,
+			Name:              "region",
+			DisplayName:       "Region",
+			Description:       "Region to deploy in.",
+			Type:              "string",
+			DefaultValue:      "us-east-1",
+			Required:          false,
+			Mutable:           true,
+		})
+		// Attach a preset with one parameter so we can assert
+		// PresetParameters round-trip end-to-end.
+		gtPreset := dbgen.Preset(t, store, database.InsertPresetParams{
+			TemplateVersionID: gtBuild.TemplateVersion.ID,
+			Name:              testutil.GetRandomNameHyphenated(t),
+			CreatedAt:         gtBuild.TemplateVersion.CreatedAt,
+			Description:       "Preset for GetTemplate tests.",
+		})
+		dbgen.PresetParameter(t, store, database.InsertPresetParametersParams{
+			TemplateVersionPresetID: gtPreset.ID,
+			Names:                   []string{"region"},
+			Values:                  []string{"us-west-2"},
 		})
 
-		require.NoError(t, err)
-		require.Len(t, presets, 1)
-		require.Equal(t, preset.ID, presets[0].ID)
-		require.Equal(t, preset.Name, presets[0].Name)
-		require.Equal(t, preset.Description, presets[0].Description)
+		// A second template with no presets, used to assert
+		// the omit-when-empty behavior of the `presets` field.
+		gtNoPresetBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).Do()
+
+		t.Run("WithPresets", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: gtBuild.Template.ID.String(),
+			})
+			require.NoError(t, err)
+
+			// MinimalTemplate fields populated.
+			require.Equal(t, gtBuild.Template.ID.String(), result.ID)
+			require.Equal(t, gtBuild.Template.Name, result.Name)
+			require.Equal(t, gtBuild.Template.ActiveVersionID, result.ActiveVersionID)
+
+			// Parameters round-trip from the active version.
+			require.Len(t, result.Parameters, 1)
+			require.Equal(t, "region", result.Parameters[0].Name)
+			require.Equal(t, "us-east-1", result.Parameters[0].DefaultValue)
+
+			// Presets and their parameters round-trip.
+			require.Len(t, result.Presets, 1)
+			require.Equal(t, gtPreset.ID, result.Presets[0].ID)
+			require.Equal(t, gtPreset.Name, result.Presets[0].Name)
+			require.Equal(t, "Preset for GetTemplate tests.", result.Presets[0].Description)
+			require.Len(t, result.Presets[0].Parameters, 1)
+			require.Equal(t, "region", result.Presets[0].Parameters[0].Name)
+			require.Equal(t, "us-west-2", result.Presets[0].Parameters[0].Value)
+		})
+
+		t.Run("WithoutPresets", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: gtNoPresetBuild.Template.ID.String(),
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, gtNoPresetBuild.Template.ID.String(), result.ID)
+			require.Empty(t, result.Presets, "presets should be empty when the template has none")
+
+			// The `presets` field should be absent from the
+			// JSON entirely when the template has no presets.
+			b, err := json.Marshal(result)
+			require.NoError(t, err)
+			require.NotContains(t, string(b), `"presets"`)
+		})
+
+		t.Run("InvalidID", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			_, err = testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: "not-a-uuid",
+			})
+			require.ErrorContains(t, err, "template_id must be a valid UUID")
+		})
+
+		t.Run("NotFound", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			_, err = testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: uuid.New().String(),
+			})
+			require.ErrorContains(t, err, "get template")
+		})
 	})
 
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
@@ -533,6 +637,7 @@ func TestTools(t *testing.T) {
 		})
 
 		t.Run("WithPreset", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
 			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
 				User:                    "me",
 				TemplateVersionID:       r.TemplateVersion.ID.String(),
@@ -544,9 +649,102 @@ func TestTools(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, res.ID, "expected a workspace ID")
 
-			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, res.LatestBuild.ID)
+			build, err := client.WorkspaceBuild(ctx, res.LatestBuild.ID)
+			require.NoError(t, err)
 			require.NotNil(t, build.TemplateVersionPresetID)
 			require.Equal(t, preset.ID, *build.TemplateVersionPresetID)
+		})
+
+		t.Run("WithTemplateID", func(t *testing.T) {
+			// Exercises the template_id path on create_workspace,
+			// which lets the server resolve the active version
+			// atomically with the build. Mirrors how the chattool
+			// surface keys this tool.
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:           "me",
+				TemplateID:     r.Template.ID.String(),
+				Name:           testutil.GetRandomNameHyphenated(t),
+				RichParameters: map[string]string{},
+			})
+
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+		})
+
+		t.Run("RejectsBothIDs", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				TemplateID:        r.Template.ID.String(),
+				TemplateVersionID: r.TemplateVersion.ID.String(),
+				Name:              testutil.GetRandomNameHyphenated(t),
+				RichParameters:    map[string]string{},
+			})
+			require.ErrorContains(t, err, "exactly one of template_id or template_version_id")
+		})
+
+		t.Run("RejectsNeitherID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:           "me",
+				Name:           testutil.GetRandomNameHyphenated(t),
+				RichParameters: map[string]string{},
+			})
+			require.ErrorContains(t, err, "exactly one of template_id or template_version_id")
+		})
+
+		t.Run("WithPresetAndParams", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Build an isolated fixture: a template version with one
+			// rich parameter and a preset that sets it. The shared
+			// fixture's preset has no parameters and would not exercise
+			// the override path.
+			ovBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+			ovPreset := dbgen.Preset(t, store, database.InsertPresetParams{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              testutil.GetRandomNameHyphenated(t),
+				CreatedAt:         ovBuild.TemplateVersion.CreatedAt,
+				Description:       "Preset for override test.",
+			})
+			dbgen.PresetParameter(t, store, database.InsertPresetParametersParams{
+				TemplateVersionPresetID: ovPreset.ID,
+				Names:                   []string{"region"},
+				Values:                  []string{"us-west-2"},
+			})
+
+			// Send conflicting rich_parameters; the preset value
+			// should win, per the contract advertised in the
+			// template_version_preset_id schema description.
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:                    "me",
+				TemplateVersionID:       ovBuild.TemplateVersion.ID.String(),
+				TemplateVersionPresetID: ovPreset.ID.String(),
+				Name:                    testutil.GetRandomNameHyphenated(t),
+				RichParameters:          map[string]string{"region": "us-east-1"},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+
+			// wsbuilder persists resolved parameters during the
+			// build transaction, before provisioning, so the values
+			// are readable immediately without waiting for the
+			// build job to complete.
+			params, err := client.WorkspaceBuildParameters(ctx, res.LatestBuild.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value,
+				"preset parameter value must override conflicting rich_parameters entry")
 		})
 	})
 
