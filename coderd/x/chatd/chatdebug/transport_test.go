@@ -197,6 +197,7 @@ func TestRecordingTransport_CaptureRequestRestoresSharedGetBody(t *testing.T) {
 	require.True(t, originalBody.closed)
 	attempts := sink.snapshot()
 	require.Len(t, attempts, 1)
+	require.Equal(t, attemptStatusCompleted, attempts[0].Status)
 	require.JSONEq(t, `{"message":"hello","api_key":"[REDACTED]"}`, string(attempts[0].RequestBody))
 }
 
