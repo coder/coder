@@ -91,8 +91,8 @@ replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260426185602-951
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
-// See: https://github.com/coder/anthropic-sdk-go/commits/67514346e0fb
-replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260428111347-67514346e0fb
+// See: https://github.com/coder/anthropic-sdk-go/commits/47cab198e449
+replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260428122333-47cab198e449
 
 // Replace sdks with our own optimized forks until relevant upstream PRs are merged.
 // https://github.com/anthropics/anthropic-sdk-go/pull/262

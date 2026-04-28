@@ -314,8 +314,8 @@ github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225 h1:tRIViZ5JR
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225/go.mod h1:rNLVpYgEVeu1Zk29K64z6Od8RBP9DwqCu9OfCzh8MR4=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
-github.com/coder/anthropic-sdk-go v0.0.0-20260428111347-67514346e0fb h1:/qJzrmYz+ii329dgoQ1BxtlrhdJvtTkk7UwhrroSohU=
-github.com/coder/anthropic-sdk-go v0.0.0-20260428111347-67514346e0fb/go.mod h1:hqlYqR7uPKOKfnNeicUbZp0Ps0GeYFlKYtwh5HGDCx8=
+github.com/coder/anthropic-sdk-go v0.0.0-20260428122333-47cab198e449 h1:X4XOtomDcJlr5/bmgcnrZiJeZIS+qixzVn1EWqgCZ4E=
+github.com/coder/anthropic-sdk-go v0.0.0-20260428122333-47cab198e449/go.mod h1:hqlYqR7uPKOKfnNeicUbZp0Ps0GeYFlKYtwh5HGDCx8=
 github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab h1:HrlxyTmMQpOHfSKzRU1vf5TxrmV6vL5OiWq+Dvn5qh0=
 github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab/go.mod h1:BhJhyKW/+zZQzaGZ3vn27if2k0Vx5xLXzq7ZCQx5gPk=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwuWwPHPYoCZ/KLAjHv5g4h2MS4f2/MTI=

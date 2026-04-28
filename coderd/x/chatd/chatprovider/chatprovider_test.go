@@ -1123,7 +1123,7 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 	got := testutil.TryReceive(ctx, t, requests)
 	require.NoError(t, got.ReadError)
 	require.Equal(t, "/model/us.anthropic.claude-opus-4-6-v1/invoke-with-response-stream", got.Path)
-	require.Equal(t, "application/vnd.amazon.eventstream", got.Accept)
+	require.Empty(t, got.Accept)
 	require.Equal(t, "application/json", got.BedrockAccept)
 	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
 	require.Contains(t, got.Authorization, "x-amzn-bedrock-accept")
