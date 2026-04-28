@@ -73,10 +73,19 @@ coder tokens create \
 Distribute the resulting token to the external users along with the
 connection details from the next step.
 
-Because all users share one identity, AI Gateway audit logs attribute
-traffic to the service account rather than to individual developers.
-If per-user attribution matters, create a separate service account
-for each user or group.
+When every user shares a single token, AI Gateway audit logs attribute
+all traffic to the service account rather than to individual developers.
+There are two ways to get per-user attribution:
+
+- **One token per user from the same service account.** Generate a
+  separate named token for each developer (`--name=alice`,
+  `--name=bob`, etc.). Each token is logged as a distinct API key,
+  so audit records can be traced back to an individual even though
+  they all belong to the same account.
+- **One service account per user or group.** Create a dedicated
+  service account for each developer or team. This provides a
+  distinct user identity in audit logs but requires more accounts
+  to manage.
 
 ### 4. Share connection details
 
