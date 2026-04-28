@@ -68,12 +68,12 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const header = (
 		<>
-			<MonitorIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-			<span className="text-sm text-content-secondary">{label}</span>
+			<MonitorIcon className="h-4 w-4 shrink-0 text-current" />
+			<span className="text-[13px]">{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 					</TooltipTrigger>
 					<TooltipContent>
 						{errorMessage || "Failed to create workspace"}
@@ -81,7 +81,7 @@ export const CreateWorkspaceTool: React.FC<{
 				</Tooltip>
 			)}
 			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
 			{workspaceLink && !isRunning && (
 				<Link

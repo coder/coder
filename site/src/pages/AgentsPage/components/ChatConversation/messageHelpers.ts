@@ -57,7 +57,16 @@ export const deriveMessageDisplayState = ({
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
-	const hasCopyableContent = Boolean(parsed.markdown.trim());
+	// On assistant messages, suppress the copy affordance when tool
+	// calls or tool results are present. The actions toolbar reserves
+	// vertical space (~24px), and toggling that reservation as the
+	// message moves out of "last in chain" causes a visible layout
+	// shift below tool-heavy responses. Pure-text assistant turns
+	// keep the copy button.
+	const hasCopyableContent =
+		Boolean(parsed.markdown.trim()) &&
+		(message.role === "user" ||
+			(parsed.toolCalls.length === 0 && parsed.toolResults.length === 0));
 	const hasRenderableContent =
 		parsed.blocks.length > 0 ||
 		parsed.tools.length > 0 ||

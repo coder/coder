@@ -147,52 +147,62 @@ const ReasoningDisclosure = memo<{
 		}, [displayTextLength, isPreviewConstrained]);
 
 		return (
-			<Collapsible
-				open={expanded}
-				onOpenChange={(open) => setManualToggle(open)}
-				className="w-full"
-			>
-				<CollapsibleTrigger
-					className={cn(
-						"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-						"flex w-full items-center gap-2 cursor-pointer",
-						"text-content-secondary transition-colors hover:text-content-primary",
-					)}
-				>
-					{isStreaming ? (
-						<Shimmer as="span" className="text-sm">
-							Thinking
-						</Shimmer>
-					) : (
-						<span className="text-sm">Thinking</span>
-					)}
-					<ChevronDownIcon
-						className={cn(
-							"ml-auto h-3 w-3 shrink-0 text-current transition-transform",
-							expanded ? "rotate-0" : "-rotate-90",
-						)}
-					/>
-				</CollapsibleTrigger>
-				{hasText && (
-					<CollapsibleContent>
-						<div
-							ref={previewScrollRef}
-							className={cn(
-								"mt-1.5",
-								isPreviewConstrained && "max-h-24 overflow-y-auto",
-							)}
-						>
-							<Response
-								className="text-[11px] text-content-secondary"
-								urlTransform={urlTransform}
-								streaming={isStreaming}
-							>
-								{displayText}
-							</Response>
-						</div>
-					</CollapsibleContent>
+			<div
+				data-tool-call=""
+				className={cn(
+					"py-0.5",
+					// Collapse padding between adjacent tool/thinking blocks.
+					"[&:has(+[data-tool-call])]:pb-0",
+					"[[data-tool-call]+&]:pt-0",
 				)}
-			</Collapsible>
+			>
+				<Collapsible
+					open={expanded}
+					onOpenChange={(open) => setManualToggle(open)}
+					className="w-full"
+				>
+					<CollapsibleTrigger
+						className={cn(
+							"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
+							"flex w-full items-center gap-2 cursor-pointer",
+							"text-content-secondary transition-colors hover:text-content-primary",
+						)}
+					>
+						{isStreaming ? (
+							<Shimmer as="span" className="text-[13px]">
+								Thinking
+							</Shimmer>
+						) : (
+							<span className="text-[13px]">Thinking</span>
+						)}
+						<ChevronDownIcon
+							className={cn(
+								"h-3 w-3 shrink-0 text-current transition-transform",
+								expanded ? "rotate-0" : "-rotate-90",
+							)}
+						/>
+					</CollapsibleTrigger>
+					{hasText && (
+						<CollapsibleContent>
+							<div
+								ref={previewScrollRef}
+								className={cn(
+									"mt-1.5",
+									isPreviewConstrained && "max-h-24 overflow-y-auto",
+								)}
+							>
+								<Response
+									className="text-[11px] text-content-secondary"
+									urlTransform={urlTransform}
+									streaming={isStreaming}
+								>
+									{displayText}
+								</Response>
+							</div>
+						</CollapsibleContent>
+					)}
+				</Collapsible>
+			</div>
 		);
 	},
 );
