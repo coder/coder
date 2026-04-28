@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
@@ -3452,262 +3453,6 @@ func (m chatMessage) withProviderResponseID(id string) chatMessage {
 	return m
 }
 
-// chainModeInfo holds the information needed to determine whether
-// a follow-up turn can use OpenAI's previous_response_id chaining
-// instead of replaying full conversation history.
-type chainModeInfo struct {
-	// previousResponseID is the provider response ID from the last
-	// assistant message, if any.
-	previousResponseID string
-	// modelConfigID is the model configuration used to produce the
-	// assistant message referenced by previousResponseID.
-	modelConfigID uuid.UUID
-	// trailingUserCount is the number of contiguous user messages
-	// at the end of the conversation that form the current turn.
-	trailingUserCount int
-	// contributingTrailingUserCount counts the trailing user
-	// messages that materially change the provider input.
-	contributingTrailingUserCount int
-	// hasUnresolvedLocalToolCalls is true when previousResponseID
-	// points at an assistant message with pending local tool calls.
-	hasUnresolvedLocalToolCalls bool
-	// providerMissingToolResults is true when the assistant message
-	// has local tool calls with local results, but no follow-up
-	// assistant message exists to confirm the results were sent
-	// back to the provider. This happens when StopAfterTool
-	// terminates a turn before the results are round-tripped.
-	providerMissingToolResults bool
-}
-
-func userMessageContributesToChainMode(msg database.ChatMessage) bool {
-	parts, err := chatprompt.ParseContent(msg)
-	if err != nil {
-		return false
-	}
-	for _, part := range parts {
-		switch part.Type {
-		case codersdk.ChatMessagePartTypeText,
-			codersdk.ChatMessagePartTypeReasoning:
-			if strings.TrimSpace(part.Text) != "" {
-				return true
-			}
-		case codersdk.ChatMessagePartTypeFile,
-			codersdk.ChatMessagePartTypeFileReference:
-			return true
-		case codersdk.ChatMessagePartTypeContextFile:
-			if part.ContextFileContent != "" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// assistantHasUnresolvedLocalToolCalls reports whether the assistant message
-// at assistantIdx contains local tool calls that lack matching tool results.
-// It returns true when content parsing fails because full-history replay is
-// safer than chaining from state that cannot be inspected.
-func assistantHasUnresolvedLocalToolCalls(
-	messages []database.ChatMessage,
-	assistantIdx int,
-) bool {
-	if assistantIdx < 0 || assistantIdx >= len(messages) {
-		return false
-	}
-
-	parts, err := chatprompt.ParseContent(messages[assistantIdx])
-	if err != nil {
-		// Use full replay when persisted assistant content cannot be parsed.
-		return true
-	}
-
-	localCallIDs := make(map[string]struct{})
-	for _, part := range parts {
-		if part.Type != codersdk.ChatMessagePartTypeToolCall ||
-			part.ProviderExecuted {
-			continue
-		}
-		localCallIDs[part.ToolCallID] = struct{}{}
-	}
-	if len(localCallIDs) == 0 {
-		return false
-	}
-
-	resolvedCallIDs := make(map[string]struct{})
-	for i := assistantIdx + 1; i < len(messages); i++ {
-		if messages[i].Role != database.ChatMessageRoleTool {
-			break
-		}
-		parts, err := chatprompt.ParseContent(messages[i])
-		if err != nil {
-			// Use full replay when persisted tool content cannot be parsed.
-			return true
-		}
-		for _, part := range parts {
-			if part.Type != codersdk.ChatMessagePartTypeToolResult {
-				continue
-			}
-			if _, ok := localCallIDs[part.ToolCallID]; ok {
-				resolvedCallIDs[part.ToolCallID] = struct{}{}
-			}
-		}
-	}
-
-	return len(resolvedCallIDs) != len(localCallIDs)
-}
-
-// providerHasMissingToolResults reports whether the assistant message
-// at assistantIdx has local tool calls whose results exist in the DB
-// but were never sent back to the provider. This is detected by the
-// absence of a follow-up assistant message after the tool results:
-// in normal flow the LLM processes tool results and produces a
-// follow-up response, but StopAfterTool skips that round-trip.
-func providerHasMissingToolResults(
-	messages []database.ChatMessage,
-	assistantIdx int,
-) bool {
-	if assistantIdx < 0 || assistantIdx >= len(messages) {
-		return false
-	}
-
-	parts, err := chatprompt.ParseContent(messages[assistantIdx])
-	if err != nil {
-		// Parsing errors are already handled by
-		// assistantHasUnresolvedLocalToolCalls.
-		return false
-	}
-
-	if !slices.ContainsFunc(parts, func(p codersdk.ChatMessagePart) bool {
-		return p.Type == codersdk.ChatMessagePartTypeToolCall && !p.ProviderExecuted
-	}) {
-		return false
-	}
-
-	// Scan forward past tool messages. If the first non-tool message
-	// is not an assistant, the tool results were never round-tripped
-	// to the provider.
-	for i := assistantIdx + 1; i < len(messages); i++ {
-		switch messages[i].Role {
-		case database.ChatMessageRoleTool:
-			continue
-		case database.ChatMessageRoleAssistant:
-			// A follow-up assistant exists; results were sent.
-			return false
-		default:
-			// User or system message with no follow-up assistant.
-			return true
-		}
-	}
-	// Reached end of messages without a follow-up assistant.
-	return true
-}
-
-// shouldActivateChainMode reports whether a follow-up turn can use
-// previous_response_id instead of replaying history. It requires store=true,
-// a matching model config, meaningful trailing user input, non-plan mode,
-// complete local tool state, and confirmation that tool results were
-// actually sent to the provider (not just persisted locally).
-func shouldActivateChainMode(
-	providerOptions fantasy.ProviderOptions,
-	info chainModeInfo,
-	modelConfigID uuid.UUID,
-	isPlanModeTurn bool,
-) bool {
-	return chatprovider.IsResponsesStoreEnabled(providerOptions) &&
-		info.previousResponseID != "" &&
-		info.contributingTrailingUserCount > 0 &&
-		info.modelConfigID == modelConfigID &&
-		!isPlanModeTurn &&
-		!info.hasUnresolvedLocalToolCalls &&
-		!info.providerMissingToolResults
-}
-
-// resolveChainMode scans DB messages from the end to count trailing user
-// messages for the current turn and detect whether the immediately
-// preceding assistant/tool block can chain from a provider response ID.
-func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
-	var info chainModeInfo
-	i := len(messages) - 1
-	for ; i >= 0; i-- {
-		if messages[i].Role != database.ChatMessageRoleUser {
-			break
-		}
-		info.trailingUserCount++
-		if userMessageContributesToChainMode(messages[i]) {
-			info.contributingTrailingUserCount++
-		}
-	}
-	for ; i >= 0; i-- {
-		switch messages[i].Role {
-		case database.ChatMessageRoleAssistant:
-			if messages[i].ProviderResponseID.Valid &&
-				messages[i].ProviderResponseID.String != "" {
-				info.previousResponseID = messages[i].ProviderResponseID.String
-				if messages[i].ModelConfigID.Valid {
-					info.modelConfigID = messages[i].ModelConfigID.UUID
-				}
-				info.hasUnresolvedLocalToolCalls = assistantHasUnresolvedLocalToolCalls(messages, i)
-				if !info.hasUnresolvedLocalToolCalls {
-					info.providerMissingToolResults = providerHasMissingToolResults(messages, i)
-				}
-				return info
-			}
-			return info
-		case database.ChatMessageRoleTool:
-			continue
-		default:
-			return info
-		}
-	}
-	return info
-}
-
-// filterPromptForChainMode keeps only system messages and the trailing
-// user messages that still contribute model-visible content to the
-// current turn. Assistant and tool messages are dropped because the
-// provider already has them via the previous_response_id chain.
-func filterPromptForChainMode(
-	prompt []fantasy.Message,
-	info chainModeInfo,
-) []fantasy.Message {
-	if info.contributingTrailingUserCount <= 0 {
-		return prompt
-	}
-
-	totalUsers := 0
-	for _, msg := range prompt {
-		if msg.Role == "user" {
-			totalUsers++
-		}
-	}
-
-	// Prompt construction already drops user turns with no model-visible
-	// content, such as skill-only sentinel messages. That means the user
-	// count here stays aligned with contributingTrailingUserCount even
-	// when non-contributing DB turns are interleaved in the trailing
-	// block.
-	usersToSkip := totalUsers - info.contributingTrailingUserCount
-	if usersToSkip < 0 {
-		usersToSkip = 0
-	}
-
-	filtered := make([]fantasy.Message, 0, len(prompt))
-	usersSeen := 0
-	for _, msg := range prompt {
-		switch msg.Role {
-		case "system":
-			filtered = append(filtered, msg)
-		case "user":
-			usersSeen++
-			if usersSeen > usersToSkip {
-				filtered = append(filtered, msg)
-			}
-		}
-	}
-
-	return filtered
-}
-
 // appendChatMessage appends a single message to the batch insert params.
 func appendChatMessage(
 	params *database.InsertChatMessagesParams,
@@ -6271,7 +6016,7 @@ func (p *Server) runChat(
 		advisorPromptSnapshot = slices.Clone(msgs)
 	}
 
-	chainInfo := resolveChainMode(messages)
+	chainInfo := chatopenai.ResolveChainMode(messages)
 	result.PushSummaryModel = model
 	result.ProviderKeys = providerKeys
 	result.FallbackProvider = modelConfig.Provider
@@ -7087,28 +6832,28 @@ func (p *Server) runChat(
 	// we set previous_response_id and send only system instructions
 	// plus the new user input, avoiding redundant replay of prior
 	// assistant and tool messages that the provider already has.
-	chainModeActive := shouldActivateChainMode(
+	chainModeActive := chatopenai.ShouldActivateChainMode(
 		providerOptions,
 		chainInfo,
 		modelConfig.ID,
 		isPlanModeTurn,
 	)
-	if !chainModeActive && chainInfo.previousResponseID != "" {
+	if !chainModeActive && chainInfo.PreviousResponseID() != "" {
 		logger.Debug(ctx, "chain mode disabled",
-			slog.F("has_unresolved_local_tool_calls", chainInfo.hasUnresolvedLocalToolCalls),
-			slog.F("provider_missing_tool_results", chainInfo.providerMissingToolResults),
+			slog.F("has_unresolved_local_tool_calls", chainInfo.HasUnresolvedLocalToolCalls()),
+			slog.F("provider_missing_tool_results", chainInfo.ProviderMissingToolResults()),
 			slog.F("is_plan_mode_turn", isPlanModeTurn),
-			slog.F("model_config_match", chainInfo.modelConfigID == modelConfig.ID),
-			slog.F("store_enabled", chatprovider.IsResponsesStoreEnabled(providerOptions)),
-			slog.F("contributing_trailing_user_count", chainInfo.contributingTrailingUserCount),
+			slog.F("model_config_match", chainInfo.ModelConfigID() == modelConfig.ID),
+			slog.F("store_enabled", chatopenai.ResponsesStoreEnabled(providerOptions)),
+			slog.F("contributing_trailing_user_count", chainInfo.ContributingTrailingUserCount()),
 		)
 	}
 	if chainModeActive {
-		providerOptions = chatprovider.CloneWithPreviousResponseID(
+		providerOptions = chatopenai.WithPreviousResponseID(
 			providerOptions,
-			chainInfo.previousResponseID,
+			chainInfo.PreviousResponseID(),
 		)
-		prompt = filterPromptForChainMode(prompt, chainInfo)
+		prompt = chatopenai.FilterPromptForChainMode(prompt, chainInfo)
 	}
 	activeToolNames := activeToolNamesForTurn(
 		tools,
@@ -7263,7 +7008,7 @@ func (p *Server) runChat(
 			// history is unavailable.
 			setAdvisorPromptSnapshot(reloadedPrompt)
 			if chainModeActive {
-				reloadedPrompt = filterPromptForChainMode(
+				reloadedPrompt = chatopenai.FilterPromptForChainMode(
 					reloadedPrompt,
 					chainInfo,
 				)
