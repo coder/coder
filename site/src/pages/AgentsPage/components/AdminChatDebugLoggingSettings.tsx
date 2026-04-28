@@ -52,21 +52,22 @@ export const AdminChatDebugLoggingSettings: FC<
 					)}
 				</div>
 				<div className="flex items-center gap-2">
-					{isLoadingAdminSetting && (
+					{isLoadingAdminSetting ? (
 						<Skeleton className="h-5 w-10 rounded-full" aria-hidden="true" />
+					) : (
+						<Switch
+							checked={adminAllowsUsers}
+							onCheckedChange={(checked) =>
+								onSaveAdminSetting({ allow_users: checked })
+							}
+							aria-label="Allow users to enable chat debug logging"
+							disabled={
+								forcedByDeployment ||
+								isSavingAdminSetting ||
+								isLoadingAdminSetting
+							}
+						/>
 					)}
-					<Switch
-						checked={adminAllowsUsers}
-						onCheckedChange={(checked) =>
-							onSaveAdminSetting({ allow_users: checked })
-						}
-						aria-label="Allow users to enable chat debug logging"
-						disabled={
-							forcedByDeployment ||
-							isSavingAdminSetting ||
-							isLoadingAdminSetting
-						}
-					/>
 				</div>
 			</div>
 			{isSaveAdminSettingError && (

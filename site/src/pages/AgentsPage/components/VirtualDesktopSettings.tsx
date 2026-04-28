@@ -82,17 +82,18 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 					</Badge>
 				</div>
 				<div className="flex items-center gap-2">
-					{isLoadingDesktopEnabled && (
+					{isLoadingDesktopEnabled ? (
 						<Skeleton className="h-5 w-10 rounded-full" aria-hidden="true" />
+					) : (
+						<Switch
+							checked={desktopEnabled}
+							onCheckedChange={(checked) =>
+								onSaveDesktopEnabled({ enable_desktop: checked })
+							}
+							aria-label="Enable"
+							disabled={isDesktopSwitchDisabled}
+						/>
 					)}
-					<Switch
-						checked={desktopEnabled}
-						onCheckedChange={(checked) =>
-							onSaveDesktopEnabled({ enable_desktop: checked })
-						}
-						aria-label="Enable"
-						disabled={isDesktopSwitchDisabled}
-					/>
 				</div>
 			</div>
 			<div className="m-0 flex-1 text-xs text-content-secondary">
@@ -106,8 +107,8 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 					>
 						portabledesktop module
 					</Link>{" "}
-					to be installed in the workspace and the Anthropic provider to be
-					configured.
+					to be installed in the workspace and the selected computer use
+					provider to be configured.
 				</p>
 			</div>
 			<div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
