@@ -6825,6 +6825,7 @@ func (p *Server) runChat(
 			slog.F("is_plan_mode_turn", isPlanModeTurn),
 			slog.F("model_config_match", chainInfo.modelConfigID == modelConfig.ID),
 			slog.F("store_enabled", chatprovider.IsResponsesStoreEnabled(providerOptions)),
+			slog.F("contributing_trailing_user_count", chainInfo.contributingTrailingUserCount),
 		)
 	}
 	if chainModeActive {
