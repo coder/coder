@@ -7107,20 +7107,9 @@ func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []
 		})
 	}
 
-	if options.OpenAI != nil && options.OpenAI.WebSearchEnabled != nil && *options.OpenAI.WebSearchEnabled {
-		args := map[string]any{}
-		if options.OpenAI.SearchContextSize != nil && *options.OpenAI.SearchContextSize != "" {
-			args["search_context_size"] = *options.OpenAI.SearchContextSize
-		}
-		if len(options.OpenAI.AllowedDomains) > 0 {
-			args["allowed_domains"] = options.OpenAI.AllowedDomains
-		}
+	if tool, ok := chatopenai.WebSearchTool(options.OpenAI); ok {
 		tools = append(tools, chatloop.ProviderTool{
-			Definition: fantasy.ProviderDefinedTool{
-				ID:   "web_search",
-				Name: "web_search",
-				Args: args,
-			},
+			Definition: tool,
 		})
 	}
 
