@@ -40,11 +40,26 @@ type RenderResult struct {
 // 'Close()' **must** be called once the renderer is no longer needed.
 // Forgetting to do so will result in a memory leak.
 type Renderer interface {
-	Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*RenderResult, hcl.Diagnostics)
+	Render(ctx context.Context, ownerID uuid.UUID, values map[string]string, opts ...RenderOption) (*RenderResult, hcl.Diagnostics)
 	Close()
 }
 
 var ErrTemplateVersionNotReady = xerrors.New("template version job not finished")
+
+// RenderOption configures optional behavior for Renderer.Render.
+type RenderOption func(*renderOptions)
+
+type renderOptions struct {
+	includeSecretRequirements bool
+}
+
+// IncludeSecretRequirements returns structured secret-requirement statuses and
+// diagnostics for the rendered template.
+func IncludeSecretRequirements() RenderOption {
+	return func(o *renderOptions) {
+		o.includeSecretRequirements = true
+	}
+}
 
 // Diagnostic extra codes for secret-requirement validation.
 const (
@@ -52,34 +67,6 @@ const (
 	DiagCodeOwnerSecretsFetchFailed   = "owner_secrets_fetch_failed"
 	DiagCodeSecretValidationForbidden = "secret_validation_forbidden"
 )
-
-// IsSecretRequirementDiagnostic reports whether d was emitted by the
-// secret-requirement check.
-func IsSecretRequirementDiagnostic(d *hcl.Diagnostic) bool {
-	extra, ok := d.Extra.(previewtypes.DiagnosticExtra)
-	if !ok {
-		return false
-	}
-	switch extra.Code {
-	case DiagCodeMissingSecret, DiagCodeOwnerSecretsFetchFailed, DiagCodeSecretValidationForbidden:
-		return true
-	}
-	return false
-}
-
-func FilterSecretDiagnostics(diags hcl.Diagnostics) hcl.Diagnostics {
-	if len(diags) == 0 {
-		return diags
-	}
-	out := make(hcl.Diagnostics, 0, len(diags))
-	for _, d := range diags {
-		if IsSecretRequirementDiagnostic(d) {
-			continue
-		}
-		out = append(out, d)
-	}
-	return out
-}
 
 // loader is used to load the necessary coder objects for rendering a template
 // version's parameters. The output is a Renderer, which is the object that uses
@@ -287,7 +274,12 @@ type dynamicRenderer struct {
 	close func()
 }
 
-func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*RenderResult, hcl.Diagnostics) {
+func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string, opts ...RenderOption) (*RenderResult, hcl.Diagnostics) {
+	options := renderOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	// Always start with the cached error, if we have one.
 	ownerErr := r.ownerErrors[ownerID]
 	if ownerErr == nil {
@@ -313,6 +305,8 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		ParameterValues: values,
 		Owner:           *r.currentOwner,
 		TFVars:          r.tfvarValues,
+		// Leave Logger nil so preview discards parser logs. Returning
+		// those logs to callers would be useful, but they may be large.
 	}
 
 	output, diags := preview.Preview(ctx, input, r.templateFS)
@@ -320,10 +314,8 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		return &RenderResult{}, diags
 	}
 
-	// coder_secret blocks can be conditional on parameter values, so
-	// this must run every render.
 	var secretRequirements []codersdk.SecretRequirementStatus
-	if len(output.SecretRequirements) > 0 {
+	if options.includeSecretRequirements && len(output.SecretRequirements) > 0 {
 		var secretDiags hcl.Diagnostics
 		secretRequirements, secretDiags = r.checkSecretRequirements(ctx, ownerID, output.SecretRequirements)
 		diags = diags.Extend(secretDiags)
@@ -387,26 +379,33 @@ func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID u
 		}
 
 		var kind codersdk.SecretRequirementKind
-		var label string
+		var env string
+		var file string
+		var value string
 		satisfied := false
 		switch {
 		case req.Env != "":
 			kind = codersdk.SecretRequirementKindEnv
-			label = req.Env
+			env = req.Env
+			value = req.Env
 			_, satisfied = envSet[req.Env]
 		case req.File != "":
 			kind = codersdk.SecretRequirementKindFile
-			label = req.File
+			file = req.File
+			value = req.File
 			_, satisfied = fileSet[req.File]
 		}
 
-		// Dedup by (Kind, Label). On collision, keep the
+		// NUL cannot appear in valid env names or file paths.
+		const secretRequirementDedupSep = "\x00"
+
+		// Dedup by (Kind, Env/File). On collision, keep the
 		// lexicographically smallest non-empty HelpMessage. This is
 		// deterministic across runs; preview's SortSecretRequirements
 		// sorts on (Env, File) and does not guarantee a stable order
 		// when multiple coder_secret blocks declare the same value, so
 		// we cannot rely on "first source wins."
-		key := string(kind) + "\x00" + label
+		key := string(kind) + secretRequirementDedupSep + value
 		if i, ok := seen[key]; ok {
 			statuses[i].Satisfied = statuses[i].Satisfied || satisfied
 			if req.HelpMessage != "" && (statuses[i].HelpMessage == "" || req.HelpMessage < statuses[i].HelpMessage) {
@@ -417,7 +416,8 @@ func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID u
 		seen[key] = len(statuses)
 		statuses = append(statuses, codersdk.SecretRequirementStatus{
 			Kind:        kind,
-			Label:       label,
+			Env:         env,
+			File:        file,
 			HelpMessage: req.HelpMessage,
 			Satisfied:   satisfied,
 		})

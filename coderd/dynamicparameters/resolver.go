@@ -36,10 +36,10 @@ type resolveOptions struct {
 	skipSecretRequirements bool
 }
 
-// SkipSecretRequirements skips structured secret-requirement enforcement and
-// filters secret-validation diagnostics from the renderer output. Callers must
-// pass this for non-start transitions so an unsatisfied coder_secret, or an
-// admin who can't read the owner's secrets, doesn't block stop or delete.
+// SkipSecretRequirements skips structured secret-requirement validation and
+// enforcement. Callers must pass this for non-start transitions so an
+// unsatisfied coder_secret, or an admin who can't read the owner's secrets,
+// doesn't block stop or delete.
 func SkipSecretRequirements() ResolveOption {
 	return func(o *resolveOptions) {
 		o.skipSecretRequirements = true
@@ -95,9 +95,6 @@ func ResolveParameters(
 	// This is how the form should look to the user on their workspace settings page.
 	// This is the original form truth that our validations should initially be based on.
 	result, diags := renderer.Render(ctx, ownerID, previousValuesMap)
-	// Baseline diagnostics reflect the previous build, not the user's
-	// new inputs. The final render below enforces secret requirements.
-	diags = FilterSecretDiagnostics(diags)
 	if diags.HasErrors() {
 		// Top level diagnostics should break the build. Previous values (and new) should
 		// always be valid. If there is a case where this is not true, then this has to
@@ -126,10 +123,11 @@ func ResolveParameters(
 
 	// This is the final set of values that will be used. Any errors at this stage
 	// are fatal. Additional validation for immutability has to be done manually.
-	result, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
-	if o.skipSecretRequirements {
-		diags = FilterSecretDiagnostics(diags)
+	var renderOpts []RenderOption
+	if !o.skipSecretRequirements {
+		renderOpts = append(renderOpts, IncludeSecretRequirements())
 	}
+	result, diags = renderer.Render(ctx, ownerID, values.ValuesMap(), renderOpts...)
 	if !o.skipSecretRequirements && !diags.HasErrors() {
 		var missing []codersdk.SecretRequirementStatus
 		for _, req := range result.SecretRequirements {
@@ -285,7 +283,14 @@ func formatMissingSecrets(reqs []codersdk.SecretRequirementStatus) string {
 		if i > 0 {
 			_, _ = b.WriteString("\n")
 		}
-		_, _ = fmt.Fprintf(&b, "%s %s", req.Kind, req.Label)
+		switch req.Kind {
+		case codersdk.SecretRequirementKindEnv:
+			_, _ = fmt.Fprintf(&b, "%s %s", req.Kind, req.Env)
+		case codersdk.SecretRequirementKindFile:
+			_, _ = fmt.Fprintf(&b, "%s %s", req.Kind, req.File)
+		default:
+			_, _ = fmt.Fprintf(&b, "%s", req.Kind)
+		}
 		if req.HelpMessage != "" {
 			_, _ = fmt.Fprintf(&b, ": %s", req.HelpMessage)
 		}

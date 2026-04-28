@@ -62,13 +62,13 @@ func TestDynamicRender_MissingSecretRequirement(t *testing.T) {
 	defer renderer.Close()
 
 	// Owner has no secrets; the GITHUB_TOKEN requirement is unmet.
-	out, diags := renderer.Render(ctx, owner.ID, nil)
+	out, diags := renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	require.NotNil(t, out)
 	require.NotNil(t, out.Output)
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
 		Kind:        codersdk.SecretRequirementKindEnv,
-		Label:       "GITHUB_TOKEN",
+		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   false,
 	}}, out.SecretRequirements)
@@ -81,11 +81,11 @@ func TestDynamicRender_MissingSecretRequirement(t *testing.T) {
 		EnvName: "GITHUB_TOKEN",
 	})
 
-	out, diags2 := renderer.Render(ctx, owner.ID, nil)
+	out, diags2 := renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags2)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
 		Kind:        codersdk.SecretRequirementKindEnv,
-		Label:       "GITHUB_TOKEN",
+		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   true,
 	}}, out.SecretRequirements)
@@ -103,16 +103,16 @@ func TestDynamicRender_ConditionalSecretRequirement(t *testing.T) {
 	defer renderer.Close()
 
 	// Block inactive: no validation.
-	out, diags := renderer.Render(ctx, owner.ID, map[string]string{"use_github": "false"})
+	out, diags := renderer.Render(ctx, owner.ID, map[string]string{"use_github": "false"}, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Nil(t, out.SecretRequirements)
 
 	// Block active: requirement surfaces.
-	out, diags = renderer.Render(ctx, owner.ID, map[string]string{"use_github": "true"})
+	out, diags = renderer.Render(ctx, owner.ID, map[string]string{"use_github": "true"}, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
 		Kind:        codersdk.SecretRequirementKindEnv,
-		Label:       "GITHUB_TOKEN",
+		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT",
 		Satisfied:   false,
 	}}, out.SecretRequirements)
@@ -138,18 +138,18 @@ func TestDynamicRender_SingleSecretSatisfiesEnvAndFile(t *testing.T) {
 	renderer := newTestRenderer(t, db, org.ID, "secret_env_and_file")
 	defer renderer.Close()
 
-	out, diags := renderer.Render(ctx, owner.ID, nil)
+	out, diags := renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{
 		{
 			Kind:        codersdk.SecretRequirementKindFile,
-			Label:       "~/.ssh/id_rsa",
+			File:        "~/.ssh/id_rsa",
 			HelpMessage: "needs file",
 			Satisfied:   true,
 		},
 		{
 			Kind:        codersdk.SecretRequirementKindEnv,
-			Label:       "GITHUB_TOKEN",
+			Env:         "GITHUB_TOKEN",
 			HelpMessage: "needs env",
 			Satisfied:   true,
 		},
@@ -175,18 +175,18 @@ func TestDynamicRender_PartialEnvAndFileSatisfaction(t *testing.T) {
 	renderer := newTestRenderer(t, db, org.ID, "secret_env_and_file")
 	defer renderer.Close()
 
-	out, diags := renderer.Render(ctx, owner.ID, nil)
+	out, diags := renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{
 		{
 			Kind:        codersdk.SecretRequirementKindFile,
-			Label:       "~/.ssh/id_rsa",
+			File:        "~/.ssh/id_rsa",
 			HelpMessage: "needs file",
 			Satisfied:   false,
 		},
 		{
 			Kind:        codersdk.SecretRequirementKindEnv,
-			Label:       "GITHUB_TOKEN",
+			Env:         "GITHUB_TOKEN",
 			HelpMessage: "needs env",
 			Satisfied:   true,
 		},
@@ -212,21 +212,21 @@ func TestDynamicRender_OwnerSwitch(t *testing.T) {
 	renderer := newTestRenderer(t, db, org.ID, "secret_required")
 	defer renderer.Close()
 
-	out, diags := renderer.Render(ctx, ownerA.ID, nil)
+	out, diags := renderer.Render(ctx, ownerA.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
 		Kind:        codersdk.SecretRequirementKindEnv,
-		Label:       "GITHUB_TOKEN",
+		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   true,
 	}}, out.SecretRequirements)
 
 	// The cache must not serve owner A's rows to owner B.
-	out, diags = renderer.Render(ctx, ownerB.ID, nil)
+	out, diags = renderer.Render(ctx, ownerB.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
 		Kind:        codersdk.SecretRequirementKindEnv,
-		Label:       "GITHUB_TOKEN",
+		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   false,
 	}}, out.SecretRequirements)
@@ -251,7 +251,7 @@ func TestDynamicRender_DeduplicatesSecretRequirements(t *testing.T) {
 	require.Empty(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
 		Kind:        codersdk.SecretRequirementKindEnv,
-		Label:       "GITHUB_TOKEN",
+		Env:         "GITHUB_TOKEN",
 		HelpMessage: "a help",
 		Satisfied:   false,
 	}}, statuses)
@@ -295,7 +295,7 @@ func TestDynamicRender_NotAuthorizedIsCached(t *testing.T) {
 	defer renderer.Close()
 
 	for range 3 {
-		_, _ = renderer.Render(ctx, owner.ID, nil)
+		_, _ = renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	}
 	require.Equal(t, 1, db.callsFor(owner.ID),
 		"NotAuthorized must be cached across renders")
@@ -331,7 +331,7 @@ func TestDynamicRender_SecretFetchFailedHasNilRequirements(t *testing.T) {
 	renderer := newTestRenderer(t, db, org.ID, "secret_required")
 	defer renderer.Close()
 
-	out, diags := renderer.Render(ctx, owner.ID, nil)
+	out, diags := renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	require.Nil(t, out.SecretRequirements)
 	requireNoMissingSecret(t, diags)
 
@@ -371,7 +371,7 @@ func TestDynamicRender_NonOwnerCannotLeakSecretRequirements(t *testing.T) {
 	renderer := newTestRenderer(t, db, org.ID, "secret_required")
 	defer renderer.Close()
 
-	out, diags := renderer.Render(ctx, owner.ID, nil)
+	out, diags := renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	require.Nil(t, out.SecretRequirements)
 
 	// No missing_secret diagnostic for a non-owner, regardless of

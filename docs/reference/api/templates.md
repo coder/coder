@@ -2801,9 +2801,10 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   ],
   "secret_requirements": [
     {
+      "env": "string",
+      "file": "string",
       "help_message": "string",
       "kind": "env",
-      "label": "string",
       "satisfied": true
     }
   ]

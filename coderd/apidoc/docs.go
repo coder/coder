@@ -19963,14 +19963,17 @@ const docTemplate = `{
         "codersdk.SecretRequirementStatus": {
             "type": "object",
             "properties": {
+                "env": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string"
+                },
                 "help_message": {
                     "type": "string"
                 },
                 "kind": {
                     "$ref": "#/definitions/codersdk.SecretRequirementKind"
-                },
-                "label": {
-                    "type": "string"
                 },
                 "satisfied": {
                     "type": "boolean"

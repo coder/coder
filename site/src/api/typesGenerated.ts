@@ -6612,7 +6612,8 @@ export const SecretRequirementKinds: SecretRequirementKind[] = ["env", "file"];
 // From codersdk/parameters.go
 export interface SecretRequirementStatus {
 	readonly kind: SecretRequirementKind;
-	readonly label: string;
+	readonly env?: string;
+	readonly file?: string;
 	readonly help_message: string;
 	readonly satisfied: boolean;
 }

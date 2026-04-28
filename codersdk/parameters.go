@@ -179,7 +179,8 @@ const (
 
 type SecretRequirementStatus struct {
 	Kind        SecretRequirementKind `json:"kind"`
-	Label       string                `json:"label"`
+	Env         string                `json:"env,omitempty"`
+	File        string                `json:"file,omitempty"`
 	HelpMessage string                `json:"help_message"`
 	Satisfied   bool                  `json:"satisfied"`
 }

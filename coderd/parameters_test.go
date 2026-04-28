@@ -409,7 +409,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		}
 		require.Equal(t, []codersdk.SecretRequirementStatus{{
 			Kind:        codersdk.SecretRequirementKindEnv,
-			Label:       "GITHUB_TOKEN",
+			Env:         "GITHUB_TOKEN",
 			HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 			Satisfied:   false,
 		}}, preview.SecretRequirements)
@@ -452,6 +452,10 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			Transition: codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err, "start must still reject unsatisfied secret requirement")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Contains(t, sdkErr.Detail, "Missing required secrets")
+		require.Contains(t, sdkErr.Detail, "env GITHUB_TOKEN")
 
 		// Stop must succeed despite the unsatisfied requirement.
 		stop, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{

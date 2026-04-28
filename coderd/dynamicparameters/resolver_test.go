@@ -47,7 +47,23 @@ func TestResolveParameters(t *testing.T) {
 					Diagnostics: nil,
 				},
 			), nil)
-
+		render.EXPECT().
+			Render(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			AnyTimes().
+			Return(renderResult(
+				previewtypes.Parameter{
+					ParameterData: previewtypes.ParameterData{
+						Name:         "immutable",
+						Type:         previewtypes.ParameterTypeString,
+						FormType:     provider.ParameterFormTypeInput,
+						Mutable:      false,
+						DefaultValue: previewtypes.StringLiteral("foo"),
+						Required:     true,
+					},
+					Value:       previewtypes.StringLiteral("foo"),
+					Diagnostics: nil,
+				},
+			), nil)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
 			[]database.WorkspaceBuildParameter{},        // No previous values
@@ -89,7 +105,7 @@ func TestResolveParameters(t *testing.T) {
 			), nil)
 
 		render.EXPECT().
-			Render(gomock.Any(), gomock.Any(), gomock.Any()).
+			Render(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			// Then the immutable param
 			Return(renderResult(
 				previewtypes.Parameter{
@@ -169,6 +185,24 @@ func TestResolveParameters(t *testing.T) {
 							Diagnostics: nil,
 						},
 					), nil)
+				render.EXPECT().
+					Render(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					AnyTimes().
+					Return(renderResult(
+						previewtypes.Parameter{
+							ParameterData: previewtypes.ParameterData{
+								Name:     "param",
+								Type:     previewtypes.ParameterTypeNumber,
+								FormType: provider.ParameterFormTypeInput,
+								Mutable:  true,
+								Validations: []*previewtypes.ParameterValidation{
+									{Monotonic: ptr.Ref(tc.monotonic)},
+								},
+							},
+							Value:       previewtypes.StringLiteral(tc.cur),
+							Diagnostics: nil,
+						},
+					), nil)
 
 				var previousValues []database.WorkspaceBuildParameter
 				if tc.prev != "" {
@@ -199,7 +233,7 @@ func TestResolveParameters(t *testing.T) {
 		}
 	})
 
-	t.Run("BaselineSecretDiagnosticsDoNotBlockDeactivatingRequirement", func(t *testing.T) {
+	t.Run("BaselineRenderDoesNotRequestSecretRequirementsWhenDeactivatingRequirement", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
@@ -209,10 +243,9 @@ func TestResolveParameters(t *testing.T) {
 		gomock.InOrder(
 			render.EXPECT().
 				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
-				Return(renderResult(stringParameter("use_github", "true")),
-					hcl.Diagnostics{secretDiagnostic(dynamicparameters.DiagCodeMissingSecret)}),
+				Return(renderResult(stringParameter("use_github", "true")), nil),
 			render.EXPECT().
-				Render(gomock.Any(), ownerID, map[string]string{"use_github": "false"}).
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "false"}, gomock.Any()).
 				Return(renderResult(stringParameter("use_github", "false")), nil),
 		)
 
@@ -242,7 +275,7 @@ func TestResolveParameters(t *testing.T) {
 				Return(renderResultWithSecretRequirements(
 					[]codersdk.SecretRequirementStatus{{
 						Kind:        codersdk.SecretRequirementKindEnv,
-						Label:       "GITHUB_TOKEN",
+						Env:         "GITHUB_TOKEN",
 						HelpMessage: "Add a GitHub PAT",
 						Satisfied:   false,
 					}},
@@ -273,11 +306,11 @@ func TestResolveParameters(t *testing.T) {
 				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
 				Return(renderResult(stringParameter("use_github", "true")), nil),
 			render.EXPECT().
-				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}, gomock.Any()).
 				Return(renderResultWithSecretRequirements(
 					[]codersdk.SecretRequirementStatus{{
 						Kind:        codersdk.SecretRequirementKindEnv,
-						Label:       "GITHUB_TOKEN",
+						Env:         "GITHUB_TOKEN",
 						HelpMessage: "Add a GitHub PAT",
 						Satisfied:   false,
 					}},
@@ -311,11 +344,11 @@ func TestResolveParameters(t *testing.T) {
 				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
 				Return(renderResult(stringParameter("use_github", "true")), nil),
 			render.EXPECT().
-				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
+				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}, gomock.Any()).
 				Return(renderResultWithSecretRequirements(
 					[]codersdk.SecretRequirementStatus{{
 						Kind:        codersdk.SecretRequirementKindEnv,
-						Label:       "GITHUB_TOKEN",
+						Env:         "GITHUB_TOKEN",
 						HelpMessage: "Add a GitHub PAT",
 						Satisfied:   false,
 					}},
@@ -369,15 +402,5 @@ func renderResultWithSecretRequirements(reqs []codersdk.SecretRequirementStatus,
 			Parameters: params,
 		},
 		SecretRequirements: reqs,
-	}
-}
-
-func secretDiagnostic(code string) *hcl.Diagnostic {
-	return &hcl.Diagnostic{
-		Severity: hcl.DiagError,
-		Summary:  "Secret requirement diagnostic",
-		Extra: previewtypes.DiagnosticExtra{
-			Code: code,
-		},
 	}
 }

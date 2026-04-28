@@ -39,7 +39,7 @@ func (r *loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 	}, nil
 }
 
-func (r *staticRender) Render(_ context.Context, _ uuid.UUID, values map[string]string) (*RenderResult, hcl.Diagnostics) {
+func (r *staticRender) Render(_ context.Context, _ uuid.UUID, values map[string]string, _ ...RenderOption) (*RenderResult, hcl.Diagnostics) {
 	params := r.staticParams
 	for i := range params {
 		param := &params[i]

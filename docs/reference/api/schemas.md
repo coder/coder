@@ -4550,9 +4550,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   ],
   "secret_requirements": [
     {
+      "env": "string",
+      "file": "string",
       "help_message": "string",
       "kind": "env",
-      "label": "string",
       "satisfied": true
     }
   ]
@@ -8898,9 +8899,10 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
+  "env": "string",
+  "file": "string",
   "help_message": "string",
   "kind": "env",
-  "label": "string",
   "satisfied": true
 }
 ```
@@ -8909,9 +8911,10 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Name           | Type                                                             | Required | Restrictions | Description |
 |----------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `env`          | string                                                           | false    |              |             |
+| `file`         | string                                                           | false    |              |             |
 | `help_message` | string                                                           | false    |              |             |
 | `kind`         | [codersdk.SecretRequirementKind](#codersdksecretrequirementkind) | false    |              |             |
-| `label`        | string                                                           | false    |              |             |
 | `satisfied`    | boolean                                                          | false    |              |             |
 
 ## codersdk.ServerSentEvent

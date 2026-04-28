@@ -117,7 +117,7 @@ func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, ini
 	ctx := r.Context()
 
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := render.Render(ctx, initial.OwnerID, initial.Inputs)
+	result, diagnostics := render.Render(ctx, initial.OwnerID, initial.Inputs, dynamicparameters.IncludeSecretRequirements())
 	response := codersdk.DynamicParametersResponse{
 		ID:          0,
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
@@ -152,7 +152,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	)
 
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := render.Render(ctx, initial.OwnerID, initial.Inputs)
+	result, diagnostics := render.Render(ctx, initial.OwnerID, initial.Inputs, dynamicparameters.IncludeSecretRequirements())
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1, // Always start with -1.
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
@@ -190,7 +190,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 
 			ownerID = update.OwnerID
 
-			result, diagnostics := render.Render(ctx, update.OwnerID, update.Inputs)
+			result, diagnostics := render.Render(ctx, update.OwnerID, update.Inputs, dynamicparameters.IncludeSecretRequirements())
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
 				Diagnostics: db2sdk.HCLDiagnostics(diagnostics),

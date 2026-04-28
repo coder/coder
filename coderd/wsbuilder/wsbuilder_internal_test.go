@@ -10,13 +10,12 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
 )
 
-func TestBuilderDynamicProvisionerTagsIgnoresUnsatisfiedSecretRequirements(t *testing.T) {
+func TestBuilderDynamicProvisionerTagsDoesNotRequestSecretRequirements(t *testing.T) {
 	t.Parallel()
 
 	ownerID := uuid.New()
@@ -33,12 +32,6 @@ func TestBuilderDynamicProvisionerTagsIgnoresUnsatisfiedSecretRequirements(t *te
 					}},
 				}},
 			},
-			SecretRequirements: []codersdk.SecretRequirementStatus{{
-				Kind:        codersdk.SecretRequirementKindEnv,
-				Label:       "GITHUB_TOKEN",
-				HelpMessage: "Add a GitHub PAT",
-				Satisfied:   false,
-			}},
 		},
 	}
 
@@ -60,14 +53,17 @@ func TestBuilderDynamicProvisionerTagsIgnoresUnsatisfiedSecretRequirements(t *te
 	require.NoError(t, err)
 	require.Equal(t, "us-east", tags["region"])
 	require.Equal(t, ownerID.String(), tags[provisionersdk.TagOwner])
+	require.Empty(t, render.opts, "tags path should not request secret requirements")
 }
 
 type tagsPathRenderer struct {
 	result *dynamicparameters.RenderResult
 	diags  hcl.Diagnostics
+	opts   []dynamicparameters.RenderOption
 }
 
-func (r *tagsPathRenderer) Render(context.Context, uuid.UUID, map[string]string) (*dynamicparameters.RenderResult, hcl.Diagnostics) {
+func (r *tagsPathRenderer) Render(_ context.Context, _ uuid.UUID, _ map[string]string, opts ...dynamicparameters.RenderOption) (*dynamicparameters.RenderResult, hcl.Diagnostics) {
+	r.opts = opts
 	return r.result, r.diags
 }
 
