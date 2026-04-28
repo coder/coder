@@ -3,10 +3,10 @@
 AI Gateway does not require users to work inside Coder workspaces. AI coding
 tools running on a developer's local machine (IDE extensions, CLI tools,
 desktop applications) can route traffic through AI Gateway as long as the
-tool [supports AI Gateway](./clients/index.md#compatibility) and the user
+tool [supports AI Gateway](https://coder.com/docs/ai-coder/ai-gateway/clients#compatibility) and the user
 can authenticate with a Coder API token. Not every client supports
 customizing the API base URL; see the
-[compatibility table](./clients/index.md#compatibility) for the current list.
+[compatibility table](https://coder.com/docs/ai-coder/ai-gateway/clients#compatibility) for the current list.
 
 This page describes what administrators need to set up and what end users
 need to do to connect their local tools.
