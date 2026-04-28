@@ -28,6 +28,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
@@ -335,7 +336,9 @@ func workspaceAgent() *serpent.Command {
 					SocketPath:                 socketPath,
 					SocketServerEnabled:        socketServerEnabled,
 					BoundaryLogProxySocketPath: boundaryLogProxySocketPath,
+					ContextConfig:              agentcontextconfig.ReadEnvConfig(),
 				})
+				agentcontextconfig.ConsumeEnvVars()
 
 				if debugAddress != "" {
 					// ServerHandle depends on `agnt.HTTPDebug()`, but `agnt`

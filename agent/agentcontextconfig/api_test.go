@@ -163,7 +163,7 @@ func TestConfig(t *testing.T) {
 		setupConfigTestEnv(t, nil)
 
 		workDir := platformAbsPath("work")
-		cfg, mcpFiles := agentcontextconfig.Config(workDir)
+		cfg, mcpFiles := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		// Parts is always non-nil.
 		require.NotNil(t, cfg.Parts)
@@ -197,7 +197,7 @@ func TestConfig(t *testing.T) {
 		))
 
 		workDir := platformAbsPath("work")
-		cfg, mcpFiles := agentcontextconfig.Config(workDir)
+		cfg, mcpFiles := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		require.Equal(t, []string{optMCP}, mcpFiles)
 		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
@@ -220,7 +220,7 @@ func TestConfig(t *testing.T) {
 		// Create a file matching the trimmed name.
 		require.NoError(t, os.WriteFile(filepath.Join(fakeHome, "CLAUDE.md"), []byte("hello"), 0o600))
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
 		require.Len(t, ctxFiles, 1)
@@ -240,7 +240,7 @@ func TestConfig(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(b, "AGENTS.md"), []byte("from b"), 0o600))
 
 		workDir := t.TempDir()
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
 		require.Len(t, ctxFiles, 2)
@@ -262,7 +262,7 @@ func TestConfig(t *testing.T) {
 			0o600,
 		))
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
 		require.NotNil(t, cfg.Parts)
@@ -284,7 +284,7 @@ func TestConfig(t *testing.T) {
 			0o600,
 		))
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		// Should find the working dir file (not in instruction dirs).
 		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
@@ -301,7 +301,7 @@ func TestConfig(t *testing.T) {
 		largeContent := strings.Repeat("a", 64*1024+100)
 		require.NoError(t, os.WriteFile(filepath.Join(workDir, "AGENTS.md"), []byte(largeContent), 0o600))
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
 		require.Len(t, ctxFiles, 1)
@@ -341,7 +341,7 @@ func TestConfig(t *testing.T) {
 				0o600,
 			))
 
-			cfg, _ := agentcontextconfig.Config(workDir)
+			cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 			ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
 			require.Len(t, ctxFiles, 1)
@@ -372,7 +372,7 @@ func TestConfig(t *testing.T) {
 			0o600,
 		))
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		skillParts := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeSkill)
 		require.Len(t, skillParts, 1)
@@ -391,7 +391,7 @@ func TestConfig(t *testing.T) {
 		})
 
 		workDir := t.TempDir()
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		// Non-nil empty slice (signals agent supports new format).
 		require.NotNil(t, cfg.Parts)
@@ -407,7 +407,7 @@ func TestConfig(t *testing.T) {
 		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
 
 		workDir := t.TempDir()
-		_, mcpFiles := agentcontextconfig.Config(workDir)
+		_, mcpFiles := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		require.Equal(t, []string{optMCP}, mcpFiles)
 	})
@@ -430,7 +430,7 @@ func TestConfig(t *testing.T) {
 			0o600,
 		))
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 		skillParts := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeSkill)
 		require.Empty(t, skillParts)
 	})
@@ -456,7 +456,7 @@ func TestConfig(t *testing.T) {
 			))
 		}
 
-		cfg, _ := agentcontextconfig.Config(workDir)
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 		skillParts := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeSkill)
 		require.Len(t, skillParts, 1)
 		require.Equal(t, "from skills1", skillParts[0].SkillDescription)
@@ -471,7 +471,7 @@ func TestNewAPI_LazyDirectory(t *testing.T) {
 	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
 	dir := ""
-	api := agentcontextconfig.NewAPI(func() string { return dir })
+	api := agentcontextconfig.NewAPI(func() string { return dir }, agentcontextconfig.ReadEnvConfig())
 
 	// Before directory is set, MCP paths resolve to nothing.
 	mcpFiles := api.MCPConfigFiles()

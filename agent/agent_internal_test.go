@@ -81,7 +81,7 @@ func TestContextConfigAPI_InitOnce(t *testing.T) {
 			return m.Directory
 		}
 		return ""
-	})
+	}, agentcontextconfig.Config{})
 
 	mcpFiles1 := a.contextConfigAPI.MCPConfigFiles()
 	require.NotEmpty(t, mcpFiles1)
