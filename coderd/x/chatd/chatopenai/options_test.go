@@ -347,7 +347,7 @@ func TestServiceTierFromChat(t *testing.T) {
 	}
 }
 
-func TestResponsesLogProbsFromChat(t *testing.T) {
+func TestResponsesLogProbsFromChatConfig(t *testing.T) {
 	t.Parallel()
 
 	logProbs := true
@@ -390,7 +390,7 @@ func TestResponsesLogProbsFromChat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := chatopenai.ResponsesLogProbsFromChat(tt.options)
+			got := chatopenai.ResponsesLogProbsFromChatConfig(tt.options)
 			require.Equal(t, tt.want, got)
 		})
 	}

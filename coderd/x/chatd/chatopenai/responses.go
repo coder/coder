@@ -1,6 +1,7 @@
 package chatopenai
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -13,10 +14,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ChainMode holds the information needed to determine whether a follow-up turn
+// ChainModeInfo holds the information needed to determine whether a follow-up turn
 // can use OpenAI's previous_response_id chaining instead of replaying full
 // conversation history.
-type ChainMode struct {
+type ChainModeInfo struct {
 	// previousResponseID is the provider response ID from the last assistant
 	// message, if any.
 	previousResponseID string
@@ -41,46 +42,47 @@ type ChainMode struct {
 
 // PreviousResponseID returns the provider response ID from the last assistant
 // message, if any.
-func (c ChainMode) PreviousResponseID() string {
+func (c ChainModeInfo) PreviousResponseID() string {
 	return c.previousResponseID
 }
 
 // ModelConfigID returns the model configuration used to produce the assistant
 // message referenced by PreviousResponseID.
-func (c ChainMode) ModelConfigID() uuid.UUID {
+func (c ChainModeInfo) ModelConfigID() uuid.UUID {
 	return c.modelConfigID
 }
 
 // TrailingUserCount returns the number of contiguous user messages at the end
 // of the conversation that form the current turn.
-func (c ChainMode) TrailingUserCount() int {
+func (c ChainModeInfo) TrailingUserCount() int {
 	return c.trailingUserCount
 }
 
 // ContributingTrailingUserCount returns the number of trailing user messages
 // that materially change the provider input.
-func (c ChainMode) ContributingTrailingUserCount() int {
+func (c ChainModeInfo) ContributingTrailingUserCount() int {
 	return c.contributingTrailingUserCount
 }
 
 // HasUnresolvedLocalToolCalls reports whether PreviousResponseID points at an
 // assistant message with pending local tool calls.
-func (c ChainMode) HasUnresolvedLocalToolCalls() bool {
+func (c ChainModeInfo) HasUnresolvedLocalToolCalls() bool {
 	return c.hasUnresolvedLocalToolCalls
 }
 
 // ProviderMissingToolResults reports whether PreviousResponseID points at an
-// assistant message whose persisted local tool results were not sent back to
-// the provider.
-func (c ChainMode) ProviderMissingToolResults() bool {
+// assistant message with local tool results, but no follow-up assistant message
+// confirms those tool results were sent to the provider (not just persisted
+// locally).
+func (c ChainModeInfo) ProviderMissingToolResults() bool {
 	return c.providerMissingToolResults
 }
 
-// ResponsesStoreEnabled checks if the OpenAI Responses provider options are
+// IsResponsesStoreEnabled checks if the OpenAI Responses provider options are
 // present and have Store set to true. When true, the provider stores
 // conversation history server-side, enabling follow-up chaining via
 // PreviousResponseID.
-func ResponsesStoreEnabled(opts fantasy.ProviderOptions) bool {
+func IsResponsesStoreEnabled(opts fantasy.ProviderOptions) bool {
 	if opts == nil {
 		return false
 	}
@@ -102,9 +104,9 @@ func WithPreviousResponseID(
 	opts fantasy.ProviderOptions,
 	previousResponseID string,
 ) fantasy.ProviderOptions {
-	cloned := make(fantasy.ProviderOptions, len(opts))
-	for k, v := range opts {
-		cloned[k] = v
+	cloned := maps.Clone(opts)
+	if cloned == nil {
+		cloned = fantasy.ProviderOptions{}
 	}
 	if raw, ok := cloned[fantasyopenai.Name]; ok {
 		if respOpts, ok := raw.(*fantasyopenai.ResponsesProviderOptions); ok && respOpts != nil {
@@ -119,49 +121,58 @@ func WithPreviousResponseID(
 // HasPreviousResponseID checks whether the provider options contain an OpenAI
 // Responses entry with a non-empty PreviousResponseID.
 func HasPreviousResponseID(providerOptions fantasy.ProviderOptions) bool {
-	if providerOptions == nil {
+	if len(providerOptions) == 0 {
 		return false
 	}
 
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			return options.PreviousResponseID != nil &&
-				*options.PreviousResponseID != ""
-		}
+	entry, ok := providerOptions[fantasyopenai.Name]
+	if !ok {
+		return false
 	}
-
-	return false
+	options, ok := entry.(*fantasyopenai.ResponsesProviderOptions)
+	return ok && options != nil && options.PreviousResponseID != nil &&
+		*options.PreviousResponseID != ""
 }
 
-// ClearPreviousResponseID removes PreviousResponseID from the OpenAI Responses
-// provider options entry, if present.
-func ClearPreviousResponseID(providerOptions fantasy.ProviderOptions) {
-	if providerOptions == nil {
-		return
+// ClearPreviousResponseID returns a clone of providerOptions with
+// PreviousResponseID cleared on the OpenAI Responses options. The original
+// providerOptions is not modified.
+func ClearPreviousResponseID(providerOptions fantasy.ProviderOptions) fantasy.ProviderOptions {
+	cloned := maps.Clone(providerOptions)
+	if cloned == nil {
+		return fantasy.ProviderOptions{}
 	}
 
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			options.PreviousResponseID = nil
-		}
+	entry, ok := cloned[fantasyopenai.Name]
+	if !ok {
+		return cloned
 	}
+	options, ok := entry.(*fantasyopenai.ResponsesProviderOptions)
+	if !ok || options == nil {
+		return cloned
+	}
+	optionsClone := *options
+	optionsClone.PreviousResponseID = nil
+	cloned[fantasyopenai.Name] = &optionsClone
+	return cloned
 }
 
-// ExtractResponseID extracts the OpenAI Responses API response ID from provider
+// extractResponseID extracts the OpenAI Responses API response ID from provider
 // metadata. Returns an empty string if no OpenAI Responses metadata is present.
-func ExtractResponseID(metadata fantasy.ProviderMetadata) string {
+func extractResponseID(metadata fantasy.ProviderMetadata) string {
 	if len(metadata) == 0 {
 		return ""
 	}
 
-	for _, entry := range metadata {
-		providerMetadata, ok := entry.(*fantasyopenai.ResponsesProviderMetadata)
-		if ok && providerMetadata != nil {
-			return providerMetadata.ResponseID
-		}
+	entry, ok := metadata[fantasyopenai.Name]
+	if !ok {
+		return ""
 	}
-
-	return ""
+	providerMetadata, ok := entry.(*fantasyopenai.ResponsesProviderMetadata)
+	if !ok || providerMetadata == nil {
+		return ""
+	}
+	return providerMetadata.ResponseID
 }
 
 // ExtractResponseIDIfStored returns the OpenAI response ID only when the
@@ -171,25 +182,25 @@ func ExtractResponseIDIfStored(
 	providerOptions fantasy.ProviderOptions,
 	metadata fantasy.ProviderMetadata,
 ) string {
-	if !ResponsesStoreEnabled(providerOptions) {
+	if !IsResponsesStoreEnabled(providerOptions) {
 		return ""
 	}
 
-	return ExtractResponseID(metadata)
+	return extractResponseID(metadata)
 }
 
-// ShouldActivateChainMode reports whether a follow-up turn can use
+// ShouldActivateChainModeInfo reports whether a follow-up turn can use
 // previous_response_id instead of replaying history. It requires store=true, a
 // matching model config, meaningful trailing user input, non-plan mode,
 // complete local tool state, and confirmation that tool results were sent to
 // the provider.
-func ShouldActivateChainMode(
+func ShouldActivateChainModeInfo(
 	providerOptions fantasy.ProviderOptions,
-	info ChainMode,
+	info ChainModeInfo,
 	modelConfigID uuid.UUID,
 	isPlanModeTurn bool,
 ) bool {
-	return ResponsesStoreEnabled(providerOptions) &&
+	return IsResponsesStoreEnabled(providerOptions) &&
 		info.previousResponseID != "" &&
 		info.contributingTrailingUserCount > 0 &&
 		info.modelConfigID == modelConfigID &&
@@ -198,18 +209,18 @@ func ShouldActivateChainMode(
 		!info.providerMissingToolResults
 }
 
-// ResolveChainMode scans DB messages from the end to count trailing user
+// ResolveChainModeInfo scans DB messages from the end to count trailing user
 // messages for the current turn and detect whether the immediately preceding
 // assistant/tool block can chain from a provider response ID.
-func ResolveChainMode(messages []database.ChatMessage) ChainMode {
-	var info ChainMode
+func ResolveChainModeInfo(messages []database.ChatMessage) ChainModeInfo {
+	var info ChainModeInfo
 	i := len(messages) - 1
 	for ; i >= 0; i-- {
 		if messages[i].Role != database.ChatMessageRoleUser {
 			break
 		}
 		info.trailingUserCount++
-		if userMessageContributesToChainMode(messages[i]) {
+		if userMessageContributesToChainModeInfo(messages[i]) {
 			info.contributingTrailingUserCount++
 		}
 	}
@@ -238,13 +249,13 @@ func ResolveChainMode(messages []database.ChatMessage) ChainMode {
 	return info
 }
 
-// FilterPromptForChainMode keeps only system messages and the trailing user
+// FilterPromptForChainModeInfo keeps only system messages and the trailing user
 // messages that still contribute model-visible content to the current turn.
 // Assistant and tool messages are dropped because the provider already has
 // them via the previous_response_id chain.
-func FilterPromptForChainMode(
+func FilterPromptForChainModeInfo(
 	prompt []fantasy.Message,
-	info ChainMode,
+	info ChainModeInfo,
 ) []fantasy.Message {
 	if info.contributingTrailingUserCount <= 0 {
 		return prompt
@@ -284,7 +295,7 @@ func FilterPromptForChainMode(
 	return filtered
 }
 
-func userMessageContributesToChainMode(msg database.ChatMessage) bool {
+func userMessageContributesToChainModeInfo(msg database.ChatMessage) bool {
 	parts, err := chatprompt.ParseContent(msg)
 	if err != nil {
 		return false
