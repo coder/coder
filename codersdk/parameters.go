@@ -170,10 +170,25 @@ type DynamicParametersRequest struct {
 	OwnerID uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
 }
 
+type SecretRequirementKind string
+
+const (
+	SecretRequirementKindEnv  SecretRequirementKind = "env"
+	SecretRequirementKindFile SecretRequirementKind = "file"
+)
+
+type SecretRequirementStatus struct {
+	Kind        SecretRequirementKind `json:"kind"`
+	Label       string                `json:"label"`
+	HelpMessage string                `json:"help_message"`
+	Satisfied   bool                  `json:"satisfied"`
+}
+
 type DynamicParametersResponse struct {
-	ID          int                  `json:"id"`
-	Diagnostics []FriendlyDiagnostic `json:"diagnostics"`
-	Parameters  []PreviewParameter   `json:"parameters"`
+	ID                 int                       `json:"id"`
+	Diagnostics        []FriendlyDiagnostic      `json:"diagnostics"`
+	Parameters         []PreviewParameter        `json:"parameters"`
+	SecretRequirements []SecretRequirementStatus `json:"secret_requirements,omitempty"`
 	// TODO: Workspace tags
 }
 

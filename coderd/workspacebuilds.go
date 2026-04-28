@@ -383,6 +383,7 @@ func (api *API) postWorkspaceBuildsInternal(
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
 		TemplateVersionPresetID(createBuild.TemplateVersionPresetID).
+		Logger(api.Logger.Named("wsbuilder")).
 		BuildMetrics(api.WorkspaceBuilderMetrics)
 
 	if (transition == database.WorkspaceTransitionStart || transition == database.WorkspaceTransitionStop) && createBuild.Reason != "" {

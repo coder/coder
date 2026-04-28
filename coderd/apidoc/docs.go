@@ -16188,6 +16188,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.PreviewParameter"
                     }
+                },
+                "secret_requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SecretRequirementStatus"
+                    }
                 }
             }
         },
@@ -19940,6 +19946,34 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.SecretRequirementKind": {
+            "type": "string",
+            "enum": [
+                "env",
+                "file"
+            ],
+            "x-enum-varnames": [
+                "SecretRequirementKindEnv",
+                "SecretRequirementKindFile"
+            ]
+        },
+        "codersdk.SecretRequirementStatus": {
+            "type": "object",
+            "properties": {
+                "help_message": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.SecretRequirementKind"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "satisfied": {
+                    "type": "boolean"
                 }
             }
         },

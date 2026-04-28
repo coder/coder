@@ -3,6 +3,7 @@ package dynamicparameters
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
@@ -10,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	previewtypes "github.com/coder/preview/types"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
@@ -27,6 +29,23 @@ type parameterValue struct {
 	Source parameterValueSource
 }
 
+// ResolveOption configures optional behavior for ResolveParameters.
+type ResolveOption func(*resolveOptions)
+
+type resolveOptions struct {
+	skipSecretRequirements bool
+}
+
+// SkipSecretRequirements skips structured secret-requirement enforcement and
+// filters secret-validation diagnostics from the renderer output. Callers must
+// pass this for non-start transitions so an unsatisfied coder_secret, or an
+// admin who can't read the owner's secrets, doesn't block stop or delete.
+func SkipSecretRequirements() ResolveOption {
+	return func(o *resolveOptions) {
+		o.skipSecretRequirements = true
+	}
+}
+
 //nolint:revive // firstbuild is a control flag to turn on immutable validation
 func ResolveParameters(
 	ctx context.Context,
@@ -36,7 +55,12 @@ func ResolveParameters(
 	previousValues []database.WorkspaceBuildParameter,
 	buildValues []codersdk.WorkspaceBuildParameter,
 	presetValues []database.TemplateVersionPresetParameter,
+	opts ...ResolveOption,
 ) (map[string]string, error) {
+	o := resolveOptions{}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	previousValuesMap := slice.ToMapFunc(previousValues, func(p database.WorkspaceBuildParameter) (string, string) {
 		return p.Name, p.Value
 	})
@@ -70,7 +94,10 @@ func ResolveParameters(
 	//
 	// This is how the form should look to the user on their workspace settings page.
 	// This is the original form truth that our validations should initially be based on.
-	output, diags := renderer.Render(ctx, ownerID, previousValuesMap)
+	result, diags := renderer.Render(ctx, ownerID, previousValuesMap)
+	// Baseline diagnostics reflect the previous build, not the user's
+	// new inputs. The final render below enforces secret requirements.
+	diags = FilterSecretDiagnostics(diags)
 	if diags.HasErrors() {
 		// Top level diagnostics should break the build. Previous values (and new) should
 		// always be valid. If there is a case where this is not true, then this has to
@@ -78,6 +105,7 @@ func ResolveParameters(
 
 		return nil, parameterValidationError(diags)
 	}
+	output := result.Output
 
 	// The user's input now needs to be validated against the parameters.
 	// Mutability & Ephemeral parameters depend on sequential workspace builds.
@@ -98,10 +126,32 @@ func ResolveParameters(
 
 	// This is the final set of values that will be used. Any errors at this stage
 	// are fatal. Additional validation for immutability has to be done manually.
-	output, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
+	result, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
+	if o.skipSecretRequirements {
+		diags = FilterSecretDiagnostics(diags)
+	}
+	if !o.skipSecretRequirements && !diags.HasErrors() {
+		var missing []codersdk.SecretRequirementStatus
+		for _, req := range result.SecretRequirements {
+			if !req.Satisfied {
+				missing = append(missing, req)
+			}
+		}
+		if len(missing) > 0 {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Missing required secrets",
+				Detail:   formatMissingSecrets(missing),
+				Extra: previewtypes.DiagnosticExtra{
+					Code: DiagCodeMissingSecret,
+				},
+			})
+		}
+	}
 	if diags.HasErrors() {
 		return nil, parameterValidationError(diags)
 	}
+	output = result.Output
 
 	// parameterNames is going to be used to remove any excess values left
 	// around without a parameter.
@@ -227,4 +277,18 @@ func (p parameterValueMap) ValuesMap() map[string]string {
 		values[name] = paramValue.Value
 	}
 	return values
+}
+
+func formatMissingSecrets(reqs []codersdk.SecretRequirementStatus) string {
+	var b strings.Builder
+	for i, req := range reqs {
+		if i > 0 {
+			_, _ = b.WriteString("\n")
+		}
+		_, _ = fmt.Fprintf(&b, "%s %s", req.Kind, req.Label)
+		if req.HelpMessage != "" {
+			_, _ = fmt.Fprintf(&b, ": %s", req.HelpMessage)
+		}
+	}
+	return b.String()
 }

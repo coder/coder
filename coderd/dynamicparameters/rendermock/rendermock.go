@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	preview "github.com/coder/preview"
+	dynamicparameters "github.com/coder/coder/v2/coderd/dynamicparameters"
 	uuid "github.com/google/uuid"
 	hcl "github.com/hashicorp/hcl/v2"
 	gomock "go.uber.org/mock/gomock"
@@ -56,10 +56,10 @@ func (mr *MockRendererMockRecorder) Close() *gomock.Call {
 }
 
 // Render mocks base method.
-func (m *MockRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+func (m *MockRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*dynamicparameters.RenderResult, hcl.Diagnostics) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Render", ctx, ownerID, values)
-	ret0, _ := ret[0].(*preview.Output)
+	ret0, _ := ret[0].(*dynamicparameters.RenderResult)
 	ret1, _ := ret[1].(hcl.Diagnostics)
 	return ret0, ret1
 }

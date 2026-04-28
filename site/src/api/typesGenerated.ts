@@ -3617,6 +3617,7 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
+	readonly secret_requirements?: readonly SecretRequirementStatus[];
 }
 
 // From codersdk/chats.go
@@ -6601,6 +6602,19 @@ export interface STUNReport {
 	readonly Enabled: boolean;
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
+}
+
+// From codersdk/parameters.go
+export type SecretRequirementKind = "env" | "file";
+
+export const SecretRequirementKinds: SecretRequirementKind[] = ["env", "file"];
+
+// From codersdk/parameters.go
+export interface SecretRequirementStatus {
+	readonly kind: SecretRequirementKind;
+	readonly label: string;
+	readonly help_message: string;
+	readonly satisfied: boolean;
 }
 
 // From serpent/serpent.go
