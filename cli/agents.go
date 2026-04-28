@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -171,7 +170,7 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 			}
 
 			if _, ok := runModel.(chatsTUIModel); !ok {
-				return xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", runModel, runModel))
+				return xerrors.Errorf("unknown model found %T (%+v)", runModel, runModel)
 			}
 
 			return nil

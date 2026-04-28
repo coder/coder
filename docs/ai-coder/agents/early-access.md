@@ -40,7 +40,7 @@ Functionality available during Early Access may be a subset of planned
 capabilities. Some features may be incomplete, experimental, or subject to
 redesign.
 
-## Enable Coder Agents
+## Set up Coder Agents
 
 Coder Agents is available by default. No experiment flags are required.
 

@@ -244,7 +244,7 @@ rather than developer session tokens. Keep automation credentials
 narrowly scoped.
 
 > [!NOTE]
-> The Chats API is experimental and may change without notice.
+> The Chats API is in beta and may change without notice.
 > See [Chats API](./chats-api.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
