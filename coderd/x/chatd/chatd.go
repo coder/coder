@@ -162,6 +162,7 @@ type Server struct {
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	providerAPIKeys                chatprovider.ProviderAPIKeys
+	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -3840,6 +3841,12 @@ type Config struct {
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
 	PrometheusRegistry             prometheus.Registerer
+
+	// OIDCTokenSource resolves the calling user's OIDC access
+	// token for MCP servers configured with auth_type=user_oidc.
+	// May be nil if the deployment has no OIDC provider; servers
+	// using user_oidc will then send no Authorization header.
+	OIDCTokenSource mcpclient.UserOIDCTokenSource
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -3898,6 +3905,7 @@ func New(cfg Config) *Server {
 		pubsub:                         cfg.Pubsub,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
+		oidcTokenSource:                cfg.OIDCTokenSource,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
@@ -6472,7 +6480,7 @@ func (p *Server) runChat(
 			// Refresh expired OAuth2 tokens before connecting.
 			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
-				ctx, logger, mcpConnectConfigs, mcpTokens,
+				ctx, logger, mcpConnectConfigs, mcpTokens, chat.OwnerID, p.oidcTokenSource,
 			)
 			return nil
 		})

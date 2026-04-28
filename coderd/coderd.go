@@ -93,6 +93,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -777,6 +778,14 @@ func New(options *Options) *API {
 			maxChatsPerAcquire = math.MinInt32
 		}
 
+		var oidcMCPSrc mcpclient.UserOIDCTokenSource
+		if options.OIDCConfig != nil {
+			oidcMCPSrc = newOIDCMCPTokenSource(
+				options.Database,
+				options.OIDCConfig,
+				options.Logger.Named("mcp-user-oidc"),
+			)
+		}
 		api.chatDaemon = chatd.New(chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
@@ -794,6 +803,7 @@ func New(options *Options) *API {
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
+			OIDCTokenSource:                oidcMCPSrc,
 		}).Start()
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(

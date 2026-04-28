@@ -629,6 +629,21 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				apiKeyHeader = ""
 				apiKeyValue = ""
 				apiKeyValueKeyID = sql.NullString{}
+			case "user_oidc":
+				// user_oidc forwards the calling user's OIDC access token
+				// from user_links at request time, so no admin-configured
+				// secrets are stored on the row.
+				oauth2ClientID = ""
+				oauth2ClientSecret = ""
+				oauth2ClientSecretKeyID = sql.NullString{}
+				oauth2AuthURL = ""
+				oauth2TokenURL = ""
+				oauth2Scopes = ""
+				apiKeyHeader = ""
+				apiKeyValue = ""
+				apiKeyValueKeyID = sql.NullString{}
+				customHeaders = "{}"
+				customHeadersKeyID = sql.NullString{}
 			}
 		}
 

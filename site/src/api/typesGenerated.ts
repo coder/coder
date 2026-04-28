@@ -4579,7 +4579,7 @@ export interface MCPServerConfig {
 	readonly icon_url: string;
 	readonly transport: string; // "streamable_http" or "sse"
 	readonly url: string;
-	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers"
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 	/**
 	 * OAuth2 fields (only populated for admins).
 	 */
