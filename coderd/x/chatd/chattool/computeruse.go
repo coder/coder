@@ -254,6 +254,9 @@ func (t *computerUseTool) runOpenAIComputerUse(
 	for _, action := range input.Actions {
 		switch action.Type {
 		case "screenshot":
+			// OpenAI returns one screenshot per response; individual screenshot
+			// actions in the batch are fulfilled by the batch-final
+			// captureSharedScreenshot below.
 			continue
 		case "move":
 			coord := coordinateFromInt64(action.X, action.Y)
