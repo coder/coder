@@ -182,7 +182,9 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 							</Link>
 						</DropdownMenuItem>
 						<DropdownMenuItem asChild>
-							<Link to="/agents/analytics">
+							<Link
+								to={{ pathname: "/agents/analytics", search: location.search }}
+							>
 								<BarChart3Icon className="size-icon-sm" />
 								Analytics
 							</Link>
