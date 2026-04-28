@@ -266,6 +266,10 @@ WHERE
         WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
         ELSE true
     END
+    AND CASE
+        WHEN @after_id::bigint > 0 THEN id > @after_id::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
@@ -373,6 +377,11 @@ WHERE
         WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
         ELSE true
     END
+    -- Paginate over root chats only. Children are fetched
+    -- separately via GetChildChatsByParentIDs and embedded under
+    -- each parent. Other callers that need the full set should
+    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -389,6 +398,32 @@ LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
+
+-- name: GetChildChatsByParentIDs :many
+-- Fetches child chats of the given parents, optionally filtered by
+-- archive state (NULL = all, true/false = match). The archive
+-- invariant (parent archived implies child archived) is enforced
+-- at write time, not here.
+SELECT
+    sqlc.embed(chats),
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY(@parent_ids :: uuid[])
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats.archived = sqlc.narg('archived') :: boolean
+    END
+ORDER BY
+    chats.created_at DESC,
+    chats.id DESC;
 
 -- name: InsertChat :one
 INSERT INTO chats (
@@ -517,6 +552,19 @@ UPDATE
 SET
     title = @title::text,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatTitleByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = @title::text
 WHERE
     id = @id::uuid
 RETURNING
@@ -651,6 +699,7 @@ WHERE
             chats
         WHERE
             status = 'pending'::chat_status
+            AND archived = false
         ORDER BY
             updated_at ASC
         FOR UPDATE
@@ -837,8 +886,12 @@ RETURNING
     *;
 
 -- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content)
-VALUES (@chat_id, @content)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id)
+VALUES (
+    @chat_id,
+    @content,
+    sqlc.narg('model_config_id')::uuid
+)
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
@@ -1382,3 +1435,57 @@ UPDATE chat_messages SET deleted = true
 WHERE chat_id = @chat_id::uuid
     AND deleted = false
     AND content::jsonb @> '[{"type": "context-file"}]';
+
+-- name: AutoArchiveInactiveChats :many
+-- Archives inactive root chats (pinned and already-archived chats skipped),
+-- cascading to children via root_chat_id. Limits apply to roots, not total
+-- rows. Used by dbpurge.
+WITH to_archive AS (
+    SELECT
+        c.id,
+        -- Activity = MAX(cm.created_at) across the family, or c.created_at
+        -- when the family has no non-deleted messages.
+        COALESCE(activity.last_activity_at, c.created_at) AS last_activity_at
+    FROM chats c
+    LEFT JOIN LATERAL (
+        SELECT MAX(cm.created_at) AS last_activity_at
+        FROM chat_messages cm
+        JOIN chats fc ON fc.id = cm.chat_id
+        WHERE (fc.id = c.id OR fc.root_chat_id = c.id)
+          AND cm.deleted = false
+    ) activity ON TRUE
+    WHERE c.archived = false
+      AND c.pin_order = 0
+      AND c.parent_chat_id IS NULL -- roots only
+      AND c.created_at < @archive_cutoff::timestamptz
+      -- New active statuses must be added here to prevent archiving.
+      AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
+      AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
+    -- Sorting by created_at lets Postgres drive the scan from the
+    -- partial index instead of evaluating every LATERAL subquery
+    -- before sorting. All candidates are past the cutoff, so the
+    -- archive order is immaterial once the backlog drains.
+    ORDER BY c.created_at ASC
+    LIMIT @limit_count
+),
+archived AS (
+    UPDATE chats c
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    FROM to_archive t
+    WHERE (c.id = t.id OR c.root_chat_id = t.id) -- cascade to children
+      AND c.archived = false
+    RETURNING c.*
+)
+SELECT
+    a.*,
+    -- Children inherit their root's activity so last_activity_at is never null.
+    COALESCE(
+        t.last_activity_at,
+        (SELECT tr.last_activity_at FROM to_archive tr WHERE tr.id = a.root_chat_id),
+        a.created_at
+    )::timestamptz AS last_activity_at
+FROM archived a
+LEFT JOIN to_archive t ON t.id = a.id
+-- created_at ASC flows through to dbpurge's digest truncation; see
+-- buildDigestData in dbpurge.go for the tradeoff rationale.
+ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;

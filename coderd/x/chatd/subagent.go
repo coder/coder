@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -26,6 +28,18 @@ import (
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
 
+var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
+
+type modelOverrideConfigResolver func(
+	context.Context,
+	uuid.UUID,
+) (database.ChatModelConfig, string, error)
+
+type modelOverrideProviderKeysResolver func(
+	context.Context,
+	uuid.UUID,
+) (chatprovider.ProviderAPIKeys, error)
+
 const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
 	subagentAwaitFallbackPoll  = 5 * time.Second
@@ -41,20 +55,12 @@ Your primary tool is the "computer" tool which lets you interact with the deskto
 
 Guidelines:
 - Always start by taking a screenshot to see the current state of the desktop.
+- Use wait or ordinary actions when you only need a screenshot for your own reasoning.
+- Use an explicit screenshot action when you want to share a durable screenshot with the user; those screenshots are attached to the chat automatically.
 - Be precise with coordinates when clicking or typing.
 - Wait for UI elements to load before interacting with them.
 - If an action doesn't produce the expected result, try alternative approaches.
 - Report what you accomplished when done.`
-
-type spawnAgentArgs struct {
-	Prompt string `json:"prompt"`
-	Title  string `json:"title,omitempty"`
-}
-
-type spawnComputerUseAgentArgs struct {
-	Prompt string `json:"prompt"`
-	Title  string `json:"title,omitempty"`
-}
 
 type waitAgentArgs struct {
 	ChatID         string `json:"chat_id"`
@@ -97,64 +103,197 @@ func (p *Server) isDesktopEnabled(ctx context.Context) bool {
 	return enabled
 }
 
-func (p *Server) resolveExploreSubagentModelConfigID(
+func subagentModelOverrideLogLabel(
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) string {
+	switch overrideContext {
+	case codersdk.ChatAgentModelOverrideContextGeneral:
+		return "general delegated child"
+	case codersdk.ChatAgentModelOverrideContextExplore:
+		return "explore"
+	default:
+		return string(overrideContext)
+	}
+}
+
+func readSubagentModelOverride(
 	ctx context.Context,
-	ownerID uuid.UUID,
-	fallback uuid.UUID,
-) (uuid.UUID, error) {
-	//nolint:gocritic // Chatd needs its scoped deployment-config read access here.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := p.db.GetChatExploreModelOverride(chatdCtx)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get Explore model override: %w", err)
-	}
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return fallback, nil
-	}
-	configuredModelConfigID, err := uuid.Parse(trimmed)
-	if err != nil {
-		p.logger.Warn(ctx,
-			"invalid Explore model override, falling back to current turn model",
-			slog.F("raw_model_config_id", trimmed),
-			slog.Error(err),
+	db database.Store,
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) (string, error) {
+	switch overrideContext {
+	case codersdk.ChatAgentModelOverrideContextGeneral:
+		return db.GetChatGeneralModelOverride(ctx)
+	case codersdk.ChatAgentModelOverrideContextExplore:
+		return db.GetChatExploreModelOverride(ctx)
+	default:
+		return "", xerrors.Errorf(
+			"unknown subagent model override context %q",
+			overrideContext,
 		)
-		return fallback, nil
 	}
-	modelConfig, err := p.db.GetEnabledChatModelConfigByID(
-		chatdCtx,
-		configuredModelConfigID,
-	)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			p.logger.Warn(ctx,
-				"explore model override is unavailable, falling back to current turn model",
-				slog.F("model_config_id", configuredModelConfigID),
-			)
-			return fallback, nil
-		}
-		return uuid.Nil, xerrors.Errorf("get enabled chat model config by id: %w", err)
+}
+
+func validateModelConfigAndResolveProvider(
+	modelConfig database.ChatModelConfig,
+) (database.ChatModelConfig, string, error) {
+	if !modelConfig.Enabled {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
 	providerName, _, err := chatprovider.ResolveModelWithProviderHint(
 		modelConfig.Model,
 		modelConfig.Provider,
 	)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("resolve Explore model provider: %w", err)
+		return database.ChatModelConfig{}, "", xerrors.Errorf(
+			"%w: %v",
+			errInvalidModelOverrideMetadata,
+			err,
+		)
 	}
-	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID)
+	return modelConfig, providerName, nil
+}
+
+func enabledProviderContainsName(
+	providers []database.ChatProvider,
+	providerName string,
+) bool {
+	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
+	for _, provider := range providers {
+		if chatprovider.NormalizeProvider(provider.Provider) == normalizedProviderName {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Server) resolveConfiguredModelOverride(
+	ctx context.Context,
+	overrideContext string,
+	raw string,
+	ownerID uuid.UUID,
+	resolveModelConfig modelOverrideConfigResolver,
+	resolveProviderKeys modelOverrideProviderKeysResolver,
+) (database.ChatModelConfig, bool, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return database.ChatModelConfig{}, false, nil
+	}
+	configuredModelConfigID, err := uuid.Parse(trimmed)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("resolve provider API keys: %w", err)
+		p.logger.Info(ctx,
+			"invalid model override, ignoring",
+			slog.F("override_context", overrideContext),
+			slog.F("raw_model_config_id", trimmed),
+			slog.Error(err),
+		)
+		return database.ChatModelConfig{}, false, nil
 	}
-	if providerKeys.APIKey(providerName) == "" {
-		p.logger.Warn(ctx,
-			"explore model override credentials are unavailable, falling back to current turn model",
+	modelConfig, providerName, err := resolveModelConfig(
+		ctx,
+		configuredModelConfigID,
+	)
+	if err != nil {
+		switch {
+		case xerrors.Is(err, sql.ErrNoRows):
+			p.logger.Info(ctx,
+				"model override is unavailable, ignoring",
+				slog.F("override_context", overrideContext),
+				slog.F("model_config_id", configuredModelConfigID),
+			)
+		case errors.Is(err, errInvalidModelOverrideMetadata):
+			p.logger.Info(ctx,
+				"model override metadata is invalid, ignoring",
+				slog.F("override_context", overrideContext),
+				slog.F("model_config_id", configuredModelConfigID),
+				slog.Error(err),
+			)
+		default:
+			p.logger.Warn(ctx,
+				"failed to resolve model override, ignoring",
+				slog.F("override_context", overrideContext),
+				slog.F("model_config_id", configuredModelConfigID),
+				slog.Error(err),
+			)
+		}
+		return database.ChatModelConfig{}, false, nil
+	}
+	providerKeys, err := resolveProviderKeys(ctx, ownerID)
+	if err != nil {
+		return database.ChatModelConfig{}, false, xerrors.Errorf(
+			"resolve provider API keys: %w",
+			err,
+		)
+	}
+	if providerKeys.APIKey(providerName) == "" &&
+		!(chatprovider.ProviderAllowsAmbientCredentials(providerName) &&
+			providerKeys.HasProvider(providerName)) {
+		p.logger.Info(ctx,
+			"model override credentials are unavailable, ignoring",
+			slog.F("override_context", overrideContext),
 			slog.F("model_config_id", configuredModelConfigID),
 			slog.F("provider", providerName),
 		)
-		return fallback, nil
+		return database.ChatModelConfig{}, false, nil
+	}
+	return modelConfig, true, nil
+}
+
+func (p *Server) resolveSubagentModelConfigID(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	overrideContext codersdk.ChatAgentModelOverrideContext,
+) (uuid.UUID, error) {
+	//nolint:gocritic // Chatd needs its scoped deployment-config read access here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	raw, err := readSubagentModelOverride(chatdCtx, p.db, overrideContext)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf(
+			"get %s model override: %w",
+			subagentModelOverrideLogLabel(overrideContext),
+			err,
+		)
+	}
+	modelConfig, ok, err := p.resolveConfiguredModelOverride(
+		ctx,
+		string(overrideContext),
+		raw,
+		ownerID,
+		p.resolveModelConfigAndNormalizedProvider,
+		p.resolveUserProviderAPIKeys,
+	)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !ok {
+		return uuid.Nil, nil
 	}
 	return modelConfig.ID, nil
+}
+
+func (p *Server) resolveModelConfigAndNormalizedProvider(
+	ctx context.Context,
+	modelConfigID uuid.UUID,
+) (database.ChatModelConfig, string, error) {
+	if modelConfigID == uuid.Nil {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	modelConfig, providerName, err := validateModelConfigAndResolveProvider(modelConfig)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	enabledProviders, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	if !enabledProviderContainsName(enabledProviders, providerName) {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	return modelConfig, providerName, nil
 }
 
 func (p *Server) subagentTools(
@@ -162,130 +301,82 @@ func (p *Server) subagentTools(
 	currentChat func() database.Chat,
 	currentModelConfigID uuid.UUID,
 ) []fantasy.AgentTool {
-	var planMode database.NullChatPlanMode
+	currentChatSnapshot := database.Chat{}
 	if currentChat != nil {
-		planMode = currentChat().PlanMode
+		currentChatSnapshot = currentChat()
 	}
 
-	spawnAgentDescription := "Spawn a delegated child agent to work on a clearly scoped, " +
-		"independent task in parallel. Use this when the task is " +
-		"self-contained and would benefit from a separate agent " +
-		"(e.g. fixing a specific bug, writing a single module, " +
-		"running a migration). Do NOT use for simple or quick " +
-		"operations you can handle directly with execute, " +
-		"read_file, or write_file. For read-only investigation and " +
-		"codebase discovery, prefer spawn_explore_agent instead. " +
-		"Reserve writable subagents for tasks that require " +
-		"intellectual work such as code analysis, writing new " +
-		"code, or complex refactoring. Be careful when running " +
-		"parallel subagents: if two subagents modify the same " +
-		"files they will conflict with each other, so ensure " +
-		"parallel subagent tasks are independent. " +
-		"The child agent receives the same workspace tools but " +
-		"cannot spawn its own subagents. After spawning, use " +
-		"wait_agent to collect the result."
-	if planMode.Valid && planMode.ChatPlanMode == database.ChatPlanModePlan {
-		spawnAgentDescription += " During plan mode, spawned agents may use shell commands for exploration, such as cloning repositories, searching code, and running inspection commands, but they must not implement changes or intentionally modify workspace files."
-	}
-	spawnExploreAgentDescription := "Spawn a read-only delegated child agent for discovery, code reading, and system understanding. Use this when you need investigation, tracing, codebase research, or architecture discovery without intentionally modifying workspace files. The child agent cannot spawn its own subagents and has a restricted toolset focused on reading files and inspection commands. After spawning, use wait_agent to collect the result."
+	spawnAgentDescription := buildSpawnAgentDescription(
+		ctx,
+		p,
+		currentChatSnapshot,
+	)
 
-	tools := []fantasy.AgentTool{
+	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
-			"spawn_agent",
+			spawnAgentToolName,
 			spawnAgentDescription,
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
 
-				parent := currentChat()
-				if parent.ParentChatID.Valid {
-					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
-				}
-
-				parent, err := p.db.GetChatByID(ctx, parent.ID)
+				parent, err := p.loadSubagentSpawnParentChat(ctx, currentChat)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				childChat, err := p.createChildSubagentChatWithOptions(
+
+				definition, err := resolveSubagentDefinition(
 					ctx,
+					p,
 					parent,
-					args.Prompt,
-					args.Title,
-					childSubagentChatOptions{},
+					args.Type,
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolJSONResponse(map[string]any{
-					"chat_id": childChat.ID.String(),
-					"title":   childChat.Title,
-					"status":  string(childChat.Status),
-				}), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"spawn_explore_agent",
-			spawnExploreAgentDescription,
-			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				if currentChat == nil {
-					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				turnParent := currentChatSnapshot
+				if turnParent.ID == uuid.Nil {
+					turnParent = parent
 				}
 
-				parent := currentChat()
-				if parent.ParentChatID.Valid {
-					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
-				}
-
-				parent, err := p.db.GetChatByID(ctx, parent.ID)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-				modelConfigID, err := p.resolveExploreSubagentModelConfigID(
+				options, err := definition.buildOptions(
 					ctx,
-					parent.OwnerID,
+					p,
+					parent,
+					turnParent,
 					currentModelConfigID,
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-				// Explore subagents operate independently of planning.
-				// Clear plan mode to prevent the child from inheriting
-				// parent planning behavior.
-				clearPlanMode := database.NullChatPlanMode{}
-				childChat, err := p.createChildSubagentChatWithOptions(
-					ctx,
-					parent,
 					args.Prompt,
-					args.Title,
-					childSubagentChatOptions{
-						chatMode: database.NullChatMode{
-							ChatMode: database.ChatModeExplore,
-							Valid:    true,
-						},
-						modelConfigIDOverride: &modelConfigID,
-						planModeOverride:      &clearPlanMode,
-					},
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolJSONResponse(map[string]any{
+				childChat, err := p.createChildSubagentChatWithOptions(
+					ctx,
+					parent,
+					args.Prompt,
+					args.Title,
+					options,
+				)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				return toolJSONResponse(withSubagentType(map[string]any{
 					"chat_id": childChat.ID.String(),
 					"title":   childChat.Title,
 					"status":  string(childChat.Status),
-				}), nil
+				}, childChat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
 			"Wait until a spawned child agent finishes its task. "+
 				"Returns the agent's final response and status. "+
-				"Call this after spawn_agent, spawn_explore_agent, or "+
-				"spawn_computer_use_agent to collect the result before "+
-				"continuing your own work.",
+				"Call this after "+spawnAgentToolName+" to collect the "+
+				"result before continuing your own work.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -302,34 +393,41 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
-
-				// Authorize: the target chat must be a descendant
-				// of the current (parent) chat.
-				isDescendant, descErr := isSubagentDescendant(ctx, p.db, parent.ID, targetChatID)
-				if descErr != nil {
-					return fantasy.NewTextErrorResponse(
-						fmt.Sprintf("failed to verify subagent relationship: %v", descErr)), nil
-				}
-				if !isDescendant {
-					return fantasy.NewTextErrorResponse(
-						"target chat is not a subagent of the current chat"), nil
-				}
-
-				// Check if the target is a computer_use subagent
-				// and start a desktop recording. Failures are
-				// best-effort warnings — recording never blocks
-				// the wait_agent flow.
-				var recordingID string
-				var agentConn workspacesdk.AgentConn
-
-				targetChatInfo, lookupErr := p.db.GetChatByID(ctx, targetChatID)
-				if lookupErr != nil && !xerrors.Is(lookupErr, sql.ErrNoRows) {
+				var targetChatInfo *database.Chat
+				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+					targetChatInfo = &chat
+				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
 					p.logger.Warn(ctx, "unexpected error looking up chat for recording",
 						slog.F("chat_id", targetChatID),
 						slog.Error(lookupErr),
 					)
 				}
-				isComputerUseChat := lookupErr == nil && targetChatInfo.Mode.Valid &&
+
+				// Authorize: the target chat must be a descendant
+				// of the current (parent) chat.
+				isDescendant, descErr := isSubagentDescendant(ctx, p.db, parent.ID, targetChatID)
+				if descErr != nil {
+					return subagentErrorResponse(
+						xerrors.New(fmt.Sprintf("failed to verify subagent relationship: %v", descErr)),
+						targetChatInfo,
+					), nil
+				}
+				if !isDescendant {
+					return subagentErrorResponse(
+						ErrSubagentNotDescendant,
+						targetChatInfo,
+					), nil
+				}
+
+				// Check if the target is a computer_use subagent
+				// and start a desktop recording. Failures are
+				// best-effort warnings. Recording never blocks
+				// the wait_agent flow.
+				var recordingID string
+				var agentConn workspacesdk.AgentConn
+
+				isComputerUseChat := targetChatInfo != nil &&
+					targetChatInfo.Mode.Valid &&
 					targetChatInfo.Mode.ChatMode == database.ChatModeComputerUse &&
 					targetChatInfo.AgentID.Valid
 				canRecord := isComputerUseChat && p.agentConnFn != nil
@@ -346,7 +444,7 @@ func (p *Server) subagentTools(
 						if startErr != nil {
 							p.logger.Warn(ctx, "failed to start desktop recording",
 								slog.Error(startErr))
-							recordingID = "" // Don't try to stop.
+							recordingID = ""
 						}
 					} else {
 						p.logger.Warn(ctx, "failed to get agent conn for recording",
@@ -358,29 +456,28 @@ func (p *Server) subagentTools(
 					ctx, parent.ID, targetChatID, timeout,
 				)
 
-				// On timeout/error, leave the recording running on
-				// the agent so the next wait_agent call continues
-				// it seamlessly.
+				// On timeout or error, leave the recording running on
+				// the agent so the next wait_agent call continues it.
 				if awaitErr != nil {
-					return fantasy.NewTextErrorResponse(awaitErr.Error()), nil
+					return subagentErrorResponse(awaitErr, targetChatInfo), nil
 				}
 
 				// Only stop and store the recording on success.
 				var recResult recordingResult
 				if recordingID != "" && agentConn != nil {
 					// Use a fresh context for cleanup so a canceled
-					// parent context doesn't prevent recording storage.
+					// parent context does not prevent recording storage.
 					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
 					defer stopCancel()
 					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
-						recordingID, parent.OwnerID, parent.WorkspaceID, parent.ID)
+						recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
 				}
-				resp := map[string]any{
-					"chat_id": targetChatID.String(),
+				resp := withSubagentType(map[string]any{
+					"chat_id": targetChat.ID.String(),
 					"title":   targetChat.Title,
 					"report":  report,
 					"status":  string(targetChat.Status),
-				}
+				}, targetChat)
 				if recResult.recordingFileID != "" {
 					resp["recording_file_id"] = recResult.recordingFileID
 				}
@@ -408,6 +505,15 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
+				var targetChatInfo *database.Chat
+				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+					targetChatInfo = &chat
+				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+					p.logger.Warn(ctx, "unexpected error looking up chat for message",
+						slog.F("chat_id", targetChatID),
+						slog.Error(lookupErr),
+					)
+				}
 				busyBehavior := SendMessageBusyBehaviorQueue
 				if args.Interrupt {
 					busyBehavior = SendMessageBusyBehaviorInterrupt
@@ -420,15 +526,15 @@ func (p *Server) subagentTools(
 					busyBehavior,
 				)
 				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
-				return toolJSONResponse(map[string]any{
-					"chat_id":     targetChatID.String(),
+				return toolJSONResponse(withSubagentType(map[string]any{
+					"chat_id":     targetChat.ID.String(),
 					"title":       targetChat.Title,
 					"status":      string(targetChat.Status),
 					"interrupted": args.Interrupt,
-				}), nil
+				}, targetChat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -447,80 +553,57 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
+				var targetChatInfo *database.Chat
+				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+					targetChatInfo = &chat
+				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+					p.logger.Warn(ctx, "unexpected error looking up chat for close",
+						slog.F("chat_id", targetChatID),
+						slog.Error(lookupErr),
+					)
+				}
 				targetChat, err := p.closeSubagent(
 					ctx,
 					parent.ID,
 					targetChatID,
 				)
 				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
-				return toolJSONResponse(map[string]any{
-					"chat_id":    targetChatID.String(),
+				return toolJSONResponse(withSubagentType(map[string]any{
+					"chat_id":    targetChat.ID.String(),
 					"title":      targetChat.Title,
 					"terminated": true,
 					"status":     string(targetChat.Status),
-				}), nil
+				}, targetChat)), nil
 			},
 		),
 	}
+}
 
-	// Only include the computer use tool when an Anthropic
-	// provider is configured and desktop is enabled.
-	if p.isAnthropicConfigured(ctx) && p.isDesktopEnabled(ctx) {
-		tools = append(tools, fantasy.NewAgentTool(
-			"spawn_computer_use_agent",
-			"Spawn a dedicated computer use agent that can see the desktop "+
-				"(take screenshots) and interact with it (mouse, keyboard, "+
-				"scroll). The agent runs on a model optimized for computer "+
-				"use and has the same workspace tools as a standard subagent "+
-				"plus the native Anthropic computer tool. Use this for tasks "+
-				"that require visual interaction with a desktop GUI (e.g. "+
-				"browser automation, GUI testing, visual inspection). After "+
-				"spawning, use wait_agent to collect the result.",
-			func(ctx context.Context, args spawnComputerUseAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				if currentChat == nil {
-					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
-				}
-
-				parent := currentChat()
-				if parent.ParentChatID.Valid {
-					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
-				}
-
-				parent, err := p.db.GetChatByID(ctx, parent.ID)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-
-				childChat, err := p.createChildSubagentChatWithOptions(
-					ctx,
-					parent,
-					args.Prompt,
-					args.Title,
-					childSubagentChatOptions{
-						chatMode: database.NullChatMode{
-							ChatMode: database.ChatModeComputerUse,
-							Valid:    true,
-						},
-						systemPrompt: computerUseSubagentSystemPrompt + "\n\n" + strings.TrimSpace(args.Prompt),
-					},
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-
-				return toolJSONResponse(map[string]any{
-					"chat_id": childChat.ID.String(),
-					"title":   childChat.Title,
-					"status":  string(childChat.Status),
-				}), nil
-			},
-		))
+func (p *Server) loadSubagentSpawnParentChat(
+	ctx context.Context,
+	currentChat func() database.Chat,
+) (database.Chat, error) {
+	parent := currentChat()
+	if err := validateSubagentSpawnParent(parent); err != nil {
+		return database.Chat{}, err
+	}
+	reloadedParent, err := p.db.GetChatByID(ctx, parent.ID)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load parent chat for spawn_agent",
+			slog.F("chat_id", parent.ID),
+			slog.Error(err),
+		)
+		return database.Chat{}, xerrors.New("failed to load parent chat")
+	}
+	parent = reloadedParent
+	if err := validateSubagentSpawnParent(parent); err != nil {
+		return database.Chat{}, err
 	}
 
-	return tools
+	return parent, nil
 }
 
 func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
@@ -531,11 +614,66 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 	return chatID, nil
 }
 
+// childSubagentChatOptions carries per-child overrides for subagent chat
+// creation. modelConfigIDOverride and planModeOverride apply to any
+// subagent. inheritedMCPServerIDs is an Explore-only snapshot of the
+// spawning parent turn's effective external MCP entitlement.
+// resolveExploreToolSnapshot computes and persists it on the child chat.
+// Non-Explore children ignore this field.
 type childSubagentChatOptions struct {
 	chatMode              database.NullChatMode
 	systemPrompt          string
 	modelConfigIDOverride *uuid.UUID
 	planModeOverride      *database.NullChatPlanMode
+	inheritedMCPServerIDs []uuid.UUID
+}
+
+// resolveExploreToolSnapshot computes the child chat's inherited MCP
+// server snapshot from the spawning parent turn.
+//
+// The MCP set is filtered in two stages. First,
+// filterExternalMCPConfigsForTurn applies the parent turn's plan-mode
+// policy to the parent's MCP configs, producing visibleConfigs. Second,
+// if the parent is itself an Explore child, the visible set is narrowed to
+// the parent's persisted MCPServerIDs so an Explore chain cannot
+// re-escalate beyond the original grant. Non-Explore parents pass
+// through the second stage unchanged.
+func (p *Server) resolveExploreToolSnapshot(
+	ctx context.Context,
+	parent database.Chat,
+) ([]uuid.UUID, error) {
+	inheritedMCPServerIDs := []uuid.UUID{}
+	if len(parent.MCPServerIDs) > 0 {
+		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
+		if err != nil {
+			return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
+		}
+
+		visibleConfigs, _ := filterExternalMCPConfigsForTurn(
+			configs,
+			parent.PlanMode,
+			parent.ParentChatID,
+		)
+		// Empty means the parent is not Explore, so all plan-filtered
+		// configs remain eligible. Populated means the parent is
+		// Explore, so only its persisted snapshot can pass.
+		allowedParentIDs := map[uuid.UUID]struct{}{}
+		if isExploreSubagentMode(parent.Mode) {
+			for _, id := range parent.MCPServerIDs {
+				allowedParentIDs[id] = struct{}{}
+			}
+		}
+		for _, cfg := range visibleConfigs {
+			if len(allowedParentIDs) > 0 {
+				if _, ok := allowedParentIDs[cfg.ID]; !ok {
+					continue
+				}
+			}
+			inheritedMCPServerIDs = append(inheritedMCPServerIDs, cfg.ID)
+		}
+	}
+
+	return inheritedMCPServerIDs, nil
 }
 
 func (p *Server) createChildSubagentChat(
@@ -587,6 +725,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	mcpServerIDs := parent.MCPServerIDs
+	if isExploreSubagentMode(opts.chatMode) {
+		mcpServerIDs = slices.Clone(opts.inheritedMCPServerIDs)
+	}
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
@@ -1145,4 +1286,10 @@ func toolJSONResponse(result map[string]any) fantasy.ToolResponse {
 		return fantasy.NewTextResponse("{}")
 	}
 	return fantasy.NewTextResponse(string(data))
+}
+
+func toolJSONErrorResponse(result map[string]any) fantasy.ToolResponse {
+	resp := toolJSONResponse(result)
+	resp.IsError = true
+	return resp
 }

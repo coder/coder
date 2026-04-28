@@ -16,7 +16,7 @@ import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
-import { isDevBuild, isRcBuild } from "#/utils/buildInfo";
+import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
@@ -61,16 +61,27 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canCreateChat,
 	proxyContextValue,
 }) => {
-	const isDev = buildInfo ? isDevBuild(buildInfo) : false;
-	const isRc = buildInfo ? isRcBuild(buildInfo) : false;
-	const isPreRelease = isDev || isRc;
+	const prerelease = getPrereleaseFlag(buildInfo);
 
 	return (
 		<div
 			className={cn(
-				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6 relative",
-				isRc ? "navbar-stripe-rc" : isDev ? "navbar-stripe-devel" : undefined,
+				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6",
+				prerelease &&
+					cn(
+						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",
+						"[&:before]:right-0 [&:before]:h-1 [&:before]:top-0",
+						"[&:before]:bg-[repeating-linear-gradient(-45deg,_transparent,_transparent_4px,_hsl(var(--stripe-color)_/_0.5)_4px,_hsl(var(--stripe-color)_/_0.5)_8px)]",
+					),
 			)}
+			style={{
+				"--stripe-color":
+					prerelease === "rc"
+						? "var(--border-sky)"
+						: prerelease === "devel"
+							? "var(--content-warning)"
+							: undefined,
+			}}
 		>
 			<NavLink to="/workspaces">
 				{logo_url ? (
@@ -82,7 +93,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems className="ml-4" user={user} canCreateChat={canCreateChat} />
 
-			{isPreRelease && buildInfo?.version && (
+			{prerelease && buildInfo?.version && (
 				<a
 					href={buildInfo.external_url}
 					target="_blank"
@@ -90,7 +101,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					className="absolute top-0 left-1/2 -translate-x-1/2 no-underline z-10"
 				>
 					<Badge
-						variant={isRc ? "info" : "warning"}
+						variant={prerelease === "rc" ? "info" : "warning"}
 						size="sm"
 						className="font-mono rounded-t-none border-t-0"
 					>
@@ -262,8 +273,9 @@ function idleTasksLabel(count: number) {
 
 const AgentsNavItem: FC<{ canCreateChat: boolean }> = ({ canCreateChat }) => {
 	const { experiments, buildInfo } = useDashboard();
+	const prerelease = getPrereleaseFlag(buildInfo);
 	const experimentEnabled =
-		experiments.includes("agents") || isDevBuild(buildInfo);
+		experiments.includes("agents") || prerelease === "devel";
 
 	if (!experimentEnabled || !canCreateChat) {
 		return null;

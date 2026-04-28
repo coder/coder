@@ -94,7 +94,7 @@ const ExternalAuthPage: FC = () => {
 						variant="outline"
 						onClick={() => {
 							// Redirect to the auth flow again. *crosses fingers*
-							window.location.href = `/external-auth/${provider}/callback`;
+							location.href = `/external-auth/${provider}/callback`;
 						}}
 					>
 						Retry
@@ -102,7 +102,7 @@ const ExternalAuthPage: FC = () => {
 				</SignInLayout>
 			);
 		}
-		window.location.href = `/external-auth/${provider}/callback`;
+		location.href = `/external-auth/${provider}/callback`;
 		return null;
 	}
 

@@ -129,3 +129,26 @@ GitHub Container Registry) you can run your own container registry with Coder.
 
 To shorten the provisioning time, it is recommended to deploy registry mirrors
 in the same region as the workspace nodes.
+
+## Governance Layer
+
+The governance layer provides centralized oversight and policy enforcement for
+AI-powered development within Coder workspaces.
+
+### AI Gateway
+
+AI Gateway is a centralized gateway that sits between coding agents and LLM providers such
+as OpenAI and Anthropic. Users authenticate through Coder instead of managing separate
+provider API keys. All prompts, token usage, and tool invocations are recorded
+for compliance and cost tracking.
+
+Learn more: [AI Gateway](../../ai-coder/ai-gateway)
+
+### Agent Firewall
+
+Agent Firewall is a process-level firewall that restricts and audits network
+access for AI agents running in workspaces. It enforces allowlist-based policies
+controlling which domains, HTTP methods, and URL paths agents can reach, while
+streaming audit logs to the Coder control plane for centralized monitoring.
+
+Learn more: [Agent Firewall](../../ai-coder/agent-firewall/index.md)

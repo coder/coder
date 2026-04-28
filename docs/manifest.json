@@ -366,6 +366,13 @@
 					"description": "Personalize your environment with dotfiles",
 					"path": "./user-guides/workspace-dotfiles.md",
 					"icon_path": "./images/icons/art-pad.svg"
+				},
+				{
+					"title": "User secrets",
+					"description": "Store secret values in Coder and automatically inject them into workspaces",
+					"path": "./user-guides/user-secrets.md",
+					"icon_path": "./images/icons/secrets.svg",
+					"state": ["early access"]
 				}
 			]
 		},
@@ -1193,7 +1200,7 @@
 				},
 				{
 					"title": "MCP Server",
-					"description": "Connect to agents Coder with a MCP server",
+					"description": "Connect AI coding agents to Coder using the MCP server",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
 				},
@@ -1267,6 +1274,12 @@
 									"title": "Data Retention",
 									"description": "Automatic cleanup of old conversation data",
 									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Auto-Archive",
+									"description": "Automatic archiving of inactive conversations",
+									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
 									"state": ["early access"]
 								}
 							]

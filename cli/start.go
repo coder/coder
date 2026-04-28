@@ -43,7 +43,7 @@ func (r *RootCmd) start() *serpent.Command {
 				return err
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -97,7 +97,7 @@ func (r *RootCmd) start() *serpent.Command {
 					}
 					// Re-fetch workspace after stop completes so
 					// startWorkspace sees the latest state.
-					workspace, err = namedWorkspace(inv.Context(), client, inv.Args[0])
+					workspace, err = client.ResolveWorkspace(inv.Context(), inv.Args[0])
 					if err != nil {
 						return err
 					}
@@ -183,6 +183,7 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		RichParameters:            cliRichParameters,
 		RichParameterFile:         parameterFlags.richParameterFile,
 		RichParameterDefaults:     cliRichParameterDefaults,
+		UseParameterDefaults:      parameterFlags.useParameterDefaults,
 	})
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, err

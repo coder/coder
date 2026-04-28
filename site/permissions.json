@@ -120,7 +120,7 @@
 		"action": "read"
 	},
 	"createChat": {
-		"object": { "resource_type": "chat", "owner_id": "me" },
+		"object": { "resource_type": "chat", "any_org": true, "owner_id": "me" },
 		"action": "create"
 	}
 }

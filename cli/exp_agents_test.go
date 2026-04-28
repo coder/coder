@@ -543,7 +543,7 @@ func TestExpAgents(t *testing.T) {
 			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
 			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Equal(t, overlayDiffDrawer, updated.overlay)
-			require.Len(t, mustBatchMsg(t, cmd), 2)
+			require.NotNil(t, cmd)
 			require.Contains(t, plainText(updated.View()), "Loading diff")
 		})
 
@@ -558,9 +558,46 @@ func TestExpAgents(t *testing.T) {
 			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
 			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
 
-			updatedModel, cmd = updated.Update(gitChangesMsg{err: xerrors.New("connection refused")})
+			updatedModel, cmd = updated.Update(diffContentsMsg{err: xerrors.New("connection refused")})
 			updated, _ = mustTUIModelWithCmd(t, updatedModel, cmd)
 			require.Contains(t, plainText(updated.View()), "connection refused")
+		})
+
+		t.Run("DiffDrawerMemoizesSummary", func(t *testing.T) {
+			t.Parallel()
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model.currentView = viewChat
+			model.width = 80
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat.chat = &chat
+			generation := model.chat.chatGeneration
+
+			// A successful diffContentsMsg pre-renders the summary
+			// and the lipgloss-styled body so View() redraws do not
+			// re-parse or re-style the full diff on every keypress
+			// (see chatViewModel.diffSummary and diffStyledBody).
+			diff := codersdk.ChatDiffContents{
+				ChatID: chat.ID,
+				Diff:   "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new",
+			}
+			updatedModel, cmd := model.Update(diffContentsMsg{generation: generation, chatID: chat.ID, diff: diff})
+			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.NotNil(t, updated.chat.diffContents)
+			require.Equal(t, "1 file changed:\n  modified a.txt (+1 -1)", updated.chat.diffSummary)
+			require.NotEmpty(t, updated.chat.diffStyledBody)
+			// The cached styled body still contains the diff text
+			// verbatim: lipgloss wraps lines in escape codes without
+			// replacing them, so every original line of the input
+			// diff must survive the round-trip.
+			require.Contains(t, plainText(updated.chat.diffStyledBody), "diff --git a/a.txt b/a.txt")
+			require.Contains(t, plainText(updated.chat.diffStyledBody), "+new")
+
+			// setChat clears both caches so a new chat does not
+			// inherit stale render output from the previous session.
+			(&updated.chat).setChat(testChat(codersdk.ChatStatusCompleted))
+			require.Empty(t, updated.chat.diffSummary)
+			require.Empty(t, updated.chat.diffStyledBody)
+			require.Nil(t, updated.chat.diffContents)
 		})
 
 		t.Run("OverlayDismissedOnViewSwitch", func(t *testing.T) {
@@ -603,7 +640,6 @@ func TestExpAgents(t *testing.T) {
 			model.catalog = &catalog
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat.chat = &chat
-			model.chat.gitChanges = []codersdk.ChatGitChange{}
 
 			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
 			updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
@@ -837,7 +873,6 @@ func TestExpAgents(t *testing.T) {
 				{name: "Draft/chatOpenedMsg", msg: chatOpenedMsg{generation: 1, chatID: uuid.New(), chat: testChat(codersdk.ChatStatusCompleted)}, draft: true},
 				{name: "Draft/chatHistoryMsg", msg: chatHistoryMsg{generation: 1, chatID: uuid.New(), messages: []codersdk.ChatMessage{testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hi"})}}, draft: true},
 				{name: "Draft/chatStreamEventMsg", msg: chatStreamEventMsg{generation: 1, chatID: uuid.New(), event: testTextPartEvent("stale")}, draft: true},
-				{name: "Draft/gitChangesMsg", msg: gitChangesMsg{generation: 1, chatID: uuid.New()}, draft: true},
 				{name: "Draft/diffContentsMsg", msg: diffContentsMsg{generation: 1, chatID: uuid.New()}, draft: true},
 			}
 			for _, tt := range tests {
@@ -2094,7 +2129,6 @@ func TestExpAgents(t *testing.T) {
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat.setChat(chat)
 			model.chat.messages = overflowingMessages(10)
-			model.chat.gitChanges = []codersdk.ChatGitChange{}
 			diff := codersdk.ChatDiffContents{ChatID: chat.ID, Diff: "diff --git a/file b/file"}
 			model.chat.diffContents = &diff
 			model.chat.rebuildBlocks()

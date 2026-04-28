@@ -1,5 +1,5 @@
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, ExternalLinkIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
 	useCallback,
@@ -138,7 +138,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
 	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
 	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
-	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response
+	//    in the useSyncFormParameters hook, unless they have been touched by the
+	//    user or auto-filled.
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -360,6 +362,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		touched: form.touched,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -381,7 +384,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					type="button"
 					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-12"
 				>
-					<ArrowLeft size={20} />
+					<ArrowLeftIcon size={20} />
 					Go back
 				</button>
 			</div>
@@ -443,6 +446,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
 					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 

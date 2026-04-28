@@ -219,6 +219,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 												)}
 												workspace={workspace}
 												template={template}
+												agentScriptTimings={timings?.agent_script_timings}
 												onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
 											/>
 										))}

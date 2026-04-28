@@ -154,6 +154,47 @@ func TestUpdate(t *testing.T) {
 		// Then: we expect 3 builds, as we manually stopped the workspace.
 		require.Equal(t, int32(3), ws.LatestBuild.BuildNumber, "workspace must have 3 builds after update")
 	})
+
+	// Verifies that --use-parameter-defaults auto-accepts new
+	// parameters added in a template version update.
+	t.Run("UseParameterDefaults", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+
+		ws := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.Name = "my-workspace"
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Push a new template version that adds a parameter with a default.
+		version2 := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID,
+			prepareEchoResponses([]*proto.RichParameter{
+				{Name: "new_param", Type: "string", Mutable: true, DefaultValue: "foobar"},
+			}), template.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{ID: version2.ID})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "update", "my-workspace", "--use-parameter-defaults")
+		clitest.SetupConfig(t, member, root)
+		err = inv.Run()
+		require.NoError(t, err, "update with --use-parameter-defaults should not prompt")
+
+		ws, err = member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, version2.ID.String(), ws.LatestBuild.TemplateVersionID.String())
+
+		buildParams, err := member.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
+		require.NoError(t, err)
+		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "new_param", Value: "foobar"})
+	})
 }
 
 func TestUpdateWithRichParameters(t *testing.T) {

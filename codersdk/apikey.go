@@ -35,10 +35,13 @@ const (
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
 	LoginTypeToken    LoginType = "token"
-	// LoginTypeNone is used if no login method is available for this user.
-	// If this is set, the user has no method of logging in.
+	// LoginTypeNone is used if no login method is available for this
+	// user. If this is set, the user has no method of logging in.
 	// API keys can still be created by an owner and used by the user.
 	// These keys would use the `LoginTypeToken` type.
+	//
+	// Deprecated: Use service accounts (Premium) for headless/machine
+	// access, or password/github/oidc login types for regular users.
 	LoginTypeNone LoginType = "none"
 )
 
