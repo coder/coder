@@ -768,7 +768,7 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
-	{ // Experimental: agents — chat daemon and git sync worker initialization.
+	{ // Chat daemon and git sync worker initialization.
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -2154,9 +2154,9 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// Experimental(agents): chatDaemon handles background processing of pending chats.
+	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
-	// Experimental(agents): gitSyncWorker refreshes stale chat diff statuses in the background.
+	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker
