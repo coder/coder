@@ -133,8 +133,11 @@ func TestIsFailedRefresh(t *testing.T) {
 
 	expiredToken := &oauth2.Token{
 		RefreshToken: "refresh-token",
-		// Zero expiry causes Valid() to return true, so set an
-		// expired time to ensure the token is treated as expired.
+		// isFailedRefresh returns early if existingToken.Valid() is
+		// true (line 1317). Valid() requires AccessToken != "" AND
+		// not expired. This fixture has no AccessToken so Valid()
+		// is always false, but we set an expired time as a safety
+		// net in case someone later adds an AccessToken field.
 		Expiry: time.Now().Add(-time.Hour),
 	}
 

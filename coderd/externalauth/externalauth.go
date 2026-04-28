@@ -336,9 +336,10 @@ validate:
 
 // ValidateToken checks if the Git token provided is valid.
 // The user is optionally returned if the provider supports it.
-// Returns valid=true in three cases: the provider confirmed the
-// token, no ValidateURL is configured, or the validation endpoint
-// returned a rate-limited 403 (optimistic assumption).
+// Returns valid=true when: the provider confirmed the token,
+// no ValidateURL is configured, or the validation endpoint
+// returned a rate-limited response (403 with rate-limit headers
+// or 429).
 func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
 	if link == nil {
 		return false, nil, xerrors.New("validate external auth token: token is nil")
