@@ -45,7 +45,7 @@ keeps the value out of your shell history and process arguments.
 Use `--env` to inject a secret into your workspaces as an environment variable.
 The secret is available under the environment variable name you provide. User
 secret environment variables take precedence over template-defined environment
-variables with the same name.
+variables with the same name, including variables set with `coder_env`.
 
 ```sh
 echo -n "$API_KEY" | coder secret create api-key \
@@ -65,8 +65,9 @@ coder secret create tool-config \
   < ./tool-config.json
 ```
 
-Coder creates parent directories as needed. If the file already exists, Coder
-updates the contents and preserves the existing permissions.
+Coder creates parent directories as needed. If the file already exists, including
+a file created by a template or image, Coder updates the contents and preserves
+the existing permissions.
 
 ### Create a secret with environment variable and file targets
 
