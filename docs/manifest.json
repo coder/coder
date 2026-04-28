@@ -48,6 +48,12 @@
 							"icon_path": "./images/icons/document.svg"
 						},
 						{
+							"title": "Codebase Course",
+							"description": "A one-day course for learning the Coder codebase",
+							"path": "./about/contributing/codebase-course.md",
+							"icon_path": "./images/icons/gear.svg"
+						},
+						{
 							"title": "Modules",
 							"description": "Learn how to contribute modules to Coder",
 							"path": "./about/contributing/modules.md",
