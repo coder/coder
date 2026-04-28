@@ -65,6 +65,10 @@ const COLORBLIND_THEME_CLASSES = CONCRETE_THEMES.filter((themeName) =>
 	themeName.includes("-"),
 ).map((themeName) => `.${themeName}`);
 
+const TRITAN_THEME_CLASSES = CONCRETE_THEMES.filter((themeName) =>
+	themeName.endsWith("-tritan"),
+).map((themeName) => `.${themeName}`);
+
 function extractBlock(css: string, selector: string): string | null {
 	// Selectors can be grouped with commas in the stylesheet, for example
 	// `:root, .light { ... }`. Match any occurrence where the selector is a
@@ -131,6 +135,19 @@ describe("theme CSS variables", () => {
 				expect(block).not.toBeNull();
 				expect(extractVariable(block ?? "", "--content-link")).not.toBe(
 					extractVariable(block ?? "", "--content-success"),
+				);
+			});
+		});
+	}
+
+	for (const selector of TRITAN_THEME_CLASSES) {
+		describe(`${selector} warning surface`, () => {
+			const block = extractBlock(css, selector);
+
+			it("keeps warning surfaces on the fuchsia surface token", () => {
+				expect(block).not.toBeNull();
+				expect(extractVariable(block ?? "", "--surface-orange")).toBe(
+					extractVariable(block ?? "", "--surface-magenta"),
 				);
 			});
 		});
