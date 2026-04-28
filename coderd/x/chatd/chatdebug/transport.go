@@ -160,14 +160,22 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 	if req.GetBody != nil {
 		clone, err := req.GetBody()
 		if err == nil {
-			defer clone.Close()
-			limited, err := io.ReadAll(io.LimitReader(clone, maxRecordedRequestBodyBytes+1))
-			if err == nil {
-				if len(limited) > maxRecordedRequestBodyBytes {
-					return []byte("[TRUNCATED]"), nil
-				}
-				return RedactJSONSecrets(limited), nil
+			limited, readErr := io.ReadAll(io.LimitReader(clone, maxRecordedRequestBodyBytes+1))
+			closeErr := clone.Close()
+			// Some SDKs return the active body from GetBody instead of an
+			// independent reader. Reset the request body after capture so
+			// debug recording cannot drain the bytes that will be sent.
+			resetErr := resetRequestBody(req)
+			if resetErr != nil {
+				return nil, resetErr
 			}
+			if readErr != nil || closeErr != nil {
+				return nil, nil
+			}
+			if len(limited) > maxRecordedRequestBodyBytes {
+				return []byte("[TRUNCATED]"), nil
+			}
+			return RedactJSONSecrets(limited), nil
 		}
 	}
 
@@ -176,6 +184,15 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 	// request is sent. Skip capture in that case to keep debug logging
 	// lightweight and non-invasive.
 	return nil, nil
+}
+
+func resetRequestBody(req *http.Request) error {
+	body, err := req.GetBody()
+	if err != nil {
+		return err
+	}
+	req.Body = body
+	return nil
 }
 
 type recordingBody struct {

@@ -1,6 +1,7 @@
 package chatdebug //nolint:testpackage // Uses unexported recorder helpers.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -137,6 +138,54 @@ func TestRecordingTransport_CaptureRequest(t *testing.T) {
 	received := <-gotRequest
 	require.JSONEq(t, requestBody, string(received.body))
 	require.Equal(t, "Bearer top-secret", received.authorization)
+}
+
+func TestRecordingTransport_CaptureRequestRestoresSharedGetBody(t *testing.T) {
+	t.Parallel()
+
+	const requestBody = `{"message":"hello","api_key":"super-secret"}`
+
+	gotRequest := make(chan []byte, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		gotRequest <- body
+		_, _ = rw.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	ctx, sink := newTestSinkContext(t)
+	client := &http.Client{
+		Transport: &RecordingTransport{Base: server.Client().Transport},
+	}
+
+	reader := bytes.NewReader([]byte(requestBody))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		server.URL,
+		io.NopCloser(reader),
+	)
+	require.NoError(t, err)
+	req.ContentLength = int64(len(requestBody))
+	req.GetBody = func() (io.ReadCloser, error) {
+		_, err := reader.Seek(0, io.SeekStart)
+		if err != nil {
+			return nil, err
+		}
+		return io.NopCloser(reader), nil
+	}
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	_, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	require.JSONEq(t, requestBody, string(<-gotRequest))
+	attempts := sink.snapshot()
+	require.Len(t, attempts, 1)
+	require.JSONEq(t, `{"message":"hello","api_key":"[REDACTED]"}`, string(attempts[0].RequestBody))
 }
 
 func TestRecordingTransport_RedactsSensitiveQueryParameters(t *testing.T) {
