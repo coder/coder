@@ -369,7 +369,7 @@
 				},
 				{
 					"title": "User secrets",
-					"description": "Store personal credentials in Coder and automatically inject them into workspaces",
+					"description": "Store secret values in Coder and automatically inject them into workspaces",
 					"path": "./user-guides/user-secrets.md",
 					"icon_path": "./images/icons/secrets.svg",
 					"state": ["early access"]

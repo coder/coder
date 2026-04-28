@@ -1,20 +1,13 @@
 # User secrets (Early Access)
 
-User secrets let you store personal credentials in Coder and make them
-available in every workspace you own. Use them for values that belong to you,
-such as API keys, cloud credentials, or tool configuration that should not live
-in template code.
+User secrets let you store secret values in Coder and make them available in
+every workspace you own.
 
 > [!NOTE]
 > User secrets are in Early Access and may change. For more information, see
 > [feature stages](../install/releases/feature-stages.md#early-access-features).
 
 ## How user secrets work
-
-Coder workspaces are created from templates. Templates define the shared
-infrastructure, tools, and workspace configuration for a team or organization.
-User secrets sit outside templates: you create a secret once, choose how Coder
-should expose it, and Coder injects it into your workspaces.
 
 Each user secret has:
 
@@ -52,7 +45,7 @@ secret environment variables take precedence over template-defined environment
 variables with the same name.
 
 ```sh
-printf %s "$API_KEY" | coder secret create api-key \
+echo -n "$API_KEY" | coder secret create api-key \
   --description "API key for workspace tools" \
   --env API_KEY
 ```
@@ -77,7 +70,7 @@ updates the contents and preserves the existing permissions.
 You can expose the same secret as both an environment variable and a file:
 
 ```sh
-printf %s "$TOKEN" | coder secret create service-token \
+echo -n "$TOKEN" | coder secret create service-token \
   --description "Service token for workspace tools" \
   --env SERVICE_TOKEN \
   --file ~/.config/service/token
@@ -98,8 +91,12 @@ For sensitive values, prefer stdin because `--value` can expose the secret in
 shell history or process arguments.
 
 Stdin is read verbatim. If the source file ends with a trailing newline, Coder
-stores that newline as part of the secret value. Use `printf %s` when you do not
-want to store a trailing newline.
+stores that newline as part of the secret value. Use `echo -n` when you do not
+want to store a trailing newline:
+
+```sh
+echo -n "$API_KEY" | coder secret create api-key --env API_KEY
+```
 
 ## Update a secret
 
@@ -109,7 +106,7 @@ variable target, or file target. At least one of `--value`, `--description`,
 
 ```sh
 # Update a secret value.
-printf %s "$NEW_API_KEY" | coder secret update api-key
+echo -n "$NEW_API_KEY" | coder secret update api-key
 
 # Change the environment variable target.
 coder secret update api-key --env NEW_API_KEY

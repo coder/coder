@@ -8,7 +8,7 @@ guide to
 Use this guide to configure how templates make secrets available to Coder
 workspaces. To authenticate workspace provisioners with Coder, see the
 <a href="../provisioners/index.md#authentication">provisioners documentation</a>.
-For personal credentials that developers manage themselves, see
+For secret values that developers manage themselves, see
 [User secrets](../../user-guides/user-secrets.md).
 
 ## Before you begin
@@ -46,9 +46,8 @@ Users can view their public key in their account settings:
 
 ## User secrets (Early Access)
 
-User secrets are personal credentials that developers manage themselves. They
-are not configured in template code, and Coder injects them into all workspaces
-owned by that developer. See the
+User secrets are secret values that developers manage themselves. Coder injects
+them into all workspaces owned by that developer. See the
 [User secrets guide](../../user-guides/user-secrets.md).
 
 ## Dynamic Secrets
