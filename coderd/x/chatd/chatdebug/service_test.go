@@ -39,7 +39,7 @@ func TestService_IsEnabled(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _, _ := dbtestutil.NewDBWithSQLDB(t)
-	_, owner, chat, model := seedChat(ctx, t, db)
+	_, owner, chat, model := seedChat(t, db)
 	require.NotEqual(t, uuid.Nil, model.ID)
 
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
@@ -77,7 +77,7 @@ func TestService_IsEnabled_AlwaysEnable(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _, _ := dbtestutil.NewDBWithSQLDB(t)
-	_, owner, chat, model := seedChat(ctx, t, db)
+	_, owner, chat, model := seedChat(t, db)
 	require.NotEqual(t, uuid.Nil, model.ID)
 
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil, chatdebug.WithAlwaysEnable(true))
@@ -685,7 +685,7 @@ func TestService_FinalizeStale(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
-	_, owner, chat, model := seedChat(ctx, t, db)
+	_, owner, chat, model := seedChat(t, db)
 	require.NotEqual(t, uuid.Nil, owner.ID)
 
 	staleTime := time.Now().Add(-10 * time.Minute).UTC().Round(time.Microsecond)
@@ -733,7 +733,7 @@ func TestService_FinalizeStale_BroadcastsFinalizeEvent(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
-	_, owner, chat, model := seedChat(ctx, t, db)
+	_, owner, chat, model := seedChat(t, db)
 	require.NotEqual(t, uuid.Nil, owner.ID)
 
 	staleTime := time.Now().Add(-10 * time.Minute).UTC().Round(time.Microsecond)
@@ -796,7 +796,7 @@ func TestService_FinalizeStale_NoChangesDoesNotBroadcast(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
-	_, owner, chat, _ := seedChat(ctx, t, db)
+	_, owner, chat, _ := seedChat(t, db)
 	require.NotEqual(t, uuid.Nil, owner.ID)
 
 	memoryPubsub := dbpubsub.NewInMemory()
@@ -1018,7 +1018,7 @@ func TestService_PublishesEvents(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
-	_, owner, chat, model := seedChat(ctx, t, db)
+	_, owner, chat, model := seedChat(t, db)
 	require.NotEqual(t, uuid.Nil, owner.ID)
 
 	memoryPubsub := dbpubsub.NewInMemory()
@@ -1069,7 +1069,7 @@ func newFixture(t *testing.T) testFixture {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
-	org, owner, chat, model := seedChat(ctx, t, db)
+	org, owner, chat, model := seedChat(t, db)
 	return testFixture{
 		ctx:   ctx,
 		db:    db,
@@ -1082,7 +1082,6 @@ func newFixture(t *testing.T) testFixture {
 }
 
 func seedChat(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 ) (database.Organization, database.User, database.Chat, database.ChatModelConfig) {

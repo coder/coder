@@ -35,7 +35,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -70,7 +70,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -126,7 +126,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -207,7 +207,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -263,7 +263,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -326,7 +326,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -397,7 +397,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -459,7 +459,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -521,7 +521,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -588,7 +588,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -641,7 +641,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -735,7 +735,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -815,7 +815,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -910,7 +910,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -952,10 +952,8 @@ func TestStartWorkspace(t *testing.T) {
 
 // seedModelConfig inserts a provider and model config for testing.
 func seedModelConfig(
-	_ context.Context,
 	t *testing.T,
 	db database.Store,
-	_ uuid.UUID,
 ) database.ChatModelConfig {
 	t.Helper()
 

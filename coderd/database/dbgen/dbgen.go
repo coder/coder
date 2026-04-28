@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -121,7 +122,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
 		Role:                []database.ChatMessageRole{takeFirst(seed.Role, database.ChatMessageRoleUser)},
 		Content:             []string{content},
-		ContentVersion:      []int16{takeFirst(seed.ContentVersion, 1)},
+		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
 		Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
 		InputTokens:         []int64{seed.InputTokens.Int64},
 		OutputTokens:        []int64{seed.OutputTokens.Int64},
@@ -140,6 +141,12 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	return msgs[0]
 }
 
+const (
+	// Match the default OpenAI test model's effective context settings.
+	defaultChatModelContextLimit         int64 = 128000
+	defaultChatModelCompressionThreshold int32 = 70
+)
+
 func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
 	params := database.InsertChatModelConfigParams{
@@ -150,8 +157,8 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		UpdatedBy:            seed.UpdatedBy,
 		Enabled:              takeFirst(seed.Enabled, true),
 		IsDefault:            seed.IsDefault,
-		ContextLimit:         takeFirst(seed.ContextLimit, 128000),
-		CompressionThreshold: takeFirst(seed.CompressionThreshold, 70),
+		ContextLimit:         takeFirst(seed.ContextLimit, defaultChatModelContextLimit),
+		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
 	}
 	for _, fn := range munge {
@@ -187,6 +194,7 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
 	t.Helper()
 
+	// CreatedBy and UpdatedBy are user FKs, so default fixtures create a user.
 	createdBy := seed.CreatedBy.UUID
 	if createdBy == uuid.Nil {
 		createdBy = User(t, db, database.User{}).ID

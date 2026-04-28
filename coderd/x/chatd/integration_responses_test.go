@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -64,7 +65,7 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	})
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, false, true)
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
 	server := newActiveTestServer(t, db, ps)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -146,8 +147,8 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	})
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	firstModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
-	secondModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
+	firstModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
+	secondModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
 	server := newActiveTestServer(t, db, ps)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -206,8 +207,8 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 	})
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, false)
-	chat := insertOpenAIResponsesChat(ctx, t, db, org.ID, user.ID, model.ID, "local-pending")
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, true, false)
+	chat := insertOpenAIResponsesChat(t, db, org.ID, user.ID, model.ID, "local-pending")
 
 	callID := fmt.Sprintf("call_local_%d", time.Now().UnixNano())
 	localCall := codersdk.ChatMessageToolCall(
@@ -273,8 +274,8 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 	})
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
-	chat := insertOpenAIResponsesChat(ctx, t, db, org.ID, user.ID, model.ID, "provider-only")
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
+	chat := insertOpenAIResponsesChat(t, db, org.ID, user.ID, model.ID, "provider-only")
 
 	const (
 		previousResponseID = "resp_provider_only_prior"
@@ -383,7 +384,6 @@ type persistedResponsesMessage struct {
 }
 
 func insertOpenAIResponsesModelConfig(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	userID uuid.UUID,
@@ -409,7 +409,6 @@ func insertOpenAIResponsesModelConfig(
 }
 
 func insertOpenAIResponsesChat(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	organizationID uuid.UUID,
@@ -418,7 +417,7 @@ func insertOpenAIResponsesChat(
 	titlePrefix string,
 ) database.Chat {
 	t.Helper()
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	return dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    organizationID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
@@ -427,8 +426,6 @@ func insertOpenAIResponsesChat(
 		MCPServerIDs:      []uuid.UUID{},
 		ClientType:        database.ChatClientTypeApi,
 	})
-	require.NoError(t, err)
-	return chat
 }
 
 func insertOpenAIResponsesMessages(

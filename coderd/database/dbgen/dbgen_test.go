@@ -2,14 +2,18 @@ package dbgen_test
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 )
 
 func TestGenerator(t *testing.T) {
@@ -275,6 +279,13 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, "anthropic", p2.Provider)
 		require.Equal(t, "Claude", p2.DisplayName)
 		require.Equal(t, "sk-custom", p2.APIKey)
+
+		p3 := dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider: "openrouter",
+		}, func(params *database.InsertChatProviderParams) {
+			params.APIKey = ""
+		})
+		require.Empty(t, p3.APIKey)
 	})
 
 	t.Run("ChatModelConfig", func(t *testing.T) {
@@ -363,14 +374,41 @@ func TestGenerator(t *testing.T) {
 		require.NotZero(t, msg.ID)
 		require.Equal(t, database.ChatMessageRoleUser, msg.Role)
 		require.Equal(t, database.ChatMessageVisibilityBoth, msg.Visibility)
-		require.Equal(t, int16(1), msg.ContentVersion)
+		require.Equal(t, chatprompt.CurrentContentVersion, msg.ContentVersion)
 
 		// Overrides.
+		rawContent := json.RawMessage(`[{"type":"text","text":"hello"}]`)
 		msg2 := dbgen.ChatMessage(t, db, database.ChatMessage{
 			ChatID: chat.ID,
 			Role:   database.ChatMessageRoleAssistant,
+			Content: pqtype.NullRawMessage{
+				RawMessage: rawContent,
+				Valid:      true,
+			},
+			InputTokens:         sql.NullInt64{Int64: 11, Valid: true},
+			OutputTokens:        sql.NullInt64{Int64: 22, Valid: true},
+			TotalTokens:         sql.NullInt64{Int64: 33, Valid: true},
+			ReasoningTokens:     sql.NullInt64{Int64: 44, Valid: true},
+			CacheCreationTokens: sql.NullInt64{Int64: 55, Valid: true},
+			CacheReadTokens:     sql.NullInt64{Int64: 66, Valid: true},
+			ContextLimit:        sql.NullInt64{Int64: 77, Valid: true},
+			Compressed:          true,
+			TotalCostMicros:     sql.NullInt64{Int64: 88, Valid: true},
+			ProviderResponseID:  sql.NullString{String: "resp-123", Valid: true},
 		})
 		require.Equal(t, database.ChatMessageRoleAssistant, msg2.Role)
+		require.True(t, msg2.Content.Valid)
+		require.JSONEq(t, string(rawContent), string(msg2.Content.RawMessage))
+		require.Equal(t, sql.NullInt64{Int64: 11, Valid: true}, msg2.InputTokens)
+		require.Equal(t, sql.NullInt64{Int64: 22, Valid: true}, msg2.OutputTokens)
+		require.Equal(t, sql.NullInt64{Int64: 33, Valid: true}, msg2.TotalTokens)
+		require.Equal(t, sql.NullInt64{Int64: 44, Valid: true}, msg2.ReasoningTokens)
+		require.Equal(t, sql.NullInt64{Int64: 55, Valid: true}, msg2.CacheCreationTokens)
+		require.Equal(t, sql.NullInt64{Int64: 66, Valid: true}, msg2.CacheReadTokens)
+		require.Equal(t, sql.NullInt64{Int64: 77, Valid: true}, msg2.ContextLimit)
+		require.True(t, msg2.Compressed)
+		require.Equal(t, sql.NullInt64{Int64: 88, Valid: true}, msg2.TotalCostMicros)
+		require.Equal(t, sql.NullString{String: "resp-123", Valid: true}, msg2.ProviderResponseID)
 	})
 
 	t.Run("MCPServerConfig", func(t *testing.T) {

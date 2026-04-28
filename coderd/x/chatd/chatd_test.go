@@ -1555,7 +1555,7 @@ func TestUnarchiveChildChat(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		user, org, model := seedChatDependencies(t, db)
 
-		_, child := insertParentWithActiveChild(ctx, t, db, user, org, model)
+		_, child := insertParentWithActiveChild(t, db, user, org, model)
 
 		require.NoError(t, replica.UnarchiveChat(ctx, child))
 
@@ -1569,7 +1569,6 @@ func TestUnarchiveChildChat(t *testing.T) {
 // child chat linked to it. Both are returned in their initial
 // (active) state.
 func insertParentWithActiveChild(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	user database.User,
@@ -1606,7 +1605,7 @@ func insertParentWithArchivedChild(
 	model database.ChatModelConfig,
 ) (parent database.Chat, child database.Chat) {
 	t.Helper()
-	parent, child = insertParentWithActiveChild(ctx, t, db, user, org, model)
+	parent, child = insertParentWithActiveChild(t, db, user, org, model)
 	_, err := db.ArchiveChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	child, err = db.GetChatByID(ctx, child.ID)

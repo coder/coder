@@ -7868,7 +7868,6 @@ func TestGetChatDiffStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = db.UpsertChatDiffStatus(
-
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusParams{
 				ChatID: cachedStatusChat.ID,
@@ -8291,7 +8290,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		})
 
 		invalidRes, err := client.Request(
-
 			ctx,
 			http.MethodPost,
 			fmt.Sprintf("/api/experimental/chats/%s/queue/not-an-int/promote", chat.ID),

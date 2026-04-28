@@ -1178,8 +1178,9 @@ func TestUserChatProviderKeys(t *testing.T) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
 		provider := dbgen.ChatProvider(t, crypt, database.ChatProvider{
-			APIKey:          "",
 			AllowUserApiKey: true,
+		}, func(params *database.InsertChatProviderParams) {
+			params.APIKey = ""
 		})
 
 		key, err := crypt.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
