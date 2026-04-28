@@ -5,7 +5,6 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
 import type { FC } from "react";
 import type { TemplateVersionVariable } from "#/api/typesGenerated";
-import { Stack } from "#/components/Stack/Stack";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
 	return variable.type === "bool";
@@ -41,7 +40,7 @@ export const VariableInput: FC<VariableInputProps> = ({
 	defaultValue,
 }) => {
 	return (
-		<Stack direction="column" spacing={0.75}>
+		<div className="flex flex-col gap-1.5">
 			<VariableLabel variable={variable} />
 			<div css={styles.input}>
 				<VariableField
@@ -51,7 +50,7 @@ export const VariableInput: FC<VariableInputProps> = ({
 					defaultValue={defaultValue}
 				/>
 			</div>
-		</Stack>
+		</div>
 	);
 };
 

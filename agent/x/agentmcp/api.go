@@ -1,6 +1,7 @@
 package agentmcp
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -15,16 +16,24 @@ import (
 // API exposes MCP tool discovery and call proxying through the
 // agent.
 type API struct {
-	logger  slog.Logger
-	manager *Manager
+	logger         slog.Logger
+	manager        *Manager
+	mcpConfigFiles func() []string
 }
 
 // NewAPI creates a new MCP API handler backed by the given
-// manager.
-func NewAPI(logger slog.Logger, manager *Manager) *API {
+// manager. The mcpConfigFiles callback returns the current
+// resolved config file paths; it is called on every tool-list
+// request to detect config changes.
+func NewAPI(
+	logger slog.Logger,
+	manager *Manager,
+	mcpConfigFiles func() []string,
+) *API {
 	return &API{
-		logger:  logger,
-		manager: manager,
+		logger:         logger,
+		manager:        manager,
+		mcpConfigFiles: mcpConfigFiles,
 	}
 }
 
@@ -36,13 +45,38 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
-// handleListTools returns the cached MCP tool definitions,
-// optionally refreshing them first if ?refresh=true is set.
+// handleListTools checks whether any .mcp.json config file
+// has changed since the last reload, triggering a differential
+// reload if so, then returns the cached MCP tool definitions.
+// The ?refresh=true query parameter forces a tool re-scan
+// independent of config changes.
 func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// Check config freshness and reload if changed.
+	var reloaded bool
+	paths := api.mcpConfigFiles()
+	if api.manager.SnapshotChanged(paths) {
+		if err := api.manager.Reload(ctx, paths); err != nil {
+			// Categorize the error for operator debugging.
+			switch {
+			case errors.Is(err, context.Canceled):
+				api.logger.Warn(ctx, "mcp reload canceled by caller", slog.Error(err))
+			case errors.Is(err, context.DeadlineExceeded):
+				api.logger.Warn(ctx, "mcp reload timed out", slog.Error(err))
+			default:
+				api.logger.Warn(ctx, "mcp reload failed", slog.Error(err))
+			}
+			// Fall through to return whatever tools we have.
+		} else {
+			reloaded = true
+		}
+	}
+
 	// Allow callers to force a tool re-scan before listing.
-	if r.URL.Query().Get("refresh") == "true" {
+	// Skip if a config reload ran above, since it already
+	// refreshes tools as part of the reload.
+	if r.URL.Query().Get("refresh") == "true" && !reloaded {
 		if err := api.manager.RefreshTools(ctx); err != nil {
 			api.logger.Warn(ctx, "failed to refresh MCP tools", slog.Error(err))
 		}

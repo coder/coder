@@ -266,6 +266,10 @@ WHERE
         WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
         ELSE true
     END
+    AND CASE
+        WHEN @after_id::bigint > 0 THEN id > @after_id::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
@@ -1482,4 +1486,6 @@ SELECT
     )::timestamptz AS last_activity_at
 FROM archived a
 LEFT JOIN to_archive t ON t.id = a.id
+-- created_at ASC flows through to dbpurge's digest truncation; see
+-- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;

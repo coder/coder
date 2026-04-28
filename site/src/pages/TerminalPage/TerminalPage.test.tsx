@@ -38,9 +38,8 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 const createWorkspaceTerminalWebSocket = () => {
-	const websocketProtocol =
-		window.location.protocol === "https:" ? "wss" : "ws";
-	const websocketUrl = `${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&height=24&width=80`;
+	const websocketProtocol = location.protocol === "https:" ? "wss" : "ws";
+	const websocketUrl = `${websocketProtocol}://${location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&height=24&width=80`;
 
 	return new WS(websocketUrl);
 };
@@ -239,17 +238,15 @@ describe("TerminalPage", () => {
 		expect(resizeReq.width).toBeGreaterThan(0);
 	});
 
-	it("removes command param on cancel", async () => {
-		createWorkspaceTerminalWebSocket();
+	it("closes window on cancel", async () => {
+		const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
 		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
 		);
 		await userEvent.click(
 			await screen.findByRole("button", { name: "Cancel" }),
 		);
-		await waitFor(() =>
-			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-		);
+		expect(closeSpy).toHaveBeenCalled();
 	});
 
 	it("skips confirmation dialog for trusted app commands", async () => {

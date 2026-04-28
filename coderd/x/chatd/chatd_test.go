@@ -8324,7 +8324,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	_ = agenttest.New(t, client.URL, agentToken)
+	_ = agenttest.New(t, client.URL, agentToken, agenttest.WithContextConfigFromEnv())
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 	// Capture LLM requests so we can inspect the system prompt.

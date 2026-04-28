@@ -9,7 +9,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {
@@ -33,11 +32,7 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Add an OAuth2 application</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -51,9 +46,9 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 						All OAuth2 Applications
 					</RouterLink>
 				</Button>
-			</Stack>
+			</div>
 
-			<Stack>
+			<div className="flex flex-col gap-4">
 				{error ? <ErrorAlert error={error} /> : undefined}
 				<OAuth2AppForm
 					onSubmit={createApp}
@@ -62,7 +57,7 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 					defaultValues={defaultValues}
 					disabled={!canCreateApp}
 				/>
-			</Stack>
+			</div>
 		</>
 	);
 };
