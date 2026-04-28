@@ -1156,6 +1156,11 @@
 									]
 								},
 								{
+									"title": "Using AI Gateway Without Workspaces",
+									"description": "Connect local IDE extensions and desktop applications to AI Gateway",
+									"path": "./ai-coder/ai-gateway/external-clients.md"
+								},
+								{
 									"title": "MCP Tools Injection",
 									"description": "How to configure MCP servers for tools injection through AI Gateway",
 									"path": "./ai-coder/ai-gateway/mcp.md",

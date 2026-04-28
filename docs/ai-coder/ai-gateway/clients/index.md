@@ -131,11 +131,12 @@ resource "coder_agent" "dev" {
 
 ## External and Desktop Clients
 
-You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Gateway.
+AI tools running outside of a Coder workspace, such as local IDE extensions
+or desktop applications, can also connect to AI Gateway. Users authenticate
+with a long-lived Coder API token instead of a workspace session token.
 
-The configuration is the same: point the tool to the AI Gateway [base URL](#base-urls) and use a Coder API key for authentication.
-
-Users can generate a long-lived API key from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
+For a step-by-step walkthrough covering both admin and user setup, see
+[Using AI Gateway Without Workspaces](../external-clients.md).
 
 ## All Supported Clients
 
