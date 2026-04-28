@@ -2968,6 +2968,14 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			provider.Key = v.Value
 		case "BASE_URL":
 			provider.BaseURL = v.Value
+		case "DUMP_DIR":
+			provider.DumpDir = v.Value
+		case "MAX_RETRIES":
+			maxRetries, err := strconv.Atoi(v.Value)
+			if err != nil {
+				return nil, xerrors.Errorf("provider %d: parse MAX_RETRIES: %w", providerNum, err)
+			}
+			provider.MaxRetries = &maxRetries
 		case "BEDROCK_BASE_URL":
 			provider.BedrockBaseURL = v.Value
 		case "BEDROCK_REGION":
@@ -3007,6 +3015,10 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		default:
 			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
 				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+		}
+
+		if p.MaxRetries != nil && *p.MaxRetries < 0 {
+			return nil, xerrors.Errorf("provider %d: MAX_RETRIES must be non-negative", i)
 		}
 
 		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {

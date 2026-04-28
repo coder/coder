@@ -4114,6 +4114,11 @@ type AIBridgeProviderConfig struct {
 	Key string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
+	// DumpDir is the directory path for dumping API requests and responses.
+	DumpDir string `json:"dump_dir,omitempty"`
+	// MaxRetries controls the number of automatic retries the SDK performs.
+	// If unset, the SDK default is used.
+	MaxRetries *int `json:"max_retries,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
 	BedrockBaseURL         string `json:"-"`

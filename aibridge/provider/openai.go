@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -45,19 +43,6 @@ func NewOpenAI(cfg config.OpenAI) *OpenAI {
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1/"
-	}
-	if cfg.Key == "" {
-		cfg.Key = os.Getenv("OPENAI_API_KEY")
-	}
-	if cfg.APIDumpDir == "" {
-		cfg.APIDumpDir = os.Getenv("BRIDGE_DUMP_DIR")
-	}
-	if cfg.MaxRetries == nil {
-		if v := os.Getenv("OPENAI_MAX_RETRIES"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				cfg.MaxRetries = &n
-			}
-		}
 	}
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.OpenErrorResponse = openAIOpenErrorResponse
@@ -195,4 +180,8 @@ func (p *OpenAI) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *OpenAI) APIDumpDir() string {
 	return p.cfg.APIDumpDir
+}
+
+func (p *OpenAI) MaxRetries() *int {
+	return p.cfg.MaxRetries
 }

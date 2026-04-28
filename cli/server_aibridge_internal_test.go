@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -34,13 +35,17 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-zdr",
 				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant-xxx",
 				"CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
+				"CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR=/tmp/aibridge-dump",
+				"CODER_AIBRIDGE_PROVIDER_0_MAX_RETRIES=5",
 			},
 			expected: []codersdk.AIBridgeProviderConfig{
 				{
-					Type:    aibridge.ProviderAnthropic,
-					Name:    "anthropic-zdr",
-					Key:     "sk-ant-xxx",
-					BaseURL: "https://api.anthropic.com/",
+					Type:       aibridge.ProviderAnthropic,
+					Name:       "anthropic-zdr",
+					Key:        "sk-ant-xxx",
+					BaseURL:    "https://api.anthropic.com/",
+					DumpDir:    "/tmp/aibridge-dump",
+					MaxRetries: ptr.Ref(5),
 				},
 			},
 		},
@@ -193,6 +198,16 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 					BedrockAccessKeySecret: "secret",
 				},
 			},
+		},
+		{
+			name:        "InvalidMaxRetries",
+			env:         []string{"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai", "CODER_AIBRIDGE_PROVIDER_0_MAX_RETRIES=not-a-number"},
+			errContains: "parse MAX_RETRIES",
+		},
+		{
+			name:        "NegativeMaxRetries",
+			env:         []string{"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai", "CODER_AIBRIDGE_PROVIDER_0_MAX_RETRIES=-1"},
+			errContains: "MAX_RETRIES must be non-negative",
 		},
 		{
 			name: "ConflictKeyAndKeys",

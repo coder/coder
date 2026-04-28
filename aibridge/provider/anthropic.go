@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -56,19 +54,6 @@ func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropi
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.anthropic.com/"
-	}
-	if cfg.Key == "" {
-		cfg.Key = os.Getenv("ANTHROPIC_API_KEY")
-	}
-	if cfg.APIDumpDir == "" {
-		cfg.APIDumpDir = os.Getenv("BRIDGE_DUMP_DIR")
-	}
-	if cfg.MaxRetries == nil {
-		if v := os.Getenv("ANTHROPIC_MAX_RETRIES"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				cfg.MaxRetries = &n
-			}
-		}
 	}
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.IsFailure = anthropicIsFailure
@@ -199,6 +184,10 @@ func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *Anthropic) APIDumpDir() string {
 	return p.cfg.APIDumpDir
+}
+
+func (p *Anthropic) MaxRetries() *int {
+	return p.cfg.MaxRetries
 }
 
 // extractAnthropicHeaders extracts headers required by the Anthropic API from

@@ -41,10 +41,25 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("IndexedOnly", func(t *testing.T) {
 		t.Parallel()
+		anthropicMaxRetries := 4
+		openAIMaxRetries := 5
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Key: "sk-zdr"},
-				{Type: aibridge.ProviderOpenAI, Name: "openai-azure", Key: "sk-azure", BaseURL: "https://azure.openai.com"},
+				{
+					Type:       aibridge.ProviderAnthropic,
+					Name:       "anthropic-zdr",
+					Key:        "sk-zdr",
+					DumpDir:    "/tmp/anthropic-dump",
+					MaxRetries: &anthropicMaxRetries,
+				},
+				{
+					Type:       aibridge.ProviderOpenAI,
+					Name:       "openai-azure",
+					Key:        "sk-azure",
+					BaseURL:    "https://azure.openai.com",
+					DumpDir:    "/tmp/openai-dump",
+					MaxRetries: &openAIMaxRetries,
+				},
 			},
 		}
 
@@ -53,6 +68,12 @@ func TestBuildProviders(t *testing.T) {
 
 		names := providerNames(providers)
 		assert.Equal(t, []string{"anthropic-zdr", "openai-azure"}, names)
+		require.NotNil(t, providers[0].MaxRetries())
+		assert.Equal(t, anthropicMaxRetries, *providers[0].MaxRetries())
+		require.NotNil(t, providers[1].MaxRetries())
+		assert.Equal(t, openAIMaxRetries, *providers[1].MaxRetries())
+		assert.Equal(t, "/tmp/anthropic-dump", providers[0].APIDumpDir())
+		assert.Equal(t, "/tmp/openai-dump", providers[1].APIDumpDir())
 	})
 
 	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
@@ -148,13 +169,28 @@ func TestBuildProviders(t *testing.T) {
 		assert.Contains(t, err.Error(), "unknown provider type")
 	})
 
+	t.Run("IndexedProviderNegativeMaxRetries", func(t *testing.T) {
+		t.Parallel()
+		maxRetries := -1
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIBridgeProviderConfig{
+				{Type: aibridge.ProviderOpenAI, Name: "openai", MaxRetries: &maxRetries},
+			},
+		}
+
+		_, err := buildProviders(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max retries must be non-negative")
+	})
+
 	t.Run("CopilotVariants", func(t *testing.T) {
 		t.Parallel()
 		// Copilot providers can target any of the three GitHub
 		// Copilot API hosts via an explicit BASE_URL.
+		maxRetries := 6
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot},
+				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot, DumpDir: "/tmp/copilot-dump", MaxRetries: &maxRetries},
 				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness},
 				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotEnterprise, BaseURL: "https://" + agplaibridge.HostCopilotEnterprise},
 			},
@@ -165,6 +201,9 @@ func TestBuildProviders(t *testing.T) {
 		require.Len(t, providers, 3)
 
 		assert.Equal(t, aibridge.ProviderCopilot, providers[0].Name())
+		require.NotNil(t, providers[0].MaxRetries())
+		assert.Equal(t, maxRetries, *providers[0].MaxRetries())
+		assert.Equal(t, "/tmp/copilot-dump", providers[0].APIDumpDir())
 		assert.Equal(t, agplaibridge.ProviderCopilotBusiness, providers[1].Name())
 		assert.Equal(t, "https://"+agplaibridge.HostCopilotBusiness, providers[1].BaseURL())
 		assert.Equal(t, agplaibridge.ProviderCopilotEnterprise, providers[2].Name())

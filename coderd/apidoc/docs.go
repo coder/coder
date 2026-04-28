@@ -13312,6 +13312,14 @@ const docTemplate = `{
                 "bedrock_small_fast_model": {
                     "type": "string"
                 },
+                "dump_dir": {
+                    "description": "DumpDir is the directory path for dumping API requests and responses.",
+                    "type": "string"
+                },
+                "max_retries": {
+                    "description": "MaxRetries controls the number of automatic retries the SDK performs.\nIf unset, the SDK default is used.",
+                    "type": "integer"
+                },
                 "name": {
                     "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
                     "type": "string"
