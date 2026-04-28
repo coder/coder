@@ -40,6 +40,44 @@ Every request to AI Gateway is authenticated with a Coder API token, so each
 external user must have a Coder account. Users do not need workspace
 permissions; they only need the ability to generate an API token.
 
+#### Users without individual Coder accounts
+
+Some organizations have developers who need AI Gateway access but should not
+have full Coder accounts (for example, contractors or teams that do not use
+Coder workspaces at all). In this case, an admin can create a
+[service account](../../admin/users/headless-auth.md) and distribute its
+API token to those users.
+
+> [!NOTE]
+> Using a shared service account token is a temporary workaround.
+> A dedicated authentication-only account tier is planned to give each
+> external user their own identity for auditing and access control.
+> Until then, a service account provides a practical path for teams
+> that need AI Gateway governance without individual Coder logins.
+
+To create a service account and generate a token for it:
+
+```sh
+# Create the service account (requires User Admin role or above).
+coder users create \
+  --username="ai-gateway-external" \
+  --service-account
+
+# Generate a long-lived API token for the service account.
+coder tokens create \
+  --name=ai-gateway \
+  --lifetime=2160h \
+  --user="ai-gateway-external"
+```
+
+Distribute the resulting token to the external users along with the
+connection details from the next step.
+
+Because all users share one identity, AI Gateway audit logs attribute
+traffic to the service account rather than to individual developers.
+If per-user attribution matters, create a separate service account
+for each user or group.
+
 ### 4. Share connection details
 
 Provide users with the following information:
