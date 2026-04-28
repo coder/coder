@@ -2462,9 +2462,6 @@ class ApiMethods {
 	/**
 	 * Stops a workspace if it is currently running and waits for the stop
 	 * to complete. Throws if the stop build is canceled.
-	 *
-	 * Shared by changeWorkspaceVersion and updateWorkspace to ensure
-	 * a clean stop-before-start when switching template versions.
 	 */
 	private stopWorkspaceIfRunning = async (
 		workspace: TypesGen.Workspace,
@@ -2536,7 +2533,7 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the newest version
 	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace if it is already running (via stopWorkspaceIfRunning)
+	 * - Stop the workspace if it is already running
 	 * - Create a build with the latest version and updated build parameters
 	 */
 	updateWorkspace = async (

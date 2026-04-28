@@ -279,11 +279,10 @@ describe("api.ts", () => {
 
 	describe("changeWorkspaceVersion", () => {
 		it("stops workspace before changing version if running", async () => {
-			const stopBuildResult = {
+			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
 				...MockWorkspaceBuild,
-				transition: "stop" as const,
-			};
-			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce(stopBuildResult);
+				transition: "stop",
+			});
 			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
 				...MockProvisionerJob,
 				status: "succeeded",
@@ -331,7 +330,7 @@ describe("api.ts", () => {
 		it("rejects if stop is canceled", async () => {
 			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
 				...MockWorkspaceBuild,
-				transition: "stop" as const,
+				transition: "stop",
 			});
 			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
 				...MockProvisionerJob,
