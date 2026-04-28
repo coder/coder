@@ -3115,11 +3115,14 @@ class ExperimentalApiMethods {
 	};
 	getChatMessages = async (
 		chatId: string,
-		opts?: { before_id?: number; limit?: number },
+		opts?: { before_id?: number; after_id?: number; limit?: number },
 	): Promise<TypesGen.ChatMessagesResponse> => {
 		const params = new URLSearchParams();
 		if (opts?.before_id) {
 			params.set("before_id", opts.before_id.toString());
+		}
+		if (opts?.after_id) {
+			params.set("after_id", opts.after_id.toString());
 		}
 		if (opts?.limit) {
 			params.set("limit", opts.limit.toString());

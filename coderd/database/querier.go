@@ -64,6 +64,8 @@ type sqlcQuerier interface {
 	// Archives inactive root chats (pinned and already-archived chats skipped),
 	// cascading to children via root_chat_id. Limits apply to roots, not total
 	// rows. Used by dbpurge.
+	// created_at ASC flows through to dbpurge's digest truncation; see
+	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error

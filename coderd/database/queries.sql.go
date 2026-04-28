@@ -5419,6 +5419,8 @@ type AutoArchiveInactiveChatsRow struct {
 // Archives inactive root chats (pinned and already-archived chats skipped),
 // cascading to children via root_chat_id. Limits apply to roots, not total
 // rows. Used by dbpurge.
+// created_at ASC flows through to dbpurge's digest truncation; see
+// buildDigestData in dbpurge.go for the tradeoff rationale.
 func (q *sqlQuerier) AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, autoArchiveInactiveChats, arg.ArchiveCutoff, arg.LimitCount)
 	if err != nil {
@@ -6543,22 +6545,32 @@ WHERE
         WHEN $2::bigint > 0 THEN id < $2::bigint
         ELSE true
     END
+    AND CASE
+        WHEN $3::bigint > 0 THEN id > $3::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
     id DESC
 LIMIT
-    COALESCE(NULLIF($3::int, 0), 50)
+    COALESCE(NULLIF($4::int, 0), 50)
 `
 
 type GetChatMessagesByChatIDDescPaginatedParams struct {
 	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
 	BeforeID int64     `db:"before_id" json:"before_id"`
+	AfterID  int64     `db:"after_id" json:"after_id"`
 	LimitVal int32     `db:"limit_val" json:"limit_val"`
 }
 
 func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDDescPaginated, arg.ChatID, arg.BeforeID, arg.LimitVal)
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDDescPaginated,
+		arg.ChatID,
+		arg.BeforeID,
+		arg.AfterID,
+		arg.LimitVal,
+	)
 	if err != nil {
 		return nil, err
 	}

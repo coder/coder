@@ -799,12 +799,12 @@ func (jfs justFilesSystem) Open(name string) (fs.File, error) {
 // RenderOAuthAllowData contains the variables that are found in
 // site/static/oauth2allow.html.
 type RenderOAuthAllowData struct {
-	AppIcon     string
-	AppName     string
-	CancelURI   htmltemplate.URL
-	RedirectURI string
-	CSRFToken   string
-	Username    string
+	AppIcon      string
+	AppName      string
+	CancelURI    htmltemplate.URL
+	DashboardURL string
+	CSRFToken    string
+	Username     string
 }
 
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create

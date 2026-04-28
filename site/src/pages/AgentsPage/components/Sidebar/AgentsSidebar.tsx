@@ -466,6 +466,7 @@ interface ChatTreeNodeProps {
 }
 
 const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+	const location = useLocation();
 	const {
 		chatTree,
 		chatById,
@@ -645,7 +646,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 						</div>
 						<NavLink
-							to={`/agents/${chat.id}`}
+							to={{
+								pathname: `/agents/${chat.id}`,
+								search: location.search,
+							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
 							{({ isActive }) => (

@@ -378,6 +378,28 @@ type Story = StoryObj<typeof AgentsPageView>;
 
 export const EmptyState: Story = {};
 
+export const ArchivedEmptyState: Story = {
+	args: {
+		archivedFilter: "archived",
+		chatList: [],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
+		await expect(await screen.findByText("No archived agents")).toBeVisible();
+		await expect(
+			screen.getByRole("button", { name: /back to active/i }),
+		).toBeVisible();
+	},
+};
+
 export const WithChatList: Story = {
 	args: {
 		chatList: [
