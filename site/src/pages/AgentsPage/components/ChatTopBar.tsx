@@ -11,7 +11,7 @@ import {
 	WandSparklesIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -67,6 +67,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	diffStatusData,
 }) => {
 	const { isEmbedded } = useEmbedContext();
+	const location = useLocation();
 
 	const prUrl = diffStatusData?.url;
 	const prState = diffStatusData?.pull_request_state;
@@ -87,7 +88,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					size="icon"
 					className="inline-flex h-7 w-7 min-w-0 shrink-0 md:hidden"
 				>
-					<Link to="/agents" aria-label="Back">
+					<Link to={{ pathname: "/agents", search: location.search }} aria-label="Back">
 						<ArrowLeftIcon />
 					</Link>
 				</Button>
