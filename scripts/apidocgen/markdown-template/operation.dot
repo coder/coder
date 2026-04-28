@@ -1,4 +1,29 @@
 {{
+	function operationBaseUrl(data) {
+		const apidocgen = data.operation["x-apidocgen"];
+		if (!apidocgen || typeof apidocgen.base_path !== "string") {
+			return data.baseUrl;
+		}
+
+		if (!apidocgen.base_path.startsWith("/")) {
+			throw new Error(
+				"x-apidocgen.base_path must start with \"/\": " + apidocgen.base_path
+			);
+		}
+		const hasOrigin = /^[a-z][a-z0-9+.-]*:\/\//i.test(data.baseUrl);
+		/*
+		 * URL requires an absolute base. Use the docs placeholder origin only
+		 * while normalizing relative paths; relative inputs keep returning only
+		 * the pathname.
+		 */
+		const url = new URL(data.baseUrl, "http://coder-server:8080");
+		url.pathname = apidocgen.base_path;
+		url.search = "";
+		url.hash = "";
+		const baseUrl = hasOrigin ? url.toString() : url.pathname;
+		return baseUrl.replace(/\/$/, "");
+	}
+
 	function renderCodeSample(data) {
 		const originalCodeSample = data.utils.getCodeSamples(data);
 		return originalCodeSample.replace("\n```\n", "```\n");
@@ -25,7 +50,7 @@
 }}
 
 {{ data.methodUpper = data.method.verb.toUpperCase(); }}
-{{ data.url = data.utils.slashes(data.baseUrl + data.method.path); }}
+{{ data.url = data.utils.slashes(operationBaseUrl(data) + data.method.path); }}
 {{ data.parameters = data.operation.parameters; }}
 {{ data.enums = []; }}
 {{ data.utils.fakeProdCons(data); }}

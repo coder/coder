@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -280,7 +281,11 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), "Swagger UI")
+		bodyString := string(body)
+		require.Contains(t, bodyString, "Swagger UI")
+		require.Contains(t, bodyString, "requestInterceptor")
+		require.Contains(t, bodyString, "/api/v2/scim/v2")
+		require.Contains(t, bodyString, "/scim/v2")
 	})
 	t.Run("doc.json exposed", func(t *testing.T) {
 		t.Parallel()
@@ -299,7 +304,31 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), `"swagger": "2.0"`)
+		bodyString := string(body)
+		require.Contains(t, bodyString, `"swagger": "2.0"`)
+
+		require.NotContains(t, bodyString, `"/api/v2/scim/v2`)
+
+		var doc struct {
+			Paths map[string]map[string]struct {
+				Apidocgen struct {
+					BasePath string `json:"base_path"`
+				} `json:"x-apidocgen"`
+			} `json:"paths"`
+		}
+		require.NoError(t, json.Unmarshal(body, &doc))
+		scimOperations := 0
+		for path, methods := range doc.Paths {
+			if !strings.HasPrefix(path, "/scim/v2") {
+				continue
+			}
+			for method, operation := range methods {
+				scimOperations++
+				require.Equalf(t, "/", operation.Apidocgen.BasePath,
+					"%s %s must override the global swagger basePath", method, path)
+			}
+		}
+		require.Positive(t, scimOperations, "expected at least one SCIM operation")
 	})
 	t.Run("endpoint disabled by default", func(t *testing.T) {
 		t.Parallel()

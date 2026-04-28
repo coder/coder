@@ -49,6 +49,7 @@ func scimUnauthorized(rw http.ResponseWriter) {
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Success 200
+// @x-apidocgen {"base_path": "/"}
 // @Router /scim/v2/ServiceProviderConfig [get]
 func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Request) {
 	// No auth needed to query this endpoint.
@@ -115,6 +116,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Success 200
+// @x-apidocgen {"base_path": "/"}
 // @Router /scim/v2/Users [get]
 //
 //nolint:revive
@@ -143,6 +145,7 @@ func (api *API) scimGetUsers(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param id path string true "User ID" format(uuid)
 // @Failure 404
+// @x-apidocgen {"base_path": "/"}
 // @Router /scim/v2/Users/{id} [get]
 //
 //nolint:revive
@@ -195,6 +198,7 @@ var SCIMAuditAdditionalFields = map[string]string{
 // @Tags Enterprise
 // @Param request body coderd.SCIMUser true "New user"
 // @Success 200 {object} coderd.SCIMUser
+// @x-apidocgen {"base_path": "/"}
 // @Router /scim/v2/Users [post]
 func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -344,6 +348,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 // @Param id path string true "User ID" format(uuid)
 // @Param request body coderd.SCIMUser true "Update user request"
 // @Success 200 {object} codersdk.User
+// @x-apidocgen {"base_path": "/"}
 // @Router /scim/v2/Users/{id} [patch]
 func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -428,6 +433,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 // @Param id path string true "User ID" format(uuid)
 // @Param request body coderd.SCIMUser true "Replace user request"
 // @Success 200 {object} codersdk.User
+// @x-apidocgen {"base_path": "/"}
 // @Router /scim/v2/Users/{id} [put]
 func (api *API) scimPutUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

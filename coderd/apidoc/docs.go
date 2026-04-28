@@ -5694,6 +5694,9 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
+                },
+                "x-apidocgen": {
+                    "base_path": "/"
                 }
             }
         },
@@ -5716,7 +5719,10 @@ const docTemplate = `{
                     {
                         "Authorization": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "base_path": "/"
+                }
             },
             "post": {
                 "produces": [
@@ -5750,7 +5756,10 @@ const docTemplate = `{
                     {
                         "Authorization": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "base_path": "/"
+                }
             }
         },
         "/scim/v2/Users/{id}": {
@@ -5782,7 +5791,10 @@ const docTemplate = `{
                     {
                         "Authorization": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "base_path": "/"
+                }
             },
             "put": {
                 "produces": [
@@ -5824,7 +5836,10 @@ const docTemplate = `{
                     {
                         "Authorization": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "base_path": "/"
+                }
             },
             "patch": {
                 "produces": [
@@ -5866,7 +5881,10 @@ const docTemplate = `{
                     {
                         "Authorization": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "base_path": "/"
+                }
             }
         },
         "/settings/idpsync/available-fields": {

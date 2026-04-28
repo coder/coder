@@ -3146,7 +3146,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/scim/v2/ServiceProviderConfig
+curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 
 ```
 
@@ -3164,7 +3164,7 @@ curl -X GET http://coder-server:8080/api/v2/scim/v2/ServiceProviderConfig
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/scim/v2/Users \
+curl -X GET http://coder-server:8080/scim/v2/Users \
   -H 'Authorizaiton: API_KEY'
 ```
 
@@ -3184,7 +3184,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
+curl -X POST http://coder-server:8080/scim/v2/Users \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorizaiton: API_KEY'
@@ -3276,7 +3276,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Authorizaiton: API_KEY'
 ```
 
@@ -3302,7 +3302,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
   -H 'Authorizaiton: API_KEY'
@@ -3394,7 +3394,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
   -H 'Authorizaiton: API_KEY'

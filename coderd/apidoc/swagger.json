@@ -5047,6 +5047,9 @@
 					"200": {
 						"description": "OK"
 					}
+				},
+				"x-apidocgen": {
+					"base_path": "/"
 				}
 			}
 		},
@@ -5065,7 +5068,10 @@
 					{
 						"Authorization": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"base_path": "/"
+				}
 			},
 			"post": {
 				"produces": ["application/json"],
@@ -5095,7 +5101,10 @@
 					{
 						"Authorization": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"base_path": "/"
+				}
 			}
 		},
 		"/scim/v2/Users/{id}": {
@@ -5123,7 +5132,10 @@
 					{
 						"Authorization": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"base_path": "/"
+				}
 			},
 			"put": {
 				"produces": ["application/scim+json"],
@@ -5161,7 +5173,10 @@
 					{
 						"Authorization": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"base_path": "/"
+				}
 			},
 			"patch": {
 				"produces": ["application/scim+json"],
@@ -5199,7 +5214,10 @@
 					{
 						"Authorization": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"base_path": "/"
+				}
 			}
 		},
 		"/settings/idpsync/available-fields": {

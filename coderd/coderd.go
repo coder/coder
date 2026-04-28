@@ -107,6 +107,32 @@ import (
 	"github.com/coder/serpent"
 )
 
+const (
+	swaggerGeneratedSCIMPathPrefix = "/api/v2/scim/v2"
+	swaggerActualSCIMPathPrefix    = "/scim/v2"
+
+	swaggerRequestInterceptor = `(request => {
+	request.credentials = "omit";
+
+	// Swagger 2.0 only supports a global basePath. Most Coder API routes
+	// are under /api/v2, but SCIM is mounted at /scim/v2 for IdP
+	// compatibility. Rewrite structurally matching SCIM requests after
+	// Swagger UI builds them so "try it out" uses the actual route.
+	const generatedSCIMPathPrefix = "` + swaggerGeneratedSCIMPathPrefix + `";
+	const actualSCIMPathPrefix = "` + swaggerActualSCIMPathPrefix + `";
+	const url = new URL(request.url, window.location.href);
+	if (
+		url.pathname === generatedSCIMPathPrefix ||
+		url.pathname.startsWith(generatedSCIMPathPrefix + "/")
+	) {
+		url.pathname = actualSCIMPathPrefix +
+			url.pathname.slice(generatedSCIMPathPrefix.length);
+		request.url = url.toString();
+	}
+	return request;
+})`
+)
+
 // We must only ever instantiate one httpSwagger.Handler because of a data race
 // inside the handler. This issue is triggered by tests that create multiple
 // coderd instances.
@@ -134,11 +160,8 @@ func init() {
 			// for whatever reason it does not.
 			// So this `requestInterceptor` ensures browser credentials are
 			// omitted from all requests.
-			"requestInterceptor": `(a => {
-				a.credentials = "omit";
-				return a;
-			})`,
-			"withCredentials": "false",
+			"requestInterceptor": swaggerRequestInterceptor,
+			"withCredentials":    "false",
 		}))
 }
 
