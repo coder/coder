@@ -6,37 +6,41 @@ import {
 	useRef,
 	useState,
 } from "react";
+import type { AttachmentFailure } from "../../utils/chatAttachments";
 
-type ExpiredFileIdsContextValue = {
+type FileProbeContextValue = {
 	hasExpired: (fileId: string) => boolean;
 	markExpired: (fileId: string) => void;
-	// isPending and markPending track in-flight probes so that when the same
-	// file ID appears in multiple blocks, only the first onError handler starts
-	// a network probe. The others fall through to the optimistic "failed" tile
-	// and will be upgraded to "expired" if markExpired is later called.
 	isPending: (fileId: string) => boolean;
 	markPending: (fileId: string) => void;
 	clearPending: (fileId: string) => void;
+	getProbeResult: (fileId: string) => AttachmentFailure | undefined;
+	setProbeResult: (fileId: string, result: AttachmentFailure) => void;
 };
 
-const ExpiredFileIdsContext = createContext<ExpiredFileIdsContextValue>({
+const FileProbeContext = createContext<FileProbeContextValue>({
 	hasExpired: () => false,
 	markExpired: () => {},
 	isPending: () => false,
 	markPending: () => {},
 	clearPending: () => {},
+	getProbeResult: () => undefined,
+	setProbeResult: () => {},
 });
 
-export const ExpiredFileIdsProvider: FC<PropsWithChildren> = ({ children }) => {
+export const FileProbeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const [expiredFileIds, setExpiredFileIds] = useState<Set<string>>(
 		() => new Set(),
 	);
-	// Use a ref so pending-state changes don't trigger re-renders; we only
-	// need re-renders when expiredFileIds changes.
+	// Ref, not state: must be readable synchronously by the second
+	// onError handler before React re-renders.
 	const pendingProbeFileIds = useRef<Set<string>>(new Set());
+	const [probeResults, setProbeResults] = useState<
+		Map<string, AttachmentFailure>
+	>(() => new Map());
 
 	return (
-		<ExpiredFileIdsContext.Provider
+		<FileProbeContext.Provider
 			value={{
 				hasExpired: (fileId) => expiredFileIds.has(fileId),
 				markExpired: (fileId) => {
@@ -56,11 +60,19 @@ export const ExpiredFileIdsProvider: FC<PropsWithChildren> = ({ children }) => {
 				clearPending: (fileId) => {
 					pendingProbeFileIds.current.delete(fileId);
 				},
+				getProbeResult: (fileId) => probeResults.get(fileId),
+				setProbeResult: (fileId, result) => {
+					setProbeResults((prev) => {
+						const next = new Map(prev);
+						next.set(fileId, result);
+						return next;
+					});
+				},
 			}}
 		>
 			{children}
-		</ExpiredFileIdsContext.Provider>
+		</FileProbeContext.Provider>
 	);
 };
 
-export const useExpiredFileIds = () => useContext(ExpiredFileIdsContext);
+export const useFileProbes = () => useContext(FileProbeContext);
