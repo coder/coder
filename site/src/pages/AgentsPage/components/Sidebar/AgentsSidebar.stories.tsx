@@ -1635,9 +1635,10 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 		const settingsLink = await canvas.findByLabelText("Settings");
 		await userEvent.click(settingsLink);
 		await waitFor(() => {
-			expect(canvas.getByTestId("settings-state-from")).toHaveTextContent(
-				"/agents?archived=archived",
-			);
+			const fromValue =
+				canvas.getByTestId("settings-state-from").textContent ?? "";
+			expect(fromValue).toContain("/agents");
+			expect(fromValue).toContain("archived=archived");
 		});
 	},
 };

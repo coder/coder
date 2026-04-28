@@ -125,7 +125,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 									variant="subtle"
 									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
 								>
-									<Link to={`/agents/${parentChat.id}`}>
+									<Link
+										to={{
+											pathname: `/agents/${parentChat.id}`,
+											search: location.search,
+										}}
+									>
 										<span className="truncate">{parentChat.title}</span>
 									</Link>
 								</Button>
