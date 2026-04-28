@@ -180,6 +180,12 @@ const roleNamesByAccessLevel: readonly string[] = [
 	"agents-access",
 ];
 
+// Roles not in the priority list should sort after all known roles.
+const roleSortComparator = (name: string) =>
+	roleNamesByAccessLevel.includes(name)
+		? roleNamesByAccessLevel.indexOf(name)
+		: Number.POSITIVE_INFINITY;
+
 function sortRolesByAccessLevel<T extends SlimRole>(
 	roles: readonly T[],
 ): readonly T[] {
@@ -187,13 +193,9 @@ function sortRolesByAccessLevel<T extends SlimRole>(
 		return roles;
 	}
 
-	// Roles not in the priority list should sort after all known roles.
-	const rank = (name: string) =>
-		roleNamesByAccessLevel.includes(name)
-			? roleNamesByAccessLevel.indexOf(name)
-			: Number.POSITIVE_INFINITY;
-
-	return [...roles].sort((r1, r2) => rank(r1.name) - rank(r2.name));
+	return [...roles].sort(
+		(r1, r2) => roleSortComparator(r1.name) - roleSortComparator(r2.name),
+	);
 }
 
 function getSelectedRoleNames(roles: readonly SlimRole[]) {
