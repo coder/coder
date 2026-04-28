@@ -61,6 +61,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 		if (latestResponse && latestResponse?.id >= response.id) {
 			return;
 		}
+		wsResponseId.current = Math.max(wsResponseId.current, response.id);
 
 		setLatestResponse(response);
 	});

@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { DetailedError } from "#/api/errors";
-import type { PreviewParameter } from "#/api/typesGenerated";
+import type {
+	PreviewParameter,
+	SecretRequirementStatus,
+} from "#/api/typesGenerated";
 import { chromatic } from "#/testHelpers/chromatic";
 import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -25,6 +28,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 			canUpdateTemplate: false,
 		},
 		presets: [],
+		secretRequirements: [],
 		sendMessage: () => {},
 		template: MockTemplate,
 	},
@@ -354,5 +358,62 @@ export const WithPresets: Story = {
 			},
 		],
 		parameters: [parameterInput, parameterDropdown],
+	},
+};
+
+const missingDeployKeySecret: SecretRequirementStatus = {
+	file: "~/.ssh/id_deploy",
+	help_message: "Add an SSH deploy key with file=~/.ssh/id_deploy",
+	satisfied: false,
+};
+
+export const MissingSecretRequirement: Story = {
+	args: {
+		secretRequirements: [missingDeployKeySecret],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const createBtn = canvas.getByRole("button", {
+			name: /create workspace/i,
+		});
+		await expect(createBtn).toBeDisabled();
+		await expect(
+			canvas.getByRole("table", { name: /required secrets/i }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("heading", { name: /parameters/i }),
+		).toBeNull();
+		await expect(
+			canvas.getByText("Add an SSH deploy key with file=~/.ssh/id_deploy"),
+		).toBeVisible();
+		const link = canvas.getByRole("link", { name: /manage secrets/i });
+		// The link goes through docs(), which resolves to the coder.com docs
+		// URL at runtime. Match on the path suffix so versioned builds
+		// (`/@vX.Y.Z/`) don't break the assertion.
+		await expect(link).toHaveAttribute(
+			"href",
+			expect.stringContaining("/reference/cli/secret_create"),
+		);
+		await expect(link).toHaveAttribute("target", "_blank");
+	},
+};
+
+export const MissingSecretRequirementWithParameters: Story = {
+	args: {
+		...WithParameters.args,
+		secretRequirements: [missingDeployKeySecret],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const createBtn = canvas.getByRole("button", {
+			name: /create workspace/i,
+		});
+		await expect(createBtn).toBeDisabled();
+		await expect(
+			canvas.getByRole("table", { name: /required secrets/i }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: /parameters/i }),
+		).toBeVisible();
 	},
 };

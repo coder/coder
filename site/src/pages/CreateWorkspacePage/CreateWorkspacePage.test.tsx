@@ -176,11 +176,13 @@ describe("CreateWorkspacePage", () => {
 				id: 1,
 				parameters: [MockDropdownParameter],
 				diagnostics: [],
+				secret_requirements: [],
 			};
 			const response2: DynamicParametersResponse = {
 				id: 4,
 				parameters: [MockSliderParameter],
 				diagnostics: [],
+				secret_requirements: [],
 			};
 
 			await act(async () => {
@@ -300,6 +302,7 @@ describe("CreateWorkspacePage", () => {
 				id: 1,
 				parameters: [MockValidationParameter],
 				diagnostics: [],
+				secret_requirements: [],
 			};
 
 			const mockResponseWithError: DynamicParametersResponse = {
@@ -322,6 +325,7 @@ describe("CreateWorkspacePage", () => {
 					},
 				],
 				diagnostics: [],
+				secret_requirements: [],
 			};
 
 			const [mockWebSocket, publisher] =

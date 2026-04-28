@@ -14,6 +14,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
+	SecretRequirementStatus,
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -48,6 +49,7 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { SecretsTable } from "#/modules/workspaces/SecretsTable/SecretsTable";
 import { docs } from "#/utils/docs";
 import { nameValidator } from "#/utils/formUtils";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -71,6 +73,7 @@ interface CreateWorkspacePageViewProps {
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
 	presets: TypesGen.Preset[];
+	secretRequirements: readonly SecretRequirementStatus[];
 	template: TypesGen.Template;
 	versionId?: string;
 	versionName?: string;
@@ -102,6 +105,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	parameters,
 	permissions,
 	presets = [],
+	secretRequirements,
 	template,
 	versionId,
 	versionName,
@@ -120,6 +124,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
+	const secretsBlocking = secretRequirements.some(
+		(requirement) => !requirement.satisfied,
+	);
 
 	const autofillByName = Object.fromEntries(
 		autofillParameters.map((param) => [param.name, param]),
@@ -162,6 +169,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			validateOnBlur: true,
 			onSubmit: (request) => {
 				if (!hasAllRequiredExternalAuth) {
+					return;
+				}
+				if (secretsBlocking) {
 					return;
 				}
 
@@ -369,6 +379,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const disabled =
 		creatingWorkspace ||
 		!hasAllRequiredExternalAuth ||
+		secretsBlocking ||
 		diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
 		parameters.some((parameter) =>
 			parameter.diagnostics.some(
@@ -566,6 +577,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							</div>
 						</section>
 					)}
+
+					<SecretsTable requirements={secretRequirements} />
 
 					{parameters.length === 0 && diagnostics.length > 0 && (
 						<Diagnostics diagnostics={diagnostics} />

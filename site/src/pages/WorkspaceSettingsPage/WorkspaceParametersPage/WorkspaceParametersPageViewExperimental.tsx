@@ -2,6 +2,7 @@ import { useFormik } from "formik";
 import type { FC } from "react";
 import type {
 	PreviewParameter,
+	SecretRequirementStatus,
 	Workspace,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
@@ -17,6 +18,7 @@ import {
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { SecretsTable } from "#/modules/workspaces/SecretsTable/SecretsTable";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -26,6 +28,7 @@ type WorkspaceParametersPageViewExperimentalProps = {
 	autofillParameters: AutofillBuildParameter[];
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
+	secretRequirements: readonly SecretRequirementStatus[];
 	canChangeVersions: boolean;
 	isSubmitting: boolean;
 	submitLabel: string;
@@ -44,6 +47,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	autofillParameters,
 	parameters,
 	diagnostics,
+	secretRequirements,
 	canChangeVersions,
 	isSubmitting,
 	submitLabel,
@@ -52,8 +56,17 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	onCancel,
 	templateVersionId,
 }) => {
+	const secretsBlocking = secretRequirements.some(
+		(requirement) => !requirement.satisfied,
+	);
+
 	const form = useFormik({
-		onSubmit,
+		onSubmit: (values) => {
+			if (secretsBlocking) {
+				return;
+			}
+			onSubmit(values);
+		},
 		initialValues: {
 			rich_parameter_values: getInitialParameterValues(
 				parameters,
@@ -218,6 +231,8 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				className="flex flex-col gap-8"
 				data-testid="form"
 			>
+				<SecretsTable requirements={secretRequirements} />
+
 				{parameters.length > 0 && (
 					<section className="flex flex-col gap-9">
 						<hgroup>
@@ -283,6 +298,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						disabled={
 							isSubmitting ||
 							disabled ||
+							secretsBlocking ||
 							hasUnsyncedParameters ||
 							diagnostics.some(
 								(diagnostic) => diagnostic.severity === "error",

@@ -102,6 +102,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (response.id < wsResponseId.current) {
 			return;
 		}
+		wsResponseId.current = Math.max(wsResponseId.current, response.id);
 
 		setLatestResponse(response);
 
@@ -189,6 +190,13 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		rich_parameter_values: WorkspaceBuildParameter[];
 	}) => {
 		if (!latestResponse?.parameters) {
+			return;
+		}
+		if (
+			latestResponse.secret_requirements?.some(
+				(requirement) => !requirement.satisfied,
+			)
+		) {
 			return;
 		}
 
@@ -285,6 +293,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
 					diagnostics={latestResponse?.diagnostics ?? []}
+					secretRequirements={latestResponse?.secret_requirements ?? []}
 					isSubmitting={
 						startWithParameters.isPending || restartWithParameters.isPending
 					}

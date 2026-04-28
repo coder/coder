@@ -148,6 +148,7 @@ const CreateWorkspacePage: FC = () => {
 		if (latestResponse && latestResponse?.id >= response.id) {
 			return;
 		}
+		wsResponseId.current = Math.max(wsResponseId.current, response.id);
 
 		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
 			sendInitialParameters([...response.parameters]);
@@ -337,6 +338,7 @@ const CreateWorkspacePage: FC = () => {
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
+					secretRequirements={latestResponse?.secret_requirements ?? []}
 					creatingWorkspace={createWorkspaceMutation.isPending}
 					sendMessage={sendMessage}
 					onCancel={() => {

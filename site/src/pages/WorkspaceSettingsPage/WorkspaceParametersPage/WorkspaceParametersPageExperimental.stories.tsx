@@ -14,7 +14,7 @@ import {
 import { API } from "#/api/api";
 import { workspaceBuildParametersKey } from "#/api/queries/workspaceBuilds";
 import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
-import type { Workspace } from "#/api/typesGenerated";
+import type { SecretRequirementStatus, Workspace } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockDropdownParameter,
@@ -54,6 +54,7 @@ const meta = {
 					id: 0,
 					diagnostics: [],
 					parameters: [MockPreviewParameter, MockDropdownParameter],
+					secret_requirements: [],
 				}),
 			},
 		],
@@ -72,6 +73,7 @@ export const NoParameters: Story = {
 					id: 0,
 					diagnostics: [],
 					parameters: [],
+					secret_requirements: [],
 				}),
 			},
 		],
@@ -154,6 +156,47 @@ export const StartWorkspace: Story = {
 	},
 };
 
+const missingDeployKeySecret: SecretRequirementStatus = {
+	file: "~/.ssh/id_deploy",
+	help_message: "Add an SSH deploy key with file=~/.ssh/id_deploy",
+	satisfied: false,
+};
+
+export const MissingSecretRequirement: Story = {
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify({
+					id: 0,
+					diagnostics: [],
+					parameters: [
+						{
+							...MockPreviewParameter,
+							value: { valid: true, value: "test" },
+						},
+						MockDropdownParameter,
+					],
+					secret_requirements: [missingDeployKeySecret],
+				}),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const updateBtn = await canvas.findByRole("button", {
+			name: "Update and restart",
+		});
+		await expect(updateBtn).toBeDisabled();
+		await expect(
+			canvas.getByRole("table", { name: /required secrets/i }),
+		).toBeVisible();
+		await expect(
+			canvas.getByText("Add an SSH deploy key with file=~/.ssh/id_deploy"),
+		).toBeVisible();
+	},
+};
+
 function workspaceRouterParameters(workspace: Workspace) {
 	return reactRouterParameters({
 		location: {
@@ -212,6 +255,7 @@ function filledWebSocketParams(): WebSocketEvent[] {
 					},
 					MockDropdownParameter,
 				],
+				secret_requirements: [],
 			}),
 		},
 	];

@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
+import type { FriendlyDiagnostic } from "#/api/typesGenerated";
 import { MockPreviewParameter } from "#/testHelpers/entities";
-import { DynamicParameter } from "./DynamicParameter";
+import { Diagnostics, DynamicParameter } from "./DynamicParameter";
 
 const meta: Meta<typeof DynamicParameter> = {
 	title: "modules/workspaces/DynamicParameter",
@@ -279,3 +281,29 @@ export const MaskedTextArea: Story = {
 		},
 	},
 };
+
+// Warning variant for callers lacking user_secret:read on the owner.
+const secretValidationForbiddenDiagnostic: FriendlyDiagnostic = {
+	severity: "warning",
+	summary: "Cannot validate secret requirements",
+	detail:
+		"You are not permitted to read secret metadata for this user. The workspace may fail to build if required secrets are not set.",
+	extra: { code: "secret_validation_forbidden" },
+};
+
+export const SecretValidationForbiddenDiagnostic: StoryObj<typeof Diagnostics> =
+	{
+		render: () => (
+			<Diagnostics diagnostics={[secretValidationForbiddenDiagnostic]} />
+		),
+		play: async ({ canvasElement }) => {
+			const canvas = within(canvasElement);
+			await expect(
+				canvas.getByText("Cannot validate secret requirements"),
+			).toBeVisible();
+			// No CLI-recovery link for the warning variant.
+			await expect(
+				canvas.queryByRole("link", { name: /coder secret create/i }),
+			).toBeNull();
+		},
+	};
