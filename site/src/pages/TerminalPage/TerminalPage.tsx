@@ -213,8 +213,7 @@ const TerminalPage: FC = () => {
 						setCommandConfirmed(true);
 					}}
 					onDeny={() => {
-						searchParams.delete("command");
-						navigate({ search: searchParams.toString() }, { replace: true });
+						window.close();
 					}}
 				/>
 			)}
