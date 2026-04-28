@@ -27,7 +27,7 @@ ENV PATH=$PATH:/usr/local/go/bin
 ARG GOPATH="/tmp/"
 # Install Go utilities.
 RUN apt-get update && \
-	apt-get install --yes gcc && \
+	apt-get install --yes build-essential && \
 	mkdir --parents /usr/local/go && \
 	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
 	mkdir --parents "$GOPATH" && \
@@ -67,7 +67,7 @@ RUN apt-get update && \
 	# mockgen for generating mocks (v0.6.0+ required for Go 1.25)
 	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
-	apt-get remove --yes gcc && \
+	apt-get remove --yes build-essential && \
 	apt-get autoremove --yes && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists/* && \
