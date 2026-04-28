@@ -253,7 +253,9 @@ export const GenerateTitle: Story = {
 };
 
 export const PreservesArchivedFilterOnMobileBack: Story = {
+	decorators: mobileDecorator,
 	parameters: {
+		chromatic: { viewports: [390] },
 		reactRouter: reactRouterParameters({
 			location: {
 				path: "/agents/chat-123",

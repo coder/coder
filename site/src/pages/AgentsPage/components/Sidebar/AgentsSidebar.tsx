@@ -1095,6 +1095,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							)}
 						</NavLink>
 						<div className="flex items-center gap-0.5 -mr-1.5">
+							{/* Includes search so the back link restores
+								   URL-derived filters like ?archived. */}
 							<Button
 								asChild
 								variant="subtle"
