@@ -191,6 +191,12 @@ func resetRequestBody(req *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if req.Body != nil {
+		if err := req.Body.Close(); err != nil {
+			_ = body.Close()
+			return err
+		}
+	}
 	req.Body = body
 	return nil
 }

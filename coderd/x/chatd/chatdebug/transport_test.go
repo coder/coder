@@ -57,6 +57,16 @@ func (*scriptedReadCloser) Close() error {
 	return nil
 }
 
+type closeTrackingReadCloser struct {
+	*bytes.Reader
+	closed bool
+}
+
+func (c *closeTrackingReadCloser) Close() error {
+	c.closed = true
+	return nil
+}
+
 func TestRecordingTransport_NoSink(t *testing.T) {
 	t.Parallel()
 
@@ -160,11 +170,12 @@ func TestRecordingTransport_CaptureRequestRestoresSharedGetBody(t *testing.T) {
 	}
 
 	reader := bytes.NewReader([]byte(requestBody))
+	originalBody := &closeTrackingReadCloser{Reader: reader}
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
 		server.URL,
-		io.NopCloser(reader),
+		originalBody,
 	)
 	require.NoError(t, err)
 	req.ContentLength = int64(len(requestBody))
@@ -183,6 +194,7 @@ func TestRecordingTransport_CaptureRequestRestoresSharedGetBody(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 
 	require.JSONEq(t, requestBody, string(<-gotRequest))
+	require.True(t, originalBody.closed)
 	attempts := sink.snapshot()
 	require.Len(t, attempts, 1)
 	require.JSONEq(t, `{"message":"hello","api_key":"[REDACTED]"}`, string(attempts[0].RequestBody))
