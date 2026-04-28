@@ -46,12 +46,10 @@ Users can view their public key in their account settings:
 
 ## User secrets (Early Access)
 
-User secrets are developer-managed values that Coder applies at workspace start.
+User secrets are developer-managed values that Coder injects at workspace start.
 If a user secret targets the same environment variable name or file path as a
-template-provided variable or file, the user secret is applied in that
-developer's workspace, matching their existing ability to customize their own
-workspace while keeping the value managed by Coder. See the
-[User secrets guide](../../user-guides/user-secrets.md).
+template-provided variable or file, Coder injects the user secret into that
+workspace. See the [User secrets guide](../../user-guides/user-secrets.md).
 
 ## Dynamic Secrets
 
