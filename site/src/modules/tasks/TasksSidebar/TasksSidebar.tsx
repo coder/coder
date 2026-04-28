@@ -236,7 +236,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 				<RouterLink
 					to={{
 						pathname: `/tasks/${task.owner_name}/${task.id}`,
-						search: window.location.search,
+						search: location.search,
 					}}
 				>
 					<TaskSidebarMenuItemStatus task={task} />

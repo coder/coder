@@ -221,18 +221,18 @@ export const extractModelConfigFormState = (
 // ── Build initial model form values ────────────────────────────
 
 export const buildInitialModelFormValues = (
-	editingModel?: TypesGen.ChatModelConfig,
+	sourceModel?: TypesGen.ChatModelConfig,
 ): ModelFormValues => ({
-	model: editingModel?.model ?? "",
-	displayName: editingModel?.display_name ?? "",
-	enabled: editingModel?.enabled ?? true,
-	contextLimit: editingModel ? String(editingModel.context_limit) : "",
-	compressionThreshold: editingModel
-		? String(editingModel.compression_threshold)
+	model: sourceModel?.model ?? "",
+	displayName: sourceModel?.display_name ?? "",
+	enabled: sourceModel?.enabled ?? true,
+	contextLimit: sourceModel ? String(sourceModel.context_limit) : "",
+	compressionThreshold: sourceModel
+		? String(sourceModel.compression_threshold)
 		: "",
-	isDefault: editingModel?.is_default ?? false,
-	config: editingModel
-		? extractModelConfigFormState(editingModel)
+	isDefault: sourceModel?.is_default ?? false,
+	config: sourceModel
+		? extractModelConfigFormState(sourceModel)
 		: structuredClone(emptyModelConfigFormState),
 });
 

@@ -5419,6 +5419,8 @@ type AutoArchiveInactiveChatsRow struct {
 // Archives inactive root chats (pinned and already-archived chats skipped),
 // cascading to children via root_chat_id. Limits apply to roots, not total
 // rows. Used by dbpurge.
+// created_at ASC flows through to dbpurge's digest truncation; see
+// buildDigestData in dbpurge.go for the tradeoff rationale.
 func (q *sqlQuerier) AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, autoArchiveInactiveChats, arg.ArchiveCutoff, arg.LimitCount)
 	if err != nil {
