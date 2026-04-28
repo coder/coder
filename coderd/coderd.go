@@ -1141,7 +1141,7 @@ func New(options *Options) *API {
 			r.Get("/", api.tasksList)
 
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize, options.DataProtection))
 				r.Post("/", api.tasksCreate)
 
 				r.Route("/{task}", func(r chi.Router) {
@@ -1170,7 +1170,7 @@ func New(options *Options) *API {
 			r.Route("/cost", func(r chi.Router) {
 				r.Get("/users", api.chatCostUsers)
 				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Use(httpmw.ExtractUserParam(options.Database, options.DataProtection))
 					r.Get("/summary", api.chatCostSummary)
 				})
 			})
@@ -1409,14 +1409,14 @@ func New(options *Options) *API {
 								// on the site user. So limited to owners and user-admins.
 								// TODO: Allow org-admins to add users via some new permission? Or give them
 								// 	read on site users.
-								httpmw.ExtractUserParam(options.Database),
+								httpmw.ExtractUserParam(options.Database, options.DataProtection),
 							)
 							r.Post("/", api.postOrganizationMember)
 						})
 
 						r.Group(func(r chi.Router) {
 							r.Use(
-								httpmw.ExtractOrganizationMemberParam(options.Database),
+								httpmw.ExtractOrganizationMemberParam(options.Database, options.DataProtection),
 							)
 							r.Get("/", api.organizationMember)
 							r.Delete("/", api.deleteOrganizationMember)
@@ -1543,7 +1543,7 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize, options.DataProtection))
 						// Creating workspaces does not require permissions on the user, only the
 						// organization member. This endpoint should match the authz story of
 						// postWorkspacesByOrganization
@@ -1555,7 +1555,7 @@ func New(options *Options) *API {
 					})
 
 					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParam(options.Database))
+						r.Use(httpmw.ExtractUserParam(options.Database, options.DataProtection))
 
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
@@ -1811,7 +1811,7 @@ func New(options *Options) *API {
 			})
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Use(httpmw.ExtractUserParam(options.Database, options.DataProtection))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
 			if options.DERPServer != nil {
@@ -1917,7 +1917,7 @@ func New(options *Options) *API {
 			r.Get("/", api.tasksList)
 
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize, options.DataProtection))
 				r.Post("/", api.tasksCreate)
 
 				r.Route("/{task}", func(r chi.Router) {

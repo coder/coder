@@ -29,6 +29,7 @@ const AgentSettingsInsightsPage: FC = () => {
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
 	const isAuditor = dpStatus.data?.auditor;
+	const dpTier = dpStatus.data?.tier;
 
 	const [selection, setSelection] = useState<TimeRangeSelection>(() => ({
 		timeRange: "30d",
@@ -51,6 +52,7 @@ const AgentSettingsInsightsPage: FC = () => {
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<DataProtectionBanner
 				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				isAuditor={isAuditor}
 			/>
 			<InsightsContent

@@ -34,6 +34,7 @@ const AISessionListPage: FC = () => {
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
 	const isAuditor = dpStatus.data?.auditor;
+	const dpTier = dpStatus.data?.tier;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const sessionsQuery = usePaginatedQuery({
@@ -80,6 +81,7 @@ const AISessionListPage: FC = () => {
 
 			<DataProtectionBanner
 				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				isAuditor={isAuditor}
 			/>
 

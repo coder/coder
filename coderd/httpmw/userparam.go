@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -38,11 +39,11 @@ func UserParamOptional(r *http.Request) (database.User, bool) {
 
 // ExtractUserParam extracts a user from an ID/username in the {user} URL
 // parameter.
-func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
+func ExtractUserParam(db database.Store, dpCfg *dataprotection.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			user, ok := ExtractUserContext(ctx, db, rw, r)
+			user, ok := ExtractUserContext(ctx, db, rw, r, dpCfg)
 			if !ok {
 				// response already handled
 				return
@@ -54,12 +55,12 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 }
 
 // ExtractUserParamOptional does not fail if no user is present.
-func ExtractUserParamOptional(db database.Store) func(http.Handler) http.Handler {
+func ExtractUserParamOptional(db database.Store, dpCfg *dataprotection.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			user, ok := ExtractUserContext(ctx, db, &httpapi.NoopResponseWriter{}, r)
+			user, ok := ExtractUserContext(ctx, db, &httpapi.NoopResponseWriter{}, r, dpCfg)
 			if ok {
 				ctx = context.WithValue(ctx, userParamContextKey{}, user)
 			}
@@ -69,8 +70,11 @@ func ExtractUserParamOptional(db database.Store) func(http.Handler) http.Handler
 	}
 }
 
-// ExtractUserContext queries the database for the parameterized `{user}` from the request URL.
-func ExtractUserContext(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request) (user database.User, ok bool) {
+// ExtractUserContext queries the database for the parameterized
+// `{user}` from the request URL. When a username lookup fails and
+// Data Protection Mode Tier 2 is active, it falls back to resolving
+// the value as a pseudonym slug.
+func ExtractUserContext(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request, dpCfg *dataprotection.Config) (user database.User, ok bool) {
 	// userQuery is either a uuid, a username, or 'me'
 	userQuery := chi.URLParam(r, "user")
 	if userQuery == "" {
@@ -124,6 +128,16 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 		Username: userQuery,
 	})
 	if err != nil {
+		// If normal lookup fails and DPM Tier 2 is active, try
+		// pseudonym slug resolution.
+		if dpCfg != nil && dpCfg.IsTier2OrAbove() {
+			if realID, resolved := dpCfg.ResolveSlug(userQuery); resolved {
+				user, err = db.GetUserByID(ctx, realID)
+				if err == nil {
+					return user, true
+				}
+			}
+		}
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return database.User{}, false

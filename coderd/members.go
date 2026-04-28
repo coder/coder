@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -258,6 +259,17 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			obfuscateOrgMembers(api.DataProtection, resp, key.UserID)
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
@@ -373,6 +385,18 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		Members: members,
 		Count:   int(paginatedMemberRows[0].Count),
 	}
+
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			obfuscateOrgMembers(api.DataProtection, resp.Members, key.UserID)
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
@@ -613,4 +637,21 @@ func (api *API) manualOrganizationMembership(ctx context.Context, rw http.Respon
 		return false
 	}
 	return true
+}
+
+// obfuscateOrgMembers replaces user-identity fields on
+// organization members with pseudonyms for Data Protection Mode.
+// The caller's own entry is left untouched (self-exception).
+func obfuscateOrgMembers(dp *dataprotection.Config, members []codersdk.OrganizationMemberWithUserData, selfID uuid.UUID) {
+	for i := range members {
+		if members[i].UserID == selfID {
+			continue
+		}
+		pid := dp.ObfuscateUserID(members[i].UserID)
+		members[i].UserID = pid
+		members[i].Username = dataprotection.PseudoUsername(pid)
+		members[i].Name = ""
+		members[i].AvatarURL = ""
+		members[i].Email = ""
+	}
 }

@@ -434,6 +434,7 @@ WHERE
 SELECT
     w.id as workspace_id,
     w.name as workspace_name,
+    w.owner_id,
     u.username as owner_username,
     t.name as template_name,
     tv.name as template_version_name,

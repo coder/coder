@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -97,6 +98,19 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			builds := []codersdk.WorkspaceBuild{apiBuild}
+			obfuscateWorkspaceBuilds(api.DataProtection, builds, key.UserID)
+			apiBuild = builds[0]
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
@@ -218,6 +232,17 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			obfuscateWorkspaceBuilds(api.DataProtection, apiBuilds, key.UserID)
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuilds)
 }
 
@@ -307,6 +332,19 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			builds := []codersdk.WorkspaceBuild{apiBuild}
+			obfuscateWorkspaceBuilds(api.DataProtection, builds, key.UserID)
+			apiBuild = builds[0]
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
@@ -1445,4 +1483,24 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	}
 
 	return res, nil
+}
+
+// obfuscateWorkspaceBuilds replaces user-identity fields on
+// workspace builds with pseudonyms for Data Protection Mode.
+// The caller's own builds are left untouched (self-exception).
+func obfuscateWorkspaceBuilds(dp *dataprotection.Config, builds []codersdk.WorkspaceBuild, selfID uuid.UUID) {
+	for i := range builds {
+		if builds[i].InitiatorID != selfID {
+			realInitID := builds[i].InitiatorID
+			pid := dp.ObfuscateUserID(realInitID)
+			builds[i].InitiatorID = pid
+			builds[i].InitiatorUsername = dataprotection.PseudoUsername(pid)
+		}
+		if builds[i].WorkspaceOwnerID != selfID {
+			realOwnerID := builds[i].WorkspaceOwnerID
+			builds[i].WorkspaceOwnerID = dp.ObfuscateUserID(realOwnerID)
+			builds[i].WorkspaceOwnerName = dp.PseudoSlug(realOwnerID)
+			builds[i].WorkspaceOwnerAvatarURL = ""
+		}
+	}
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -433,11 +435,25 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(database.GetGroupsRow{
+	result := db2sdk.Group(database.GetGroupsRow{
 		Group:                   group,
 		OrganizationName:        org.Name,
 		OrganizationDisplayName: org.DisplayName,
-	}, users, int(memberCount)))
+	}, users, int(memberCount))
+
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg.IsTier2OrAbove() {
+		apiKey := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr == nil && dpCfg.ShouldObfuscate(reqUser.Email) {
+			obfuscateGroupMembers(dpCfg, &result, apiKey.UserID)
+		} else if uerr == nil {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
 
 // @Summary Get group members by organization and group name
@@ -629,5 +645,31 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		resp = append(resp, db2sdk.Group(group, members, int(memberCount)))
 	}
 
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg.IsTier2OrAbove() {
+		apiKey := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr == nil && dpCfg.ShouldObfuscate(reqUser.Email) {
+			for i := range resp {
+				obfuscateGroupMembers(dpCfg, &resp[i], apiKey.UserID)
+			}
+		} else if uerr == nil {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// obfuscateGroupMembers replaces user-identity fields on group
+// members with pseudonyms for Data Protection Mode. The caller's
+// own entry is left untouched (self-exception).
+func obfuscateGroupMembers(dpCfg *dataprotection.Config, group *codersdk.Group, selfID uuid.UUID) {
+	for i := range group.Members {
+		dpCfg.ObfuscateMinimalUser(&group.Members[i].MinimalUser, selfID)
+		if group.Members[i].ID != selfID {
+			group.Members[i].Email = ""
+		}
+	}
 }

@@ -103,11 +103,13 @@ const AgentSettingsUsagePage: FC<AgentSettingsUsagePageProps> = ({ now }) => {
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
 	const isAuditor = dpStatus.data?.auditor;
+	const dpTier = dpStatus.data?.tier;
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<DataProtectionBanner
 				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				isAuditor={isAuditor}
 			/>
 			<AgentSettingsUsagePageView

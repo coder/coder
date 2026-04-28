@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -49,7 +50,26 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
+	sdkTemplate := api.convertTemplate(template)
+
+	// Apply Data Protection Mode Tier 2 obfuscation to the
+	// template creator identity.
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			if sdkTemplate.CreatedByID != key.UserID {
+				realID := sdkTemplate.CreatedByID
+				sdkTemplate.CreatedByID = api.DataProtection.ObfuscateUserID(realID)
+				sdkTemplate.CreatedByName = dataprotection.PseudoUsername(api.DataProtection.ObfuscateUserID(realID))
+			}
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, sdkTemplate)
 }
 
 // @Summary Delete template by ID
@@ -601,7 +621,28 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
+		sdkTemplates := api.convertTemplates(templates)
+
+		// Apply Data Protection Mode Tier 2 obfuscation to
+		// template creator identities in listings.
+		if api.DataProtection.IsTier2OrAbove() {
+			//nolint:gocritic // System lookup to resolve email for DPM check.
+			reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+			if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+				for i := range sdkTemplates {
+					if sdkTemplates[i].CreatedByID == key.UserID {
+						continue
+					}
+					realID := sdkTemplates[i].CreatedByID
+					sdkTemplates[i].CreatedByID = api.DataProtection.ObfuscateUserID(realID)
+					sdkTemplates[i].CreatedByName = dataprotection.PseudoUsername(api.DataProtection.ObfuscateUserID(realID))
+				}
+			} else if uerr == nil {
+				api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+			}
+		}
+
+		httpapi.Write(ctx, rw, http.StatusOK, sdkTemplates)
 	}
 }
 

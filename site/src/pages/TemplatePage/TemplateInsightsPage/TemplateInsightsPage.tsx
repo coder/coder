@@ -118,6 +118,7 @@ export default function TemplateInsightsPage() {
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
 	const isAuditor = dpStatus.data?.auditor;
+	const dpTier = dpStatus.data?.tier;
 
 	return (
 		<RequirePermission isFeatureVisible={canViewInsights}>
@@ -138,6 +139,7 @@ export default function TemplateInsightsPage() {
 				userActivity={userActivity}
 				interval={interval}
 				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				isAuditor={isAuditor}
 			/>
 		</RequirePermission>
@@ -240,6 +242,7 @@ interface TemplateInsightsPageViewProps {
 	controls: ReactNode;
 	interval: InsightsInterval;
 	dataProtectionEnabled: boolean | undefined;
+	tier: number | undefined;
 	isAuditor: boolean | undefined;
 }
 
@@ -250,12 +253,14 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	controls,
 	interval,
 	dataProtectionEnabled,
+	tier,
 	isAuditor,
 }) => {
 	return (
 		<>
 			<DataProtectionBanner
 				dataProtectionEnabled={dataProtectionEnabled}
+				tier={tier}
 				isAuditor={isAuditor}
 			/>
 			<div className="flex items-center gap-2 mb-8">{controls}</div>

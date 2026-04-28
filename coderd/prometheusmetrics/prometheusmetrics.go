@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
@@ -127,7 +128,7 @@ func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer
 }
 
 // Workspaces tracks the total number of workspaces with labels on status.
-func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration, dpCfg *dataprotection.Config) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
@@ -186,11 +187,16 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			status := string(w.LatestBuildStatus)
 			workspaceLatestBuildTotals.WithLabelValues(status).Add(1)
 
+			ownerLabel := w.OwnerUsername
+			if dpCfg.IsTier2OrAbove() {
+				ownerLabel = dpCfg.PseudoSlug(w.OwnerID)
+			}
+
 			workspaceLatestBuildStatuses.WithLabelValues(
 				status,
 				w.TemplateName,
 				w.TemplateVersionName.String,
-				w.OwnerUsername,
+				ownerLabel,
 				string(w.LatestBuildTransition),
 			).Add(1)
 		}
@@ -245,7 +251,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 }
 
 // Agents tracks the total number of workspaces with labels on status.
-func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMapFn func() *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
+func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMapFn func() *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration, dpCfg *dataprotection.Config) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
@@ -340,7 +346,13 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				if !agent.TemplateVersionName.Valid {
 					templateVersionName = "unknown"
 				}
-				agentsGauge.WithLabelValues(VectorOperationAdd, 1, agent.OwnerUsername, agent.WorkspaceName, agent.TemplateName, templateVersionName)
+
+				ownerLabel := agent.OwnerUsername
+				if dpCfg.IsTier2OrAbove() {
+					ownerLabel = dpCfg.PseudoSlug(agent.OwnerID)
+				}
+
+				agentsGauge.WithLabelValues(VectorOperationAdd, 1, ownerLabel, agent.WorkspaceName, agent.TemplateName, templateVersionName)
 
 				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
 				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)
@@ -350,7 +362,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					tailnetNode = node.ID.String()
 				}
 
-				agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, string(connectionStatus.Status), string(agent.WorkspaceAgent.LifecycleState), tailnetNode)
+				agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.WorkspaceAgent.Name, ownerLabel, agent.WorkspaceName, string(connectionStatus.Status), string(agent.WorkspaceAgent.LifecycleState), tailnetNode)
 
 				if node == nil {
 					logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.WorkspaceAgent.ID))
@@ -375,7 +387,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 							}
 						}
 
-						agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
+						agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.WorkspaceAgent.Name, ownerLabel, agent.WorkspaceName, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 					}
 				}
 
@@ -387,7 +399,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				}
 
 				for _, app := range apps {
-					agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, app.DisplayName, string(app.Health))
+					agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.WorkspaceAgent.Name, ownerLabel, agent.WorkspaceName, app.DisplayName, string(app.Health))
 				}
 			}
 

@@ -44,7 +44,7 @@ func TestUserParam(t *testing.T) {
 			r = returnedRequest
 		})).ServeHTTP(rw, r)
 
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -66,7 +66,7 @@ func TestUserParam(t *testing.T) {
 		routeContext := chi.NewRouteContext()
 		routeContext.URLParams.Add("user", "ben")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -89,7 +89,7 @@ func TestUserParam(t *testing.T) {
 		routeContext := chi.NewRouteContext()
 		routeContext.URLParams.Add("user", "nonexistent-user")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -112,7 +112,7 @@ func TestUserParam(t *testing.T) {
 		// Use a valid UUID that doesn't exist in the database.
 		routeContext.URLParams.Add("user", "88888888-4444-4444-4444-121212121212")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -134,7 +134,7 @@ func TestUserParam(t *testing.T) {
 		routeContext := chi.NewRouteContext()
 		routeContext.URLParams.Add("user", "me")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.UserParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)

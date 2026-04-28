@@ -352,8 +352,29 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sdkUsers := convertUsers(users, organizationIDsByUserID, aiSeatSet)
+
+	// Apply Data Protection Mode Tier 2 obfuscation to user
+	// identities in listings. Admin CRUD still uses real names;
+	// this only affects statistical/browsing contexts.
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			for i := range sdkUsers {
+				api.DataProtection.ObfuscateMinimalUser(&sdkUsers[i].MinimalUser, key.UserID)
+				if sdkUsers[i].ID != key.UserID {
+					sdkUsers[i].Email = ""
+				}
+			}
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
-		Users: convertUsers(users, organizationIDsByUserID, aiSeatSet),
+		Users: sdkUsers,
 		Count: int(userCount),
 	})
 }
@@ -751,6 +772,24 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 
 	sdkUser := db2sdk.User(user, organizationIDs)
 	api.enrichUserAISeat(ctx, &sdkUser)
+
+	// Apply Data Protection Mode Tier 2 obfuscation to single
+	// user detail. The requesting user can always see their own
+	// identity; other identities are obfuscated for non-auditors.
+	if api.DataProtection.IsTier2OrAbove() {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			api.DataProtection.ObfuscateMinimalUser(&sdkUser.MinimalUser, key.UserID)
+			if sdkUser.ID != key.UserID {
+				sdkUser.Email = ""
+			}
+		} else if uerr == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
