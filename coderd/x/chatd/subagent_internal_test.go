@@ -1463,7 +1463,7 @@ func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
 	require.True(t, unavailableResp.IsError)
-	require.Contains(t, unavailableResp.Content, `type "computer_use" is unavailable because the configured provider "anthropic" is not configured`)
+	require.Contains(t, unavailableResp.Content, `type "computer_use" is unavailable because the selected provider "anthropic" has no API key configured`)
 }
 
 func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) {
@@ -1523,7 +1523,7 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 		Prompt: "open the browser",
 	})
 	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, `configured provider "openai" is not configured`)
+	require.Contains(t, resp.Content, `selected provider "openai" has no API key configured`)
 }
 
 func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {

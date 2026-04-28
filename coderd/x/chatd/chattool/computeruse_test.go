@@ -52,7 +52,7 @@ func TestDefaultComputerUseModel(t *testing.T) {
 			name:              "OpenAI",
 			provider:          chattool.ComputerUseProviderOpenAI,
 			wantModelProvider: chattool.ComputerUseProviderOpenAI,
-			wantModelName:     "gpt-5.5",
+			wantModelName:     chattool.ComputerUseOpenAIModelName,
 			wantOK:            true,
 		},
 		{
@@ -670,7 +670,7 @@ func TestComputerUseTool_Run_OpenAI_ActionFailureSkipsFinalScreenshot(t *testing
 func TestComputerUseTool_Run_OpenAI_UnsupportedClickButtons(t *testing.T) {
 	t.Parallel()
 
-	for _, button := range []string{"wheel", "back", "forward"} {
+	for _, button := range []string{"back", "forward"} {
 		t.Run(button, func(t *testing.T) {
 			t.Parallel()
 
@@ -690,6 +690,26 @@ func TestComputerUseTool_Run_OpenAI_UnsupportedClickButtons(t *testing.T) {
 	}
 }
 
+func TestComputerUseTool_Run_OpenAI_WheelClickIsMiddle(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	actions := recordDesktopActions(t, mockConn, geometry, 2, "d2hlZWwtY2xpY2s=")
+	tool := newOpenAIComputerUseTool(t, geometry, mockConn, nil, quartz.NewReal())
+
+	resp, err := tool.Run(context.Background(), openAIComputerUseCall(`{
+		"call_id":"call_wheel_click",
+		"actions":[{"type":"click","button":"wheel","x":10,"y":20}]
+	}`))
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	require.Len(t, *actions, 2)
+	assertDesktopAction(t, (*actions)[0], "middle_click", [2]int{10, 20})
+	assert.Equal(t, "screenshot", (*actions)[1].Action)
+}
+
 func TestComputerUseTool_Run_OpenAI_UnsupportedActionType(t *testing.T) {
 	t.Parallel()
 
@@ -705,6 +725,20 @@ func TestComputerUseTool_Run_OpenAI_UnsupportedActionType(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.IsError)
 	assert.Contains(t, resp.Content, `unsupported OpenAI computer action type "hover"`)
+}
+
+func TestComputerUseTool_Run_OpenAI_InvalidInput(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	tool := newOpenAIComputerUseTool(t, geometry, mockConn, nil, quartz.NewReal())
+
+	resp, err := tool.Run(context.Background(), openAIComputerUseCall(`{invalid json`))
+	require.NoError(t, err)
+	assert.True(t, resp.IsError)
+	assert.Contains(t, resp.Content, "invalid")
 }
 
 func TestComputerUseTool_Run_OpenAI_DragRequiresTwoPoints(t *testing.T) {
@@ -737,6 +771,14 @@ func TestComputerUseTool_Run_OpenAI_KeyNormalization(t *testing.T) {
 		{name: "special keys", keysJSON: `["enter","escape","tab","space","backspace","delete"]`, wantText: "Return+Escape+Tab+space+BackSpace+Delete"},
 		{name: "arrows", keysJSON: `["ArrowUp","arrowdown","left","Right"]`, wantText: "Up+Down+Left+Right"},
 		{name: "function letters digits", keysJSON: `["f1","F12","5","Z"]`, wantText: "F1+F12+5+z"},
+		{name: "minus key", keysJSON: `["-"]`, wantText: "-"},
+		{name: "equals key", keysJSON: `["="]`, wantText: "="},
+		{name: "slash key", keysJSON: `["/"]`, wantText: "/"},
+		{name: "period key", keysJSON: `["."]`, wantText: "."},
+		{name: "left bracket key", keysJSON: `["["]`, wantText: "["},
+		{name: "right bracket key", keysJSON: `["]"]`, wantText: "]"},
+		{name: "semicolon key", keysJSON: `[";"]`, wantText: ";"},
+		{name: "apostrophe key", keysJSON: `["'"]`, wantText: "'"},
 	}
 
 	for _, tt := range tests {
@@ -772,7 +814,7 @@ func TestComputerUseTool_Run_OpenAI_KeyNormalizationErrors(t *testing.T) {
 	}{
 		{name: "empty array", keysJSON: `[]`, want: "requires at least one key"},
 		{name: "empty token", keysJSON: `["ctrl",""]`, want: "contains an empty key"},
-		{name: "unsupported punctuation", keysJSON: `["!"]`, want: `unsupported OpenAI keypress "!"`},
+		{name: "unsupported multi-rune", keysJSON: `["ab"]`, want: `unsupported OpenAI keypress "ab"`},
 		{name: "unsupported function key", keysJSON: `["f99"]`, want: `unsupported OpenAI keypress "f99"`},
 		{name: "unsupported named key", keysJSON: `["PageDown"]`, want: `unsupported OpenAI keypress "PageDown"`},
 	}

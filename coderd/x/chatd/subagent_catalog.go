@@ -116,7 +116,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				if !p.isProviderConfigured(ctx, provider) {
 					return fmt.Sprintf(
-						`type "computer_use" is unavailable because the configured provider %q is not configured`,
+						`type "computer_use" is unavailable because the selected provider %q has no API key configured`,
 						provider,
 					)
 				}

@@ -29,20 +29,24 @@ const (
 	ComputerUseModelProvider = ComputerUseProviderAnthropic
 	// ComputerUseModelName is the default model used for computer use subagents.
 	ComputerUseModelName = "claude-opus-4-6"
+	// ComputerUseOpenAIModelName is the default OpenAI model used for computer use.
+	ComputerUseOpenAIModelName = "gpt-5.5"
 )
 
-// SupportedComputerUseProviders lists providers with computer use support.
-var SupportedComputerUseProviders = []string{
-	ComputerUseProviderAnthropic,
-	ComputerUseProviderOpenAI,
+// SupportedComputerUseProviders returns the providers supported by computer use.
+// The returned slice is a fresh copy and safe to mutate.
+func SupportedComputerUseProviders() []string {
+	return []string{
+		ComputerUseProviderAnthropic,
+		ComputerUseProviderOpenAI,
+	}
 }
 
 // IsSupportedComputerUseProvider reports whether provider supports computer use.
 func IsSupportedComputerUseProvider(provider string) bool {
-	for _, supported := range SupportedComputerUseProviders {
-		if provider == supported {
-			return true
-		}
+	switch provider {
+	case ComputerUseProviderAnthropic, ComputerUseProviderOpenAI:
+		return true
 	}
 	return false
 }
@@ -62,7 +66,7 @@ func DefaultComputerUseModel(provider string) (modelProvider, modelName string, 
 		return ComputerUseModelProvider, ComputerUseModelName, true
 	case ComputerUseProviderOpenAI:
 		// Keep OpenAI isolated here because computer-use models may advance.
-		return ComputerUseProviderOpenAI, "gpt-5.5", true
+		return ComputerUseProviderOpenAI, ComputerUseOpenAIModelName, true
 	default:
 		return "", "", false
 	}
@@ -134,7 +138,7 @@ func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int)
 		return fantasyopenai.NewComputerUseTool(nil).Definition(), nil
 	default:
 		return nil, xerrors.Errorf("unsupported computer use provider %q, supported providers: %s", provider,
-			strings.Join(SupportedComputerUseProviders, ", "))
+			strings.Join(SupportedComputerUseProviders(), ", "))
 	}
 }
 
@@ -156,7 +160,7 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"unsupported computer use provider %q, supported providers: %s",
 			t.provider,
-			strings.Join(SupportedComputerUseProviders, ", "),
+			strings.Join(SupportedComputerUseProviders(), ", "),
 		)), nil
 	}
 }
@@ -449,7 +453,7 @@ func openAIClickAction(button string) (string, bool) {
 		return "left_click", true
 	case "right":
 		return "right_click", true
-	case "middle":
+	case "middle", "wheel":
 		return "middle_click", true
 	default:
 		return "", false
@@ -531,6 +535,9 @@ func normalizeOpenAIKey(key string) (string, error) {
 			return strings.ToLower(trimmed), nil
 		}
 		if unicode.IsDigit(r) {
+			return trimmed, nil
+		}
+		if unicode.IsPunct(r) || unicode.IsSymbol(r) {
 			return trimmed, nil
 		}
 		return "", xerrors.Errorf("unsupported OpenAI keypress %q", trimmed)

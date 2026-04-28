@@ -4125,17 +4125,14 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 			Message: "Invalid computer use provider.",
 			Detail: fmt.Sprintf(
 				"Expected one of: %s. Got %q.",
-				strings.Join(chattool.SupportedComputerUseProviders, ", "),
+				strings.Join(chattool.SupportedComputerUseProviders(), ", "),
 				req.Provider,
 			),
 		})
 		return
 	}
 
-	if err := api.Database.UpsertChatComputerUseProvider(ctx, req.Provider); httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	} else if err != nil {
+	if err := api.Database.UpsertChatComputerUseProvider(ctx, req.Provider); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating computer use provider.",
 			Detail:  err.Error(),
