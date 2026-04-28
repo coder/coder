@@ -11,7 +11,7 @@ every workspace you own.
 
 Each user secret has:
 
-- A name, used to manage the secret with the CLI or API.
+- A name, used to manage the secret with the CLI or REST API.
 - A value, which contains the sensitive content.
 - An optional description.
 - An optional environment variable target, file target, or both.
@@ -19,12 +19,15 @@ Each user secret has:
 A secret without an environment variable target or file target is stored, but is
 not injected into workspaces.
 
-User secrets apply to all workspaces that you own. Environment variable secrets
-are available to startup scripts and workspace sessions. File secrets are
-written before startup scripts run.
+User secrets apply to all workspaces that you own. Coder loads user secrets when
+a workspace starts. If you create, update, or delete a secret while a workspace
+is running, restart the workspace before relying on that change.
 
-Secret values are omitted from CLI and API output after you create or update
-them.
+Environment variable secrets are available to startup scripts and workspace
+sessions. File secrets are written before startup scripts run.
+
+Secret values are omitted from CLI output and REST API responses after you
+create or update them.
 
 > [!WARNING]
 > Anyone with shell or file access to a workspace can read secrets injected into
@@ -129,6 +132,11 @@ coder secret list api-key
 # Delete a secret you no longer need.
 coder secret delete api-key
 ```
+
+Deleting a secret removes it from Coder and stops Coder from injecting it during
+future workspace starts. Deleting a secret does not remove the value from
+running processes or delete files that were already written in existing
+workspaces.
 
 The list and show commands return secret metadata only. They never return the
 secret value.
