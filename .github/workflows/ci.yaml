@@ -820,27 +820,29 @@ jobs:
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
 
-      - name: Upload Playwright Failed Tests
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+      - name: Upload Playwright failure artifacts
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
-          path: ./site/test-results/**/*.webm
+          name: playwright-artifacts-${{ matrix.variant.name }}-${{ github.sha }}
+          path: |
+            ./site/test-results/**
+            ./site/playwright-report/**
           retention-days: 7
 
       - name: Upload debug log
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coderd-debug-logs${{ matrix.variant.premium && '-premium' || ''  }}
+          name: coderd-debug-logs-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/e2e/test-results/debug.log
           retention-days: 7
 
       - name: Upload pprof dumps
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
+          name: debug-pprof-dumps-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
