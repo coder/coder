@@ -9,6 +9,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Observability and isolation: Use [Observability Guide for Agents](.claude/docs/OBSERVABILITY.md) for logs, tracing, and metrics, and [Development Isolation Guide for Agents](.claude/docs/DEV_ISOLATION.md) for ports, state, readiness, and cleanup.
 - Failures: Use [Agent Failure Catalog](.claude/docs/AGENT_FAILURES.md) for repeatable failure formats and seeded diagnostics.
 - Language and area docs: Use [Modern Go](.claude/docs/GO.md), [Testing Patterns and Best Practices](.claude/docs/TESTING.md), [Database Development Patterns](.claude/docs/DATABASE.md), [OAuth2 Development Guide](.claude/docs/OAUTH2.md), [Coder Architecture](.claude/docs/ARCHITECTURE.md), [Troubleshooting Guide](.claude/docs/TROUBLESHOOTING.md), [Documentation Style Guide](.claude/docs/DOCS_STYLE_GUIDE.md), and [Pull Request Description Style Guide](.claude/docs/PR_STYLE_GUIDE.md) when that area is in scope.
+- Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
 - Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
 
 ## Foundational rules

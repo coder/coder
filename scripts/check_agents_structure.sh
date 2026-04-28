@@ -22,6 +22,14 @@ for doc in "${required_docs[@]}"; do
 	fi
 done
 
+if [[ ! -L ".agents/docs" ]]; then
+	echo "error: agent docs compatibility symlink is missing: .agents/docs -> ../.claude/docs"
+	fail=1
+elif [[ "$(readlink ".agents/docs")" != "../.claude/docs" ]]; then
+	echo "error: agent docs compatibility symlink points to $(readlink ".agents/docs"), expected ../.claude/docs"
+	fail=1
+fi
+
 is_reference_path() {
 	local ref="$1"
 	case "$ref" in

@@ -62,6 +62,17 @@ for doc in \
 	fi
 done
 
+if [[ -L ".agents/docs" ]]; then
+	agents_docs_target="$(readlink ".agents/docs")"
+	if [[ "$agents_docs_target" == "../.claude/docs" ]]; then
+		ok ".agents/docs points to .claude/docs."
+	else
+		fail ".agents/docs points to $agents_docs_target, expected ../.claude/docs."
+	fi
+else
+	fail ".agents/docs compatibility symlink is missing."
+fi
+
 echo
 echo "Navigation and report-first checks"
 
