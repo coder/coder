@@ -728,7 +728,7 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash lint/agents $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Subset of lint that does not require Go or Node toolchains.
@@ -771,6 +771,9 @@ lint/emdash:
 	bash scripts/check_emdash.sh
 .PHONY: lint/emdash
 
+lint/agents:
+	./scripts/check_agents_structure.sh
+.PHONY: lint/agents
 
 lint/helm:
 	cd helm/
