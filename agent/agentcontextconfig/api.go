@@ -68,35 +68,52 @@ const (
 	DefaultMCPConfigFile    = ".mcp.json"
 )
 
-// Config holds the agent's context configuration. Zero
-// value provides safe defaults.
+// Config holds the agent's context configuration.
+// Defaults are applied by NewAPI, not by the zero value.
 type Config struct {
-	InstructionsDir  string
+	InstructionsDirs string
 	InstructionsFile string
-	SkillsDir        string
+	SkillsDirs       string
 	SkillMetaFile    string
-	MCPConfigFile    string
+	MCPConfigFiles   string
+}
+
+// applyDefaults fills zero-valued fields with their defaults.
+func (c Config) applyDefaults() Config {
+	c.InstructionsDirs = cmp.Or(c.InstructionsDirs, DefaultInstructionsDir)
+	c.InstructionsFile = cmp.Or(c.InstructionsFile, DefaultInstructionsFile)
+	c.SkillsDirs = cmp.Or(c.SkillsDirs, DefaultSkillsDir)
+	c.SkillMetaFile = cmp.Or(c.SkillMetaFile, DefaultSkillMetaFile)
+	c.MCPConfigFiles = cmp.Or(c.MCPConfigFiles, DefaultMCPConfigFile)
+	return c
 }
 
 // ReadEnvConfig reads the CODER_AGENT_EXP_* environment
 // variables, falling back to defaults for unset values.
 func ReadEnvConfig() Config {
 	return Config{
-		InstructionsDir:  cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsDirs)), DefaultInstructionsDir),
-		InstructionsFile: cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsFile)), DefaultInstructionsFile),
-		SkillsDir:        cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillsDirs)), DefaultSkillsDir),
-		SkillMetaFile:    cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillMetaFile)), DefaultSkillMetaFile),
-		MCPConfigFile:    cmp.Or(strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)), DefaultMCPConfigFile),
+		InstructionsDirs: strings.TrimSpace(os.Getenv(EnvInstructionsDirs)),
+		InstructionsFile: strings.TrimSpace(os.Getenv(EnvInstructionsFile)),
+		SkillsDirs:       strings.TrimSpace(os.Getenv(EnvSkillsDirs)),
+		SkillMetaFile:    strings.TrimSpace(os.Getenv(EnvSkillMetaFile)),
+		MCPConfigFiles:   strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)),
+	}.applyDefaults()
+}
+
+// envVarKeys returns every CODER_AGENT_EXP_* env var key
+// used by the context configuration subsystem.
+func envVarKeys() []string {
+	return []string{
+		EnvInstructionsDirs, EnvInstructionsFile,
+		EnvSkillsDirs, EnvSkillMetaFile, EnvMCPConfigFiles,
 	}
 }
 
-// ConsumeEnvVars strips the CODER_AGENT_EXP_* environment
-// variables from the current process.
-func ConsumeEnvVars() {
-	for _, key := range []string{
-		EnvInstructionsDirs, EnvInstructionsFile,
-		EnvSkillsDirs, EnvSkillMetaFile, EnvMCPConfigFiles,
-	} {
+// ClearEnvVars removes the CODER_AGENT_EXP_* environment
+// variables from the current process so they are not
+// inherited by child processes.
+func ClearEnvVars() {
+	for _, key := range envVarKeys() {
 		_ = os.Unsetenv(key)
 	}
 }
@@ -114,20 +131,15 @@ func NewAPI(workingDir func() string, cfg Config) *API {
 	if workingDir == nil {
 		workingDir = func() string { return "" }
 	}
-	cfg.InstructionsDir = cmp.Or(cfg.InstructionsDir, DefaultInstructionsDir)
-	cfg.InstructionsFile = cmp.Or(cfg.InstructionsFile, DefaultInstructionsFile)
-	cfg.SkillsDir = cmp.Or(cfg.SkillsDir, DefaultSkillsDir)
-	cfg.SkillMetaFile = cmp.Or(cfg.SkillMetaFile, DefaultSkillMetaFile)
-	cfg.MCPConfigFile = cmp.Or(cfg.MCPConfigFile, DefaultMCPConfigFile)
-	return &API{workingDir: workingDir, cfg: cfg}
+	return &API{workingDir: workingDir, cfg: cfg.applyDefaults()}
 }
 
 // Resolve reads instruction files, discovers skills, and
 // resolves MCP config file paths for the given config and
 // working directory.
 func Resolve(workingDir string, cfg Config) (workspacesdk.ContextConfigResponse, []string) {
-	resolvedInstructionsDirs := ResolvePaths(cfg.InstructionsDir, workingDir)
-	resolvedSkillsDirs := ResolvePaths(cfg.SkillsDir, workingDir)
+	resolvedInstructionsDirs := ResolvePaths(cfg.InstructionsDirs, workingDir)
+	resolvedSkillsDirs := ResolvePaths(cfg.SkillsDirs, workingDir)
 
 	// Read instruction files from each configured directory.
 	parts := readInstructionFiles(resolvedInstructionsDirs, cfg.InstructionsFile)
@@ -157,7 +169,7 @@ func Resolve(workingDir string, cfg Config) (workspacesdk.ContextConfigResponse,
 
 	return workspacesdk.ContextConfigResponse{
 		Parts: parts,
-	}, ResolvePaths(cfg.MCPConfigFile, workingDir)
+	}, ResolvePaths(cfg.MCPConfigFiles, workingDir)
 }
 
 // ContextPartsFromDir reads instruction files and discovers skills

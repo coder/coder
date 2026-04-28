@@ -157,7 +157,7 @@ func setupConfigTestEnv(t *testing.T, overrides map[string]string) string {
 	return fakeHome
 }
 
-func TestConfig(t *testing.T) {
+func TestResolve(t *testing.T) {
 	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("Defaults", func(t *testing.T) {
 		setupConfigTestEnv(t, nil)
@@ -482,4 +482,63 @@ func TestNewAPI_LazyDirectory(t *testing.T) {
 	mcpFiles = api.MCPConfigFiles()
 	require.NotEmpty(t, mcpFiles)
 	require.Equal(t, []string{filepath.Join(dir, ".mcp.json")}, mcpFiles)
+}
+
+// TestClearEnvVars verifies that ClearEnvVars removes every
+// CODER_AGENT_EXP_* env var from the process.
+//
+//nolint:paralleltest // Mutates process-wide environment.
+func TestClearEnvVars(t *testing.T) {
+	// Set every context config env var.
+	for _, key := range []string{
+		agentcontextconfig.EnvInstructionsDirs,
+		agentcontextconfig.EnvInstructionsFile,
+		agentcontextconfig.EnvSkillsDirs,
+		agentcontextconfig.EnvSkillMetaFile,
+		agentcontextconfig.EnvMCPConfigFiles,
+	} {
+		t.Setenv(key, "some-value")
+	}
+
+	agentcontextconfig.ClearEnvVars()
+
+	// Every env var should be absent.
+	for _, key := range []string{
+		agentcontextconfig.EnvInstructionsDirs,
+		agentcontextconfig.EnvInstructionsFile,
+		agentcontextconfig.EnvSkillsDirs,
+		agentcontextconfig.EnvSkillMetaFile,
+		agentcontextconfig.EnvMCPConfigFiles,
+	} {
+		_, ok := os.LookupEnv(key)
+		require.False(t, ok, "env var %s should be cleared", key)
+	}
+}
+
+// TestResolve_ConfigOverridesEnv verifies that Resolve uses
+// the Config struct, not environment variables.
+//
+//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+func TestResolve_ConfigOverridesEnv(t *testing.T) {
+	// Set env vars to one value.
+	envDir := t.TempDir()
+	t.Setenv(agentcontextconfig.EnvInstructionsDirs, envDir)
+
+	// Build a Config with a different value.
+	cfgDir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(cfgDir, "AGENTS.md"),
+		[]byte("from config"),
+		0o600,
+	))
+
+	cfg := agentcontextconfig.ReadEnvConfig()
+	cfg.InstructionsDirs = cfgDir
+
+	workDir := t.TempDir()
+	result, _ := agentcontextconfig.Resolve(workDir, cfg)
+
+	ctxFiles := filterParts(result.Parts, codersdk.ChatMessagePartTypeContextFile)
+	require.Len(t, ctxFiles, 1)
+	require.Equal(t, "from config", ctxFiles[0].ContextFileContent)
 }

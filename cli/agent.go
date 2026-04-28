@@ -280,6 +280,11 @@ func workspaceAgent() *serpent.Command {
 			defer reinitCancel()
 			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
 
+			// Read and strip env vars before the reinit
+			// loop so config survives agent restarts.
+			contextConfig := agentcontextconfig.ReadEnvConfig()
+			agentcontextconfig.ClearEnvVars()
+
 			var (
 				lastOwnerID uuid.UUID
 				lastErr     error
@@ -336,9 +341,8 @@ func workspaceAgent() *serpent.Command {
 					SocketPath:                 socketPath,
 					SocketServerEnabled:        socketServerEnabled,
 					BoundaryLogProxySocketPath: boundaryLogProxySocketPath,
-					ContextConfig:              agentcontextconfig.ReadEnvConfig(),
+					ContextConfig:              contextConfig,
 				})
-				agentcontextconfig.ConsumeEnvVars()
 
 				if debugAddress != "" {
 					// ServerHandle depends on `agnt.HTTPDebug()`, but `agnt`
