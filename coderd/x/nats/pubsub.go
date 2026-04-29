@@ -26,14 +26,18 @@ type Pubsub struct {
 	ownsServer bool
 	ownsConn   bool
 
-	mu        sync.Mutex
-	closed    bool
-	subs      map[*subscription]struct{}
-	closeOnce sync.Once
+	mu          sync.Mutex
+	closed      bool
+	subs        map[*subscription]struct{}
+	subsByNATS  map[*natsgo.Subscription]*subscription
+	eventCounts map[string]int
+	closeOnce   sync.Once
 
 	// closedCh is signaled by the NATS ClosedHandler so Close can wait
 	// for Drain to fully complete without polling.
 	closedCh chan struct{}
+
+	metrics pubsubMetrics
 }
 
 type subscription struct {
@@ -42,10 +46,28 @@ type subscription struct {
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
 	cancelOnce sync.Once
+
+	event    string
+	listener pubsub.ListenerWithErr
+
+	dropMu      sync.Mutex
+	lastDropped uint64
 }
 
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
 var _ pubsub.Pubsub = (*Pubsub)(nil)
+
+// newPubsub allocates a *Pubsub with maps and metrics initialized.
+func newPubsub(logger slog.Logger, opts Options) *Pubsub {
+	return &Pubsub{
+		logger:      logger,
+		opts:        opts,
+		subs:        make(map[*subscription]struct{}),
+		subsByNATS:  make(map[*natsgo.Subscription]*subscription),
+		eventCounts: make(map[string]int),
+		metrics:     newPubsubMetrics(),
+	}
+}
 
 // New creates a new embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and client connection and shuts them down on Close.
@@ -58,20 +80,33 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 
 	closedCh := make(chan struct{})
 	var closeOnce sync.Once
+
+	p := newPubsub(logger, opts)
+	p.ns = ns
+	p.ownsServer = true
+	p.ownsConn = true
+	p.closedCh = closedCh
+
 	handlers := connHandlers{
 		disconnectErr: func(_ *natsgo.Conn, err error) {
+			p.metrics.disconnectsTotal.Inc()
 			if err != nil {
 				logger.Warn(context.Background(), "nats client disconnected", slog.Error(err))
 			}
 		},
 		reconnect: func(_ *natsgo.Conn) {
+			p.metrics.reconnectsTotal.Inc()
 			logger.Info(context.Background(), "nats client reconnected")
 		},
 		closed: func(_ *natsgo.Conn) {
 			closeOnce.Do(func() { close(closedCh) })
 			logger.Debug(context.Background(), "nats client closed")
 		},
-		errH: func(_ *natsgo.Conn, _ *natsgo.Subscription, err error) {
+		errH: func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
+			if err != nil && errors.Is(err, natsgo.ErrSlowConsumer) {
+				p.handleAsyncError(sub, err)
+				return
+			}
 			if err != nil {
 				logger.Warn(context.Background(), "nats async error", slog.Error(err))
 			}
@@ -84,17 +119,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		ns.WaitForShutdown()
 		return nil, err
 	}
-
-	return &Pubsub{
-		logger:     logger,
-		opts:       opts,
-		ns:         ns,
-		nc:         nc,
-		ownsServer: true,
-		ownsConn:   true,
-		subs:       make(map[*subscription]struct{}),
-		closedCh:   closedCh,
-	}, nil
+	p.nc = nc
+	return p, nil
 }
 
 // NewFromConn wraps an externally provided *natsgo.Conn. The returned
@@ -104,11 +130,9 @@ func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 	if nc == nil {
 		return nil, xerrors.New("nats: nil connection")
 	}
-	return &Pubsub{
-		logger: logger,
-		nc:     nc,
-		subs:   make(map[*subscription]struct{}),
-	}, nil
+	p := newPubsub(logger, Options{})
+	p.nc = nc
+	return p, nil
 }
 
 // Publish publishes a message under the given legacy event name.
@@ -116,15 +140,18 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
+		p.metrics.publishesTotal.WithLabelValues("false").Inc()
 		return xerrors.New("nats pubsub: closed")
 	}
 	p.mu.Unlock()
 
 	subj, err := LegacyEventSubject(event)
 	if err != nil {
+		p.metrics.publishesTotal.WithLabelValues("false").Inc()
 		return xerrors.Errorf("map event %q: %w", event, err)
 	}
 	if err := p.nc.Publish(string(subj), message); err != nil {
+		p.metrics.publishesTotal.WithLabelValues("false").Inc()
 		return xerrors.Errorf("publish: %w", err)
 	}
 	if p.opts.PublishMode == PublishModeFlush {
@@ -133,9 +160,18 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 			timeout = DefaultPublishFlushLimit
 		}
 		if err := p.nc.FlushTimeout(timeout); err != nil {
+			p.metrics.publishesTotal.WithLabelValues("false").Inc()
 			return xerrors.Errorf("flush: %w", err)
 		}
 	}
+
+	p.metrics.publishesTotal.WithLabelValues("true").Inc()
+	p.metrics.publishedBytesTotal.Add(float64(len(message)))
+	sizeLabel := messageSizeNormal
+	if len(message) >= colossalThreshold {
+		sizeLabel = messageSizeColossal
+	}
+	p.metrics.messagesTotal.WithLabelValues(sizeLabel).Inc()
 	return nil
 }
 
@@ -158,53 +194,76 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
+		p.metrics.subscribesTotal.WithLabelValues("false").Inc()
 		return nil, xerrors.New("nats pubsub: closed")
 	}
 	p.mu.Unlock()
 
 	subj, err := LegacyEventSubject(event)
 	if err != nil {
+		p.metrics.subscribesTotal.WithLabelValues("false").Inc()
 		return nil, xerrors.Errorf("map event %q: %w", event, err)
 	}
 	natsSub, err := p.nc.SubscribeSync(string(subj))
 	if err != nil {
+		p.metrics.subscribesTotal.WithLabelValues("false").Inc()
 		return nil, xerrors.Errorf("subscribe: %w", err)
 	}
 	if p.opts.PendingLimits.Msgs != 0 || p.opts.PendingLimits.Bytes != 0 {
 		if err := natsSub.SetPendingLimits(p.opts.PendingLimits.Msgs, p.opts.PendingLimits.Bytes); err != nil {
 			_ = natsSub.Unsubscribe()
+			p.metrics.subscribesTotal.WithLabelValues("false").Inc()
 			return nil, xerrors.Errorf("set pending limits: %w", err)
 		}
 	}
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	s := &subscription{
-		sub:    natsSub,
-		ctx:    ctx,
-		cancel: cancelCtx,
+		sub:      natsSub,
+		ctx:      ctx,
+		cancel:   cancelCtx,
+		event:    event,
+		listener: listener,
 	}
 
 	p.mu.Lock()
 	p.subs[s] = struct{}{}
+	p.subsByNATS[natsSub] = s
+	p.eventCounts[event]++
 	p.mu.Unlock()
 
 	s.wg.Add(1)
-	go p.runSubscription(s, listener)
+	go p.runSubscription(s)
+	p.metrics.subscribesTotal.WithLabelValues("true").Inc()
 
 	cancelFn := func() {
 		s.cancelOnce.Do(func() {
 			s.cancel()
 			_ = s.sub.Unsubscribe()
 			s.wg.Wait()
-			p.mu.Lock()
-			delete(p.subs, s)
-			p.mu.Unlock()
+			p.unregisterSubscription(s)
 		})
 	}
 	return cancelFn, nil
 }
 
-func (p *Pubsub) runSubscription(s *subscription, listener pubsub.ListenerWithErr) {
+// unregisterSubscription removes s from all tracking maps. Safe to call
+// multiple times only if guarded externally; callers use cancelOnce.
+func (p *Pubsub) unregisterSubscription(s *subscription) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.subs, s)
+	delete(p.subsByNATS, s.sub)
+	if c, ok := p.eventCounts[s.event]; ok {
+		if c <= 1 {
+			delete(p.eventCounts, s.event)
+		} else {
+			p.eventCounts[s.event] = c - 1
+		}
+	}
+}
+
+func (p *Pubsub) runSubscription(s *subscription) {
 	defer s.wg.Done()
 	for {
 		msg, err := s.sub.NextMsgWithContext(s.ctx)
@@ -216,16 +275,67 @@ func (p *Pubsub) runSubscription(s *subscription, listener pubsub.ListenerWithEr
 				errors.Is(err, natsgo.ErrBadSubscription):
 				return
 			case errors.Is(err, natsgo.ErrSlowConsumer):
-				// Best-effort drop signal. Per-event dedup is deferred.
-				listener(s.ctx, nil, pubsub.ErrDroppedMessages)
+				p.handleSlowConsumer(s)
 				continue
 			default:
 				p.logger.Warn(s.ctx, "nats subscription error", slog.Error(err))
 				return
 			}
 		}
-		listener(s.ctx, msg.Data, nil)
+		p.metrics.receivedBytesTotal.Add(float64(len(msg.Data)))
+		s.listener(s.ctx, msg.Data, nil)
 	}
+}
+
+// handleAsyncError routes async error callbacks. Only slow-consumer
+// errors trigger drop accounting; other errors are ignored here and
+// logged elsewhere.
+func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
+	if sub == nil || !errors.Is(err, natsgo.ErrSlowConsumer) {
+		return
+	}
+	p.mu.Lock()
+	s, ok := p.subsByNATS[sub]
+	p.mu.Unlock()
+	if !ok {
+		return
+	}
+	p.handleSlowConsumer(s)
+}
+
+// handleSlowConsumer is invoked for both sync (NextMsg) and async slow
+// consumer signals on s. It increments slow-consumer metrics, queries
+// NATS for the cumulative dropped count, and emits at most one
+// ErrDroppedMessages callback per delta.
+func (p *Pubsub) handleSlowConsumer(s *subscription) {
+	s.dropMu.Lock()
+	defer s.dropMu.Unlock()
+
+	p.metrics.slowConsumersTotal.Inc()
+
+	dropped, err := s.sub.Dropped()
+	if err != nil {
+		p.logger.Warn(s.ctx, "nats: query dropped count", slog.Error(err))
+		return
+	}
+	if dropped < 0 {
+		p.logger.Warn(s.ctx, "nats: negative dropped count")
+		return
+	}
+	cur := uint64(dropped)
+	if cur < s.lastDropped {
+		// Counter went backwards (e.g., subscription replaced); reset
+		// baseline without emitting a callback.
+		s.lastDropped = cur
+		return
+	}
+	delta := cur - s.lastDropped
+	if delta == 0 {
+		return
+	}
+	p.metrics.droppedMsgsTotal.Add(float64(delta))
+	s.lastDropped = cur
+	s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
 }
 
 // Close drains and shuts down the Pubsub. It is idempotent.
@@ -245,9 +355,7 @@ func (p *Pubsub) Close() error {
 				s.cancel()
 				_ = s.sub.Unsubscribe()
 				s.wg.Wait()
-				p.mu.Lock()
-				delete(p.subs, s)
-				p.mu.Unlock()
+				p.unregisterSubscription(s)
 			})
 		}
 
