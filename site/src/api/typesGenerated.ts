@@ -1260,7 +1260,7 @@ export interface Chat {
 	/**
 	 * LastInjectedContext holds the most recently persisted
 	 * injected context parts (AGENTS.md files and skills). It
-	 * is updated only when context changes — first workspace
+	 * is updated only when context changes, on first workspace
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];

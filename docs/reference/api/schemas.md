@@ -2079,6 +2079,312 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.Chat
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "archived": true,
+  "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "children": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "archived": true,
+      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "children": [],
+      "client_type": "ui",
+      "created_at": "2019-08-24T14:15:22Z",
+      "diff_status": {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      },
+      "files": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "mime_type": "string",
+          "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        }
+      ],
+      "has_unread": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "last_error": "string",
+      "last_injected_context": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "mcp_server_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+      "pin_order": 0,
+      "plan_mode": "plan",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "status": "waiting",
+      "title": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "warnings": [
+        "string"
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ],
+  "client_type": "ui",
+  "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
+  "files": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "mime_type": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+    }
+  ],
+  "has_unread": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "last_error": "string",
+  "last_injected_context": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "status": "waiting",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": [
+    "string"
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|-------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `archived`              | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
+| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_error`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_injected_context` | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)   | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
+| `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+
+## codersdk.ChatBusyBehavior
+
+```json
+"queue"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| `interrupt`, `queue` |
+
+## codersdk.ChatClientType
+
+```json
+"ui"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)    |
+|-------------|
+| `api`, `ui` |
+
 ## codersdk.ChatConfig
 
 ```json
@@ -2095,6 +2401,640 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `acquire_batch_size`    | integer | false    |              |             |
 | `debug_logging_enabled` | boolean | false    |              |             |
 
+## codersdk.ChatDiffContents
+
+```json
+{
+  "branch": "string",
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "diff": "string",
+  "provider": "string",
+  "pull_request_url": "string",
+  "remote_origin": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `branch`           | string | false    |              |             |
+| `chat_id`          | string | false    |              |             |
+| `diff`             | string | false    |              |             |
+| `provider`         | string | false    |              |             |
+| `pull_request_url` | string | false    |              |             |
+| `remote_origin`    | string | false    |              |             |
+
+## codersdk.ChatDiffStatus
+
+```json
+{
+  "additions": 0,
+  "approved": true,
+  "author_avatar_url": "string",
+  "author_login": "string",
+  "base_branch": "string",
+  "changed_files": 0,
+  "changes_requested": true,
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "commits": 0,
+  "deletions": 0,
+  "head_branch": "string",
+  "pr_number": 0,
+  "pull_request_draft": true,
+  "pull_request_state": "string",
+  "pull_request_title": "string",
+  "refreshed_at": "2019-08-24T14:15:22Z",
+  "reviewer_count": 0,
+  "stale_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `additions`          | integer | false    |              |             |
+| `approved`           | boolean | false    |              |             |
+| `author_avatar_url`  | string  | false    |              |             |
+| `author_login`       | string  | false    |              |             |
+| `base_branch`        | string  | false    |              |             |
+| `changed_files`      | integer | false    |              |             |
+| `changes_requested`  | boolean | false    |              |             |
+| `chat_id`            | string  | false    |              |             |
+| `commits`            | integer | false    |              |             |
+| `deletions`          | integer | false    |              |             |
+| `head_branch`        | string  | false    |              |             |
+| `pr_number`          | integer | false    |              |             |
+| `pull_request_draft` | boolean | false    |              |             |
+| `pull_request_state` | string  | false    |              |             |
+| `pull_request_title` | string  | false    |              |             |
+| `refreshed_at`       | string  | false    |              |             |
+| `reviewer_count`     | integer | false    |              |             |
+| `stale_at`           | string  | false    |              |             |
+| `url`                | string  | false    |              |             |
+
+## codersdk.ChatFileMetadata
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "mime_type": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+|-------------------|--------|----------|--------------|-------------|
+| `created_at`      | string | false    |              |             |
+| `id`              | string | false    |              |             |
+| `mime_type`       | string | false    |              |             |
+| `name`            | string | false    |              |             |
+| `organization_id` | string | false    |              |             |
+| `owner_id`        | string | false    |              |             |
+
+## codersdk.ChatInputPart
+
+```json
+{
+  "content": "string",
+  "end_line": 0,
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "file_name": "string",
+  "start_line": 0,
+  "text": "string",
+  "type": "text"
+}
+```
+
+### Properties
+
+| Name         | Type                                                     | Required | Restrictions | Description                                                                    |
+|--------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
+| `content`    | string                                                   | false    |              | The code content from the diff that was commented on.                          |
+| `end_line`   | integer                                                  | false    |              |                                                                                |
+| `file_id`    | string                                                   | false    |              |                                                                                |
+| `file_name`  | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference. |
+| `start_line` | integer                                                  | false    |              |                                                                                |
+| `text`       | string                                                   | false    |              |                                                                                |
+| `type`       | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                |
+
+## codersdk.ChatInputPartType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                         |
+|----------------------------------|
+| `file`, `file-reference`, `text` |
+
+## codersdk.ChatMessage
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "content": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "id": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "role": "system",
+  "usage": {
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "context_limit": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                          | Required | Restrictions | Description |
+|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`         | string                                                        | false    |              |             |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `created_at`      | string                                                        | false    |              |             |
+| `created_by`      | string                                                        | false    |              |             |
+| `id`              | integer                                                       | false    |              |             |
+| `model_config_id` | string                                                        | false    |              |             |
+| `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
+| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
+
+## codersdk.ChatMessagePart
+
+```json
+{
+  "args": [
+    0
+  ],
+  "args_delta": "string",
+  "content": "string",
+  "context_file_agent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "context_file_content": "string",
+  "context_file_directory": "string",
+  "context_file_os": "string",
+  "context_file_path": "string",
+  "context_file_skill_meta_file": "string",
+  "context_file_truncated": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "data": [
+    0
+  ],
+  "end_line": 0,
+  "file_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "file_name": "string",
+  "is_error": true,
+  "is_media": true,
+  "mcp_server_config_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "media_type": "string",
+  "name": "string",
+  "provider_executed": true,
+  "provider_metadata": [
+    0
+  ],
+  "result": [
+    0
+  ],
+  "result_delta": "string",
+  "signature": "string",
+  "skill_description": "string",
+  "skill_dir": "string",
+  "skill_name": "string",
+  "source_id": "string",
+  "start_line": 0,
+  "text": "string",
+  "title": "string",
+  "tool_call_id": "string",
+  "tool_name": "string",
+  "type": "text",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                        |
+|--------------------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                    |
+| `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                              |
+| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                          |
+| `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                           |
+| `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                              |
+| `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                |
+| `context_file_path`            | string                                                       | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                 |
+| `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value. |
+| `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                             |
+| `created_at`                   | string                                                       | false    |              | Created at records when this part was produced. Present on tool-call and tool-result parts so the frontend can compute tool execution duration.                                                                                                                    |
+| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                    |
+| `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                    |
+| `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                    |
+| `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                    |
+| `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                    |
+| `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                    |
+| `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                              |
+| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                              |
+| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                    |
+| `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                  |
+| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                              |
+| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                            |
+| `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                    |
+| `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                    |
+| `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+
+## codersdk.ChatMessagePartType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                     |
+|--------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+
+## codersdk.ChatMessageRole
+
+```json
+"system"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                              |
+|---------------------------------------|
+| `assistant`, `system`, `tool`, `user` |
+
+## codersdk.ChatMessageUsage
+
+```json
+{
+  "cache_creation_tokens": 0,
+  "cache_read_tokens": 0,
+  "context_limit": 0,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "reasoning_tokens": 0,
+  "total_tokens": 0
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `cache_creation_tokens` | integer | false    |              |             |
+| `cache_read_tokens`     | integer | false    |              |             |
+| `context_limit`         | integer | false    |              |             |
+| `input_tokens`          | integer | false    |              |             |
+| `output_tokens`         | integer | false    |              |             |
+| `reasoning_tokens`      | integer | false    |              |             |
+| `total_tokens`          | integer | false    |              |             |
+
+## codersdk.ChatMessagesResponse
+
+```json
+{
+  "has_more": true,
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
+  "queued_messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                              | Required | Restrictions | Description |
+|-------------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `has_more`        | boolean                                                           | false    |              |             |
+| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+
+## codersdk.ChatPlanMode
+
+```json
+"plan"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s) |
+|----------|
+| `plan`   |
+
+## codersdk.ChatQueuedMessage
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "content": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+}
+```
+
+### Properties
+
+| Name              | Type                                                          | Required | Restrictions | Description |
+|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`         | string                                                        | false    |              |             |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `created_at`      | string                                                        | false    |              |             |
+| `id`              | integer                                                       | false    |              |             |
+| `model_config_id` | string                                                        | false    |              |             |
+
 ## codersdk.ChatRetentionDaysResponse
 
 ```json
@@ -2108,6 +3048,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name             | Type    | Required | Restrictions | Description |
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
+
+## codersdk.ChatStatus
+
+```json
+"waiting"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                           |
+|------------------------------------------------------------------------------------|
+| `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ConnectionLatency
 
@@ -2365,6 +3319,259 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
+
+## codersdk.CreateChatMessageRequest
+
+```json
+{
+  "busy_behavior": "queue",
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "plan_mode": "plan"
+}
+```
+
+### Properties
+
+| Name              | Type                                                      | Required | Restrictions | Description                                                                                                  |
+|-------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`   | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
+| `mcp_server_ids`  | array of string                                           | false    |              |                                                                                                              |
+| `model_config_id` | string                                                    | false    |              |                                                                                                              |
+| `plan_mode`       | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+
+#### Enumerated Values
+
+| Property        | Value(s)             |
+|-----------------|----------------------|
+| `busy_behavior` | `interrupt`, `queue` |
+
+## codersdk.CreateChatMessageResponse
+
+```json
+{
+  "message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "role": "system",
+    "usage": {
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "context_limit": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "queued": true,
+  "queued_message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  },
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name             | Type                                                     | Required | Restrictions | Description |
+|------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
+| `queued`         | boolean                                                  | false    |              |             |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+| `warnings`       | array of string                                          | false    |              |             |
+
+## codersdk.CreateChatRequest
+
+```json
+{
+  "client_type": "ui",
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "plan_mode": "plan",
+  "system_prompt": "string",
+  "unsafe_dynamic_tools": [
+    {
+      "description": "string",
+      "input_schema": [
+        0
+      ],
+      "name": "string"
+    }
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
+|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
+| `labels`               | object                                                    | false    |              |                                                                                                                                            |
+| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
+| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
+| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
+| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
+| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
+| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -4568,6 +5775,141 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
 | `id`          | integer                                                             | false    |              |             |
 | `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
+
+## codersdk.DynamicTool
+
+```json
+{
+  "description": "string",
+  "input_schema": [
+    0
+  ],
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type             | Required | Restrictions | Description                                                                                                                                  |
+|----------------|------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `description`  | string           | false    |              |                                                                                                                                              |
+| `input_schema` | array of integer | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
+| `name`         | string           | false    |              |                                                                                                                                              |
+
+## codersdk.EditChatMessageRequest
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                      | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------------|----------|--------------|-------------|
+| `content` | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |             |
+
+## codersdk.EditChatMessageResponse
+
+```json
+{
+  "message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "role": "system",
+    "usage": {
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "context_limit": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                         | Required | Restrictions | Description |
+|------------|----------------------------------------------|----------|--------------|-------------|
+| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
+| `warnings` | array of string                              | false    |              |             |
 
 ## codersdk.Entitlement
 
@@ -10455,6 +11797,34 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
+## codersdk.UpdateChatRequest
+
+```json
+{
+  "archived": true,
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "title": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name               | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|--------------------|------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `archived`         | boolean                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `labels`           | object                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
+| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
+| `title`            | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `workspace_id`     | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
 ## codersdk.UpdateChatRetentionDaysRequest
 
 ```json
@@ -10877,6 +12247,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name     | Type    | Required | Restrictions | Description |
 |----------|---------|----------|--------------|-------------|
 | `ttl_ms` | integer | false    |              |             |
+
+## codersdk.UploadChatFileResponse
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description |
+|------|--------|----------|--------------|-------------|
+| `id` | string | false    |              |             |
 
 ## codersdk.UploadResponse
 

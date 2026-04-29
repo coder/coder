@@ -1289,12 +1289,6 @@
 							"description": "Add custom skills and MCP tools to agent workspaces",
 							"path": "./ai-coder/agents/extending-agents.md",
 							"state": ["early access"]
-						},
-						{
-							"title": "Chats API",
-							"description": "Programmatic access to Coder Agents via the experimental Chats API",
-							"path": "./ai-coder/agents/chats-api.md",
-							"state": ["early access"]
 						}
 					]
 				}

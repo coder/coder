@@ -1267,6 +1267,85 @@ const docTemplate = `{
                 ]
             }
         },
+        "/experimental/chats": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chats",
+                "operationId": "list-chats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by label as key:value. Repeat for multiple (AND logic).",
+                        "name": "label",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Chat"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat",
+                "operationId": "create-chat",
+                "parameters": [
+                    {
+                        "description": "Create chat request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/experimental/chats/config/retention-days": {
             "get": {
                 "produces": [
@@ -1327,6 +1406,416 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            }
+        },
+        "/experimental/chats/files": {
+            "post": {
+                "consumes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Upload chat file",
+                "operationId": "upload-chat-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "File MIME type",
+                        "name": "Content-Type",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadChatFileResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/experimental/chats/files/{file}": {
+            "get": {
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat file",
+                "operationId": "get-chat-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/experimental/chats/{chat}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat by ID",
+                "operationId": "get-chat-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat",
+                "operationId": "update-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/experimental/chats/{chat}/diff": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat diff contents",
+                "operationId": "get-chat-diff-contents",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDiffContents"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/experimental/chats/{chat}/interrupt": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Interrupt chat",
+                "operationId": "interrupt-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/experimental/chats/{chat}/messages": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat messages",
+                "operationId": "list-chat-messages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return messages with id \u003c before_id",
+                        "name": "before_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return messages with id \u003e after_id",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 1 to 200. Defaults to 50.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMessagesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Send chat message",
+                "operationId": "send-chat-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/experimental/chats/{chat}/messages/{message}": {
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Edit chat message",
+                "operationId": "edit-chat-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Message ID",
+                        "name": "message",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Edit chat message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatMessageResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/experimental/chats/{chat}/title/regenerate": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Regenerate chat title",
+                "operationId": "regenerate-chat-title",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/experimental/watch-all-workspacebuilds": {
@@ -14761,6 +15250,144 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Chat": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "archived": {
+                    "type": "boolean"
+                },
+                "build_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "children": {
+                    "description": "Children holds child (subagent) chats nested under this root\nchat. Always initialized to an empty slice so the JSON field\nis present as []. Child chats cannot create their own\nsubagents, so nesting depth is capped at 1 and this slice is\nalways empty for child chats.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Chat"
+                    }
+                },
+                "client_type": {
+                    "$ref": "#/definitions/codersdk.ChatClientType"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "diff_status": {
+                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatFileMetadata"
+                    }
+                },
+                "has_unread": {
+                    "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect.",
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "last_injected_context": {
+                    "description": "LastInjectedContext holds the most recently persisted\ninjected context parts (AGENTS.md files and skills). It\nis updated only when context changes, on first workspace\nattach or agent change.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessagePart"
+                    }
+                },
+                "last_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "mcp_server_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "parent_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "pin_order": {
+                    "type": "integer"
+                },
+                "plan_mode": {
+                    "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "root_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatBusyBehavior": {
+            "type": "string",
+            "enum": [
+                "queue",
+                "interrupt"
+            ],
+            "x-enum-varnames": [
+                "ChatBusyBehaviorQueue",
+                "ChatBusyBehaviorInterrupt"
+            ]
+        },
+        "codersdk.ChatClientType": {
+            "type": "string",
+            "enum": [
+                "ui",
+                "api"
+            ],
+            "x-enum-varnames": [
+                "ChatClientTypeUI",
+                "ChatClientTypeAPI"
+            ]
+        },
         "codersdk.ChatConfig": {
             "type": "object",
             "properties": {
@@ -14772,6 +15399,476 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatDiffContents": {
+            "type": "object",
+            "properties": {
+                "branch": {
+                    "type": "string"
+                },
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "diff": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "pull_request_url": {
+                    "type": "string"
+                },
+                "remote_origin": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatDiffStatus": {
+            "type": "object",
+            "properties": {
+                "additions": {
+                    "type": "integer"
+                },
+                "approved": {
+                    "type": "boolean"
+                },
+                "author_avatar_url": {
+                    "type": "string"
+                },
+                "author_login": {
+                    "type": "string"
+                },
+                "base_branch": {
+                    "type": "string"
+                },
+                "changed_files": {
+                    "type": "integer"
+                },
+                "changes_requested": {
+                    "type": "boolean"
+                },
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "commits": {
+                    "type": "integer"
+                },
+                "deletions": {
+                    "type": "integer"
+                },
+                "head_branch": {
+                    "type": "string"
+                },
+                "pr_number": {
+                    "type": "integer"
+                },
+                "pull_request_draft": {
+                    "type": "boolean"
+                },
+                "pull_request_state": {
+                    "type": "string"
+                },
+                "pull_request_title": {
+                    "type": "string"
+                },
+                "refreshed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "reviewer_count": {
+                    "type": "integer"
+                },
+                "stale_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatFileMetadata": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatInputPart": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "The code content from the diff that was commented on.",
+                    "type": "string"
+                },
+                "end_line": {
+                    "type": "integer"
+                },
+                "file_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "file_name": {
+                    "description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
+                    "type": "string"
+                },
+                "start_line": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatInputPartType"
+                }
+            }
+        },
+        "codersdk.ChatInputPartType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "file",
+                "file-reference"
+            ],
+            "x-enum-varnames": [
+                "ChatInputPartTypeText",
+                "ChatInputPartTypeFile",
+                "ChatInputPartTypeFileReference"
+            ]
+        },
+        "codersdk.ChatMessage": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessagePart"
+                    }
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "role": {
+                    "$ref": "#/definitions/codersdk.ChatMessageRole"
+                },
+                "usage": {
+                    "$ref": "#/definitions/codersdk.ChatMessageUsage"
+                }
+            }
+        },
+        "codersdk.ChatMessagePart": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "args_delta": {
+                    "type": "string"
+                },
+                "content": {
+                    "description": "The code content from the diff that was commented on.",
+                    "type": "string"
+                },
+                "context_file_agent_id": {
+                    "description": "ContextFileAgentID is the workspace agent that provided\nthis context file. Used to detect when the agent changes\n(e.g. workspace rebuilt) so instruction files can be\nre-persisted with fresh content.",
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "context_file_content": {
+                    "description": "ContextFileContent holds the file content sent to the LLM.\nInternal only: stripped before API responses to keep\npayloads small. The backend reads it when building the\nprompt via partsToMessageParts.",
+                    "type": "string"
+                },
+                "context_file_directory": {
+                    "description": "ContextFileDirectory is the working directory of the\nworkspace agent. Internal only: same purpose as\nContextFileOS.",
+                    "type": "string"
+                },
+                "context_file_os": {
+                    "description": "ContextFileOS is the operating system of the workspace\nagent. Internal only: used during prompt expansion so\nthe LLM knows the OS even on turns where InsertSystem\nis not called.",
+                    "type": "string"
+                },
+                "context_file_path": {
+                    "description": "ContextFilePath is the absolute path of a file loaded into\nthe LLM context (e.g. an AGENTS.md instruction file).",
+                    "type": "string"
+                },
+                "context_file_skill_meta_file": {
+                    "description": "ContextFileSkillMetaFile is the basename of the skill\nmeta file (e.g. \"SKILL.md\") at the time of persistence.\nInternal only: restored on subsequent turns so the\nread_skill tool uses the correct filename even when the\nagent configured a non-default value.",
+                    "type": "string"
+                },
+                "context_file_truncated": {
+                    "description": "ContextFileTruncated indicates the file exceeded the 64KiB\ninstruction file limit and was truncated.",
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "description": "CreatedAt records when this part was produced. Present on\ntool-call and tool-result parts so the frontend can compute\ntool execution duration.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "end_line": {
+                    "type": "integer"
+                },
+                "file_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "is_error": {
+                    "type": "boolean"
+                },
+                "is_media": {
+                    "type": "boolean"
+                },
+                "mcp_server_config_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provider_executed": {
+                    "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
+                    "type": "boolean"
+                },
+                "provider_metadata": {
+                    "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "result_delta": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "skill_description": {
+                    "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
+                    "type": "string"
+                },
+                "skill_dir": {
+                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files.",
+                    "type": "string"
+                },
+                "skill_name": {
+                    "description": "SkillName is the kebab-case name of a discovered skill\nfrom the workspace's .agents/skills/ directory.",
+                    "type": "string"
+                },
+                "source_id": {
+                    "type": "string"
+                },
+                "start_line": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "tool_call_id": {
+                    "type": "string"
+                },
+                "tool_name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatMessagePartType"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatMessagePartType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "reasoning",
+                "tool-call",
+                "tool-result",
+                "source",
+                "file",
+                "file-reference",
+                "context-file",
+                "skill"
+            ],
+            "x-enum-varnames": [
+                "ChatMessagePartTypeText",
+                "ChatMessagePartTypeReasoning",
+                "ChatMessagePartTypeToolCall",
+                "ChatMessagePartTypeToolResult",
+                "ChatMessagePartTypeSource",
+                "ChatMessagePartTypeFile",
+                "ChatMessagePartTypeFileReference",
+                "ChatMessagePartTypeContextFile",
+                "ChatMessagePartTypeSkill"
+            ]
+        },
+        "codersdk.ChatMessageRole": {
+            "type": "string",
+            "enum": [
+                "system",
+                "user",
+                "assistant",
+                "tool"
+            ],
+            "x-enum-varnames": [
+                "ChatMessageRoleSystem",
+                "ChatMessageRoleUser",
+                "ChatMessageRoleAssistant",
+                "ChatMessageRoleTool"
+            ]
+        },
+        "codersdk.ChatMessageUsage": {
+            "type": "object",
+            "properties": {
+                "cache_creation_tokens": {
+                    "type": "integer"
+                },
+                "cache_read_tokens": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "reasoning_tokens": {
+                    "type": "integer"
+                },
+                "total_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatMessagesResponse": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
+                },
+                "queued_messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatQueuedMessage"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatPlanMode": {
+            "type": "string",
+            "enum": [
+                "plan"
+            ],
+            "x-enum-varnames": [
+                "ChatPlanModePlan"
+            ]
+        },
+        "codersdk.ChatQueuedMessage": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessagePart"
+                    }
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ChatRetentionDaysResponse": {
             "type": "object",
             "properties": {
@@ -14779,6 +15876,27 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.ChatStatus": {
+            "type": "string",
+            "enum": [
+                "waiting",
+                "pending",
+                "running",
+                "paused",
+                "completed",
+                "error",
+                "requires_action"
+            ],
+            "x-enum-varnames": [
+                "ChatStatusWaiting",
+                "ChatStatusPending",
+                "ChatStatusRunning",
+                "ChatStatusPaused",
+                "ChatStatusCompleted",
+                "ChatStatusError",
+                "ChatStatusRequiresAction"
+            ]
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -14946,6 +16064,119 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateChatMessageRequest": {
+            "type": "object",
+            "properties": {
+                "busy_behavior": {
+                    "enum": [
+                        "queue",
+                        "interrupt"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatBusyBehavior"
+                        }
+                    ]
+                },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "mcp_server_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "plan_mode": {
+                    "description": "PlanMode switches the chat's persistent plan mode.\nnil: no change, ptr to \"plan\": enable, ptr to \"\": clear.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatPlanMode"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.CreateChatMessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "$ref": "#/definitions/codersdk.ChatMessage"
+                },
+                "queued": {
+                    "type": "boolean"
+                },
+                "queued_message": {
+                    "$ref": "#/definitions/codersdk.ChatQueuedMessage"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.CreateChatRequest": {
+            "type": "object",
+            "properties": {
+                "client_type": {
+                    "$ref": "#/definitions/codersdk.ChatClientType"
+                },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "mcp_server_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "plan_mode": {
+                    "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "system_prompt": {
+                    "type": "string"
+                },
+                "unsafe_dynamic_tools": {
+                    "description": "UnsafeDynamicTools declares client-executed tools that the\nLLM can invoke. This API is highly experimental and highly\nsubject to change.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DynamicTool"
+                    }
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -16198,6 +17429,49 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.PreviewParameter"
+                    }
+                }
+            }
+        },
+        "codersdk.DynamicTool": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "input_schema": {
+                    "description": "InputSchema's JSON key \"input_schema\" uses snake_case for\nSDK consistency, deviating from the camelCase \"inputSchema\"\nconvention used by MCP.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.EditChatMessageRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                }
+            }
+        },
+        "codersdk.EditChatMessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "$ref": "#/definitions/codersdk.ChatMessage"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -21357,6 +22631,39 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatRequest": {
+            "type": "object",
+            "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "pin_order": {
+                    "description": "PinOrder controls the chat's pinned state and position.\n- nil: no change to pin state.\n- 0: unpin the chat.\n- \u003e0 (chat is unpinned): pin the chat, appending it to\n  the end of the pinned list. The specific value is\n  ignored; the server assigns the next available position.\n- \u003e0 (chat is already pinned): move the chat to the\n  requested position, shifting neighbors as needed. The\n  value is clamped to [1, pinned_count].",
+                    "type": "integer"
+                },
+                "plan_mode": {
+                    "description": "PlanMode switches the chat's persistent plan mode.\nnil: no change, ptr to \"plan\": enable, ptr to \"\": clear.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatPlanMode"
+                        }
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.UpdateChatRetentionDaysRequest": {
             "type": "object",
             "properties": {
@@ -21716,6 +23023,15 @@ const docTemplate = `{
             "properties": {
                 "ttl_ms": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.UploadChatFileResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
