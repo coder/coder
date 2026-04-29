@@ -3552,6 +3552,7 @@ export interface DeploymentValues {
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
+	readonly nats?: NATSConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
@@ -4630,6 +4631,33 @@ export interface ModelCostConfig {
 	readonly output_price_per_million_tokens?: string;
 	readonly cache_read_price_per_million_tokens?: string;
 	readonly cache_write_price_per_million_tokens?: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * NATSConfig configures the experimental embedded NATS pubsub. When
+ * Enable is false, all pubsub traffic continues to flow through Postgres
+ * LISTEN/NOTIFY. When Enable is true, an embedded NATS server is started
+ * alongside the Postgres pubsub and exposed as Options.AppPubsub for
+ * opt-in migration of high-volume application channels.
+ */
+export interface NATSConfig {
+	readonly enable: boolean;
+	readonly server_name?: string;
+	readonly cluster_name?: string;
+	readonly cluster_token?: string;
+	readonly cluster_host?: string;
+	readonly cluster_port?: number;
+	readonly cluster_advertise?: string;
+	readonly cluster_tls_enable?: boolean;
+	readonly cluster_tls_cert_file?: string;
+	readonly cluster_tls_key_file?: string;
+	readonly cluster_tls_ca_file?: string;
+	readonly route_pool_size?: number;
+	readonly publish_mode?: string;
+	readonly publish_flush_timeout?: number;
+	readonly pending_msgs?: number;
+	readonly pending_bytes?: number;
 }
 
 // From netcheck/netcheck.go

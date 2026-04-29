@@ -3462,6 +3462,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "stackdriver": "string"
     },
     "metrics_cache_refresh_interval": 0,
+    "nats": {
+      "cluster_advertise": "string",
+      "cluster_host": "string",
+      "cluster_name": "string",
+      "cluster_port": 0,
+      "cluster_tls_ca_file": "string",
+      "cluster_tls_cert_file": "string",
+      "cluster_tls_enable": true,
+      "cluster_tls_key_file": "string",
+      "cluster_token": "string",
+      "enable": true,
+      "pending_bytes": 0,
+      "pending_msgs": 0,
+      "publish_flush_timeout": 0,
+      "publish_mode": "string",
+      "route_pool_size": 0,
+      "server_name": "string"
+    },
     "notifications": {
       "dispatch_timeout": 0,
       "email": {
@@ -4052,6 +4070,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "stackdriver": "string"
   },
   "metrics_cache_refresh_interval": 0,
+  "nats": {
+    "cluster_advertise": "string",
+    "cluster_host": "string",
+    "cluster_name": "string",
+    "cluster_port": 0,
+    "cluster_tls_ca_file": "string",
+    "cluster_tls_cert_file": "string",
+    "cluster_tls_enable": true,
+    "cluster_tls_key_file": "string",
+    "cluster_token": "string",
+    "enable": true,
+    "pending_bytes": 0,
+    "pending_msgs": 0,
+    "publish_flush_timeout": 0,
+    "publish_mode": "string",
+    "route_pool_size": 0,
+    "server_name": "string"
+  },
   "notifications": {
     "dispatch_timeout": 0,
     "email": {
@@ -4373,6 +4409,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `job_hang_detector_interval`                   | integer                                                                                              | false    |              |                                                                    |
 | `logging`                                      | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
 | `metrics_cache_refresh_interval`               | integer                                                                                              | false    |              |                                                                    |
+| `nats`                                         | [codersdk.NATSConfig](#codersdknatsconfig)                                                           | false    |              |                                                                    |
 | `notifications`                                | [codersdk.NotificationsConfig](#codersdknotificationsconfig)                                         | false    |              |                                                                    |
 | `oauth2`                                       | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
 | `oidc`                                         | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
@@ -5641,6 +5678,50 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `id`         | string | true     |              |             |
 | `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
+
+## codersdk.NATSConfig
+
+```json
+{
+  "cluster_advertise": "string",
+  "cluster_host": "string",
+  "cluster_name": "string",
+  "cluster_port": 0,
+  "cluster_tls_ca_file": "string",
+  "cluster_tls_cert_file": "string",
+  "cluster_tls_enable": true,
+  "cluster_tls_key_file": "string",
+  "cluster_token": "string",
+  "enable": true,
+  "pending_bytes": 0,
+  "pending_msgs": 0,
+  "publish_flush_timeout": 0,
+  "publish_mode": "string",
+  "route_pool_size": 0,
+  "server_name": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `cluster_advertise`     | string  | false    |              |             |
+| `cluster_host`          | string  | false    |              |             |
+| `cluster_name`          | string  | false    |              |             |
+| `cluster_port`          | integer | false    |              |             |
+| `cluster_tls_ca_file`   | string  | false    |              |             |
+| `cluster_tls_cert_file` | string  | false    |              |             |
+| `cluster_tls_enable`    | boolean | false    |              |             |
+| `cluster_tls_key_file`  | string  | false    |              |             |
+| `cluster_token`         | string  | false    |              |             |
+| `enable`                | boolean | false    |              |             |
+| `pending_bytes`         | integer | false    |              |             |
+| `pending_msgs`          | integer | false    |              |             |
+| `publish_flush_timeout` | integer | false    |              |             |
+| `publish_mode`          | string  | false    |              |             |
+| `route_pool_size`       | integer | false    |              |             |
+| `server_name`           | string  | false    |              |             |
 
 ## codersdk.NotificationMethodsResponse
 

@@ -97,6 +97,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	xnats "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -776,6 +777,31 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
 			pubsubWatchdogTimeout = psWatchdog.Timeout()
 			defer psWatchdog.Close()
+
+			// Optional embedded NATS pubsub. When enabled, it runs alongside
+			// the Postgres pubsub and is exposed as Options.AppPubsub for
+			// opt-in migration of high-volume application channels. No
+			// application channels are migrated yet; this only constructs
+			// the embedded server. xreplicasync.Provider, which keeps the
+			// NATS cluster routes in sync with replica row changes, is wired
+			// in enterprise/coderd after replicasync.Manager is built.
+			if vals.NATS.Enable {
+				natsOpts, nerr := buildNATSOptions(vals)
+				if nerr != nil {
+					return xerrors.Errorf("build nats options: %w", nerr)
+				}
+				natsPS, nerr := xnats.New(ctx, logger.Named("nats"), natsOpts)
+				if nerr != nil {
+					return xerrors.Errorf("create nats pubsub: %w", nerr)
+				}
+				options.AppPubsub = natsPS
+				// TODO(nats): register natsPS with PrometheusRegistry once
+				// we resolve the metric family-name collision with PGPubsub
+				// (both currently expose coder_pubsub_* metrics). Skipping
+				// MustRegister here would otherwise panic at startup. See
+				// coderd/x/nats/metrics.go.
+				defer natsPS.Close()
+			}
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
@@ -1631,6 +1657,76 @@ var defaultCipherSuites = func() []uint16 {
 
 	return ret
 }()
+
+// buildNATSOptions translates DeploymentValues into xnats.Options. Called
+// only when vals.NATS.Enable is true.
+func buildNATSOptions(vals *codersdk.DeploymentValues) (xnats.Options, error) {
+	opts := xnats.Options{
+		ServerName:          vals.NATS.ServerName.String(),
+		ClusterName:         vals.NATS.ClusterName.String(),
+		ClusterToken:        vals.NATS.ClusterToken.String(),
+		ClusterHost:         vals.NATS.ClusterHost.String(),
+		ClusterPort:         int(vals.NATS.ClusterPort.Value()),
+		ClusterAdvertise:    vals.NATS.ClusterAdvertise.String(),
+		RoutePoolSize:       int(vals.NATS.RoutePoolSize.Value()),
+		PublishFlushTimeout: vals.NATS.PublishFlushTimeout.Value(),
+		PendingLimits: xnats.PendingLimits{
+			Msgs:  int(vals.NATS.PendingMsgs.Value()),
+			Bytes: int(vals.NATS.PendingBytes.Value()),
+		},
+	}
+	switch vals.NATS.PublishMode {
+	case "buffered":
+		opts.PublishMode = xnats.PublishModeBuffered
+	case "", "flush":
+		opts.PublishMode = xnats.PublishModeFlush
+	default:
+		return xnats.Options{}, xerrors.Errorf("unknown nats publish mode %q", vals.NATS.PublishMode)
+	}
+	if vals.NATS.ClusterTLSEnable {
+		tlsCfg, err := buildNATSClusterTLSConfig(
+			vals.NATS.ClusterTLSCertFile.String(),
+			vals.NATS.ClusterTLSKeyFile.String(),
+			vals.NATS.ClusterTLSCAFile.String(),
+		)
+		if err != nil {
+			return xnats.Options{}, xerrors.Errorf("nats cluster tls: %w", err)
+		}
+		opts.ClusterTLSConfig = tlsCfg
+	}
+	return opts, nil
+}
+
+// buildNATSClusterTLSConfig assembles a *tls.Config for NATS cluster route
+// connections. Cert and key files are required; CA is optional and used to
+// verify peer certificates when supplied.
+func buildNATSClusterTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
+	if certFile == "" || keyFile == "" {
+		return nil, xerrors.New("cluster TLS enabled but cert or key file is empty")
+	}
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, xerrors.Errorf("load cert/key: %w", err)
+	}
+	cfg := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{cert},
+	}
+	if caFile != "" {
+		caPEM, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, xerrors.Errorf("read ca file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, xerrors.Errorf("parse ca file %q", caFile)
+		}
+		cfg.RootCAs = pool
+		cfg.ClientCAs = pool
+		cfg.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+	return cfg, nil
+}
 
 // configureServerTLS returns the TLS config used for the Coderd server
 // connections to clients. A logger is passed in to allow printing warning

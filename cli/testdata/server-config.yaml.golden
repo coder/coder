@@ -501,6 +501,66 @@ pgConnMaxOpen: 10
 # idle connections.
 # (default: auto, type: string)
 pgConnMaxIdle: auto
+# Configure the experimental embedded NATS pubsub. Disabled by default; when
+# enabled, runs alongside the Postgres pubsub.
+nats:
+  # Experimental: enable the embedded NATS pubsub alongside the Postgres pubsub. No
+  # application channels are migrated yet; this only starts the embedded server and
+  # exposes Options.AppPubsub.
+  # (default: false, type: bool)
+  enable: false
+  # Server name advertised by the embedded NATS server. Defaults to the host name
+  # when empty.
+  # (default: <unset>, type: string)
+  serverName: ""
+  # Logical cluster name for the embedded NATS server. All Coder replicas in a
+  # deployment must share the same cluster name.
+  # (default: coder, type: string)
+  clusterName: coder
+  # Address the embedded NATS server listens on for cluster route connections.
+  # (default: 0.0.0.0, type: string)
+  clusterHost: 0.0.0.0
+  # Port the embedded NATS server listens on for cluster route connections.
+  # (default: 6222, type: int)
+  clusterPort: 6222
+  # Address advertised to other NATS peers for inbound route connections. Typically
+  # set to the pod IP and cluster port.
+  # (default: <unset>, type: string)
+  clusterAdvertise: ""
+  # Enable TLS for cluster route connections between NATS peers.
+  # (default: false, type: bool)
+  clusterTLSEnable: false
+  # Path to the TLS certificate file for cluster route connections.
+  # (default: <unset>, type: string)
+  clusterTLSCertFile: ""
+  # Path to the TLS private key file for cluster route connections.
+  # (default: <unset>, type: string)
+  clusterTLSKeyFile: ""
+  # Path to the TLS CA certificate file used to verify peer cluster route
+  # connections.
+  # (default: <unset>, type: string)
+  clusterTLSCAFile: ""
+  # Number of parallel route connections the embedded NATS server opens to each
+  # peer. 0 uses the NATS default.
+  # (default: 0, type: int)
+  routePoolSize: 0
+  # Publish mode for the embedded NATS pubsub. "flush" waits for the server to
+  # acknowledge each publish; "buffered" returns as soon as the message is buffered
+  # locally.
+  # (default: flush, type: enum[flush\|buffered])
+  publishMode: flush
+  # Maximum time the embedded NATS pubsub will wait for a publish flush to complete
+  # in flush mode.
+  # (default: 2s, type: duration)
+  publishFlushTimeout: 2s
+  # Maximum number of pending messages buffered per subscription. 0 uses the NATS
+  # default.
+  # (default: 0, type: int)
+  pendingMsgs: 0
+  # Maximum number of pending bytes buffered per subscription. 0 uses the NATS
+  # default.
+  # (default: 0, type: int)
+  pendingBytes: 0
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)

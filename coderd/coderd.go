@@ -159,7 +159,13 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// AppPubsub is an optional secondary pubsub used by application
+	// channels that have opted in to a non-Postgres transport (e.g. the
+	// embedded NATS pubsub). When nil, all consumers continue to use
+	// Pubsub. Wiring is deliberately limited to construction and exposure
+	// for now; per-call-site migration is a follow-up.
+	AppPubsub     pubsub.Pubsub
+	RuntimeConfig *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string

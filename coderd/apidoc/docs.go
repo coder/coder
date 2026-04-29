@@ -15993,6 +15993,9 @@ const docTemplate = `{
                 "metrics_cache_refresh_interval": {
                     "type": "integer"
                 },
+                "nats": {
+                    "$ref": "#/definitions/codersdk.NATSConfig"
+                },
                 "notifications": {
                     "$ref": "#/definitions/codersdk.NotificationsConfig"
                 },
@@ -17124,6 +17127,59 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.NATSConfig": {
+            "type": "object",
+            "properties": {
+                "cluster_advertise": {
+                    "type": "string"
+                },
+                "cluster_host": {
+                    "type": "string"
+                },
+                "cluster_name": {
+                    "type": "string"
+                },
+                "cluster_port": {
+                    "type": "integer"
+                },
+                "cluster_tls_ca_file": {
+                    "type": "string"
+                },
+                "cluster_tls_cert_file": {
+                    "type": "string"
+                },
+                "cluster_tls_enable": {
+                    "type": "boolean"
+                },
+                "cluster_tls_key_file": {
+                    "type": "string"
+                },
+                "cluster_token": {
+                    "type": "string"
+                },
+                "enable": {
+                    "type": "boolean"
+                },
+                "pending_bytes": {
+                    "type": "integer"
+                },
+                "pending_msgs": {
+                    "type": "integer"
+                },
+                "publish_flush_timeout": {
+                    "type": "integer"
+                },
+                "publish_mode": {
+                    "type": "string"
+                },
+                "route_pool_size": {
+                    "type": "integer"
+                },
+                "server_name": {
                     "type": "string"
                 }
             }

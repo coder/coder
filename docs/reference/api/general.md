@@ -350,6 +350,24 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "stackdriver": "string"
     },
     "metrics_cache_refresh_interval": 0,
+    "nats": {
+      "cluster_advertise": "string",
+      "cluster_host": "string",
+      "cluster_name": "string",
+      "cluster_port": 0,
+      "cluster_tls_ca_file": "string",
+      "cluster_tls_cert_file": "string",
+      "cluster_tls_enable": true,
+      "cluster_tls_key_file": "string",
+      "cluster_token": "string",
+      "enable": true,
+      "pending_bytes": 0,
+      "pending_msgs": 0,
+      "publish_flush_timeout": 0,
+      "publish_mode": "string",
+      "route_pool_size": 0,
+      "server_name": "string"
+    },
     "notifications": {
       "dispatch_timeout": 0,
       "email": {

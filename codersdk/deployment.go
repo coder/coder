@@ -645,6 +645,7 @@ type DeploymentValues struct {
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	NATS                                    NATSConfig                           `json:"nats,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -763,6 +764,30 @@ type PrometheusConfig struct {
 type PprofConfig struct {
 	Enable  serpent.Bool     `json:"enable" typescript:",notnull"`
 	Address serpent.HostPort `json:"address" typescript:",notnull"`
+}
+
+// NATSConfig configures the experimental embedded NATS pubsub. When
+// Enable is false, all pubsub traffic continues to flow through Postgres
+// LISTEN/NOTIFY. When Enable is true, an embedded NATS server is started
+// alongside the Postgres pubsub and exposed as Options.AppPubsub for
+// opt-in migration of high-volume application channels.
+type NATSConfig struct {
+	Enable              serpent.Bool     `json:"enable" typescript:",notnull"`
+	ServerName          serpent.String   `json:"server_name,omitempty" typescript:",notnull"`
+	ClusterName         serpent.String   `json:"cluster_name,omitempty" typescript:",notnull"`
+	ClusterToken        serpent.String   `json:"cluster_token,omitempty" typescript:",notnull"`
+	ClusterHost         serpent.String   `json:"cluster_host,omitempty" typescript:",notnull"`
+	ClusterPort         serpent.Int64    `json:"cluster_port,omitempty" typescript:",notnull"`
+	ClusterAdvertise    serpent.String   `json:"cluster_advertise,omitempty" typescript:",notnull"`
+	ClusterTLSEnable    serpent.Bool     `json:"cluster_tls_enable,omitempty" typescript:",notnull"`
+	ClusterTLSCertFile  serpent.String   `json:"cluster_tls_cert_file,omitempty" typescript:",notnull"`
+	ClusterTLSKeyFile   serpent.String   `json:"cluster_tls_key_file,omitempty" typescript:",notnull"`
+	ClusterTLSCAFile    serpent.String   `json:"cluster_tls_ca_file,omitempty" typescript:",notnull"`
+	RoutePoolSize       serpent.Int64    `json:"route_pool_size,omitempty" typescript:",notnull"`
+	PublishMode         string           `json:"publish_mode,omitempty" typescript:",notnull"`
+	PublishFlushTimeout serpent.Duration `json:"publish_flush_timeout,omitempty" typescript:",notnull"`
+	PendingMsgs         serpent.Int64    `json:"pending_msgs,omitempty" typescript:",notnull"`
+	PendingBytes        serpent.Int64    `json:"pending_bytes,omitempty" typescript:",notnull"`
 }
 
 type OAuth2Config struct {
@@ -1461,6 +1486,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
 			YAML:        "retention",
+		}
+		deploymentGroupNATS = serpent.Group{
+			Name:        "NATS (experimental)",
+			YAML:        "nats",
+			Description: "Configure the experimental embedded NATS pubsub. Disabled by default; when enabled, runs alongside the Postgres pubsub.",
 		}
 	)
 
@@ -2904,6 +2934,177 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default: PostgresConnMaxIdleAuto,
 			Value:   &c.PostgresConnMaxIdle,
 			YAML:    "pgConnMaxIdle",
+		},
+		{
+			Name:        "NATS Enable",
+			Description: "Experimental: enable the embedded NATS pubsub alongside the Postgres pubsub. No application channels are migrated yet; this only starts the embedded server and exposes Options.AppPubsub.",
+			Flag:        "nats-enable",
+			Env:         "CODER_NATS_ENABLE",
+			Default:     "false",
+			Value:       &c.NATS.Enable,
+			Group:       &deploymentGroupNATS,
+			YAML:        "enable",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Server Name",
+			Description: "Server name advertised by the embedded NATS server. Defaults to the host name when empty.",
+			Flag:        "nats-server-name",
+			Env:         "CODER_NATS_SERVER_NAME",
+			Value:       &c.NATS.ServerName,
+			Group:       &deploymentGroupNATS,
+			YAML:        "serverName",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster Name",
+			Description: "Logical cluster name for the embedded NATS server. All Coder replicas in a deployment must share the same cluster name.",
+			Flag:        "nats-cluster-name",
+			Env:         "CODER_NATS_CLUSTER_NAME",
+			Default:     "coder",
+			Value:       &c.NATS.ClusterName,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterName",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster Token",
+			Description: "Shared secret used to authenticate route connections between NATS peers. Required for multi-replica deployments.",
+			Flag:        "nats-cluster-token",
+			Env:         "CODER_NATS_CLUSTER_TOKEN",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Value:       &c.NATS.ClusterToken,
+			Group:       &deploymentGroupNATS,
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster Host",
+			Description: "Address the embedded NATS server listens on for cluster route connections.",
+			Flag:        "nats-cluster-host",
+			Env:         "CODER_NATS_CLUSTER_HOST",
+			Default:     "0.0.0.0",
+			Value:       &c.NATS.ClusterHost,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterHost",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster Port",
+			Description: "Port the embedded NATS server listens on for cluster route connections.",
+			Flag:        "nats-cluster-port",
+			Env:         "CODER_NATS_CLUSTER_PORT",
+			Default:     "6222",
+			Value:       &c.NATS.ClusterPort,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterPort",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster Advertise",
+			Description: "Address advertised to other NATS peers for inbound route connections. Typically set to the pod IP and cluster port.",
+			Flag:        "nats-cluster-advertise",
+			Env:         "CODER_NATS_CLUSTER_ADVERTISE",
+			Value:       &c.NATS.ClusterAdvertise,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterAdvertise",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster TLS Enable",
+			Description: "Enable TLS for cluster route connections between NATS peers.",
+			Flag:        "nats-cluster-tls-enable",
+			Env:         "CODER_NATS_CLUSTER_TLS_ENABLE",
+			Default:     "false",
+			Value:       &c.NATS.ClusterTLSEnable,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterTLSEnable",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster TLS Cert File",
+			Description: "Path to the TLS certificate file for cluster route connections.",
+			Flag:        "nats-cluster-tls-cert-file",
+			Env:         "CODER_NATS_CLUSTER_TLS_CERT_FILE",
+			Value:       &c.NATS.ClusterTLSCertFile,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterTLSCertFile",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster TLS Key File",
+			Description: "Path to the TLS private key file for cluster route connections.",
+			Flag:        "nats-cluster-tls-key-file",
+			Env:         "CODER_NATS_CLUSTER_TLS_KEY_FILE",
+			Value:       &c.NATS.ClusterTLSKeyFile,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterTLSKeyFile",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Cluster TLS CA File",
+			Description: "Path to the TLS CA certificate file used to verify peer cluster route connections.",
+			Flag:        "nats-cluster-tls-ca-file",
+			Env:         "CODER_NATS_CLUSTER_TLS_CA_FILE",
+			Value:       &c.NATS.ClusterTLSCAFile,
+			Group:       &deploymentGroupNATS,
+			YAML:        "clusterTLSCAFile",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Route Pool Size",
+			Description: "Number of parallel route connections the embedded NATS server opens to each peer. 0 uses the NATS default.",
+			Flag:        "nats-route-pool-size",
+			Env:         "CODER_NATS_ROUTE_POOL_SIZE",
+			Default:     "0",
+			Value:       &c.NATS.RoutePoolSize,
+			Group:       &deploymentGroupNATS,
+			YAML:        "routePoolSize",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Publish Mode",
+			Description: "Publish mode for the embedded NATS pubsub. \"flush\" waits for the server to acknowledge each publish; \"buffered\" returns as soon as the message is buffered locally.",
+			Flag:        "nats-publish-mode",
+			Env:         "CODER_NATS_PUBLISH_MODE",
+			Default:     "flush",
+			Value:       serpent.EnumOf(&c.NATS.PublishMode, "flush", "buffered"),
+			Group:       &deploymentGroupNATS,
+			YAML:        "publishMode",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Publish Flush Timeout",
+			Description: "Maximum time the embedded NATS pubsub will wait for a publish flush to complete in flush mode.",
+			Flag:        "nats-publish-flush-timeout",
+			Env:         "CODER_NATS_PUBLISH_FLUSH_TIMEOUT",
+			Default:     (2 * time.Second).String(),
+			Value:       &c.NATS.PublishFlushTimeout,
+			Group:       &deploymentGroupNATS,
+			YAML:        "publishFlushTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Pending Messages",
+			Description: "Maximum number of pending messages buffered per subscription. 0 uses the NATS default.",
+			Flag:        "nats-pending-msgs",
+			Env:         "CODER_NATS_PENDING_MSGS",
+			Default:     "0",
+			Value:       &c.NATS.PendingMsgs,
+			Group:       &deploymentGroupNATS,
+			YAML:        "pendingMsgs",
+			Hidden:      true,
+		},
+		{
+			Name:        "NATS Pending Bytes",
+			Description: "Maximum number of pending bytes buffered per subscription. 0 uses the NATS default.",
+			Flag:        "nats-pending-bytes",
+			Env:         "CODER_NATS_PENDING_BYTES",
+			Default:     "0",
+			Value:       &c.NATS.PendingBytes,
+			Group:       &deploymentGroupNATS,
+			YAML:        "pendingBytes",
+			Hidden:      true,
 		},
 		{
 			Name:        "Secure Auth Cookie",

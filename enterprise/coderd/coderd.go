@@ -45,6 +45,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	xnats "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -57,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	entchatd "github.com/coder/coder/v2/enterprise/coderd/x/chatd"
+	"github.com/coder/coder/v2/enterprise/coderd/x/xreplicasync"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
@@ -665,6 +667,34 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
 	replicaManagerPtr.Store(api.replicaManager)
+
+	// If the AGPL layer constructed an embedded NATS pubsub, wire an
+	// xreplicasync.Provider that refreshes its cluster routes whenever the
+	// replica set changes. Type-asserting on the concrete *xnats.Pubsub is
+	// intentional: RefreshPeers is not part of the pubsub.Pubsub interface.
+	if natsPS, ok := options.AppPubsub.(*xnats.Pubsub); ok {
+		clusterPort := int(options.DeploymentValues.NATS.ClusterPort.Value())
+		scheme := "nats"
+		if options.DeploymentValues.NATS.ClusterTLSEnable {
+			scheme = "tls"
+		}
+		routeURL, err := xreplicasync.RouteURLFromRelayAddress(scheme, clusterPort)
+		if err != nil {
+			return nil, xerrors.Errorf("nats route url builder: %w", err)
+		}
+		api.xReplicasyncProvider, err = xreplicasync.New(xreplicasync.Options{
+			Logger:   options.Logger.Named("xreplicasync"),
+			Source:   api.replicaManager,
+			RouteURL: routeURL,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("create xreplicasync provider: %w", err)
+		}
+		if err := api.xReplicasyncProvider.Start(ctx, natsPS); err != nil {
+			return nil, xerrors.Errorf("start xreplicasync provider: %w", err)
+		}
+	}
+
 	if api.DERPServer != nil {
 		api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 	}
@@ -780,6 +810,10 @@ type API struct {
 
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
+	// xReplicasyncProvider, when non-nil, drives NATS cluster route
+	// refreshes from replicaManager. Constructed only when AppPubsub is
+	// an *xnats.Pubsub.
+	xReplicasyncProvider *xreplicasync.Provider
 	// replicaCallbackRemove detaches the most recent callback registered
 	// on replicaManager from updateEntitlements. Access is serialized by
 	// the entitlements update semaphore (see Set.Update); we never touch
@@ -814,6 +848,12 @@ func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Heade
 }
 
 func (api *API) Close() error {
+	// Stop driving NATS route refreshes before tearing down the replica
+	// manager, otherwise a final replica callback could fire against a
+	// closing manager.
+	if api.xReplicasyncProvider != nil {
+		_ = api.xReplicasyncProvider.Close()
+	}
 	// Replica manager should be closed first. This is because the replica
 	// manager updates the replica's table in the database when it closes.
 	// This tells other Coderds that it is now offline.
