@@ -218,7 +218,6 @@ export const runPromoteQueuedMessage = async (params: {
 		| "unsuppressQueuedMessageID"
 	>;
 	promoteQueuedMessage: (id: number) => Promise<void>;
-	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	agentId: string | undefined;
 	clearChatErrorReason: (chatID: string) => void;
 	handleUsageLimitError: (error: unknown) => void;
@@ -1205,7 +1204,6 @@ const AgentChatPage: FC = () => {
 			id,
 			store,
 			promoteQueuedMessage,
-			upsertCacheMessages,
 			agentId,
 			clearChatErrorReason,
 			handleUsageLimitError,

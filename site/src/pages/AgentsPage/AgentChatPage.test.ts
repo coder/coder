@@ -201,7 +201,6 @@ describe("runPromoteQueuedMessage", () => {
 		store.setChatStatus("running");
 
 		const promote = vi.fn(async (_id: number) => undefined);
-		const upsertCacheMessages = vi.fn();
 		const clearChatErrorReason = vi.fn();
 		const handleUsageLimitError = vi.fn();
 
@@ -211,7 +210,6 @@ describe("runPromoteQueuedMessage", () => {
 			id: b.id,
 			store,
 			promoteQueuedMessage: promote,
-			upsertCacheMessages,
 			agentId: "chat-1",
 			clearChatErrorReason,
 			handleUsageLimitError,
@@ -219,7 +217,6 @@ describe("runPromoteQueuedMessage", () => {
 
 		expect(promote).toHaveBeenCalledWith(b.id);
 		expect(upsertDurableMessageSpy).not.toHaveBeenCalled();
-		expect(upsertCacheMessages).not.toHaveBeenCalled();
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
@@ -238,7 +235,6 @@ describe("runPromoteQueuedMessage", () => {
 		const promote = vi.fn(async (_id: number) => {
 			throw apiError;
 		});
-		const upsertCacheMessages = vi.fn();
 		const clearChatErrorReason = vi.fn();
 		const handleUsageLimitError = vi.fn();
 
@@ -247,7 +243,6 @@ describe("runPromoteQueuedMessage", () => {
 				id: b.id,
 				store,
 				promoteQueuedMessage: promote,
-				upsertCacheMessages,
 				agentId: "chat-1",
 				clearChatErrorReason,
 				handleUsageLimitError,

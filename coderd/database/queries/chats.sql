@@ -937,9 +937,10 @@ RETURNING *;
 -- name: ReorderChatQueuedMessageToFront :exec
 -- Move a queued message to the front of its chat's queue by setting
 -- its created_at to one microsecond before the smallest existing
--- created_at in the queue. Other rows are not modified, so message IDs
--- remain stable. Used by PromoteQueued when the chat is currently
--- running and promotion must defer until the worker is interrupted.
+-- created_at in the queue. Only the target's created_at is updated;
+-- no row's id is touched, so all queued message IDs remain stable.
+-- Used by PromoteQueued when the chat is currently running and
+-- promotion must defer until the worker is interrupted.
 UPDATE chat_queued_messages AS target
 SET created_at = (
     SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'

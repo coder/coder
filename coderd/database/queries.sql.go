@@ -7982,9 +7982,10 @@ type ReorderChatQueuedMessageToFrontParams struct {
 
 // Move a queued message to the front of its chat's queue by setting
 // its created_at to one microsecond before the smallest existing
-// created_at in the queue. Other rows are not modified, so message IDs
-// remain stable. Used by PromoteQueued when the chat is currently
-// running and promotion must defer until the worker is interrupted.
+// created_at in the queue. Only the target's created_at is updated;
+// no row's id is touched, so all queued message IDs remain stable.
+// Used by PromoteQueued when the chat is currently running and
+// promotion must defer until the worker is interrupted.
 func (q *sqlQuerier) ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) error {
 	_, err := q.db.ExecContext(ctx, reorderChatQueuedMessageToFront, arg.ChatID, arg.TargetID)
 	return err
