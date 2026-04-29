@@ -221,13 +221,12 @@ requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 | `BASE_URL` | No       | Base URL of the upstream API                          |
 | `DUMP_DIR` | No       | Directory for provider API request and response dumps |
 
-For example, set `CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR` for API dumps for
-provider `0`.
-
 > [!WARNING]
-> `DUMP_DIR` writes provider request and response data to disk. These dumps can
-> contain prompts, completions, and tool payloads. Enable it only for diagnostics
-> and protect the target directory appropriately.
+> `DUMP_DIR` should never be set for normal operation. Setting this option
+> results in a high number of writes. Dump files contain raw request and
+> response data, which may include proprietary or sensitive information
+> (prompts, completions, tool inputs). Enable only briefly for diagnostic
+> purposes and protect the target directory.
 
 For `anthropic` providers using AWS Bedrock, the following keys are also
 available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`,
