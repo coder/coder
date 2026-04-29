@@ -8767,6 +8767,361 @@ func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
 }
 
+// TestPromoteQueuedWhileRequiresAction verifies that promoting a
+// queued message while the chat is awaiting dynamic tool results
+// closes the pending tool calls with synthetic error results before
+// inserting the user message. Without this, the new turn would
+// contain unresolved tool calls and the LLM API would reject the
+// request, leaving the chat in error.
+func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("requires-action-promote")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"my_dynamic_tool",
+					`{"input":"hello"}`,
+				),
+			)
+		}
+		// After promotion + synthetic results, the resumed run
+		// produces a normal text response.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Resumed after promotion.")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	server := newActiveTestServer(t, db, ps)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "my_dynamic_tool",
+		Description: "A test dynamic tool.",
+		InputSchema: mcpgo.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		},
+	}})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "promote-while-requires-action",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Please call the dynamic tool."),
+		},
+		DynamicTools: dynamicToolsJSON,
+	})
+	require.NoError(t, err)
+
+	var chatBeforePromote database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatBeforePromote = got
+		return got.Status == database.ChatStatusRequiresAction ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, database.ChatStatusRequiresAction, chatBeforePromote.Status,
+		"expected requires_action, got %s (last_error=%q)",
+		chatBeforePromote.Status, chatBeforePromote.LastError.String)
+
+	// Capture the dynamic tool call ID so we can verify the
+	// synthetic result references it.
+	var pendingToolCallID string
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for _, msg := range messages {
+			if msg.Role != database.ChatMessageRoleAssistant {
+				continue
+			}
+			parts, parseErr := chatprompt.ParseContent(msg)
+			if parseErr != nil {
+				continue
+			}
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == "my_dynamic_tool" {
+					pendingToolCallID = part.ToolCallID
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	require.NotEmpty(t, pendingToolCallID, "expected pending dynamic tool call")
+
+	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("promote me")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.NotNil(t, queuedResult.QueuedMessage)
+
+	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedResult.QueuedMessage.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, promoteResult.Deferred,
+		"requires_action promotion should be synchronous")
+	require.Equal(t, database.ChatMessageRoleUser, promoteResult.PromotedMessage.Role)
+
+	queuedAfter, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, queuedAfter, "queued message should be removed after sync promotion")
+
+	// Verify a synthetic error tool result for the pending dynamic
+	// tool call was inserted before the promoted user message.
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var (
+		syntheticToolResult *database.ChatMessage
+		promotedUserMessage *database.ChatMessage
+	)
+	for i := range messages {
+		msg := messages[i]
+		if msg.Role == database.ChatMessageRoleTool {
+			parts, parseErr := chatprompt.ParseContent(msg)
+			require.NoError(t, parseErr)
+			for _, part := range parts {
+				if part.Type != codersdk.ChatMessagePartTypeToolResult {
+					continue
+				}
+				if part.ToolCallID != pendingToolCallID {
+					continue
+				}
+				require.True(t, part.IsError,
+					"synthetic tool result should have IsError=true")
+				syntheticToolResult = &messages[i]
+			}
+		}
+		if msg.ID == promoteResult.PromotedMessage.ID {
+			promotedUserMessage = &messages[i]
+		}
+	}
+	require.NotNil(t, syntheticToolResult,
+		"expected a synthetic error tool result for the pending tool call")
+	require.NotNil(t, promotedUserMessage)
+	require.Less(t, syntheticToolResult.ID, promotedUserMessage.ID,
+		"synthetic tool result must precede the promoted user message")
+
+	// Chat should resume processing and reach a non-error terminal state.
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	final, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, final.Status,
+		"chat should resume to waiting after promotion (last_error=%q)",
+		final.LastError.String)
+}
+
+// TestPromoteQueuedWhileRequiresActionMixedTools verifies that when a
+// requires_action chat has both built-in (already executed) and
+// dynamic (pending) tool calls, promotion only inserts synthetic
+// results for the dynamic tool calls. Built-in tool calls already
+// have real results so they must not be duplicated.
+func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("mixed-tools-promote")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			builtinChunk := chattest.OpenAIToolCallChunk(
+				"read_file",
+				`{"path":"/tmp/test.txt"}`,
+			)
+			dynamicChunk := chattest.OpenAIToolCallChunk(
+				"my_dynamic_tool",
+				`{"input":"hello world"}`,
+			)
+			mergedChunk := builtinChunk
+			dynCall := dynamicChunk.Choices[0].ToolCalls[0]
+			dynCall.Index = 1
+			mergedChunk.Choices[0].ToolCalls = append(
+				mergedChunk.Choices[0].ToolCalls,
+				dynCall,
+			)
+			return chattest.OpenAIStreamingResponse(mergedChunk)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Resumed after mixed-tool promotion.")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	server := newActiveTestServer(t, db, ps)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "my_dynamic_tool",
+		Description: "A test dynamic tool.",
+		InputSchema: mcpgo.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		},
+	}})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "promote-while-requires-action-mixed",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Call both tools."),
+		},
+		DynamicTools: dynamicToolsJSON,
+	})
+	require.NoError(t, err)
+
+	var chatBeforePromote database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatBeforePromote = got
+		return got.Status == database.ChatStatusRequiresAction ||
+			got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.Equal(t, database.ChatStatusRequiresAction, chatBeforePromote.Status,
+		"expected requires_action, got %s (last_error=%q)",
+		chatBeforePromote.Status, chatBeforePromote.LastError.String)
+
+	// Wait for the built-in tool result to be persisted and find the
+	// dynamic tool call ID.
+	var (
+		dynamicToolCallID     string
+		builtinToolResultID   int64
+		builtinToolResultSeen bool
+	)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for _, msg := range messages {
+			parts, parseErr := chatprompt.ParseContent(msg)
+			if parseErr != nil {
+				continue
+			}
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "read_file" {
+					builtinToolResultID = msg.ID
+					builtinToolResultSeen = true
+				}
+				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == "my_dynamic_tool" {
+					dynamicToolCallID = part.ToolCallID
+				}
+			}
+		}
+		return builtinToolResultSeen && dynamicToolCallID != ""
+	}, testutil.IntervalFast)
+	require.NotEmpty(t, dynamicToolCallID)
+	require.NotZero(t, builtinToolResultID)
+
+	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("promote me")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.NotNil(t, queuedResult.QueuedMessage)
+
+	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedResult.QueuedMessage.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, promoteResult.Deferred)
+
+	// Walk the message log post-promote: only the dynamic tool call
+	// should have a new synthetic IsError result. The built-in tool
+	// result must not be duplicated.
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var (
+		dynamicSyntheticCount     int
+		builtinResultsForReadFile int
+	)
+	for _, msg := range messages {
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult {
+				continue
+			}
+			switch part.ToolName {
+			case "read_file":
+				builtinResultsForReadFile++
+			case "my_dynamic_tool":
+				if part.IsError && part.ToolCallID == dynamicToolCallID && msg.ID > builtinToolResultID {
+					dynamicSyntheticCount++
+				}
+			}
+		}
+	}
+	require.Equal(t, 1, dynamicSyntheticCount,
+		"expected exactly one synthetic error tool result for the dynamic tool call")
+	require.Equal(t, 1, builtinResultsForReadFile,
+		"built-in tool result should not be duplicated by promotion")
+
+	// Promoted user message ID is greater than the synthetic
+	// dynamic tool result inserted before it.
+	require.Greater(t, promoteResult.PromotedMessage.ID, builtinToolResultID)
+}
+
 func TestSubmitToolResultsRejectsArchivedChat(t *testing.T) {
 	t.Parallel()
 

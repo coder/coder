@@ -2108,6 +2108,20 @@ func (p *Server) PromoteQueued(
 			return err
 		}
 
+		// When the chat is awaiting dynamic tool results, close the
+		// pending tool calls with synthetic error results before
+		// promoting the user message. Otherwise the new turn would
+		// contain unresolved tool calls and the LLM API would reject
+		// the request, leaving the chat permanently in error.
+		if lockedChat.Status == database.ChatStatusRequiresAction {
+			if err := insertSyntheticToolResultsTx(
+				ctx, tx, lockedChat,
+				"Tool execution interrupted by queued message promotion",
+			); err != nil {
+				return xerrors.Errorf("insert synthetic tool results: %w", err)
+			}
+		}
+
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
 			ID:     opts.QueuedMessageID,
 			ChatID: opts.ChatID,
