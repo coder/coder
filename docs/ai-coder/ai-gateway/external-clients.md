@@ -59,11 +59,9 @@ Provide users with the following information:
 ### 3. Optional: disable BYOK
 
 By default AI Gateway allows users to bring their own LLM API keys. To
-require all traffic to use the centralized org key, disable BYOK:
-
-```sh
-coder server --aibridge-allow-byok=false
-```
+require all traffic to use the centralized org key, disable BYOK. See
+[Enabling or disabling BYOK](./clients/index.md#enabling-or-disabling-byok)
+for the server flag.
 
 ## User setup
 
@@ -81,53 +79,19 @@ for instructions on creating tokens via the dashboard or CLI.
 ### 2. Configure your AI tool
 
 Point your tool at the AI Gateway base URL and set the Coder API token as
-the authentication credential. The exact settings vary by tool.
+the authentication credential. The general pattern is:
 
-<div class="tabs">
+1. Set the base URL to the appropriate AI Gateway endpoint.
+2. Set the API key or auth token to your Coder API token.
 
-#### Claude Code
+The exact variable names and configuration format differ by tool. See
+[Client Configuration](./clients/index.md) for base URLs and
+authentication details, and individual client pages for tool-specific
+instructions:
 
-```bash
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
-export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
-```
-
-#### Codex CLI
-
-In `~/.codex/config.toml`:
-
-```toml
-model_provider = "aibridge"
-
-[model_providers.aibridge]
-name = "AI Bridge"
-base_url = "https://coder.example.com/api/v2/aibridge/openai/v1"
-env_key = "OPENAI_API_KEY"
-wire_api = "responses"
-```
-
-Then set the environment variable:
-
-```bash
-export OPENAI_API_KEY="<your-coder-api-token>"
-```
-
-#### Other tools
-
-For tools not listed here, the general pattern is:
-
-1. Set the base URL to `https://coder.example.com/api/v2/aibridge/openai/v1`
-   (OpenAI-compatible) or
-   `https://coder.example.com/api/v2/aibridge/anthropic`
-   (Anthropic-compatible).
-2. Set the API key to your Coder API token.
-
-See the [individual client pages](./clients/index.md#all-supported-clients)
-for tool-specific instructions.
-
-</div>
-
-Replace `coder.example.com` with your Coder deployment URL in all examples.
+- [Claude Code](./clients/claude-code.md)
+- [Codex CLI](./clients/codex.md)
+- [All supported clients](./clients/index.md#all-supported-clients)
 
 ### 3. Verify the connection
 
