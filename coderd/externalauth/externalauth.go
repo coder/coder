@@ -200,6 +200,24 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		//
 		// The error message is saved for debugging purposes.
 		if isFailedRefresh(existingToken, err) {
+			// Before caching the failure, re-read the external auth link
+			// from the database. A concurrent request may have already
+			// refreshed the token successfully, consuming the single-use
+			// refresh token (e.g., GitHub App tokens). In that case our
+			// "bad_refresh_token" error is a false positive from losing
+			// the race, and we should use the winner's updated token
+			// instead of poisoning the database with a cached failure.
+			currentLink, readErr := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+				ProviderID: externalAuthLink.ProviderID,
+				UserID:     externalAuthLink.UserID,
+			})
+			if readErr == nil && currentLink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
+				// Another caller won the refresh race and stored a new
+				// refresh token. Return their updated link instead of
+				// caching a failure.
+				return currentLink, nil
+			}
+
 			reason := err.Error()
 			if len(reason) > failureReasonLimit {
 				// Limit the length of the error message to prevent
