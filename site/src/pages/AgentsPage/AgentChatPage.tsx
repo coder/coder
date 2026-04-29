@@ -1352,11 +1352,14 @@ const AgentChatPage: FC = () => {
 			throw error;
 		}
 		// When the server accepts the message immediately (not
-		// queued), clear the stream and insert the user's message
-		// so it appears in the timeline without waiting for the
-		// WebSocket stream.
+		// queued), insert the user's message so it appears in
+		// the timeline without waiting for the WebSocket stream.
+		// Do not call clearStreamState here. The previous turn's
+		// state is already null by the time a non-queued send is
+		// possible, and clearing would wipe any stream content
+		// the WebSocket delivered while this REST call was in
+		// flight.
 		if (!response.queued) {
-			store.clearStreamState();
 			// Optimistically set status to "running" so the
 			// "Thinking..." indicator appears immediately.
 			// The server accepted the message (not queued),
