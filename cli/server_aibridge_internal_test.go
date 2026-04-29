@@ -310,6 +310,15 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 			},
 			errContains: "BEDROCK_ACCESS_KEYS count (2) must match BEDROCK_ACCESS_KEY_SECRETS count (1)",
 		},
+		{
+			name: "BedrockKeysTooMany",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID1,AKID2,AKID3,AKID4,AKID5,AKID6",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=s1,s2,s3,s4,s5,s6",
+			},
+			errContains: "too many keys (6), maximum is 5",
+		},
 	}
 
 	for _, tt := range tests {

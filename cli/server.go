@@ -3046,11 +3046,11 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 				i, p.Type, aibridge.ProviderCopilot)
 		}
 
-		if err := validateProviderKeys(i, p.Type, p.Keys); err != nil {
+		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
 			return nil, err
 		}
 
-		if err := validateBedrockKeys(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
+		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
 			return nil, err
 		}
 
@@ -3077,10 +3077,11 @@ func hasBedrockFields(p codersdk.AIBridgeProviderConfig) bool {
 // configuration manageable.
 const maxKeysPerProvider = 5
 
-// validateProviderKeys checks that the keys for a provider are
-// well-formed: no empty values, no duplicates, and within the
-// maximum count.
-func validateProviderKeys(providerIndex int, providerType string, keys []string) error {
+// validateProviderCredentialList checks that a list of credentials
+// belonging to a provider is well-formed: no empty values, no
+// duplicates, and within the maximum count. Trims whitespace in
+// place.
+func validateProviderCredentialList(providerIndex int, providerType string, keys []string) error {
 	if len(keys) > maxKeysPerProvider {
 		return xerrors.Errorf("provider %d (%s): too many keys (%d), maximum is %d",
 			providerIndex, providerType, len(keys), maxKeysPerProvider)
@@ -3104,20 +3105,20 @@ func validateProviderKeys(providerIndex int, providerType string, keys []string)
 	return nil
 }
 
-// validateBedrockKeys checks that bedrock access keys and secrets
-// are well-formed and paired correctly: same count, no empty
-// values, no duplicates, and within the maximum count.
-func validateBedrockKeys(providerIndex int, providerType string, accessKeys, secrets []string) error {
+// validateBedrockCredentials checks that Bedrock access keys and
+// secrets are paired correctly (same count) and that each list is
+// well-formed.
+func validateBedrockCredentials(providerIndex int, providerType string, accessKeys, secrets []string) error {
 	if len(accessKeys) != len(secrets) {
 		return xerrors.Errorf("provider %d (%s): BEDROCK_ACCESS_KEYS count (%d) must match BEDROCK_ACCESS_KEY_SECRETS count (%d)",
 			providerIndex, providerType, len(accessKeys), len(secrets))
 	}
 
-	if err := validateProviderKeys(providerIndex, providerType, accessKeys); err != nil {
+	if err := validateProviderCredentialList(providerIndex, providerType, accessKeys); err != nil {
 		return err
 	}
 
-	return validateProviderKeys(providerIndex, providerType, secrets)
+	return validateProviderCredentialList(providerIndex, providerType, secrets)
 }
 
 var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
