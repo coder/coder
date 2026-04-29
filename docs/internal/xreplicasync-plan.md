@@ -134,18 +134,18 @@ all tests:
 package xreplicasync
 
 type ReplicaSource interface {
-	ID() uuid.UUID
-	AllPrimary() []database.Replica
-	UpdateNow(context.Context) error
+    ID() uuid.UUID
+    AllPrimary() []database.Replica
+    UpdateNow(context.Context) error
 }
 
 type RouteURLFunc func(database.Replica) (string, error)
 
 type Options struct {
-	Manager ReplicaSource
-	RouteURL RouteURLFunc
-	WaitForInitialSync bool
-	AllowStandalone bool
+    Manager ReplicaSource
+    RouteURL RouteURLFunc
+    WaitForInitialSync bool
+    AllowStandalone bool
 }
 ```
 
@@ -289,21 +289,21 @@ This is illustrative only. It should not be implemented in the provider PR.
 
 ```go
 provider, err := xreplicasync.New(xreplicasync.Options{
-	Manager: api.replicaManager,
-	RouteURL: xreplicasync.RouteURLFromReplicaHostname("tls", natsRoutePort),
-	WaitForInitialSync: true,
+    Manager: api.replicaManager,
+    RouteURL: xreplicasync.RouteURLFromReplicaHostname("tls", natsRoutePort),
+    WaitForInitialSync: true,
 })
 if err != nil {
-	return err
+    return err
 }
 
 ps, err := nats.New(ctx, logger.Named("nats"), nats.Options{
-	PeerProvider: provider,
-	ClusterToken: clusterToken,
-	ClusterTLSConfig: routeTLSConfig,
-	ClusterHost: clusterHost,
-	ClusterPort: clusterPort,
-	ClusterAdvertise: clusterAdvertise,
+    PeerProvider: provider,
+    ClusterToken: clusterToken,
+    ClusterTLSConfig: routeTLSConfig,
+    ClusterHost: clusterHost,
+    ClusterPort: clusterPort,
+    ClusterAdvertise: clusterAdvertise,
 })
 ```
 
