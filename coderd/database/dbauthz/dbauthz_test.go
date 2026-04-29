@@ -338,6 +338,36 @@ func (s *MethodTestSuite) TestAuditLogs() {
 	}))
 }
 
+func (s *MethodTestSuite) TestBoundaryLogs() {
+	s.Run("InsertBoundarySession", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertBoundarySessionParams{}
+		dbm.EXPECT().InsertBoundarySession(gomock.Any(), arg).Return(database.BoundarySession{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
+	}))
+	s.Run("GetBoundarySessionByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetBoundarySessionByID(gomock.Any(), uuid.Nil).Return(database.BoundarySession{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
+	s.Run("InsertBoundaryLog", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertBoundaryLogParams{}
+		dbm.EXPECT().InsertBoundaryLog(gomock.Any(), arg).Return(database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
+	}))
+	s.Run("GetBoundaryLogByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetBoundaryLogByID(gomock.Any(), uuid.Nil).Return(database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
+	s.Run("ListBoundaryLogsBySessionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListBoundaryLogsBySessionIDParams{}
+		dbm.EXPECT().ListBoundaryLogsBySessionID(gomock.Any(), arg).Return([]database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
+	s.Run("DeleteOldBoundaryLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldBoundaryLogs(gomock.Any(), database.DeleteOldBoundaryLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldBoundaryLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+}
+
 func (s *MethodTestSuite) TestConnectionLogs() {
 	s.Run("BatchUpsertConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.BatchUpsertConnectionLogsParams{}
