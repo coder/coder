@@ -2064,6 +2064,12 @@ func (p *Server) PromoteQueued(
 		promoted       database.ChatMessage
 		updatedChat    database.Chat
 		remainingQueue []database.ChatQueuedMessage
+		// deferred is true when the chat was running at promote time:
+		// the queued message was reordered to the front of the queue
+		// and the chat was set to waiting so the active worker's
+		// cleanup auto-promote will insert the user message after
+		// persisting any partial assistant output.
+		deferred bool
 	)
 
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -2096,6 +2102,42 @@ func (p *Server) PromoteQueued(
 		}
 		if !found {
 			return xerrors.New("queued message not found")
+		}
+
+		// Running chats already own a worker that is streaming output.
+		// Synchronously inserting a user message and setting pending
+		// would race the worker: the persistStep ownership guard
+		// rejects the partial-output persist when status is anything
+		// other than waiting. Instead, reorder the queued message to
+		// the front of the queue, transition the chat to waiting (so
+		// the persist guard passes), and let the worker's cleanup
+		// auto-promote pop the message into history after the partial
+		// output is saved. The reorder mutates only created_at, so the
+		// queued row's ID stays stable.
+		if lockedChat.Status == database.ChatStatusRunning {
+			if err := tx.ReorderChatQueuedMessageToFront(ctx, database.ReorderChatQueuedMessageToFrontParams{
+				ChatID:   opts.ChatID,
+				TargetID: opts.QueuedMessageID,
+			}); err != nil {
+				return xerrors.Errorf("reorder queued message to front: %w", err)
+			}
+			updatedChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:          opts.ChatID,
+				Status:      database.ChatStatusWaiting,
+				WorkerID:    uuid.NullUUID{},
+				StartedAt:   sql.NullTime{},
+				HeartbeatAt: sql.NullTime{},
+				LastError:   pqtype.NullRawMessage{},
+			})
+			if err != nil {
+				return xerrors.Errorf("set chat to waiting for deferred promote: %w", err)
+			}
+			remainingQueue, err = tx.GetChatQueuedMessages(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("get remaining queue after reorder: %w", err)
+			}
+			deferred = true
+			return nil
 		}
 
 		effectiveModelConfigID, err := resolveQueuedMessageModelConfigID(
@@ -2155,6 +2197,24 @@ func (p *Server) PromoteQueued(
 	}, nil)
 	if txErr != nil {
 		return PromoteQueuedResult{}, txErr
+	}
+
+	if deferred {
+		result.Deferred = true
+		// Publish the truthful (reordered) queue and the new waiting
+		// status. The worker observes the waiting status via its
+		// control subscriber, cancels with ErrInterrupted, and the
+		// deferred cleanup auto-promotes the front-of-queue message.
+		p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
+			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+			QueuedMessages: db2sdk.ChatQueuedMessages(remainingQueue),
+		})
+		p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
+			QueueUpdate: true,
+		})
+		p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		return result, nil
 	}
 
 	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
