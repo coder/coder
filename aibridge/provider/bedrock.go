@@ -24,7 +24,8 @@ var _ Provider = &Bedrock{}
 // Bedrock is a standalone Bedrock provider that accepts native Bedrock
 // API requests and proxies them to AWS with centralized SigV4 signing.
 type Bedrock struct {
-	cfg config.AWSBedrockProvider
+	cfg        config.AWSBedrockProvider
+	httpClient *http.Client
 }
 
 func NewBedrock(cfg config.AWSBedrockProvider) *Bedrock {
@@ -42,7 +43,10 @@ func NewBedrock(cfg config.AWSBedrockProvider) *Bedrock {
 		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
 	}
 
-	return &Bedrock{cfg: cfg}
+	return &Bedrock{
+		cfg:        cfg,
+		httpClient: &http.Client{},
+	}
 }
 
 func (*Bedrock) Type() string {
@@ -155,6 +159,7 @@ func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		modelID,
 		streaming,
 		path,
+		p.httpClient,
 		tracer,
 		cred,
 	)

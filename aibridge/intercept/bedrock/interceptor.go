@@ -50,6 +50,7 @@ type Interceptor struct {
 	// upstreamPath is the path forwarded to Bedrock, e.g.
 	// /model/us.anthropic.claude-sonnet-4-6/invoke-with-response-stream.
 	upstreamPath string
+	httpClient   *http.Client
 
 	tracer trace.Tracer
 	logger slog.Logger
@@ -66,6 +67,7 @@ func NewInterceptor(
 	modelID string,
 	streaming bool,
 	upstreamPath string,
+	httpClient *http.Client,
 	tracer trace.Tracer,
 	cred intercept.CredentialInfo,
 ) *Interceptor {
@@ -77,6 +79,7 @@ func NewInterceptor(
 		modelID:      modelID,
 		streaming:    streaming,
 		upstreamPath: upstreamPath,
+		httpClient:   httpClient,
 		tracer:       tracer,
 		credential:   cred,
 	}
@@ -132,7 +135,7 @@ func (i *Interceptor) ProcessRequest(w http.ResponseWriter, r *http.Request) (ou
 		return xerrors.Errorf("sign request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(outReq)
+	resp, err := i.httpClient.Do(outReq)
 	if err != nil {
 		return xerrors.Errorf("send request to bedrock: %w", err)
 	}
