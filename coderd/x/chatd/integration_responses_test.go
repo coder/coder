@@ -460,6 +460,8 @@ func insertOpenAIResponsesMessages(
 		params.RuntimeMs = append(params.RuntimeMs, 0)
 		params.ProviderResponseID = append(params.ProviderResponseID, message.providerResponseID)
 	}
+	// Keep this raw because dbgen.ChatMessage inserts one message at a time,
+	// while this helper needs to preserve variadic batch insert behavior.
 	_, err := db.InsertChatMessages(ctx, params)
 	require.NoError(t, err)
 }

@@ -88,7 +88,6 @@ func TestUpdateAgentChatLastInjectedContextFromMessagesUsesMessageIDTieBreaker(t
 }
 
 func insertAgentChatTestModelConfig(
-	_ context.Context,
 	t testing.TB,
 	db database.Store,
 	userID uuid.UUID,

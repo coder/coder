@@ -29,7 +29,7 @@ func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
 		OrganizationID: org.ID,
 		OwnerID:        owner.ID,
 	}).WithAgent().Do()
-	modelConfig := insertAgentChatTestModelConfig(ctx, t, db, owner.ID)
+	modelConfig := insertAgentChatTestModelConfig(t, db, owner.ID)
 
 	insertedChats := make([]database.Chat, 0, len(database.AllChatStatusValues())*2)
 	for _, archived := range []bool{false, true} {
