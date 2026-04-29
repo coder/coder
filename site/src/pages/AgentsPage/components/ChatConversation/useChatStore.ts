@@ -237,6 +237,10 @@ export const useChatStore = (
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
 		store.setQueuedMessages([]);
+		// Suppression entries are scoped to the current chat; clear
+		// them on chat change so a stale promote suppression doesn't
+		// hide queued messages in another chat.
+		store.clearSuppressedQueuedMessageIDs();
 		if (!chatID) {
 			return;
 		}
@@ -258,7 +262,7 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
-		store.setQueuedMessages(chatQueuedMessages);
+		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
@@ -473,7 +477,9 @@ export const useChatStore = (
 								continue;
 							}
 							wsQueueUpdateReceivedRef.current = true;
-							store.setQueuedMessages(streamEvent.queued_messages);
+							store.applyAuthoritativeQueuedMessages(
+								streamEvent.queued_messages,
+							);
 							updateChatQueuedMessages(streamEvent.queued_messages);
 							continue;
 						case "status": {
