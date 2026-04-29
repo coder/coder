@@ -41,7 +41,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -74,7 +74,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -106,7 +106,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -131,7 +131,7 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -157,7 +157,7 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -194,7 +194,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -278,7 +278,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
 		defer rstTrap.Close()
 
-		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock, nil)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -370,7 +370,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
 		defer rstTrap.Close()
 
-		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock, nil)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -440,7 +440,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 
 		wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
 
-		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock, nil)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -539,7 +539,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
 		wrappedPS.setDropHeartbeat(true)
 
-		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock, nil)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -616,7 +616,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 
 		wrappedPS := &heartbeatDropPubsub{Pubsub: realPS}
 
-		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock)
+		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, wrappedPS, store, mClock, nil)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -706,7 +706,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 	defer cancel()
 	logger := testutil.Logger(t)
 
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -763,7 +763,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 	defer unsub()
 
 	start := time.Now()
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -798,10 +798,10 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store, nil)
 	require.NoError(t, err)
 	defer coord1.Close()
-	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store)
+	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store, nil)
 	require.NoError(t, err)
 	defer coord2.Close()
 
@@ -894,13 +894,13 @@ func TestPGCoordinator_MultiCoordinatorAgent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store, nil)
 	require.NoError(t, err)
 	defer coord1.Close()
-	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store)
+	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store, nil)
 	require.NoError(t, err)
 	defer coord2.Close()
-	coord3, err := tailnet.NewPGCoord(ctx, logger.Named("coord3"), ps, store)
+	coord3, err := tailnet.NewPGCoord(ctx, logger.Named("coord3"), ps, store, nil)
 	require.NoError(t, err)
 	defer coord3.Close()
 
@@ -980,7 +980,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
-	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore, nil)
 	require.NoError(t, err)
 	defer func() {
 		err := uut.Close()
@@ -1041,7 +1041,7 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 	mStore.EXPECT().GetAllTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Times(1)
 
-	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore, nil)
 	require.NoError(t, err)
 	defer func() {
 		err := uut.Close()
@@ -1061,7 +1061,7 @@ func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 	agpltest.BidirectionalTunnels(ctx, t, coordinator)
@@ -1074,7 +1074,7 @@ func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 	agpltest.GracefulDisconnectTest(ctx, t, coordinator)
@@ -1087,7 +1087,7 @@ func TestPGCoordinator_Lost(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 	agpltest.LostTest(ctx, t, coordinator)
@@ -1100,7 +1100,7 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -1128,7 +1128,7 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	assertEventuallyLost(ctx, t, store, agent.ID)
 	assertEventuallyLost(ctx, t, store, client.ID)
 
-	coordinator2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coordinator2, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer coordinator2.Close()
 
@@ -1164,9 +1164,9 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	// Create two coordinators, 1 for each peer.
-	c1, err := tailnet.NewPGCoord(ctx, logger, ps1, store1)
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps1, store1, nil)
 	require.NoError(t, err)
-	c2, err := tailnet.NewPGCoord(ctx, logger, ps2, store2)
+	c2, err := tailnet.NewPGCoord(ctx, logger, ps2, store2, nil)
 	require.NoError(t, err)
 
 	p1 := agpltest.NewPeer(ctx, t, c1, "peer1")
@@ -1216,9 +1216,9 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	// Create two coordinators, 1 for each peer.
-	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
-	c2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	c2, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 
 	p1 := agpltest.NewPeer(ctx, t, c1, "peer1")
@@ -1271,7 +1271,7 @@ func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
 	peerID := uuid.UUID{0x01}
 	agentID := uuid.UUID{0x02}
 
-	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store, nil)
 	require.NoError(t, err)
 	defer func() {
 		err := c1.Close()
@@ -1368,5 +1368,65 @@ func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
 	if c.ps != nil {
 		err = c.ps.Publish("tailnet_peer_update", []byte(agentID.String()))
 		require.NoError(c.t, err)
+	}
+}
+
+// TestPGCoordinator_AppPubsubRouting verifies that when an appPubsub is
+// provided, all tailnet pub/sub traffic flows on the appPubsub instance
+// instead of the primary pubsub. It uses heartbeats, which the coordinator
+// publishes shortly after start, as the observable signal.
+func TestPGCoordinator_AppPubsubRouting(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+	logger := testutil.Logger(t)
+
+	// Two distinct in-memory pubsubs: ps is the legacy primary, appPS is
+	// the secondary used by the migration. Heartbeats should appear on
+	// appPS and never on ps.
+	ps := pubsub.NewInMemory()
+	appPS := pubsub.NewInMemory()
+
+	psCh := make(chan []byte, 8)
+	appCh := make(chan []byte, 8)
+
+	cancelPS, err := ps.Subscribe(tailnet.EventHeartbeats, func(_ context.Context, msg []byte) {
+		select {
+		case psCh <- msg:
+		default:
+		}
+	})
+	require.NoError(t, err)
+	defer cancelPS()
+
+	cancelApp, err := appPS.Subscribe(tailnet.EventHeartbeats, func(_ context.Context, msg []byte) {
+		select {
+		case appCh <- msg:
+		default:
+		}
+	})
+	require.NoError(t, err)
+	defer cancelApp()
+
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store, appPS)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	// Positive: appPS receives at least one heartbeat.
+	select {
+	case <-appCh:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for heartbeat on appPubsub")
+	}
+
+	// Negative: ps receives no heartbeats during a short observation
+	// window. The coordinator publishes heartbeats on the chosen pubsub
+	// only, so ps should remain idle for tailnet traffic.
+	select {
+	case <-psCh:
+		t.Fatal("primary pubsub unexpectedly received tailnet heartbeat")
+	case <-time.After(testutil.IntervalMedium):
 	}
 }

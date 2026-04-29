@@ -138,20 +138,33 @@ var pgCoordSubject = rbac.Subject{
 
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and
 // receives notifications of updates via the pubsub.
-func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal())
+//
+// The optional appPS is a secondary pubsub used for tailnet pub/sub channels
+// (heartbeat, peer_update, tunnel_update, ready_for_handshake). When appPS is
+// nil, ps is used for tailnet pub/sub, preserving prior behavior. This is
+// part of the migration of high-volume tailnet channels from PG LISTEN/NOTIFY
+// to embedded NATS.
+func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, appPS pubsub.Pubsub) (agpl.Coordinator, error) {
+	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal(), appPS)
 }
 
 // NewTestPGCoord is only used in testing to pass a clock.Clock in.
-func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store, clk)
+func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock, appPS pubsub.Pubsub) (agpl.Coordinator, error) {
+	return newPGCoordInternal(ctx, logger, ps, store, clk, appPS)
 }
 
 func newPGCoordInternal(
-	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock,
+	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock, appPS pubsub.Pubsub,
 ) (
 	*pgCoord, error,
 ) {
+	// chosen is the pubsub used for all tailnet channels. When appPS is
+	// provided, it overrides ps for tailnet traffic; the original ps is
+	// then unused by this coordinator.
+	chosen := appPS
+	if chosen == nil {
+		chosen = ps
+	}
 	ctx, cancel := context.WithCancel(dbauthz.As(ctx, pgCoordSubject))
 	id := uuid.New()
 	logger = logger.Named("pgcoord").With(slog.F("coordinator_id", id))
@@ -171,18 +184,18 @@ func newPGCoordInternal(
 		ctx:              ctx,
 		cancel:           cancel,
 		logger:           logger,
-		pubsub:           ps,
+		pubsub:           chosen,
 		store:            store,
-		binder:           newBinder(ctx, logger, id, store, ps, bCh, fHB),
+		binder:           newBinder(ctx, logger, id, store, chosen, bCh, fHB),
 		bindings:         bCh,
 		newConnections:   cCh,
 		closeConnections: ccCh,
-		tunneler:         newTunneler(ctx, logger, id, store, ps, sCh, fHB),
+		tunneler:         newTunneler(ctx, logger, id, store, chosen, sCh, fHB),
 		tunnelerCh:       sCh,
-		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
+		handshaker:       newHandshaker(ctx, logger, id, chosen, rfhCh, fHB),
 		handshakerCh:     rfhCh,
 		id:               id,
-		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
+		querier:          newQuerier(ctx, logger, id, chosen, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
 		closed:           make(chan struct{}),
 	}
 	logger.Info(ctx, "starting coordinator")
