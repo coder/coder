@@ -34,6 +34,7 @@ const (
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 	missingNodeReport        = "Missing node health report, probably a developer error."
 	noSTUN                   = "No STUN servers are available."
+	noDERP                   = "No DERP servers are available."
 	stunMapVaryDest          = "STUN returned different addresses; you may be behind a hard NAT."
 )
 
@@ -69,11 +70,20 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 
 	r.Regions = map[int]*healthsdk.DERPRegionReport{}
 
+	// Track whether the map contains any DERP nodes so we can warn if
+	// it does not.
+	hasDERP := false
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
 
 	wg.Add(len(opts.DERPMap.Regions))
 	for _, region := range opts.DERPMap.Regions {
+		for _, node := range region.Nodes {
+			if !node.STUNOnly {
+				hasDERP = true
+				break
+			}
+		}
 		var (
 			region       = region
 			regionReport = RegionReport{
@@ -103,7 +113,6 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			mu.Unlock()
 		}()
 	}
-
 	ncLogf := func(format string, args ...interface{}) {
 		mu.Lock()
 		r.NetcheckLogs = append(r.NetcheckLogs, fmt.Sprintf(format, args...))
@@ -118,10 +127,19 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Netcheck = ncReport
 	r.NetcheckErr = convertError(netcheckErr)
 	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
+		mu.Lock()
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNMapVaryDest, stunMapVaryDest))
+		mu.Unlock()
 	}
 
 	wg.Wait()
+
+	if !hasDERP {
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(
+			health.CodeDERPNoNodes, noDERP,
+		))
+	}
 
 	// Count the number of STUN-capable nodes.
 	var stunCapableNodes int

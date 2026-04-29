@@ -4164,6 +4164,7 @@ export type HealthCode =
 	| "EACS02"
 	| "EACS04"
 	| "EACS01"
+	| "EDERP03"
 	| "EDERP01"
 	| "EDERP02"
 	| "EDB01"
@@ -4193,6 +4194,7 @@ export const HealthCodes: HealthCode[] = [
 	"EACS02",
 	"EACS04",
 	"EACS01",
+	"EDERP03",
 	"EDERP01",
 	"EDERP02",
 	"EDB01",

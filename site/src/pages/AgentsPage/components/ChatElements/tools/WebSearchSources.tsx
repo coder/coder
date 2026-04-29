@@ -36,8 +36,8 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 			hasContent={unique.length > 0}
 			header={
 				<>
-					<GlobeIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-					<span className="text-sm text-content-secondary">
+					<GlobeIcon className="h-4 w-4 shrink-0 text-current" />
+					<span className="text-[13px]">
 						Searched <span className="text-content-secondary/60">{detail}</span>
 					</span>
 				</>

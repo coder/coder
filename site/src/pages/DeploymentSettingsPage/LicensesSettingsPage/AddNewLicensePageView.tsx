@@ -12,7 +12,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
 
@@ -52,11 +51,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Add a license</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -70,7 +65,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 						All Licenses
 					</RouterLink>
 				</Button>
-			</Stack>
+			</div>
 
 			{savingLicenseError && <ErrorAlert error={savingLicenseError} />}
 
@@ -82,7 +77,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 				description="Select a text file that contains your license key."
 			/>
 
-			<Stack className="pt-10">
+			<div className="flex flex-col gap-4 pt-10">
 				<DividerWithText>or</DividerWithText>
 
 				<Fieldset
@@ -111,7 +106,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 						fullWidth
 					/>
 				</Fieldset>
-			</Stack>
+			</div>
 		</>
 	);
 };

@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -16,17 +19,22 @@ import (
 // connection. It implements fantasy.AgentTool so it can be
 // registered alongside built-in chat tools.
 type WorkspaceMCPTool struct {
-	info         fantasy.ToolInfo
-	getConn      func(context.Context) (workspacesdk.AgentConn, error)
-	providerOpts fantasy.ProviderOptions
+	info            fantasy.ToolInfo
+	getConn         func(context.Context) (workspacesdk.AgentConn, error)
+	providerOpts    fantasy.ProviderOptions
+	invalidateCache func()
 }
 
 // NewWorkspaceMCPTool creates a tool wrapper from an MCPToolInfo
 // discovered on a workspace agent. Each tool proxies calls back
-// through the agent connection.
+// through the agent connection. The optional invalidateCache
+// callback is invoked when CallMCPTool returns a 404 error,
+// indicating that the server was removed and the chat's cached
+// tool list should be dropped.
 func NewWorkspaceMCPTool(
 	tool workspacesdk.MCPToolInfo,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
+	invalidateCache func(),
 ) *WorkspaceMCPTool {
 	required := tool.Required
 	if required == nil {
@@ -40,7 +48,8 @@ func NewWorkspaceMCPTool(
 			Required:    required,
 			Parallel:    true,
 		},
-		getConn: getConn,
+		getConn:         getConn,
+		invalidateCache: invalidateCache,
 	}
 }
 
@@ -75,6 +84,15 @@ func (t *WorkspaceMCPTool) Run(
 		Arguments: args,
 	})
 	if err != nil {
+		// If the agent returns a 404 (ErrUnknownServer), the
+		// server was removed or renamed. Invalidate the chat's
+		// cached tool list so the next turn refetches.
+		var coderErr *codersdk.Error
+		if errors.As(err, &coderErr) && coderErr.StatusCode() == http.StatusNotFound {
+			if t.invalidateCache != nil {
+				t.invalidateCache()
+			}
+		}
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 

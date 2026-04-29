@@ -3,7 +3,6 @@ import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Stack } from "#/components/Stack/Stack";
 import { cn } from "#/utils/cn";
 import { Section } from "../Section";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
@@ -68,14 +67,14 @@ const TokensPage: FC = () => {
 };
 
 const TokenActions: FC = () => (
-	<Stack direction="row" justifyContent="end" className="mb-2">
+	<div className="flex flex-row justify-end gap-4 mb-2">
 		<Button asChild variant="outline">
 			<RouterLink to="new">
 				<PlusIcon />
 				Add token
 			</RouterLink>
 		</Button>
-	</Stack>
+	</div>
 );
 
 export default TokensPage;

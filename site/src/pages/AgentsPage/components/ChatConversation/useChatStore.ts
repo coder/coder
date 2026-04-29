@@ -390,9 +390,9 @@ export const useChatStore = (
 		};
 
 		// Discard buffered parts without applying them. Used when
-		// stream state is about to be cleared (pending, waiting,
-		// retry) — flushing would re-populate the state that the
-		// event is about to clear.
+		// the stream is no longer active (pending, waiting, retry)
+		// so stale buffered parts are not applied after the
+		// status transition.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
@@ -508,7 +508,6 @@ export const useChatStore = (
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearStreamState();
 								store.clearRetryState();
 							}
 							if (nextStatus === "running") {

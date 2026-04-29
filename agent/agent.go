@@ -423,14 +423,14 @@ func (a *agent) init() {
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
-	a.mcpManager = agentmcp.NewManager(a.logger.Named("mcp"))
-	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager)
+	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.updateCommandEnv)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}
 		return ""
 	}, a.contextConfig)
+	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager, a.contextConfigAPI.MCPConfigFiles)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1413,8 +1413,8 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
-					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
+				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
+					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
 			})
 			if err != nil {

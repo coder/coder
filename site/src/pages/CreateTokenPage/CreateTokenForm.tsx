@@ -14,7 +14,6 @@ import {
 	HorizontalForm,
 } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 import {
 	type CreateTokenData,
@@ -102,7 +101,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 				classes={{ sectionInfo: classNames.sectionInfo }}
 			>
 				<FormFields>
-					<Stack direction="row">
+					<div className="flex flex-row gap-4">
 						<TextField
 							select
 							label="Lifetime"
@@ -153,7 +152,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 								}}
 							/>
 						)}
-					</Stack>
+					</div>
 				</FormFields>
 			</FormSection>
 
