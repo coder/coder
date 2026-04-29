@@ -24,7 +24,10 @@ import (
 type ReplicaSource interface {
 	ID() uuid.UUID
 	Regional() []database.Replica
-	SetCallback(func())
+	// AddCallback registers a function to be invoked whenever the
+	// replica set changes. Implementations must return a remove
+	// function that detaches the callback; remove must be idempotent.
+	AddCallback(func()) func()
 }
 
 // Options configures a Provider.
@@ -52,12 +55,13 @@ type Provider struct {
 	signal chan struct{}
 	done   chan struct{}
 
-	mu      sync.Mutex
-	applied uint64
-	hasApp  bool
-	started bool
-	closed  bool
-	cancel  context.CancelFunc
+	mu             sync.Mutex
+	applied        uint64
+	hasApp         bool
+	started        bool
+	closed         bool
+	cancel         context.CancelFunc
+	removeCallback func()
 }
 
 // pubsubRefresher is the subset of *nats.Pubsub used by the Provider's
@@ -187,12 +191,15 @@ func (p *Provider) startWithRefresher(ctx context.Context, refresher pubsubRefre
 
 	// Register the callback only after lifecycle state is committed so
 	// the worker is guaranteed to be live before it can be signaled.
-	p.source.SetCallback(func() {
+	remove := p.source.AddCallback(func() {
 		select {
 		case p.signal <- struct{}{}:
 		default:
 		}
 	})
+	p.mu.Lock()
+	p.removeCallback = remove
+	p.mu.Unlock()
 	return nil
 }
 
@@ -290,8 +297,17 @@ func (p *Provider) Close() error {
 	p.closed = true
 	started := p.started
 	cancel := p.cancel
+	remove := p.removeCallback
+	p.removeCallback = nil
 	p.mu.Unlock()
 
+	// Detach the callback from the source first so any in-flight
+	// notifications stop landing in p.signal before we tear down the
+	// worker. AddCallback's remove is idempotent so a nil guard is
+	// only needed for the unstarted case.
+	if remove != nil {
+		remove()
+	}
 	if !started {
 		return nil
 	}
