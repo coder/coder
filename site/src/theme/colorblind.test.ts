@@ -49,10 +49,6 @@ describe("theme registry", () => {
 		expect(new Set(Object.keys(themes))).toEqual(new Set(CONCRETE_THEMES));
 	});
 
-	// ThemeProvider does `themes[resolveThemeName(...)]` without a null
-	// check, so every value the resolver can return must be a real key of
-	// the `themes` object. Enumerate every preference the UI exposes,
-	// paired with both OS color schemes, and assert the lookup succeeds.
 	it("always resolves to a theme that exists in the registry", () => {
 		const preferences: (string | undefined)[] = [
 			undefined,
@@ -90,12 +86,6 @@ describe("isConcreteThemeName", () => {
 });
 
 describe("baseModeFor", () => {
-	// ThemeProvider applies both the concrete theme class and the base
-	// mode class to `<html>` so Tailwind's `dark:` variant keeps matching
-	// on colorblind variants. Assert the mapping for every concrete
-	// theme so a new variant whose name does not start with `dark` or
-	// `light` is caught by this test instead of silently regressing the
-	// UI.
 	it("maps every concrete theme to its base mode", () => {
 		for (const name of CONCRETE_THEMES) {
 			const expected = name.startsWith("dark") ? "dark" : "light";

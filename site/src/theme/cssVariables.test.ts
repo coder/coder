@@ -2,10 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { CONCRETE_THEMES } from "./colorblind";
 
-// These CSS variables drive the diff panel and the semantic color roles
-// that are most affected by colorblindness. Every theme class block must
-// override each one so switching themes does not leave stale values from
-// a previous theme leaking through.
 const REQUIRED_VARIABLES = [
 	"--content-primary",
 	"--content-success",
@@ -54,8 +50,6 @@ const REQUIRED_VARIABLES = [
 	"--git-merged-bright",
 ];
 
-// Every theme the user can actually end up rendered as. "auto*" resolves
-// to one of these, so we only validate the concrete classes here.
 const THEME_CLASSES = [
 	":root",
 	...CONCRETE_THEMES.map((themeName) => `.${themeName}`),
@@ -70,10 +64,6 @@ const TRITAN_THEME_CLASSES = CONCRETE_THEMES.filter((themeName) =>
 ).map((themeName) => `.${themeName}`);
 
 function extractBlock(css: string, selector: string): string | null {
-	// Selectors can be grouped with commas in the stylesheet, for example
-	// `:root, .light { ... }`. Match any occurrence where the selector is a
-	// standalone token in the prelude so `.dark` does not match inside
-	// `.dark-tritan`.
 	const pattern = new RegExp(
 		`(?:^|[,\\s])${escapeRegex(selector)}(?:[,\\s][^{]*)?\\s*\\{([^}]*)\\}`,
 		"m",

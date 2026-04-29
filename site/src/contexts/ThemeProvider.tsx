@@ -29,24 +29,6 @@ import {
 	resolveThemeName,
 } from "#/theme/colorblind";
 
-/**
- * Root theme provider for the web UI.
- *
- * Resolves the stored `theme_preference` (including the legacy `auto`
- * value and the four colorblind-friendly variants) into a concrete theme
- * via `resolveThemeName`, then:
- *
- * - Applies the concrete theme class to `<html>` (e.g. `dark-tritan`)
- *   plus its base mode class (`dark` or `light`) so Tailwind `dark:`
- *   utilities and any selector-based theming (`.dark` in `Chart.tsx`)
- *   continue to match when a colorblind variant is active.
- * - Watches `prefers-color-scheme` so `auto` preferences follow the
- *   OS.
- * - Skips class manipulation when an embed page has claimed
- *   `<html>` via `data-embed-theme`.
- * - Selects the matching MUI/Emotion theme object and delegates to
- *   the MUI/Emotion providers.
- */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
@@ -78,10 +60,7 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	// We might not be logged in yet, or the `theme_preference` could be an
 	// empty string. Prefer the JS-fetched value, fall back to the
-	// server-rendered meta tag, then to DEFAULT_THEME. The DEFAULT_THEME
-	// fallback is intentional: the old `ThemeProvider` coerced empty
-	// preferences to "dark" rather than to the OS color scheme, and the
-	// AppearancePage radio selection depends on the same fallback.
+	// server-rendered meta tag, then to DEFAULT_THEME.
 	const storedPreference =
 		appearanceSettingsQuery.data?.theme_preference ||
 		metadata.userAppearance?.value?.theme_preference ||
@@ -95,17 +74,10 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 			return;
 		}
 		root.classList.add(concreteName);
-		// Also apply the base mode class (`dark` or `light`) so Tailwind's
-		// `dark:` variant (configured as `darkMode: ["selector"]`) and any
-		// selector-based theming keyed on `.dark`/`.light` continue to match
-		// when a colorblind variant is the concrete theme.
 		root.classList.add(baseModeFor(concreteName));
 
 		return () => {
 			if (!root.dataset.embedTheme) {
-				// Remove every theme class we might have applied so switching
-				// between two concrete themes never leaves both classes on the
-				// root. This also removes the base mode class we added above.
 				root.classList.remove(...CONCRETE_THEMES);
 			}
 		};
