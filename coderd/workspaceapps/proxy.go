@@ -638,7 +638,16 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	r.URL.Path = path
 	appURL.RawQuery = ""
-	_, protocol, isPort := app.PortInfo()
+	// Path-based app routing passes an empty appurl.ApplicationURL into
+	// proxyWorkspaceApp, so app.PortInfo() and app.AppSlugOrPort are not
+	// reliable here. The resolved token is the source of truth for both,
+	// and path-based apps cannot represent ports per ResolveRequest.
+	slugOrPort := appToken.AppSlugOrPort
+	isPort := false
+	protocol := ""
+	if appToken.AccessMethod == AccessMethodSubdomain {
+		_, protocol, isPort = app.PortInfo()
+	}
 	if isPort {
 		appURL.Scheme = protocol
 	}
@@ -665,11 +674,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			})
 			return
 		}
-		if !isPort && !slices.Contains(dlp.AllowedApplications, app.AppSlugOrPort) {
+		if !isPort && !slices.Contains(dlp.AllowedApplications, slugOrPort) {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusForbidden,
 				Title:       "Blocked by DLP Policy",
-				Description: fmt.Sprintf("Application %q is not in DLP policy %q's allowed_applications list.", app.AppSlugOrPort, dlp.Name),
+				Description: fmt.Sprintf("Application %q is not in DLP policy %q's allowed_applications list.", slugOrPort, dlp.Name),
 			})
 			return
 		}
