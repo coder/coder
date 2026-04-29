@@ -2,10 +2,33 @@
 
 > Note: This document supersedes
 > [`docs/internal/xreplicasync-plan.md`](./xreplicasync-plan.md). The earlier
-> plan is preserved for history. New work should follow this unified plan,
-> which adds a dynamic peer refresh API to `coderd/x/nats` and an
-> `enterprise/coderd/x/xreplicasync` provider that adapts
+> plan is historical and preserved for context only. New work should follow
+> this unified plan, which adds a dynamic peer refresh API to `coderd/x/nats`
+> and an `enterprise/coderd/x/xreplicasync` provider that adapts
 > `enterprise/replicasync.Manager` to it.
+
+## Architectural framing (Option A vs Option B)
+
+This work is the foundation of "Option A":
+
+- **Option A (chosen).** `enterprise/replicasync.Manager` continues to use
+  `pgPubsub` for its low-volume replica-registry traffic
+  (`replicaUpdateChannel`). NATS is reserved for application-level,
+  high-volume events (e.g. workspace agent fanout). The
+  `xreplicasync.Provider` reads the same replica set that `replicasync`
+  already maintains and feeds it as peers into `coderd/x/nats`. NATS is
+  downstream of `replicasync`; replica-registry traffic never flows
+  through NATS.
+- **Option B (rejected).** Migrate `replicasync`'s own update channel to
+  NATS. This would create a circular dependency: NATS needs the replica
+  set to discover peers, and `replicasync` would need NATS to publish
+  replica updates. Option A avoids the cycle entirely by keeping the
+  replica-registry feedback loop on Postgres.
+
+Production wiring of `xreplicasync.Provider` into `cli/server.go` /
+`enterprise/coderd/coderd.go` is deliberately out of scope for the
+package work described here; it will land in a follow-up PR. This
+document describes the package shape and refresh semantics only.
 
 ## Goals
 
@@ -30,19 +53,53 @@
 
 - Do not modify `enterprise/replicasync` or the `replicas` schema.
 - Do not change production startup ordering as part of this change.
-- Do not change empty-peer/standalone startup behavior. `coderd/x/nats` will
-  continue to set `DontListen = true` when there are no peers.
-- Do not provision TLS certs or NATS route tokens; this plan assumes existing
-  cluster credentials are configured at startup and remain stable.
+- Do not provision TLS certs or NATS route tokens beyond the
+  ephemeral cluster token auto-generated when `Options.ClusterToken` is
+  empty.
 - Do not add JetStream or any persistence layer to embedded NATS.
 
 ## Design A: `coderd/x/nats` `RefreshPeers`
 
-### New error
+### Always-clustered startup ("cluster of 1")
+
+Standalone mode is gone. Every `coderd/x/nats.New` starts the embedded
+NATS server in cluster mode, even when `Options.PeerProvider` is nil or
+returns zero peers. With zero peers the cluster listener still binds on
+a random loopback port; no routes are configured. Late-joining peers
+are added via `RefreshPeers` and applied through `Server.ReloadOptions`
+without restarting the server.
+
+This decision is forced by upstream: `nats-server`'s `validateClusterOpts`
+rejects host/port changes on `ReloadOptions`, so a Pubsub that started
+without a cluster listener cannot be promoted to a clustered one at
+runtime. We bind the cluster listener up front to make refresh work.
+
+A throwaway smoke test against `nats-server` v2.12.8 confirmed that
+`NewServer` with cluster enabled, empty `Cluster.Routes`, random
+`Cluster.Port`, valid `ClusterToken`, and a custom router authenticator
+starts cleanly and `ReadyForConnections` returns true within a second.
+
+### `ClusterToken`: required, auto-generated when empty
+
+`Options.ClusterToken` is the shared secret applied to NATS route
+authentication. Callers SHOULD supply a stable token when this process
+is intended to interoperate with other replicas. When left empty, `New`
+generates a 32-byte random hex token internally (via `crypto/rand`) and
+records it on `*Pubsub` so subsequent `RefreshPeers` calls reuse the
+same token when constructing route URLs. The auto-generated path keeps
+ergonomics for tests and single-replica deployments where there is no
+real cluster to authenticate against.
+
+### Sentinel error
 
 ```go
-var ErrStandalone = errors.New("nats pubsub is in standalone mode")
+var ErrNoEmbeddedServer = errors.New("nats pubsub has no embedded server")
 ```
+
+`RefreshPeers` returns `ErrNoEmbeddedServer` only when the Pubsub was
+constructed via `NewFromConn` and therefore does not own an embedded
+server whose route configuration can be reloaded. The previous
+`ErrStandalone` sentinel has been removed.
 
 ### New fields on `*Pubsub`
 
@@ -51,25 +108,32 @@ var ErrStandalone = errors.New("nats pubsub is in standalone mode")
   as the base for `ReloadOptions`.
 - `refreshMu sync.Mutex`, serializes refresh calls.
 - `currentRoutes []*url.URL`, last applied route set, sorted.
-- `standalone bool`, true when `New` started without peers.
+- `effectiveClusterToken string`, the token actually applied to the
+  embedded server, used to rebuild route URLs in `RefreshPeers` (mirrors
+  `Options.ClusterToken` when supplied, otherwise the ephemeral token).
 
 ### Semantics of `RefreshPeers`
 
 1. Closed-state check under the existing lifecycle mutex, returning a closed
    error if the pubsub has already been shut down.
-2. If `provider == nil` or `standalone`, return `ErrStandalone`. A pubsub
-   that started standalone cannot be promoted to clustered via reload because
-   reload cannot change cluster host/port.
-3. Acquire `refreshMu`. Call `provider.Peers(ctx)`, normalize through
-   `normalizePeers`, and rebuild route URLs through the same helper used at
-   startup (the `routeURLs`-equivalent path), preserving scheme and the
-   `coder:<token>` userinfo when configured.
-4. Sort the resulting routes by `URL.String()`. If the sorted list equals
-   `currentRoutes`, return `nil` without calling into the server.
-5. Shallow-clone `serverOpts`, replace only `Routes`, and call
+2. If the Pubsub has no embedded server (`NewFromConn`), return
+   `ErrNoEmbeddedServer`.
+3. If `provider == nil`, return a configuration error
+   (`"nats pubsub: no PeerProvider configured"`). The server is up but
+   there is no source to refresh from. This is a misconfiguration, not
+   a runtime topology condition, so it is not the same sentinel as
+   `ErrNoEmbeddedServer`.
+4. Acquire `refreshMu`. Call `provider.Peers(ctx)`, normalize through
+   `normalizePeers`, and rebuild route URLs using `effectiveClusterToken`,
+   preserving scheme and the `coder:<token>` userinfo.
+5. Sort the resulting routes by `URL.String()`. If the sorted list equals
+   `currentRoutes`, return `nil` without calling into the server. This
+   includes the empty-set case for a "cluster of 1" whose provider
+   returns zero peers.
+6. Shallow-clone `serverOpts`, replace only `Routes`, and call
    `p.ns.ReloadOptions(newOpts)`. Do not reuse the original options pointer
    afterward.
-6. On success, store the new options pointer and `currentRoutes`. On failure,
+7. On success, store the new options pointer and `currentRoutes`. On failure,
    wrap the error as `reload nats routes: %w` and leave `serverOpts` and
    `currentRoutes` unchanged.
 
@@ -136,8 +200,9 @@ A worker goroutine:
    failure, logs, increments `coder_pubsub_nats_refresh_failures_total`,
    and retries with capped exponential backoff up to `RetryMaxBackoff`
    (default 60s).
-5. Treats `ErrStandalone` as terminal until the next material change, since
-   no amount of retrying will turn a standalone server into a clustered one.
+5. Treats `ErrNoEmbeddedServer` as terminal until the next material
+   change, since a Pubsub that wraps an externally provided connection
+   has no embedded server to reload no matter how many times we retry.
 
 `Close` cancels the worker context and waits for the goroutine to exit.
 
@@ -157,7 +222,11 @@ Integration tests against an embedded NATS server:
   reloaded options.
 - `Remove`: start with `{A, B}`, refresh to `{A}`.
 - `NoOp`: refresh with identical peer list does not call `ReloadOptions`.
-- `Standalone`: `New` with no peers returns `ErrStandalone` from refresh.
+- `ZeroPeersNoOp`: `New` with a provider that returns zero peers
+  refreshes successfully as a no-op (cluster of 1).
+- `NilProviderConfigError`: `New` with no `PeerProvider` returns a
+  config error from refresh (not `ErrNoEmbeddedServer`).
+- `NewFromConn`: `RefreshPeers` returns `ErrNoEmbeddedServer`.
 - `Token+TLS`: route URL rebuild preserves `coder:<token>` userinfo and
   `tls://` scheme.
 
