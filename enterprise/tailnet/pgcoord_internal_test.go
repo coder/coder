@@ -851,3 +851,110 @@ func TestBinderLostToNodeTransition(t *testing.T) {
 	bnd3 := binding{bKey: key, node: node, kind: proto.CoordinateResponse_PeerUpdate_NODE}
 	assert.True(t, b.storeBinding(bnd3))
 }
+
+// encodeEnrichedTunnelUpdate produces the on-the-wire bytes for a
+// TailnetTunnelUpdate as published over PG pubsub: a base64-encoded
+// proto. This mirrors what publishTunnelUpdate emits.
+func encodeEnrichedTunnelUpdate(t *testing.T, srcID, dstID, coordID uuid.UUID, op proto.TailnetTunnelUpdate_Op) []byte {
+	t.Helper()
+	raw, err := gProto.Marshal(&proto.TailnetTunnelUpdate{
+		SrcId:         srcID[:],
+		DstId:         dstID[:],
+		CoordinatorId: coordID[:],
+		Op:            op,
+	})
+	require.NoError(t, err)
+	return []byte(base64.StdEncoding.EncodeToString(raw))
+}
+
+// TestQuerier_ListenTunnel_DeleteSkipsBindingsQuery verifies that an
+// enriched DELETE tunnel update dispatches a synthesized DISCONNECTED
+// mapping straight to the affected mapper(s) without enqueuing
+// mappingQ, so GetTailnetTunnelPeerBindingsBatch is never called.
+func TestQuerier_ListenTunnel_DeleteSkipsBindingsQuery(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	q, cancel := newTestQuerier(t, mStore)
+	defer cancel()
+
+	srcID := uuid.New()
+	dstID := uuid.New()
+	coordID := uuid.New()
+
+	// Stub mappers for both endpoints with a buffered enriched channel
+	// big enough to receive the synthesized mapping without blocking.
+	srcMapper := &mapper{enriched: make(chan mapping, 1)}
+	dstMapper := &mapper{enriched: make(chan mapping, 1)}
+	q.mappers[mKey(srcID)] = srcMapper
+	q.mappers[mKey(dstID)] = dstMapper
+
+	q.listenTunnel(context.Background(),
+		encodeEnrichedTunnelUpdate(t, srcID, dstID, coordID,
+			proto.TailnetTunnelUpdate_OP_DELETE), nil)
+
+	// Both mappers should receive a DISCONNECTED mapping for the other
+	// endpoint. The synthesized mapping carries the coordinator from
+	// the payload (which is the responsible coordinator for the row).
+	srcGot := <-srcMapper.enriched
+	require.Equal(t, dstID, srcGot.peer)
+	require.Equal(t, coordID, srcGot.coordinator)
+	require.Equal(t, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, srcGot.kind)
+
+	dstGot := <-dstMapper.enriched
+	require.Equal(t, srcID, dstGot.peer)
+	require.Equal(t, coordID, dstGot.coordinator)
+	require.Equal(t, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, dstGot.kind)
+
+	// mappingQ must not be enqueued; the bindings query must not run.
+	// acquireBatch blocks on an empty queue, so inspect pending under
+	// the cond lock instead of trying to acquire.
+	q.mappingQ.cond.L.Lock()
+	require.Empty(t, q.mappingQ.pending, "DELETE op must not enqueue mappingQ")
+	q.mappingQ.cond.L.Unlock()
+
+	// And no GetTailnetTunnelPeerBindingsBatch expectation was set on
+	// the mock, so any call would fail the test via gomock.
+	_ = mStore
+}
+
+// TestQuerier_ListenTunnel_DecodeFailureFallback verifies that:
+//   - garbage bytes do not panic and do not affect mapper state
+//   - a subsequent legacy CSV "src,dst" update is processed via the
+//     fallback path and enqueues mappingQ for whichever endpoint we
+//     host a mapper for.
+func TestQuerier_ListenTunnel_DecodeFailureFallback(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	q, cancel := newTestQuerier(t, mStore)
+	defer cancel()
+
+	srcID := uuid.New()
+	dstID := uuid.New()
+
+	// Stub mapper for src only; dst has no local mapper.
+	srcMapper := &mapper{enriched: make(chan mapping, 1)}
+	q.mappers[mKey(srcID)] = srcMapper
+
+	// 1. Garbage bytes: must not panic, must not enqueue anything,
+	// must not touch the mapper.
+	q.listenTunnel(context.Background(), []byte{0xff, 0xfe, 0x00, 0x01}, nil)
+	require.Len(t, srcMapper.enriched, 0, "garbage must not deliver a mapping")
+	q.mappingQ.cond.L.Lock()
+	require.Empty(t, q.mappingQ.pending, "garbage must not enqueue mappingQ")
+	q.mappingQ.cond.L.Unlock()
+
+	// 2. Legacy CSV update: must enqueue mappingQ for src (we host a
+	// mapper) and skip dst (no mapper). This is the pre-§7 path.
+	csv := []byte(srcID.String() + "," + dstID.String())
+	q.listenTunnel(context.Background(), csv, nil)
+	got, err := q.mappingQ.acquireBatch(10)
+	require.NoError(t, err)
+	require.Equal(t, []mKey{mKey(srcID)}, got)
+	q.mappingQ.done(got...)
+	require.Len(t, srcMapper.enriched, 0,
+		"CSV fallback must not deliver synthesized mappings")
+}

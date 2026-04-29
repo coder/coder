@@ -114,8 +114,47 @@ func publishPeerUpdate(
 	}
 }
 
-func publishTunnelUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, srcID, dstID uuid.UUID) {
-	if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
+// publishTunnelUpdate marshals an enriched TailnetTunnelUpdate proto and
+// publishes it on eventTunnelUpdate. The op (UPSERT/DELETE) lets
+// subscribers skip GetTailnetTunnelPeerBindingsBatch on DELETE since
+// there is nothing to fetch. UPSERT subscribers still query bindings
+// because the publishing replica may not host the dst peer. If the
+// payload fails to marshal (or decode on the receiver side), the
+// subscriber falls back to today's CSV "src,dst" parser so older
+// publishers and corrupted payloads still trigger a full-query refresh.
+func publishTunnelUpdate(
+	ctx context.Context,
+	ps pubsub.Pubsub,
+	logger slog.Logger,
+	srcID, dstID, coordID uuid.UUID,
+	op proto.TailnetTunnelUpdate_Op,
+) {
+	msg := &proto.TailnetTunnelUpdate{
+		SrcId:         srcID[:],
+		DstId:         dstID[:],
+		CoordinatorId: coordID[:],
+		Op:            op,
+	}
+	raw, err := gProto.Marshal(msg)
+	if err != nil {
+		// This should be impossible: all fields are well-formed bytes
+		// or an enum. Fall back to the CSV payload so the subscriber's
+		// decode-failure path still triggers a full query.
+		logger.Critical(ctx, "failed to marshal tunnel update",
+			slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
+		if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
+			logger.Warn(ctx, "failed to publish tunnel update",
+				slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
+		}
+		return
+	}
+	// PG NOTIFY requires valid UTF-8 text; raw protobuf bytes can
+	// contain arbitrary bytes that PostgreSQL rejects with "invalid
+	// byte sequence for encoding UTF8". Base64-encode the payload so
+	// it round-trips through PG pubsub. This shim goes away once the
+	// NATS transport owns this subject (NATS is binary-safe).
+	payload := []byte(base64.StdEncoding.EncodeToString(raw))
+	if err := ps.Publish(eventTunnelUpdate, payload); err != nil {
 		logger.Warn(ctx, "failed to publish tunnel update",
 			slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
 	}
@@ -508,7 +547,9 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		)
 		if err == nil {
 			for _, row := range deleted {
-				publishTunnelUpdate(t.ctx, t.pubsub, t.logger, row.SrcID, row.DstID)
+				publishTunnelUpdate(t.ctx, t.pubsub, t.logger,
+					row.SrcID, row.DstID, t.coordinatorID,
+					proto.TailnetTunnelUpdate_OP_DELETE)
 			}
 		}
 	case tun.active:
@@ -550,7 +591,12 @@ func (t *tunneler) writeOne(tun tunnel) error {
 	// Publish for upsert/delete single tunnel cases. The DeleteAll case
 	// publishes its own updates above since it returns multiple rows.
 	if err == nil && tun.dst != uuid.Nil {
-		publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
+		op := proto.TailnetTunnelUpdate_OP_UPSERT
+		if !tun.active {
+			op = proto.TailnetTunnelUpdate_OP_DELETE
+		}
+		publishTunnelUpdate(t.ctx, t.pubsub, t.logger,
+			tun.src, tun.dst, t.coordinatorID, op)
 	}
 	return err
 }
@@ -1663,12 +1709,40 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
 		return
 	}
+	// Try the enriched proto payload first. PG NOTIFY transport
+	// base64-encodes the raw proto, so attempt that decode before
+	// trying raw bytes (forward-compat with the binary-safe NATS
+	// transport). On decode failure we fall back to today's CSV
+	// "src,dst" parser so older publishers and corrupted payloads
+	// still trigger a full-query refresh.
+	if enriched, ok := tryDecodeEnrichedTunnelUpdate(msg); ok {
+		var src, dst, coord uuid.UUID
+		copy(src[:], enriched.GetSrcId())
+		copy(dst[:], enriched.GetDstId())
+		copy(coord[:], enriched.GetCoordinatorId())
+		op := enriched.GetOp()
+		q.logger.Debug(q.ctx, "got enriched tunnel update",
+			slog.F("src_id", src), slog.F("dst_id", dst),
+			slog.F("coordinator_id", coord), slog.F("op", op.String()))
+		switch op {
+		case proto.TailnetTunnelUpdate_OP_DELETE:
+			q.handleTunnelDelete(src, dst, coord)
+		default:
+			// OP_UPSERT and OP_UNSPECIFIED (defensive) keep today's
+			// behavior: enqueue mappingQ so the bindings query runs.
+			// The publishing replica may not host the dst peer, so we
+			// cannot synthesize the mapping from the payload alone.
+			q.enqueueTunnelMapping(src, dst)
+		}
+		return
+	}
+
 	peers, err := parseTunnelUpdate(string(msg))
 	if err != nil {
 		q.logger.Error(q.ctx, "failed to parse tunnel update", slog.F("msg", string(msg)), slog.Error(err))
 		return
 	}
-	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers))
+	q.logger.Debug(q.ctx, "got tunnel update (fallback)", slog.F("peers", peers))
 	for _, peer := range peers {
 		mk := mKey(peer)
 		q.mu.Lock()
@@ -1680,6 +1754,65 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 			continue
 		}
 		q.mappingQ.enqueue(mk)
+	}
+}
+
+// enqueueTunnelMapping enqueues a mappingQ refresh for whichever of (src,
+// dst) we host a mapper for. This is the UPSERT path: we do not yet know
+// if the publishing replica hosts the relevant peer, so we still run
+// GetTailnetTunnelPeerBindingsBatch to fetch the latest bindings.
+func (q *querier) enqueueTunnelMapping(src, dst uuid.UUID) {
+	for _, peer := range [...]uuid.UUID{src, dst} {
+		mk := mKey(peer)
+		q.mu.Lock()
+		_, ok := q.mappers[mk]
+		q.mu.Unlock()
+		if !ok {
+			q.logger.Debug(q.ctx, "ignoring tunnel update because we have no mapper",
+				slog.F("peer_id", peer))
+			continue
+		}
+		q.mappingQ.enqueue(mk)
+	}
+}
+
+// handleTunnelDelete synthesizes a DISCONNECTED enriched mapping for the
+// (src, dst) pair and dispatches it directly to the affected mapper(s),
+// skipping GetTailnetTunnelPeerBindingsBatch. The mapper's existing
+// disconnect handling on m.enriched removes the peer from its snapshot.
+// If the mapper.enriched send would block we fall back to mappingQ so
+// the update is not dropped.
+func (q *querier) handleTunnelDelete(src, dst, coord uuid.UUID) {
+	type pair struct {
+		mapperPeer uuid.UUID // mapper we want to notify.
+		removePeer uuid.UUID // peer to drop from that mapper's snapshot.
+	}
+	pairs := [...]pair{
+		{mapperPeer: src, removePeer: dst},
+		{mapperPeer: dst, removePeer: src},
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, p := range pairs {
+		mk := mKey(p.mapperPeer)
+		mpr, ok := q.mappers[mk]
+		if !ok {
+			continue
+		}
+		mpng := mapping{
+			peer:        p.removePeer,
+			coordinator: coord,
+			updatedAt:   time.Now().UTC(),
+			kind:        proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
+		}
+		// Best-effort non-blocking send; mapper.run drives this
+		// channel, but if it is busy we fall back to a full mapping
+		// query so the update is not dropped.
+		select {
+		case mpr.enriched <- mpng:
+		default:
+			q.mappingQ.enqueue(mk)
+		}
 	}
 }
 
@@ -1865,6 +1998,47 @@ func tryDecodeEnrichedPeerUpdate(msg []byte) (*proto.TailnetPeerUpdate, bool) {
 	if raw, err := base64.StdEncoding.DecodeString(string(msg)); err == nil {
 		if pu, ok := tryUnmarshal(raw); ok {
 			return pu, true
+		}
+	}
+	return tryUnmarshal(msg)
+}
+
+// tryDecodeEnrichedTunnelUpdate attempts to decode a TailnetTunnelUpdate
+// proto from a pubsub message. The PG transport base64-encodes the
+// proto bytes (PG NOTIFY only carries valid UTF-8); the NATS transport
+// will deliver raw proto bytes. We try base64 first, then raw, and
+// validate that the decoded message has the required fields. Returns
+// (nil, false) when the payload is missing, malformed, or looks like a
+// legacy CSV "src,dst" update so the caller can fall back.
+func tryDecodeEnrichedTunnelUpdate(msg []byte) (*proto.TailnetTunnelUpdate, bool) {
+	if len(msg) == 0 {
+		return nil, false
+	}
+	tryUnmarshal := func(b []byte) (*proto.TailnetTunnelUpdate, bool) {
+		if len(b) == 0 {
+			return nil, false
+		}
+		var tu proto.TailnetTunnelUpdate
+		if err := gProto.Unmarshal(b, &tu); err != nil {
+			return nil, false
+		}
+		// Validate required fields. A legacy CSV payload may happen to
+		// unmarshal into an empty proto, so we require src_id, dst_id,
+		// and coordinator_id to be valid UUID-length byte slices.
+		if len(tu.GetSrcId()) != len(uuid.UUID{}) {
+			return nil, false
+		}
+		if len(tu.GetDstId()) != len(uuid.UUID{}) {
+			return nil, false
+		}
+		if len(tu.GetCoordinatorId()) != len(uuid.UUID{}) {
+			return nil, false
+		}
+		return &tu, true
+	}
+	if raw, err := base64.StdEncoding.DecodeString(string(msg)); err == nil {
+		if tu, ok := tryUnmarshal(raw); ok {
+			return tu, true
 		}
 	}
 	return tryUnmarshal(msg)
@@ -2471,7 +2645,10 @@ func (h *heartbeats) cleanup() {
 		h.logger.Error(h.ctx, "failed to cleanup abandoned tunnels", slog.Error(err))
 	}
 	for _, tun := range deletedTunnels {
-		publishTunnelUpdate(h.ctx, h.pubsub, h.logger, tun.SrcID, tun.DstID)
+		// tun.CoordinatorID is the expired coordinator's ID, NOT h.self.
+		publishTunnelUpdate(h.ctx, h.pubsub, h.logger,
+			tun.SrcID, tun.DstID, tun.CoordinatorID,
+			proto.TailnetTunnelUpdate_OP_DELETE)
 	}
 	h.logger.Debug(h.ctx, "completed cleanup")
 }

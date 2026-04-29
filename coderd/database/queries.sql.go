@@ -21306,12 +21306,13 @@ WHERE updated_at < now() - INTERVAL '24 HOURS' AND
         SELECT 1 FROM tailnet_peers
         WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
       )
-RETURNING src_id, dst_id
+RETURNING coordinator_id, src_id, dst_id
 `
 
 type CleanTailnetTunnelsRow struct {
-	SrcID uuid.UUID `db:"src_id" json:"src_id"`
-	DstID uuid.UUID `db:"dst_id" json:"dst_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
+	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
 }
 
 func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) ([]CleanTailnetTunnelsRow, error) {
@@ -21323,7 +21324,7 @@ func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) ([]CleanTailnetTun
 	var items []CleanTailnetTunnelsRow
 	for rows.Next() {
 		var i CleanTailnetTunnelsRow
-		if err := rows.Scan(&i.SrcID, &i.DstID); err != nil {
+		if err := rows.Scan(&i.CoordinatorID, &i.SrcID, &i.DstID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

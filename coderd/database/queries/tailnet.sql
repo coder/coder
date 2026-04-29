@@ -30,7 +30,7 @@ WHERE updated_at < now() - INTERVAL '24 HOURS' AND
         SELECT 1 FROM tailnet_peers
         WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
       )
-RETURNING src_id, dst_id;
+RETURNING coordinator_id, src_id, dst_id;
 
 -- name: UpsertTailnetPeer :one
 INSERT INTO
