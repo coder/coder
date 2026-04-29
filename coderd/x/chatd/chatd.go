@@ -2104,7 +2104,7 @@ func (p *Server) PromoteQueued(
 		// reorder the queued row so the worker's auto-promote picks
 		// it up after the persist.
 		heartbeatFresh := lockedChat.HeartbeatAt.Valid &&
-			time.Since(lockedChat.HeartbeatAt.Time) < p.inFlightChatStaleAfter
+			p.clock.Now().Sub(lockedChat.HeartbeatAt.Time) < p.inFlightChatStaleAfter
 		if lockedChat.Status == database.ChatStatusRunning && heartbeatFresh {
 			rowsAffected, err := tx.ReorderChatQueuedMessageToFront(ctx, database.ReorderChatQueuedMessageToFrontParams{
 				ChatID:   opts.ChatID,
@@ -8132,7 +8132,7 @@ func formatPlanPathBlock(chatPath, home string) string {
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
-	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
+	staleAfter := p.clock.Now().Add(-p.inFlightChatStaleAfter)
 	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
 	if err != nil {
 		p.logger.Error(ctx, "failed to get stale chats", slog.Error(err))
@@ -8232,15 +8232,16 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 			}
 
 			if locked.Status == database.ChatStatusWaiting {
-				// Same stops-dead guard as the finishActiveChat
-				// external-Waiting case: if the assistant has
-				// unresolved dynamic tool calls, the LLM rejects
-				// the next turn unless we close them first.
+				// Stops-dead guard: if the assistant has unresolved
+				// dynamic tool calls, the LLM rejects the next turn
+				// unless we close them first. Propagate any error
+				// so the chat stays Waiting and the next recovery
+				// tick retries; warn+continue here would promote
+				// despite incomplete history and reach Pending
+				// (non-terminal), reintroducing the stops-dead bug
+				// via the recovery path.
 				if synthErr := insertSyntheticToolResultsTx(ctx, tx, locked, "Tool execution interrupted by queued message promotion"); synthErr != nil {
-					p.logger.Warn(ctx, "failed to insert synthetic tool results during stale recovery",
-						slog.F("chat_id", chat.ID),
-						slog.Error(synthErr),
-					)
+					return xerrors.Errorf("insert synthetic tool results during stale recovery: %w", synthErr)
 				}
 				promoted, _, _, promoteErr := p.tryAutoPromoteQueuedMessage(ctx, tx, locked)
 				if promoteErr != nil {
@@ -8298,11 +8299,25 @@ func insertSyntheticToolResultsTx(
 		return nil
 	}
 
-	// Get the last assistant message to find pending tool calls.
+	// Get the last assistant message to find pending tool calls. No
+	// assistant means there is nothing to close: a deferred promote
+	// can race a worker that fails before persisting any assistant
+	// content, and the cleanup TX must still advance.
+	//
+	// dbauthz.NotAuthorizedError unwraps to sql.ErrNoRows, so this
+	// branch also masks an authz failure. Every current caller wraps
+	// this helper in InTx after locking the chat via
+	// GetChatByIDForUpdate (or runs in a system context for stale
+	// recovery), so an authz failure cannot reach this code path. A
+	// future caller adding the helper to a less-privileged path must
+	// re-evaluate.
 	lastAssistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 		ChatID: chat.ID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
 		return xerrors.Errorf("get last assistant message: %w", err)
 	}

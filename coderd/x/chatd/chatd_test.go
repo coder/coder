@@ -10089,21 +10089,12 @@ func TestPromoteQueuedWhileRunning(t *testing.T) {
 		}
 	}, testutil.IntervalFast)
 
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		return got.Status == database.ChatStatusWaiting && !got.WorkerID.Valid
-	}, testutil.IntervalFast)
-
 	// Partial assistant output is preserved (not lost as it was
-	// pre-fix) and precedes the promoted user message. The chat
-	// status reaching waiting is necessary but not sufficient: the
-	// status flips when PromoteQueued's TX commits, before
-	// finishActiveChat persists the partial output and runs the
-	// auto-promote. Poll on the messages themselves so this test
-	// doesn't race the persist+auto-promote pipeline under load.
+	// pre-fix) and precedes the promoted user message. Poll on the
+	// messages themselves: the status passes through Waiting
+	// transiently before finishActiveChat's external-Waiting case
+	// promotes the queued message and flips the chat to Pending.
+	// Both messages being persisted implies cleanup completed.
 	var (
 		partialAssistantID int64
 		promotedUserID     int64
@@ -10963,4 +10954,174 @@ func nullRawMessage(raw []byte) pqtype.NullRawMessage {
 		return pqtype.NullRawMessage{}
 	}
 	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+}
+
+// TestInsertSyntheticToolResultsTxReturnsNilWhenNoAssistantMessage
+// covers AMREM-5: a deferred promote can race a worker that fails
+// before persisting any assistant content. The cleanup TX must still
+// advance, so the helper short-circuits with no error when there is
+// no assistant message to inspect.
+func TestInsertSyntheticToolResultsTxReturnsNilWhenNoAssistantMessage(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user, org, model := seedChatDependencies(t, db)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "my_dynamic_tool",
+		Description: "A test dynamic tool.",
+		InputSchema: mcpgo.ToolInputSchema{Type: "object", Properties: map[string]any{}},
+	}})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		Title:             "no-assistant-message",
+		LastModelConfigID: model.ID,
+		DynamicTools:      nullRawMessage(dynamicToolsJSON),
+	})
+	require.NoError(t, err)
+
+	// No assistant message persisted. The helper must return nil so
+	// the caller's transaction can still advance.
+	require.NoError(t, chatd.InsertSyntheticToolResultsTxForTest(
+		ctx, db, chat, "no assistant",
+	))
+}
+
+// TestRecoverStaleChatsWaitingPropagatesSynthError covers DEREM-15:
+// when synthetic tool result insertion fails during stale recovery,
+// the branch must propagate the error so the chat stays in Waiting
+// for the next recovery tick instead of promoting despite incomplete
+// history (which would reach Pending and reach the LLM as broken
+// history, reintroducing the stops-dead bug via the recovery path).
+func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
+	t.Parallel()
+
+	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	staleAfter := 100 * time.Millisecond
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     staleAfter,
+	})
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	user, org, model := seedChatDependencies(t, db)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "my_dynamic_tool",
+		Description: "A test dynamic tool.",
+		InputSchema: mcpgo.ToolInputSchema{Type: "object", Properties: map[string]any{}},
+	}})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		Title:             "stale-waiting-synth-error",
+		LastModelConfigID: model.ID,
+		DynamicTools:      nullRawMessage(dynamicToolsJSON),
+	})
+	require.NoError(t, err)
+
+	insertUserTextMessage(t, db, chat.ID, user.ID, model.ID, "user input")
+
+	// Persist an assistant message with malformed content so
+	// chatprompt.ParseContent fails inside the helper. This is the
+	// closest deterministic injection of a synth-results error
+	// without mocking the store. Force a parse failure by setting an
+	// unsupported ContentVersion; the bytes are valid JSON so the
+	// jsonb column accepts the row, but ParseContent returns an
+	// "unsupported content version" error inside
+	// insertSyntheticToolResultsTx.
+	//
+	// Load-bearing assumption: chat_messages.content_version has no
+	// CHECK constraint today. If a future migration restricts the
+	// allowed versions, InsertChatMessages will reject this row and
+	// the test will fail at the insert site. Switch to a mock store
+	// in that case.
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{model.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		ContentVersion:      []int16{99},
+		Content:             []string{`{}`},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued-not-promoted-on-synth-error"),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        chat.ID,
+		Content:       queuedContent.RawMessage,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = rawDB.ExecContext(ctx,
+		"UPDATE chats SET updated_at = $1 WHERE id = $2",
+		time.Now().Add(-time.Hour), chat.ID)
+	require.NoError(t, err)
+
+	chatd.RecoverStaleChatsForTest(ctx, server)
+
+	got, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, got.Status,
+		"recovery must leave the chat in Waiting when synth-results fails so the next tick retries")
+
+	// The queued message must still be in the queue, not promoted.
+	remaining, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, remaining, 1,
+		"queued message must not be promoted when synth-results fails")
+
+	// No promoted user message should appear in history.
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		if parseErr != nil {
+			continue
+		}
+		for _, part := range parts {
+			require.NotEqual(t, "queued-not-promoted-on-synth-error", part.Text,
+				"queued message must not be promoted when synth-results fails")
+		}
+	}
 }
