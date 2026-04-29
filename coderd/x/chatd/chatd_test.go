@@ -6184,14 +6184,14 @@ func insertUserTextMessage(
 	userID uuid.UUID,
 	modelConfigID uuid.UUID,
 	text string,
-	contextLimits ...int64,
+	contextLimit ...int64,
 ) []database.ChatMessage {
 	t.Helper()
-	require.LessOrEqual(t, len(contextLimits), 1)
+	require.LessOrEqual(t, len(contextLimit), 1)
 
-	contextLimit := int64(0)
-	if len(contextLimits) == 1 {
-		contextLimit = contextLimits[0]
+	contextLimitValue := int64(0)
+	if len(contextLimit) == 1 {
+		contextLimitValue = contextLimit[0]
 	}
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
@@ -6210,7 +6210,7 @@ func insertUserTextMessage(
 		ReasoningTokens:     []int64{0},
 		CacheCreationTokens: []int64{0},
 		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{contextLimit},
+		ContextLimit:        []int64{contextLimitValue},
 		Compressed:          []bool{false},
 		TotalCostMicros:     []int64{0},
 		RuntimeMs:           []int64{0},
