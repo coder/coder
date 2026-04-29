@@ -1304,6 +1304,27 @@
 				]
 			}
 		},
+		"/experimental/chats/watch": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Watch chat events for a user via WebSockets",
+				"operationId": "watch-chat-events-for-a-user-via-websockets",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatWatchEvent"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/experimental/chats/{chat}": {
 			"get": {
 				"produces": ["application/json"],
@@ -1554,6 +1575,99 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.EditChatMessageResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/experimental/chats/{chat}/stream": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Stream chat events via WebSockets",
+				"operationId": "stream-chat-events-via-websockets",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.ChatStreamEvent"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/experimental/chats/{chat}/stream/desktop": {
+			"get": {
+				"produces": ["application/octet-stream"],
+				"tags": ["Chats"],
+				"summary": "Connect to chat workspace desktop via WebSockets",
+				"operationId": "connect-to-chat-workspace-desktop-via-websockets",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"101": {
+						"description": "Switching Protocols"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/experimental/chats/{chat}/stream/git": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Watch chat workspace git state via WebSockets",
+				"operationId": "watch-chat-workspace-git-state-via-websockets",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
 						}
 					}
 				},
@@ -14334,6 +14448,206 @@
 				"ChatStatusRequiresAction"
 			]
 		},
+		"codersdk.ChatStreamActionRequired": {
+			"type": "object",
+			"properties": {
+				"tool_calls": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatStreamToolCall"
+					}
+				}
+			}
+		},
+		"codersdk.ChatStreamError": {
+			"type": "object",
+			"properties": {
+				"detail": {
+					"description": "Detail is optional provider-specific context shown alongside the\nnormalized error message when available.",
+					"type": "string"
+				},
+				"kind": {
+					"description": "Kind classifies the error for consistent client rendering.",
+					"type": "string"
+				},
+				"message": {
+					"description": "Message is the normalized, user-facing error message.",
+					"type": "string"
+				},
+				"provider": {
+					"description": "Provider identifies the upstream model provider when known.",
+					"type": "string"
+				},
+				"retryable": {
+					"description": "Retryable reports whether the underlying error is transient.",
+					"type": "boolean"
+				},
+				"status_code": {
+					"description": "StatusCode is the best-effort upstream HTTP status code.",
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatStreamEvent": {
+			"type": "object",
+			"properties": {
+				"action_required": {
+					"$ref": "#/definitions/codersdk.ChatStreamActionRequired"
+				},
+				"chat_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"error": {
+					"$ref": "#/definitions/codersdk.ChatStreamError"
+				},
+				"message": {
+					"$ref": "#/definitions/codersdk.ChatMessage"
+				},
+				"message_part": {
+					"$ref": "#/definitions/codersdk.ChatStreamMessagePart"
+				},
+				"queued_messages": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatQueuedMessage"
+					}
+				},
+				"retry": {
+					"$ref": "#/definitions/codersdk.ChatStreamRetry"
+				},
+				"status": {
+					"$ref": "#/definitions/codersdk.ChatStreamStatus"
+				},
+				"type": {
+					"$ref": "#/definitions/codersdk.ChatStreamEventType"
+				}
+			}
+		},
+		"codersdk.ChatStreamEventType": {
+			"type": "string",
+			"enum": [
+				"message_part",
+				"message",
+				"status",
+				"error",
+				"queue_update",
+				"retry",
+				"action_required"
+			],
+			"x-enum-varnames": [
+				"ChatStreamEventTypeMessagePart",
+				"ChatStreamEventTypeMessage",
+				"ChatStreamEventTypeStatus",
+				"ChatStreamEventTypeError",
+				"ChatStreamEventTypeQueueUpdate",
+				"ChatStreamEventTypeRetry",
+				"ChatStreamEventTypeActionRequired"
+			]
+		},
+		"codersdk.ChatStreamMessagePart": {
+			"type": "object",
+			"properties": {
+				"part": {
+					"$ref": "#/definitions/codersdk.ChatMessagePart"
+				},
+				"role": {
+					"$ref": "#/definitions/codersdk.ChatMessageRole"
+				}
+			}
+		},
+		"codersdk.ChatStreamRetry": {
+			"type": "object",
+			"properties": {
+				"attempt": {
+					"description": "Attempt is the 1-indexed retry attempt number.",
+					"type": "integer"
+				},
+				"delay_ms": {
+					"description": "DelayMs is the backoff delay in milliseconds before the retry.",
+					"type": "integer"
+				},
+				"error": {
+					"description": "Error is the normalized error message from the failed attempt.",
+					"type": "string"
+				},
+				"kind": {
+					"description": "Kind classifies the retry reason for consistent client rendering.",
+					"type": "string"
+				},
+				"provider": {
+					"description": "Provider identifies the upstream model provider when known.",
+					"type": "string"
+				},
+				"retrying_at": {
+					"description": "RetryingAt is the timestamp when the retry will be attempted.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"status_code": {
+					"description": "StatusCode is the best-effort upstream HTTP status code.",
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatStreamStatus": {
+			"type": "object",
+			"properties": {
+				"status": {
+					"$ref": "#/definitions/codersdk.ChatStatus"
+				}
+			}
+		},
+		"codersdk.ChatStreamToolCall": {
+			"type": "object",
+			"properties": {
+				"args": {
+					"type": "string"
+				},
+				"tool_call_id": {
+					"type": "string"
+				},
+				"tool_name": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ChatWatchEvent": {
+			"type": "object",
+			"properties": {
+				"chat": {
+					"$ref": "#/definitions/codersdk.Chat"
+				},
+				"kind": {
+					"$ref": "#/definitions/codersdk.ChatWatchEventKind"
+				},
+				"tool_calls": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatStreamToolCall"
+					}
+				}
+			}
+		},
+		"codersdk.ChatWatchEventKind": {
+			"type": "string",
+			"enum": [
+				"status_change",
+				"title_change",
+				"created",
+				"deleted",
+				"diff_status_change",
+				"action_required"
+			],
+			"x-enum-varnames": [
+				"ChatWatchEventKindStatusChange",
+				"ChatWatchEventKindTitleChange",
+				"ChatWatchEventKindCreated",
+				"ChatWatchEventKindDeleted",
+				"ChatWatchEventKindDiffStatusChange",
+				"ChatWatchEventKindActionRequired"
+			]
+		},
 		"codersdk.ConnectionLatency": {
 			"type": "object",
 			"properties": {
@@ -22114,6 +22428,35 @@
 				"WorkspaceAgentDevcontainerStatusError"
 			]
 		},
+		"codersdk.WorkspaceAgentGitServerMessage": {
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string"
+				},
+				"repositories": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkspaceAgentRepoChanges"
+					}
+				},
+				"scanned_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"type": {
+					"$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessageType"
+				}
+			}
+		},
+		"codersdk.WorkspaceAgentGitServerMessageType": {
+			"type": "string",
+			"enum": ["changes", "error"],
+			"x-enum-varnames": [
+				"WorkspaceAgentGitServerMessageTypeChanges",
+				"WorkspaceAgentGitServerMessageTypeError"
+			]
+		},
 		"codersdk.WorkspaceAgentHealth": {
 			"type": "object",
 			"properties": {
@@ -22310,6 +22653,26 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.WorkspaceAgentPortShare"
 					}
+				}
+			}
+		},
+		"codersdk.WorkspaceAgentRepoChanges": {
+			"type": "object",
+			"properties": {
+				"branch": {
+					"type": "string"
+				},
+				"remote_origin": {
+					"type": "string"
+				},
+				"removed": {
+					"type": "boolean"
+				},
+				"repo_root": {
+					"type": "string"
+				},
+				"unified_diff": {
+					"type": "string"
 				}
 			}
 		},

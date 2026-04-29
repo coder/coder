@@ -3063,6 +3063,600 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------------------------------------------------------------------------|
 | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
 
+## codersdk.ChatStreamActionRequired
+
+```json
+{
+  "tool_calls": [
+    {
+      "args": "string",
+      "tool_call_id": "string",
+      "tool_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
+
+## codersdk.ChatStreamError
+
+```json
+{
+  "detail": "string",
+  "kind": "string",
+  "message": "string",
+  "provider": "string",
+  "retryable": true,
+  "status_code": 0
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description                                                                                               |
+|---------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
+| `detail`      | string  | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available. |
+| `kind`        | string  | false    |              | Kind classifies the error for consistent client rendering.                                                |
+| `message`     | string  | false    |              | Message is the normalized, user-facing error message.                                                     |
+| `provider`    | string  | false    |              | Provider identifies the upstream model provider when known.                                               |
+| `retryable`   | boolean | false    |              | Retryable reports whether the underlying error is transient.                                              |
+| `status_code` | integer | false    |              | Status code is the best-effort upstream HTTP status code.                                                 |
+
+## codersdk.ChatStreamEvent
+
+```json
+{
+  "action_required": {
+    "tool_calls": [
+      {
+        "args": "string",
+        "tool_call_id": "string",
+        "tool_name": "string"
+      }
+    ]
+  },
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "error": {
+    "detail": "string",
+    "kind": "string",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "role": "system",
+    "usage": {
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "context_limit": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "message_part": {
+    "part": {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    },
+    "role": "system"
+  },
+  "queued_messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    }
+  ],
+  "retry": {
+    "attempt": 0,
+    "delay_ms": 0,
+    "error": "string",
+    "kind": "string",
+    "provider": "string",
+    "retrying_at": "2019-08-24T14:15:22Z",
+    "status_code": 0
+  },
+  "status": {
+    "status": "waiting"
+  },
+  "type": "message_part"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                   | Required | Restrictions | Description |
+|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
+| `chat_id`         | string                                                                 | false    |              |             |
+| `error`           | [codersdk.ChatStreamError](#codersdkchatstreamerror)                   | false    |              |             |
+| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
+| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
+| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
+| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
+| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
+
+## codersdk.ChatStreamEventType
+
+```json
+"message_part"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                 |
+|------------------------------------------------------------------------------------------|
+| `action_required`, `error`, `message`, `message_part`, `queue_update`, `retry`, `status` |
+
+## codersdk.ChatStreamMessagePart
+
+```json
+{
+  "part": {
+    "args": [
+      0
+    ],
+    "args_delta": "string",
+    "content": "string",
+    "context_file_agent_id": {
+      "uuid": "string",
+      "valid": true
+    },
+    "context_file_content": "string",
+    "context_file_directory": "string",
+    "context_file_os": "string",
+    "context_file_path": "string",
+    "context_file_skill_meta_file": "string",
+    "context_file_truncated": true,
+    "created_at": "2019-08-24T14:15:22Z",
+    "data": [
+      0
+    ],
+    "end_line": 0,
+    "file_id": {
+      "uuid": "string",
+      "valid": true
+    },
+    "file_name": "string",
+    "is_error": true,
+    "is_media": true,
+    "mcp_server_config_id": {
+      "uuid": "string",
+      "valid": true
+    },
+    "media_type": "string",
+    "name": "string",
+    "provider_executed": true,
+    "provider_metadata": [
+      0
+    ],
+    "result": [
+      0
+    ],
+    "result_delta": "string",
+    "signature": "string",
+    "skill_description": "string",
+    "skill_dir": "string",
+    "skill_name": "string",
+    "source_id": "string",
+    "start_line": 0,
+    "text": "string",
+    "title": "string",
+    "tool_call_id": "string",
+    "tool_name": "string",
+    "type": "text",
+    "url": "string"
+  },
+  "role": "system"
+}
+```
+
+### Properties
+
+| Name   | Type                                                 | Required | Restrictions | Description |
+|--------|------------------------------------------------------|----------|--------------|-------------|
+| `part` | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `role` | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+
+## codersdk.ChatStreamRetry
+
+```json
+{
+  "attempt": 0,
+  "delay_ms": 0,
+  "error": "string",
+  "kind": "string",
+  "provider": "string",
+  "retrying_at": "2019-08-24T14:15:22Z",
+  "status_code": 0
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description                                                       |
+|---------------|---------|----------|--------------|-------------------------------------------------------------------|
+| `attempt`     | integer | false    |              | Attempt is the 1-indexed retry attempt number.                    |
+| `delay_ms`    | integer | false    |              | Delay ms is the backoff delay in milliseconds before the retry.   |
+| `error`       | string  | false    |              | Error is the normalized error message from the failed attempt.    |
+| `kind`        | string  | false    |              | Kind classifies the retry reason for consistent client rendering. |
+| `provider`    | string  | false    |              | Provider identifies the upstream model provider when known.       |
+| `retrying_at` | string  | false    |              | Retrying at is the timestamp when the retry will be attempted.    |
+| `status_code` | integer | false    |              | Status code is the best-effort upstream HTTP status code.         |
+
+## codersdk.ChatStreamStatus
+
+```json
+{
+  "status": "waiting"
+}
+```
+
+### Properties
+
+| Name     | Type                                       | Required | Restrictions | Description |
+|----------|--------------------------------------------|----------|--------------|-------------|
+| `status` | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |             |
+
+## codersdk.ChatStreamToolCall
+
+```json
+{
+  "args": "string",
+  "tool_call_id": "string",
+  "tool_name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `args`         | string | false    |              |             |
+| `tool_call_id` | string | false    |              |             |
+| `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatWatchEvent
+
+```json
+{
+  "chat": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "archived": true,
+    "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+    "children": [
+      {}
+    ],
+    "client_type": "ui",
+    "created_at": "2019-08-24T14:15:22Z",
+    "diff_status": {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    },
+    "files": [
+      {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "mime_type": "string",
+        "name": "string",
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      }
+    ],
+    "has_unread": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "labels": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "last_error": "string",
+    "last_injected_context": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "mcp_server_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+    "pin_order": 0,
+    "plan_mode": "plan",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "waiting",
+    "title": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "warnings": [
+      "string"
+    ],
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
+  "kind": "status_change",
+  "tool_calls": [
+    {
+      "args": "string",
+      "tool_call_id": "string",
+      "tool_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `chat`       | [codersdk.Chat](#codersdkchat)                                      | false    |              |             |
+| `kind`       | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |             |
+| `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
+
+## codersdk.ChatWatchEventKind
+
+```json
+"status_change"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `title_change` |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -13532,6 +14126,48 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-------------------------------------------------------------------|
 | `deleting`, `error`, `running`, `starting`, `stopped`, `stopping` |
 
+## codersdk.WorkspaceAgentGitServerMessage
+
+```json
+{
+  "message": "string",
+  "repositories": [
+    {
+      "branch": "string",
+      "remote_origin": "string",
+      "removed": true,
+      "repo_root": "string",
+      "unified_diff": "string"
+    }
+  ],
+  "scanned_at": "2019-08-24T14:15:22Z",
+  "type": "changes"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                       | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `message`      | string                                                                                     | false    |              |             |
+| `repositories` | array of [codersdk.WorkspaceAgentRepoChanges](#codersdkworkspaceagentrepochanges)          | false    |              |             |
+| `scanned_at`   | string                                                                                     | false    |              |             |
+| `type`         | [codersdk.WorkspaceAgentGitServerMessageType](#codersdkworkspaceagentgitservermessagetype) | false    |              |             |
+
+## codersdk.WorkspaceAgentGitServerMessageType
+
+```json
+"changes"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)           |
+|--------------------|
+| `changes`, `error` |
+
 ## codersdk.WorkspaceAgentHealth
 
 ```json
@@ -13810,6 +14446,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name     | Type                                                                          | Required | Restrictions | Description |
 |----------|-------------------------------------------------------------------------------|----------|--------------|-------------|
 | `shares` | array of [codersdk.WorkspaceAgentPortShare](#codersdkworkspaceagentportshare) | false    |              |             |
+
+## codersdk.WorkspaceAgentRepoChanges
+
+```json
+{
+  "branch": "string",
+  "remote_origin": "string",
+  "removed": true,
+  "repo_root": "string",
+  "unified_diff": "string"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `branch`        | string  | false    |              |             |
+| `remote_origin` | string  | false    |              |             |
+| `removed`       | boolean | false    |              |             |
+| `repo_root`     | string  | false    |              |             |
+| `unified_diff`  | string  | false    |              |             |
 
 ## codersdk.WorkspaceAgentScript
 

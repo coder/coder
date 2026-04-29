@@ -159,6 +159,14 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Watch chat events for a user via WebSockets
+// @ID watch-chat-events-for-a-user-via-websockets
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatWatchEvent
+// @Router /experimental/chats/watch [get]
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -1876,6 +1884,15 @@ func (api *API) authorizeChatWorkspaceExec(
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Watch chat workspace git state via WebSockets
+// @ID watch-chat-workspace-git-state-via-websockets
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceAgentGitServerMessage
+// @Router /experimental/chats/{chat}/stream/git [get]
+//
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -2020,6 +2037,15 @@ proxyLoop:
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Connect to chat workspace desktop via WebSockets
+// @ID connect-to-chat-workspace-desktop-via-websockets
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce application/octet-stream
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 101
+// @Router /experimental/chats/{chat}/stream/desktop [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
@@ -2931,6 +2957,15 @@ func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Stream chat events via WebSockets
+// @ID stream-chat-events-via-websockets
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {array} codersdk.ChatStreamEvent
+// @Router /experimental/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
