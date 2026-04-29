@@ -1,0 +1,120 @@
+package nats
+
+import (
+	"crypto/tls"
+	"time"
+)
+
+// PublishMode controls when Publish returns.
+type PublishMode int
+
+const (
+	// PublishModeFlush publishes and then FlushTimeouts the connection.
+	PublishModeFlush PublishMode = iota
+
+	// PublishModeBuffered publishes to the NATS client buffer and returns.
+	PublishModeBuffered
+)
+
+// PendingLimits configures per-subscription NATS pending limits.
+type PendingLimits struct {
+	// Msgs is the per-subscription pending message limit.
+	// Zero keeps the NATS client default. Negative disables this limit.
+	Msgs int
+
+	// Bytes is the per-subscription pending byte limit.
+	// Zero keeps the NATS client default. Negative disables this limit.
+	Bytes int
+}
+
+// Options configures the embedded NATS Pubsub.
+type Options struct {
+	// ServerName is the stable NATS server name. If empty, New derives one.
+	ServerName string
+
+	// ClientName is the NATS client name used by the embedded pubsub
+	// connection. If empty, New derives one from ServerName.
+	ClientName string
+
+	// ClusterName is the NATS cluster name. If empty, use DefaultClusterName.
+	ClusterName string
+
+	// PeerProvider returns startup cluster peers. Empty peers means
+	// standalone.
+	PeerProvider PeerProvider
+
+	// ClusterToken is required when PeerProvider returns any peers. It is
+	// applied to NATS route authentication.
+	ClusterToken string
+
+	// ClusterTLSConfig enables TLS for route connections when non-nil.
+	// Nil means plaintext routes protected only by ClusterToken.
+	ClusterTLSConfig *tls.Config
+
+	// ClusterHost is the local route listener bind host in cluster mode.
+	// If empty, use "127.0.0.1" for tests and non-wired package usage.
+	ClusterHost string
+
+	// ClusterPort is the local route listener port in cluster mode.
+	// Zero means choose an available port where NATS supports random bind.
+	ClusterPort int
+
+	// ClusterAdvertise is the host:port peers should use to reach this
+	// server. In integration, set this to the replica route address, not a
+	// load balancer.
+	ClusterAdvertise string
+
+	// RoutePoolSize is pinned in all replicas. Zero means
+	// DefaultRoutePoolSize.
+	RoutePoolSize int
+
+	// MaxPayload is the NATS max payload. Zero means server default.
+	MaxPayload int32
+
+	// PublishMode defaults to PublishModeFlush.
+	PublishMode PublishMode
+
+	// PublishFlushTimeout bounds PublishModeFlush. Zero means
+	// DefaultPublishFlushLimit.
+	PublishFlushTimeout time.Duration
+
+	// DrainTimeout bounds subscription and connection drains in Close.
+	// Zero means 30 seconds, matching the NATS Go client default.
+	DrainTimeout time.Duration
+
+	// PendingLimits configures per-subscription NATS pending limits.
+	// Zero values keep NATS defaults.
+	PendingLimits PendingLimits
+
+	// NoEcho disables receiving messages published by the same connection.
+	// The default false preserves existing pubsub semantics.
+	NoEcho bool
+
+	// ConnectTimeout bounds the initial client connection. Zero means 2
+	// seconds.
+	ConnectTimeout time.Duration
+
+	// ReadyTimeout bounds embedded server startup. Zero means
+	// DefaultReadyTimeout.
+	ReadyTimeout time.Duration
+
+	// ReconnectWait controls client reconnect delay. Zero keeps NATS
+	// default.
+	ReconnectWait time.Duration
+
+	// MaxReconnects controls client reconnect attempts. Zero keeps NATS
+	// default. Negative means retry forever, following nats.go semantics.
+	MaxReconnects int
+
+	// NoServerLog disables routing embedded server logs into logger.
+	NoServerLog bool
+}
+
+// Default values for Options.
+const (
+	DefaultClusterName       = "coder"
+	DefaultSubjectPrefix     = "coder.v1"
+	DefaultRoutePoolSize     = 3
+	DefaultReadyTimeout      = 10 * time.Second
+	DefaultPublishFlushLimit = 2 * time.Second
+)
