@@ -5561,7 +5561,7 @@ func TestPassiveServerDoesNotProcess(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	server := newTestServer(t, db, ps, uuid.New())
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
