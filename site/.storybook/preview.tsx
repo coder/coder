@@ -53,8 +53,8 @@ export const parameters: Parameters = {
 			// Approximates a 1440x900 desktop viewed at 200% browser zoom,
 			// which collapses the CSS viewport to 720x450. Used by stories
 			// that verify the desktop layout still renders at common zoom
-			// levels. The AgentsPage empty state flips to the mobile stack
-			// at the Tailwind sm: breakpoint (640 px), so 720 px must stay
+			// levels. Below the Tailwind sm: breakpoint (640 px), the
+			// AgentsPage collapses into the mobile stack, so 720 px stays
 			// on the desktop branch.
 			desktopZoom200: {
 				name: "Desktop @ 200% zoom (720x450)",

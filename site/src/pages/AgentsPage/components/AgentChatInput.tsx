@@ -718,7 +718,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -927,10 +927,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											onWorkspaceChange &&
 											// isBelowMdViewport() intentionally uses the md:
 											// breakpoint (768 px) to match the full-width
-											// dropdown CSS in index.css. The AgentsPage layout
-											// uses sm: (640 px) so that 200% zoom on common
-											// desktops stays on the desktop branch. See
-											// PR #24699 for the rationale before unifying these.
+											// dropdown CSS in index.css. The page shell and
+											// navigation controls switch to desktop at sm:
+											// (640 px), but the chat pane is still narrow at
+											// 640 to 767 px after the sidebar is visible, so
+											// dropdowns stay full-width in that range.
 											(isBelowMdViewport() ? (
 												<button
 													type="button"
@@ -1083,7 +1084,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							/>
 						)}
 						{planModeEnabled && (
-							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary md:inline-flex">
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
 								<PencilIcon className="size-3" />
 								Planning
 								{onPlanModeToggle && (
@@ -1102,7 +1103,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
 						{workspace && workspaceAgent && chatId && (
-							<span className="ml-1 md:ml-0">
+							<span className="ml-1 sm:ml-0">
 								<WorkspacePill
 									workspace={workspace}
 									agent={workspaceAgent}

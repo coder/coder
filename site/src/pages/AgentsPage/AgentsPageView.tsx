@@ -157,11 +157,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	return (
 		<div
-			data-testid="agents-page-outer"
+			data-testid="agents-page-layout"
 			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 		>
 			<title>{pageTitle("Agents")}</title>
 			<div
+				data-testid="agents-sidebar-panel"
 				className={cn(
 					"sm:h-full sm:w-[320px] sm:min-h-0 sm:border-b-0",
 					agentId
@@ -204,6 +205,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				/>
 			</div>
 			<div
+				data-testid="agents-main-panel"
 				className={cn(
 					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
 					isSettingsIndex ? "hidden sm:flex" : "flex",

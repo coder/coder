@@ -470,12 +470,52 @@ export const EmptyStateZoom200Desktop: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const outer = await canvas.findByTestId("agents-page-outer");
+		const layout = await canvas.findByTestId("agents-page-layout");
+		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
+		const main = await canvas.findByTestId("agents-main-panel");
 
 		await waitFor(() => {
-			const styles = getComputedStyle(outer);
-			expect(styles.flexDirection).toBe("row");
+			const layoutStyles = getComputedStyle(layout);
+			const sidebarStyles = getComputedStyle(sidebar);
+			const mainStyles = getComputedStyle(main);
+			const sidebarRect = sidebar.getBoundingClientRect();
+			const mainRect = main.getBoundingClientRect();
+
+			expect(layoutStyles.flexDirection).toBe("row");
+			expect(sidebarStyles.display).not.toBe("none");
+			expect(mainStyles.display).toBe("flex");
+			expect(sidebarRect.width).toBeGreaterThan(0);
+			expect(mainRect.width).toBeGreaterThan(0);
+			expect(sidebarRect.left).toBeLessThan(mainRect.left);
+			expect(sidebarRect.right).toBeLessThanOrEqual(mainRect.left + 1);
 		});
+
+		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: /TestUser/ }),
+		).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200Desktop: Story = {
+	args: {
+		isSidebarCollapsed: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
 	},
 };
 
