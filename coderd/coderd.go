@@ -1982,6 +1982,12 @@ func New(options *Options) *API {
 			r.Post("/test", api.postTestNotification)
 			r.Post("/custom", api.postCustomNotification)
 		})
+		r.Route("/boundary", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Route("/sessions/{id}", func(r chi.Router) {
+				r.Get("/", api.boundarySessionByID)
+			})
+		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
