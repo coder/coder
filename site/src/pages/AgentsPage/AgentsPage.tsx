@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -23,6 +23,7 @@ import {
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
+	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
@@ -63,6 +64,7 @@ const AgentsPage: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
 	const { agentId } = useParams();
 	const { permissions } = useAuthenticated();
 	const { appearance } = useDashboard();
@@ -246,6 +248,7 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
 		onError: (error: unknown) => {
@@ -321,7 +324,7 @@ const AgentsPage: FC = () => {
 					: undefined,
 			)
 		) {
-			navigate("/agents");
+			navigate({ pathname: "/agents", search: location.search });
 		}
 	};
 
@@ -438,7 +441,7 @@ const AgentsPage: FC = () => {
 		return promise;
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
-		const result = await API.experimental.proposeChatTitle(chatId);
+		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {
@@ -454,7 +457,7 @@ const AgentsPage: FC = () => {
 		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
-		navigate("/agents");
+		navigate({ pathname: "/agents", search: location.search });
 	};
 
 	useEffect(() => {

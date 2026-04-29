@@ -20,6 +20,14 @@ const ChildSearchProbe = () => {
 	return <div data-testid="child-search">{location.search}</div>;
 };
 
+// Probe element used by the settings-link preservation story to surface the
+// state.from value passed when navigating to settings.
+const SettingsStateProbe = () => {
+	const location = useLocation();
+	const from = (location.state as { from?: string })?.from ?? "";
+	return <div data-testid="settings-state-from">{from}</div>;
+};
+
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
 		id: "openai:gpt-4o",
@@ -1592,5 +1600,45 @@ export const SettingsAPIKeysNonAdmin: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Secrets (API keys)" }),
 		).toBeInTheDocument();
+	},
+};
+
+export const PreservesArchivedFilterOnSettingsNavigation: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-settings-1",
+				title: "Archived settings target",
+				archived: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+		archivedFilter: "archived",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: [
+				{
+					path: "/agents/settings",
+					element: <SettingsStateProbe />,
+				},
+				...agentsRouting,
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const settingsLink = await canvas.findByLabelText("Settings");
+		await userEvent.click(settingsLink);
+		await waitFor(() => {
+			const fromValue =
+				canvas.getByTestId("settings-state-from").textContent ?? "";
+			expect(fromValue).toContain("/agents");
+			expect(fromValue).toContain("archived=archived");
+		});
 	},
 };

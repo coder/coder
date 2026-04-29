@@ -11,7 +11,13 @@ import {
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation, useOutletContext } from "react-router";
+import {
+	Link,
+	NavLink,
+	type To,
+	useLocation,
+	useOutletContext,
+} from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
@@ -33,7 +39,7 @@ interface AgentPageHeaderProps {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the settings/analytics nav buttons. */
-	mobileBack?: { to: string; label: string };
+	mobileBack?: { to: To; label: string };
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
 	webPush?: ReturnType<typeof useWebpushNotifications>;
@@ -167,13 +173,18 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
 					>
 						<DropdownMenuItem asChild>
-							<Link to="/agents/settings" state={{ from: location.pathname }}>
+							<Link
+								to="/agents/settings"
+								state={{ from: location.pathname + location.search }}
+							>
 								<SettingsIcon className="size-icon-sm" />
 								Settings
 							</Link>
 						</DropdownMenuItem>
 						<DropdownMenuItem asChild>
-							<Link to="/agents/analytics">
+							<Link
+								to={{ pathname: "/agents/analytics", search: location.search }}
+							>
 								<BarChart3Icon className="size-icon-sm" />
 								Analytics
 							</Link>

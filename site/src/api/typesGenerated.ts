@@ -3108,6 +3108,10 @@ export interface CreateUserRequestWithOrgs {
 	 * Service accounts are admin-managed accounts that cannot login.
 	 */
 	readonly service_account?: boolean;
+	/**
+	 * Roles is an optional list of site-level roles to assign at creation.
+	 */
+	readonly roles?: readonly string[];
 }
 
 // From codersdk/usersecrets.go

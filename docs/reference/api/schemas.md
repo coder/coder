@@ -2747,6 +2747,9 @@ This is required on creation to enable a user-flow of validating a template work
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "password": "string",
+  "roles": [
+    "string"
+  ],
   "service_account": true,
   "user_status": "active",
   "username": "string"
@@ -2762,6 +2765,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `name`             | string                                     | false    |              |                                                                                     |
 | `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
 | `password`         | string                                     | false    |              |                                                                                     |
+| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                |
 | `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
