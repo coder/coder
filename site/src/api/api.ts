@@ -3115,11 +3115,14 @@ class ExperimentalApiMethods {
 	};
 	getChatMessages = async (
 		chatId: string,
-		opts?: { before_id?: number; limit?: number },
+		opts?: { before_id?: number; after_id?: number; limit?: number },
 	): Promise<TypesGen.ChatMessagesResponse> => {
 		const params = new URLSearchParams();
 		if (opts?.before_id) {
 			params.set("before_id", opts.before_id.toString());
+		}
+		if (opts?.after_id) {
+			params.set("after_id", opts.after_id.toString());
 		}
 		if (opts?.limit) {
 			params.set("limit", opts.limit.toString());
@@ -3257,20 +3260,22 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatExploreModelOverride =
-		async (): Promise<TypesGen.ChatExploreModelOverrideResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatExploreModelOverrideResponse>(
-					"/api/experimental/chats/config/explore-model-override",
-				);
-			return response.data;
-		};
+	getChatAgentModelOverride = async (
+		context: TypesGen.ChatAgentModelOverrideContext,
+	): Promise<TypesGen.ChatAgentModelOverrideResponse> => {
+		const response =
+			await this.axios.get<TypesGen.ChatAgentModelOverrideResponse>(
+				`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
+			);
+		return response.data;
+	};
 
-	updateChatExploreModelOverride = async (
-		req: TypesGen.UpdateChatExploreModelOverrideRequest,
+	updateChatAgentModelOverride = async (
+		context: TypesGen.ChatAgentModelOverrideContext,
+		req: TypesGen.UpdateChatAgentModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			"/api/experimental/chats/config/explore-model-override",
+			`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
 			req,
 		);
 	};
@@ -3375,6 +3380,24 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatRetentionDaysRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/retention-days", req);
+	};
+
+	getChatAutoArchiveDays =
+		async (): Promise<TypesGen.ChatAutoArchiveDaysResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatAutoArchiveDaysResponse>(
+					"/api/experimental/chats/config/auto-archive-days",
+				);
+			return response.data;
+		};
+
+	updateChatAutoArchiveDays = async (
+		req: TypesGen.UpdateChatAutoArchiveDaysRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/auto-archive-days",
+			req,
+		);
 	};
 
 	updateChatTemplateAllowlist = async (

@@ -281,7 +281,7 @@ function getClipboardCopyContent(
 	organization: string,
 	buttonValues: ButtonValues | undefined,
 ): string {
-	const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+	const deploymentUrl = `${location.protocol}//${location.host}`;
 	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
 	const createWorkspaceParams = new URLSearchParams(buttonValues);
 	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;

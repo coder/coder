@@ -188,7 +188,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="end"
-							className="[&_[role=menuitem]]:text-[13px]"
+							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
 						>
 							{!isArchived && onRegenerateTitle && (
 								<>

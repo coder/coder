@@ -241,7 +241,25 @@ absent when all files are linked successfully.
 
 `GET /api/experimental/chats/{chat}/messages`
 
-Returns the messages and queued messages for a chat.
+Returns messages for a chat in descending ID order (newest first).
+
+| Query parameter | Type    | Required | Description                                 |
+|-----------------|---------|----------|---------------------------------------------|
+| `before_id`     | `int64` | no       | Only return messages with `id < before_id`. |
+| `after_id`      | `int64` | no       | Only return messages with `id > after_id`.  |
+| `limit`         | `int32` | no       | Page size, 1 to 200. Defaults to 50.        |
+
+Results are returned in descending ID order (newest first), except when
+only `after_id` is set: that shape is intended for polling and returns
+ASCENDING ID order so a client can advance its cursor to the largest
+returned ID without gaps. When both cursors are set they must satisfy
+`after_id < before_id`; otherwise the server returns `400 Bad Request`.
+
+`queued_messages` is only populated on the initial load (no
+cursor). Pass either cursor to page through history or to poll
+for new messages without receiving the queued snapshot on every
+request. The `has_more` flag indicates more rows exist beyond
+this page in the same direction.
 
 ### List models
 
@@ -326,8 +344,38 @@ appear in the `files` field on subsequent
 
 | Status            | Meaning                                                                      |
 |-------------------|------------------------------------------------------------------------------|
-| `waiting`         | No pending work (newly created, finished, or interrupted).                   |
+| `waiting`         | Idle. Newly created, finished successfully, or interrupted.                  |
 | `pending`         | Queued for processing.                                                       |
 | `running`         | Agent is actively working.                                                   |
+| `paused`          | Agent is paused (for example, waiting for user input).                       |
+| `completed`       | Agent finished and the task is complete.                                     |
 | `error`           | Agent encountered an error.                                                  |
 | `requires_action` | Agent invoked a client-provided tool and needs the result before continuing. |
+
+## Configuration
+
+Deployment-wide chat settings are read and written under
+`/api/experimental/chats/config/*`. Reading config requires authentication; writing requires
+deployment-admin privileges.
+
+### Auto-archive window
+
+Chats whose newest non-deleted message is older than
+`auto_archive_days` are automatically archived by a background job.
+Pinned chats and chats belonging to a still-active thread are
+exempt. `0` disables the feature; the default is 90.
+
+```sh
+# Read
+curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  https://coder.example.com/api/experimental/chats/config/auto-archive-days
+# { "auto_archive_days": 90 }
+
+# Update
+curl -X PUT -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"auto_archive_days": 60}' \
+  https://coder.example.com/api/experimental/chats/config/auto-archive-days
+```
+
+Accepted range: `0` to `3650` (~10 years).

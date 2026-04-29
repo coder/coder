@@ -218,18 +218,20 @@ func (ms *mockUpstream) writeSSE(w http.ResponseWriter, data []byte) {
 		return
 	}
 
-	// Write line-by-line to simulate SSE events arriving incrementally
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		_, err := fmt.Fprintf(w, "%s\n", scanner.Text())
-		if eventstream.IsConnError(err) {
-			return // client disconnected, stop writing
+	// Write line-by-line to simulate SSE events arriving incrementally.
+	// SplitAfter keeps the line endings so fixture bytes (LF or CRLF) replay verbatim.
+	for _, line := range bytes.SplitAfter(data, []byte("\n")) {
+		if len(line) == 0 {
+			continue
 		}
-		require.NoError(ms.t, err)
+		if _, err := w.Write(line); err != nil {
+			if eventstream.IsConnError(err) {
+				return // client disconnected, stop writing
+			}
+			require.NoError(ms.t, err)
+		}
 		flusher.Flush()
 	}
-	require.NoError(ms.t, scanner.Err())
 }
 
 // isRawHTTPResponse returns true if data starts with "HTTP/", indicating

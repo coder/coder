@@ -1,10 +1,10 @@
 import {
+	ArrowLeftIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
-	XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
@@ -154,8 +154,19 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				{/* Tab bar – always visible for the expand button. */}
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
+					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 				>
+					{onClose && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={onClose}
+							aria-label="Close panel"
+							className="h-7 w-7 shrink-0 lg:hidden"
+						>
+							<ArrowLeftIcon />
+						</Button>
+					)}
 					<div className="min-w-0 shrink-0 text-center">
 						{isExpanded && chatTitle && (
 							<span className="truncate text-sm text-content-primary">
@@ -163,17 +174,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							</span>
 						)}
 					</div>
-					{onClose && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onClose}
-							aria-label="Close panel"
-							className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:hidden"
-						>
-							<XIcon />
-						</Button>
-					)}
 					<Button
 						variant="subtle"
 						size="icon"
@@ -196,8 +196,20 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 			{/* Tab bar */}
 			<div
 				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
+				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 			>
+				{/* Back button (mobile), placed before the tab strip */}
+				{onClose && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onClose}
+						aria-label="Close panel"
+						className="h-7 w-7 shrink-0 lg:hidden"
+					>
+						<ArrowLeftIcon />
+					</Button>
+				)}
 				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
 					<Button
@@ -296,18 +308,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					</div>
 				)}
-				{/* Right side: close (mobile) / expand (desktop) */}
-				{onClose && (
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={onClose}
-						aria-label="Close panel"
-						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:hidden"
-					>
-						<XIcon />
-					</Button>
-				)}
+				{/* Expand/collapse (desktop only) */}
 				<Button
 					variant="subtle"
 					size="icon"

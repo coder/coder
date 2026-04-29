@@ -253,9 +253,13 @@ func TestScanDeltaEmission(t *testing.T) {
 	require.NotNil(t, msg1)
 	require.Len(t, msg1.Repositories, 1)
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes. Should emit a heartbeat with a
+	// fresh ScannedAt but no repositories. This lets the UI's
+	// "checked Ns ago" label stay honest on an idle clean repo.
 	msg2 := h.Scan(ctx)
-	require.Nil(t, msg2, "no changes since last scan should return nil")
+	require.NotNil(t, msg2, "heartbeat should fire even with no delta")
+	require.NotNil(t, msg2.ScannedAt)
+	require.Empty(t, msg2.Repositories, "heartbeat must not report per-repo changes")
 
 	// Revert the dirty file (make repo clean).
 	require.NoError(t, os.Remove(dirtyFile))
@@ -267,6 +271,59 @@ func TestScanDeltaEmission(t *testing.T) {
 
 	// The file was reverted, so it should no longer appear in the diff.
 	require.NotContains(t, msg3.Repositories[0].UnifiedDiff, "dirty.go")
+}
+
+// TestScanHeartbeatOnCleanRepo pins the heartbeat contract: while any
+// repo is subscribed, every scan emits a non-nil message with a fresh
+// ScannedAt, even when no repo produced a delta. The UI's
+// "checked Ns ago" label depends on this so an idle clean repo does
+// not drift while the agent is still polling.
+func TestScanHeartbeatOnCleanRepo(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+
+	h := agentgit.NewHandler(logger)
+	require.True(t, h.Subscribe([]string{repoDir}))
+	ctx := context.Background()
+
+	// First scan on a clean repo captures branch/remote/empty-diff.
+	msg1 := h.Scan(ctx)
+	require.NotNil(t, msg1)
+	require.NotNil(t, msg1.ScannedAt)
+	require.Len(t, msg1.Repositories, 1)
+	require.Empty(t, msg1.Repositories[0].UnifiedDiff)
+	firstScanAt := *msg1.ScannedAt
+
+	// Second scan: no delta, but heartbeat must still advance
+	// ScannedAt so clients can render an honest "checked Ns ago".
+	msg2 := h.Scan(ctx)
+	require.NotNil(t, msg2, "heartbeat should fire on a no-delta scan")
+	require.NotNil(t, msg2.ScannedAt)
+	require.Empty(t, msg2.Repositories, "heartbeat carries no per-repo changes")
+	require.False(t, msg2.ScannedAt.Before(firstScanAt),
+		"heartbeat ScannedAt must not go backwards")
+
+	// Third scan: also a heartbeat. Still non-nil, still empty.
+	msg3 := h.Scan(ctx)
+	require.NotNil(t, msg3)
+	require.Empty(t, msg3.Repositories)
+}
+
+// TestScanNoHeartbeatWithoutSubscribedRoots pins that the heartbeat
+// only fires when there is at least one subscribed repo. Before any
+// subscribe call, Scan() must still short-circuit to nil so the
+// WebSocket handler does not spam empty messages to a client that
+// has not registered any paths yet.
+func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	h := agentgit.NewHandler(logger)
+
+	msg := h.Scan(context.Background())
+	require.Nil(t, msg, "no subscribed roots should mean no heartbeat")
 }
 
 func TestScanDeltaDetectsContentChanges(t *testing.T) {
@@ -291,9 +348,10 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 
 	require.Contains(t, msg1.Repositories[0].UnifiedDiff, "README.md")
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes: heartbeat, no repositories.
 	msg2 := h.Scan(ctx)
-	require.Nil(t, msg2, "no changes since last scan should return nil")
+	require.NotNil(t, msg2, "heartbeat should fire even with no delta")
+	require.Empty(t, msg2.Repositories)
 
 	// Now modify the SAME file further (still "Modified" status, but
 	// different content).
@@ -318,9 +376,10 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 
 	require.Contains(t, msg4.Repositories[0].UnifiedDiff, "untracked.go")
 
-	// No changes — should return nil.
+	// No changes: heartbeat, no repositories.
 	msg5 := h.Scan(ctx)
-	require.Nil(t, msg5, "no changes since last scan should return nil")
+	require.NotNil(t, msg5, "heartbeat should fire even with no delta")
+	require.Empty(t, msg5.Repositories)
 
 	// Modify the untracked file further.
 	require.NoError(t, os.WriteFile(untrackedPath, []byte("package main\n\nfunc init() {}\n"), 0o600))
@@ -875,7 +934,7 @@ func TestFallbackPollTriggersScan(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "poll.go"), []byte("package poll\n"), 0o600))
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoDir, "poll.go")})
 
-	// Only the 30s fallback poll can trigger scans (no filesystem
+	// Only the fallback poll can trigger scans (no filesystem
 	// watcher).
 	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
 	ch := stream.Chan()
@@ -887,9 +946,9 @@ func TestFallbackPollTriggersScan(t *testing.T) {
 	// Add a new dirty file so the next scan has a delta to report.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "poll2.go"), []byte("package poll\n"), 0o600))
 
-	// Advance to the 30s fallback poll interval. This should
-	// trigger a scan without any explicit refresh.
-	mClock.Advance(30 * time.Second).MustWait(context.Background())
+	// Advance to the fallback poll interval. This should trigger a
+	// scan without any explicit refresh.
+	mClock.Advance(5 * time.Second).MustWait(context.Background())
 
 	msg2 := recvMsg(ctx, t, ch)
 	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg2.Type)
@@ -1002,9 +1061,10 @@ func TestScanLargeFileDeltaTracking(t *testing.T) {
 	msg1 := h.Scan(ctx)
 	require.NotNil(t, msg1)
 
-	// Second scan with no changes — should return nil (no delta).
+	// Second scan with no changes: heartbeat, no repositories.
 	msg2 := h.Scan(ctx)
-	require.Nil(t, msg2, "no changes should mean no delta")
+	require.NotNil(t, msg2, "heartbeat should fire even with no delta")
+	require.Empty(t, msg2.Repositories, "no delta means no repo entries")
 
 	// Remove the large file — should emit a clean delta.
 	require.NoError(t, os.Remove(largeFile))
@@ -1421,4 +1481,195 @@ func TestE2E_RepoDeletionEmitsRemoved(t *testing.T) {
 		}
 	}
 	require.True(t, foundRemoved, "expected repo %s to be marked as removed", repoDir)
+}
+
+// TestRunLoopExitsPromptlyOnCancel_DuringPoll pins that RunLoop
+// returns quickly when its context is cancelled while it is blocked
+// on the fallback poll ticker. Regression guard for the fallback
+// interval: if a future change introduces a non-cancellable wait
+// here, this test will hang and fail.
+func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	mClock := quartz.NewMock(t)
+	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	// Trap NewTicker so the test can synchronize on RunLoop's
+	// ticker creation rather than racing against it with a
+	// best-effort Advance.
+	tickerTrap := mClock.Trap().NewTicker()
+	defer tickerTrap.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.RunLoop(ctx, func() {})
+	}()
+
+	// Wait until RunLoop has actually called clock.NewTicker, then
+	// release the trap so the ticker is installed. At this point
+	// RunLoop is deterministically inside its select, blocked on
+	// <-ticker.C / <-scanTrigger / <-ctx.Done().
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("RunLoop did not return within WaitShort after ctx cancel")
+	}
+}
+
+// TestRunLoopExitsPromptlyOnCancel_DuringCooldown pins that RunLoop
+// returns quickly when its context is cancelled while a
+// rateLimitedScan is sleeping out the cooldown between scans.
+// Regression guard: all waits inside the cooldown path must select
+// on ctx.Done().
+func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+	mClock := quartz.NewMock(t)
+	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
+
+	// Subscribe a real repo so Scan() actually does work and, on
+	// completion, updates lastScanAt. Without this, Scan() early-
+	// returns on empty roots and the cooldown branch never arms.
+	require.True(t, h.Subscribe([]string{repoDir}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	// Trap NewTicker (for RunLoop) and NewTimer (for the cooldown
+	// wait inside rateLimitedScan) so the test synchronizes on each
+	// wait point instead of racing against goroutine scheduling.
+	tickerTrap := mClock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	timerTrap := mClock.Trap().NewTimer()
+	defer timerTrap.Close()
+
+	scanStarted := make(chan struct{}, 1)
+	blocked := make(chan struct{})
+	scanFn := func() {
+		// Run a real Scan so lastScanAt is set by the handler;
+		// that is the precondition for the cooldown branch.
+		_ = h.Scan(ctx)
+		select {
+		case scanStarted <- struct{}{}:
+		default:
+		}
+		// Block until the test releases us, mimicking a slow
+		// follow-up scan that parks RunLoop inside rateLimitedScan.
+		<-blocked
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.RunLoop(ctx, scanFn)
+	}()
+
+	// Release the fallback ticker so RunLoop enters its select.
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+
+	// First trigger: consumed immediately (lastScanAt is zero).
+	// scanFn runs Scan() (which sets lastScanAt), signals
+	// scanStarted, then blocks on <-blocked.
+	h.RequestScan()
+	<-scanStarted
+
+	// Release the first scan; RunLoop loops back to select.
+	close(blocked)
+
+	// Fire a second trigger. Because lastScanAt is fresh (set by
+	// the real Scan above), rateLimitedScan enters its cooldown
+	// wait and calls clock.NewTimer. The trap blocks the goroutine
+	// inside that call until we release it, so we know exactly
+	// when it is sitting on the cooldown select.
+	h.RequestScan()
+	timerCall := timerTrap.MustWait(ctx)
+
+	// Cancel while the goroutine is still paused inside NewTimer.
+	// Release the trap; rateLimitedScan then enters the select on
+	// the cooldown timer vs. ctx.Done(), and ctx.Done() is already
+	// ready so it wins. MustRelease uses Background because the
+	// test ctx is the one we just cancelled.
+	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer releaseCancel()
+	cancel()
+	timerCall.MustRelease(releaseCtx)
+
+	select {
+	case <-done:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("RunLoop did not return within WaitShort after ctx cancel during cooldown")
+	}
+}
+
+// TestFallbackPollSkipsWhenRecentlyScanned pins the RunLoop optimization
+// that swallows a fallback tick when a trigger-driven scan already
+// covered the last fallback interval. Without the skip, a busy chat
+// (agent editing + PathStore notifications) would pay the full fallback
+// scan cost on top of trigger-driven scans.
+func TestFallbackPollSkipsWhenRecentlyScanned(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	repoDir := initTestRepo(t)
+	mClock := quartz.NewMock(t)
+
+	ps := agentgit.NewPathStore()
+	chatID := uuid.New()
+
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "a.go"), []byte("package a\n"), 0o600))
+	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoDir, "a.go")})
+
+	stream := dialGitWatchWithPathStore(t, ps, chatID, agentgit.WithClock(mClock))
+	ch := stream.Chan()
+
+	// Consume the initial scan from subscribe.
+	msg1 := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg1.Type)
+
+	// A trigger-driven scan within the fallback interval should
+	// cause the next fallback tick to be skipped. Advance part-way
+	// to the 5s tick, fire a notification to trigger a scan, then
+	// advance the rest of the way to the tick. The tick should be
+	// swallowed because lastScanAt is recent.
+	mClock.Advance(4 * time.Second).MustWait(context.Background())
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "a.go"), []byte("package a\n// edit\n"), 0o600))
+	ps.Notify([]uuid.UUID{chatID})
+
+	// Consume the trigger-driven scan. lastScanAt is now ~t=4s.
+	msg2 := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg2.Type)
+
+	// Dirty the tree further so the fallback tick would have
+	// something to emit if it were not skipped.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "b.go"), []byte("package b\n"), 0o600))
+
+	// Advance to the 5s ticker boundary. The tick fires but is
+	// skipped because Since(lastScanAt) = 1s < fallbackPollInterval.
+	mClock.Advance(1 * time.Second).MustWait(context.Background())
+
+	// Confirm no scan arrived for the skipped tick.
+	select {
+	case msg := <-ch:
+		t.Fatalf("unexpected scan after skipped fallback tick: %+v", msg)
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	// Advance to the next ticker boundary (t=10s). lastScanAt is
+	// ~4s, so Since = 6s >= fallbackPollInterval and the tick
+	// should no longer be skipped.
+	mClock.Advance(5 * time.Second).MustWait(context.Background())
+
+	msg3 := recvMsg(ctx, t, ch)
+	require.Equal(t, codersdk.WorkspaceAgentGitServerMessageTypeChanges, msg3.Type)
 }

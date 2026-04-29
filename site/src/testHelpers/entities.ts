@@ -374,6 +374,16 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
+export const MockAgentsAccessRole: TypesGen.Role = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -4793,6 +4803,20 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			method: "",
 			kind: "system",
 			enabled_by_default: false,
+		},
+		{
+			id: "764031be-4863-4220-867b-6ce1a1b7a5f5",
+			name: "Chats Auto-Archived",
+			title_template:
+				"Chats auto-archived after {{.Data.auto_archive_days}} days of inactivity",
+			body_template:
+				'The following chats were automatically archived:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}',
+			actions:
+				'[{"label": "View chats", "url": "{{base_url}}/agents?archived=archived"}]',
+			group: "Chat Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
 		},
 	];
 

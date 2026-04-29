@@ -67,7 +67,7 @@ function getSubagentLabel(
 ): React.ReactNode {
 	if (showDesktopPreview && toolStatus === "running") {
 		return (
-			<Shimmer as="span" className="text-sm">
+			<Shimmer as="span" className="text-[13px]">
 				Using the computer...
 			</Shimmer>
 		);
@@ -79,8 +79,7 @@ function getSubagentLabel(
 	) {
 		return (
 			<>
-				Used the computer{" "}
-				<span className="text-content-secondary opacity-60">{title}</span>
+				Used the computer <span className="opacity-60">{title}</span>
 			</>
 		);
 	}
@@ -94,7 +93,7 @@ function getSubagentLabel(
 	return (
 		<>
 			{SUBAGENT_VERBS[descriptor.action][phase]}
-			<span className="text-content-secondary opacity-60">{title}</span>
+			<span className="opacity-60">{title}</span>
 		</>
 	);
 }
@@ -124,22 +123,20 @@ const SubagentStatusIcon: React.FC<{
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
-		return <ClockIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
+		return <ClockIcon className="h-4 w-4 shrink-0 text-current" />;
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
-		return <CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
+		return <CircleXIcon className="h-4 w-4 shrink-0 text-current" />;
 	}
 	if (toolStatus === "running") {
 		if (showDesktopPreview) {
-			return (
-				<MonitorIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-			);
+			return <MonitorIcon className="h-4 w-4 shrink-0 text-current" />;
 		}
 		return (
 			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
 	}
-	return <DefaultIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
+	return <DefaultIcon className="h-4 w-4 shrink-0 text-current" />;
 };
 
 /**
@@ -199,7 +196,8 @@ export const SubagentTool: React.FC<{
 				className={cn(
 					"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
 					"flex w-full items-center gap-2",
-					hasExpandableContent && "cursor-pointer",
+					"text-content-secondary transition-colors",
+					hasExpandableContent && "cursor-pointer hover:text-content-primary",
 				)}
 			>
 				<SubagentStatusIcon
@@ -210,7 +208,7 @@ export const SubagentTool: React.FC<{
 					iconKind={descriptor.iconKind}
 					showDesktopPreview={showDesktopPreview}
 				/>{" "}
-				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
+				<span className="min-w-0 truncate text-[13px]">
 					{getSubagentLabel(
 						showDesktopPreview,
 						toolStatus,
@@ -229,18 +227,18 @@ export const SubagentTool: React.FC<{
 						</Link>
 					)}
 				</span>
-				{durationLabel && (
-					<span className="shrink-0 text-xs text-content-secondary">
-						{`Worked for ${durationLabel}`}
-					</span>
-				)}
 				{hasExpandableContent && (
 					<ChevronDownIcon
 						className={cn(
-							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							"h-3 w-3 shrink-0 text-current transition-transform",
 							expanded ? "rotate-0" : "-rotate-90",
 						)}
 					/>
+				)}
+				{durationLabel && (
+					<span className="ml-auto shrink-0 text-xs">
+						{`Worked for ${durationLabel}`}
+					</span>
 				)}
 			</button>
 

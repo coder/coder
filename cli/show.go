@@ -41,7 +41,7 @@ func (r *RootCmd) show() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("get server version: %w", err)
 			}
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}

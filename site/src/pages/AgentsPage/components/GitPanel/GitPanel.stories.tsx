@@ -339,3 +339,53 @@ export const LargeDiff: Story = {
 		]),
 	},
 };
+
+/**
+ * Regression: when a repo was dirty during this session and then went
+ * clean (empty unified_diff), the tab must remain visible. Before the
+ * ever-dirty fix, the tab vanished the moment the diff became empty,
+ * which is what users saw as "diff disappears between edit_files".
+ */
+export const EverDirtyRepoGoneClean: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(["/home/coder/coder"]),
+	},
+	play: async ({ canvasElement }) => {
+		// The repo tab is still present (identified by the 'Working'
+		// prefix used by GitPanel's tab-strip button) even though the
+		// current diff is empty, because it was dirty earlier in the
+		// session.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(1);
+
+		// The content pane shows the diff viewer's empty-diff state.
+		expect(canvasElement.textContent ?? "").toContain("No file changes");
+	},
+};
+
+/**
+ * Baseline: a repo reported clean from the start (never dirty in
+ * this session) has no tab. Ensures the ever-dirty fix did not
+ * regress the "nothing to show" case.
+ */
+export const CleanRepoFromStart: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(),
+	},
+	play: async ({ canvasElement }) => {
+		// No local repo tab should appear in the tab strip. The
+		// 'Working' prefix is GitPanel's tab-strip label contract.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(0);
+	},
+};

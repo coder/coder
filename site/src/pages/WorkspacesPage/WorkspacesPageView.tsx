@@ -22,7 +22,6 @@ import {
 import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
 import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "#/utils/workspace";
@@ -99,14 +98,14 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-					<Stack direction="row" spacing={1} alignItems="center">
+					<div className="flex flex-row gap-2 items-center">
 						<span>Workspaces</span>
 						<WorkspaceHelpPopover />
-					</Stack>
+					</div>
 				</PageHeaderTitle>
 			</PageHeader>
 
-			<Stack>
+			<div className="flex flex-col gap-4">
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
@@ -118,7 +117,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					userMenu={filterState.menus.user}
 					organizationsMenu={filterState.menus.organizations}
 				/>
-			</Stack>
+			</div>
 
 			<TableToolbar>
 				{checkedWorkspaces.length > 0 ? (

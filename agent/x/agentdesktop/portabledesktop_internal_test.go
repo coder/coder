@@ -636,7 +636,9 @@ func TestPortableDesktop_StopRecording_ReturnsArtifact(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	rec := &recordedExecer{
 		scripts: map[string]string{
-			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			// Use exec so SIGINT is delivered directly to sleep
+			// and the process exits immediately. (See coder/internal#1462.)
+			"record": `exec sleep 120`,
 			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
 		},
 	}
@@ -680,7 +682,9 @@ func TestPortableDesktop_StopRecording_WithThumbnail(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	rec := &recordedExecer{
 		scripts: map[string]string{
-			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			// See TestPortableDesktop_StopRecording_ReturnsArtifact
+			// for why we use exec instead of trap+wait.
+			"record": `exec sleep 120`,
 			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
 		},
 	}

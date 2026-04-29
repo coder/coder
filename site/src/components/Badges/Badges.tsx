@@ -1,5 +1,4 @@
 import { Badge } from "#/components/Badge/Badge";
-import { Stack } from "#/components/Stack/Stack";
 
 export const EnabledBadge: React.FC = () => {
 	return (
@@ -51,8 +50,6 @@ export const DeprecatedBadge: React.FC = () => {
 
 export const Badges: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack className="mb-4" direction="row" alignItems="center" spacing={1}>
-			{children}
-		</Stack>
+		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
 	);
 };
