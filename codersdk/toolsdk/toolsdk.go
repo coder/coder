@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -451,6 +452,20 @@ type CreateWorkspaceArgs struct {
 	User                    string            `json:"user"`
 }
 
+// richParametersFromMap converts the map shape used on tool args into the
+// slice shape used on the wire. Iteration order is undefined, which is fine
+// because wsbuilder treats RichParameterValues as a set keyed by Name.
+func richParametersFromMap(m map[string]string) []codersdk.WorkspaceBuildParameter {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]codersdk.WorkspaceBuildParameter, 0, len(m))
+	for k, v := range m {
+		out = append(out, codersdk.WorkspaceBuildParameter{Name: k, Value: v})
+	}
+	return out
+}
+
 var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
 		Name: ToolNameCreateWorkspace,
@@ -539,18 +554,11 @@ be ready before trying to use or connect to the workspace.
 		if args.User == "" {
 			args.User = codersdk.Me
 		}
-		var buildParams []codersdk.WorkspaceBuildParameter
-		for k, v := range args.RichParameters {
-			buildParams = append(buildParams, codersdk.WorkspaceBuildParameter{
-				Name:  k,
-				Value: v,
-			})
-		}
 		req := codersdk.CreateWorkspaceRequest{
 			TemplateID:          tID,
 			TemplateVersionID:   tvID,
 			Name:                args.Name,
-			RichParameterValues: buildParams,
+			RichParameterValues: richParametersFromMap(args.RichParameters),
 		}
 		if tvPresetID != uuid.Nil {
 			req.TemplateVersionPresetID = tvPresetID
@@ -801,15 +809,22 @@ var GetAuthenticatedUser = Tool[NoArgs, codersdk.User]{
 }
 
 type CreateWorkspaceBuildArgs struct {
-	TemplateVersionID string `json:"template_version_id"`
-	Transition        string `json:"transition"`
-	WorkspaceID       string `json:"workspace_id"`
+	RichParameters          map[string]string `json:"rich_parameters,omitempty"`
+	TemplateVersionID       string            `json:"template_version_id"`
+	TemplateVersionPresetID string            `json:"template_version_preset_id,omitempty"`
+	Transition              string            `json:"transition"`
+	WorkspaceID             string            `json:"workspace_id"`
 }
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
 		Name: ToolNameCreateWorkspaceBuild,
 		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
+
+For start transitions, optionally pass template_version_preset_id to apply a
+preset (obtain available presets from coder_get_template), or rich_parameters
+to override individual parameter values. Both fields are rejected on stop and
+delete transitions because they are scoped to a starting build.
 
 After creating a workspace build, watch the build logs and wait for the
 workspace build to complete before trying to start another build or use or
@@ -829,6 +844,14 @@ connect to the workspace.
 					"type":        "string",
 					"description": "(Optional) The template version ID to use for the workspace build. If not provided, the previously built version will be used.",
 				},
+				"template_version_preset_id": map[string]any{
+					"type":        "string",
+					"description": "(Optional) ID of a template version preset to apply. Only valid for start transitions. Obtain available presets from coder_get_template. When set, the preset's parameter values take precedence over conflicting entries in rich_parameters.",
+				},
+				"rich_parameters": map[string]any{
+					"type":        "object",
+					"description": "(Optional) Key/value pairs of rich parameters to apply to the build. Only valid for start transitions.",
+				},
 			},
 			Required: []string{"workspace_id", "transition"},
 		},
@@ -839,19 +862,38 @@ connect to the workspace.
 		if err != nil {
 			return codersdk.WorkspaceBuild{}, xerrors.Errorf("workspace_id must be a valid UUID: %w", err)
 		}
-		var templateVersionID uuid.UUID
+		transition := codersdk.WorkspaceTransition(args.Transition)
+		// Presets and rich_parameters are scoped to a starting build;
+		// they have no meaning on stop or delete transitions. Surface
+		// both violations at once via errors.Join so agents fix them
+		// in a single round-trip instead of one tool call per error.
+		if transition != codersdk.WorkspaceTransitionStart {
+			var errs []error
+			if args.TemplateVersionPresetID != "" {
+				errs = append(errs, xerrors.New("template_version_preset_id is only valid for start transitions"))
+			}
+			if len(args.RichParameters) > 0 {
+				errs = append(errs, xerrors.New("rich_parameters is only valid for start transitions"))
+			}
+			if len(errs) > 0 {
+				return codersdk.WorkspaceBuild{}, errors.Join(errs...)
+			}
+		}
+		cbr := codersdk.CreateWorkspaceBuildRequest{
+			Transition:          transition,
+			RichParameterValues: richParametersFromMap(args.RichParameters),
+		}
 		if args.TemplateVersionID != "" {
-			tvID, err := uuid.Parse(args.TemplateVersionID)
+			cbr.TemplateVersionID, err = uuid.Parse(args.TemplateVersionID)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("template_version_id must be a valid UUID: %w", err)
 			}
-			templateVersionID = tvID
 		}
-		cbr := codersdk.CreateWorkspaceBuildRequest{
-			Transition: codersdk.WorkspaceTransition(args.Transition),
-		}
-		if templateVersionID != uuid.Nil {
-			cbr.TemplateVersionID = templateVersionID
+		if args.TemplateVersionPresetID != "" {
+			cbr.TemplateVersionPresetID, err = uuid.Parse(args.TemplateVersionPresetID)
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("template_version_preset_id must be a valid UUID: %w", err)
+			}
 		}
 		return deps.coderClient.CreateWorkspaceBuild(ctx, workspaceID, cbr)
 	},

@@ -385,6 +385,169 @@ func TestTools(t *testing.T) {
 			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
 			require.NoError(t, client.CancelWorkspaceBuild(ctx, rollbackBuild.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
+
+		t.Run("Start_WithPreset", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "start",
+				TemplateVersionPresetID: preset.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
+			require.Equal(t, r.Workspace.ID, result.WorkspaceID)
+			require.NotNil(t, result.TemplateVersionPresetID,
+				"build must record the preset ID supplied to create_workspace_build")
+			require.Equal(t, preset.ID, *result.TemplateVersionPresetID)
+
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("Start_WithRichParameters", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: a template version with one rich
+			// parameter, so rich_parameters has something to bind
+			// to. The shared `r` fixture has no parameters.
+			rpBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: rpBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:    rpBuild.Workspace.ID.String(),
+				Transition:     "start",
+				RichParameters: map[string]string{"region": "us-west-2"},
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
+
+			params, err := memberClient.WorkspaceBuildParameters(ctx, result.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value)
+
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("Start_WithPresetAndParams", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: a template version with a parameter
+			// and a preset that sets it. Asserts the documented
+			// override direction: when preset and rich_parameters
+			// conflict, the preset value wins. Mirrors the
+			// CreateWorkspace/WithPresetAndParams contract.
+			ovBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+			ovPreset := dbgen.Preset(t, store, database.InsertPresetParams{
+				TemplateVersionID: ovBuild.TemplateVersion.ID,
+				Name:              testutil.GetRandomNameHyphenated(t),
+				CreatedAt:         ovBuild.TemplateVersion.CreatedAt,
+				Description:       "Preset for build override test.",
+			})
+			dbgen.PresetParameter(t, store, database.InsertPresetParametersParams{
+				TemplateVersionPresetID: ovPreset.ID,
+				Names:                   []string{"region"},
+				Values:                  []string{"us-west-2"},
+			})
+
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             ovBuild.Workspace.ID.String(),
+				Transition:              "start",
+				TemplateVersionPresetID: ovPreset.ID.String(),
+				RichParameters:          map[string]string{"region": "us-east-1"},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, result.TemplateVersionPresetID)
+			require.Equal(t, ovPreset.ID, *result.TemplateVersionPresetID)
+
+			params, err := memberClient.WorkspaceBuildParameters(ctx, result.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value,
+				"preset parameter value must override conflicting rich_parameters entry")
+
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
+		})
+
+		t.Run("RejectsPresetOnStop", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "stop",
+				TemplateVersionPresetID: preset.ID.String(),
+			})
+			require.ErrorContains(t, err, "template_version_preset_id is only valid for start")
+		})
+
+		t.Run("RejectsParamsOnDelete", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:    r.Workspace.ID.String(),
+				Transition:     "delete",
+				RichParameters: map[string]string{"region": "us-west-2"},
+			})
+			require.ErrorContains(t, err, "rich_parameters is only valid for start")
+		})
+
+		t.Run("RejectsBothOnStop", func(t *testing.T) {
+			// Both fields set on a non-start transition. The
+			// handler must surface both violations via errors.Join
+			// so agents fix both in one round-trip rather than
+			// fix-one, retry, hit-the-next.
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "stop",
+				TemplateVersionPresetID: preset.ID.String(),
+				RichParameters:          map[string]string{"region": "us-west-2"},
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "template_version_preset_id is only valid for start")
+			require.ErrorContains(t, err, "rich_parameters is only valid for start")
+		})
+
+		t.Run("InvalidPresetID", func(t *testing.T) {
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			_, err = testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
+				WorkspaceID:             r.Workspace.ID.String(),
+				Transition:              "start",
+				TemplateVersionPresetID: "not-a-uuid",
+			})
+			require.ErrorContains(t, err, "template_version_preset_id must be a valid UUID")
+		})
 	})
 
 	t.Run("ListTemplateVersionParameters", func(t *testing.T) {
@@ -669,6 +832,43 @@ func TestTools(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotEmpty(t, res.ID, "expected a workspace ID")
+		})
+
+		t.Run("WithRichParameters", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: a template version with a single
+			// rich parameter, no preset. Confirms that
+			// rich_parameters round-trip on their own without
+			// being shadowed or overridden by preset auto-binding
+			// when no preset matches.
+			rpBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			dbgen.TemplateVersionParameter(t, store, database.TemplateVersionParameter{
+				TemplateVersionID: rpBuild.TemplateVersion.ID,
+				Name:              "region",
+				Description:       "Region to deploy in.",
+				Type:              "string",
+				DefaultValue:      "us-east-1",
+				Required:          false,
+				Mutable:           true,
+			})
+
+			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				TemplateVersionID: rpBuild.TemplateVersion.ID.String(),
+				Name:              testutil.GetRandomNameHyphenated(t),
+				RichParameters:    map[string]string{"region": "us-west-2"},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, res.ID, "expected a workspace ID")
+
+			params, err := client.WorkspaceBuildParameters(ctx, res.LatestBuild.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "region", params[0].Name)
+			require.Equal(t, "us-west-2", params[0].Value)
 		})
 
 		t.Run("RejectsBothIDs", func(t *testing.T) {
