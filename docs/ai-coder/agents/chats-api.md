@@ -334,10 +334,8 @@ The response contains an `id` you can reference as `file_id` in a
 `ChatInputPart` with `"type": "file"`. To retrieve a previously uploaded
 file, use `GET /api/experimental/chats/files/{file}`.
 
-Supported formats: PNG, JPEG, GIF, WebP, plus `text/plain`, `text/markdown`,
-`text/csv`, `application/json`, and `application/pdf` (up to 10 MB). The
-server validates actual file content regardless of the declared
-`Content-Type`.
+Supported formats: PNG, JPEG, GIF, WebP (up to 10 MB). The server
+validates actual file content regardless of the declared `Content-Type`.
 
 Files referenced in messages are automatically linked to the chat and
 appear in the `files` field on subsequent
