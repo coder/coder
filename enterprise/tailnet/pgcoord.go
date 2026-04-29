@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"maps"
 	"math"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -44,8 +46,70 @@ const (
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
-func publishPeerUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, peerID uuid.UUID) {
-	if err := ps.Publish(eventPeerUpdate, []byte(peerID.String())); err != nil {
+// proto status values for TailnetPeerUpdate.Status. The proto comment
+// documents a stable order: 0=ok, 1=lost, 2=disconnected. The first two
+// map to database.TailnetStatus values; "disconnected" is a wire-only
+// signal used when a peer row has been deleted and has no DB equivalent.
+const (
+	peerUpdateStatusOK           int32 = 0
+	peerUpdateStatusLost         int32 = 1
+	peerUpdateStatusDisconnected int32 = 2
+)
+
+// tailnetStatusToProto maps a database.TailnetStatus to its proto wire
+// value. Unknown values are treated as "lost" since that is the safer
+// invalidation choice for subscribers.
+func tailnetStatusToProto(s database.TailnetStatus) int32 {
+	switch s {
+	case database.TailnetStatusOk:
+		return peerUpdateStatusOK
+	case database.TailnetStatusLost:
+		return peerUpdateStatusLost
+	default:
+		return peerUpdateStatusLost
+	}
+}
+
+// publishPeerUpdate marshals an enriched TailnetPeerUpdate proto and
+// publishes it on eventPeerUpdate. Subscribers decode the payload and
+// use it to skip a per-peer bindings query in the steady state. If the
+// payload fails to decode (or is empty), subscribers fall back to the
+// pre-§6b full-query path so older publishers remain compatible.
+func publishPeerUpdate(
+	ctx context.Context,
+	ps pubsub.Pubsub,
+	logger slog.Logger,
+	peerID uuid.UUID,
+	coordID uuid.UUID,
+	status int32,
+	node []byte,
+	updatedAt time.Time,
+) {
+	msg := &proto.TailnetPeerUpdate{
+		PeerId:        peerID[:],
+		CoordinatorId: coordID[:],
+		Status:        status,
+		Node:          node,
+		UpdatedAt:     timestamppb.New(updatedAt),
+	}
+	raw, err := gProto.Marshal(msg)
+	if err != nil {
+		// This should be impossible: all fields are well-formed bytes
+		// or a timestamp. Fall back to a UUID-only payload so the
+		// subscriber's decode-failure path still triggers a full query.
+		logger.Critical(ctx, "failed to marshal peer update", slog.F("peer_id", peerID), slog.Error(err))
+		if err := ps.Publish(eventPeerUpdate, []byte(peerID.String())); err != nil {
+			logger.Warn(ctx, "failed to publish peer update", slog.F("peer_id", peerID), slog.Error(err))
+		}
+		return
+	}
+	// PG NOTIFY requires valid UTF-8 text; raw protobuf bytes can
+	// contain arbitrary bytes that PostgreSQL rejects with "invalid
+	// byte sequence for encoding UTF8". Base64-encode the payload so
+	// it round-trips through PG pubsub. This shim goes away once the
+	// NATS transport owns this subject (NATS is binary-safe).
+	payload := []byte(base64.StdEncoding.EncodeToString(raw))
+	if err := ps.Publish(eventPeerUpdate, payload); err != nil {
 		logger.Warn(ctx, "failed to publish peer update", slog.F("peer_id", peerID), slog.Error(err))
 	}
 }
@@ -567,9 +631,10 @@ func newBinder(ctx context.Context,
 			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
 		}
 		for _, row := range peerRows {
-			// TODO(nats): use row.CoordinatorID/Status/Node/UpdatedAt in §6b
-			// for enriched publish payload.
-			publishPeerUpdate(ctx, b.pubsub, b.logger, row.ID)
+			publishPeerUpdate(ctx, b.pubsub, b.logger,
+				row.ID, row.CoordinatorID,
+				tailnetStatusToProto(row.Status),
+				row.Node, row.UpdatedAt)
 		}
 	}()
 	return b
@@ -614,8 +679,13 @@ func (b *binder) worker() {
 
 func (b *binder) writeOne(bnd binding) error {
 	var err error
+	var pubPeerID, pubCoordID uuid.UUID
+	var pubStatus int32
+	var pubNode []byte
+	var pubUpdatedAt time.Time
 	if bnd.kind == proto.CoordinateResponse_PeerUpdate_DISCONNECTED {
-		_, err = b.store.DeleteTailnetPeer(b.ctx, database.DeleteTailnetPeerParams{
+		var delRow database.DeleteTailnetPeerRow
+		delRow, err = b.store.DeleteTailnetPeer(b.ctx, database.DeleteTailnetPeerParams{
 			ID:            uuid.UUID(bnd.bKey),
 			CoordinatorID: b.coordinatorID,
 		})
@@ -623,6 +693,16 @@ func (b *binder) writeOne(bnd binding) error {
 			// No row deleted; peer was already gone. Skip publish.
 			return nil
 		}
+		// DeleteTailnetPeer only returns id and coordinator_id, so the
+		// DB-sourced updated_at is not available here. Wall-clock is
+		// acceptable because subscribers treat status=disconnected as
+		// invalidation regardless of updated_at: the staleness map is
+		// dropped for this peer when status indicates the peer is gone.
+		pubPeerID = delRow.ID
+		pubCoordID = delRow.CoordinatorID
+		pubStatus = peerUpdateStatusDisconnected
+		pubNode = nil
+		pubUpdatedAt = time.Now()
 	} else {
 		var nodeRaw []byte
 		nodeRaw, err = gProto.Marshal(bnd.node)
@@ -636,7 +716,6 @@ func (b *binder) writeOne(bnd binding) error {
 		if bnd.kind == proto.CoordinateResponse_PeerUpdate_LOST {
 			status = database.TailnetStatusLost
 		}
-		// TODO(nats): use row in §6b for enriched publish payload.
 		var row database.TailnetPeer
 		row, err = b.store.UpsertTailnetPeer(b.ctx, database.UpsertTailnetPeerParams{
 			ID:            uuid.UUID(bnd.bKey),
@@ -644,7 +723,13 @@ func (b *binder) writeOne(bnd binding) error {
 			Node:          nodeRaw,
 			Status:        status,
 		})
-		_ = row
+		if err == nil {
+			pubPeerID = row.ID
+			pubCoordID = row.CoordinatorID
+			pubStatus = tailnetStatusToProto(row.Status)
+			pubNode = row.Node
+			pubUpdatedAt = row.UpdatedAt
+		}
 	}
 
 	if err != nil && !database.IsQueryCanceledError(err) {
@@ -654,7 +739,8 @@ func (b *binder) writeOne(bnd binding) error {
 			slog.Error(err))
 	}
 	if err == nil {
-		publishPeerUpdate(b.ctx, b.pubsub, b.logger, uuid.UUID(bnd.bKey))
+		publishPeerUpdate(b.ctx, b.pubsub, b.logger,
+			pubPeerID, pubCoordID, pubStatus, pubNode, pubUpdatedAt)
 	}
 	return err
 }
@@ -737,6 +823,15 @@ type mapper struct {
 
 	mappings chan []mapping
 
+	// enriched delivers single-peer mappings synthesized from a
+	// TailnetPeerUpdate proto payload. The mapper merges the entry into
+	// its current snapshot (c.latest) and runs the same diff/send path
+	// as a full snapshot from m.mappings. This lets enriched pubsub
+	// updates avoid GetTailnetTunnelPeerBindingsBatch in the steady
+	// state while preserving snapshot-replacement semantics for the
+	// other peers the mapper is tracking.
+	enriched chan mapping
+
 	c *connIO
 
 	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates.
@@ -751,12 +846,16 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 		slog.F("peer_id", c.UniqueID()),
 	)
 	m := &mapper{
-		ctx:        c.peerCtx, // mapper has same lifetime as the underlying connection it serves
-		logger:     logger,
-		c:          c,
-		update:     make(chan struct{}),
-		resetSent:  make(chan struct{}, 1),
-		mappings:   make(chan []mapping),
+		ctx:       c.peerCtx, // mapper has same lifetime as the underlying connection it serves
+		logger:    logger,
+		c:         c,
+		update:    make(chan struct{}),
+		resetSent: make(chan struct{}, 1),
+		mappings:  make(chan []mapping),
+		// Buffer enriched mapping deliveries so a brief mapper stall
+		// does not force the querier to fall back to a full bindings
+		// query for unrelated peers in the same batch.
+		enriched:   make(chan mapping, maxBatchSize),
 		heartbeats: h,
 		sent:       make(map[uuid.UUID]mapping),
 	}
@@ -774,6 +873,36 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "got new mappings")
 			m.c.setLatestMapping(mappings)
 			best = m.bestMappings(mappings)
+		case enriched := <-m.enriched:
+			m.logger.Debug(m.ctx, "got enriched mapping", slog.F("peer_id", enriched.peer))
+			// Merge the single-peer enriched mapping into the latest
+			// snapshot so bestToUpdate retains snapshot-replacement
+			// semantics for all other peers tracked by this mapper.
+			// A DISCONNECTED enriched mapping is treated as removal
+			// from the snapshot so bestToUpdate emits a disconnect
+			// against m.sent rather than a synthetic node entry that
+			// would persist forever.
+			latest := m.c.getLatestMapping()
+			merged := make([]mapping, 0, len(latest)+1)
+			isDisconnect := enriched.kind == proto.CoordinateResponse_PeerUpdate_DISCONNECTED
+			replaced := false
+			for _, mpng := range latest {
+				if mpng.peer == enriched.peer {
+					replaced = true
+					if isDisconnect {
+						// Skip; do not include in new snapshot.
+						continue
+					}
+					merged = append(merged, enriched)
+					continue
+				}
+				merged = append(merged, mpng)
+			}
+			if !replaced && !isDisconnect {
+				merged = append(merged, enriched)
+			}
+			m.c.setLatestMapping(merged)
+			best = m.bestMappings(merged)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
 			// Check if a reset was requested. The resetSent channel is
@@ -964,6 +1093,20 @@ type querier struct {
 	mappers map[mKey]*mapper
 	healthy bool
 
+	// enrichedUpdates carries proto-decoded peer updates pulled off the
+	// pubsub. The map is consulted by peerUpdateWorker after acquiring a
+	// peer ID from peerUpdateQ; entries are removed once consumed. When
+	// no entry exists for a peer ID, the worker falls back to today's
+	// full DB-query path.
+	//
+	// peerUpdateLastSeen tracks the last observed updated_at per peer so
+	// stale enriched messages are dropped before they reach the queue.
+	// Entries are removed when a peer transitions to lost or
+	// disconnected, bounding map size to currently-active peers.
+	peerUpdatesMu      sync.Mutex
+	enrichedUpdates    map[uuid.UUID]*proto.TailnetPeerUpdate
+	peerUpdateLastSeen map[uuid.UUID]time.Time
+
 	clock quartz.Clock
 }
 
@@ -981,20 +1124,22 @@ func newQuerier(ctx context.Context,
 ) *querier {
 	updates := make(chan hbUpdate)
 	q := &querier{
-		ctx:              ctx,
-		logger:           logger.Named("querier"),
-		coordinatorID:    coordinatorID,
-		pubsub:           ps,
-		store:            store,
-		newConnections:   newConnections,
-		closeConnections: closeConnections,
-		peerUpdateQ:      newWorkQ[uuid.UUID](ctx),
-		mappingQ:         newWorkQ[mKey](ctx),
-		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
-		clock:            clk,
-		mappers:          make(map[mKey]*mapper),
-		updates:          updates,
-		healthy:          true, // assume we start healthy
+		ctx:                ctx,
+		logger:             logger.Named("querier"),
+		coordinatorID:      coordinatorID,
+		pubsub:             ps,
+		store:              store,
+		newConnections:     newConnections,
+		closeConnections:   closeConnections,
+		peerUpdateQ:        newWorkQ[uuid.UUID](ctx),
+		mappingQ:           newWorkQ[mKey](ctx),
+		heartbeats:         newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
+		clock:              clk,
+		mappers:            make(map[mKey]*mapper),
+		updates:            updates,
+		healthy:            true, // assume we start healthy
+		enrichedUpdates:    make(map[uuid.UUID]*proto.TailnetPeerUpdate),
+		peerUpdateLastSeen: make(map[uuid.UUID]time.Time),
 	}
 	q.subscribe()
 
@@ -1170,9 +1315,31 @@ func (q *querier) mappingWorker() {
 // peerUpdate is work scheduled in response to a new peer->binding.  We need to find out all the
 // other peers that share a tunnel with the indicated peer, and then schedule a mapping update on
 // each, so that they can find out about the new binding.
+//
+// When listenPeer received an enriched TailnetPeerUpdate proto for one of
+// these peer IDs, we look up the synthesized payload from
+// q.enrichedUpdates and dispatch the resulting mapping directly to each
+// active sharing-peer mapper, skipping GetTailnetTunnelPeerBindingsBatch
+// for the message's own peer. Sharing peers without an enriched payload
+// for this update fall back to today's full mapping-query path.
 func (q *querier) peerUpdate(peers []uuid.UUID) error {
+	// Drain any enriched payloads that landed while these peer IDs were
+	// queued. A missing entry means this batch contains a UUID-only
+	// fallback (or the enriched payload was already consumed) and we
+	// must use the full DB-query path.
+	enriched := make(map[uuid.UUID]*proto.TailnetPeerUpdate, len(peers))
+	q.peerUpdatesMu.Lock()
+	for _, p := range peers {
+		if e, ok := q.enrichedUpdates[p]; ok {
+			enriched[p] = e
+			delete(q.enrichedUpdates, p)
+		}
+	}
+	q.peerUpdatesMu.Unlock()
+
 	q.logger.Debug(q.ctx, "batch querying peers that share tunnels",
-		slog.F("num_peers", len(peers)))
+		slog.F("num_peers", len(peers)),
+		slog.F("num_enriched", len(enriched)))
 	others, err := q.store.GetTailnetTunnelPeerIDsBatch(q.ctx, peers)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("get tunnel peer IDs batch: %w", err)
@@ -1180,14 +1347,72 @@ func (q *querier) peerUpdate(peers []uuid.UUID) error {
 	q.logger.Debug(q.ctx, "batch queried tunnel peers",
 		slog.F("num_results", len(others)))
 	q.mu.Lock()
+	defer q.mu.Unlock()
 	for _, other := range others {
 		mk := mKey(other.PeerID)
-		if _, ok := q.mappers[mk]; ok {
-			q.mappingQ.enqueue(mk)
+		mpr, ok := q.mappers[mk]
+		if !ok {
+			continue
+		}
+		if e, hasEnriched := enriched[other.LookupID]; hasEnriched {
+			mpng, err := enrichedToMapping(e)
+			if err != nil {
+				// Decoding the embedded node failed; fall back to a
+				// full DB query for this sharing peer rather than
+				// dropping the update.
+				q.logger.Error(q.ctx, "failed to decode enriched peer node",
+					slog.F("peer_id", other.LookupID), slog.Error(err))
+				q.mappingQ.enqueue(mk)
+				continue
+			}
+			// Best-effort non-blocking send; mapper.run drives this
+			// channel, but if it is busy we fall back to a full
+			// mapping query so the update is not dropped.
+			select {
+			case mpr.enriched <- mpng:
+			default:
+				q.mappingQ.enqueue(mk)
+			}
+			continue
+		}
+		q.mappingQ.enqueue(mk)
+	}
+	return nil
+}
+
+// enrichedToMapping synthesizes a mapping from a TailnetPeerUpdate
+// proto. It mirrors bindingsToMappings but operates on a single
+// already-decoded payload rather than rows from
+// GetTailnetTunnelPeerBindingsBatch.
+func enrichedToMapping(e *proto.TailnetPeerUpdate) (mapping, error) {
+	peerBytes := e.GetPeerId()
+	coordBytes := e.GetCoordinatorId()
+	if len(peerBytes) != len(uuid.UUID{}) || len(coordBytes) != len(uuid.UUID{}) {
+		return mapping{}, xerrors.Errorf("enriched peer update has invalid id lengths")
+	}
+	var peer, coord uuid.UUID
+	copy(peer[:], peerBytes)
+	copy(coord[:], coordBytes)
+	node := new(proto.Node)
+	if len(e.GetNode()) > 0 {
+		if err := gProto.Unmarshal(e.GetNode(), node); err != nil {
+			return mapping{}, xerrors.Errorf("unmarshal enriched node: %w", err)
 		}
 	}
-	q.mu.Unlock()
-	return nil
+	kind := proto.CoordinateResponse_PeerUpdate_NODE
+	switch e.GetStatus() {
+	case peerUpdateStatusLost:
+		kind = proto.CoordinateResponse_PeerUpdate_LOST
+	case peerUpdateStatusDisconnected:
+		kind = proto.CoordinateResponse_PeerUpdate_DISCONNECTED
+	}
+	return mapping{
+		peer:        peer,
+		coordinator: coord,
+		updatedAt:   e.GetUpdatedAt().AsTime(),
+		node:        node,
+		kind:        kind,
+	}, nil
 }
 
 // mappingQuery queries the database for all the mappings that the given peers should know about,
@@ -1374,6 +1599,43 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
 		return
 	}
+	// Try the enriched proto payload first. PG NOTIFY transport
+	// base64-encodes the raw proto, so attempt that decode before
+	// trying raw bytes (forward-compat with the binary-safe NATS
+	// transport). If everything fails, fall back to today's UUID
+	// string parser so older publishers and decode failures still
+	// drive a full-query refresh rather than being silently dropped.
+	if enriched, ok := tryDecodeEnrichedPeerUpdate(msg); ok {
+		peer := uuid.UUID{}
+		copy(peer[:], enriched.GetPeerId())
+		updatedAt := enriched.GetUpdatedAt().AsTime()
+		status := enriched.GetStatus()
+		q.peerUpdatesMu.Lock()
+		prev, seen := q.peerUpdateLastSeen[peer]
+		if seen && !updatedAt.After(prev) {
+			q.peerUpdatesMu.Unlock()
+			q.logger.Debug(q.ctx, "dropping stale enriched peer update",
+				slog.F("peer_id", peer),
+				slog.F("updated_at", updatedAt),
+				slog.F("last_seen", prev))
+			return
+		}
+		// Drop the entry when the peer transitions away from "ok"
+		// (lost or disconnected) so the map is bounded by currently
+		// active peers.
+		if status == peerUpdateStatusOK {
+			q.peerUpdateLastSeen[peer] = updatedAt
+		} else {
+			delete(q.peerUpdateLastSeen, peer)
+		}
+		q.enrichedUpdates[peer] = enriched
+		q.peerUpdatesMu.Unlock()
+
+		q.logger.Debug(q.ctx, "got enriched peer update", slog.F("peer_id", peer))
+		q.peerUpdateQ.enqueue(peer)
+		return
+	}
+
 	peer, err := parsePeerUpdate(string(msg))
 	if err != nil {
 		q.logger.Error(q.ctx, "failed to parse peer update",
@@ -1382,7 +1644,7 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	}
 
 	logger := q.logger.With(slog.F("peer_id", peer))
-	logger.Debug(q.ctx, "got peer update")
+	logger.Debug(q.ctx, "got peer update (fallback)")
 
 	// we know that this peer has an updated node mapping, but we don't yet know who to send that
 	// update to. We need to query the database to find all the other peers that share a tunnel with
@@ -1564,6 +1826,48 @@ func parseTunnelUpdate(msg string) ([]uuid.UUID, error) {
 		}
 	}
 	return peers, nil
+}
+
+// tryDecodeEnrichedPeerUpdate attempts to decode a TailnetPeerUpdate
+// proto from a pubsub message. The PG transport base64-encodes the
+// proto bytes (PG NOTIFY only carries valid UTF-8); the NATS transport
+// will deliver raw proto bytes. We try base64 first, then raw, and
+// validate that the decoded message has the required fields. Returns
+// (nil, false) when the payload is missing, malformed, or looks like a
+// legacy UUID-string update so the caller can fall back.
+func tryDecodeEnrichedPeerUpdate(msg []byte) (*proto.TailnetPeerUpdate, bool) {
+	if len(msg) == 0 {
+		return nil, false
+	}
+	tryUnmarshal := func(b []byte) (*proto.TailnetPeerUpdate, bool) {
+		if len(b) == 0 {
+			return nil, false
+		}
+		var pu proto.TailnetPeerUpdate
+		if err := gProto.Unmarshal(b, &pu); err != nil {
+			return nil, false
+		}
+		// Validate required fields. A legacy UUID-string payload may
+		// happen to unmarshal into an empty proto, so we require the
+		// peer_id and coordinator_id to be valid UUIDs and updated_at
+		// to be present.
+		if len(pu.GetPeerId()) != len(uuid.UUID{}) {
+			return nil, false
+		}
+		if len(pu.GetCoordinatorId()) != len(uuid.UUID{}) {
+			return nil, false
+		}
+		if pu.GetUpdatedAt() == nil {
+			return nil, false
+		}
+		return &pu, true
+	}
+	if raw, err := base64.StdEncoding.DecodeString(string(msg)); err == nil {
+		if pu, ok := tryUnmarshal(raw); ok {
+			return pu, true
+		}
+	}
+	return tryUnmarshal(msg)
 }
 
 func parsePeerUpdate(msg string) (peer uuid.UUID, err error) {
@@ -2156,9 +2460,11 @@ func (h *heartbeats) cleanup() {
 		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
 	}
 	for _, row := range deletedPeers {
-		// TODO(nats): use row.CoordinatorID/Status/Node/UpdatedAt in §6b
-		// for enriched publish payload.
-		publishPeerUpdate(h.ctx, h.pubsub, h.logger, row.ID)
+		// row.CoordinatorID is the expired coordinator's ID, NOT h.self.
+		publishPeerUpdate(h.ctx, h.pubsub, h.logger,
+			row.ID, row.CoordinatorID,
+			tailnetStatusToProto(row.Status),
+			row.Node, row.UpdatedAt)
 	}
 	deletedTunnels, err := h.store.CleanTailnetTunnels(h.ctx)
 	if err != nil && !database.IsQueryCanceledError(err) {

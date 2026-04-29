@@ -3,6 +3,7 @@ package tailnet
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"flag"
 	"os"
 	"path/filepath"
@@ -663,6 +664,168 @@ func TestBinderAllowsChangedNode(t *testing.T) {
 
 	bnd2 := binding{bKey: key, node: &proto.Node{PreferredDerp: 2}, kind: proto.CoordinateResponse_PeerUpdate_NODE}
 	assert.True(t, b.storeBinding(bnd2))
+}
+
+// newTestQuerier constructs a minimal querier suitable for testing the
+// pubsub decode and dedup paths in isolation. It does not start any
+// workers; callers drive the methods they care about directly.
+func newTestQuerier(t *testing.T, store database.Store) (*querier, context.CancelFunc) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	// Some tests intentionally feed malformed payloads; the
+	// listenPeer fallback path logs at ERROR level when a UUID-string
+	// parse fails, which is the desired production behavior.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	q := &querier{
+		ctx:                ctx,
+		logger:             logger,
+		store:              store,
+		mappers:            make(map[mKey]*mapper),
+		peerUpdateQ:        newWorkQ[uuid.UUID](ctx),
+		mappingQ:           newWorkQ[mKey](ctx),
+		enrichedUpdates:    make(map[uuid.UUID]*proto.TailnetPeerUpdate),
+		peerUpdateLastSeen: make(map[uuid.UUID]time.Time),
+		clock:              quartz.NewMock(t),
+		healthy:            true,
+	}
+	return q, cancel
+}
+
+// encodeEnrichedPeerUpdate produces the on-the-wire bytes for a
+// TailnetPeerUpdate as published over PG pubsub: a base64-encoded
+// proto. This mirrors what publishPeerUpdate emits.
+func encodeEnrichedPeerUpdate(t *testing.T, peerID, coordID uuid.UUID, status int32, node []byte, updatedAt time.Time) []byte {
+	t.Helper()
+	raw, err := gProto.Marshal(&proto.TailnetPeerUpdate{
+		PeerId:        peerID[:],
+		CoordinatorId: coordID[:],
+		Status:        status,
+		Node:          node,
+		UpdatedAt:     timestamppb.New(updatedAt),
+	})
+	require.NoError(t, err)
+	encoded := []byte(base64.StdEncoding.EncodeToString(raw))
+	return encoded
+}
+
+// TestQuerier_ListenPeer_EnrichedStaleness verifies that an enriched
+// peer update with an older updated_at than a previously seen update
+// is dropped before reaching peerUpdateQ, while strictly-newer updates
+// replace the stored payload and re-enqueue.
+func TestQuerier_ListenPeer_EnrichedStaleness(t *testing.T) {
+	t.Parallel()
+	q, cancel := newTestQuerier(t, nil)
+	defer cancel()
+
+	peerID := uuid.New()
+	coordID := uuid.New()
+	t1 := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	t0 := t1.Add(-time.Minute)
+
+	nodeNew, err := gProto.Marshal(&proto.Node{PreferredDerp: 9})
+	require.NoError(t, err)
+	nodeOld, err := gProto.Marshal(&proto.Node{PreferredDerp: 1})
+	require.NoError(t, err)
+
+	// Newer update first.
+	q.listenPeer(context.Background(),
+		encodeEnrichedPeerUpdate(t, peerID, coordID, peerUpdateStatusOK, nodeNew, t1), nil)
+
+	q.peerUpdatesMu.Lock()
+	stored, ok := q.enrichedUpdates[peerID]
+	require.True(t, ok)
+	require.Equal(t, nodeNew, stored.GetNode())
+	require.Equal(t, t1, q.peerUpdateLastSeen[peerID])
+	q.peerUpdatesMu.Unlock()
+
+	// Older update should be dropped: stored payload must remain the
+	// newer one and last-seen must not regress.
+	q.listenPeer(context.Background(),
+		encodeEnrichedPeerUpdate(t, peerID, coordID, peerUpdateStatusOK, nodeOld, t0), nil)
+	q.peerUpdatesMu.Lock()
+	require.Equal(t, nodeNew, q.enrichedUpdates[peerID].GetNode(),
+		"older update should not overwrite newer payload")
+	require.Equal(t, t1, q.peerUpdateLastSeen[peerID])
+	q.peerUpdatesMu.Unlock()
+
+	// A strictly-newer update should replace.
+	t2 := t1.Add(time.Minute)
+	nodeNewer, err := gProto.Marshal(&proto.Node{PreferredDerp: 42})
+	require.NoError(t, err)
+	q.listenPeer(context.Background(),
+		encodeEnrichedPeerUpdate(t, peerID, coordID, peerUpdateStatusOK, nodeNewer, t2), nil)
+	q.peerUpdatesMu.Lock()
+	require.Equal(t, nodeNewer, q.enrichedUpdates[peerID].GetNode())
+	require.Equal(t, t2, q.peerUpdateLastSeen[peerID])
+	q.peerUpdatesMu.Unlock()
+
+	// A "lost" status should drop the last-seen entry so the map is
+	// bounded by currently-active peers.
+	q.listenPeer(context.Background(),
+		encodeEnrichedPeerUpdate(t, peerID, coordID, peerUpdateStatusLost, nil, t2.Add(time.Second)), nil)
+	q.peerUpdatesMu.Lock()
+	_, hasLastSeen := q.peerUpdateLastSeen[peerID]
+	require.False(t, hasLastSeen, "lost status should remove peer from last-seen map")
+	q.peerUpdatesMu.Unlock()
+}
+
+// TestQuerier_ListenPeer_DecodeFailureFallback verifies that:
+//   - garbage bytes do not panic and do not populate enrichedUpdates
+//   - a legacy UUID-string update enqueues the peer ID for the worker
+//   - the worker (peerUpdate) runs the full DB-query path
+//     (GetTailnetTunnelPeerIDsBatch) when no enriched payload is
+//     present, preserving today's behavior
+//   - a subsequent valid enriched update is processed normally.
+func TestQuerier_ListenPeer_DecodeFailureFallback(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	q, cancel := newTestQuerier(t, mStore)
+	defer cancel()
+
+	peerID := uuid.New()
+	coordID := uuid.New()
+
+	// 1. Garbage bytes: must not panic, must not populate enriched
+	// state. The bytes below are not valid base64 and not a UUID.
+	q.listenPeer(context.Background(), []byte{0xff, 0xfe, 0x00, 0x01}, nil)
+	q.peerUpdatesMu.Lock()
+	require.Empty(t, q.enrichedUpdates)
+	require.Empty(t, q.peerUpdateLastSeen)
+	q.peerUpdatesMu.Unlock()
+
+	// 2. Legacy UUID-string update: drives the fallback path and
+	// enqueues the peer ID. Verify by acquiring from peerUpdateQ.
+	q.listenPeer(context.Background(), []byte(peerID.String()), nil)
+	q.peerUpdatesMu.Lock()
+	require.Empty(t, q.enrichedUpdates,
+		"UUID-string fallback must not populate enrichedUpdates")
+	q.peerUpdatesMu.Unlock()
+
+	got, err := q.peerUpdateQ.acquireBatch(10)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{peerID}, got)
+	q.peerUpdateQ.done(got...)
+
+	// 3. The worker (peerUpdate) for a UUID-only fallback must run
+	// the full DB query path, preserving pre-§6b behavior.
+	mStore.EXPECT().
+		GetTailnetTunnelPeerIDsBatch(gomock.Any(), []uuid.UUID{peerID}).
+		Times(1).
+		Return(nil, nil)
+	require.NoError(t, q.peerUpdate([]uuid.UUID{peerID}))
+
+	// 4. A subsequent valid enriched update is processed normally
+	// (no panic, populates enrichedUpdates).
+	updatedAt := time.Now().UTC()
+	q.listenPeer(context.Background(),
+		encodeEnrichedPeerUpdate(t, peerID, coordID, peerUpdateStatusOK, nil, updatedAt), nil)
+	q.peerUpdatesMu.Lock()
+	stored, ok := q.enrichedUpdates[peerID]
+	require.True(t, ok, "valid enriched update after decode failure must be stored")
+	require.Equal(t, peerID[:], stored.GetPeerId())
+	q.peerUpdatesMu.Unlock()
 }
 
 func TestBinderLostToNodeTransition(t *testing.T) {
