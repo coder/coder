@@ -156,7 +156,7 @@ type Walker struct {
 
 // Walker creates a new Walker that follows a primary-with-fallback
 // strategy, starting from the first key in the pool. The walker
-// is not safe for concurrent use, it is intended for a single
+// is not safe for concurrent use. It is intended for a single
 // request's failover loop.
 func (p *Pool) Walker() *Walker {
 	return &Walker{pool: p, pos: 0}

@@ -11,7 +11,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestNew(t *testing.T) {
+func TestNewKeyPool(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
