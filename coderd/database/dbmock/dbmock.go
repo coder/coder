@@ -1102,6 +1102,21 @@ func (mr *MockStoreMockRecorder) DeleteOldAuditLogs(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAuditLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldAuditLogs), ctx, arg)
 }
 
+// DeleteOldBoundaryLogs mocks base method.
+func (m *MockStore) DeleteOldBoundaryLogs(ctx context.Context, arg database.DeleteOldBoundaryLogsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldBoundaryLogs", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldBoundaryLogs indicates an expected call of DeleteOldBoundaryLogs.
+func (mr *MockStoreMockRecorder) DeleteOldBoundaryLogs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldBoundaryLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldBoundaryLogs), ctx, arg)
+}
+
 // DeleteOldChatDebugRuns mocks base method.
 func (m *MockStore) DeleteOldChatDebugRuns(ctx context.Context, arg database.DeleteOldChatDebugRunsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -2319,10 +2334,40 @@ func (m *MockStore) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.
 	return ret0, ret1
 }
 
+// GetBoundaryLogByID mocks base method.
+func (m *MockStore) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (database.BoundaryLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBoundaryLogByID", ctx, id)
+	ret0, _ := ret[0].(database.BoundaryLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
 // GetChatACLByID indicates an expected call of GetChatACLByID.
 func (mr *MockStoreMockRecorder) GetChatACLByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatACLByID", reflect.TypeOf((*MockStore)(nil).GetChatACLByID), ctx, id)
+}
+
+// GetBoundaryLogByID indicates an expected call of GetBoundaryLogByID.
+func (mr *MockStoreMockRecorder) GetBoundaryLogByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBoundaryLogByID", reflect.TypeOf((*MockStore)(nil).GetBoundaryLogByID), ctx, id)
+}
+
+// GetBoundarySessionByID mocks base method.
+func (m *MockStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBoundarySessionByID", ctx, id)
+	ret0, _ := ret[0].(database.BoundarySession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBoundarySessionByID indicates an expected call of GetBoundarySessionByID.
+func (mr *MockStoreMockRecorder) GetBoundarySessionByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBoundarySessionByID", reflect.TypeOf((*MockStore)(nil).GetBoundarySessionByID), ctx, id)
 }
 
 // GetChatAdvisorConfig mocks base method.
@@ -6989,6 +7034,36 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), ctx, arg)
 }
 
+// InsertBoundaryLog mocks base method.
+func (m *MockStore) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertBoundaryLog", ctx, arg)
+	ret0, _ := ret[0].(database.BoundaryLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertBoundaryLog indicates an expected call of InsertBoundaryLog.
+func (mr *MockStoreMockRecorder) InsertBoundaryLog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBoundaryLog", reflect.TypeOf((*MockStore)(nil).InsertBoundaryLog), ctx, arg)
+}
+
+// InsertBoundarySession mocks base method.
+func (m *MockStore) InsertBoundarySession(ctx context.Context, arg database.InsertBoundarySessionParams) (database.BoundarySession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertBoundarySession", ctx, arg)
+	ret0, _ := ret[0].(database.BoundarySession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertBoundarySession indicates an expected call of InsertBoundarySession.
+func (mr *MockStoreMockRecorder) InsertBoundarySession(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBoundarySession", reflect.TypeOf((*MockStore)(nil).InsertBoundarySession), ctx, arg)
+}
+
 // InsertChat mocks base method.
 func (m *MockStore) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -8247,6 +8322,21 @@ func (m *MockStore) ListAuthorizedAIBridgeSessions(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeSessions(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeSessions", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeSessions), ctx, arg, prepared)
+}
+
+// ListBoundaryLogsBySessionID mocks base method.
+func (m *MockStore) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListBoundaryLogsBySessionID", ctx, arg)
+	ret0, _ := ret[0].([]database.BoundaryLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListBoundaryLogsBySessionID indicates an expected call of ListBoundaryLogsBySessionID.
+func (mr *MockStoreMockRecorder) ListBoundaryLogsBySessionID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBoundaryLogsBySessionID", reflect.TypeOf((*MockStore)(nil).ListBoundaryLogsBySessionID), ctx, arg)
 }
 
 // ListChatUsageLimitGroupOverrides mocks base method.
