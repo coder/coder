@@ -4847,12 +4847,18 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
-	// Block model resolution until the control subscriber fires.
+	// Hold model resolution until the interrupt has canceled the chat
+	// context. Returning ErrInterrupted keeps processChat on the
+	// interrupted path regardless of whether the cache singleflight sees
+	// the caller cancellation or the DB fetch result first.
 	modelBlocked := make(chan struct{})
+	modelRelease := make(chan struct{})
+	var modelBlockedOnce sync.Once
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, _ uuid.UUID) (database.ChatModelConfig, error) {
-			<-modelBlocked
-			return database.ChatModelConfig{}, xerrors.New("no model")
+		func(_ context.Context, _ uuid.UUID) (database.ChatModelConfig, error) {
+			modelBlockedOnce.Do(func() { close(modelBlocked) })
+			<-modelRelease
+			return database.ChatModelConfig{}, chatloop.ErrInterrupted
 		},
 	).AnyTimes()
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
@@ -4914,6 +4920,12 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 		t.Fatal("timed out waiting for running status")
 	}
 
+	select {
+	case <-modelBlocked:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for model resolution")
+	}
+
 	// Publish an interrupt so processChat exits runChat.
 	interruptMsg, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
 		Status: string(database.ChatStatusWaiting),
@@ -4921,9 +4933,7 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 	require.NoError(t, err)
 	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), interruptMsg)
 	require.NoError(t, err)
-
-	// Unblock model resolution so runChat can exit.
-	close(modelBlocked)
+	close(modelRelease)
 
 	select {
 	case <-processDone:
