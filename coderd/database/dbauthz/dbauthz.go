@@ -2718,14 +2718,14 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (database.BoundaryLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
 		return database.BoundaryLog{}, err
 	}
 	return q.db.GetBoundaryLogByID(ctx, id)
 }
 
 func (q *querier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
 		return database.BoundarySession{}, err
 	}
 	return q.db.GetBoundarySessionByID(ctx, id)
@@ -5364,11 +5364,11 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
-	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertBoundaryLog)(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceBoundaryLog, q.db.InsertBoundaryLog)(ctx, arg)
 }
 
 func (q *querier) InsertBoundarySession(ctx context.Context, arg database.InsertBoundarySessionParams) (database.BoundarySession, error) {
-	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertBoundarySession)(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceBoundaryLog, q.db.InsertBoundarySession)(ctx, arg)
 }
 
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
@@ -6084,7 +6084,7 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 }
 
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
 		return nil, err
 	}
 	return q.db.ListBoundaryLogsBySessionID(ctx, arg)
