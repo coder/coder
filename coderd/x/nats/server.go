@@ -2,6 +2,8 @@ package nats
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -30,10 +32,16 @@ func (a *routeAuth) Check(c natsserver.ClientAuthentication) bool {
 	return c.GetOpts().Password == a.token
 }
 
-// buildServerOptions constructs the NATS server Options for either
-// standalone (no peers) or cluster mode (>=1 peer). The peers slice is
-// expected to already be normalized by normalizePeers.
-func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, error) {
+// buildServerOptions constructs the NATS server Options. The server is
+// always started in cluster mode ("cluster of 1" when peers is empty)
+// so that late-joining peers can be added at runtime via RefreshPeers
+// without restarting the server. The peers slice is expected to already
+// be normalized by normalizePeers.
+//
+// If opts.ClusterToken is empty, an ephemeral random token is generated
+// and recorded on the returned Options so the caller can stash it back
+// on the Pubsub for use by RefreshPeers.
+func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, string, error) {
 	serverName := opts.ServerName
 	if serverName == "" {
 		serverName = fmt.Sprintf("coder-nats-%d-%d", os.Getpid(), time.Now().UnixNano())
@@ -51,14 +59,13 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, error)
 		NoSigs:     true,
 	}
 
-	if len(peers) == 0 {
-		// Standalone: no listener, no cluster.
-		sopts.DontListen = true
-		return sopts, nil
-	}
-
-	if opts.ClusterToken == "" {
-		return nil, xerrors.New("ClusterToken is required when peers are configured")
+	clusterToken := opts.ClusterToken
+	if clusterToken == "" {
+		var buf [32]byte
+		if _, err := rand.Read(buf[:]); err != nil {
+			return nil, "", xerrors.Errorf("generate ephemeral cluster token: %w", err)
+		}
+		clusterToken = hex.EncodeToString(buf[:])
 	}
 
 	// NOTE: in nats-server v2.12.8, DontListen=true combined with a
@@ -89,9 +96,9 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, error)
 		poolSize = DefaultRoutePoolSize
 	}
 
-	urls, err := routeURLs(peers, opts.ClusterToken)
+	urls, err := routeURLs(peers, clusterToken)
 	if err != nil {
-		return nil, xerrors.Errorf("build route urls: %w", err)
+		return nil, "", xerrors.Errorf("build route urls: %w", err)
 	}
 
 	sopts.Cluster = natsserver.ClusterOpts{
@@ -102,27 +109,33 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, error)
 		TLSConfig: opts.ClusterTLSConfig,
 		PoolSize:  poolSize,
 		Username:  routeAuthUsername,
-		Password:  opts.ClusterToken,
+		Password:  clusterToken,
 	}
 	sopts.Routes = urls
-	sopts.CustomRouterAuthentication = &routeAuth{token: opts.ClusterToken}
+	sopts.CustomRouterAuthentication = &routeAuth{token: clusterToken}
 
-	return sopts, nil
+	return sopts, clusterToken, nil
 }
 
-// startEmbeddedServer starts an in-process NATS server. With no peers it
-// runs standalone (no listener, no cluster). With peers it joins a
-// cluster using shared-token route authentication. The returned
-// *natsserver.Options is the effective startup options used to build
-// the server; callers may clone it (e.g., for ReloadOptions).
-func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natsserver.Server, *natsserver.Options, error) {
-	sopts, err := buildServerOptions(opts, peers)
+// startEmbeddedServer starts an in-process NATS server. The server is
+// always started in cluster mode; with no peers this is a "cluster of
+// 1" that can later be joined to peers via RefreshPeers without
+// restart. The returned *natsserver.Options is the effective startup
+// options used to build the server; callers may clone it (e.g., for
+// ReloadOptions). The returned token is the effective cluster token,
+// which may have been generated internally if opts.ClusterToken was
+// empty.
+func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natsserver.Server, *natsserver.Options, string, error) {
+	sopts, token, err := buildServerOptions(opts, peers)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
+	}
+	if opts.ClusterToken == "" {
+		logger.Debug(context.Background(), "nats: generated ephemeral cluster token")
 	}
 	ns, err := natsserver.NewServer(sopts)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("new embedded nats server: %w", err)
+		return nil, nil, "", xerrors.Errorf("new embedded nats server: %w", err)
 	}
 	go ns.Start()
 	readyTimeout := opts.ReadyTimeout
@@ -132,15 +145,13 @@ func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natss
 	if !ns.ReadyForConnections(readyTimeout) {
 		ns.Shutdown()
 		ns.WaitForShutdown()
-		return nil, nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
+		return nil, nil, "", xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
 	}
-	if len(peers) > 0 {
-		logger.Info(context.Background(), "embedded nats cluster started",
-			slog.F("cluster_addr", ns.ClusterAddr()),
-			slog.F("peers", len(peers)),
-		)
-	}
-	return ns, sopts, nil
+	logger.Info(context.Background(), "embedded nats cluster started",
+		slog.F("cluster_addr", ns.ClusterAddr()),
+		slog.F("peers", len(peers)),
+	)
+	return ns, sopts, token, nil
 }
 
 type connHandlers struct {

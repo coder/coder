@@ -39,12 +39,16 @@ type Options struct {
 	// ClusterName is the NATS cluster name. If empty, use DefaultClusterName.
 	ClusterName string
 
-	// PeerProvider returns startup cluster peers. Empty peers means
-	// standalone.
+	// PeerProvider returns startup cluster peers. Optional; when nil or
+	// when it returns zero peers, the embedded server still starts in
+	// cluster mode as a "cluster of 1" so peers can be added later via
+	// RefreshPeers without restart.
 	PeerProvider PeerProvider
 
-	// ClusterToken is required when PeerProvider returns any peers. It is
-	// applied to NATS route authentication.
+	// ClusterToken is the shared secret used for NATS route
+	// authentication. Optional; if empty, an ephemeral random token is
+	// generated internally at startup. Supply a stable token when this
+	// process is intended to interoperate with other replicas.
 	ClusterToken string
 
 	// ClusterTLSConfig enables TLS for route connections when non-nil.
