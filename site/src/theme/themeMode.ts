@@ -99,7 +99,7 @@ const FAMILY_PAIR = {
  * Precedence:
  * 1. New fields (`theme_mode` + slot pair) win when present and valid.
  * 2. Legacy `auto`, `auto-protan-deuter`, `auto-tritan` become sync
- *    mode with the matching slot pair.
+ *    mode, reusing valid persisted slots when present.
  * 3. A concrete legacy `theme_preference` becomes single mode with
  *    that theme.
  * 4. Anything else falls back to single mode + DEFAULT_THEME.
@@ -131,7 +131,11 @@ export const migrateLegacyPreference = (
 	// No recognized theme_mode. Inspect the legacy theme_preference.
 	const legacySync = legacyAutoToSync(settings.theme_preference);
 	if (legacySync) {
-		return legacySync;
+		return {
+			mode: "sync",
+			light: coerceConcrete(settings.theme_light, legacySync.light),
+			dark: coerceConcrete(settings.theme_dark, legacySync.dark),
+		};
 	}
 
 	return {

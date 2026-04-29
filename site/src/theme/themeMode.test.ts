@@ -88,6 +88,22 @@ describe("migrateLegacyPreference", () => {
 		).toEqual({ mode: "sync", light: "light", dark: "dark" });
 	});
 
+	it("preserves persisted slots while migrating legacy auto on read", () => {
+		expect(
+			migrateLegacyPreference(
+				settings({
+					theme_preference: "auto",
+					theme_light: "light-tritan",
+					theme_dark: "dark-protan-deuter",
+				}),
+			),
+		).toEqual({
+			mode: "sync",
+			light: "light-tritan",
+			dark: "dark-protan-deuter",
+		});
+	});
+
 	it("migrates legacy auto-protan-deuter to the protan-deuter pair", () => {
 		expect(
 			migrateLegacyPreference(
