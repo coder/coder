@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useRef } from "react";
 import { Outlet, useNavigate } from "react-router";
@@ -28,6 +28,7 @@ import {
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { ChatSessionsProvider } from "./chatSession/ChatSessionsProvider";
 
 const LOADING_VIEW_TEST_ID = "agent-chat-page-loading-view";
 const CACHE_CHAT_A_ID = "chat-cache-a";
@@ -289,6 +290,16 @@ const observeLoadingView = (canvasElement: HTMLElement) => {
 	};
 };
 
+const withChatSessionsProvider: Decorator = (Story, context) => (
+	<ChatSessionsProvider
+		key={context.id}
+		setChatErrorReason={() => {}}
+		clearChatErrorReason={() => {}}
+	>
+		<Story />
+	</ChatSessionsProvider>
+);
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
@@ -300,6 +311,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		withDashboardProvider,
 		withProxyProvider(),
 		withWebSocket,
+		withChatSessionsProvider,
 	],
 	parameters: {
 		layout: "fullscreen",

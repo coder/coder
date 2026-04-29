@@ -22,6 +22,7 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
+import { ChatSessionsProvider } from "./chatSession/ChatSessionsProvider";
 import {
 	createChatStore,
 	useChatSelector,
@@ -183,13 +184,28 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	return <AgentChatPageView {...props} />;
 };
 
+const withChatSessionsProvider: Decorator = (Story, context) => (
+	<ChatSessionsProvider
+		key={context.id}
+		setChatErrorReason={fn()}
+		clearChatErrorReason={fn()}
+	>
+		<Story />
+	</ChatSessionsProvider>
+);
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
-	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
+	decorators: [
+		withAuthProvider,
+		withDashboardProvider,
+		withProxyProvider(),
+		withChatSessionsProvider,
+	],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,

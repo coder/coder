@@ -18,6 +18,8 @@ import {
 	getPersistedSidebarTabId,
 	savePersistedSidebarTabId,
 } from "./AgentChatPage";
+import { useChatSession, useChatSessionSelector } from "./chatSession/hooks";
+import type { ChatSessionSnapshot } from "./chatSession/types";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -26,7 +28,11 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
-import type { ChatStore } from "./components/ChatConversation/chatStore";
+import {
+	type ChatStore,
+	type ChatStoreState,
+	useChatSelector,
+} from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
@@ -45,6 +51,28 @@ import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ChatStore;
+
+const selectFollowMode = (snap: ChatSessionSnapshot) => snap.followMode;
+
+const selectViewportAnchor = (snap: ChatSessionSnapshot) => snap.viewportAnchor;
+
+const selectHasNewOffscreenContent = (snap: ChatSessionSnapshot) =>
+	snap.hasNewOffscreenContent;
+
+const selectNewestHistoricalMessageId = (
+	state: ChatStoreState,
+): number | undefined => {
+	let newestMessageId: number | undefined;
+	for (const messageId of state.orderedMessageIDs) {
+		if (!Number.isFinite(messageId)) {
+			continue;
+		}
+		if (newestMessageId === undefined || messageId > newestMessageId) {
+			newestMessageId = messageId;
+		}
+	}
+	return newestMessageId;
+};
 
 // Re-use the inner presentational components directly. They are
 
@@ -244,6 +272,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	lastInjectedContext,
 }) => {
 	const queryClient = useQueryClient();
+	const followMode = useChatSessionSelector(agentId, selectFollowMode);
+	const viewportAnchor = useChatSessionSelector(agentId, selectViewportAnchor);
+	const hasNewOffscreenContent = useChatSessionSelector(
+		agentId,
+		selectHasNewOffscreenContent,
+	);
+	const session = useChatSession(agentId);
+	const newestHistoricalMessageId = useChatSelector(
+		store,
+		selectNewestHistoricalMessageId,
+	);
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
@@ -472,6 +511,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							hasMoreMessages={hasMoreMessages}
 							onFetchMoreMessages={onFetchMoreMessages}
 							messageCount={messageCount}
+							followMode={followMode}
+							hasNewOffscreenContent={hasNewOffscreenContent}
+							viewportAnchor={viewportAnchor}
+							onFollowModeChange={(next) => session.setFollowMode(next)}
+							onViewportAnchorChange={(anchor) =>
+								session.setViewportAnchor(anchor)
+							}
+							onClearNewOffscreenContent={() =>
+								session.clearNewOffscreenContent()
+							}
+							getNewestMessageId={() => newestHistoricalMessageId}
 						>
 							<div className="px-4">
 								<ChatPageTimeline
