@@ -651,6 +651,28 @@ var (
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
 					// Chat auto-archive sets archived=true on inactive chats.
 					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
+					// Purge old boundary audit logs past the retention period.
+					rbac.ResourceBoundaryLog.Type: {policy.ActionDelete},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
+	// Used by the agent API handler to persist boundary audit logs
+	// reported by workspace agents.
+	subjectAgentAPIHandler = rbac.Subject{
+		Type:         rbac.SubjectTypeAgentAPIHandler,
+		FriendlyName: "Agent API Handler",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "agent-api-handler"},
+				DisplayName: "Agent API Handler",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceBoundaryLog.Type: {policy.ActionCreate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -866,6 +888,12 @@ func AsAIBridged(ctx context.Context) context.Context {
 // for dbpurge to delete old database records.
 func AsDBPurge(ctx context.Context) context.Context {
 	return As(ctx, subjectDBPurge)
+}
+
+// AsAgentAPIHandler returns a context with an actor that has permissions
+// required for the agent API handler to persist boundary audit logs.
+func AsAgentAPIHandler(ctx context.Context) context.Context {
+	return As(ctx, subjectAgentAPIHandler)
 }
 
 // AsBoundaryUsageTracker returns a context with an actor that has permissions

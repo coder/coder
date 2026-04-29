@@ -1230,6 +1230,38 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Boundary logs: only owner gets create and delete.
+			Name:     "BoundaryLogCreateDelete",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionDelete},
+			Resource: rbac.ResourceBoundaryLog,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor, auditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			// Boundary logs: owner and auditor get read.
+			Name:     "BoundaryLogRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceBoundaryLog,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, auditor},
+				false: {
+					memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			Name:     "ChatUsageCRU",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
