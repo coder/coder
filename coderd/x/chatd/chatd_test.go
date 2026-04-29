@@ -8886,8 +8886,7 @@ func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 		CreatedBy:       user.ID,
 	})
 	require.NoError(t, err)
-	require.False(t, promoteResult.Deferred,
-		"requires_action promotion should be synchronous")
+	// Synchronous path returns the inserted user message.
 	require.Equal(t, database.ChatMessageRoleUser, promoteResult.PromotedMessage.Role)
 
 	queuedAfter, err := db.GetChatQueuedMessages(ctx, chat.ID)
@@ -9080,7 +9079,8 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 		CreatedBy:       user.ID,
 	})
 	require.NoError(t, err)
-	require.False(t, promoteResult.Deferred)
+	require.NotZero(t, promoteResult.PromotedMessage.ID,
+		"requires_action promotion is synchronous and returns the inserted message")
 
 	// Walk the message log post-promote: only the dynamic tool call
 	// should have a new synthetic IsError result. The built-in tool
@@ -10098,10 +10098,9 @@ func TestPromoteQueuedWhileRunning(t *testing.T) {
 		CreatedBy:       user.ID,
 	})
 	require.NoError(t, err)
-	require.True(t, promoteResult.Deferred,
-		"running-case promotion must be deferred to auto-promote")
-	require.Zero(t, promoteResult.PromotedMessage.ID,
-		"deferred promotion must not return a synchronous PromotedMessage")
+	// Running-case promotion is deferred to the worker's auto-promote;
+	// the user message is not synchronously inserted.
+	require.Zero(t, promoteResult.PromotedMessage.ID)
 
 	// The interrupt should now flow: control subscriber sees waiting,
 	// cancels the worker, the mock unblocks.
@@ -10261,7 +10260,8 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 		CreatedBy:       user.ID,
 	})
 	require.NoError(t, err)
-	require.True(t, promoteResult.Deferred)
+	require.Zero(t, promoteResult.PromotedMessage.ID,
+		"running-case promotion is deferred to auto-promote")
 
 	// Immediately after PromoteQueued returns, the queue should be
 	// reordered to [B, A, C] with stable IDs.

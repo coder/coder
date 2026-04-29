@@ -1195,15 +1195,10 @@ type PromoteQueuedOptions struct {
 
 // PromoteQueuedResult contains post-promotion message metadata.
 type PromoteQueuedResult struct {
-	// PromotedMessage is the inserted user message when promotion
-	// completes synchronously. It is the zero value when Deferred is
-	// true.
+	// PromotedMessage is the inserted user message. For a chat that
+	// was running at promote time, the insertion is deferred to the
+	// worker's auto-promote and PromotedMessage is the zero value.
 	PromotedMessage database.ChatMessage
-	// Deferred is true when promotion was queued for the active worker's
-	// cleanup to finish (running case) instead of inserting the user
-	// message synchronously. Callers should not assume PromotedMessage
-	// is populated when Deferred is true.
-	Deferred bool
 }
 
 // CreateChat creates a chat, inserts optional system prompt and initial user
@@ -2064,12 +2059,7 @@ func (p *Server) PromoteQueued(
 		promoted       database.ChatMessage
 		updatedChat    database.Chat
 		remainingQueue []database.ChatQueuedMessage
-		// deferred is true when the chat was running at promote time:
-		// the queued message was reordered to the front of the queue
-		// and the chat was set to waiting so the active worker's
-		// cleanup auto-promote will insert the user message after
-		// persisting any partial assistant output.
-		deferred bool
+		deferred       bool
 	)
 
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -2104,16 +2094,13 @@ func (p *Server) PromoteQueued(
 			return xerrors.New("queued message not found")
 		}
 
-		// Running chats already own a worker that is streaming output.
-		// Synchronously inserting a user message and setting pending
-		// would race the worker: the persistStep ownership guard
-		// rejects the partial-output persist when status is anything
-		// other than waiting. Instead, reorder the queued message to
-		// the front of the queue, transition the chat to waiting (so
-		// the persist guard passes), and let the worker's cleanup
-		// auto-promote pop the message into history after the partial
-		// output is saved. The reorder mutates only created_at, so the
-		// queued row's ID stays stable.
+		// Setting pending here would clear WorkerID and trip the
+		// persistStep ownership guard, dropping any partial assistant
+		// output the active worker is mid-stream. Set waiting instead
+		// (which the guard accepts) and reorder the queued row so the
+		// worker's auto-promote picks it up after the persist. Mutating
+		// only created_at preserves the queued row's id; the frontend
+		// identifies queued messages by id.
 		if lockedChat.Status == database.ChatStatusRunning {
 			if err := tx.ReorderChatQueuedMessageToFront(ctx, database.ReorderChatQueuedMessageToFrontParams{
 				ChatID:   opts.ChatID,
@@ -2150,11 +2137,9 @@ func (p *Server) PromoteQueued(
 			return err
 		}
 
-		// When the chat is awaiting dynamic tool results, close the
-		// pending tool calls with synthetic error results before
-		// promoting the user message. Otherwise the new turn would
-		// contain unresolved tool calls and the LLM API would reject
-		// the request, leaving the chat permanently in error.
+		// Without synthetic results, the next turn would carry
+		// unresolved tool_call parts; the LLM API rejects this and the
+		// chat dead-ends in error.
 		if lockedChat.Status == database.ChatStatusRequiresAction {
 			if err := insertSyntheticToolResultsTx(
 				ctx, tx, lockedChat,
@@ -2200,11 +2185,9 @@ func (p *Server) PromoteQueued(
 	}
 
 	if deferred {
-		result.Deferred = true
-		// Publish the truthful (reordered) queue and the new waiting
-		// status. The worker observes the waiting status via its
-		// control subscriber, cancels with ErrInterrupted, and the
-		// deferred cleanup auto-promotes the front-of-queue message.
+		// Skip publishMessage and signalWake: there is no synchronous
+		// user message yet, and the active worker's interrupt path
+		// signals its own auto-promote follow-up.
 		p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 			QueuedMessages: db2sdk.ChatQueuedMessages(remainingQueue),
