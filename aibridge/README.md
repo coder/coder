@@ -1,6 +1,6 @@
 # aibridge
 
-aibridge provides an HTTP handler that intercepts AI client requests bound for upstream AI providers (Anthropic, OpenAI). It records token usage, prompts, and tool invocations per user. Optionally supports centralized [MCP](https://modelcontextprotocol.io/) tool injection with allowlist/denylist filtering.
+aibridge provides an HTTP handler that intercepts AI client requests bound for upstream AI providers (Anthropic, OpenAI, Copilot). It records token usage, prompts, and tool invocations per user. Optionally supports centralized [MCP](https://modelcontextprotocol.io/) tool injection with allowlist/denylist filtering.
 
 The handler is mounted by a host process. Today that host is `coderd`, which [mounts the handler](../enterprise/coderd/coderd.go#L294) at `/api/v2/aibridge/<provider>/*`. Running aibridge as a separate process is planned for the future.
 
