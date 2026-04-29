@@ -195,6 +195,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 		CredentialKind:             credentialKindOrDefault(in.CredentialKind),
 		CredentialHint:             in.CredentialHint,
+		BoundarySessionID:          uuid.NullUUID{},
+		BoundarySequenceNumber:     sql.NullInt64{},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)

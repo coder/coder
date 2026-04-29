@@ -1104,7 +1104,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
 FROM
 	aibridge_interceptions
 WHERE
@@ -1131,6 +1131,8 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
+		&i.BoundarySessionID,
+		&i.BoundarySequenceNumber,
 	)
 	return i, err
 }
@@ -1165,7 +1167,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
 FROM
 	aibridge_interceptions
 `
@@ -1196,6 +1198,8 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.ProviderName,
 			&i.CredentialKind,
 			&i.CredentialHint,
+			&i.BoundarySessionID,
+			&i.BoundarySequenceNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -1344,11 +1348,11 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
 ) VALUES (
-	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14
+	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::uuid, $16
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -1366,6 +1370,8 @@ type InsertAIBridgeInterceptionParams struct {
 	ThreadRootInterceptionID   uuid.NullUUID   `db:"thread_root_interception_id" json:"thread_root_interception_id"`
 	CredentialKind             CredentialKind  `db:"credential_kind" json:"credential_kind"`
 	CredentialHint             string          `db:"credential_hint" json:"credential_hint"`
+	BoundarySessionID          uuid.NullUUID   `db:"boundary_session_id" json:"boundary_session_id"`
+	BoundarySequenceNumber     sql.NullInt64   `db:"boundary_sequence_number" json:"boundary_sequence_number"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -1384,6 +1390,8 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.ThreadRootInterceptionID,
 		arg.CredentialKind,
 		arg.CredentialHint,
+		arg.BoundarySessionID,
+		arg.BoundarySequenceNumber,
 	)
 	var i AIBridgeInterception
 	err := row.Scan(
@@ -1403,6 +1411,8 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
+		&i.BoundarySessionID,
+		&i.BoundarySequenceNumber,
 	)
 	return i, err
 }
@@ -1810,7 +1820,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.boundary_session_id, aibridge_interceptions.boundary_sequence_number
 FROM
 	aibridge_interceptions
 JOIN
@@ -1874,6 +1884,8 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.ProviderName,
 			&i.AIBridgeInterception.CredentialKind,
 			&i.AIBridgeInterception.CredentialHint,
+			&i.AIBridgeInterception.BoundarySessionID,
+			&i.AIBridgeInterception.BoundarySequenceNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -2295,7 +2307,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $3::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -2324,6 +2336,8 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
+		&i.BoundarySessionID,
+		&i.BoundarySequenceNumber,
 	)
 	return i, err
 }
