@@ -2857,6 +2857,19 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	markRead := true
+	if v := r.URL.Query().Get("mark_read"); v != "" {
+		var err error
+		markRead, err = strconv.ParseBool(v)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid mark_read parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
 	snapshot, events, cancelSub, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
@@ -2894,8 +2907,10 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	// Mark the chat as read when the stream connects and again
 	// when it disconnects so we avoid per-message API calls while
 	// messages are actively streaming.
-	api.markChatAsRead(ctx, chatID)
-	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	if markRead {
+		api.markChatAsRead(ctx, chatID)
+		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	}
 
 	encoder := json.NewEncoder(wsNetConn)
 

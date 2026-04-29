@@ -164,6 +164,24 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 	return s.Store.UpdateChatModelConfig(ctx, arg)
 }
 
+type chatReadMarkerStore struct {
+	database.Store
+
+	updates chan database.UpdateChatLastReadMessageIDParams
+}
+
+func (s *chatReadMarkerStore) UpdateChatLastReadMessageID(
+	ctx context.Context,
+	arg database.UpdateChatLastReadMessageIDParams,
+) error {
+	err := s.Store.UpdateChatLastReadMessageID(ctx, arg)
+	if err != nil {
+		return err
+	}
+	s.updates <- arg
+	return nil
+}
+
 func requireChatUsageLimitExceededError(
 	t *testing.T,
 	err error,
@@ -7401,6 +7419,329 @@ func TestPatchChatMessage(t *testing.T) {
 	})
 }
 
+type chatStreamReadMarkerFixture struct {
+	client       *codersdk.ExperimentalClient
+	db           database.Store
+	firstUser    codersdk.CreateFirstUserResponse
+	modelConfig  codersdk.ChatModelConfig
+	updates      <-chan database.UpdateChatLastReadMessageIDParams
+	streamCancel <-chan context.CancelFunc
+	streamDone   <-chan struct{}
+}
+
+func newChatStreamReadMarkerFixture(t *testing.T) chatStreamReadMarkerFixture {
+	t.Helper()
+
+	rawDB, pubsub := dbtestutil.NewDB(t)
+	updates := make(chan database.UpdateChatLastReadMessageIDParams, 10)
+	store := &chatReadMarkerStore{
+		Store:   rawDB,
+		updates: updates,
+	}
+	streamCancel := make(chan context.CancelFunc, 1)
+	streamDone := make(chan struct{})
+	var streamDoneClosed atomic.Bool
+
+	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.Database = store
+		opts.Pubsub = pubsub
+		opts.APIMiddleware = func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/stream") {
+					streamCtx, cancelStream := context.WithCancel(r.Context())
+					defer cancelStream()
+					select {
+					case streamCancel <- cancelStream:
+					default:
+					}
+					if streamDoneClosed.CompareAndSwap(false, true) {
+						defer close(streamDone)
+					}
+					next.ServeHTTP(rw, r.WithContext(streamCtx))
+					return
+				}
+				next.ServeHTTP(rw, r)
+			})
+		}
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModelConfig(t, client)
+
+	return chatStreamReadMarkerFixture{
+		client:       client,
+		db:           db,
+		firstUser:    firstUser,
+		modelConfig:  modelConfig,
+		updates:      updates,
+		streamCancel: streamCancel,
+		streamDone:   streamDone,
+	}
+}
+
+func insertChatStreamReadMarkerChat(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	firstUser codersdk.CreateFirstUserResponse,
+	modelConfigID uuid.UUID,
+) database.Chat {
+	t.Helper()
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OrganizationID:    firstUser.OrganizationID,
+		Status:            database.ChatStatusCompleted,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfigID,
+		Title:             "stream read marker test",
+	})
+	require.NoError(t, err)
+	return chat
+}
+
+func insertChatStreamAssistantMessage(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	chatID uuid.UUID,
+	modelConfigID uuid.UUID,
+	text string,
+) database.ChatMessage {
+	t.Helper()
+
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(text),
+	})
+	require.NoError(t, err)
+
+	messages, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chatID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(assistantContent.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	return messages[0]
+}
+
+func dialChatStream(
+	ctx context.Context,
+	t testing.TB,
+	client *codersdk.ExperimentalClient,
+	chatID uuid.UUID,
+	query string,
+) *websocket.Conn {
+	t.Helper()
+
+	path := fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
+	if query != "" {
+		path += "?" + query
+	}
+	conn, err := client.Dial(ctx, path, &websocket.DialOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	require.NoError(t, err)
+	return conn
+}
+
+func requireChatStreamBatch(
+	ctx context.Context,
+	t testing.TB,
+	conn *websocket.Conn,
+) []codersdk.ChatStreamEvent {
+	t.Helper()
+
+	var batch []codersdk.ChatStreamEvent
+	err := wsjson.Read(ctx, conn, &batch)
+	require.NoError(t, err)
+	require.NotEmpty(t, batch)
+	return batch
+}
+
+func requireChatReadMarkerUpdate(
+	ctx context.Context,
+	t testing.TB,
+	updates <-chan database.UpdateChatLastReadMessageIDParams,
+	chatID uuid.UUID,
+	messageID int64,
+) {
+	t.Helper()
+
+	select {
+	case update := <-updates:
+		require.Equal(t, chatID, update.ID)
+		require.Equal(t, messageID, update.LastReadMessageID)
+	case <-ctx.Done():
+		require.FailNow(t, "timed out waiting for chat read marker update")
+	}
+}
+
+func requireNoChatReadMarkerUpdate(
+	t testing.TB,
+	updates <-chan database.UpdateChatLastReadMessageIDParams,
+) {
+	t.Helper()
+
+	select {
+	case update := <-updates:
+		require.FailNow(
+			t,
+			"unexpected chat read marker update",
+			"chat_id=%s last_read_message_id=%d",
+			update.ID,
+			update.LastReadMessageID,
+		)
+	default:
+	}
+}
+
+func requireChatStreamCancel(
+	ctx context.Context,
+	t testing.TB,
+	cancels <-chan context.CancelFunc,
+) context.CancelFunc {
+	t.Helper()
+
+	select {
+	case cancel := <-cancels:
+		return cancel
+	case <-ctx.Done():
+		require.FailNow(t, "timed out waiting for chat stream request context")
+		return nil
+	}
+}
+
+func requireChatStreamReturned(
+	ctx context.Context,
+	t testing.TB,
+	done <-chan struct{},
+) {
+	t.Helper()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		require.FailNow(t, "timed out waiting for chat stream handler to return")
+	}
+}
+
+type chatStreamReadMarkerScenario struct {
+	ctx     context.Context
+	fixture chatStreamReadMarkerFixture
+	chat    database.Chat
+	message database.ChatMessage
+}
+
+func newChatStreamReadMarkerScenario(t *testing.T) chatStreamReadMarkerScenario {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	fixture := newChatStreamReadMarkerFixture(t)
+	chat := insertChatStreamReadMarkerChat(
+		ctx,
+		t,
+		fixture.db,
+		fixture.firstUser,
+		fixture.modelConfig.ID,
+	)
+	message := insertChatStreamAssistantMessage(
+		ctx,
+		t,
+		fixture.db,
+		chat.ID,
+		fixture.modelConfig.ID,
+		"stream read marker assistant message",
+	)
+
+	return chatStreamReadMarkerScenario{
+		ctx:     ctx,
+		fixture: fixture,
+		chat:    chat,
+		message: message,
+	}
+}
+
+func requireChatStreamMarksRead(t *testing.T, query string) {
+	t.Helper()
+
+	scenario := newChatStreamReadMarkerScenario(t)
+	conn := dialChatStream(
+		scenario.ctx,
+		t,
+		scenario.fixture.client,
+		scenario.chat.ID,
+		query,
+	)
+	defer func() {
+		_ = conn.CloseNow()
+	}()
+	cancelStream := requireChatStreamCancel(
+		scenario.ctx,
+		t,
+		scenario.fixture.streamCancel,
+	)
+
+	requireChatReadMarkerUpdate(
+		scenario.ctx,
+		t,
+		scenario.fixture.updates,
+		scenario.chat.ID,
+		scenario.message.ID,
+	)
+
+	cancelStream()
+	requireChatStreamReturned(scenario.ctx, t, scenario.fixture.streamDone)
+	requireChatReadMarkerUpdate(
+		scenario.ctx,
+		t,
+		scenario.fixture.updates,
+		scenario.chat.ID,
+		scenario.message.ID,
+	)
+}
+
+func requireChatStreamSkipsRead(t *testing.T, query string) {
+	t.Helper()
+
+	scenario := newChatStreamReadMarkerScenario(t)
+	conn := dialChatStream(
+		scenario.ctx,
+		t,
+		scenario.fixture.client,
+		scenario.chat.ID,
+		query,
+	)
+	defer func() {
+		_ = conn.CloseNow()
+	}()
+	cancelStream := requireChatStreamCancel(
+		scenario.ctx,
+		t,
+		scenario.fixture.streamCancel,
+	)
+
+	requireChatStreamBatch(scenario.ctx, t, conn)
+	requireNoChatReadMarkerUpdate(t, scenario.fixture.updates)
+
+	cancelStream()
+	requireChatStreamReturned(scenario.ctx, t, scenario.fixture.streamDone)
+	requireNoChatReadMarkerUpdate(t, scenario.fixture.updates)
+}
+
 func TestStreamChat(t *testing.T) {
 	t.Parallel()
 
@@ -7455,6 +7796,61 @@ func TestStreamChat(t *testing.T) {
 				}
 			}
 		}
+	})
+
+	t.Run("MarkReadOmitted", func(t *testing.T) {
+		t.Parallel()
+
+		requireChatStreamMarksRead(t, "")
+	})
+
+	t.Run("MarkReadTrue", func(t *testing.T) {
+		t.Parallel()
+
+		requireChatStreamMarksRead(t, "mark_read=true")
+	})
+
+	t.Run("MarkReadFalse", func(t *testing.T) {
+		t.Parallel()
+
+		requireChatStreamSkipsRead(t, "mark_read=false")
+	})
+
+	t.Run("InvalidMarkRead", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		fixture := newChatStreamReadMarkerFixture(t)
+		chat := insertChatStreamReadMarkerChat(
+			ctx,
+			t,
+			fixture.db,
+			fixture.firstUser,
+			fixture.modelConfig.ID,
+		)
+
+		_ = insertChatStreamAssistantMessage(
+			ctx,
+			t,
+			fixture.db,
+			chat.ID,
+			fixture.modelConfig.ID,
+			"invalid mark_read assistant message",
+		)
+
+		res, err := fixture.client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/%s/stream?mark_read=garbage", chat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		err = codersdk.ReadBodyAsError(res)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid mark_read parameter.", sdkErr.Message)
+		requireNoChatReadMarkerUpdate(t, fixture.updates)
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
