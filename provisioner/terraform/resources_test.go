@@ -1821,6 +1821,128 @@ func TestExternalAgents(t *testing.T) {
 	})
 }
 
+func TestDLPPolicy(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// Load the multiple-apps fixture in its post-apply state (one coder_agent
+	// named "dev1") and mutate it in memory to exercise DLP policy attachment.
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+	fixtureDir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "multiple-apps")
+	graphRaw, err := os.ReadFile(filepath.Join(fixtureDir, "multiple-apps.tfstate.dot"))
+	require.NoError(t, err)
+
+	loadState := func(t *testing.T) *tfjson.State {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(fixtureDir, "multiple-apps.tfstate.json"))
+		require.NoError(t, err)
+		var state tfjson.State
+		require.NoError(t, json.Unmarshal(raw, &state))
+		return &state
+	}
+
+	findAgentResource := func(t *testing.T, s *tfjson.State) *tfjson.StateResource {
+		t.Helper()
+		for _, r := range s.Values.RootModule.Resources {
+			if r.Type == "coder_agent" {
+				return r
+			}
+		}
+		t.Fatal("no coder_agent in fixture")
+		return nil
+	}
+
+	newDLPResource := func(name, id string, extra map[string]interface{}) *tfjson.StateResource {
+		attrs := map[string]interface{}{
+			"id":                     id,
+			"ssh_access":             false,
+			"web_terminal_access":    false,
+			"port_forwarding_access": false,
+			"allowed_applications":   []interface{}{},
+		}
+		for k, v := range extra {
+			attrs[k] = v
+		}
+		return &tfjson.StateResource{
+			Address:         "coder_dlp_policy." + name,
+			Type:            "coder_dlp_policy",
+			Name:            name,
+			Mode:            tfjson.ManagedResourceMode,
+			AttributeValues: attrs,
+		}
+	}
+
+	findAgent := func(t *testing.T, state *terraform.State, name string) *proto.Agent {
+		t.Helper()
+		for _, res := range state.Resources {
+			for _, a := range res.Agents {
+				if a.Name == name {
+					return a
+				}
+			}
+		}
+		t.Fatalf("agent %q not found", name)
+		return nil
+	}
+
+	t.Run("NoPolicy", func(t *testing.T) {
+		t.Parallel()
+		tfState := loadState(t)
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
+		require.NoError(t, err)
+		require.Nil(t, findAgent(t, state, "dev1").DlpPolicy)
+	})
+
+	t.Run("AgentReferencesPolicy", func(t *testing.T) {
+		t.Parallel()
+		const policyID = "d0c3f5a1-0000-4000-8000-000000000001"
+		tfState := loadState(t)
+		findAgentResource(t, tfState).AttributeValues["dlp_policy"] = policyID
+		tfState.Values.RootModule.Resources = append(tfState.Values.RootModule.Resources,
+			newDLPResource("strict", policyID, map[string]interface{}{
+				"ssh_access":             true,
+				"web_terminal_access":    false,
+				"port_forwarding_access": true,
+				"allowed_applications":   []interface{}{"code-server", "vscode-desktop"},
+			}),
+		)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
+		require.NoError(t, err)
+		policy := findAgent(t, state, "dev1").DlpPolicy
+		require.NotNil(t, policy)
+		require.Equal(t, policyID, policy.Id)
+		require.True(t, policy.SshAccess)
+		require.False(t, policy.WebTerminalAccess)
+		require.True(t, policy.PortForwardingAccess)
+		require.Equal(t, []string{"code-server", "vscode-desktop"}, policy.AllowedApplications)
+	})
+
+	t.Run("UnreferencedPolicyIsAllowed", func(t *testing.T) {
+		t.Parallel()
+		// Defining a policy resource without any agent referencing it is a
+		// no-op (matches terraform's general tolerance for unused resources).
+		tfState := loadState(t)
+		tfState.Values.RootModule.Resources = append(tfState.Values.RootModule.Resources,
+			newDLPResource("orphan", "d0c3f5a1-0000-4000-8000-000000000099", nil),
+		)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
+		require.NoError(t, err)
+		require.Nil(t, findAgent(t, state, "dev1").DlpPolicy)
+	})
+
+	t.Run("MissingPolicyRejected", func(t *testing.T) {
+		t.Parallel()
+		tfState := loadState(t)
+		findAgentResource(t, tfState).AttributeValues["dlp_policy"] = "00000000-0000-0000-0000-000000000000"
+
+		_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
+		require.ErrorContains(t, err, "does not match any coder_dlp_policy")
+	})
+}
+
 // sortResource ensures resources appear in a consistent ordering
 // to prevent tests from flaking.
 func sortResources(resources []*proto.Resource) {

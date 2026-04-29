@@ -85,9 +85,13 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added `UserSecretValue` message and `user_secrets` field to `PlanRequest`,
 //     carrying user secret values from provisioner daemons to provisioners
 //     during plan.
+//
+// API v1.18:
+//   - Added new message type `DLPPolicy`.
+//   - Added new field `dlp_policy` to `provisioner.Agent`.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 17
+	CurrentMinor = 18
 )
 
 // CurrentVersion is the current provisionerd API version.

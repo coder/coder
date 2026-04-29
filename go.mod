@@ -2,6 +2,12 @@ module github.com/coder/coder/v2
 
 go 1.26.2
 
+// Local checkout used during the DLP policy enforcement review. The
+// matching change in coder/terraform-provider-coder lives on a review
+// branch; once it merges and a release is tagged, drop this directive
+// and bump the version in the require block below.
+replace github.com/coder/terraform-provider-coder/v2 => ../terraform-provider-coder
+
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
 // should be fine...

@@ -190,6 +190,7 @@ message Agent {
   ResourcesMonitoring resources_monitoring = 24;
   repeated Devcontainer devcontainers = 25;
   string api_key_scope = 26;
+  optional DLPPolicy dlp_policy = 27;
 }
 
 enum AppSharingLevel {
@@ -346,6 +347,20 @@ message AITask {
   string id = 1;
   optional AITaskSidebarApp sidebar_app = 2;
   string app_id = 3;
+}
+
+// DLPPolicy is an agent-scoped data loss prevention policy declared via a
+// `coder_dlp_policy` resource in a template. At most one is expected per
+// agent; additional declarations are rejected during state conversion. The
+// `agent_id` field on the terraform resource is resolved to the owning
+// `Agent` here and is not carried on the proto.
+message DLPPolicy {
+  string id = 1;
+  bool ssh_access = 2;
+  bool web_terminal_access = 3;
+  bool port_forwarding_access = 4;
+  // Slugs of `coder_app` resources the workspace user is permitted to access.
+  repeated string allowed_applications = 5;
 }
 
 // Metadata is information about a workspace used in the execution of a build
