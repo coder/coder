@@ -13,31 +13,13 @@ need to do to connect their local tools.
 
 ## Admin setup
 
-### 1. Enable AI Gateway
+### Prerequisites
 
-AI Gateway must be enabled on the Coder deployment. See [Setup](./setup.md)
-for full instructions.
+Before sharing AI Gateway with external users, complete the
+[AI Gateway setup](./setup.md): enable the feature flag and configure at
+least one upstream provider.
 
-```sh
-coder server --aibridge-enabled=true
-```
-
-### 2. Configure upstream providers
-
-Configure at least one upstream LLM provider so AI Gateway has somewhere to
-forward requests. See
-[Configure Providers](./setup.md#configure-providers) for the full list of
-options.
-
-```sh
-# Example: Anthropic
-export CODER_AIBRIDGE_ANTHROPIC_KEY="sk-ant-..."
-
-# Example: OpenAI
-export CODER_AIBRIDGE_OPENAI_KEY="sk-..."
-```
-
-### 3. Create Coder accounts for external users
+### 1. Create Coder accounts for external users
 
 Every request to AI Gateway is authenticated with a Coder API token, so each
 external user must have a Coder account. Users do not need workspace
@@ -45,9 +27,9 @@ permissions; they only need the ability to generate an API token.
 
 #### Users without individual Coder accounts
 
-Some organizations have developers who need AI Gateway access but should not
-have full Coder accounts (for example, contractors or teams that do not use
-Coder workspaces at all). In this case, an admin can create a
+Some organizations have developers who need AI Gateway access but do not
+have individual Coder accounts (for example, contractors or teams that do
+not use Coder workspaces). In this case, an admin can create a
 [service account](../../admin/users/headless-auth.md) and distribute its
 API token to those users.
 
@@ -55,42 +37,15 @@ API token to those users.
 > Using a shared service account token is a temporary workaround.
 > A dedicated authentication-only account tier is planned to give each
 > external user their own identity for auditing and access control.
-> Until then, a service account provides a practical path for teams
-> that need AI Gateway governance without individual Coder logins.
-
-To create a service account and generate a token for it:
-
-```sh
-# Create the service account (requires User Admin role or above).
-coder users create \
-  --username="ai-gateway-external" \
-  --service-account
-
-# Generate a long-lived API token for the service account.
-coder tokens create \
-  --name=ai-gateway \
-  --lifetime=2160h \
-  --user="ai-gateway-external"
-```
-
-Distribute the resulting token to the external users along with the
-connection details from the next step.
 
 When every user shares a single token, AI Gateway audit logs attribute
-all traffic to the service account rather than to individual developers.
-There are two ways to get per-user attribution:
+all traffic to the service account. To get per-user attribution, generate
+a separate named token for each developer or create a dedicated service
+account per user or group. See
+[Headless Authentication](../../admin/users/headless-auth.md) for details
+on creating service accounts and generating tokens.
 
-- **One token per user from the same service account.** Generate a
-  separate named token for each developer (`--name=alice`,
-  `--name=bob`, etc.). Each token is logged as a distinct API key,
-  so audit records can be traced back to an individual even though
-  they all belong to the same account.
-- **One service account per user or group.** Create a dedicated
-  service account for each developer or team. This provides a
-  distinct user identity in audit logs but requires more accounts
-  to manage.
-
-### 4. Share connection details
+### 2. Share connection details
 
 Provide users with the following information:
 
@@ -101,7 +56,7 @@ Provide users with the following information:
 - **How to generate an API token**: link users to the Coder dashboard or
   provide the CLI command (see below).
 
-### 5. Optional: disable BYOK
+### 3. Optional: disable BYOK
 
 By default AI Gateway allows users to bring their own LLM API keys. To
 require all traffic to use the centralized org key, disable BYOK:
@@ -114,30 +69,14 @@ coder server --aibridge-allow-byok=false
 
 ### 1. Generate a long-lived API token
 
-Create a token from the Coder dashboard or CLI. This token authenticates
-you with AI Gateway and does not require a workspace. If you do not have
-a Coder account, ask your admin to provision a
+Create a Coder API token to authenticate with AI Gateway. If you do not
+have a Coder account, ask your admin to provision a
 [service account](#users-without-individual-coder-accounts) and provide
 you with a token.
 
-<div class="tabs">
-
-#### Dashboard
-
-1. Navigate to `https://coder.example.com/settings/account`.
-1. Open the **Tokens** page in the sidebar.
-1. Click **Create token**, give it a name, and save the value.
-
-#### CLI
-
-```sh
-coder tokens create --name=ai-gateway --lifetime=720h
-```
-
-</div>
-
-See [Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)
-for more details on token management.
+See
+[Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)
+for instructions on creating tokens via the dashboard or CLI.
 
 ### 2. Configure your AI tool
 

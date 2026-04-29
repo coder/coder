@@ -133,7 +133,8 @@ resource "coder_agent" "dev" {
 
 AI tools running outside of a Coder workspace, such as local IDE extensions
 or desktop applications, can also connect to AI Gateway. Users authenticate
-with a long-lived Coder API token instead of a workspace session token.
+with a long-lived Coder API token instead of the workspace owner's session
+token.
 
 For a step-by-step walkthrough covering both admin and user setup, see
 [Using AI Gateway Without Workspaces](../external-clients.md).
