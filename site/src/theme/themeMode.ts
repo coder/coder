@@ -198,14 +198,20 @@ type AppearanceUpdate = {
  * plausible theme:
  *
  * - Single mode: mirror the single theme exactly.
- * - Sync mode: mirror the dark slot (matches the historical default of
- *   preferring dark when ambiguous).
+ * - Sync mode: mirror the slot currently active for the OS scheme. This
+ *   keeps legacy readers aligned with what the user sees right now.
  */
 export const draftToUpdate = (
 	draft: ThemeModeDraft,
 	terminalFont: TerminalFontName,
+	activeScheme: "dark" | "light",
 ): AppearanceUpdate => {
-	const themePreference = draft.mode === "single" ? draft.single : draft.dark;
+	const themePreference =
+		draft.mode === "single"
+			? draft.single
+			: activeScheme === "dark"
+				? draft.dark
+				: draft.light;
 	return {
 		theme_preference: themePreference,
 		theme_mode: draft.mode,

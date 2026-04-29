@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import type { UserAppearanceSettings } from "#/api/typesGenerated";
@@ -98,6 +98,94 @@ describe("appearance page", () => {
 			theme_light: "light",
 			theme_dark: "dark",
 			terminal_font: "fira-code",
+		});
+	});
+
+	it("renders every concrete theme in each sync mode slot", () => {
+		render(
+			<AppearanceForm
+				activeScheme="light"
+				initialValues={putResponse({
+					theme_mode: "sync",
+					theme_light: "light",
+					theme_dark: "dark",
+				})}
+				onSubmit={vi.fn()}
+			/>,
+		);
+
+		const lightOptions = screen.getByRole("radiogroup", {
+			name: /light theme options/i,
+		});
+		const darkOptions = screen.getByRole("radiogroup", {
+			name: /dark theme options/i,
+		});
+
+		expect(within(lightOptions).getAllByRole("radio")).toHaveLength(6);
+		expect(within(darkOptions).getAllByRole("radio")).toHaveLength(6);
+	});
+
+	it("allows a dark concrete theme in the light sync slot", () => {
+		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
+		render(
+			<AppearanceForm
+				activeScheme="light"
+				initialValues={putResponse({
+					theme_preference: "light",
+					theme_mode: "sync",
+					theme_light: "light",
+					theme_dark: "dark",
+				})}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		const lightOptions = screen.getByRole("radiogroup", {
+			name: /light theme options/i,
+		});
+		fireEvent.click(
+			within(lightOptions).getByRole("radio", { name: /dark tritanopia/i }),
+		);
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith({
+			theme_preference: "dark-tritan",
+			theme_mode: "sync",
+			theme_light: "dark-tritan",
+			theme_dark: "dark",
+			terminal_font: "geist-mono",
+		});
+	});
+
+	it("keeps the legacy mirror on the active light slot in sync mode", () => {
+		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
+		render(
+			<AppearanceForm
+				activeScheme="light"
+				initialValues={putResponse({
+					theme_preference: "dark",
+					theme_mode: "sync",
+					theme_light: "light-tritan",
+					theme_dark: "dark",
+				})}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		const darkOptions = screen.getByRole("radiogroup", {
+			name: /dark theme options/i,
+		});
+		fireEvent.click(
+			within(darkOptions).getByRole("radio", { name: /dark tritanopia/i }),
+		);
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith({
+			theme_preference: "light-tritan",
+			theme_mode: "sync",
+			theme_light: "light-tritan",
+			theme_dark: "dark-tritan",
+			terminal_font: "geist-mono",
 		});
 	});
 

@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { PreviewBadge } from "#/components/Badges/Badges";
 import type { ConcreteThemeName } from "#/theme/colorblind";
 import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
@@ -66,11 +65,6 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 			/>
 			<div className="relative">
 				<ThemePreview theme={theme} size="lg" />
-				{copy.beta && (
-					<div className="absolute right-2 top-2">
-						<PreviewBadge />
-					</div>
-				)}
 			</div>
 			<div className="flex items-start gap-3">
 				<span

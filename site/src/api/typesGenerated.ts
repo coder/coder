@@ -8036,8 +8036,8 @@ export interface UpdateTemplateMeta {
  * legacy mirror field and is intentionally not validated against a
  * server-side allowlist; clients should treat unknown values as the
  * default theme. ThemeLight and ThemeDark are concrete sync slots.
- * They are required in sync mode and must be scheme-specific concrete
- * theme names when present.
+ * They are required in sync mode and may be any concrete theme name
+ * when present.
  */
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
@@ -8343,9 +8343,10 @@ export interface UserAppearanceSettings {
 	/**
 	 * ThemePreference is the legacy single-field appearance setting. In
 	 * "single" mode it mirrors the active theme. In "sync" mode modern
-	 * clients normally mirror the dark slot, but older clients can update
-	 * only this field, so it may diverge from ThemeDark until a modern
-	 * client saves the full appearance state again.
+	 * clients normally mirror the active OS slot, but older clients can
+	 * update only this field, so it may diverge from ThemeLight or
+	 * ThemeDark until a modern client saves the full appearance state
+	 * again.
 	 */
 	readonly theme_preference: string;
 	readonly theme_mode: ThemeMode;

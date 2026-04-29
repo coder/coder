@@ -855,6 +855,17 @@ describe("constants", () => {
 	it("diffViewerCSS includes border-left style", () => {
 		expect(diffViewerCSS).toContain("border-left");
 	});
+
+	it("diffViewerCSS uses theme-aware changed line backgrounds", () => {
+		expect(diffViewerCSS).toContain("--diffs-addition-color-override");
+		expect(diffViewerCSS).toContain("--diffs-deletion-color-override");
+		expect(diffViewerCSS).toContain("--diffs-bg-addition-override");
+		expect(diffViewerCSS).toContain("--diffs-bg-deletion-override");
+		expect(diffViewerCSS).toContain("var(--surface-git-added)");
+		expect(diffViewerCSS).toContain("var(--surface-git-deleted)");
+		expect(diffViewerCSS).toContain("[data-line-type='change-addition']");
+		expect(diffViewerCSS).toContain("[data-line-type='change-deletion']");
+	});
 });
 
 describe("parseServerEditResults", () => {

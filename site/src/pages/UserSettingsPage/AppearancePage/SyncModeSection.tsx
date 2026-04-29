@@ -1,11 +1,11 @@
 import { MoonIcon, SunIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import type { ConcreteThemeName } from "#/theme/colorblind";
 import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
 import { ThemeSwatch } from "./ThemeSwatch";
-import { DARK_THEMES, LIGHT_THEMES } from "./themeCopy";
+import { SYNC_MODE_THEMES, THEME_COPY } from "./themeCopy";
 
 interface SyncModeSectionProps {
 	light: ConcreteThemeName;
@@ -56,9 +56,10 @@ const SyncCard: FC<SyncCardProps> = ({
 	active,
 	onSelect,
 }) => {
-	const themes = scheme === "light" ? LIGHT_THEMES : DARK_THEMES;
+	const [previewTheme, setPreviewTheme] = useState<ConcreteThemeName>();
 	const Icon = scheme === "light" ? SunIcon : MoonIcon;
 	const title = scheme === "light" ? "Light theme" : "Dark theme";
+	const displayedTheme = previewTheme ?? selected;
 	const description =
 		scheme === "light"
 			? 'This theme will be active when your system is set to "light mode".'
@@ -83,19 +84,25 @@ const SyncCard: FC<SyncCardProps> = ({
 				)}
 			</div>
 			<p className="m-0 text-sm text-content-secondary">{description}</p>
-			<ThemePreview theme={selected} size="lg" />
+			<ThemePreview
+				theme={displayedTheme}
+				size="lg"
+				label={THEME_COPY[displayedTheme].title}
+			/>
 			<div
 				role="radiogroup"
 				aria-label={`${title} options`}
-				className="flex items-center gap-3"
+				className="flex flex-wrap items-center gap-3"
 			>
-				{themes.map((theme) => (
+				{SYNC_MODE_THEMES.map((theme) => (
 					<ThemeSwatch
 						key={theme}
 						name={`theme-sync-${scheme}`}
 						theme={theme}
 						selected={theme === selected}
 						onSelect={() => onSelect(theme)}
+						onPreview={() => setPreviewTheme(theme)}
+						onPreviewEnd={() => setPreviewTheme(undefined)}
 					/>
 				))}
 			</div>

@@ -13,6 +13,7 @@ interface ThemePreviewProps {
 	 * `lg` fills its container so the sync cards can be any width.
 	 */
 	size?: "sm" | "lg";
+	label?: string;
 	className?: string;
 	style?: CSSProperties;
 }
@@ -26,6 +27,7 @@ interface ThemePreviewProps {
 export const ThemePreview: FC<ThemePreviewProps> = ({
 	theme,
 	size = "sm",
+	label,
 	className,
 	style,
 }) => {
@@ -133,6 +135,16 @@ export const ThemePreview: FC<ThemePreviewProps> = ({
 						/>
 					</div>
 				</div>
+				{label && (
+					<div
+						className={cn(
+							"border-0 border-t border-border border-solid font-medium text-content-primary",
+							size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-4 py-2 text-sm",
+						)}
+					>
+						{label}
+					</div>
+				)}
 			</div>
 		</div>
 	);

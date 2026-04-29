@@ -215,17 +215,30 @@ describe("draftToUpdate", () => {
 					dark: "dark-tritan",
 				},
 				"fira-code",
+				"light",
 			),
 		).toEqual({
-			// When mode=sync we use the dark slot as the legacy mirror.
-			// Old clients that still read theme_preference will see a
-			// plausible theme rather than an unrelated single-mode pick.
-			theme_preference: "dark-tritan",
+			theme_preference: "light-protan-deuter",
 			theme_mode: "sync",
 			theme_light: "light-protan-deuter",
 			theme_dark: "dark-tritan",
 			terminal_font: "fira-code",
 		});
+	});
+
+	it("mirrors the active dark slot for sync drafts on dark systems", () => {
+		expect(
+			draftToUpdate(
+				{
+					mode: "sync",
+					single: "dark",
+					light: "light-protan-deuter",
+					dark: "dark-tritan",
+				},
+				"fira-code",
+				"dark",
+			).theme_preference,
+		).toBe("dark-tritan");
 	});
 
 	it("encodes a single draft so the legacy field mirrors the single pick", () => {
@@ -238,6 +251,7 @@ describe("draftToUpdate", () => {
 					dark: "dark-tritan",
 				},
 				"",
+				"light",
 			),
 		).toEqual({
 			theme_preference: "dark-protan-deuter",

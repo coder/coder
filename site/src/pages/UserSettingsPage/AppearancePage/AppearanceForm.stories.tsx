@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import type { UserAppearanceSettings } from "#/api/typesGenerated";
 import { AppearanceForm } from "./AppearanceForm";
 
@@ -107,6 +108,32 @@ export const SyncMixed: Story = {
 			theme_light: "light",
 			theme_dark: "dark-tritan",
 		},
+	},
+};
+
+export const SyncHoverPreview: Story = {
+	args: {
+		initialValues: {
+			...baseSettings,
+			theme_mode: "sync",
+			theme_light: "light",
+			theme_dark: "dark",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const lightOptions = await canvas.findByRole("radiogroup", {
+			name: "Light theme options",
+		});
+		const radio = await within(lightOptions).findByRole("radio", {
+			name: "Light tritanopia",
+		});
+		const swatch = radio.closest("label");
+		if (swatch === null) {
+			throw new Error("Expected the theme radio to be inside a swatch label.");
+		}
+		await user.hover(swatch);
 	},
 };
 

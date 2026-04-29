@@ -1210,8 +1210,8 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	// theme_light has already been persisted and theme_dark has not,
 	// breaking the sync-mode invariant that mode + both slots move
 	// together. The frontend in draftToUpdate mirrors theme_preference
-	// from the single theme (or the dark slot in sync mode) so older
-	// clients that only read theme_preference still see a plausible
+	// from the single theme, or from the active OS slot in sync mode, so
+	// older clients that only read theme_preference still see a plausible
 	// value. Older clients may update only theme_preference, so it can
 	// temporarily diverge from the sync slots until a modern client saves
 	// the full appearance state again.

@@ -1869,6 +1869,27 @@ func TestUserThemeMode(t *testing.T) {
 		require.Equal(t, "dark-tritan", fetched.ThemeDark)
 	})
 
+	t.Run("sync mode accepts any concrete theme per slot", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "dark-tritan",
+			ThemeDark:       "light-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThemeModeSync, updated.ThemeMode)
+		require.Equal(t, "dark-tritan", updated.ThemeLight)
+		require.Equal(t, "light-tritan", updated.ThemeDark)
+	})
+
 	t.Run("empty theme_mode is accepted for back-compat", func(t *testing.T) {
 		t.Parallel()
 
@@ -2044,16 +2065,6 @@ func TestUserThemeMode(t *testing.T) {
 				name:       "arbitrary dark slot",
 				themeLight: "light",
 				themeDark:  "xss-payload",
-			},
-			{
-				name:       "dark theme in light slot",
-				themeLight: "dark",
-				themeDark:  "dark",
-			},
-			{
-				name:       "light theme in dark slot",
-				themeLight: "light",
-				themeDark:  "light",
 			},
 			{
 				name:       "empty light slot in sync mode",

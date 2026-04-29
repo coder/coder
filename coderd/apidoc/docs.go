@@ -21545,6 +21545,9 @@ const docTemplate = `{
                 "theme_dark": {
                     "type": "string",
                     "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan",
                         "dark",
                         "dark-protan-deuter",
                         "dark-tritan"
@@ -21555,7 +21558,10 @@ const docTemplate = `{
                     "enum": [
                         "light",
                         "light-protan-deuter",
-                        "light-tritan"
+                        "light-tritan",
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
                     ]
                 },
                 "theme_mode": {
@@ -21989,7 +21995,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ThemeMode"
                 },
                 "theme_preference": {
-                    "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the dark slot, but older clients can update\nonly this field, so it may diverge from ThemeDark until a modern\nclient saves the full appearance state again.",
+                    "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the active OS slot, but older clients can\nupdate only this field, so it may diverge from ThemeLight or\nThemeDark until a modern client saves the full appearance state\nagain.",
                     "type": "string"
                 }
             }

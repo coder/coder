@@ -269,9 +269,10 @@ const (
 type UserAppearanceSettings struct {
 	// ThemePreference is the legacy single-field appearance setting. In
 	// "single" mode it mirrors the active theme. In "sync" mode modern
-	// clients normally mirror the dark slot, but older clients can update
-	// only this field, so it may diverge from ThemeDark until a modern
-	// client saves the full appearance state again.
+	// clients normally mirror the active OS slot, but older clients can
+	// update only this field, so it may diverge from ThemeLight or
+	// ThemeDark until a modern client saves the full appearance state
+	// again.
 	ThemePreference string    `json:"theme_preference"`
 	ThemeMode       ThemeMode `json:"theme_mode"`
 	// ThemeLight is the theme applied when the OS color scheme is light
@@ -289,8 +290,8 @@ type UserAppearanceSettings struct {
 // legacy mirror field and is intentionally not validated against a
 // server-side allowlist; clients should treat unknown values as the
 // default theme. ThemeLight and ThemeDark are concrete sync slots.
-// They are required in sync mode and must be scheme-specific concrete
-// theme names when present.
+// They are required in sync mode and may be any concrete theme name
+// when present.
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string `json:"theme_preference" validate:"required"`
 	// ThemeMode is optional for backward compatibility. When empty,
@@ -299,8 +300,8 @@ type UpdateUserAppearanceSettingsRequest struct {
 	// Legacy auto preferences are the exception: they clear theme_mode
 	// so clients can migrate the old sync-with-system setting.
 	ThemeMode    ThemeMode        `json:"theme_mode" validate:"omitempty,oneof=sync single"`
-	ThemeLight   string           `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan"`
-	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=dark dark-protan-deuter dark-tritan"`
+	ThemeLight   string           `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
+	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
 	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
 }
 

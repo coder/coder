@@ -89,7 +89,9 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		submitInFlightRef.current = true;
 		setDraft(next);
 		try {
-			const submitted = onSubmit(draftToUpdate(next, terminalFont));
+			const submitted = onSubmit(
+				draftToUpdate(next, terminalFont, activeScheme),
+			);
 			const resetSubmitInFlight = () => {
 				submitInFlightRef.current = false;
 			};

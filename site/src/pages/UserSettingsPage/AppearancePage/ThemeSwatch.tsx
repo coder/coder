@@ -13,28 +13,35 @@ interface ThemeSwatchProps {
 	theme: ConcreteThemeName;
 	selected: boolean;
 	onSelect: () => void;
+	onPreview?: () => void;
+	onPreviewEnd?: () => void;
 }
 
 /**
  * A small circular radio used in sync-mode cards to pick which concrete
- * theme applies for a given OS color scheme. The swatch renders a
- * two-tone accent (git-added + git-deleted) over the theme's
- * surface-primary background so the user can tell the three colorblind
- * variants apart at a glance, without reading the label.
+ * theme applies for a given OS color scheme. The swatch keeps the
+ * upper-left half on the theme surface and splits the remaining half
+ * into blue plus the colorblind-family accent.
  *
  * The swatch resolves its colors by applying the theme's CSS class to
- * an inner wrapper, so the Tailwind tokens (`bg-git-added`, etc.) pick
- * up the theme-scoped CSS variables.
+ * an inner wrapper, so `bg-surface-primary` shows white for light
+ * themes and black for dark themes.
  */
 export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 	name,
 	theme,
 	selected,
 	onSelect,
+	onPreview,
+	onPreviewEnd,
 }) => {
 	const copy = THEME_COPY[theme];
+	const isDefaultTheme = theme === "light" || theme === "dark";
+	const accentClass = theme.includes("protan-deuter")
+		? "bg-[#bf8700]"
+		: "bg-[#cf222e]";
 	return (
-		<Tooltip>
+		<Tooltip delayDuration={1000}>
 			<TooltipTrigger asChild>
 				<label
 					className={cn(
@@ -44,6 +51,10 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 						"border-border-default",
 						"has-[input:focus-visible]:outline-content-link has-[input:focus-visible]:outline-offset-2",
 					)}
+					onMouseEnter={onPreview}
+					onMouseLeave={onPreviewEnd}
+					onFocus={onPreview}
+					onBlur={onPreviewEnd}
 				>
 					<input
 						type="radio"
@@ -64,22 +75,31 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 							"bg-surface-primary relative",
 						)}
 					>
-						<span
-							className="absolute inset-0 bg-git-added"
-							style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
-						/>
-						<span
-							className="absolute inset-0 bg-git-deleted"
-							style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
-						/>
+						{!isDefaultTheme && (
+							<>
+								<span
+									className="absolute inset-0 bg-[#0969da]"
+									style={{
+										clipPath: "polygon(0 100%, 50% 50%, 100% 100%)",
+									}}
+								/>
+								<span
+									className={cn("absolute inset-0", accentClass)}
+									style={{
+										clipPath: "polygon(100% 0, 100% 100%, 50% 50%)",
+									}}
+								/>
+							</>
+						)}
 					</span>
 				</label>
 			</TooltipTrigger>
-			<TooltipContent sideOffset={8}>
-				<div className="flex flex-col gap-0.5">
-					<span className="font-medium text-content-primary">{copy.title}</span>
-					<span className="text-content-secondary">{copy.description}</span>
-				</div>
+			<TooltipContent
+				side="bottom"
+				sideOffset={8}
+				className="text-content-primary"
+			>
+				{copy.title}
 			</TooltipContent>
 		</Tooltip>
 	);

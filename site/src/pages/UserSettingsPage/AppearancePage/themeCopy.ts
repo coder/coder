@@ -2,10 +2,9 @@ import { CONCRETE_THEMES, type ConcreteThemeName } from "#/theme/colorblind";
 
 /**
  * Display copy for each concrete theme. The descriptions are surfaced
- * under each tile in single-theme mode and as tooltip content on the
- * sync-mode swatch row. Text is adapted from the GitHub appearance
- * preferences, with "Coder" substituted for "GitHub" to match the
- * product.
+ * under each tile in single-theme mode. Text is adapted from the
+ * GitHub appearance preferences, with "Coder" substituted for "GitHub"
+ * to match the product.
  */
 type ThemeCopy = {
 	title: string;
@@ -66,7 +65,12 @@ export const DARK_THEMES: ConcreteThemeName[] = [
 	"dark-tritan",
 ];
 
-const syncModeThemes = [...LIGHT_THEMES, ...DARK_THEMES];
+export const SYNC_MODE_THEMES: ConcreteThemeName[] = [
+	...LIGHT_THEMES,
+	...DARK_THEMES,
+];
+
+const syncModeThemes = SYNC_MODE_THEMES;
 const themeCopyKeys = Object.keys(THEME_COPY);
 if (
 	syncModeThemes.length !== CONCRETE_THEMES.length ||
