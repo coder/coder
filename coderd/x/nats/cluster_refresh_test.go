@@ -326,3 +326,68 @@ func TestPubsubRefreshPeers_TLSAndToken(t *testing.T) {
 	waitForRoutes(t, a, 2)
 	crossPublish(t, a, c, "tls-evt", "tls-refresh-hello")
 }
+
+// TestPubsub_SetPeerProvider_DeferredInstallEnablesRefresh exercises the
+// deferred-provider wiring used by the enterprise xreplicasync glue: a
+// Pubsub is constructed without a PeerProvider, the caller installs one
+// later via SetPeerProvider, and RefreshPeers then succeeds. This is a
+// regression test against the production bug where SetPeerProvider did
+// not exist and RefreshPeers errored continuously with "no PeerProvider
+// configured" because cli/server.go could not supply a provider that
+// depends on enterprise-only subsystems.
+func TestPubsub_SetPeerProvider_DeferredInstallEnablesRefresh(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	// Construct two Pubsubs without PeerProviders, mirroring the
+	// production sequence in cli/server.go where the provider depends on
+	// enterprise-only subsystems built later.
+	token := "deferred-provider-token" //nolint:gosec
+	portA := freePort(t)
+	portB := freePort(t)
+	urlA := "nats://127.0.0.1:" + strconv.Itoa(portA)
+	urlB := "nats://127.0.0.1:" + strconv.Itoa(portB)
+	a := buildClusterPubsubWithProvider(t, "node-a", portA, nil, token, nil)
+	b := buildClusterPubsubWithProvider(t, "node-b", portB, nil, token, nil)
+
+	// RefreshPeers must fail before SetPeerProvider with the exact
+	// production error string the deployed scaletest reported.
+	err := a.RefreshPeers(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no PeerProvider")
+
+	// Install the providers post-construction.
+	provA := newMutablePeerProvider([]Peer{{RouteURL: urlB}})
+	provB := newMutablePeerProvider([]Peer{{RouteURL: urlA}})
+	require.NoError(t, a.SetPeerProvider(provA))
+	require.NoError(t, b.SetPeerProvider(provB))
+
+	// Set-once: a second SetPeerProvider must error.
+	err = a.SetPeerProvider(provA)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already configured")
+
+	// nil provider is rejected.
+	err = b.SetPeerProvider(nil)
+	require.Error(t, err)
+
+	// RefreshPeers now establishes routes.
+	require.NoError(t, a.RefreshPeers(ctx))
+	require.NoError(t, b.RefreshPeers(ctx))
+	waitForRoutes(t, a, 1)
+	waitForRoutes(t, b, 1)
+	crossPublish(t, a, b, "deferred-evt", "deferred-hello")
+}
+
+// TestPubsub_SetPeerProvider_RejectsWhenAlreadySetAtConstruction confirms
+// that SetPeerProvider refuses to clobber a provider supplied via
+// Options.PeerProvider at New time.
+func TestPubsub_SetPeerProvider_RejectsWhenAlreadySetAtConstruction(t *testing.T) {
+	t.Parallel()
+	port := freePort(t)
+	p := buildClusterPubsubWithProvider(t, "preset", port, StaticPeerProvider(nil), "preset-token", nil) //nolint:gosec
+	err := p.SetPeerProvider(StaticPeerProvider(nil))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already configured")
+}

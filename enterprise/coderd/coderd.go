@@ -690,6 +690,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		if err != nil {
 			return nil, xerrors.Errorf("create xreplicasync provider: %w", err)
 		}
+		// Install the provider on the NATS Pubsub before Start. The Pubsub
+		// was constructed in cli/server.go without a PeerProvider because
+		// xreplicasync depends on replicasync.Manager, which is enterprise-
+		// only. Without this call, RefreshPeers fails with "no PeerProvider
+		// configured" and cluster routes never establish.
+		if err := natsPS.SetPeerProvider(api.xReplicasyncProvider); err != nil {
+			return nil, xerrors.Errorf("install nats peer provider: %w", err)
+		}
 		if err := api.xReplicasyncProvider.Start(ctx, natsPS); err != nil {
 			return nil, xerrors.Errorf("start xreplicasync provider: %w", err)
 		}

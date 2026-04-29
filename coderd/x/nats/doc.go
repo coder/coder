@@ -30,8 +30,23 @@
 // Clustered mode runs when PeerProvider returns one or more peers.
 // All replicas must share the same Options.ClusterToken and the same
 // Options.RoutePoolSize, which is pinned by this package to keep
-// route fan-in deterministic. The PeerProvider snapshot is read once
-// at startup; v1 does not support dynamic peer updates.
+// route fan-in deterministic. PeerProvider snapshots are re-read on
+// every RefreshPeers call, which an external coordinator (e.g.
+// enterprise/coderd/x/xreplicasync) drives in response to replica set
+// changes.
+//
+// # Deferred PeerProvider
+//
+// Callers that cannot construct a PeerProvider at New time, because
+// the provider depends on subsystems built later, may pass
+// Options.PeerProvider as nil and install the provider afterwards via
+// (*Pubsub).SetPeerProvider. This is the wiring the production
+// AGPL/enterprise split uses: cli/server.go builds the embedded NATS
+// server; enterprise/coderd then constructs an
+// xreplicasync.Provider against replicasync.Manager and installs it.
+// SetPeerProvider may be called at most once. Until it is called,
+// RefreshPeers returns a configuration error and cluster routes are
+// not established.
 //
 // # Non-goals
 //

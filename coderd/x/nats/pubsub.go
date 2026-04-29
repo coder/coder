@@ -40,9 +40,12 @@ type Pubsub struct {
 
 	metrics pubsubMetrics
 
-	// provider is captured at construction time so RefreshPeers can
-	// re-query peer membership at runtime. Nil for NewFromConn or for
-	// New called without a PeerProvider.
+	// provider is captured at construction time, or installed later via
+	// SetPeerProvider, so RefreshPeers can re-query peer membership at
+	// runtime. Nil for NewFromConn or for New called without a
+	// PeerProvider that has not yet had SetPeerProvider invoked. Guarded
+	// by refreshMu so SetPeerProvider cannot race with an in-flight
+	// RefreshPeers.
 	provider PeerProvider
 
 	// serverOpts is the effective startup *natsserver.Options. It is
@@ -180,6 +183,38 @@ func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 	return p, nil
 }
 
+// SetPeerProvider installs a PeerProvider after construction. It is
+// intended for callers that cannot supply a provider at New time because
+// the provider depends on subsystems built later (for example, the
+// enterprise xreplicasync.Provider, which needs replicasync.Manager).
+//
+// SetPeerProvider may be called at most once and only on a Pubsub
+// constructed via New. It returns:
+//   - ErrNoEmbeddedServer when called on a Pubsub created via
+//     NewFromConn.
+//   - An error if a provider is already installed (either via
+//     Options.PeerProvider at New or via a prior SetPeerProvider call).
+//   - An error if pp is nil.
+//
+// SetPeerProvider does not trigger an immediate refresh; the caller
+// should invoke RefreshPeers afterwards (or rely on the provider's own
+// signaling, e.g. xreplicasync.Provider.Start).
+func (p *Pubsub) SetPeerProvider(pp PeerProvider) error {
+	if pp == nil {
+		return xerrors.New("nats pubsub: PeerProvider is required")
+	}
+	if p.ns == nil {
+		return ErrNoEmbeddedServer
+	}
+	p.refreshMu.Lock()
+	defer p.refreshMu.Unlock()
+	if p.provider != nil {
+		return xerrors.New("nats pubsub: PeerProvider already configured")
+	}
+	p.provider = pp
+	return nil
+}
+
 // RefreshPeers re-queries the configured PeerProvider and applies any
 // route additions or removals to the embedded NATS server via
 // ReloadOptions, without restarting the server.
@@ -206,13 +241,13 @@ func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 	if p.ns == nil {
 		return ErrNoEmbeddedServer
 	}
-	if p.provider == nil {
-		return xerrors.New("nats pubsub: no PeerProvider configured")
-	}
 
 	p.refreshMu.Lock()
 	defer p.refreshMu.Unlock()
 
+	if p.provider == nil {
+		return xerrors.New("nats pubsub: no PeerProvider configured")
+	}
 	raw, err := p.provider.Peers(ctx)
 	if err != nil {
 		return xerrors.Errorf("nats peer discovery: %w", err)
