@@ -1,0 +1,511 @@
+=== Frame 1 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "message_start",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_bdrk_01V7qMAYt4GEtvfD9w8MJsGm",
+      "type": "message",
+      "role": "assistant",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 18,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1
+      }
+    }
+  }
+
+=== Frame 2 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_start",
+    "index": 0,
+    "content_block": {
+      "type": "text",
+      "text": ""
+    }
+  }
+
+=== Frame 3 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "This"
+    }
+  }
+
+=== Frame 4 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " famous"
+    }
+  }
+
+=== Frame 5 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " question"
+    }
+  }
+
+=== Frame 6 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " is often"
+    }
+  }
+
+=== Frame 7 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " used"
+    }
+  }
+
+=== Frame 8 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " to"
+    }
+  }
+
+=== Frame 9 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " mock"
+    }
+  }
+
+=== Frame 10 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " medieval"
+    }
+  }
+
+=== Frame 11 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " schol"
+    }
+  }
+
+=== Frame 12 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "astic philosophy"
+    }
+  }
+
+=== Frame 13 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " as"
+    }
+  }
+
+=== Frame 14 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " abs"
+    }
+  }
+
+=== Frame 15 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "urd"
+    }
+  }
+
+=== Frame 16 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "ly abstract"
+    }
+  }
+
+=== Frame 17 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " and"
+    }
+  }
+
+=== Frame 18 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " disconn"
+    }
+  }
+
+=== Frame 19 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "ected from reality."
+    }
+  }
+
+=== Frame 20 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " However"
+    }
+  }
+
+=== Frame 21 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": ", it's"
+    }
+  }
+
+=== Frame 22 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " actually"
+    }
+  }
+
+=== Frame 23 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " a **"
+    }
+  }
+
+=== Frame 24 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "miscon"
+    }
+  }
+
+=== Frame 25 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "ception** —"
+    }
+  }
+
+=== Frame 26 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " there"
+    }
+  }
+
+=== Frame 27 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "'s"
+    }
+  }
+
+=== Frame 28 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " no evidence"
+    }
+  }
+
+=== Frame 29 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " medieval"
+    }
+  }
+
+=== Frame 30 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " philosophers"
+    }
+  }
+
+=== Frame 31 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " seriously"
+    }
+  }
+
+=== Frame 32 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " deb"
+    }
+  }
+
+=== Frame 33 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "ated this."
+    }
+  }
+
+=== Frame 34 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": "\n\nThe question likely"
+    }
+  }
+
+=== Frame 35 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "text_delta",
+      "text": " originated"
+    }
+  }
+
+=== Frame 36 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_stop",
+    "index": 0
+  }
+
+=== Frame 37 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "message_delta",
+    "delta": {
+      "stop_reason": "max_tokens",
+      "stop_sequence": null
+    },
+    "usage": {
+      "input_tokens": 18,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 50
+    }
+  }
+
+=== Frame 38 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "message_stop",
+    "amazon-bedrock-invocationMetrics": {
+      "inputTokenCount": 18,
+      "outputTokenCount": 50,
+      "invocationLatency": 3403,
+      "firstByteLatency": 1550
+    }
+  }
+
+Total frames: 38

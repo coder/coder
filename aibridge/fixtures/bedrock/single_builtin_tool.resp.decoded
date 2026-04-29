@@ -1,0 +1,136 @@
+=== Frame 1 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "message_start",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_bdrk_01Whnn42wpp26Hi6izkRorG9",
+      "type": "message",
+      "role": "assistant",
+      "content": [],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 583,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1
+      }
+    }
+  }
+
+=== Frame 2 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_start",
+    "index": 0,
+    "content_block": {
+      "type": "tool_use",
+      "id": "toolu_bdrk_01K3c5nvHfTPbUTdKyt2XdiD",
+      "name": "Read",
+      "input": {}
+    }
+  }
+
+=== Frame 3 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "input_json_delta",
+      "partial_json": ""
+    }
+  }
+
+=== Frame 4 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"fil"
+    }
+  }
+
+=== Frame 5 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "input_json_delta",
+      "partial_json": "e_path\": \"/"
+    }
+  }
+
+=== Frame 6 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "input_json_delta",
+      "partial_json": "tmp/foo\"}"
+    }
+  }
+
+=== Frame 7 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "content_block_stop",
+    "index": 0
+  }
+
+=== Frame 8 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "message_delta",
+    "delta": {
+      "stop_reason": "tool_use",
+      "stop_sequence": null
+    },
+    "usage": {
+      "input_tokens": 583,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 56
+    }
+  }
+
+=== Frame 9 ===
+  message-type: event
+  event-type:   chunk
+  body:
+  {
+    "type": "message_stop",
+    "amazon-bedrock-invocationMetrics": {
+      "inputTokenCount": 583,
+      "outputTokenCount": 56,
+      "invocationLatency": 1403,
+      "firstByteLatency": 943
+    }
+  }
+
+Total frames: 9

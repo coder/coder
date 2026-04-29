@@ -2188,6 +2188,18 @@ func TestNativeBedrockSimple(t *testing.T) {
 	assert.Contains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256", "should be SigV4 signature")
 	assert.NotEmpty(t, received[0].Header.Get("X-Amz-Date"), "SigV4 X-Amz-Date header should be present")
 
+	// Verify prompt was recorded.
+	promptUsages := bridgeServer.Recorder.RecordedPromptUsages()
+	require.NotEmpty(t, promptUsages, "no prompts tracked")
+	assert.Contains(t, promptUsages[0].Prompt, "how many angels can dance on the head of a pin")
+
+	// Streaming produces 2 token records: message_start + message_delta.
+	tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
+	require.Len(t, tokenUsages, 2)
+	assert.EqualValues(t, 18, bridgeServer.Recorder.TotalInputTokens(), "input tokens")
+	// message_start reports output_tokens=1, message_delta reports output_tokens=50.
+	assert.EqualValues(t, 51, bridgeServer.Recorder.TotalOutputTokens(), "output tokens")
+
 	// Verify interception lifecycle.
 	bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 }
@@ -2242,6 +2254,28 @@ func TestNativeBedrockSingleBuiltinTool(t *testing.T) {
 	assert.NotEmpty(t, received[0].Header.Get("Authorization"), "SigV4 Authorization header should be present")
 	assert.Contains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256", "should be SigV4 signature")
 	assert.NotEmpty(t, received[0].Header.Get("X-Amz-Date"), "SigV4 X-Amz-Date header should be present")
+
+	// Verify token usage: message_start (input=583, output=1) + message_delta (output=56).
+	tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
+	require.Len(t, tokenUsages, 2)
+	assert.EqualValues(t, 583, bridgeServer.Recorder.TotalInputTokens(), "input tokens")
+	assert.EqualValues(t, 57, bridgeServer.Recorder.TotalOutputTokens(), "output tokens (1 + 56)")
+
+	// Verify tool usage.
+	toolUsages := bridgeServer.Recorder.RecordedToolUsages()
+	require.Len(t, toolUsages, 1)
+	assert.Equal(t, "Read", toolUsages[0].Tool)
+	assert.Equal(t, "toolu_bdrk_01K3c5nvHfTPbUTdKyt2XdiD", toolUsages[0].ToolCallID)
+	require.IsType(t, json.RawMessage{}, toolUsages[0].Args)
+	var args map[string]any
+	require.NoError(t, json.Unmarshal(toolUsages[0].Args.(json.RawMessage), &args))
+	require.Contains(t, args, "file_path")
+	assert.Equal(t, "/tmp/foo", args["file_path"])
+
+	// Verify prompt.
+	promptUsages := bridgeServer.Recorder.RecordedPromptUsages()
+	require.Len(t, promptUsages, 1)
+	assert.Equal(t, "read the /tmp/foo file", promptUsages[0].Prompt)
 
 	// Verify interception lifecycle.
 	bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)

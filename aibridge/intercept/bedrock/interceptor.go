@@ -9,8 +9,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -51,6 +55,7 @@ type Interceptor struct {
 	// /model/us.anthropic.claude-sonnet-4-6/invoke-with-response-stream.
 	upstreamPath string
 	httpClient   *http.Client
+	dumpDir      string
 
 	tracer trace.Tracer
 	logger slog.Logger
@@ -68,6 +73,7 @@ func NewInterceptor(
 	streaming bool,
 	upstreamPath string,
 	httpClient *http.Client,
+	dumpDir string,
 	tracer trace.Tracer,
 	cred intercept.CredentialInfo,
 ) *Interceptor {
@@ -80,6 +86,7 @@ func NewInterceptor(
 		streaming:    streaming,
 		upstreamPath: upstreamPath,
 		httpClient:   httpClient,
+		dumpDir:      dumpDir,
 		tracer:       tracer,
 		credential:   cred,
 	}
@@ -155,11 +162,58 @@ func (i *Interceptor) ProcessRequest(w http.ResponseWriter, r *http.Request) (ou
 		return xerrors.Errorf("bedrock returned %s", resp.Status)
 	}
 
-	if err = copyResponse(w, resp.Body, i.streaming); err != nil {
+	promptText, promptFound, promptErr := i.reqPayload.LastUserPrompt()
+	if promptErr != nil {
+		i.logger.Warn(ctx, "failed to determine last user prompt", slog.Error(promptErr))
+	}
+
+	// Buffer the response while streaming to the client so we can
+	// parse it for audit data after the stream completes.
+	var auditBuf bytes.Buffer
+	tee := io.TeeReader(resp.Body, &auditBuf)
+
+	if err = copyResponse(w, tee, i.streaming); err != nil {
 		return err
 	}
 
+	respBytes := auditBuf.Bytes()
+
+	// Dump request and response for debugging/fixture generation.
+	i.dumpRequestResponse(ctx, respBytes)
+
+	// Extract audit metadata from the buffered response.
+	if i.streaming {
+		i.extractStreamingAudit(ctx, respBytes, promptText, promptFound)
+	} else {
+		i.extractBlockingAudit(ctx, respBytes, promptText, promptFound)
+	}
+
 	return nil
+}
+
+// dumpRequestResponse writes the raw request body and response bytes
+// to files for debugging and test fixture generation.
+func (i *Interceptor) dumpRequestResponse(ctx context.Context, respBytes []byte) {
+	safeModel := strings.ReplaceAll(i.modelID, "/", "-")
+	dir := filepath.Join(i.dumpDir, i.providerName, safeModel)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		i.logger.Warn(ctx, "failed to create dump dir", slog.Error(err))
+		return
+	}
+
+	base := filepath.Join(dir, fmt.Sprintf("%d-%s", time.Now().UTC().UnixMilli(), i.id))
+
+	if err := os.WriteFile(base+".req.json", i.reqPayload, 0o644); err != nil {
+		i.logger.Warn(ctx, "failed to dump request", slog.Error(err))
+	}
+
+	suffix := ".resp.json"
+	if i.streaming {
+		suffix = ".resp.bin"
+	}
+	if err := os.WriteFile(base+suffix, respBytes, 0o644); err != nil {
+		i.logger.Warn(ctx, "failed to dump response", slog.Error(err))
+	}
 }
 
 // copyResponse pipes src to w. When streaming is true, each chunk is

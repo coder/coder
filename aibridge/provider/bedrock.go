@@ -160,6 +160,7 @@ func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		streaming,
 		path,
 		p.httpClient,
+		p.cfg.APIDumpDir,
 		tracer,
 		cred,
 	)
