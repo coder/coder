@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,19 +15,26 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+//nolint:paralleltest,tparallel // Subtests share one coderdtest.New server and run sequentially.
 func TestUserSecretAudit(t *testing.T) {
 	t.Parallel()
 
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	genSecretName := func(t *testing.T) string {
+		// Use test name derived secret names so subtests cannot
+		// collide in the shared user's secret namespace.
+		return strings.ReplaceAll(t.Name(), "/", "-")
+	}
+
 	t.Run("CreateEmitsLog", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
 		auditor.ResetLogs()
-		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "audit-create",
+			Name:  genSecretName(t),
 			Value: "ghp_xxxxxxxxxxxx",
 		})
 		require.NoError(t, err)
@@ -40,15 +48,10 @@ func TestUserSecretAudit(t *testing.T) {
 	})
 
 	t.Run("UpdateEmitsLog", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
 		auditor.ResetLogs()
-		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "audit-update",
+			Name:  genSecretName(t),
 			Value: "old",
 		})
 		require.NoError(t, err)
@@ -71,15 +74,10 @@ func TestUserSecretAudit(t *testing.T) {
 	})
 
 	t.Run("DeleteEmitsLog", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
 		auditor.ResetLogs()
-		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		secret, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "audit-delete",
+			Name:  genSecretName(t),
 			Value: "value",
 		})
 		require.NoError(t, err)
@@ -96,12 +94,7 @@ func TestUserSecretAudit(t *testing.T) {
 	})
 
 	t.Run("DeleteOfMissingWritesNoLog", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
 		auditor.ResetLogs()
-		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		err := client.DeleteUserSecret(ctx, codersdk.Me, "does-not-exist")
 		var sdkErr *codersdk.Error
@@ -112,12 +105,7 @@ func TestUserSecretAudit(t *testing.T) {
 	})
 
 	t.Run("UpdateOfMissingWritesNoLog", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
 		auditor.ResetLogs()
-		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		desc := "anything"
 		_, err := client.UpdateUserSecret(ctx, codersdk.Me, "does-not-exist", codersdk.UpdateUserSecretRequest{
@@ -131,15 +119,10 @@ func TestUserSecretAudit(t *testing.T) {
 	})
 
 	t.Run("ValidationFailureWritesNoLog", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
 		auditor.ResetLogs()
-		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:    "bad-env",
+			Name:    genSecretName(t),
 			Value:   "value",
 			EnvName: "1invalid",
 		})
@@ -151,14 +134,11 @@ func TestUserSecretAudit(t *testing.T) {
 	})
 
 	t.Run("EmptyUpdateWritesNoLog", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		auditor.ResetLogs()
+		name := genSecretName(t)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "no-op",
+			Name:  name,
 			Value: "value",
 		})
 		require.NoError(t, err)
@@ -166,7 +146,7 @@ func TestUserSecretAudit(t *testing.T) {
 		// no-op update does not add a new log.
 		auditor.ResetLogs()
 
-		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "no-op", codersdk.UpdateUserSecretRequest{})
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, name, codersdk.UpdateUserSecretRequest{})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
@@ -175,14 +155,11 @@ func TestUserSecretAudit(t *testing.T) {
 	})
 
 	t.Run("ReadsDoNotAudit", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		auditor.ResetLogs()
+		secretName := genSecretName(t)
 
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:  "read-me",
+			Name:  secretName,
 			Value: "value",
 		})
 		require.NoError(t, err)
@@ -193,7 +170,7 @@ func TestUserSecretAudit(t *testing.T) {
 		_, err = client.UserSecrets(ctx, codersdk.Me)
 		require.NoError(t, err)
 
-		_, err = client.UserSecretByName(ctx, codersdk.Me, "read-me")
+		_, err = client.UserSecretByName(ctx, codersdk.Me, secretName)
 		require.NoError(t, err)
 
 		require.Empty(t, auditor.AuditLogs())
