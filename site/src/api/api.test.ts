@@ -8,7 +8,13 @@ import {
 	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
+import { createMockWebSocket } from "#/testHelpers/websockets";
+import {
+	API,
+	getURLWithSearchParams,
+	MissingBuildParameters,
+	watchChat,
+} from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
@@ -163,6 +169,60 @@ describe("api.ts", () => {
 			["/api/v2/users", { q: "" }, "/api/v2/users"],
 		])("Users - getURLWithSearchParams(%p, %p) returns %p", (basePath, filter, expected) => {
 			expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
+		});
+	});
+
+	describe("watchChat", () => {
+		const chatId = "chat-123";
+
+		beforeEach(() => {
+			vi.spyOn(API, "getSessionToken").mockReturnValue(undefined);
+			vi.stubGlobal(
+				"WebSocket",
+				function mockWebSocket(url: string, protocols?: string | string[]) {
+					const [socket] = createMockWebSocket(url, protocols);
+					return socket;
+				},
+			);
+		});
+
+		afterEach(() => {
+			vi.unstubAllGlobals();
+			vi.restoreAllMocks();
+		});
+
+		it.each<{
+			name: string;
+			connect: () => ReturnType<typeof watchChat>;
+			expectedParams: Array<[string, string]>;
+		}>([
+			{
+				name: "keeps the default URL when options are omitted",
+				connect: () => watchChat(chatId),
+				expectedParams: [],
+			},
+			{
+				name: "keeps after_id without mark_read when options are omitted",
+				connect: () => watchChat(chatId, 42),
+				expectedParams: [["after_id", "42"]],
+			},
+			{
+				name: "adds mark_read=false when markRead is false",
+				connect: () => watchChat(chatId, undefined, { markRead: false }),
+				expectedParams: [["mark_read", "false"]],
+			},
+			{
+				name: "omits mark_read when markRead is true",
+				connect: () => watchChat(chatId, undefined, { markRead: true }),
+				expectedParams: [],
+			},
+		])("$name", ({ connect, expectedParams }) => {
+			const socketUrl = new URL(connect().url);
+
+			expect(socketUrl.pathname).toBe(
+				`/api/experimental/chats/${chatId}/stream`,
+			);
+			expect([...socketUrl.searchParams.entries()]).toEqual(expectedParams);
 		});
 	});
 

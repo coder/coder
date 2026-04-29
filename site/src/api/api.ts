@@ -142,13 +142,21 @@ export const watchWorkspace = (
 	});
 };
 
+type WatchChatOptions = {
+	markRead?: boolean;
+};
+
 export const watchChat = (
 	chatId: string,
 	afterMessageId?: number,
+	options: WatchChatOptions = {},
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
+	}
+	if (options.markRead === false) {
+		params.set("mark_read", "false");
 	}
 	const token = API.getSessionToken();
 	if (token) {
