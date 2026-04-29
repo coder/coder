@@ -222,7 +222,7 @@ requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 | `DUMP_DIR` | No       | Directory for provider API request and response dumps |
 
 > [!WARNING]
-> `DUMP_DIR` should never be set for normal operation. Setting this option
+> `DUMP_DIR` is not intended for regular use. Setting this option
 > results in a high number of writes. Dump files contain raw request and
 > response data, which may include proprietary or sensitive information
 > (prompts, completions, tool inputs). Enable only briefly for diagnostic
