@@ -1,8 +1,8 @@
-import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import type { SlimRole } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {
 	HelpPopover,

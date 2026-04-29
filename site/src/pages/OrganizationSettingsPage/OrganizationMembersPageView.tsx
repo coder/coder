@@ -3,7 +3,7 @@ import {
 	TriangleAlertIcon,
 	UserPlusIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
@@ -48,9 +48,13 @@ import {
 } from "#/components/Table/Table";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { AISeatCell } from "#/modules/users/AISeatCell";
-import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
-import { RolesHelpPopover } from "#/modules/roles/RolesHelpPopover";
-import { UserRoleCell } from "./UserTable/UserRoleCell";
+import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
+import {
+	AiAddonHelpPopover,
+	GroupsHelpPopover,
+	RolesHelpPopover,
+} from "#/modules/users/UserHelpPopovers";
+import { UserRoleCell } from "#/modules/users/UserRoleCell";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
@@ -77,7 +81,7 @@ interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
 	groups: readonly Group[] | undefined;
 }
 
-export const OrganizationMembersPageView: FC<
+export const OrganizationMembersPageView: React.FC<
 	OrganizationMembersPageViewProps
 > = ({
 	allAvailableRoles,
@@ -123,20 +127,20 @@ export const OrganizationMembersPageView: FC<
 								<TableHead className="w-2/6">
 									<div className="flex flex-row items-center gap-2">
 										<span>Roles</span>
-										<RolesHelpPopover variant="roles" />
+										<RolesHelpPopover />
 									</div>
 								</TableHead>
 								<TableHead className={showAISeatColumn ? "w-1/6" : "w-2/6"}>
 									<div className="flex flex-row items-center gap-2">
 										<span>Groups</span>
-										<RolesHelpPopover variant="groups" />
+										<GroupsHelpPopover />
 									</div>
 								</TableHead>
 								{showAISeatColumn && (
 									<TableHead className="w-1/6">
 										<div className="flex flex-row items-center gap-2">
 											<span>AI add-on</span>
-											<RolesHelpPopover variant="ai_addon" />
+											<AiAddonHelpPopover />
 										</div>
 									</TableHead>
 								)}
@@ -161,22 +165,8 @@ export const OrganizationMembersPageView: FC<
 											/>
 										</TableCell>
 										<UserRoleCell
-											inheritedRoles={member.global_roles}
+											globalRoles={member.global_roles}
 											roles={member.roles}
-											allAvailableRoles={allAvailableRoles}
-											oidcRoleSyncEnabled={false}
-											isLoading={isUpdatingMemberRoles}
-											canEditUsers={canEditMembers}
-											onEditRoles={async (roles) => {
-												// React doesn't mind uncaught errors in event handlers,
-												// but testing-library does.
-												try {
-													await updateMemberRoles(member, roles);
-													toast.success(
-														`Roles of "${member.username}" updated successfully.`,
-													);
-												} catch {}
-											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />
 										{showAISeatColumn && (
@@ -229,7 +219,7 @@ interface AddUsersDialogProps {
 	onSubmit: (users: User[]) => Promise<void>;
 }
 
-const AddUsersDialog: FC<AddUsersDialogProps> = ({ onSubmit }) => {
+const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 	const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [filter, setFilter] = useState("");

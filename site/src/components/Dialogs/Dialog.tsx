@@ -5,6 +5,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import type { ConfirmDialogType } from "./types";
 
 export interface DialogActionButtonsProps {
+	type?: ConfirmDialogType;
 	/** Text to display in the cancel button */
 	cancelText?: string;
 	/** Text to display in the confirm button */
@@ -12,25 +13,24 @@ export interface DialogActionButtonsProps {
 	/** Whether or not confirm is loading, also disables cancel when true */
 	confirmLoading?: boolean;
 	/** Whether or not the submit button is disabled */
-	disabled?: boolean;
+	confirmDisabled?: boolean;
 	/** Called when cancel is clicked */
 	onCancel?: () => void;
 	/** Called when confirm is clicked */
 	onConfirm?: () => void;
-	type?: ConfirmDialogType;
 }
 
 /**
  * Quickly handles most modals actions, some combination of a cancel and confirm button
  */
 export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
-	cancelText = "Cancel",
-	confirmText = "Confirm",
-	confirmLoading = false,
-	disabled = false,
-	onCancel,
-	onConfirm,
 	type = "info",
+	cancelText = "Cancel",
+	onCancel,
+	confirmText = "Confirm",
+	onConfirm,
+	confirmLoading = false,
+	confirmDisabled = false,
 }) => {
 	return (
 		<>
@@ -50,7 +50,7 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
 			{onConfirm && (
 				<Button
 					variant={type === "delete" ? "destructive" : undefined}
-					disabled={confirmLoading || disabled}
+					disabled={confirmLoading || confirmDisabled}
 					onClick={onConfirm}
 					data-testid="confirm-button"
 					type="submit"

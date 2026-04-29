@@ -21,6 +21,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { RoleSelector } from "#/modules/roles/RoleSelector";
 import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
@@ -28,7 +29,6 @@ import {
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
-import { RoleSelector } from "./RoleSelector";
 
 const loginTypeOptions = {
 	password: {
