@@ -1315,6 +1315,54 @@ export interface BaseReport {
 	readonly dismissed: boolean;
 }
 
+// From codersdk/boundary.go
+/**
+ * BoundaryLog represents a single audit event from a Boundary proxy.
+ */
+export interface BoundaryLog {
+	readonly id: string;
+	readonly session_id: string;
+	readonly sequence_number: number;
+	readonly allowed: boolean;
+	readonly time: string;
+	readonly proto: string;
+	readonly method: string;
+	readonly detail: string;
+	readonly matched_rule: string | null;
+	readonly captured_at?: string;
+}
+
+// From codersdk/boundary.go
+/**
+ * BoundarySessionLogsParams are query parameters for listing boundary
+ * session logs.
+ */
+export interface BoundarySessionLogsParams {
+	/**
+	 * SeqAfter is an exclusive lower bound on sequence_number.
+	 * Only logs with sequence_number > SeqAfter are returned.
+	 */
+	readonly seq_after?: number;
+	/**
+	 * SeqBefore is an exclusive upper bound on sequence_number.
+	 * Only logs with sequence_number < SeqBefore are returned.
+	 */
+	readonly seq_before?: number;
+	/**
+	 * Limit caps the number of returned rows. Defaults to 100.
+	 */
+	readonly limit?: number;
+}
+
+// From codersdk/boundary.go
+/**
+ * BoundarySessionLogsResponse is the response for GET
+ * /api/v2/boundary/sessions/{id}/logs.
+ */
+export interface BoundarySessionLogsResponse {
+	readonly results: readonly BoundaryLog[];
+}
+
 // From codersdk/deployment.go
 /**
  * BuildInfoResponse contains build information for this instance of Coder.
