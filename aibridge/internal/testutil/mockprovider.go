@@ -33,7 +33,6 @@ func (m *MockProvider) InjectAuthHeader(h *http.Header) {
 }
 func (*MockProvider) CircuitBreakerConfig() *config.CircuitBreaker { return nil }
 func (*MockProvider) APIDumpDir() string                           { return "" }
-func (*MockProvider) MaxRetries() *int                             { return nil }
 func (m *MockProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error) {
 	if m.InterceptorFunc != nil {
 		return m.InterceptorFunc(w, r, tracer)

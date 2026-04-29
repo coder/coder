@@ -110,9 +110,6 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 		if name == "" {
 			name = p.Type
 		}
-		if p.MaxRetries != nil && *p.MaxRetries < 0 {
-			return nil, xerrors.Errorf("provider %q: max retries must be non-negative", name)
-		}
 		switch p.Type {
 		case aibridge.ProviderOpenAI:
 			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
@@ -122,7 +119,6 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
-				MaxRetries:       p.MaxRetries,
 			}))
 		case aibridge.ProviderAnthropic:
 			providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
@@ -132,7 +128,6 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
-				MaxRetries:       p.MaxRetries,
 			}, bedrockConfigFromProvider(p)))
 		case aibridge.ProviderCopilot:
 			providers = append(providers, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
@@ -140,7 +135,6 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 				BaseURL:        p.BaseURL,
 				APIDumpDir:     p.DumpDir,
 				CircuitBreaker: cbConfig,
-				MaxRetries:     p.MaxRetries,
 			}))
 		default:
 			return nil, xerrors.Errorf("unknown provider type %q for provider %q", p.Type, name)

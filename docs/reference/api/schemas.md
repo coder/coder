@@ -469,7 +469,6 @@
       "bedrock_region": "string",
       "bedrock_small_fast_model": "string",
       "dump_dir": "string",
-      "max_retries": 0,
       "name": "string",
       "type": "string"
     }
@@ -763,7 +762,6 @@
   "bedrock_region": "string",
   "bedrock_small_fast_model": "string",
   "dump_dir": "string",
-  "max_retries": 0,
   "name": "string",
   "type": "string"
 }
@@ -771,16 +769,15 @@
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description                                                                                               |
-|----------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
-| `base_url`                 | string  | false    |              | Base URL is the base URL of the upstream provider API.                                                    |
-| `bedrock_model`            | string  | false    |              |                                                                                                           |
-| `bedrock_region`           | string  | false    |              |                                                                                                           |
-| `bedrock_small_fast_model` | string  | false    |              |                                                                                                           |
-| `dump_dir`                 | string  | false    |              | Dump dir is the directory path for dumping API requests and responses.                                    |
-| `max_retries`              | integer | false    |              | Max retries controls the number of automatic retries the SDK performs. If unset, the SDK default is used. |
-| `name`                     | string  | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                |
-| `type`                     | string  | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                                           |
+| Name                       | Type   | Required | Restrictions | Description                                                                                |
+|----------------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                     |
+| `bedrock_model`            | string | false    |              |                                                                                            |
+| `bedrock_region`           | string | false    |              |                                                                                            |
+| `bedrock_small_fast_model` | string | false    |              |                                                                                            |
+| `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
+| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
+| `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -1294,7 +1291,6 @@
         "bedrock_region": "string",
         "bedrock_small_fast_model": "string",
         "dump_dir": "string",
-        "max_retries": 0,
         "name": "string",
         "type": "string"
       }
@@ -3331,7 +3327,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
             "dump_dir": "string",
-            "max_retries": 0,
             "name": "string",
             "type": "string"
           }
@@ -3923,7 +3918,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "bedrock_region": "string",
           "bedrock_small_fast_model": "string",
           "dump_dir": "string",
-          "max_retries": 0,
           "name": "string",
           "type": "string"
         }

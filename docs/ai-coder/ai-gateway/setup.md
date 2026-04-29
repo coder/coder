@@ -213,17 +213,16 @@ requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 
 **Supported keys per provider:**
 
-| Key           | Required | Description                                           |
-|---------------|----------|-------------------------------------------------------|
-| `TYPE`        | Yes      | Provider type: `openai`, `anthropic`, or `copilot`    |
-| `NAME`        | No       | Unique instance name for routing. Defaults to `TYPE`  |
-| `KEY`         | No       | API key for upstream authentication (alias: `KEYS`)   |
-| `BASE_URL`    | No       | Base URL of the upstream API                          |
-| `DUMP_DIR`    | No       | Directory for provider API request and response dumps |
-| `MAX_RETRIES` | No       | Non-negative upstream SDK retry count                 |
+| Key        | Required | Description                                           |
+|------------|----------|-------------------------------------------------------|
+| `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`    |
+| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE`  |
+| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)   |
+| `BASE_URL` | No       | Base URL of the upstream API                          |
+| `DUMP_DIR` | No       | Directory for provider API request and response dumps |
 
-For example, set `CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR` for API dumps or
-`CODER_AIBRIDGE_PROVIDER_0_MAX_RETRIES` to override retries for provider `0`.
+For example, set `CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR` for API dumps for
+provider `0`.
 
 > [!WARNING]
 > `DUMP_DIR` writes provider request and response data to disk. These dumps can

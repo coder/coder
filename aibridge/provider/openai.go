@@ -181,7 +181,3 @@ func (p *OpenAI) CircuitBreakerConfig() *config.CircuitBreaker {
 func (p *OpenAI) APIDumpDir() string {
 	return p.cfg.APIDumpDir
 }
-
-func (p *OpenAI) MaxRetries() *int {
-	return p.cfg.MaxRetries
-}

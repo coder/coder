@@ -186,10 +186,6 @@ func (p *Anthropic) APIDumpDir() string {
 	return p.cfg.APIDumpDir
 }
 
-func (p *Anthropic) MaxRetries() *int {
-	return p.cfg.MaxRetries
-}
-
 // extractAnthropicHeaders extracts headers required by the Anthropic API from
 // the incoming request.
 // TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192

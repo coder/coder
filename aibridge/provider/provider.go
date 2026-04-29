@@ -84,8 +84,4 @@ type Provider interface {
 	// APIDumpDir returns the directory path for dumping API requests and responses.
 	// Empty string is returned when API dumping is not enabled.
 	APIDumpDir() string
-
-	// MaxRetries returns the configured SDK retry count.
-	// Nil means the SDK default is used.
-	MaxRetries() *int
 }

@@ -119,10 +119,6 @@ func (p *Copilot) APIDumpDir() string {
 	return p.cfg.APIDumpDir
 }
 
-func (p *Copilot) MaxRetries() *int {
-	return p.cfg.MaxRetries
-}
-
 func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
 	_, span := tracer.Start(r.Context(), "Intercept.CreateInterceptor")
 	defer tracing.EndSpanErr(span, &outErr)
@@ -145,7 +141,6 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		APIDumpDir:     p.cfg.APIDumpDir,
 		CircuitBreaker: p.cfg.CircuitBreaker,
 		ExtraHeaders:   extractCopilotHeaders(r),
-		MaxRetries:     p.cfg.MaxRetries,
 	}
 
 	cred := intercept.NewCredentialInfo(intercept.CredentialKindBYOK, key)
