@@ -6097,7 +6097,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
 		event := waitForChatWatchStatusChangeEvent(ctx, t, conn, chat.ID)
 		require.Equal(t, modelConfigB.ID, event.Chat.LastModelConfigID)
