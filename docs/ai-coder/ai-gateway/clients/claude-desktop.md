@@ -30,6 +30,9 @@ Claude Desktop is an Electron app that does not read shell profile files
 (`~/.zshrc`, `~/.bashrc`). You must set the `HTTPS_PROXY` environment
 variable in a way that the desktop application can see it.
 
+Developer Mode is **not** required. The proxy operates at the OS network
+level, so no in-app configuration is needed.
+
 > [!NOTE]
 > If [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration)
 > on the proxy, replace `https://` with `http://` in the proxy URL.
