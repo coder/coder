@@ -5,7 +5,8 @@ export type ChatLifecycleMode = "background" | "foreground" | "inactive";
 
 export type ChatViewportAnchor = {
 	readonly messageId: number;
-	readonly offsetFromViewportTop: number;
+	readonly offsetTop: number;
+	readonly newestMessageIdAtCapture: number | undefined;
 };
 
 export type ChatSessionSnapshot = {

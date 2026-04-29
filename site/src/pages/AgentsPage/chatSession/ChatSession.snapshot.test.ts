@@ -202,6 +202,51 @@ describe("ChatSession metadata snapshot", () => {
 		expect("backgroundedAt" in session.getSnapshot()).toBe(false);
 	});
 
+	it("notifies metadata subscribers when any viewport anchor field changes", () => {
+		const session = makeSession();
+		const snapshots: ReturnType<typeof session.getSnapshot>[] = [];
+		session.subscribe(() => {
+			snapshots.push(session.getSnapshot());
+		});
+
+		session.setViewportAnchor({
+			messageId: 1,
+			offsetTop: 10,
+			newestMessageIdAtCapture: undefined,
+		});
+		expect(snapshots).toHaveLength(1);
+		const anchoredSnapshot = session.getSnapshot();
+
+		session.setViewportAnchor({
+			messageId: 1,
+			offsetTop: 10,
+			newestMessageIdAtCapture: undefined,
+		});
+		expect(snapshots).toHaveLength(1);
+		expect(session.getSnapshot()).toBe(anchoredSnapshot);
+
+		session.setViewportAnchor({
+			messageId: 2,
+			offsetTop: 10,
+			newestMessageIdAtCapture: undefined,
+		});
+		expect(snapshots).toHaveLength(2);
+
+		session.setViewportAnchor({
+			messageId: 2,
+			offsetTop: 11,
+			newestMessageIdAtCapture: undefined,
+		});
+		expect(snapshots).toHaveLength(3);
+
+		session.setViewportAnchor({
+			messageId: 2,
+			offsetTop: 11,
+			newestMessageIdAtCapture: 2,
+		});
+		expect(snapshots).toHaveLength(4);
+	});
+
 	it("notifies metadata subscribers only on semantic metadata changes", () => {
 		const session = makeSession();
 		const initialSnapshot = session.getSnapshot();
@@ -219,14 +264,26 @@ describe("ChatSession metadata snapshot", () => {
 		expect(snapshots[0]).not.toBe(initialSnapshot);
 		expect(snapshots[0].followMode).toBe(false);
 
-		session.setViewportAnchor({ messageId: 1, offsetFromViewportTop: 10 });
+		session.setViewportAnchor({
+			messageId: 1,
+			offsetTop: 10,
+			newestMessageIdAtCapture: undefined,
+		});
 		expect(snapshots).toHaveLength(2);
 		const anchoredSnapshot = session.getSnapshot();
-		session.setViewportAnchor({ messageId: 1, offsetFromViewportTop: 10 });
+		session.setViewportAnchor({
+			messageId: 1,
+			offsetTop: 10,
+			newestMessageIdAtCapture: undefined,
+		});
 		expect(snapshots).toHaveLength(2);
 		expect(session.getSnapshot()).toBe(anchoredSnapshot);
 
-		session.setViewportAnchor({ messageId: 1, offsetFromViewportTop: 11 });
+		session.setViewportAnchor({
+			messageId: 1,
+			offsetTop: 11,
+			newestMessageIdAtCapture: undefined,
+		});
 		expect(snapshots).toHaveLength(3);
 
 		session.markNewOffscreenContent();

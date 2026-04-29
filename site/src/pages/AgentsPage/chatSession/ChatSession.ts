@@ -79,7 +79,8 @@ const viewportAnchorsEqual = (
 	}
 	return (
 		left.messageId === right.messageId &&
-		left.offsetFromViewportTop === right.offsetFromViewportTop
+		left.offsetTop === right.offsetTop &&
+		left.newestMessageIdAtCapture === right.newestMessageIdAtCapture
 	);
 };
 
