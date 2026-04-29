@@ -311,8 +311,8 @@ func (c *Client) ConnectRPC28WithRole(ctx context.Context, role string) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-// ConnectRPC29 returns a dRPC client to the Agent API v2.9. It adds
-// session correlation fields to boundary log messages. No new RPCs.
+// ConnectRPC29 returns a dRPC client to the Agent API v2.9. It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.32+
 func (c *Client) ConnectRPC29(ctx context.Context) (
 	proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
 ) {
