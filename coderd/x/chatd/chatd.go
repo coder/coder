@@ -2236,7 +2236,7 @@ var ErrManualTitleRegenerationInProgress = xerrors.New(
 	"manual title regeneration already in progress",
 )
 
-type manualTitleResult struct {
+type manualTitleCandidateResult struct {
 	title       string
 	modelConfig database.ChatModelConfig
 	usage       fantasy.Usage
@@ -2490,14 +2490,17 @@ func (p *Server) recordManualTitleGenerationFailure(
 	return generationErr
 }
 
+// generateManualTitleCandidate performs only model generation and returns the
+// candidate plus accounting metadata. Endpoint-specific commit paths are
+// responsible for recording usage and deciding whether to persist the title.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
-) (manualTitleResult, error) {
+) (manualTitleCandidateResult, error) {
 	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
-		return manualTitleResult{}, limitErr
+		return manualTitleCandidateResult{}, limitErr
 	}
 
 	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
@@ -2509,7 +2512,7 @@ func (p *Server) generateManualTitleCandidate(
 		},
 	)
 	if err != nil {
-		return manualTitleResult{}, xerrors.Errorf("get head chat messages: %w", err)
+		return manualTitleCandidateResult{}, xerrors.Errorf("get head chat messages: %w", err)
 	}
 	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
 		ctx,
@@ -2520,15 +2523,15 @@ func (p *Server) generateManualTitleCandidate(
 		},
 	)
 	if err != nil {
-		return manualTitleResult{}, xerrors.Errorf("get tail chat messages: %w", err)
+		return manualTitleCandidateResult{}, xerrors.Errorf("get tail chat messages: %w", err)
 	}
 	messages := mergeManualTitleMessages(headMessages, tailMessages)
 	if len(messages) == 0 {
-		return manualTitleResult{}, nil
+		return manualTitleCandidateResult{}, nil
 	}
 
 	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, keys)
-	result := manualTitleResult{
+	result := manualTitleCandidateResult{
 		modelConfig: modelConfig,
 		hasMessages: true,
 	}

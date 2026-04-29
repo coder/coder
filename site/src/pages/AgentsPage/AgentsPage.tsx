@@ -247,13 +247,13 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
 		onError: (error: unknown) => {
 			toast.error(getErrorMessage(error, "Failed to rename chat."));
 		},
 	});
-	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]

@@ -1005,12 +1005,12 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 export const proposeChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
 
-	onSettled: async (
+	onSettled: (
 		_data: { title: string } | undefined,
 		_error: unknown,
 		chatId: string,
 	) => {
-		await invalidateChatDebugRuns(queryClient, chatId);
+		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
 

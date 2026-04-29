@@ -5862,20 +5862,47 @@ func newActiveTestServer(
 func TestProposeChatTitle_DebugRun(t *testing.T) {
 	t.Parallel()
 
+	wantTitle := "Debug proposal title"
 	tests := []struct {
 		name                    string
 		alwaysEnableDebugLogs   bool
+		response                func() chattest.OpenAIResponse
+		wantErr                 bool
+		wantTitle               string
 		wantTitleGenerationRuns int
+		wantDebugStatus         codersdk.ChatDebugStatus
 	}{
 		{
-			name:                    "Enabled",
-			alwaysEnableDebugLogs:   true,
+			name:                  "Enabled",
+			alwaysEnableDebugLogs: true,
+			response: func() chattest.OpenAIResponse {
+				return chattest.OpenAINonStreamingResponse(
+					"{\"title\":\"" + wantTitle + "\"}",
+				)
+			},
+			wantTitle:               wantTitle,
 			wantTitleGenerationRuns: 1,
+			wantDebugStatus:         codersdk.ChatDebugStatusCompleted,
 		},
 		{
-			name:                    "Disabled",
-			alwaysEnableDebugLogs:   false,
-			wantTitleGenerationRuns: 0,
+			name:                  "Disabled",
+			alwaysEnableDebugLogs: false,
+			response: func() chattest.OpenAIResponse {
+				return chattest.OpenAINonStreamingResponse(
+					"{\"title\":\"" + wantTitle + "\"}",
+				)
+			},
+			wantTitle: wantTitle,
+		},
+		{
+			name:                  "GenerationErrorFinalizesDebugRun",
+			alwaysEnableDebugLogs: true,
+			response: func() chattest.OpenAIResponse {
+				return chattest.OpenAINonStreamingResponse("not json")
+			},
+			wantErr:                 true,
+			wantTitleGenerationRuns: 1,
+			wantDebugStatus:         codersdk.ChatDebugStatusError,
 		},
 	}
 
@@ -5884,13 +5911,10 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			db, ps := dbtestutil.NewDB(t)
-			wantTitle := "Debug proposal title"
+			db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
 			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				require.False(t, req.Stream)
-				return chattest.OpenAINonStreamingResponse(
-					"{\"title\":\"" + wantTitle + "\"}",
-				)
+				return tt.response()
 			})
 			user, org, model := seedChatDependenciesWithProvider(
 				ctx,
@@ -5920,36 +5944,25 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				LastModelConfigID: model.ID,
 			})
 			require.NoError(t, err)
-			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("summarize debug title generation"),
-			})
-			require.NoError(t, err)
-			messages, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-				ChatID:              chat.ID,
-				CreatedBy:           []uuid.UUID{user.ID},
-				ModelConfigID:       []uuid.UUID{model.ID},
-				Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-				Content:             []string{string(content.RawMessage)},
-				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-				InputTokens:         []int64{0},
-				OutputTokens:        []int64{0},
-				TotalTokens:         []int64{0},
-				ReasoningTokens:     []int64{0},
-				CacheCreationTokens: []int64{0},
-				CacheReadTokens:     []int64{0},
-				ContextLimit:        []int64{model.ContextLimit},
-				Compressed:          []bool{false},
-				TotalCostMicros:     []int64{0},
-				RuntimeMs:           []int64{0},
-				ProviderResponseID:  []string{""},
-			})
-			require.NoError(t, err)
+			messages := insertUserTextMessage(
+				ctx,
+				t,
+				db,
+				chat.ID,
+				user.ID,
+				model.ID,
+				"summarize debug title generation",
+				model.ContextLimit,
+			)
 			require.Len(t, messages, 1)
 
 			gotTitle, err := server.ProposeChatTitle(ctx, chat)
-			require.NoError(t, err)
-			require.Equal(t, wantTitle, gotTitle)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantTitle, gotTitle)
+			}
 
 			runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
 				ChatID:   chat.ID,
@@ -5957,14 +5970,23 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, runs, tt.wantTitleGenerationRuns)
-			if tt.wantTitleGenerationRuns == 0 {
-				return
+			if tt.wantTitleGenerationRuns > 0 {
+				require.Equal(t, string(codersdk.ChatDebugRunKindTitleGeneration), runs[0].Kind)
+				require.Equal(t, string(tt.wantDebugStatus), runs[0].Status)
+				require.True(t, runs[0].FinishedAt.Valid)
+				require.True(t, runs[0].HistoryTipMessageID.Valid)
+				require.Equal(t, messages[0].ID, runs[0].HistoryTipMessageID.Int64)
 			}
-			require.Equal(t, string(codersdk.ChatDebugRunKindTitleGeneration), runs[0].Kind)
-			require.Equal(t, string(codersdk.ChatDebugStatusCompleted), runs[0].Status)
-			require.True(t, runs[0].FinishedAt.Valid)
-			require.True(t, runs[0].HistoryTipMessageID.Valid)
-			require.Equal(t, messages[0].ID, runs[0].HistoryTipMessageID.Int64)
+			if !tt.wantErr {
+				var usageMessages int
+				err = rawDB.QueryRowContext(
+					ctx,
+					`SELECT count(*) FROM chat_messages WHERE chat_id = $1 AND visibility = 'model' AND deleted = true`,
+					chat.ID,
+				).Scan(&usageMessages)
+				require.NoError(t, err)
+				require.Equal(t, 1, usageMessages)
+			}
 		})
 	}
 }
@@ -6162,13 +6184,19 @@ func insertUserTextMessage(
 	userID uuid.UUID,
 	modelConfigID uuid.UUID,
 	text string,
-) {
+	contextLimits ...int64,
+) []database.ChatMessage {
 	t.Helper()
+	require.LessOrEqual(t, len(contextLimits), 1)
 
+	contextLimit := int64(0)
+	if len(contextLimits) == 1 {
+		contextLimit = contextLimits[0]
+	}
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	messages, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 		ChatID:              chatID,
 		CreatedBy:           []uuid.UUID{userID},
 		ModelConfigID:       []uuid.UUID{modelConfigID},
@@ -6182,13 +6210,14 @@ func insertUserTextMessage(
 		ReasoningTokens:     []int64{0},
 		CacheCreationTokens: []int64{0},
 		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
+		ContextLimit:        []int64{contextLimit},
 		Compressed:          []bool{false},
 		TotalCostMicros:     []int64{0},
 		RuntimeMs:           []int64{0},
 		ProviderResponseID:  []string{""},
 	})
 	require.NoError(t, err)
+	return messages
 }
 
 // seedWorkspaceWithAgent creates a full workspace chain with a connected
