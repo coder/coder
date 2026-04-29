@@ -40,6 +40,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
+import { ChatSessionsProvider } from "./chatSession/ChatSessionsProvider";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
@@ -125,15 +126,23 @@ const AgentsPage: FC = () => {
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
-	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
-		const trimmedMessage = reason.message.trim();
+	const setChatErrorReason = (
+		chatId: string,
+		reason: ChatDetailError | string,
+	) => {
+		const trimmedMessage = (
+			typeof reason === "string" ? reason : reason.message
+		).trim();
 		if (!chatId || !trimmedMessage) {
 			return;
 		}
-		const nextReason: ChatDetailError = {
-			...reason,
-			message: trimmedMessage,
-		};
+		const nextReason: ChatDetailError =
+			typeof reason === "string"
+				? { kind: "generic", message: trimmedMessage }
+				: {
+						...reason,
+						message: trimmedMessage,
+					};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
 			if (chatDetailErrorsEqual(existing, nextReason)) {
@@ -597,43 +606,48 @@ const AgentsPage: FC = () => {
 
 	return (
 		<>
-			<AgentsPageView
-				agentId={agentId}
-				chatList={chatList}
-				catalogModelOptions={catalogModelOptions}
-				modelConfigs={chatModelConfigsQuery.data ?? []}
-				logoUrl={appearance.logo_url}
-				handleNewAgent={handleNewAgent}
-				isCreating={false}
-				isArchiving={isArchiving}
-				archivingChatId={archivingChatId}
-				isChatsLoading={chatsQuery.isLoading}
-				chatsLoadError={chatsQuery.error}
-				onRetryChatsLoad={() => void chatsQuery.refetch()}
-				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onExpandSidebar={() => setIsSidebarCollapsed(false)}
-				chatErrorReasons={chatErrorReasons}
+			<ChatSessionsProvider
 				setChatErrorReason={setChatErrorReason}
 				clearChatErrorReason={clearChatErrorReason}
-				requestArchiveAgent={requestArchiveAgent}
-				requestUnarchiveAgent={requestUnarchiveAgent}
-				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-				requestPinAgent={requestPinAgent}
-				requestUnpinAgent={requestUnpinAgent}
-				requestReorderPinnedAgent={requestReorderPinnedAgent}
-				onRegenerateTitle={requestRegenerateTitle}
-				onProposeTitle={requestProposeTitle}
-				onRenameTitle={requestRenameTitle}
-				regeneratingTitleChatIds={regeneratingTitleChatIds}
-				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
-				isAgentsAdmin={isAgentsAdmin}
-				hasNextPage={chatsQuery.hasNextPage}
-				onLoadMore={() => void chatsQuery.fetchNextPage()}
-				isFetchingNextPage={chatsQuery.isFetchingNextPage}
-				archivedFilter={archivedFilter}
-				onArchivedFilterChange={setArchivedFilter}
-			/>
+			>
+				<AgentsPageView
+					agentId={agentId}
+					chatList={chatList}
+					catalogModelOptions={catalogModelOptions}
+					modelConfigs={chatModelConfigsQuery.data ?? []}
+					logoUrl={appearance.logo_url}
+					handleNewAgent={handleNewAgent}
+					isCreating={false}
+					isArchiving={isArchiving}
+					archivingChatId={archivingChatId}
+					isChatsLoading={chatsQuery.isLoading}
+					chatsLoadError={chatsQuery.error}
+					onRetryChatsLoad={() => void chatsQuery.refetch()}
+					onCollapseSidebar={() => setIsSidebarCollapsed(true)}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onExpandSidebar={() => setIsSidebarCollapsed(false)}
+					chatErrorReasons={chatErrorReasons}
+					setChatErrorReason={setChatErrorReason}
+					clearChatErrorReason={clearChatErrorReason}
+					requestArchiveAgent={requestArchiveAgent}
+					requestUnarchiveAgent={requestUnarchiveAgent}
+					requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+					requestPinAgent={requestPinAgent}
+					requestUnpinAgent={requestUnpinAgent}
+					requestReorderPinnedAgent={requestReorderPinnedAgent}
+					onRegenerateTitle={requestRegenerateTitle}
+					onProposeTitle={requestProposeTitle}
+					onRenameTitle={requestRenameTitle}
+					regeneratingTitleChatIds={regeneratingTitleChatIds}
+					onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+					isAgentsAdmin={isAgentsAdmin}
+					hasNextPage={chatsQuery.hasNextPage}
+					onLoadMore={() => void chatsQuery.fetchNextPage()}
+					isFetchingNextPage={chatsQuery.isFetchingNextPage}
+					archivedFilter={archivedFilter}
+					onArchivedFilterChange={setArchivedFilter}
+				/>
+			</ChatSessionsProvider>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}
 				onClose={() => setPendingArchiveChatId(null)}

@@ -9,6 +9,7 @@ import { ProxyProvider } from "#/contexts/ProxyContext";
 import { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import { permissionChecks } from "#/modules/permissions";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { ChatSessionsProvider } from "./chatSession/ChatSessionsProvider";
 import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
@@ -100,15 +101,23 @@ const AgentEmbedPage: FC = () => {
 	>({});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
-		const trimmedMessage = reason.message.trim();
+	const setChatErrorReason = (
+		chatId: string,
+		reason: ChatDetailError | string,
+	) => {
+		const trimmedMessage = (
+			typeof reason === "string" ? reason : reason.message
+		).trim();
 		if (!chatId || !trimmedMessage) {
 			return;
 		}
-		const nextReason: ChatDetailError = {
-			...reason,
-			message: trimmedMessage,
-		};
+		const nextReason: ChatDetailError =
+			typeof reason === "string"
+				? { kind: "generic", message: trimmedMessage }
+				: {
+						...reason,
+						message: trimmedMessage,
+					};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
 			if (chatDetailErrorsEqual(existing, nextReason)) {
@@ -285,7 +294,12 @@ const AgentEmbedPage: FC = () => {
 			<EmbedContext value={{ isEmbedded: true }}>
 				<DashboardProvider>
 					<ProxyProvider>
-						<Outlet context={outletContext} />
+						<ChatSessionsProvider
+							setChatErrorReason={setChatErrorReason}
+							clearChatErrorReason={clearChatErrorReason}
+						>
+							<Outlet context={outletContext} />
+						</ChatSessionsProvider>
 					</ProxyProvider>
 				</DashboardProvider>
 			</EmbedContext>
