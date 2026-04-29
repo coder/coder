@@ -179,6 +179,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"

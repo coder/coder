@@ -77,3 +77,12 @@ URL for an agent to access your deployment.
 | Default     | <code>token</code>             |
 
 Specify the authentication type to use for the agent.
+
+### --agent-name
+
+|             |                                |
+|-------------|--------------------------------|
+| Type        | <code>string</code>            |
+| Environment | <code>$CODER_AGENT_NAME</code> |
+
+The name of the agent to authenticate as (only applicable for instance identity).

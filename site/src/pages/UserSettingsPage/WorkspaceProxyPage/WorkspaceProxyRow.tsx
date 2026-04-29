@@ -69,13 +69,11 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 					/>
 				</TableCell>
 
-				<TableCell className="status">
-					<div className="flex items-center justify-end">{statusBadge}</div>
-				</TableCell>
+				<TableCell className="status">{statusBadge}</TableCell>
 
 				<TableCell
 					className={cn(
-						"text-sm text-right",
+						"text-sm",
 						latency
 							? getLatencyColor(latency.latencyMS)
 							: "text-content-secondary",
@@ -87,7 +85,7 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			{shouldShowMessages && (
 				<TableRow>
 					<TableCell
-						colSpan={4}
+						colSpan={3}
 						className="!p-0 border-b-0 divide-y divide-solid overflow-clip"
 					>
 						<ProxyMessagesRow
@@ -142,7 +140,7 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({
 	}
 
 	return (
-		<div className="bg-surface-primary px-12 py-4 border-0">
+		<div className="bg-surface-primary px-14 py-4 border-0">
 			<div className={cn("mb-1 text-xs font-semibold", titleClassName)}>
 				{title}
 			</div>

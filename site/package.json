@@ -1,10 +1,10 @@
 {
-	"name": "coder-v2",
-	"description": "Coder V2 (Workspaces V2)",
+	"name": "@coder/coder",
+	"description": "Coder",
 	"repository": "https://github.com/coder/coder",
 	"private": true,
 	"license": "AGPL-3.0",
-	"packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
+	"packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
 	"scripts": {
 		"build": "NODE_ENV=production pnpm vite build",
 		"check": "biome check --error-on-warnings .",
@@ -59,7 +59,6 @@
 		"@monaco-editor/react": "4.7.0",
 		"@mui/material": "5.18.0",
 		"@mui/system": "5.18.0",
-		"@mui/x-tree-view": "7.29.10",
 		"@novnc/novnc": "^1.5.0",
 		"@pierre/diffs": "1.1.0-beta.19",
 		"@tanstack/react-query-devtools": "5.77.0",
@@ -70,7 +69,7 @@
 		"@xterm/addon-webgl": "0.18.0",
 		"@xterm/xterm": "5.5.0",
 		"ansi-to-html": "0.7.2",
-		"axios": "1.13.2",
+		"axios": "1.15.0",
 		"chroma-js": "2.6.0",
 		"class-variance-authority": "0.7.1",
 		"clsx": "2.1.1",
@@ -98,6 +97,7 @@
 		"react-confetti": "6.4.0",
 		"react-day-picker": "9.14.0",
 		"react-dom": "19.2.2",
+		"react-infinite-scroll-component": "7.1.0",
 		"react-markdown": "9.1.0",
 		"react-query": "npm:@tanstack/react-query@5.77.0",
 		"react-resizable-panels": "3.0.6",
@@ -169,8 +169,8 @@
 		"jsdom": "27.2.0",
 		"knip": "5.71.0",
 		"msw": "2.4.8",
-		"postcss": "8.5.6",
-		"protobufjs": "7.5.4",
+		"postcss": "8.5.10",
+		"protobufjs": "7.5.5",
 		"resize-observer-polyfill": "1.5.1",
 		"rollup-plugin-visualizer": "7.0.1",
 		"rxjs": "7.8.2",
@@ -195,7 +195,7 @@
 	},
 	"engines": {
 		"pnpm": ">=10.0.0 <11.0.0",
-		"node": ">=18.0.0 <23.0.0"
+		"node": ">=22.0.0 <25.0.0"
 	},
 	"pnpm": {
 		"overrides": {

@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -74,6 +75,16 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
+				// Reject BYOK requests when the deployment has not
+				// enabled bring-your-own-key mode.
+				if agplaibridge.IsBYOK(r.Header) && !bridgeCfg.AllowBYOK.Value() {
+					httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+						Message: "Bring Your Own Key (BYOK) mode is not enabled.",
+						Detail:  "Contact your administrator to enable it with --aibridge-allow-byok.",
+					})
+					return
+				}
+
 				http.StripPrefix("/api/v2/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
 			})
 		})
@@ -81,7 +92,10 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 }
 
 // aiBridgeListInterceptions returns all AI Bridge interceptions a user can read.
-// Optional filters with query params
+// Optional filters with query params.
+//
+// Deprecated: Use /aibridge/sessions instead, which provides richer
+// session-level aggregation including threads and agentic actions.
 //
 // @Summary List AI Bridge interceptions
 // @ID list-ai-bridge-interceptions
@@ -94,6 +108,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
 // @Router /aibridge/interceptions [get]
+// @Deprecated Use /aibridge/sessions instead.
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

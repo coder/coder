@@ -52,7 +52,7 @@ func (r *RootCmd) logs() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("failed to get workspace: %w", err)
 			}

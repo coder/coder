@@ -122,6 +122,7 @@ const docTemplate = `{
                 ],
                 "summary": "List AI Bridge interceptions",
                 "operationId": "list-ai-bridge-interceptions",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -5468,6 +5469,9 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
+                    },
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -10096,7 +10100,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-aws-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10135,7 +10139,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-azure-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10202,7 +10206,7 @@ const docTemplate = `{
                 "operationId": "authenticate-agent-on-google-cloud-instance",
                 "parameters": [
                     {
-                        "description": "Instance identity token",
+                        "description": "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12780,6 +12784,10 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "document": {
                     "type": "string"
                 },
@@ -12803,6 +12811,10 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "encoding": {
                     "type": "string"
                 },
@@ -12853,6 +12865,10 @@ const docTemplate = `{
                 "json_web_token"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
                 "json_web_token": {
                     "type": "string"
                 }
@@ -13102,6 +13118,9 @@ const docTemplate = `{
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
+                "allow_byok": {
+                    "type": "boolean"
+                },
                 "anthropic": {
                     "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
@@ -13359,6 +13378,10 @@ const docTemplate = `{
                 },
                 "initiator": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "last_active_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "last_prompt": {
                     "type": "string"
@@ -19742,7 +19765,8 @@ const docTemplate = `{
                 "workspace_agent",
                 "workspace_app",
                 "task",
-                "ai_seat"
+                "ai_seat",
+                "chat"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -19771,7 +19795,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
-                "ResourceTypeAISeat"
+                "ResourceTypeAISeat",
+                "ResourceTypeChat"
             ]
         },
         "codersdk.Response": {
@@ -21206,6 +21231,21 @@ const docTemplate = `{
                 "TerminalFontJetBrainsMono"
             ]
         },
+        "codersdk.ThinkingDisplayMode": {
+            "type": "string",
+            "enum": [
+                "auto",
+                "preview",
+                "always_expanded",
+                "always_collapsed"
+            ],
+            "x-enum-varnames": [
+                "ThinkingDisplayModeAuto",
+                "ThinkingDisplayModePreview",
+                "ThinkingDisplayModeAlwaysExpanded",
+                "ThinkingDisplayModeAlwaysCollapsed"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -21524,6 +21564,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },
@@ -21982,6 +22025,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },
@@ -23690,6 +23736,7 @@ const docTemplate = `{
                 "EACS04",
                 "EDERP01",
                 "EDERP02",
+                "EDERP03",
                 "EPD01",
                 "EPD02",
                 "EPD03"
@@ -23710,6 +23757,7 @@ const docTemplate = `{
                 "CodeAccessURLNotOK",
                 "CodeDERPNodeUsesWebsocket",
                 "CodeDERPOneNodeUnhealthy",
+                "CodeDERPNoNodes",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
                 "CodeProvisionerDaemonAPIMajorVersionDeprecated"

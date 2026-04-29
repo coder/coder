@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/aisdk-go"
@@ -44,6 +45,14 @@ import (
 // nolint:gocritic // This is in a test package and does not end up in the build
 func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.Client, database.WorkspaceTable, string) {
 	t.Helper()
+	return setupWorkspaceForAgentWithName(t, opts, "myworkspace")
+}
+
+// setupWorkspaceForAgentWithName creates a workspace setup exactly like main
+// SSH tests, but with a caller-provided workspace name.
+// nolint:gocritic // This is in a test package and does not end up in the build
+func setupWorkspaceForAgentWithName(t *testing.T, opts *coderdtest.Options, workspaceName string) (*codersdk.Client, database.WorkspaceTable, string) {
+	t.Helper()
 
 	client, store := coderdtest.NewWithDatabase(t, opts)
 	client.SetLogger(testutil.Logger(t).Named("client"))
@@ -53,12 +62,28 @@ func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.C
 	})
 	// nolint:gocritic // This is in a test package and does not end up in the build
 	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-		Name:           "myworkspace",
+		Name:           workspaceName,
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent().Do()
 
 	return userClient, r.Workspace, r.AgentToken
+}
+
+type recordingAgentConnFunc struct {
+	conn    workspacesdk.AgentConn
+	err     error
+	agentID uuid.UUID
+	calls   int
+}
+
+func (d *recordingAgentConnFunc) AgentConn(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	d.calls++
+	d.agentID = agentID
+	if d.err != nil {
+		return nil, nil, d.err
+	}
+	return d.conn, nil, nil
 }
 
 // These tests are dependent on the state of the coder server.
@@ -222,6 +247,31 @@ func TestTools(t *testing.T) {
 				require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
 			})
 		}
+	})
+
+	t.Run("GetWorkspace_ByUUIDLikeName", func(t *testing.T) {
+		t.Parallel()
+
+		// Regression test: a workspace whose name is a valid dashless
+		// UUID should resolve correctly. Previously, the handler would
+		// parse the name as a UUID, get a 404 from the ID-based lookup,
+		// and never fall back to name-based lookup.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		uuidWorkspace := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			Name:           uuidLikeName,
+		}).Do()
+
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+			WorkspaceID: uuidLikeName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuidWorkspace.Workspace.ID, result.ID)
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
@@ -549,6 +599,24 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, result.ExitCode)
 		require.Equal(t, "owner format works", result.Output)
+
+		// Regression test: agent-backed tools should also work when the
+		// workspace name is a valid dashless UUID.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		uuidClient, uuidWorkspace, uuidAgentToken := setupWorkspaceForAgentWithName(t, nil, uuidLikeName)
+		_ = agenttest.New(t, uuidClient.URL, uuidAgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, uuidClient, uuidWorkspace.ID).Wait()
+
+		uuidTB, err := toolsdk.NewDeps(uuidClient)
+		require.NoError(t, err)
+
+		result, err = testTool(t, toolsdk.WorkspaceBash, uuidTB, toolsdk.WorkspaceBashArgs{
+			Workspace: uuidWorkspace.Name,
+			Command:   "echo 'uuid-like name works'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "uuid-like name works", result.Output)
 	})
 
 	t.Run("WorkspaceLS", func(t *testing.T) {
@@ -595,6 +663,115 @@ func TestTools(t *testing.T) {
 				IsDir: false,
 			},
 		}, res.Contents)
+	})
+
+	t.Run("WorkspaceToolsUseInjectedAgentConnFunc", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		ws, err := client.Workspace(t.Context(), workspace.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, ws.LatestBuild.Resources)
+		require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
+		agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+		sentinelErr := xerrors.New("injected agent connection function used")
+
+		tests := []struct {
+			name string
+			run  func(t *testing.T, tb toolsdk.Deps) error
+		}{
+			{
+				name: "WorkspaceLS",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceReadFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceReadFile, tb, toolsdk.WorkspaceReadFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceWriteFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Content:   []byte("hello from agent connection function"),
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFile",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+						Workspace: workspace.Name,
+						Path:      "/tmp/file",
+						Edits: []workspacesdk.FileEdit{{
+							Search:  "hello",
+							Replace: "goodbye",
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceEditFiles",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+						Workspace: workspace.Name,
+						Files: []workspacesdk.FileEdits{{
+							Path: "/tmp/file",
+							Edits: []workspacesdk.FileEdit{{
+								Search:  "hello",
+								Replace: "goodbye",
+							}},
+						}},
+					})
+					return err
+				},
+			},
+			{
+				name: "WorkspaceBash",
+				run: func(t *testing.T, tb toolsdk.Deps) error {
+					_, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+						Workspace: workspace.Name,
+						Command:   "echo hello",
+					})
+					return err
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				agentConnFn := &recordingAgentConnFunc{err: sentinelErr}
+				tb, err := toolsdk.NewDeps(client, toolsdk.WithAgentConnFunc(agentConnFn.AgentConn))
+				require.NoError(t, err)
+
+				err = tt.run(t, tb)
+				require.ErrorIs(t, err, sentinelErr)
+				require.ErrorContains(t, err, "failed to dial agent")
+				require.Equal(t, 1, agentConnFn.calls)
+				require.Equal(t, agentID, agentConnFn.agentID)
+			})
+		}
 	})
 
 	t.Run("WorkspaceReadFile", func(t *testing.T) {

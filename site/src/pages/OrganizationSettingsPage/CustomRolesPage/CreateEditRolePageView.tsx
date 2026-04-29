@@ -26,7 +26,6 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -80,11 +79,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>
 						{role ? "Edit" : "Create"} Custom Role
@@ -112,7 +107,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 						{role !== undefined ? "Save" : "Create Role"}
 					</Button>
 				</div>
-			</Stack>
+			</div>
 
 			<VerticalForm onSubmit={form.handleSubmit}>
 				<FormFields>

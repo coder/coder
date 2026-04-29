@@ -56,7 +56,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -599,13 +599,26 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defaultRegion = nil
 			}
 
-			derpMap, err := tailnet.NewDERPMap(
-				ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
-				vals.DERP.Config.URL.String(), vals.DERP.Config.Path.String(),
-				vals.DERP.Config.BlockDirect.Value(),
-			)
-			if err != nil {
-				return xerrors.Errorf("create derp map: %w", err)
+			derpConfigURL := vals.DERP.Config.URL.String()
+			derpConfigPath := vals.DERP.Config.Path.String()
+			var derpMap *tailcfg.DERPMap
+			if defaultRegion == nil && derpConfigURL == "" && derpConfigPath == "" {
+				logger.Warn(ctx,
+					"no DERP servers are currently configured; workspace networking"+
+						" will not work until you either restart coderd with the"+
+						" built-in DERP server enabled, restart coderd with an"+
+						" external DERP map configured, or start a workspace proxy"+
+						" with its DERP server enabled")
+				derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+			} else {
+				derpMap, err = tailnet.NewDERPMap(
+					ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
+					derpConfigURL, derpConfigPath,
+					vals.DERP.Config.BlockDirect.Value(),
+				)
+				if err != nil {
+					return xerrors.Errorf("create derp map: %w", err)
+				}
 			}
 
 			appHostname := vals.WildcardAccessURL.String()
@@ -1074,7 +1087,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, quartz.NewReal(), options.PrometheusRegistry)
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, options.PrometheusRegistry, &coderAPI.Auditor, dbpurge.WithNotificationsEnqueuer(options.NotificationsEnqueuer))
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -2961,9 +2974,10 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			provider.Type = v.Value
 		case "NAME":
 			provider.Name = v.Value
-		case "KEY": // Alias for a single key.
-			provider.Key = v.Value
-		case "KEYS":
+		case "KEY", "KEYS":
+			if provider.Key != "" {
+				return nil, xerrors.Errorf("provider %d: KEY and KEYS are mutually exclusive, use one or the other", providerNum)
+			}
 			provider.Key = v.Value
 		case "BASE_URL":
 			provider.BaseURL = v.Value
@@ -2971,13 +2985,15 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			provider.BedrockBaseURL = v.Value
 		case "BEDROCK_REGION":
 			provider.BedrockRegion = v.Value
-		case "BEDROCK_ACCESS_KEY": // Alias for a single key.
+		case "BEDROCK_ACCESS_KEY", "BEDROCK_ACCESS_KEYS":
+			if provider.BedrockAccessKey != "" {
+				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY and BEDROCK_ACCESS_KEYS are mutually exclusive, use one or the other", providerNum)
+			}
 			provider.BedrockAccessKey = v.Value
-		case "BEDROCK_ACCESS_KEYS":
-			provider.BedrockAccessKey = v.Value
-		case "BEDROCK_ACCESS_KEY_SECRET": // Alias for a single key secret.
-			provider.BedrockAccessKeySecret = v.Value
-		case "BEDROCK_ACCESS_KEY_SECRETS":
+		case "BEDROCK_ACCESS_KEY_SECRET", "BEDROCK_ACCESS_KEY_SECRETS":
+			if provider.BedrockAccessKeySecret != "" {
+				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY_SECRET and BEDROCK_ACCESS_KEY_SECRETS are mutually exclusive, use one or the other", providerNum)
+			}
 			provider.BedrockAccessKeySecret = v.Value
 		case "BEDROCK_MODEL":
 			provider.BedrockModel = v.Value

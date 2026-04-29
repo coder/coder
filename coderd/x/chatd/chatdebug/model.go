@@ -12,7 +12,11 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 type debugModel struct {
@@ -212,7 +216,13 @@ func (d *debugModel) Generate(
 		return d.inner.Generate(ctx, call)
 	}
 
+	// Keep the step alive during the blocking provider call so the
+	// stale finalizer does not mark it as interrupted.
+	heartbeatDone := make(chan struct{})
+	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
+
 	resp, err := d.inner.Generate(enrichedCtx, call)
+	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
 		return nil, err
@@ -275,7 +285,13 @@ func (d *debugModel) GenerateObject(
 		return d.inner.GenerateObject(ctx, call)
 	}
 
+	// Keep the step alive during the blocking provider call so the
+	// stale finalizer does not mark it as interrupted.
+	heartbeatDone := make(chan struct{})
+	launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
+
 	resp, err := d.inner.GenerateObject(enrichedCtx, call)
+	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
 			map[string]any{"structured_output": true})
@@ -334,6 +350,53 @@ func (d *debugModel) Model() string {
 	return d.inner.Model()
 }
 
+// launchHeartbeat starts a goroutine that periodically calls TouchStep
+// to keep the step and run rows alive during long-running streams.  The
+// goroutine also listens on the service's threshold-change channel so
+// that a runtime SetStaleAfter call immediately resets the ticker
+// instead of waiting for the old (possibly longer) period to elapse.
+// The goroutine exits when done is closed or ctx is canceled.
+func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uuid.UUID, done <-chan struct{}) {
+	if svc == nil {
+		return
+	}
+	go func() {
+		interval := svc.heartbeatInterval()
+		ticker := svc.clock.NewTicker(interval, "chatdebug", "heartbeat")
+		defer ticker.Stop()
+		thresholdCh := svc.thresholdChan()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case <-thresholdCh:
+				// SetStaleAfter was called; re-read the interval
+				// and reset the ticker immediately.
+				thresholdCh = svc.thresholdChan()
+				if newInterval := svc.heartbeatInterval(); newInterval != interval {
+					interval = newInterval
+					ticker.Reset(interval, "chatdebug", "heartbeat")
+				}
+			case <-ticker.C:
+				if err := svc.TouchStep(ctx, stepID, runID, chatID); err != nil {
+					svc.log.Debug(ctx, "heartbeat touch failed",
+						slog.Error(err),
+						slog.F("step_id", stepID),
+					)
+				}
+				// Also re-read interval on every tick as a
+				// secondary check.
+				if newInterval := svc.heartbeatInterval(); newInterval != interval {
+					interval = newInterval
+					ticker.Reset(interval, "chatdebug", "heartbeat")
+				}
+			}
+		}
+	}()
+}
+
 func wrapStreamSeq(
 	ctx context.Context,
 	handle *stepHandle,
@@ -354,6 +417,10 @@ func wrapStreamSeq(
 		streamComplete atomic.Bool
 	)
 
+	// heartbeatDone is closed when the stream finalizes (either
+	// normally or via the safety net) to stop the heartbeat goroutine.
+	heartbeatDone := make(chan struct{})
+
 	// Safety net: if the caller drops the returned iterator without
 	// consuming it (or abandons mid-stream and the context is
 	// canceled), finalize the step so it does not remain permanently
@@ -368,10 +435,20 @@ func wrapStreamSeq(
 			return
 		}
 		finalized = true
+		close(heartbeatDone)
 		handle.finish(ctx, StatusInterrupted, nil, nil, nil, nil)
 	})
 
+	// startHeartbeat launches the heartbeat goroutine on first call.
+	// Deferring the start until the caller begins consuming the stream
+	// prevents leaked goroutines when the iterator is dropped without
+	// being iterated.
+	startHeartbeat := sync.OnceFunc(func() {
+		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
+	})
+
 	return func(yield func(fantasy.StreamPart) bool) {
+		startHeartbeat()
 		var (
 			summary          streamSummary
 			latestUsage      fantasy.Usage
@@ -386,7 +463,7 @@ func wrapStreamSeq(
 		)
 
 		finalize := func(status Status) {
-			// Cancel the safety net since we're finalizing normally.
+			// Cancel the safety net and heartbeat since we're finalizing.
 			if stop != nil {
 				stop()
 			}
@@ -396,6 +473,7 @@ func wrapStreamSeq(
 				return
 			}
 			finalized = true
+			close(heartbeatDone)
 
 			summary.FinishReason = string(finishReason)
 
@@ -506,6 +584,9 @@ func wrapObjectStreamSeq(
 		finalized      bool
 		streamComplete atomic.Bool
 	)
+
+	heartbeatDone := make(chan struct{})
+
 	stop := context.AfterFunc(ctx, func() {
 		mu.Lock()
 		defer mu.Unlock()
@@ -513,10 +594,18 @@ func wrapObjectStreamSeq(
 			return
 		}
 		finalized = true
+		close(heartbeatDone)
 		handle.finish(ctx, StatusInterrupted, nil, nil, nil, nil)
 	})
 
+	// Deferred heartbeat: start the heartbeat goroutine only when the
+	// caller begins consuming the stream.
+	startHeartbeat := sync.OnceFunc(func() {
+		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
+	})
+
 	return func(yield func(fantasy.ObjectStreamPart) bool) {
+		startHeartbeat()
 		var (
 			summary       = objectStreamSummary{StructuredOutput: true}
 			latestUsage   fantasy.Usage
@@ -539,6 +628,7 @@ func wrapObjectStreamSeq(
 				return
 			}
 			finalized = true
+			close(heartbeatDone)
 
 			summary.FinishReason = string(finishReason)
 
@@ -643,7 +733,7 @@ func normalizeMessages(prompt fantasy.Prompt) []normalizedMessage {
 // boundText truncates s to MaxMessagePartTextLength runes, appending
 // an ellipsis if truncation occurs.
 func boundText(s string) string {
-	return truncateRunes(s, MaxMessagePartTextLength)
+	return stringutil.Truncate(s, MaxMessagePartTextLength, stringutil.TruncateWithEllipsis)
 }
 
 // safeMarshalJSON marshals value to JSON. On failure it returns a

@@ -291,3 +291,21 @@ INNER JOIN
 	templates ON templates.id = workspaces.template_id
 WHERE
 	workspace_builds.id = @workspace_build_id;
+
+-- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
+SELECT
+	workspace_builds.transition, workspace_builds.build_number, provisioner_jobs.job_status,
+	sqlc.embed(workspaces) -- Used for dbauthz fetch() checks
+FROM
+	workspace_builds
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.workspace_id = $1 AND
+	workspaces.deleted = false
+ORDER BY
+	workspace_builds.build_number desc
+	LIMIT
+	1;

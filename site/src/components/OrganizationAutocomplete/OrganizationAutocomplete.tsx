@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -90,7 +90,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 										{org.display_name || org.name}
 									</span>
 									{value?.id === org.id && (
-										<Check className="ml-auto size-icon-sm shrink-0" />
+										<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 									)}
 								</CommandItem>
 							))}

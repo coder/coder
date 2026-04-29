@@ -118,6 +118,43 @@ func TestSupportBundle(t *testing.T) {
 		assertBundleContents(t, path, false, false, []string{secretValue})
 	})
 
+	t.Run("InferWorkspaceFromEnvByID", func(t *testing.T) {
+		t.Parallel()
+
+		d := t.TempDir()
+		path := filepath.Join(d, "bundle.zip")
+		// No workspace arg, but set env vars as if inside a workspace.
+		inv, root := clitest.New(t, "support", "bundle", "--output-file", path, "--yes")
+		inv.Environ.Set("CODER", "true")
+		inv.Environ.Set("CODER_WORKSPACE_ID", workspaceWithoutAgent.Workspace.ID.String())
+		inv.Environ.Set("CODER_WORKSPACE_AGENT_NAME", "dev")
+		//nolint: gocritic // requires owner privilege
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		require.NoError(t, err)
+		// The workspace should be resolved, but there is no running agent.
+		assertBundleContents(t, path, true, false, []string{secretValue})
+	})
+
+	t.Run("InferWorkspaceFromEnvByName", func(t *testing.T) {
+		t.Parallel()
+
+		d := t.TempDir()
+		path := filepath.Join(d, "bundle.zip")
+		// No workspace arg and no CODER_WORKSPACE_ID; fall back to
+		// owner/name resolution for older agents.
+		inv, root := clitest.New(t, "support", "bundle", "--output-file", path, "--yes")
+		inv.Environ.Set("CODER", "true")
+		inv.Environ.Set("CODER_WORKSPACE_NAME", workspaceWithoutAgent.Workspace.Name)
+		inv.Environ.Set("CODER_WORKSPACE_OWNER_NAME", coderdtest.FirstUserParams.Username)
+		inv.Environ.Set("CODER_WORKSPACE_AGENT_NAME", "dev")
+		//nolint: gocritic // requires owner privilege
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		require.NoError(t, err)
+		assertBundleContents(t, path, true, false, []string{secretValue})
+	})
+
 	t.Run("NoAgent", func(t *testing.T) {
 		t.Parallel()
 		d := t.TempDir()

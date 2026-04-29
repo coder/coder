@@ -753,6 +753,17 @@ describe("buildModelConfigFromForm", () => {
 			expect(anthropic.disable_parallel_tool_use).toBe(true);
 		});
 
+		it("accepts xhigh for Anthropic effort", () => {
+			const result = buildModelConfigFromForm(
+				"anthropic",
+				formWith({ anthropic: { effort: "xhigh" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			const anthropic = result.modelConfig?.provider_options
+				?.anthropic as Record<string, unknown>;
+			expect(anthropic.effort).toBe("xhigh");
+		});
+
 		it("reports error for invalid Anthropic effort option", () => {
 			const result = buildModelConfigFromForm(
 				"anthropic",

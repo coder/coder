@@ -29,7 +29,7 @@ const roleDescriptions: Record<string, string> = {
 	"user-admin": "User admin can manage all users and groups.",
 	"template-admin": "Template admin can manage all templates and workspaces.",
 	auditor: "Auditor can access the audit logs.",
-	"agents-access": "Coder Agents User allows creating and using Coder Agents.",
+	"agents-access": "Grants access to Coder Agents chat.",
 	member:
 		"Everybody is a member. This is a shared and default role for all users.",
 };

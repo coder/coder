@@ -607,7 +607,7 @@ func convertCallResult(
 	for _, item := range result.Content {
 		switch c := item.(type) {
 		case mcp.TextContent:
-			textParts = append(textParts, c.Text)
+			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
 		case mcp.ImageContent:
 			data, err := base64.StdEncoding.DecodeString(
 				c.Data,
@@ -653,7 +653,7 @@ func convertCallResult(
 			// regardless of form.
 			switch r := c.Resource.(type) {
 			case mcp.TextResourceContents:
-				textParts = append(textParts, r.Text)
+				textParts = append(textParts, strings.ToValidUTF8(r.Text, "\uFFFD"))
 			case mcp.BlobResourceContents:
 				data, err := base64.StdEncoding.DecodeString(
 					r.Blob,

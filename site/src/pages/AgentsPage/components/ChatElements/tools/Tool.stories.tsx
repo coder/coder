@@ -170,6 +170,30 @@ export const SubagentRunning: Story = {
 	},
 };
 
+export const ExploreSubagentRunning: Story = {
+	args: {
+		name: "spawn_explore_agent",
+		status: "running",
+		args: {
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "explore-chat-id",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/explore-chat-id",
+		);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
+		).toBeInTheDocument();
+	},
+};
+
 export const SubagentAwaitLinkCard: Story = {
 	args: {
 		name: "wait_agent",
@@ -328,6 +352,241 @@ export const SubagentMessageRequestMetadata: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentGeneralRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			type: "general",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Workspace diagnostics/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentGeneralCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			type: "general",
+			title: "Workspace diagnostics",
+			status: "completed",
+			duration_ms: 3200,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 3s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentExploreRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			type: "explore",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentExploreCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			type: "explore",
+			status: "completed",
+			duration_ms: 4100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 4s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentComputerUseRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			type: "computer_use",
+			status: "pending",
+		},
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "spawn-desktop-child",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Open desktop tab" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const SpawnSubagentComputerUseCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			type: "computer_use",
+			title: "Visual regression check",
+			status: "completed",
+			duration_ms: "12400",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Visual regression check/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
+	},
+};
+
+export const WaitAgentExploreStreamingFromHistory: Story = {
+	args: {
+		name: "wait_agent",
+		status: "running",
+		args: { chat_id: "explore-child" },
+		result: { chat_id: "explore-child", status: "pending" },
+		subagentVariants: new Map([["explore-child", "explore"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Waiting for Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("Waiting for sub-agent…")).toBeNull();
+	},
+};
+
+export const MessageAgentExploreStreamingFromResult: Story = {
+	args: {
+		name: "message_agent",
+		status: "running",
+		args: { chat_id: "message-child", message: "continue" },
+		result: {
+			chat_id: "message-child",
+			type: "explore",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Messaging Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("Messaging sub-agent…")).toBeNull();
+	},
+};
+
+export const CloseAgentRunningWithoutChatId: Story = {
+	args: {
+		name: "close_agent",
+		status: "running",
+		args: {},
+		result: { status: "running" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvasElement.textContent?.trim()).toBe("");
+		});
+		expect(canvas.queryByRole("button")).toBeNull();
+		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
+	},
+};
+
+export const CloseAgentExploreCompleted: Story = {
+	args: {
+		name: "close_agent",
+		status: "completed",
+		args: { chat_id: "close-child" },
+		result: {
+			chat_id: "close-child",
+			type: "explore",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Terminated Explore agent/ }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -493,6 +752,7 @@ const sampleMCPServers = [
 		availability: "default_on",
 		enabled: true,
 		model_intent: false,
+		allow_in_plan_mode: false,
 		auth_connected: true,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
@@ -872,6 +1132,160 @@ export const EditFilesError: Story = {
 		},
 		result: { error: "File not found" },
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited missing\.ts/)).toBeInTheDocument();
+		// On error, no diff body: the synthetic fallback would
+		// misrepresent a rejected edit as applied.
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+	},
+};
+
+export const EditFilesServerDiffMultiFile: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+				{
+					path: "src/server.ts",
+					diff: '--- src/server.ts\n+++ src/server.ts\n@@ -1,3 +1,3 @@\n export const server = {\n-\tconst host = "localhost";\n+\tconst host = "0.0.0.0";\n };\n',
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		// Both server diffs must render. FileDiff's internals aren't
+		// queryable from jsdom; count the testid'd wrappers instead.
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
+	},
+};
+
+export const EditFilesServerDiffNoOp: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/unchanged.ts",
+					edits: [
+						{
+							search: "same",
+							replace: "same",
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [{ path: "src/unchanged.ts", diff: "" }],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited unchanged\.ts/)).toBeInTheDocument();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+	},
+};
+
+export const EditFilesFallbackToSynthetic: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/legacy.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+		result: { ok: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited legacy\.ts/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+	},
+};
+
+export const EditFilesServerDiffPartialFallback: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
+	},
 };
 
 // ---------------------------------------------------------------------------
@@ -929,7 +1343,7 @@ export const ComputerTextFallback: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Text-only results are collapsed by default (no image).
-		const toggle = canvas.getByRole("button", { name: /Screenshot/ });
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
 		expect(toggle).toBeInTheDocument();
 		expect(canvas.queryByRole("img")).toBeNull();
 
@@ -981,6 +1395,50 @@ export const ComputerArrayResult: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+	},
+};
+
+export const ComputerPromotedAttachmentArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+				attachment_file_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				attachment_name: "screenshot-2026-04-21T00-00-00Z.png",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
+		expect(toggle).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Screenshot from computer tool" }),
+		).toBeNull();
+
+		await userEvent.click(toggle);
+		expect(
+			canvas.getByText("Attached screenshot-2026-04-21T00-00-00Z.png"),
+		).toBeInTheDocument();
+	},
+};
+
+export const AttachFileLabelFallsBackToPathBasename: Story = {
+	args: {
+		name: "attach_file",
+		status: "completed",
+		args: {
+			path: "docs/runbooks/incident.md",
+		},
+		result: {},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Attached incident.md")).toBeInTheDocument();
 	},
 };
 
@@ -1166,8 +1624,8 @@ export const SpawnComputerUseAgentRunning: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Spawning/)).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 	},
 };
 
@@ -1229,7 +1687,7 @@ export const WaitAgentComputerUseRunning: Story = {
 			chat_id: "desktop-child-1",
 			status: "pending",
 		},
-		computerUseSubagentIds: new Set(["desktop-child-1"]),
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 	},
 	decorators: [
 		(Story) => (
@@ -1270,7 +1728,7 @@ export const WaitAgentComputerUseCompletedNoRecording: Story = {
 			status: "waiting",
 			report: "Configured the dev environment.",
 		},
-		computerUseSubagentIds: new Set(["desktop-child-1"]),
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 	},
 	decorators: [
 		(Story) => (
@@ -1305,7 +1763,7 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 			status: "pending",
 			error: "timed out waiting for agent",
 		},
-		computerUseSubagentIds: new Set(["desktop-child-1"]),
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

@@ -261,6 +261,37 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		return externalAuthLink, xerrors.Errorf("generate token extra: %w", err)
 	}
 
+	// Persist the refreshed token to the DB before validation. GitHub
+	// rotates refresh tokens on every use, so the old refresh token is
+	// already invalid on the IDP side. If we validated first and the
+	// validation endpoint was unavailable (e.g. rate-limited 403), the
+	// new token would be silently lost and the user would be forced to
+	// re-authenticate manually.
+	// Use a detached context for the DB write only. The IDP already
+	// consumed the old refresh token, so if the caller's request
+	// context is canceled mid-save, the new token would be lost.
+	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer persistCancel()
+
+	originalAccessToken := externalAuthLink.OAuthAccessToken
+	if token.AccessToken != originalAccessToken {
+		updatedAuthLink, err := db.UpdateExternalAuthLink(persistCtx, database.UpdateExternalAuthLinkParams{
+			ProviderID:             c.ID,
+			UserID:                 externalAuthLink.UserID,
+			UpdatedAt:              dbtime.Now(),
+			OAuthAccessToken:       token.AccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+			OAuthRefreshToken:      token.RefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+			OAuthExpiry:            token.Expiry,
+			OAuthExtra:             extra,
+		})
+		if err != nil {
+			return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
+		}
+		externalAuthLink = updatedAuthLink
+	}
+
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
 	// See the comment below why the retry and cancel is required.
 	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
@@ -285,43 +316,30 @@ validate:
 		return externalAuthLink, InvalidTokenError("token failed to validate")
 	}
 
-	if token.AccessToken != externalAuthLink.OAuthAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:             c.ID,
-			UserID:                 externalAuthLink.UserID,
-			UpdatedAt:              dbtime.Now(),
-			OAuthAccessToken:       token.AccessToken,
-			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-			OAuthRefreshToken:      token.RefreshToken,
-			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-			OAuthExpiry:            token.Expiry,
-			OAuthExtra:             extra,
+	// Update the associated user's github.com user ID if the token
+	// is for github.com and validation returned user info.
+	if token.AccessToken != originalAccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
+			ID: externalAuthLink.UserID,
+			GithubComUserID: sql.NullInt64{
+				Int64: user.ID,
+				Valid: true,
+			},
 		})
 		if err != nil {
-			return updatedAuthLink, xerrors.Errorf("update external auth link: %w", err)
-		}
-		externalAuthLink = updatedAuthLink
-
-		// Update the associated users github.com username if the token is for github.com.
-		if IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
-			err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
-				ID: externalAuthLink.UserID,
-				GithubComUserID: sql.NullInt64{
-					Int64: user.ID,
-					Valid: true,
-				},
-			})
-			if err != nil {
-				return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
-			}
+			return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
 		}
 	}
 
 	return externalAuthLink, nil
 }
 
-// ValidateToken ensures the Git token provided is valid!
+// ValidateToken checks if the Git token provided is valid.
 // The user is optionally returned if the provider supports it.
+// Returns valid=true when: the provider confirmed the token,
+// no ValidateURL is configured, or the validation endpoint
+// returned a rate-limited response (403 with rate-limit headers
+// or 429).
 func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
 	if link == nil {
 		return false, nil, xerrors.New("validate external auth token: token is nil")
@@ -345,11 +363,36 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		return false, nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+	switch res.StatusCode {
+	case http.StatusUnauthorized:
 		// The token is no longer valid!
 		return false, nil, nil
-	}
-	if res.StatusCode != http.StatusOK {
+
+	case http.StatusForbidden:
+		// Some providers (notably GitHub) use 403 for both "token
+		// revoked" and "rate limit exceeded." If standard rate-limit
+		// headers are present, the token may still be valid and the
+		// validation endpoint is rejecting for a transient reason.
+		// Treat it as optimistically valid rather than discarding
+		// the token.
+		if isRateLimited(res) {
+			return true, nil, nil
+		}
+		// No rate-limit headers: genuine token revocation or
+		// permission error.
+		return false, nil, nil
+
+	case http.StatusTooManyRequests:
+		// GitHub can return either 403 or 429 for rate limits.
+		// Treat 429 the same as a rate-limited 403: optimistically
+		// valid. The token was likely just issued by the IDP; the
+		// validation endpoint is transiently overloaded.
+		return true, nil, nil
+
+	case http.StatusOK:
+		// Success, handled below.
+
+	default:
 		data, _ := io.ReadAll(res.Body)
 		return false, nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
@@ -1240,6 +1283,32 @@ func IsGithubDotComURL(str string) bool {
 	return ghURL.Host == "github.com"
 }
 
+// isRateLimited checks whether an HTTP response indicates a rate
+// limit rather than a genuine authorization failure. It returns
+// true if either X-RateLimit-Remaining is "0" (primary) or
+// Retry-After is present (secondary). OR logic is intentional:
+// GitHub secondary limits can include Retry-After without
+// X-RateLimit-Remaining: 0 (the remaining count tracks the
+// primary quota, not secondary).
+//
+// Does not catch every secondary rate limit. GitHub can return
+// 403 with positive X-RateLimit-Remaining and no Retry-After.
+// Reliable detection of those requires response body inspection.
+// Missing them is not a regression since all 403s were previously
+// treated as invalid.
+func isRateLimited(resp *http.Response) bool {
+	if resp == nil {
+		return false
+	}
+	if resp.Header.Get("Retry-After") != "" {
+		return true
+	}
+	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
+		return true
+	}
+	return false
+}
+
 // isFailedRefresh returns true if the error returned by the TokenSource.Token()
 // is due to a failed refresh. The failure being the refresh token itself.
 // If this returns true, no amount of retries will fix the issue.
@@ -1268,15 +1337,21 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 		// Known error codes that indicate a failed refresh.
 		// 'Spec' means the code is defined in the spec.
 		case "bad_refresh_token", // Github
-			"invalid_grant",          // Gitlab & Spec
-			"unauthorized_client",    // Gitea & Spec
-			"unsupported_grant_type": // Spec, refresh not supported
+			"invalid_grant",                // Gitlab & Spec
+			"unauthorized_client",          // Gitea & Spec
+			"unsupported_grant_type",       // Spec, refresh not supported
+			"incorrect_client_credentials", // GitHub, wrong client_id/secret (HTTP 200)
+			"invalid_client":               // RFC 6749 Section 5.2, client auth failed
 			return true
 		}
 
 		switch oauthErr.Response.StatusCode {
-		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusOK:
-			// Status codes that indicate the request was processed, and rejected.
+		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusOK:
+			// Status codes that indicate the request was processed
+			// and rejected. 403 is intentionally excluded: no known
+			// provider returns 403 from the token endpoint, and the
+			// previous 403 case caused token destruction on
+			// rate-limited refresh attempts.
 			return true
 		case http.StatusInternalServerError, http.StatusTooManyRequests:
 			// These do not indicate a failed refresh, but could be a temporary issue.

@@ -7,7 +7,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -39,7 +38,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	selectProxyError,
 }) => {
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
@@ -56,9 +55,9 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[70%]">Proxy</TableHead>
-						<TableHead className="w-[10%] text-right">Status</TableHead>
-						<TableHead className="w-[20%] text-right">Latency</TableHead>
+						<TableHead className="w-[60%]">Proxy</TableHead>
+						<TableHead className="w-[20%]">Status</TableHead>
+						<TableHead className="w-[20%]">Latency</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -81,6 +80,6 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 					</ChooseOne>
 				</TableBody>
 			</Table>
-		</Stack>
+		</div>
 	);
 };

@@ -5,7 +5,7 @@ set -euo pipefail
 # While you can install it using npm, we have it in our devDependencies
 # in ${PROJECT_ROOT}/package.json.
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-if ! pnpm list | grep quicktype &>/dev/null; then
+if ! pnpm -C "${PROJECT_ROOT}" list | grep quicktype &>/dev/null; then
 	echo "quicktype is required to run this script!"
 	echo "Ensure that it is present in the devDependencies of ${PROJECT_ROOT}/package.json and then run pnpm install."
 	exit 1
@@ -40,7 +40,7 @@ if [[ " $* " == *" --quiet "* ]] || [[ ${DCSPEC_QUIET:-false} == "true" ]]; then
 	exec 2>"${TMPDIR}/stderr.log"
 fi
 
-if ! pnpm exec quicktype \
+if ! pnpm -C "${PROJECT_ROOT}" exec quicktype \
 	--src-lang schema \
 	--lang go \
 	--top-level "DevContainer" \

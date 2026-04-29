@@ -159,19 +159,11 @@ const IconsPage: FC = () => {
 								<img
 									alt={icon.url}
 									src={icon.url}
-									css={[
-										{
-											width: 60,
-											height: 60,
-											objectFit: "contain",
-											pointerEvents: "none",
-											padding: 12,
-										},
-										parseImageParameters(
-											theme.externalImages,
-											defaultParametersForBuiltinIcons.get(icon.url) ?? "",
-										),
-									]}
+									className="size-16 object-contain pointer-events-none p-3"
+									style={parseImageParameters(
+										theme.externalImages,
+										defaultParametersForBuiltinIcons.get(icon.url) ?? "",
+									)}
 								/>
 								<figcaption className="w-[88px] h-12 text-[13px] text-ellipsis text-center overflow-hidden">
 									{icon.description}

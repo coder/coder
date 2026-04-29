@@ -1,5 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { API } from "#/api/api";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	MockDefaultOrganization,
@@ -74,6 +83,14 @@ export default meta;
 type Story = StoryObj<typeof AgentCreateForm>;
 
 const defaultArgs = meta.args;
+
+const mockPermittedOrganizations = (permissions: Record<string, boolean>) => {
+	spyOn(API, "getOrganizations").mockResolvedValue([
+		MockDefaultOrganization,
+		MockOrganization2,
+	]);
+	spyOn(API, "checkAuthorization").mockResolvedValue(permissions);
+};
 
 export const Default: Story = {};
 
@@ -338,9 +355,7 @@ export const WithOrganizationPicker: Story = {
 		const canvas = within(canvasElement);
 		// Verify the org picker rendered (component didn't crash).
 		await waitFor(() => {
-			expect(
-				canvas.getByTestId("organization-autocomplete"),
-			).toBeInTheDocument();
+			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
 		});
 		// Type into the chat input to trigger re-renders. If the
 		// permittedOrgs fallback is referentially unstable, this
@@ -349,7 +364,7 @@ export const WithOrganizationPicker: Story = {
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
 		// The org picker should still be present after typing.
-		expect(canvas.getByTestId("organization-autocomplete")).toBeInTheDocument();
+		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
 	},
 };
 
@@ -410,5 +425,109 @@ export const ForbiddenNoAgentsRole: Story = {
 		// accidentally trigger the generic error.
 		const textbox = canvas.getByRole("textbox");
 		await expect(textbox).toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+/**
+ * Covers the reconciliation path where the permitted-organizations query
+ * resolves after mount with fewer orgs than the dashboard provides.
+ */
+export const PermittedOrgsResolvesToEmpty: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		// Deliberately do not pre-seed permittedOrgsKey. Let the
+		// mocked API calls drive the async permission resolution.
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: false,
+		});
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the permitted orgs query to resolve. The org picker
+		// should disappear since no org is permitted.
+		await waitFor(
+			() => {
+				expect(
+					canvas.queryByTestId("compact-org-selector"),
+				).not.toBeInTheDocument();
+			},
+			{ timeout: 3000 },
+		);
+
+		// Type a message and submit the form.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("test message");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		// Verify onCreateChat was called with a non-empty organizationId.
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
+			.calls[0]?.[0] as { organizationId: string } | undefined;
+		if (!options) {
+			throw new Error("Expected onCreateChat to receive options");
+		}
+		expect(options.organizationId).not.toBe("");
+		// It should fall back to the default org from the dashboard.
+		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+	},
+};
+
+export const PermittedOrgsResolvesToSubset: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the permitted orgs query to resolve. With only one
+		// permitted org, the picker should disappear.
+		await waitFor(
+			() => {
+				expect(
+					canvas.queryByTestId("compact-org-selector"),
+				).not.toBeInTheDocument();
+			},
+			{ timeout: 3000 },
+		);
+
+		// Type a message and submit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("test message");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		// Verify onCreateChat was called with the only permitted org.
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
+			.calls[0]?.[0] as { organizationId: string } | undefined;
+		if (!options) {
+			throw new Error("Expected onCreateChat to receive options");
+		}
+		expect(options.organizationId).toBe(MockOrganization2.id);
 	},
 };

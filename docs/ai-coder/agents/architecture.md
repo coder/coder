@@ -149,26 +149,36 @@ workspace connection. Platform and orchestration tools are only available to
 root chats — sub-agents spawned by `spawn_agent` do not have access to them
 and cannot create workspaces or spawn further sub-agents.
 
-| Tool               | What it does                                                                            |
-|--------------------|-----------------------------------------------------------------------------------------|
-| `list_templates`   | Browses available workspace templates, sorted by popularity.                            |
-| `read_template`    | Gets template details and configurable parameters.                                      |
-| `create_workspace` | Creates a workspace from a template and waits for it to be ready.                       |
-| `start_workspace`  | Starts the chat's workspace if it is currently stopped. Idempotent if already running.  |
-| `propose_plan`     | Presents a Markdown plan file from the workspace for user review before implementation. |
+| Tool                | What it does                                                                            |
+|---------------------|-----------------------------------------------------------------------------------------|
+| `list_templates`    | Browses available workspace templates, sorted by popularity.                            |
+| `read_template`     | Gets template details and configurable parameters.                                      |
+| `create_workspace`  | Creates a workspace from a template and waits for it to be ready.                       |
+| `start_workspace`   | Starts the chat's workspace if it is currently stopped. Idempotent if already running.  |
+| `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation. |
+| `ask_user_question` | Asks the user structured clarification questions during plan mode.                      |
+
+`propose_plan` and `ask_user_question` are only exposed while plan mode is
+active. In that mode, `write_file` and `edit_files` are restricted to the
+chat-specific plan file, while `execute` and `process_output` remain available
+for exploration such as cloning repositories, searching code, and running
+inspection commands. Root plan-mode chats may also receive administrator-approved
+external MCP tools. Workspace MCP tools remain unavailable in plan mode, and
+plan-mode sub-agents still do not receive any MCP tools. Dynamic,
+provider-native, and computer-use tools are not available.
 
 ### Orchestration tools
 
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool                       | What it does                                                                                                                                                                      |
-|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent`              | Delegates a task to a sub-agent with its own context window.                                                                                                                      |
-| `wait_agent`               | Waits for a sub-agent to finish and collects its result.                                                                                                                          |
-| `message_agent`            | Sends a follow-up message to a running sub-agent.                                                                                                                                 |
-| `close_agent`              | Stops a running sub-agent.                                                                                                                                                        |
-| `spawn_computer_use_agent` | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an Anthropic provider and the desktop feature to be enabled by an administrator. |
+| Tool                                        | What it does                                                                                                                                                                      |
+|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window.                                                                                                                      |
+| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                          |
+| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                 |
+| `close_agent`                               | Stops a running sub-agent.                                                                                                                                                        |
+| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an Anthropic provider and the desktop feature to be enabled by an administrator. |
 
 ### Provider tools
 

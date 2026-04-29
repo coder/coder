@@ -35,6 +35,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>port-forward</code>](./port-forward.md)               | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".                        |
 | [<code>publickey</code>](./publickey.md)                     | Output your Coder public key used for Git operations                                                                         |
 | [<code>reset-password</code>](./reset-password.md)           | Directly connect to the database to reset a user's password                                                                  |
+| [<code>secret</code>](./secret.md)                           | Manage secrets                                                                                                               |
 | [<code>state</code>](./state.md)                             | Manually manage Terraform state to fix broken workspaces                                                                     |
 | [<code>task</code>](./task.md)                               | Manage tasks                                                                                                                 |
 | [<code>templates</code>](./templates.md)                     | Manage templates                                                                                                             |
@@ -172,6 +173,33 @@ Disable direct (P2P) connections to workspaces.
 | Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
 
 Disable network telemetry. Network telemetry is collected when connecting to workspaces using the CLI, and is forwarded to the server. If telemetry is also enabled on the server, it may be sent to Coder. Network telemetry is used to measure network quality and detect regressions.
+
+### --client-tls-ca-file
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_CLIENT_TLS_CA_FILE</code> |
+
+Path to a CA certificate file to trust for API and DERP connections.
+
+### --client-tls-cert-file
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_CLIENT_TLS_CERT_FILE</code> |
+
+Path to a client certificate file for mTLS authentication with API and DERP. Requires --client-tls-key-file.
+
+### --client-tls-key-file
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_CLIENT_TLS_KEY_FILE</code> |
+
+Path to a client private key file for mTLS authentication with API and DERP. Requires --client-tls-cert-file.
 
 ### --use-keyring
 

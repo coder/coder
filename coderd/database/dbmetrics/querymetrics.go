@@ -176,6 +176,14 @@ func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) AutoArchiveInactiveChats(ctx context.Context, arg database.AutoArchiveInactiveChatsParams) ([]database.AutoArchiveInactiveChatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.AutoArchiveInactiveChats(ctx, arg)
+	m.queryLatencies.WithLabelValues("AutoArchiveInactiveChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AutoArchiveInactiveChats").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	start := time.Now()
 	r0 := m.s.BackoffChatDiffStatus(ctx, arg)
@@ -424,7 +432,7 @@ func (m queryMetricsStore) DeleteChatDebugDataAfterMessageID(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteChatDebugDataByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+func (m queryMetricsStore) DeleteChatDebugDataByChatID(ctx context.Context, chatID database.DeleteChatDebugDataByChatIDParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteChatDebugDataByChatID(ctx, chatID)
 	m.queryLatencies.WithLabelValues("DeleteChatDebugDataByChatID").Observe(time.Since(start).Seconds())
@@ -437,6 +445,14 @@ func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uui
 	r0 := m.s.DeleteChatModelConfigByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteChatModelConfigByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatModelConfigByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatModelConfigsByProvider(ctx, provider)
+	m.queryLatencies.WithLabelValues("DeleteChatModelConfigsByProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatModelConfigsByProvider").Inc()
 	return r0
 }
 
@@ -888,7 +904,7 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore time.Time) (database.FinalizeStaleChatDebugRowsRow, error) {
+func (m queryMetricsStore) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.FinalizeStaleChatDebugRows(ctx, updatedBefore)
 	m.queryLatencies.WithLabelValues("FinalizeStaleChatDebugRows").Observe(time.Since(start).Seconds())
@@ -1104,6 +1120,14 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
+	m.queryLatencies.WithLabelValues("GetChatAutoArchiveDays").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutoArchiveDays").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatByID(ctx, id)
@@ -1200,11 +1224,27 @@ func (m queryMetricsStore) GetChatDiffStatusByChatID(ctx context.Context, chatID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatDiffStatusSummary(ctx context.Context) (database.GetChatDiffStatusSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatDiffStatusSummary(ctx)
+	m.queryLatencies.WithLabelValues("GetChatDiffStatusSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDiffStatusSummary").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]database.ChatDiffStatus, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	m.queryLatencies.WithLabelValues("GetChatDiffStatusesByChatIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDiffStatusesByChatIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatExploreModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatExploreModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatExploreModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatExploreModelOverride").Inc()
 	return r0, r1
 }
 
@@ -1229,6 +1269,14 @@ func (m queryMetricsStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUI
 	r0, r1 := m.s.GetChatFilesByIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetChatFilesByIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFilesByIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatGeneralModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatGeneralModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGeneralModelOverride").Inc()
 	return r0, r1
 }
 
@@ -1312,6 +1360,14 @@ func (m queryMetricsStore) GetChatModelConfigsForTelemetry(ctx context.Context) 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatPlanModeInstructions(ctx)
+	m.queryLatencies.WithLabelValues("GetChatPlanModeInstructions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatPlanModeInstructions").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProviderByID(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProviderByID(ctx, id)
@@ -1320,11 +1376,27 @@ func (m queryMetricsStore) GetChatProviderByID(ctx context.Context, id uuid.UUID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProviderByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProviderByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByIDForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProviderByProvider(ctx, provider)
 	m.queryLatencies.WithLabelValues("GetChatProviderByProvider").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByProvider").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProviderByProviderForUpdate(ctx context.Context, provider string) (database.ChatProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProviderByProviderForUpdate(ctx, provider)
+	m.queryLatencies.WithLabelValues("GetChatProviderByProviderForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByProviderForUpdate").Inc()
 	return r0, r1
 }
 
@@ -1429,6 +1501,14 @@ func (m queryMetricsStore) GetChatsUpdatedAfter(ctx context.Context, updatedAfte
 	r0, r1 := m.s.GetChatsUpdatedAfter(ctx, updatedAfter)
 	m.queryLatencies.WithLabelValues("GetChatsUpdatedAfter").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsUpdatedAfter").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChildChatsByParentIDs(ctx context.Context, arg database.GetChildChatsByParentIDsParams) ([]database.GetChildChatsByParentIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChildChatsByParentIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChildChatsByParentIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChildChatsByParentIDs").Inc()
 	return r0, r1
 }
 
@@ -1541,6 +1621,14 @@ func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx 
 	r0, r1 := m.s.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds)
 	m.queryLatencies.WithLabelValues("GetEligibleProvisionerDaemonsByProvisionerJobIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEligibleProvisionerDaemonsByProvisionerJobIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledChatModelConfigByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetEnabledChatModelConfigByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledChatModelConfigByID").Inc()
 	return r0, r1
 }
 
@@ -1765,6 +1853,14 @@ func (m queryMetricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Cont
 	r0, r1 := m.s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("GetLatestWorkspaceBuildByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestWorkspaceBuildByWorkspaceID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceBuildWithStatusByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestWorkspaceBuildWithStatusByWorkspaceID").Inc()
 	return r0, r1
 }
 
@@ -2792,6 +2888,14 @@ func (m queryMetricsStore) GetUserThemePreference(ctx context.Context, userID uu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserThinkingDisplayMode(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserThinkingDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThinkingDisplayMode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserWorkspaceBuildParameters(ctx context.Context, arg database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserWorkspaceBuildParameters(ctx, arg)
@@ -2853,14 +2957,6 @@ func (m queryMetricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UU
 	r0, r1 := m.s.GetWorkspaceAgentByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByInstanceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByInstanceID").Inc()
 	return r0, r1
 }
 
@@ -2957,6 +3053,14 @@ func (m queryMetricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Cont
 	r0, r1 := m.s.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStatsAndLabels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentUsageStatsAndLabels").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsByInstanceID(ctx, authInstanceID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsByInstanceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentsByInstanceID").Inc()
 	return r0, r1
 }
 
@@ -4208,6 +4312,22 @@ func (m queryMetricsStore) SoftDeleteContextFileMessages(ctx context.Context, ch
 	return r0
 }
 
+func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
+	start := time.Now()
+	r0 := m.s.TouchChatDebugRunUpdatedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("TouchChatDebugRunUpdatedAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "TouchChatDebugRunUpdatedAt").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) TouchChatDebugStepAndRun(ctx context.Context, arg database.TouchChatDebugStepAndRunParams) error {
+	start := time.Now()
+	r0 := m.s.TouchChatDebugStepAndRun(ctx, arg)
+	m.queryLatencies.WithLabelValues("TouchChatDebugStepAndRun").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "TouchChatDebugStepAndRun").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.TryAcquireLock(ctx, pgTryAdvisoryXactLock)
@@ -4376,6 +4496,14 @@ func (m queryMetricsStore) UpdateChatPinOrder(ctx context.Context, arg database.
 	return r0
 }
 
+func (m queryMetricsStore) UpdateChatPlanModeByID(ctx context.Context, arg database.UpdateChatPlanModeByIDParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatPlanModeByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatPlanModeByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatPlanModeByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatProvider(ctx context.Context, arg database.UpdateChatProviderParams) (database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatProvider(ctx, arg)
@@ -4397,6 +4525,14 @@ func (m queryMetricsStore) UpdateChatStatusPreserveUpdatedAt(ctx context.Context
 	r0, r1 := m.s.UpdateChatStatusPreserveUpdatedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatStatusPreserveUpdatedAt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatStatusPreserveUpdatedAt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatTitleByID(ctx context.Context, arg database.UpdateChatTitleByIDParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatTitleByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatTitleByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatTitleByID").Inc()
 	return r0, r1
 }
 
@@ -4904,6 +5040,14 @@ func (m queryMetricsStore) UpdateUserThemePreference(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateUserThinkingDisplayMode(ctx context.Context, arg database.UpdateUserThinkingDisplayModeParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserThinkingDisplayMode(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserThinkingDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserThinkingDisplayMode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateVolumeResourceMonitor(ctx, arg)
@@ -5144,6 +5288,14 @@ func (m queryMetricsStore) UpsertBoundaryUsageStats(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
+	m.queryLatencies.WithLabelValues("UpsertChatAutoArchiveDays").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAutoArchiveDays").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatDebugLoggingAllowUsers(ctx, allowUsers)
@@ -5176,11 +5328,35 @@ func (m queryMetricsStore) UpsertChatDiffStatusReference(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatExploreModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatExploreModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatExploreModelOverride").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatGeneralModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatGeneralModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGeneralModelOverride").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt)
 	m.queryLatencies.WithLabelValues("UpsertChatIncludeDefaultSystemPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatIncludeDefaultSystemPrompt").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatPlanModeInstructions(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatPlanModeInstructions(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatPlanModeInstructions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatPlanModeInstructions").Inc()
 	return r0
 }
 

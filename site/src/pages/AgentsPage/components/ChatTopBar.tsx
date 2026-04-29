@@ -188,22 +188,18 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="end"
-							className="[&_[role=menuitem]]:text-[13px]"
+							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
 						>
-							{!isArchived && (
+							{!isArchived && onRegenerateTitle && (
 								<>
-									{onRegenerateTitle && (
-										<>
-											<DropdownMenuItem
-												disabled={isRegenerateTitleDisabled}
-												onSelect={onRegenerateTitle}
-											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-										</>
-									)}
+									<DropdownMenuItem
+										disabled={isRegenerateTitleDisabled}
+										onSelect={onRegenerateTitle}
+									>
+										<WandSparklesIcon className="h-3.5 w-3.5" />
+										Generate new title
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
 								</>
 							)}
 							{isArchived ? (

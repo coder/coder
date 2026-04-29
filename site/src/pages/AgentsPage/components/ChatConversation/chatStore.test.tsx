@@ -217,7 +217,9 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	archived: false,
 	pin_order: 0,
 	has_unread: false,
+	client_type: "ui",
 	last_error: null,
+	children: [],
 });
 
 const makeMessage = (
@@ -1708,6 +1710,7 @@ describe("useChatStore", () => {
 				chat_id: chatID,
 				error: {
 					message: "Rate limit exceeded",
+					detail: "Image exceeds 5 MB maximum.",
 					kind: "rate_limit",
 					provider: "anthropic",
 					retryable: true,
@@ -1722,6 +1725,7 @@ describe("useChatStore", () => {
 		expect(result.current.streamError).toEqual({
 			kind: "rate_limit",
 			message: "Rate limit exceeded",
+			detail: "Image exceeds 5 MB maximum.",
 			provider: "anthropic",
 			retryable: true,
 			statusCode: 429,
@@ -1730,6 +1734,7 @@ describe("useChatStore", () => {
 		expect(setChatErrorReason).toHaveBeenCalledWith(chatID, {
 			kind: "rate_limit",
 			message: "Rate limit exceeded",
+			detail: "Image exceeds 5 MB maximum.",
 			provider: "anthropic",
 			retryable: true,
 			statusCode: 429,

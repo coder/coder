@@ -20,6 +20,12 @@ Examples:
 
 ## PR Description Structure
 
+### Format GitHub PR Body Prose
+
+When writing the actual GitHub PR body, let GitHub soft-wrap paragraphs. Do not manually hard-wrap prose at a fixed width such as 80 columns. Manual line breaks should appear only where Markdown needs structure: headings, lists, tables, code blocks, blockquotes, and intentional paragraph breaks.
+
+Committed Markdown and code comments may have their own formatting rules. Do not apply those wrapping rules to PR descriptions.
+
 ### Default Pattern: Keep It Concise
 
 Most PRs use a simple 1-2 paragraph format:
@@ -33,11 +39,9 @@ Most PRs use a simple 1-2 paragraph format:
 **Example (bugfix):**
 
 ```markdown
-Previously, when a devcontainer config file was modified, the dirty
-status was updated internally but not broadcast to websocket listeners.
+Previously, when a devcontainer config file was modified, the dirty status was updated internally but not broadcast to websocket listeners.
 
-Add `broadcastUpdatesLocked()` call in `markDevcontainerDirty` to notify
-websocket listeners immediately when a config file changes.
+Add `broadcastUpdatesLocked()` call in `markDevcontainerDirty` to notify websocket listeners immediately when a config file changes.
 ```
 
 **Example (dependency update):**
@@ -117,8 +121,7 @@ Refs #[issue-number]
 2. **Performance Context** (when relevant)
 
    ```markdown
-   Each query took ~30ms on average with 80 requests/second to the cluster,
-   resulting in ~5.2 query-seconds every second.
+   Each query took ~30ms on average with 80 requests/second to the cluster, resulting in ~5.2 query-seconds every second.
    ```
 
 3. **Migration Warnings** (when relevant)
@@ -207,8 +210,9 @@ Only create non-draft PRs when the user explicitly requests it or when following
 3. **Be technical** - Explain what and why, not detailed how
 4. **Link everything** - Issues, PRs, upstream changes, Notion docs
 5. **Show impact** - Metrics for performance, screenshots for UI, warnings for migrations
-6. **No test plans** - Code review and CI handle testing
-7. **No benefits sections** - Benefits should be obvious from the technical description
+6. **Use soft wrapping** - Let GitHub wrap PR body prose naturally
+7. **No test plans** - Code review and CI handle testing
+8. **No benefits sections** - Benefits should be obvious from the technical description
 
 ## Examples by Category
 

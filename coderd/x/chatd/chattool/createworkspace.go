@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
@@ -73,9 +74,9 @@ type CreateWorkspaceOptions struct {
 }
 
 type createWorkspaceArgs struct {
-	TemplateID string            `json:"template_id"`
-	Name       string            `json:"name,omitempty"`
-	Parameters map[string]string `json:"parameters,omitempty"`
+	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
+	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
+	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template."`
 }
 
 // CreateWorkspace returns a tool that creates a new workspace from a
@@ -201,6 +202,10 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 
 			workspace, err := options.CreateFn(ctx, ownerID, createReq)
 			if err != nil {
+				if responseErr, ok := httperror.IsResponder(err); ok {
+					_, resp := responseErr.Response()
+					return toolResponse(responseErrorResult(resp)), nil
+				}
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
@@ -250,6 +255,7 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 					)), nil
 				}
 			}
+
 			result := map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),
@@ -279,6 +285,19 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 				agentStatus := waitForAgentReady(ctx, db, workspaceAgentID, options.AgentConnFn)
 				for k, v := range agentStatus {
 					result[k] = v
+				}
+			}
+
+			// Re-fire after the agent is fully ready so callers
+			// can load instruction files (AGENTS.md) from the
+			// running agent. This must happen after
+			// waitForAgentReady — firing earlier (e.g. right
+			// after waitForBuild) races with the agent startup
+			// and the connection usually times out before the
+			// agent is reachable.
+			if options.OnChatUpdated != nil {
+				if latest, err := db.GetChatByID(ctx, options.ChatID); err == nil {
+					options.OnChatUpdated(latest)
 				}
 			}
 

@@ -62,6 +62,10 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - Destructure imports when possible (eg. import { foo } from 'bar')
 - Prefer `for...of` over `forEach` for iteration
 - **Biome** handles both linting and formatting (not ESLint/Prettier)
+- Access browser globals like `location`, `navigator`, and `document`
+  directly. Do not prefix them with `window.` (e.g., write
+  `location.href`, not `window.location.href`). They are globally
+  available in every browser context.
 - Always use react-query for data fetching. Do not attempt to manage any
   data life cycle manually. Do not ever call an `API` function directly
   within a component.
@@ -71,8 +75,11 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   If sibling components initialize state with `useMemo`, don't switch to
   `useState(initialFn)` in the same file without reason.
 - Match errors by error code or HTTP status, never by comparing error
-  message strings. String matching is brittle — messages change, get
+  message strings. String matching is brittle; messages change, get
   localized, or get reformatted.
+- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+  in code, comments, string literals, or documentation. Use commas,
+  semicolons, or periods instead. Restructure the sentence if needed.
 
 ## TypeScript Type Safety
 

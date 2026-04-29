@@ -4,6 +4,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "document": "string",
   "signature": "string"
 }
@@ -11,10 +12,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `document`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `document`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.AuthenticateResponse
 
@@ -34,6 +36,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "encoding": "string",
   "signature": "string"
 }
@@ -41,10 +44,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `encoding`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `encoding`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.ExternalAuthResponse
 
@@ -90,15 +94,17 @@
 
 ```json
 {
+  "agent_name": "string",
   "json_web_token": "string"
 }
 ```
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-|------------------|--------|----------|--------------|-------------|
-| `json_web_token` | string | true     |              |             |
+| Name             | Type   | Required | Restrictions | Description                                                                                                                                      |
+|------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`     | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `json_web_token` | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.Log
 
@@ -431,6 +437,7 @@
 
 ```json
 {
+  "allow_byok": true,
   "anthropic": {
     "base_url": "string",
     "key": "string"
@@ -476,6 +483,7 @@
 
 | Name                                | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                 |
 |-------------------------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
 | `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).                                                       |
@@ -682,6 +690,7 @@
         "name": "string",
         "username": "string"
       },
+      "last_active_at": "2019-08-24T14:15:22Z",
       "last_prompt": "string",
       "metadata": {
         "property1": null,
@@ -816,6 +825,7 @@
     "name": "string",
     "username": "string"
   },
+  "last_active_at": "2019-08-24T14:15:22Z",
   "last_prompt": "string",
   "metadata": {
     "property1": null,
@@ -846,6 +856,7 @@
 | `ended_at`            | string                                                                                 | false    |              |             |
 | `id`                  | string                                                                                 | false    |              |             |
 | `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `last_active_at`      | string                                                                                 | false    |              |             |
 | `last_prompt`         | string                                                                                 | false    |              |             |
 | `metadata`            | object                                                                                 | false    |              |             |
 | » `[any property]`    | any                                                                                    | false    |              |             |
@@ -1245,6 +1256,7 @@
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "allow_byok": true,
     "anthropic": {
       "base_url": "string",
       "key": "string"
@@ -3279,6 +3291,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
@@ -3868,6 +3881,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "allow_byok": true,
       "anthropic": {
         "base_url": "string",
         "key": "string"
@@ -8476,9 +8490,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_seat`, `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -10309,6 +10323,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------------------------------------------------------------------------------------|
 | ``, `fira-code`, `geist-mono`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
 
+## codersdk.ThinkingDisplayMode
+
+```json
+"auto"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                 |
+|----------------------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto`, `preview` |
+
 ## codersdk.TimingStage
 
 ```json
@@ -10644,15 +10672,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description |
-|-------------------------------------|---------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean | false    |              |             |
+| Name                                | Type                                                         | Required | Restrictions | Description |
+|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -11214,15 +11244,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description |
-|-------------------------------------|---------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean | false    |              |             |
+| Name                                | Type                                                         | Required | Restrictions | Description |
+|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 
@@ -13719,9 +13751,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                    |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                               |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 

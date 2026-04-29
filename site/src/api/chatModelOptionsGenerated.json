@@ -109,7 +109,7 @@
 					"description": "Controls the level of reasoning effort",
 					"label": "Reasoning Effort",
 					"required": false,
-					"enum": ["low", "medium", "high", "max"],
+					"enum": ["low", "medium", "high", "xhigh", "max"],
 					"input_type": "select"
 				},
 				{
