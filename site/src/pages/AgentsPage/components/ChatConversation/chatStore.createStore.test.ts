@@ -439,17 +439,14 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.suppressQueuedMessageID(b.id);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
 
-		// Authoritative write that still includes B (e.g. transient
-		// reordered queue from the running-case interrupt) must not
-		// surface B in the visible queue.
+		// Transient reordered queue from the running-case backend
+		// must not surface the suppressed message.
 		store.applyAuthoritativeQueuedMessages([b, a, c]);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([a.id, c.id]);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
 
-		// Final authoritative write with B absent clears the
-		// suppression entry automatically.
 		store.applyAuthoritativeQueuedMessages([a, c]);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
 			false,

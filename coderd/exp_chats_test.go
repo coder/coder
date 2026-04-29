@@ -8489,9 +8489,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
 		require.NotEmpty(t, resp.Message)
 
-		// Walk the message history and verify a synthetic error
-		// tool result for the pending dynamic tool call was
-		// inserted, followed by the promoted user message.
 		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
@@ -8526,7 +8523,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.Less(t, syntheticID, promotedID,
 			"synthetic tool result must precede the promoted user message")
 
-		// Queued row was removed (synchronous promotion).
 		queuedRemaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		for _, qm := range queuedRemaining {
@@ -8593,8 +8589,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
 		require.NotEmpty(t, resp.Message)
 
-		// PromoteQueued reorders the queue and sets waiting +
-		// clears WorkerID. The queued row's ID stays stable.
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusWaiting, after.Status,

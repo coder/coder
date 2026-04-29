@@ -153,13 +153,10 @@ export type ChatStoreState = {
 	retryState: RetryState | null;
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
-	// suppressedQueuedMessageIDs hides specific queued IDs from the
-	// visible queue so the UI does not flash a transient backend state
-	// (e.g. the running-case promote, where the backend reorders the
-	// queued message to the front before auto-promoting it). The
-	// suppression entry is added by the optimistic promote handler and
-	// auto-cleared by applyAuthoritativeQueuedMessages once the message
-	// is no longer present in an authoritative server payload.
+	// Hides queued IDs from the visible queue while the backend is
+	// in a transient state that would briefly include them. Used by
+	// the running-case promote, where the backend reorders the
+	// queued message to the front before auto-promoting it.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
@@ -181,13 +178,10 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
-	// applyAuthoritativeQueuedMessages writes a server-truthful queue
-	// snapshot through the suppression filter. Suppressed IDs that are
-	// not present in the incoming snapshot are removed from the
-	// suppression set automatically. Suppressed IDs that are still
-	// present are filtered out of the visible queue. Use this for SSE
-	// queue_update events and REST hydration. Use setQueuedMessages
-	// for purely optimistic writes that must not affect suppression.
+	// Server-truthful queue snapshot, filtered through the
+	// suppression set. Use for SSE queue_update and REST hydration;
+	// optimistic writes go through setQueuedMessages so they don't
+	// lift suppression.
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
