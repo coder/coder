@@ -559,15 +559,17 @@ func newBinder(ctx context.Context,
 
 		ctx, cancel := context.WithTimeout(dbauthz.As(context.Background(), pgCoordSubject), time.Second*15)
 		defer cancel()
-		peerIDs, err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
+		peerRows, err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
 			CoordinatorID: b.coordinatorID,
 			Status:        database.TailnetStatusLost,
 		})
 		if err != nil {
 			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
 		}
-		for _, peerID := range peerIDs {
-			publishPeerUpdate(ctx, b.pubsub, b.logger, peerID)
+		for _, row := range peerRows {
+			// TODO(nats): use row.CoordinatorID/Status/Node/UpdatedAt in §6b
+			// for enriched publish payload.
+			publishPeerUpdate(ctx, b.pubsub, b.logger, row.ID)
 		}
 	}()
 	return b
@@ -634,12 +636,15 @@ func (b *binder) writeOne(bnd binding) error {
 		if bnd.kind == proto.CoordinateResponse_PeerUpdate_LOST {
 			status = database.TailnetStatusLost
 		}
-		_, err = b.store.UpsertTailnetPeer(b.ctx, database.UpsertTailnetPeerParams{
+		// TODO(nats): use row in §6b for enriched publish payload.
+		var row database.TailnetPeer
+		row, err = b.store.UpsertTailnetPeer(b.ctx, database.UpsertTailnetPeerParams{
 			ID:            uuid.UUID(bnd.bKey),
 			CoordinatorID: b.coordinatorID,
 			Node:          nodeRaw,
 			Status:        status,
 		})
+		_ = row
 	}
 
 	if err != nil && !database.IsQueryCanceledError(err) {
@@ -2150,8 +2155,10 @@ func (h *heartbeats) cleanup() {
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
 	}
-	for _, peerID := range deletedPeers {
-		publishPeerUpdate(h.ctx, h.pubsub, h.logger, peerID)
+	for _, row := range deletedPeers {
+		// TODO(nats): use row.CoordinatorID/Status/Node/UpdatedAt in §6b
+		// for enriched publish payload.
+		publishPeerUpdate(h.ctx, h.pubsub, h.logger, row.ID)
 	}
 	deletedTunnels, err := h.store.CleanTailnetTunnels(h.ctx)
 	if err != nil && !database.IsQueryCanceledError(err) {

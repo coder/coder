@@ -21,7 +21,7 @@ WHERE heartbeat_at < now() - INTERVAL '24 HOURS';
 DELETE
 FROM tailnet_peers
 WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
-RETURNING id;
+RETURNING id, coordinator_id, status, node, updated_at;
 
 -- name: CleanTailnetTunnels :many
 DELETE FROM tailnet_tunnels
@@ -59,7 +59,7 @@ SET
 	status = $2
 WHERE
 	coordinator_id = $1
-RETURNING id;
+RETURNING id, coordinator_id, status, node, updated_at;
 
 -- name: DeleteTailnetPeer :one
 DELETE

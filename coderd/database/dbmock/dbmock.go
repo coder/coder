@@ -337,10 +337,10 @@ func (mr *MockStoreMockRecorder) CleanTailnetCoordinators(ctx any) *gomock.Call 
 }
 
 // CleanTailnetLostPeers mocks base method.
-func (m *MockStore) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
+func (m *MockStore) CleanTailnetLostPeers(ctx context.Context) ([]database.CleanTailnetLostPeersRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanTailnetLostPeers", ctx)
-	ret0, _ := ret[0].([]uuid.UUID)
+	ret0, _ := ret[0].([]database.CleanTailnetLostPeersRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -9036,10 +9036,10 @@ func (mr *MockStoreMockRecorder) UpdateReplica(ctx, arg any) *gomock.Call {
 }
 
 // UpdateTailnetPeerStatusByCoordinator mocks base method.
-func (m *MockStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
+func (m *MockStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]database.UpdateTailnetPeerStatusByCoordinatorRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTailnetPeerStatusByCoordinator", ctx, arg)
-	ret0, _ := ret[0].([]uuid.UUID)
+	ret0, _ := ret[0].([]database.UpdateTailnetPeerStatusByCoordinatorRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

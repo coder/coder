@@ -21259,22 +21259,36 @@ const cleanTailnetLostPeers = `-- name: CleanTailnetLostPeers :many
 DELETE
 FROM tailnet_peers
 WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
-RETURNING id
+RETURNING id, coordinator_id, status, node, updated_at
 `
 
-func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
+type CleanTailnetLostPeersRow struct {
+	ID            uuid.UUID     `db:"id" json:"id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	Status        TailnetStatus `db:"status" json:"status"`
+	Node          []byte        `db:"node" json:"node"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) ([]CleanTailnetLostPeersRow, error) {
 	rows, err := q.db.QueryContext(ctx, cleanTailnetLostPeers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []CleanTailnetLostPeersRow
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i CleanTailnetLostPeersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.Status,
+			&i.Node,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -21642,7 +21656,7 @@ SET
 	status = $2
 WHERE
 	coordinator_id = $1
-RETURNING id
+RETURNING id, coordinator_id, status, node, updated_at
 `
 
 type UpdateTailnetPeerStatusByCoordinatorParams struct {
@@ -21650,19 +21664,33 @@ type UpdateTailnetPeerStatusByCoordinatorParams struct {
 	Status        TailnetStatus `db:"status" json:"status"`
 }
 
-func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
+type UpdateTailnetPeerStatusByCoordinatorRow struct {
+	ID            uuid.UUID     `db:"id" json:"id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	Status        TailnetStatus `db:"status" json:"status"`
+	Node          []byte        `db:"node" json:"node"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) ([]UpdateTailnetPeerStatusByCoordinatorRow, error) {
 	rows, err := q.db.QueryContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []UpdateTailnetPeerStatusByCoordinatorRow
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i UpdateTailnetPeerStatusByCoordinatorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.Status,
+			&i.Node,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

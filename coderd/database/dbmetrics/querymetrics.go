@@ -264,7 +264,7 @@ func (m queryMetricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	return r0
 }
 
-func (m queryMetricsStore) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
+func (m queryMetricsStore) CleanTailnetLostPeers(ctx context.Context) ([]database.CleanTailnetLostPeersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CleanTailnetLostPeers(ctx)
 	m.queryLatencies.WithLabelValues("CleanTailnetLostPeers").Observe(time.Since(start).Seconds())
@@ -4784,7 +4784,7 @@ func (m queryMetricsStore) UpdateReplica(ctx context.Context, arg database.Updat
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
+func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]database.UpdateTailnetPeerStatusByCoordinatorRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTailnetPeerStatusByCoordinator").Observe(time.Since(start).Seconds())

@@ -1701,7 +1701,7 @@ func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	return q.db.CleanTailnetCoordinators(ctx)
 }
 
-func (q *querier) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
+func (q *querier) CleanTailnetLostPeers(ctx context.Context) ([]database.CleanTailnetLostPeersRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
 	}
@@ -6670,7 +6670,7 @@ func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaP
 	return q.db.UpdateReplica(ctx, arg)
 }
 
-func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
+func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]database.UpdateTailnetPeerStatusByCoordinatorRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
 	}
