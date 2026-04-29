@@ -377,19 +377,20 @@ func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID u
 	}
 	seen := make(map[secretRequirementDedupKey]int, len(reqs))
 	for _, req := range reqs {
-		// Defensive: SecretFromBlock should reject invalid inputs upstream.
-		if (req.Env == "") == (req.File == "") {
+		kind := secretRequirementKind(req.Env, req.File)
+		if kind == "" {
+			// Defensive: SecretFromBlock should reject invalid inputs upstream.
 			continue
 		}
 
 		var env string
 		var file string
 		satisfied := false
-		switch {
-		case req.Env != "":
+		switch kind {
+		case secretRequirementKindEnv:
 			env = req.Env
 			_, satisfied = envSet[req.Env]
-		case req.File != "":
+		case secretRequirementKindFile:
 			file = req.File
 			_, satisfied = fileSet[req.File]
 		}

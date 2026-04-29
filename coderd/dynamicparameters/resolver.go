@@ -24,6 +24,11 @@ const (
 	sourcePreset
 )
 
+const (
+	secretRequirementKindEnv  = "env"
+	secretRequirementKindFile = "file"
+)
+
 type parameterValue struct {
 	Value  string
 	Source parameterValueSource
@@ -277,19 +282,32 @@ func (p parameterValueMap) ValuesMap() map[string]string {
 	return values
 }
 
+func secretRequirementKind(env, file string) string {
+	switch {
+	case env != "" && file == "":
+		return secretRequirementKindEnv
+	case file != "" && env == "":
+		return secretRequirementKindFile
+	default:
+		return ""
+	}
+}
+
 func formatMissingSecrets(reqs []codersdk.SecretRequirementStatus) string {
 	var b strings.Builder
 	for i, req := range reqs {
 		if i > 0 {
 			_, _ = b.WriteString("\n")
 		}
-		switch {
-		case req.Env != "" && req.File == "":
-			_, _ = fmt.Fprintf(&b, "env %s", req.Env)
-		case req.File != "" && req.Env == "":
-			_, _ = fmt.Fprintf(&b, "file %s", req.File)
+		switch secretRequirementKind(req.Env, req.File) {
+		case secretRequirementKindEnv:
+			_, _ = fmt.Fprintf(&b, "%s %s", secretRequirementKindEnv, req.Env)
+		case secretRequirementKindFile:
+			_, _ = fmt.Fprintf(&b, "%s %s", secretRequirementKindFile, req.File)
 		default:
-			_, _ = b.WriteString("invalid secret requirement")
+			// checkSecretRequirements filters malformed requirements produced
+			// by preview before they reach the resolver.
+			_, _ = b.WriteString("malformed secret requirement")
 		}
 		if req.HelpMessage != "" {
 			_, _ = fmt.Fprintf(&b, ": %s", req.HelpMessage)
