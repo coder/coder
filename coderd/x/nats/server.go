@@ -112,15 +112,17 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, error)
 
 // startEmbeddedServer starts an in-process NATS server. With no peers it
 // runs standalone (no listener, no cluster). With peers it joins a
-// cluster using shared-token route authentication.
-func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natsserver.Server, error) {
+// cluster using shared-token route authentication. The returned
+// *natsserver.Options is the effective startup options used to build
+// the server; callers may clone it (e.g., for ReloadOptions).
+func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natsserver.Server, *natsserver.Options, error) {
 	sopts, err := buildServerOptions(opts, peers)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ns, err := natsserver.NewServer(sopts)
 	if err != nil {
-		return nil, xerrors.Errorf("new embedded nats server: %w", err)
+		return nil, nil, xerrors.Errorf("new embedded nats server: %w", err)
 	}
 	go ns.Start()
 	readyTimeout := opts.ReadyTimeout
@@ -130,7 +132,7 @@ func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natss
 	if !ns.ReadyForConnections(readyTimeout) {
 		ns.Shutdown()
 		ns.WaitForShutdown()
-		return nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
+		return nil, nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
 	}
 	if len(peers) > 0 {
 		logger.Info(context.Background(), "embedded nats cluster started",
@@ -138,7 +140,7 @@ func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natss
 			slog.F("peers", len(peers)),
 		)
 	}
-	return ns, nil
+	return ns, sopts, nil
 }
 
 type connHandlers struct {
