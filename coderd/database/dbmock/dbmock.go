@@ -5401,51 +5401,6 @@ func (mr *MockStoreMockRecorder) GetUserTerminalFont(ctx, userID any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTerminalFont", reflect.TypeOf((*MockStore)(nil).GetUserTerminalFont), ctx, userID)
 }
 
-// GetUserThemeDark mocks base method.
-func (m *MockStore) GetUserThemeDark(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserThemeDark", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserThemeDark indicates an expected call of GetUserThemeDark.
-func (mr *MockStoreMockRecorder) GetUserThemeDark(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemeDark", reflect.TypeOf((*MockStore)(nil).GetUserThemeDark), ctx, userID)
-}
-
-// GetUserThemeLight mocks base method.
-func (m *MockStore) GetUserThemeLight(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserThemeLight", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserThemeLight indicates an expected call of GetUserThemeLight.
-func (mr *MockStoreMockRecorder) GetUserThemeLight(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemeLight", reflect.TypeOf((*MockStore)(nil).GetUserThemeLight), ctx, userID)
-}
-
-// GetUserThemeMode mocks base method.
-func (m *MockStore) GetUserThemeMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserThemeMode", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserThemeMode indicates an expected call of GetUserThemeMode.
-func (mr *MockStoreMockRecorder) GetUserThemeMode(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemeMode", reflect.TypeOf((*MockStore)(nil).GetUserThemeMode), ctx, userID)
-}
-
 // GetUserThemePreference mocks base method.
 func (m *MockStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()

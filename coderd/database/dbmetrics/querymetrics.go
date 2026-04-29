@@ -2888,30 +2888,6 @@ func (m queryMetricsStore) GetUserTerminalFont(ctx context.Context, userID uuid.
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserThemeDark(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserThemeDark(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserThemeDark").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThemeDark").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserThemeLight(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserThemeLight(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserThemeLight").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThemeLight").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserThemeMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserThemeMode(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserThemeMode").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThemeMode").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserThemePreference(ctx, userID)

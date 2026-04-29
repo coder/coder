@@ -86,19 +86,26 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		if (isUpdating || submitInFlightRef.current) {
 			return;
 		}
+
+		const previousDraft = draft;
+		const resetSubmitInFlight = () => {
+			submitInFlightRef.current = false;
+		};
+		const rollbackRejectedSubmit = () => {
+			setDraft(previousDraft);
+			resetSubmitInFlight();
+		};
+
 		submitInFlightRef.current = true;
 		setDraft(next);
 		try {
 			const submitted = onSubmit(
 				draftToUpdate(next, terminalFont, activeScheme),
 			);
-			const resetSubmitInFlight = () => {
-				submitInFlightRef.current = false;
-			};
-			void submitted.then(resetSubmitInFlight, resetSubmitInFlight);
+			void submitted.then(resetSubmitInFlight, rollbackRejectedSubmit);
 			return submitted;
 		} catch (error) {
-			submitInFlightRef.current = false;
+			rollbackRejectedSubmit();
 			throw error;
 		}
 	};
@@ -138,10 +145,11 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		scheme: "light" | "dark",
 		theme: ConcreteThemeName,
 	) => {
-		submit(
-			{ ...draft, [scheme]: theme } as ThemeModeDraft,
-			currentTerminalFont,
-		);
+		const next: ThemeModeDraft =
+			scheme === "light"
+				? { ...draft, light: theme }
+				: { ...draft, dark: theme };
+		submit(next, currentTerminalFont);
 	};
 
 	const onSelectSingle = (theme: ConcreteThemeName) => {

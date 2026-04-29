@@ -10637,7 +10637,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "terminal_font": "",
-  "theme_dark": "dark",
+  "theme_dark": "light",
   "theme_light": "light",
   "theme_mode": "sync",
   "theme_preference": "string"
@@ -10656,11 +10656,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                     |
-|---------------|--------------------------------------------------------------------------------------------------------------|
-| `theme_dark`  | `light`, `light-protan-deuter`, `light-tritan`, `dark`, `dark-protan-deuter`, `dark-tritan`                  |
-| `theme_light` | `light`, `light-protan-deuter`, `light-tritan`, `dark`, `dark-protan-deuter`, `dark-tritan`                  |
-| `theme_mode`  | `single`, `sync`                                                                                             |
+| Property      | Value(s)                                                                                    |
+|---------------|---------------------------------------------------------------------------------------------|
+| `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_light` | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_mode`  | `single`, `sync`                                                                            |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -11140,12 +11140,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                            |
-|--------------------|--------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                        |
-| `theme_dark`       | string                                                 | false    |              | Theme dark is the theme applied when the OS color scheme is dark and ThemeMode is "sync". Ignored in "single" mode but still stored.                                                                                                                                                                                   |
-| `theme_light`      | string                                                 | false    |              | Theme light is the theme applied when the OS color scheme is light and ThemeMode is "sync". Ignored in "single" mode but still stored so switching modes preserves the slot value.                                                                                                                                     |
-| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                        |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_dark`       | string                                                 | false    |              | Theme dark is the theme applied when the OS color scheme is dark and ThemeMode is "sync". Ignored in "single" mode but still stored.                                                                                                                                                                                                      |
+| `theme_light`      | string                                                 | false    |              | Theme light is the theme applied when the OS color scheme is light and ThemeMode is "sync". Ignored in "single" mode but still stored so switching modes preserves the slot value.                                                                                                                                                        |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
 | `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
 
 ## codersdk.UserLatency

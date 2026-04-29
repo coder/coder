@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import type { ConcreteThemeName } from "#/theme/colorblind";
 import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
@@ -68,7 +69,7 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 			</div>
 			<div className="flex items-start gap-3">
 				<span
-					aria-hidden
+					aria-hidden="true"
 					className={cn(
 						"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid",
 						selected
@@ -81,7 +82,16 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 					)}
 				</span>
 				<div className="flex flex-col gap-1">
-					<span className="font-medium text-content-primary">{copy.title}</span>
+					<div className="flex items-center gap-2">
+						<span className="font-medium text-content-primary">
+							{copy.title}
+						</span>
+						{copy.beta && (
+							<Badge variant="warning" size="sm">
+								Beta
+							</Badge>
+						)}
+					</div>
 					<span className="text-sm text-content-secondary">
 						{copy.description}
 					</span>

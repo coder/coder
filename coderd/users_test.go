@@ -1988,6 +1988,76 @@ func TestUserThemeMode(t *testing.T) {
 		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
 	})
 
+	t.Run("single mode with explicit slots updates slots", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "light-tritan",
+			ThemeMode:       codersdk.ThemeModeSingle,
+			ThemeLight:      "dark-tritan",
+			ThemeDark:       "light-protan-deuter",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "light-tritan", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, updated.ThemeMode)
+		require.Equal(t, "dark-tritan", updated.ThemeLight)
+		require.Equal(t, "light-protan-deuter", updated.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "light-tritan", fetched.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, fetched.ThemeMode)
+		require.Equal(t, "dark-tritan", fetched.ThemeLight)
+		require.Equal(t, "light-protan-deuter", fetched.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
+	})
+
+	t.Run("single mode with one explicit slot updates only that slot", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "light-tritan",
+			ThemeDark:       "dark-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "light",
+			ThemeMode:       codersdk.ThemeModeSingle,
+			ThemeLight:      "light-protan-deuter",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "light", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, updated.ThemeMode)
+		require.Equal(t, "light-protan-deuter", updated.ThemeLight)
+		require.Equal(t, "dark-tritan", updated.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "light", fetched.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, fetched.ThemeMode)
+		require.Equal(t, "light-protan-deuter", fetched.ThemeLight)
+		require.Equal(t, "dark-tritan", fetched.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
+	})
+
 	t.Run("legacy auto with omitted theme_mode clears mode", func(t *testing.T) {
 		t.Parallel()
 
@@ -2053,34 +2123,48 @@ func TestUserThemeMode(t *testing.T) {
 
 		for _, tc := range []struct {
 			name       string
+			themeMode  codersdk.ThemeMode
 			themeLight string
 			themeDark  string
 		}{
 			{
 				name:       "arbitrary light slot",
+				themeMode:  codersdk.ThemeModeSync,
 				themeLight: "../../etc/passwd",
 				themeDark:  "dark",
 			},
 			{
 				name:       "arbitrary dark slot",
+				themeMode:  codersdk.ThemeModeSync,
 				themeLight: "light",
 				themeDark:  "xss-payload",
 			},
 			{
 				name:       "empty light slot in sync mode",
+				themeMode:  codersdk.ThemeModeSync,
 				themeLight: "",
 				themeDark:  "dark",
 			},
 			{
 				name:       "empty dark slot in sync mode",
+				themeMode:  codersdk.ThemeModeSync,
 				themeLight: "light",
 				themeDark:  "",
+			},
+			{
+				name:       "arbitrary light slot in single mode",
+				themeMode:  codersdk.ThemeModeSingle,
+				themeLight: "../../etc/passwd",
+			},
+			{
+				name:      "arbitrary dark slot with omitted mode",
+				themeDark: "xss-payload",
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 					ThemePreference: "dark",
-					ThemeMode:       codersdk.ThemeModeSync,
+					ThemeMode:       tc.themeMode,
 					ThemeLight:      tc.themeLight,
 					ThemeDark:       tc.themeDark,
 					TerminalFont:    codersdk.TerminalFontGeistMono,

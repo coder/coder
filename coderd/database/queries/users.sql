@@ -189,15 +189,6 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
--- name: GetUserThemeMode :one
-SELECT
-	value as theme_mode
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'theme_mode';
-
 -- name: UpdateUserThemeMode :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -212,15 +203,6 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_mode'
 RETURNING *;
 
--- name: GetUserThemeLight :one
-SELECT
-	value as theme_light
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'theme_light';
-
 -- name: UpdateUserThemeLight :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -234,15 +216,6 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_light'
 RETURNING *;
-
--- name: GetUserThemeDark :one
-SELECT
-	value as theme_dark
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'theme_dark';
 
 -- name: UpdateUserThemeDark :one
 INSERT INTO

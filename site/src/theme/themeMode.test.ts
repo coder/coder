@@ -321,6 +321,20 @@ describe("draftFromState", () => {
 		});
 	});
 
+	it("falls back to the family pair when persisted slots are empty", () => {
+		expect(
+			draftFromState(
+				{ mode: "single", theme: "dark-protan-deuter" },
+				{ light: "", dark: "" },
+			),
+		).toEqual({
+			mode: "single",
+			single: "dark-protan-deuter",
+			light: "light-protan-deuter",
+			dark: "dark-protan-deuter",
+		});
+	});
+
 	it("round-trips every concrete theme as a single-mode draft", () => {
 		// Guards against a future theme being added to CONCRETE_THEMES
 		// without a matching FAMILY_PAIR entry. Mirrors the

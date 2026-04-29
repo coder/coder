@@ -25331,57 +25331,6 @@ func (q *sqlQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) 
 	return terminal_font, err
 }
 
-const getUserThemeDark = `-- name: GetUserThemeDark :one
-SELECT
-	value as theme_dark
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'theme_dark'
-`
-
-func (q *sqlQuerier) GetUserThemeDark(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserThemeDark, userID)
-	var theme_dark string
-	err := row.Scan(&theme_dark)
-	return theme_dark, err
-}
-
-const getUserThemeLight = `-- name: GetUserThemeLight :one
-SELECT
-	value as theme_light
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'theme_light'
-`
-
-func (q *sqlQuerier) GetUserThemeLight(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserThemeLight, userID)
-	var theme_light string
-	err := row.Scan(&theme_light)
-	return theme_light, err
-}
-
-const getUserThemeMode = `-- name: GetUserThemeMode :one
-SELECT
-	value as theme_mode
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'theme_mode'
-`
-
-func (q *sqlQuerier) GetUserThemeMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserThemeMode, userID)
-	var theme_mode string
-	err := row.Scan(&theme_mode)
-	return theme_mode, err
-}
-
 const getUserThemePreference = `-- name: GetUserThemePreference :one
 SELECT
 	value as theme_preference

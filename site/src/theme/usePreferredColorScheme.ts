@@ -2,6 +2,8 @@ import { useSyncExternalStore } from "react";
 
 type PreferredColorScheme = "dark" | "light";
 
+const defaultPreferredColorScheme: PreferredColorScheme = "dark";
+
 const getColorSchemeQuery = () => {
 	if (typeof window === "undefined") {
 		return undefined;
@@ -10,16 +12,26 @@ const getColorSchemeQuery = () => {
 };
 
 const getPreferredColorScheme = (): PreferredColorScheme => {
-	return getColorSchemeQuery()?.matches ? "light" : "dark";
+	const query = getColorSchemeQuery();
+	if (!query) {
+		// Match the server snapshot so hydration starts from one stable
+		// scheme before the browser media query becomes available.
+		return defaultPreferredColorScheme;
+	}
+	return query.matches ? "light" : "dark";
 };
 
 const subscribePreferredColorScheme = (onStoreChange: () => void) => {
 	const query = getColorSchemeQuery();
 	if (!query) {
-		return () => undefined;
+		return () => {
+			// No listener was registered when matchMedia is unavailable.
+		};
 	}
 	query.addEventListener?.("change", onStoreChange);
-	return () => query.removeEventListener?.("change", onStoreChange);
+	return () => {
+		query.removeEventListener?.("change", onStoreChange);
+	};
 };
 
 export const usePreferredColorScheme = (): PreferredColorScheme => {

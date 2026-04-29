@@ -1194,8 +1194,10 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	// lets modern clients migrate them on read.
 	themeModeProvided := params.ThemeMode != codersdk.ThemeModeUnset
 	updateThemeMode := themeModeProvided
-	updateThemeSlots := params.ThemeMode == codersdk.ThemeModeSync ||
-		(params.ThemeMode == codersdk.ThemeModeSingle && params.ThemeLight != "" && params.ThemeDark != "")
+	isSyncMode := params.ThemeMode == codersdk.ThemeModeSync
+	isSingleMode := params.ThemeMode == codersdk.ThemeModeSingle
+	updateThemeLight := isSyncMode || (isSingleMode && params.ThemeLight != "")
+	updateThemeDark := isSyncMode || (isSingleMode && params.ThemeDark != "")
 	themeMode := params.ThemeMode
 	if !updateThemeMode && isLegacyAutoThemePreference(params.ThemePreference) {
 		updateThemeMode = true
@@ -1234,7 +1236,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 			}
 		}
 
-		if updateThemeSlots {
+		if updateThemeLight {
 			_, err = tx.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
 				UserID:     user.ID,
 				ThemeLight: params.ThemeLight,
@@ -1242,7 +1244,9 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 			if err != nil {
 				return xerrors.Errorf("update user theme light: %w", err)
 			}
+		}
 
+		if updateThemeDark {
 			_, err = tx.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
 				UserID:    user.ID,
 				ThemeDark: params.ThemeDark,

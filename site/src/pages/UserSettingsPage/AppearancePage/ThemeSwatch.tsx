@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -99,7 +100,14 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 				sideOffset={8}
 				className="text-content-primary"
 			>
-				{copy.title}
+				<div className="flex items-center gap-2">
+					{copy.title}
+					{copy.beta && (
+						<Badge variant="warning" size="sm">
+							Beta
+						</Badge>
+					)}
+				</div>
 			</TooltipContent>
 		</Tooltip>
 	);

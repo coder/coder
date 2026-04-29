@@ -4427,39 +4427,6 @@ func (q *querier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (st
 	return q.db.GetUserTerminalFont(ctx, userID)
 }
 
-func (q *querier) GetUserThemeDark(ctx context.Context, userID uuid.UUID) (string, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return "", err
-	}
-	return q.db.GetUserThemeDark(ctx, userID)
-}
-
-func (q *querier) GetUserThemeLight(ctx context.Context, userID uuid.UUID) (string, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return "", err
-	}
-	return q.db.GetUserThemeLight(ctx, userID)
-}
-
-func (q *querier) GetUserThemeMode(ctx context.Context, userID uuid.UUID) (string, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return "", err
-	}
-	return q.db.GetUserThemeMode(ctx, userID)
-}
-
 func (q *querier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {

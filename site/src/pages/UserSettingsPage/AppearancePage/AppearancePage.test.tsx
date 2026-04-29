@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { API } from "#/api/api";
 import type { UserAppearanceSettings } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { AppearanceForm } from "./AppearanceForm";
 import AppearancePage from "./AppearancePage";
@@ -18,6 +20,12 @@ const putResponse = (
 	terminal_font: "",
 	...overrides,
 });
+
+const renderAppearanceForm = (children: ReactNode) => {
+	return render(
+		<TooltipProvider delayDuration={100}>{children}</TooltipProvider>,
+	);
+};
 
 describe("appearance page", () => {
 	it("switches to single theme mode and picks Light default", async () => {
@@ -101,8 +109,21 @@ describe("appearance page", () => {
 		});
 	});
 
+	it("shows beta badges for colorblind themes", () => {
+		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
+		renderAppearanceForm(
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={putResponse()}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		expect(screen.getAllByText("Beta")).toHaveLength(4);
+	});
+
 	it("renders every concrete theme in each sync mode slot", () => {
-		render(
+		renderAppearanceForm(
 			<AppearanceForm
 				activeScheme="light"
 				initialValues={putResponse({
@@ -127,7 +148,7 @@ describe("appearance page", () => {
 
 	it("allows a dark concrete theme in the light sync slot", () => {
 		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
-		render(
+		renderAppearanceForm(
 			<AppearanceForm
 				activeScheme="light"
 				initialValues={putResponse({
@@ -143,10 +164,12 @@ describe("appearance page", () => {
 		const lightOptions = screen.getByRole("radiogroup", {
 			name: /light theme options/i,
 		});
-		fireEvent.click(
-			within(lightOptions).getByRole("radio", { name: /dark tritanopia/i }),
-		);
+		const darkTritanopia = within(lightOptions).getByRole("radio", {
+			name: /dark tritanopia/i,
+		});
+		fireEvent.click(darkTritanopia);
 
+		expect(darkTritanopia).toBeChecked();
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 		expect(onSubmit).toHaveBeenCalledWith({
 			theme_preference: "dark-tritan",
@@ -159,7 +182,7 @@ describe("appearance page", () => {
 
 	it("keeps the legacy mirror on the active light slot in sync mode", () => {
 		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
-		render(
+		renderAppearanceForm(
 			<AppearanceForm
 				activeScheme="light"
 				initialValues={putResponse({
@@ -198,7 +221,7 @@ describe("appearance page", () => {
 				}),
 		);
 
-		render(
+		renderAppearanceForm(
 			<AppearanceForm
 				activeScheme="dark"
 				initialValues={putResponse()}
@@ -217,5 +240,43 @@ describe("appearance page", () => {
 		expect(onSubmit).toHaveBeenCalledTimes(2);
 		submitResolvers[1]?.(putResponse());
 		await Promise.resolve();
+	});
+
+	it("rolls back local draft and releases submit guard on failure", async () => {
+		let rejectSubmit: ((error: unknown) => void) | undefined;
+		const onSubmit = vi.fn(
+			() =>
+				new Promise<UserAppearanceSettings>((_, reject) => {
+					rejectSubmit = reject;
+				}),
+		);
+
+		renderAppearanceForm(
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={putResponse()}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		const lightDefault = screen.getByRole("radio", {
+			name: /light default/i,
+		});
+		fireEvent.click(lightDefault);
+		expect(lightDefault).toBeChecked();
+
+		await act(async () => {
+			rejectSubmit?.(new Error("failed"));
+			await Promise.resolve();
+		});
+
+		expect(screen.getByRole("radio", { name: /dark default/i })).toBeChecked();
+
+		fireEvent.click(screen.getByRole("radio", { name: /light default/i }));
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+		await act(async () => {
+			rejectSubmit?.(new Error("failed again"));
+			await Promise.resolve();
+		});
 	});
 });

@@ -28,12 +28,14 @@ export const SyncModeSection: FC<SyncModeSectionProps> = ({
 	return (
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 			<SyncCard
+				key={`light-${light}`}
 				scheme="light"
 				selected={light}
 				active={activeScheme === "light"}
 				onSelect={(theme) => onSelect("light", theme)}
 			/>
 			<SyncCard
+				key={`dark-${dark}`}
 				scheme="dark"
 				selected={dark}
 				active={activeScheme === "dark"}
@@ -56,7 +58,9 @@ const SyncCard: FC<SyncCardProps> = ({
 	active,
 	onSelect,
 }) => {
-	const [previewTheme, setPreviewTheme] = useState<ConcreteThemeName>();
+	const [previewTheme, setPreviewTheme] = useState<
+		ConcreteThemeName | undefined
+	>(undefined);
 	const Icon = scheme === "light" ? SunIcon : MoonIcon;
 	const title = scheme === "light" ? "Light theme" : "Dark theme";
 	const displayedTheme = previewTheme ?? selected;
