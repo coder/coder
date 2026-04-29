@@ -48,25 +48,25 @@ mesh** running inside `coderd`, with no third-party service to deploy.
 
 Detailed per-channel inventory: see appendix A.
 
-| Class | Channels | Volume @ 100k | Loss tolerance |
-|---|---|---|---|
-| Workspace lifecycle / stats | `workspace_owner:{ownerID}` | ~3.3k pub/s steady state (StatsUpdate every 30s × 100k agents) | Tolerates loss; subscribers re-query DB |
-| Agent logs | `agent-logs:{agentID}` | Bursty per build | Tolerates loss; 1 min fallback ticker |
-| Provisioner job logs | `provisioner-log-logs:{jobID}` | Bursty per build | Tolerates loss; subscriber polls DB |
-| Provisioner job dispatch | `provisioner_job_posted` (global) | Per build | **Has explicit drop handler** (re-poll) |
-| Workspace builds (experimental) | `workspace_updates:all` (global) | Per build | Tolerates loss |
-| Agent metadata batch | `workspace_agent_metadata_batch` (global) | 0.2/s, fanout to all replicas | Tolerates loss |
-| Inbox notifications | `inbox_notification:owner:{ownerID}` | Per delivered notification | **Assumes reliable delivery**; large payloads |
-| Prebuild claim | `prebuild_claimed_{workspaceID}` | At claim time | **Assumes reliable delivery** |
-| Template watch | `template:{templateID}` | Per template push | Tolerates loss |
-| Tailnet (4 channels) | `tailnet_peer_update`, `tailnet_tunnel_update`, `tailnet_ready_for_handshake`, `tailnet_coordinator_heartbeat` | Bursty during reconnect storms | Tolerates loss; resync on `ErrDroppedMessages` |
-| Replicasync, licenses, watchdog, latency-measure, chat (experimental) | various | Low | Tolerates loss |
+| Class                                                                 | Channels                                                                                                       | Volume @ 100k                                                  | Loss tolerance                                 |
+|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|------------------------------------------------|
+| Workspace lifecycle / stats                                           | `workspace_owner:{ownerID}`                                                                                    | ~3.3k pub/s steady state (StatsUpdate every 30s × 100k agents) | Tolerates loss; subscribers re-query DB        |
+| Agent logs                                                            | `agent-logs:{agentID}`                                                                                         | Bursty per build                                               | Tolerates loss; 1 min fallback ticker          |
+| Provisioner job logs                                                  | `provisioner-log-logs:{jobID}`                                                                                 | Bursty per build                                               | Tolerates loss; subscriber polls DB            |
+| Provisioner job dispatch                                              | `provisioner_job_posted` (global)                                                                              | Per build                                                      | **Has explicit drop handler** (re-poll)        |
+| Workspace builds (experimental)                                       | `workspace_updates:all` (global)                                                                               | Per build                                                      | Tolerates loss                                 |
+| Agent metadata batch                                                  | `workspace_agent_metadata_batch` (global)                                                                      | 0.2/s, fanout to all replicas                                  | Tolerates loss                                 |
+| Inbox notifications                                                   | `inbox_notification:owner:{ownerID}`                                                                           | Per delivered notification                                     | **Assumes reliable delivery**; large payloads  |
+| Prebuild claim                                                        | `prebuild_claimed_{workspaceID}`                                                                               | At claim time                                                  | **Assumes reliable delivery**                  |
+| Template watch                                                        | `template:{templateID}`                                                                                        | Per template push                                              | Tolerates loss                                 |
+| Tailnet (4 channels)                                                  | `tailnet_peer_update`, `tailnet_tunnel_update`, `tailnet_ready_for_handshake`, `tailnet_coordinator_heartbeat` | Bursty during reconnect storms                                 | Tolerates loss; resync on `ErrDroppedMessages` |
+| Replicasync, licenses, watchdog, latency-measure, chat (experimental) | various                                                                                                        | Low                                                            | Tolerates loss                                 |
 
 Two call sites need extra care during the swap:
 
-- **`inbox_notification:owner:{ownerID}`** — payload includes full notification
+- **`inbox_notification:owner:{ownerID}`**, payload includes full notification
   body and can approach 8 KB; subscriber assumes reliable delivery.
-- **`prebuild_claimed_{workspaceID}`** — agent reinit waits on this; drop =
+- **`prebuild_claimed_{workspaceID}`**, agent reinit waits on this; drop =
   workspace stuck until request times out.
 
 ## 4. NATS embedding model
@@ -92,13 +92,13 @@ client connection. Apache 2.0 licensed.
 
 ### Topology decision: embed-in-every replica (full mesh)
 
-| | (a) embed-in-every | (b) leader-elected |
-|---|---|---|
-| SPOF | None | Leader is hot path |
-| Failover behavior | Local pubsub keeps working | All clients reconnect on leader change |
-| New subsystems needed | None | Leader election + fencing |
-| Config | Seed routes from `replicas` table | Leader-election library |
-| Op model match for Coder | Strict superset of today | New control plane |
+|                          | (a) embed-in-every                | (b) leader-elected                     |
+|--------------------------|-----------------------------------|----------------------------------------|
+| SPOF                     | None                              | Leader is hot path                     |
+| Failover behavior        | Local pubsub keeps working        | All clients reconnect on leader change |
+| New subsystems needed    | None                              | Leader election + fencing              |
+| Config                   | Seed routes from `replicas` table | Leader-election library                |
+| Op model match for Coder | Strict superset of today          | New control plane                      |
 
 **Decision: (a)**. Coder already runs N coderd replicas with a shared
 `replicas` table that tracks peer addresses. Adding peer-to-peer cluster
@@ -141,7 +141,7 @@ as opt-in per stream rather than blanket-on is the safer bet.
 
 - **Client port**: `DontListen: true` on single-replica deployments, otherwise
   bound to localhost only. All in-deployment publishers/subscribers connect
-  via `nats.InProcessServer(ns)` — no TCP, no auth needed.
+  via `nats.InProcessServer(ns)`, no TCP, no auth needed.
 - **Cluster routes**: TLS with cert verification + a shared cluster secret.
   Reuse Coder's existing deployment signing key material; no NATS operator /
   JWT framework needed for a single-tenant deployment.
@@ -150,9 +150,9 @@ as opt-in per stream rather than blanket-on is the safer bet.
 
 ### Footprint
 
-- Idle embedded server: ~5–15 MiB RSS, ~20–30 goroutines. JetStream-enabled
-  empty: ~30–80 MiB.
-- Per idle connection: ~20–30 KB.
+- Idle embedded server: ~5-15 MiB RSS, ~20-30 goroutines. JetStream-enabled
+  empty: ~30-80 MiB.
+- Per idle connection: ~20-30 KB.
 - Core publish throughput: 14M+ msgs/sec on commodity hardware.
 - For Coder's current scale, NATS-attributable memory is dwarfed by the PG
   pool and HTTP handlers.
@@ -181,7 +181,7 @@ as opt-in per stream rather than blanket-on is the safer bet.
 The plan is incremental, reversible, and feature-flagged. Each phase is
 independently shippable.
 
-### Phase 0 — Branch & baseline (this commit)
+### Phase 0, Branch & baseline (this commit)
 
 - Branch `feat/nats-pubsub` cut from `feat/app-level-pubsub`.
 - Land this design doc.
@@ -192,7 +192,7 @@ independently shippable.
 
 **Deliverable**: this doc + benchmark.
 
-### Phase 1 — NATS-backed `pubsub.Pubsub` implementation
+### Phase 1, NATS-backed `pubsub.Pubsub` implementation
 
 Add a third backend alongside `PGPubsub` and `MemoryPubsub`.
 
@@ -212,7 +212,7 @@ Add a third backend alongside `PGPubsub` and `MemoryPubsub`.
 **Deliverable**: PR adding the backend + unit tests + parity tests against
 the existing PGPubsub test suite.
 
-### Phase 2 — Cluster mode + replica discovery
+### Phase 2, Cluster mode + replica discovery
 
 - On startup, read peer addresses from the `replicas` table and pass them as
   NATS `Cluster.Routes`.
@@ -229,26 +229,26 @@ the existing PGPubsub test suite.
 **Deliverable**: PR enabling multi-replica clustering behind the feature
 flag.
 
-### Phase 3 — Per-callsite cutover (no code changes, config only)
+### Phase 3, Per-callsite cutover (no code changes, config only)
 
 Because the `pubsub.Pubsub` interface is unchanged, every callsite in
 appendix A migrates implicitly when the deployment flag is flipped. We do,
 however, audit each "assumes reliable delivery" callsite first:
 
-- **`inbox_notification:owner:*`** — verify payload stays under NATS
+- **`inbox_notification:owner:*`**, verify payload stays under NATS
   default 1 MB cap (it does: ≤8 KB historically). Add explicit size cap +
   log when approaching 1 MB.
-- **`prebuild_claimed_{workspaceID}`** — add a server-side timeout +
+- **`prebuild_claimed_{workspaceID}`**, add a server-side timeout +
   retry-on-publish path so a one-shot drop doesn't strand the agent reinit.
   This is a pre-existing weakness regardless of backend, but worth tightening
   during cutover.
-- **`provisioner_job_posted`** — already handles drops; verify the NATS
+- **`provisioner_job_posted`**, already handles drops; verify the NATS
   drop-signal mapping fires the same recovery.
 
 **Deliverable**: small PRs per callsite where extra hardening is needed; no
 backend changes.
 
-### Phase 4 — Default on for new deployments
+### Phase 4, Default on for new deployments
 
 After one release on the flag with no regressions:
 
@@ -256,7 +256,7 @@ After one release on the flag with no regressions:
 - Existing deployments continue on `postgres` until they opt in.
 - Document migration steps + rollback.
 
-### Phase 5 (deferred) — JetStream-backed provisioner queue
+### Phase 5 (deferred), JetStream-backed provisioner queue
 
 Out of scope for v1. Tracking issue notes:
 
@@ -266,7 +266,7 @@ Out of scope for v1. Tracking issue notes:
 - Removes the "every replica acquirer races every job" model and gives true
   exactly-once dispatch.
 
-### Phase 6 (deferred) — Tailnet on NATS
+### Phase 6 (deferred), Tailnet on NATS
 
 `enterprise/tailnet/pgcoord.go` already uses `pubsub.Pubsub` exclusively
 (post-`feat/app-level-pubsub`), so it migrates implicitly with Phase 1+2. No
@@ -297,7 +297,7 @@ code change needed beyond verifying:
    provisionerd binary today connects to coderd over HTTP; it does not need
    NATS access. Confirm.
 
-## Appendix A — Call site inventory
+## Appendix A, Call site inventory
 
 (See child reports for full file:line citations. Summarized here.)
 
@@ -315,24 +315,23 @@ code change needed beyond verifying:
 (Full table in §3 above; details and file:line in the explore reports
 attached to this branch's task history.)
 
-| Channel | Helper | Publishers | Subscribers |
-|---|---|---|---|
-| `workspace_owner:{ownerID}` | `coderd/wspubsub/wspubsub.go:53` | `coderd/workspaces.go:2945-2964` (funnel), called from workspaces.go, workspacebuilds.go, workspaceagents.go, workspaceagentsrpc.go, workspacestats/reporter.go, provisionerdserver.go, agentapi/api.go | `coderd/workspaces.go:2124`, `coderd/workspaceagents.go:526`, `coderd/workspaceupdates.go:109` |
-| `workspace_updates:all` | `coderd/wspubsub/wspubsub.go:18` | `coderd/workspacebuilds.go:771` | `coderd/workspaces.go:2196` |
-| `agent-logs:{agentID}` | `codersdk/agentsdk/agentsdk.go:741` | `coderd/workspaces.go:2966-2975` (via agentapi) | `coderd/workspaceagents.go:548` |
-| `provisioner-log-logs:{jobID}` | `provisionersdk/logs.go:11-20` | `coderd/provisionerdserver/provisionerdserver.go:1107,1397,1689`, `coderd/jobreaper/detector.go:396` | `coderd/provisionerjobs.go:538` |
-| `provisioner_job_posted` | `coderd/database/provisionerjobs/provisionerjobs.go:13-32` | `provisionerjobs.PostJob` callers | `coderd/provisionerdserver/acquirer.go:301` |
-| `workspace_agent_metadata_batch` | `coderd/agentapi/metadatabatcher/metadata_batcher.go:46` | `metadata_batcher.go:376` (5s flush) | `coderd/workspaceagents.go:1711` |
-| `inbox_notification:owner:{ownerID}` | `coderd/pubsub/inboxnotification.go:14` | `coderd/notifications/dispatch/inbox.go:97` | `coderd/inboxnotifications.go:152` |
-| `prebuild_claimed_{workspaceID}` | `codersdk/agentsdk/agentsdk.go:761` | `coderd/prebuilds/claim.go:30` | `coderd/prebuilds/claim.go:61` |
-| `template:{templateID}` | `coderd/templateversions.go:2011` | `coderd/templateversions.go:2016` | `coderd/workspaces.go:2148` |
-| `tailnet_peer_update` | `enterprise/tailnet/pgcoord.go:31-34` | `binder` after `UpsertTailnetPeer` (pgcoord.go:631) + startup + cleanup | `querier.listenPeer` (pgcoord.go:1207, 1281) |
-| `tailnet_tunnel_update` | same | `tunneler` after each tunnel write (pgcoord.go:417-475) | `querier.listenTunnel` (pgcoord.go:1230, 1308) |
-| `tailnet_ready_for_handshake` | same | `handshaker.worker` (handshaker.go:65) | `querier.listenReadyForHandshake` (pgcoord.go:1252, 1339) |
-| `tailnet_coordinator_heartbeat` | same | `heartbeats.sendBeat` every 2 s | `heartbeats.listen` (pgcoord.go:1728) |
-| `replica` | `enterprise/replicasync/replicasync.go:29` | `replicasync.go:84,142,207,488`, `enterprise/coderd/workspaceproxy.go:847` | replicasync subscribers |
-| `PubsubEventLicenses` | `enterprise/coderd/licenses.go` | `licenses.go:139,220,334`, `coderd.go:1313` | `enterprise/coderd/coderd.go:1323` |
-| `pubsub_watchdog` | `coderd/database/pubsub/watchdog.go:14` | every 15s per replica | watchdog subscribers |
-| `latency-measure:{uuid}` | `coderd/database/pubsub/latency.go` | per Prometheus scrape | per scrape |
-| Chat (experimental) `chat:stream:*`, `chat:owner:*`, `chat:config_change`, `chat_debug:*` | `coderd/pubsub/*` | `coderd/x/chatd/*`, `coderd/exp_chats.go` | same |
-
+| Channel                                                                                   | Helper                                                     | Publishers                                                                                                                                                                                              | Subscribers                                                                                    |
+|-------------------------------------------------------------------------------------------|------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| `workspace_owner:{ownerID}`                                                               | `coderd/wspubsub/wspubsub.go:53`                           | `coderd/workspaces.go:2945-2964` (funnel), called from workspaces.go, workspacebuilds.go, workspaceagents.go, workspaceagentsrpc.go, workspacestats/reporter.go, provisionerdserver.go, agentapi/api.go | `coderd/workspaces.go:2124`, `coderd/workspaceagents.go:526`, `coderd/workspaceupdates.go:109` |
+| `workspace_updates:all`                                                                   | `coderd/wspubsub/wspubsub.go:18`                           | `coderd/workspacebuilds.go:771`                                                                                                                                                                         | `coderd/workspaces.go:2196`                                                                    |
+| `agent-logs:{agentID}`                                                                    | `codersdk/agentsdk/agentsdk.go:741`                        | `coderd/workspaces.go:2966-2975` (via agentapi)                                                                                                                                                         | `coderd/workspaceagents.go:548`                                                                |
+| `provisioner-log-logs:{jobID}`                                                            | `provisionersdk/logs.go:11-20`                             | `coderd/provisionerdserver/provisionerdserver.go:1107,1397,1689`, `coderd/jobreaper/detector.go:396`                                                                                                    | `coderd/provisionerjobs.go:538`                                                                |
+| `provisioner_job_posted`                                                                  | `coderd/database/provisionerjobs/provisionerjobs.go:13-32` | `provisionerjobs.PostJob` callers                                                                                                                                                                       | `coderd/provisionerdserver/acquirer.go:301`                                                    |
+| `workspace_agent_metadata_batch`                                                          | `coderd/agentapi/metadatabatcher/metadata_batcher.go:46`   | `metadata_batcher.go:376` (5s flush)                                                                                                                                                                    | `coderd/workspaceagents.go:1711`                                                               |
+| `inbox_notification:owner:{ownerID}`                                                      | `coderd/pubsub/inboxnotification.go:14`                    | `coderd/notifications/dispatch/inbox.go:97`                                                                                                                                                             | `coderd/inboxnotifications.go:152`                                                             |
+| `prebuild_claimed_{workspaceID}`                                                          | `codersdk/agentsdk/agentsdk.go:761`                        | `coderd/prebuilds/claim.go:30`                                                                                                                                                                          | `coderd/prebuilds/claim.go:61`                                                                 |
+| `template:{templateID}`                                                                   | `coderd/templateversions.go:2011`                          | `coderd/templateversions.go:2016`                                                                                                                                                                       | `coderd/workspaces.go:2148`                                                                    |
+| `tailnet_peer_update`                                                                     | `enterprise/tailnet/pgcoord.go:31-34`                      | `binder` after `UpsertTailnetPeer` (pgcoord.go:631) + startup + cleanup                                                                                                                                 | `querier.listenPeer` (pgcoord.go:1207, 1281)                                                   |
+| `tailnet_tunnel_update`                                                                   | same                                                       | `tunneler` after each tunnel write (pgcoord.go:417-475)                                                                                                                                                 | `querier.listenTunnel` (pgcoord.go:1230, 1308)                                                 |
+| `tailnet_ready_for_handshake`                                                             | same                                                       | `handshaker.worker` (handshaker.go:65)                                                                                                                                                                  | `querier.listenReadyForHandshake` (pgcoord.go:1252, 1339)                                      |
+| `tailnet_coordinator_heartbeat`                                                           | same                                                       | `heartbeats.sendBeat` every 2 s                                                                                                                                                                         | `heartbeats.listen` (pgcoord.go:1728)                                                          |
+| `replica`                                                                                 | `enterprise/replicasync/replicasync.go:29`                 | `replicasync.go:84,142,207,488`, `enterprise/coderd/workspaceproxy.go:847`                                                                                                                              | replicasync subscribers                                                                        |
+| `PubsubEventLicenses`                                                                     | `enterprise/coderd/licenses.go`                            | `licenses.go:139,220,334`, `coderd.go:1313`                                                                                                                                                             | `enterprise/coderd/coderd.go:1323`                                                             |
+| `pubsub_watchdog`                                                                         | `coderd/database/pubsub/watchdog.go:14`                    | every 15s per replica                                                                                                                                                                                   | watchdog subscribers                                                                           |
+| `latency-measure:{uuid}`                                                                  | `coderd/database/pubsub/latency.go`                        | per Prometheus scrape                                                                                                                                                                                   | per scrape                                                                                     |
+| Chat (experimental) `chat:stream:*`, `chat:owner:*`, `chat:config_change`, `chat_debug:*` | `coderd/pubsub/*`                                          | `coderd/x/chatd/*`, `coderd/exp_chats.go`                                                                                                                                                               | same                                                                                           |
