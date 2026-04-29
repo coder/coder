@@ -916,7 +916,7 @@ RETURNING *;
 -- name: GetChatQueuedMessages :many
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY id ASC;
+ORDER BY created_at ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -929,10 +929,24 @@ DELETE FROM chat_queued_messages
 WHERE id = (
     SELECT cqm.id FROM chat_queued_messages cqm
     WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.id ASC
+    ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
 RETURNING *;
+
+-- name: ReorderChatQueuedMessageToFront :exec
+-- Move a queued message to the front of its chat's queue by setting
+-- its created_at to one microsecond before the smallest existing
+-- created_at in the queue. Other rows are not modified, so message IDs
+-- remain stable. Used by PromoteQueued when the chat is currently
+-- running and promotion must defer until the worker is interrupted.
+UPDATE chat_queued_messages AS target
+SET created_at = (
+    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
+    FROM chat_queued_messages AS inner_cqm
+    WHERE inner_cqm.chat_id = @chat_id
+)
+WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
 SELECT

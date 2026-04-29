@@ -6808,7 +6808,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
 SELECT id, chat_id, content, created_at, model_config_id FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY id ASC
+ORDER BY created_at ASC, id ASC
 `
 
 func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
@@ -7946,7 +7946,7 @@ DELETE FROM chat_queued_messages
 WHERE id = (
     SELECT cqm.id FROM chat_queued_messages cqm
     WHERE cqm.chat_id = $1
-    ORDER BY cqm.id ASC
+    ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
 RETURNING id, chat_id, content, created_at, model_config_id
@@ -7963,6 +7963,31 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.ModelConfigID,
 	)
 	return i, err
+}
+
+const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :exec
+UPDATE chat_queued_messages AS target
+SET created_at = (
+    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
+    FROM chat_queued_messages AS inner_cqm
+    WHERE inner_cqm.chat_id = $1
+)
+WHERE target.id = $2 AND target.chat_id = $1
+`
+
+type ReorderChatQueuedMessageToFrontParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	TargetID int64     `db:"target_id" json:"target_id"`
+}
+
+// Move a queued message to the front of its chat's queue by setting
+// its created_at to one microsecond before the smallest existing
+// created_at in the queue. Other rows are not modified, so message IDs
+// remain stable. Used by PromoteQueued when the chat is currently
+// running and promotion must defer until the worker is interrupted.
+func (q *sqlQuerier) ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) error {
+	_, err := q.db.ExecContext(ctx, reorderChatQueuedMessageToFront, arg.ChatID, arg.TargetID)
+	return err
 }
 
 const resolveUserChatSpendLimit = `-- name: ResolveUserChatSpendLimit :one

@@ -1195,7 +1195,15 @@ type PromoteQueuedOptions struct {
 
 // PromoteQueuedResult contains post-promotion message metadata.
 type PromoteQueuedResult struct {
+	// PromotedMessage is the inserted user message when promotion
+	// completes synchronously. It is the zero value when Deferred is
+	// true.
 	PromotedMessage database.ChatMessage
+	// Deferred is true when promotion was queued for the active worker's
+	// cleanup to finish (running case) instead of inserting the user
+	// message synchronously. Callers should not assume PromotedMessage
+	// is populated when Deferred is true.
+	Deferred bool
 }
 
 // CreateChat creates a chat, inserts optional system prompt and initial user
