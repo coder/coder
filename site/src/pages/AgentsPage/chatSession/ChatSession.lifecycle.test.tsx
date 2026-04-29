@@ -311,13 +311,18 @@ describe("ChatSession stream events", () => {
 			chat_id: "chat-1",
 			status: { status: "pending" },
 		});
+		expect(session.store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "hello world" },
+		]);
 		sockets[0].emitData({
 			type: "message_part",
 			chat_id: "chat-1",
 			message_part: { part: { type: "text", text: " ignored" } },
 		});
 		vi.advanceTimersByTime(0);
-		expect(session.store.getSnapshot().streamState).toBeNull();
+		expect(session.store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "hello world" },
+		]);
 
 		sockets[0].emitData({
 			type: "status",
@@ -335,7 +340,75 @@ describe("ChatSession stream events", () => {
 			status: { status: "waiting" },
 		});
 		vi.advanceTimersByTime(0);
-		expect(session.store.getSnapshot().streamState).toBeNull();
+		expect(session.store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "hello world" },
+		]);
+	});
+
+	it("preserves stream state when status transitions to waiting", () => {
+		vi.useFakeTimers();
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = new ChatSession("chat-1", makeRuntimeDeps());
+		hydrate(session, [makeMessage("chat-1", 1, "user")]);
+		session.enterForeground();
+
+		sockets[0].emitData({
+			type: "message_part",
+			chat_id: "chat-1",
+			message_part: { part: { type: "text", text: "thinking..." } },
+		});
+		vi.advanceTimersByTime(0);
+		expect(session.store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "thinking..." },
+		]);
+
+		sockets[0].emitData({
+			type: "status",
+			chat_id: "chat-1",
+			status: { status: "waiting" },
+		});
+
+		expect(session.store.getSnapshot().streamState).not.toBeNull();
+		expect(session.store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "thinking..." },
+		]);
+	});
+
+	it("clears stream state when durable message follows waiting status", () => {
+		vi.useFakeTimers();
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = new ChatSession("chat-1", makeRuntimeDeps());
+		hydrate(session, [makeMessage("chat-1", 1, "user")]);
+		session.enterForeground();
+
+		sockets[0].emitData({
+			type: "message_part",
+			chat_id: "chat-1",
+			message_part: { part: { type: "text", text: "partial response" } },
+		});
+		vi.advanceTimersByTime(0);
+		expect(session.store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "partial response" },
+		]);
+
+		sockets[0].emitData({
+			type: "status",
+			chat_id: "chat-1",
+			status: { status: "waiting" },
+		});
+		expect(session.store.getSnapshot().streamState?.blocks).toEqual([
+			{ type: "response", text: "partial response" },
+		]);
+
+		sockets[0].emitData({
+			type: "message",
+			chat_id: "chat-1",
+			message: makeMessage("chat-1", 2, "assistant", "partial response"),
+		});
+
+		const snapshot = session.store.getSnapshot();
+		expect(snapshot.streamState).toBeNull();
+		expect(snapshot.orderedMessageIDs).toContain(2);
 	});
 
 	it("flushes buffered parts before durable messages and errors", () => {

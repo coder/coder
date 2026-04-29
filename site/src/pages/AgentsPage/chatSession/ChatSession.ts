@@ -560,7 +560,6 @@ export class ChatSession {
 		this.store.setChatStatus(nextStatus);
 		if (nextStatus === "pending" || nextStatus === "waiting") {
 			this.discardBufferedParts();
-			this.store.clearStreamState();
 			this.store.clearRetryState();
 		}
 		if (nextStatus !== "error") {
@@ -640,6 +639,10 @@ export class ChatSession {
 		}
 	}
 
+	// Discard buffered parts without applying them. Used when
+	// the stream is no longer active (pending, waiting, retry)
+	// so stale buffered parts are not applied after the
+	// status transition.
 	private discardBufferedParts(): void {
 		this.partsBuffer.length = 0;
 		this.cancelPartsFlush();
