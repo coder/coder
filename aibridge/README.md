@@ -92,7 +92,9 @@ type Recorder interface {
 
 ## Supported Routes
 
-Each provider instance is mounted under `/api/v2/aibridge/<name>`, where `<name>` is the provider's configured name (defaults to its type: `anthropic`, `openai`, or `copilot`). The table uses the default names.
+Each provider instance is mounted under `/api/v2/aibridge/<name>`, where `<name>` is the provider's configured name. For example, with an Anthropic provider named `my-anthropic`, its `/messages` endpoint would be reachable at `/api/v2/aibridge/my-anthropic/v1/messages`.
+
+If a name is not set, the route path defaults to the provider's type: `anthropic`, `openai`, or `copilot`. The table below uses the default names.
 
 `(/*)` denotes a route that handles both the exact path and any subpaths. A trailing `/*` denotes subpaths only.
 
