@@ -5461,6 +5461,18 @@ type TemplateVersion struct {
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
 }
 
+type TemplateVersionDlpPolicy struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	TemplateVersionID    uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Name                 string    `db:"name" json:"name"`
+	SshAccess            bool      `db:"ssh_access" json:"ssh_access"`
+	WebTerminalAccess    bool      `db:"web_terminal_access" json:"web_terminal_access"`
+	PortForwardingAccess bool      `db:"port_forwarding_access" json:"port_forwarding_access"`
+	AllowedApplications  []string  `db:"allowed_applications" json:"allowed_applications"`
+	DisplayName          string    `db:"display_name" json:"display_name"`
+	CreatedAt            time.Time `db:"created_at" json:"created_at"`
+}
+
 type TemplateVersionParameter struct {
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	// Parameter name
@@ -5797,7 +5809,8 @@ type WorkspaceAgent struct {
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
-	Deleted bool `db:"deleted" json:"deleted"`
+	Deleted     bool          `db:"deleted" json:"deleted"`
+	DlpPolicyID uuid.NullUUID `db:"dlp_policy_id" json:"dlp_policy_id"`
 }
 
 // Workspace agent devcontainer configuration

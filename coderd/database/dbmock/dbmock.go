@@ -5161,6 +5161,51 @@ func (mr *MockStoreMockRecorder) GetTemplateVersionByTemplateIDAndName(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionByTemplateIDAndName", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionByTemplateIDAndName), ctx, arg)
 }
 
+// GetTemplateVersionDLPPoliciesByTemplateVersionID mocks base method.
+func (m *MockStore) GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionDlpPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateVersionDLPPoliciesByTemplateVersionID", ctx, templateVersionID)
+	ret0, _ := ret[0].([]database.TemplateVersionDlpPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateVersionDLPPoliciesByTemplateVersionID indicates an expected call of GetTemplateVersionDLPPoliciesByTemplateVersionID.
+func (mr *MockStoreMockRecorder) GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx, templateVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionDLPPoliciesByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionDLPPoliciesByTemplateVersionID), ctx, templateVersionID)
+}
+
+// GetTemplateVersionDLPPolicyByAgentID mocks base method.
+func (m *MockStore) GetTemplateVersionDLPPolicyByAgentID(ctx context.Context, agentID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateVersionDLPPolicyByAgentID", ctx, agentID)
+	ret0, _ := ret[0].(database.TemplateVersionDlpPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateVersionDLPPolicyByAgentID indicates an expected call of GetTemplateVersionDLPPolicyByAgentID.
+func (mr *MockStoreMockRecorder) GetTemplateVersionDLPPolicyByAgentID(ctx, agentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionDLPPolicyByAgentID", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionDLPPolicyByAgentID), ctx, agentID)
+}
+
+// GetTemplateVersionDLPPolicyByVersionAndName mocks base method.
+func (m *MockStore) GetTemplateVersionDLPPolicyByVersionAndName(ctx context.Context, arg database.GetTemplateVersionDLPPolicyByVersionAndNameParams) (database.TemplateVersionDlpPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateVersionDLPPolicyByVersionAndName", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateVersionDlpPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateVersionDLPPolicyByVersionAndName indicates an expected call of GetTemplateVersionDLPPolicyByVersionAndName.
+func (mr *MockStoreMockRecorder) GetTemplateVersionDLPPolicyByVersionAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionDLPPolicyByVersionAndName", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionDLPPolicyByVersionAndName), ctx, arg)
+}
+
 // GetTemplateVersionParameters mocks base method.
 func (m *MockStore) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	m.ctrl.T.Helper()
@@ -7490,6 +7535,21 @@ func (m *MockStore) InsertTemplateVersion(ctx context.Context, arg database.Inse
 func (mr *MockStoreMockRecorder) InsertTemplateVersion(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateVersion", reflect.TypeOf((*MockStore)(nil).InsertTemplateVersion), ctx, arg)
+}
+
+// InsertTemplateVersionDLPPolicy mocks base method.
+func (m *MockStore) InsertTemplateVersionDLPPolicy(ctx context.Context, arg database.InsertTemplateVersionDLPPolicyParams) (database.TemplateVersionDlpPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTemplateVersionDLPPolicy", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateVersionDlpPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertTemplateVersionDLPPolicy indicates an expected call of InsertTemplateVersionDLPPolicy.
+func (mr *MockStoreMockRecorder) InsertTemplateVersionDLPPolicy(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateVersionDLPPolicy", reflect.TypeOf((*MockStore)(nil).InsertTemplateVersionDLPPolicy), ctx, arg)
 }
 
 // InsertTemplateVersionParameter mocks base method.

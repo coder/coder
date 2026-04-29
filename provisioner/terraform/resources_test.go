@@ -1922,7 +1922,9 @@ func TestDLPPolicy(t *testing.T) {
 	t.Run("UnreferencedPolicyIsAllowed", func(t *testing.T) {
 		t.Parallel()
 		// Defining a policy resource without any agent referencing it is a
-		// no-op (matches terraform's general tolerance for unused resources).
+		// no-op for agent attachment, but it still appears on
+		// `state.DLPPolicies` so it can be persisted and the unique-name
+		// constraint enforced at template-import time.
 		tfState := loadState(t)
 		tfState.Values.RootModule.Resources = append(tfState.Values.RootModule.Resources,
 			newDLPResource("orphan", "d0c3f5a1-0000-4000-8000-000000000099", nil),
@@ -1931,6 +1933,27 @@ func TestDLPPolicy(t *testing.T) {
 		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
 		require.NoError(t, err)
 		require.Nil(t, findAgent(t, state, "dev1").DlpPolicy)
+
+		require.Len(t, state.DLPPolicies, 1)
+		require.Equal(t, "orphan", state.DLPPolicies[0].Name)
+	})
+
+	t.Run("StatePoliciesIncludeReferencedAndUnreferenced", func(t *testing.T) {
+		t.Parallel()
+		const referencedID = "d0c3f5a1-0000-4000-8000-000000000001"
+		const orphanID = "d0c3f5a1-0000-4000-8000-000000000002"
+		tfState := loadState(t)
+		findAgentResource(t, tfState).AttributeValues["dlp_policy"] = referencedID
+		tfState.Values.RootModule.Resources = append(tfState.Values.RootModule.Resources,
+			newDLPResource("strict", referencedID, nil),
+			newDLPResource("orphan", orphanID, nil),
+		)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
+		require.NoError(t, err)
+		require.Len(t, state.DLPPolicies, 2)
+		names := []string{state.DLPPolicies[0].Name, state.DLPPolicies[1].Name}
+		require.ElementsMatch(t, []string{"strict", "orphan"}, names)
 	})
 
 	t.Run("MissingPolicyRejected", func(t *testing.T) {

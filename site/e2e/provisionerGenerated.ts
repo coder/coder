@@ -244,6 +244,7 @@ export interface Agent {
   resourcesMonitoring: ResourcesMonitoring | undefined;
   devcontainers: Devcontainer[];
   apiKeyScope: string;
+  dlpPolicy?: DLPPolicy | undefined;
 }
 
 export interface Agent_Metadata {
@@ -395,6 +396,24 @@ export interface AITask {
   id: string;
   sidebarApp?: AITaskSidebarApp | undefined;
   appId: string;
+}
+
+/**
+ * DLPPolicy is a template-version-scoped data loss prevention policy
+ * declared via a `coder_dlp_policy` resource. Agents reference a policy by
+ * id via `coder_agent.dlp_policy`. The `name` field is the HCL resource
+ * name (e.g. `strict` from `resource "coder_dlp_policy" "strict"`) and is
+ * the durable join key used to look up the persisted row at workspace
+ * build time.
+ */
+export interface DLPPolicy {
+  id: string;
+  sshAccess: boolean;
+  webTerminalAccess: boolean;
+  portForwardingAccess: boolean;
+  /** Slugs of `coder_app` resources the workspace user is permitted to access. */
+  allowedApplications: string[];
+  name: string;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
@@ -568,6 +587,7 @@ export interface GraphComplete {
   hasAiTasks: boolean;
   aiTasks: AITask[];
   hasExternalAgents: boolean;
+  dlpPolicies: DLPPolicy[];
 }
 
 export interface Timing {
@@ -983,6 +1003,9 @@ export const Agent = {
     if (message.apiKeyScope !== "") {
       writer.uint32(210).string(message.apiKeyScope);
     }
+    if (message.dlpPolicy !== undefined) {
+      DLPPolicy.encode(message.dlpPolicy, writer.uint32(218).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1344,6 +1367,30 @@ export const AITask = {
   },
 };
 
+export const DLPPolicy = {
+  encode(message: DLPPolicy, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.sshAccess !== false) {
+      writer.uint32(16).bool(message.sshAccess);
+    }
+    if (message.webTerminalAccess !== false) {
+      writer.uint32(24).bool(message.webTerminalAccess);
+    }
+    if (message.portForwardingAccess !== false) {
+      writer.uint32(32).bool(message.portForwardingAccess);
+    }
+    for (const v of message.allowedApplications) {
+      writer.uint32(42).string(v!);
+    }
+    if (message.name !== "") {
+      writer.uint32(50).string(message.name);
+    }
+    return writer;
+  },
+};
+
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -1642,6 +1689,9 @@ export const GraphComplete = {
     }
     if (message.hasExternalAgents !== false) {
       writer.uint32(72).bool(message.hasExternalAgents);
+    }
+    for (const v of message.dlpPolicies) {
+      DLPPolicy.encode(v!, writer.uint32(82).fork()).ldelim();
     }
     return writer;
   },

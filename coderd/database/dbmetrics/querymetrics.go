@@ -2761,6 +2761,30 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionDlpPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPoliciesByTemplateVersionID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPoliciesByTemplateVersionID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateVersionDLPPolicyByAgentID(ctx context.Context, agentID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionDLPPolicyByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPolicyByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPolicyByAgentID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateVersionDLPPolicyByVersionAndName(ctx context.Context, arg database.GetTemplateVersionDLPPolicyByVersionAndNameParams) (database.TemplateVersionDlpPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionDLPPolicyByVersionAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPolicyByVersionAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPolicyByVersionAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateVersionParameters(ctx, templateVersionID)
@@ -3999,6 +4023,14 @@ func (m queryMetricsStore) InsertTemplateVersion(ctx context.Context, arg databa
 	m.queryLatencies.WithLabelValues("InsertTemplateVersion").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplateVersion").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) InsertTemplateVersionDLPPolicy(ctx context.Context, arg database.InsertTemplateVersionDLPPolicyParams) (database.TemplateVersionDlpPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTemplateVersionDLPPolicy(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateVersionDLPPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplateVersionDLPPolicy").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
