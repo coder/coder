@@ -450,7 +450,10 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
 		}
-		if err != nil {
+		// Only users have user_secret:read on their own secrets. If dbauthz returns
+		// ErrUnauthorized, it's not an error worth logging because we have enough
+		// information to know it's not deleted.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
 			api.Logger.Error(ctx, "unable to fetch user secret", slog.Error(err))
 		}
 		return false
