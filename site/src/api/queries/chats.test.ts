@@ -30,6 +30,7 @@ import {
 	paginatedChatCostUsers,
 	pinChat,
 	promoteChatQueuedMessage,
+	proposeChatTitle,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
@@ -54,6 +55,7 @@ vi.mock("#/api/api", () => ({
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
 			promoteChatQueuedMessage: vi.fn(),
+			proposeChatTitle: vi.fn(),
 			regenerateChatTitle: vi.fn(),
 		},
 	},
@@ -1292,6 +1294,39 @@ describe("mutation invalidation scope", () => {
 			).not.toBe(true);
 		}
 	});
+
+	for (const { label, error } of [
+		{ label: "success", error: undefined },
+		{ label: "failure", error: new Error("proposal failed") },
+	]) {
+		it(`proposeChatTitle invalidates debug runs on ${label} without touching unrelated queries`, async () => {
+			const queryClient = createTestQueryClient();
+			const chatId = "chat-1";
+			seedAllActiveQueries(queryClient, chatId);
+
+			const mutation = proposeChatTitle(queryClient);
+			await mutation.onSettled(undefined, error, chatId);
+
+			expect(
+				queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+				"chatDebugRunsKey should be invalidated",
+			).toBe(true);
+
+			for (const { label, key } of [
+				{ label: "flat chats", key: chatsKey },
+				{ label: "infinite chats", key: [...chatsKey, { archived: false }] },
+				{ label: "chat detail", key: chatKey(chatId) },
+				{ label: "messages", key: chatMessagesKey(chatId) },
+				...unrelatedKeys(chatId),
+			]) {
+				const state = queryClient.getQueryState(key);
+				expect(
+					state?.isInvalidated,
+					`${label} should NOT be invalidated by proposeChatTitle`,
+				).not.toBe(true);
+			}
+		});
+	}
 
 	it("createChat invalidates only sidebar queries on success", async () => {
 		const queryClient = createTestQueryClient();

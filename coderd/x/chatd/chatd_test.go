@@ -5859,6 +5859,116 @@ func newActiveTestServer(
 	return server
 }
 
+func TestProposeChatTitle_DebugRun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		alwaysEnableDebugLogs   bool
+		wantTitleGenerationRuns int
+	}{
+		{
+			name:                    "Enabled",
+			alwaysEnableDebugLogs:   true,
+			wantTitleGenerationRuns: 1,
+		},
+		{
+			name:                    "Disabled",
+			alwaysEnableDebugLogs:   false,
+			wantTitleGenerationRuns: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			wantTitle := "Debug proposal title"
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				require.False(t, req.Stream)
+				return chattest.OpenAINonStreamingResponse(
+					"{\"title\":\"" + wantTitle + "\"}",
+				)
+			})
+			user, org, model := seedChatDependenciesWithProvider(
+				ctx,
+				t,
+				db,
+				"openai",
+				openAIURL,
+			)
+			server := chatd.New(chatd.Config{
+				Logger:                     slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Database:                   db,
+				ReplicaID:                  uuid.New(),
+				Pubsub:                     ps,
+				PendingChatAcquireInterval: testutil.WaitLong,
+				AlwaysEnableDebugLogs:      tt.alwaysEnableDebugLogs,
+			})
+			t.Cleanup(func() {
+				require.NoError(t, server.Close())
+			})
+
+			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
+				Status:            database.ChatStatusCompleted,
+				ClientType:        database.ChatClientTypeUi,
+				OwnerID:           user.ID,
+				Title:             "original title",
+				LastModelConfigID: model.ID,
+			})
+			require.NoError(t, err)
+			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("summarize debug title generation"),
+			})
+			require.NoError(t, err)
+			messages, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:              chat.ID,
+				CreatedBy:           []uuid.UUID{user.ID},
+				ModelConfigID:       []uuid.UUID{model.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+				Content:             []string{string(content.RawMessage)},
+				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+				InputTokens:         []int64{0},
+				OutputTokens:        []int64{0},
+				TotalTokens:         []int64{0},
+				ReasoningTokens:     []int64{0},
+				CacheCreationTokens: []int64{0},
+				CacheReadTokens:     []int64{0},
+				ContextLimit:        []int64{model.ContextLimit},
+				Compressed:          []bool{false},
+				TotalCostMicros:     []int64{0},
+				RuntimeMs:           []int64{0},
+				ProviderResponseID:  []string{""},
+			})
+			require.NoError(t, err)
+			require.Len(t, messages, 1)
+
+			gotTitle, err := server.ProposeChatTitle(ctx, chat)
+			require.NoError(t, err)
+			require.Equal(t, wantTitle, gotTitle)
+
+			runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+				ChatID:   chat.ID,
+				LimitVal: 100,
+			})
+			require.NoError(t, err)
+			require.Len(t, runs, tt.wantTitleGenerationRuns)
+			if tt.wantTitleGenerationRuns == 0 {
+				return
+			}
+			require.Equal(t, string(codersdk.ChatDebugRunKindTitleGeneration), runs[0].Kind)
+			require.Equal(t, string(codersdk.ChatDebugStatusCompleted), runs[0].Status)
+			require.True(t, runs[0].FinishedAt.Valid)
+			require.True(t, runs[0].HistoryTipMessageID.Valid)
+			require.Equal(t, messages[0].ID, runs[0].HistoryTipMessageID.Int64)
+		})
+	}
+}
+
 func seedChatDependencies(
 	ctx context.Context,
 	t *testing.T,

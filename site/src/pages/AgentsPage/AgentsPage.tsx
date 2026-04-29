@@ -23,6 +23,7 @@ import {
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
+	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
@@ -252,6 +253,7 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat."));
 		},
 	});
+	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]
@@ -438,7 +440,7 @@ const AgentsPage: FC = () => {
 		return promise;
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
-		const result = await API.experimental.proposeChatTitle(chatId);
+		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {

@@ -2236,6 +2236,13 @@ var ErrManualTitleRegenerationInProgress = xerrors.New(
 	"manual title regeneration already in progress",
 )
 
+type manualTitleResult struct {
+	title       string
+	modelConfig database.ChatModelConfig
+	usage       fantasy.Usage
+	hasMessages bool
+}
+
 type manualTitleGenerationError struct {
 	cause       error
 	modelConfig database.ChatModelConfig
@@ -2483,16 +2490,14 @@ func (p *Server) recordManualTitleGenerationFailure(
 	return generationErr
 }
 
-//nolint:revive // flag-parameter: enableDebug toggles optional debug capture on a shared code path; splitting would duplicate message fetch and model resolution.
-func (p *Server) fetchAndGenerateManualTitle(
+func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
-	enableDebug bool,
-) (title string, modelConfig database.ChatModelConfig, usage fantasy.Usage, hasMessages bool, err error) {
+) (manualTitleResult, error) {
 	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
-		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, limitErr
+		return manualTitleResult{}, limitErr
 	}
 
 	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
@@ -2504,7 +2509,7 @@ func (p *Server) fetchAndGenerateManualTitle(
 		},
 	)
 	if err != nil {
-		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, xerrors.Errorf("get head chat messages: %w", err)
+		return manualTitleResult{}, xerrors.Errorf("get head chat messages: %w", err)
 	}
 	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
 		ctx,
@@ -2515,50 +2520,54 @@ func (p *Server) fetchAndGenerateManualTitle(
 		},
 	)
 	if err != nil {
-		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, xerrors.Errorf("get tail chat messages: %w", err)
+		return manualTitleResult{}, xerrors.Errorf("get tail chat messages: %w", err)
 	}
 	messages := mergeManualTitleMessages(headMessages, tailMessages)
 	if len(messages) == 0 {
-		return "", database.ChatModelConfig{}, fantasy.Usage{}, false, nil
+		return manualTitleResult{}, nil
 	}
 
 	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, keys)
+	result := manualTitleResult{
+		modelConfig: modelConfig,
+		hasMessages: true,
+	}
 	if err != nil {
-		return "", database.ChatModelConfig{}, fantasy.Usage{}, true, err
+		return result, err
 	}
 
 	titleCtx := ctx
 	titleModel := model
 	finishDebugRun := func(error) {}
-	if enableDebug {
-		if debugSvc := p.debugService(); debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID) {
-			titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
-				ctx,
-				debugSvc,
-				chat,
-				modelConfig,
-				keys,
-				messages,
-				model,
-			)
-		}
+	if debugSvc := p.debugService(); debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID) {
+		titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
+			ctx,
+			debugSvc,
+			chat,
+			modelConfig,
+			keys,
+			messages,
+			model,
+		)
 	}
 
-	title, usage, err = generateManualTitle(titleCtx, messages, titleModel)
+	title, usage, err := generateManualTitle(titleCtx, messages, titleModel)
 	finishDebugRun(err)
+	result.title = title
+	result.usage = usage
 	if err != nil {
 		wrappedErr := xerrors.Errorf("generate manual title: %w", err)
 		if usage == (fantasy.Usage{}) {
-			return "", modelConfig, fantasy.Usage{}, true, wrappedErr
+			return result, wrappedErr
 		}
-		return "", modelConfig, usage, true, &manualTitleGenerationError{
+		return result, &manualTitleGenerationError{
 			cause:       wrappedErr,
 			modelConfig: modelConfig,
 			usage:       usage,
 		}
 	}
 
-	return title, modelConfig, usage, true, nil
+	return result, nil
 }
 
 func (p *Server) proposeChatTitleWithStore(
@@ -2567,11 +2576,11 @@ func (p *Server) proposeChatTitleWithStore(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (string, error) {
-	title, modelConfig, usage, hasMessages, err := p.fetchAndGenerateManualTitle(ctx, store, chat, keys, false)
+	result, err := p.generateManualTitleCandidate(ctx, store, chat, keys)
 	if err != nil {
 		return "", err
 	}
-	if !hasMessages {
+	if !result.hasMessages {
 		return "", nil
 	}
 
@@ -2581,13 +2590,13 @@ func (p *Server) proposeChatTitleWithStore(
 		recordCtx,
 		store,
 		chat,
-		modelConfig,
-		usage,
+		result.modelConfig,
+		result.usage,
 		"",
 	); recordErr != nil {
 		return "", xerrors.Errorf("record manual title usage: %w", recordErr)
 	}
-	return title, nil
+	return result.title, nil
 }
 
 func (p *Server) regenerateChatTitleWithStore(
@@ -2596,11 +2605,11 @@ func (p *Server) regenerateChatTitleWithStore(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (database.Chat, error) {
-	title, modelConfig, usage, hasMessages, err := p.fetchAndGenerateManualTitle(ctx, store, chat, keys, true)
+	result, err := p.generateManualTitleCandidate(ctx, store, chat, keys)
 	if err != nil {
 		return database.Chat{}, err
 	}
-	if !hasMessages {
+	if !result.hasMessages {
 		return chat, nil
 	}
 
@@ -2611,12 +2620,12 @@ func (p *Server) regenerateChatTitleWithStore(
 		recordCtx,
 		store,
 		chat,
-		modelConfig,
-		usage,
-		title,
+		result.modelConfig,
+		result.usage,
+		result.title,
 	)
 	if recordErr != nil {
-		if title != "" {
+		if result.title != "" {
 			return database.Chat{}, xerrors.Errorf("record manual title usage and update chat title: %w", recordErr)
 		}
 		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
