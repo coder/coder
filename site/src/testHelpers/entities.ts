@@ -288,7 +288,7 @@ export const MockOwnerRole: TypesGen.Role = {
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
-	name: "user_admin",
+	name: "user-admin",
 	display_name: "User Admin",
 	site_permissions: [],
 	user_permissions: [],
@@ -298,7 +298,7 @@ export const MockUserAdminRole: TypesGen.Role = {
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
-	name: "template_admin",
+	name: "template-admin",
 	display_name: "Template Admin",
 	site_permissions: [],
 	user_permissions: [],

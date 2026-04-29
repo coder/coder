@@ -15411,6 +15411,13 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "roles": {
+                    "description": "Roles is an optional list of site-level roles to assign at creation.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "service_account": {
                     "description": "Service accounts are admin-managed accounts that cannot login.",
                     "type": "boolean"
