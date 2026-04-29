@@ -336,6 +336,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Route("/sessions/{id}", func(r chi.Router) {
 				r.Get("/", api.agentFirewallSessionByID)
+				r.Get("/logs", api.agentFirewallSessionLogs)
 			})
 		})
 		r.Route("/licenses", func(r chi.Router) {
