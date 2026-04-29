@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"errors"
+	"net/url"
 	"sync"
 	"time"
 
@@ -38,6 +39,30 @@ type Pubsub struct {
 	closedCh chan struct{}
 
 	metrics pubsubMetrics
+
+	// provider is captured at construction time so RefreshPeers can
+	// re-query peer membership at runtime. Nil for NewFromConn or for
+	// New called without a PeerProvider.
+	provider PeerProvider
+
+	// serverOpts is the effective startup *natsserver.Options. It is
+	// cloned on every successful refresh so the next refresh starts
+	// from the most recent reloaded state.
+	serverOpts *natsserver.Options
+
+	// refreshMu serializes RefreshPeers calls so a slow provider or
+	// ReloadOptions cannot interleave.
+	refreshMu sync.Mutex
+
+	// currentRoutes is the sorted set of route URLs most recently
+	// applied to the embedded server. Compared in RefreshPeers to
+	// detect no-op refreshes.
+	currentRoutes []*url.URL
+
+	// standalone is true when the Pubsub cannot be refreshed: either no
+	// provider was configured, the provider returned zero peers, or
+	// this Pubsub wraps an externally provided connection.
+	standalone bool
 }
 
 type subscription struct {
@@ -84,7 +109,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		}
 		peers = normalized
 	}
-	ns, err := startEmbeddedServer(logger, opts, peers)
+	ns, sopts, err := startEmbeddedServer(logger, opts, peers)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +122,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.ownsServer = true
 	p.ownsConn = true
 	p.closedCh = closedCh
+	p.provider = opts.PeerProvider
+	p.serverOpts = sopts
+	p.currentRoutes = sortRouteURLs(cloneRouteURLs(sopts.Routes))
+	// Standalone if no provider, or provider yielded zero peers at
+	// startup. Either way we cannot promote to clustered later.
+	p.standalone = opts.PeerProvider == nil || len(peers) == 0
 
 	handlers := connHandlers{
 		disconnectErr: func(_ *natsgo.Conn, err error) {
@@ -143,7 +174,112 @@ func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 	}
 	p := newPubsub(logger, Options{})
 	p.nc = nc
+	// NewFromConn does not own a server, so refresh has nothing to
+	// reload.
+	p.standalone = true
 	return p, nil
+}
+
+// RefreshPeers re-queries the configured PeerProvider and applies any
+// route additions or removals to the embedded NATS server via
+// ReloadOptions, without restarting the server. It returns
+// ErrStandalone for Pubsubs that were not constructed with a peer set
+// (NewFromConn, no PeerProvider, or a provider that returned zero
+// peers at startup); a standalone server cannot be promoted to
+// clustered at runtime.
+//
+// RefreshPeers is safe to call concurrently with publish/subscribe
+// traffic. Concurrent RefreshPeers calls are serialized internally.
+// A refresh whose resulting route set is identical (regardless of
+// peer order) to the currently-applied set is a no-op and returns
+// nil.
+func (p *Pubsub) RefreshPeers(ctx context.Context) error {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return xerrors.New("nats pubsub: closed")
+	}
+	p.mu.Unlock()
+
+	if p.provider == nil || p.standalone {
+		return ErrStandalone
+	}
+
+	p.refreshMu.Lock()
+	defer p.refreshMu.Unlock()
+
+	raw, err := p.provider.Peers(ctx)
+	if err != nil {
+		return xerrors.Errorf("nats peer discovery: %w", err)
+	}
+	normalized, err := normalizePeers(raw)
+	if err != nil {
+		return xerrors.Errorf("normalize peers: %w", err)
+	}
+	urls, err := routeURLs(normalized, p.opts.ClusterToken)
+	if err != nil {
+		return xerrors.Errorf("build route urls: %w", err)
+	}
+
+	// Drop any routes pointing back at this server (self routes). NATS
+	// already filters self loops at runtime, but eliminating them up
+	// front keeps currentRoutes meaningful for comparison.
+	urls = p.dropSelfRoutes(urls)
+	urls = sortRouteURLs(urls)
+
+	if routeURLsEqual(urls, p.currentRoutes) {
+		return nil
+	}
+
+	// Take p.mu through ReloadOptions so a concurrent Close cannot
+	// shut the server down between our closed check and the reload.
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return xerrors.New("nats pubsub: closed")
+	}
+
+	newOpts := p.serverOpts.Clone()
+	newOpts.Routes = cloneRouteURLs(urls)
+
+	if err := p.ns.ReloadOptions(newOpts); err != nil {
+		return xerrors.Errorf("reload nats routes: %w", err)
+	}
+	p.serverOpts = newOpts
+	p.currentRoutes = sortRouteURLs(cloneRouteURLs(urls))
+	return nil
+}
+
+// dropSelfRoutes filters route URLs whose host matches the server's
+// own cluster listener address or configured ClusterAdvertise.
+func (p *Pubsub) dropSelfRoutes(in []*url.URL) []*url.URL {
+	if len(in) == 0 {
+		return in
+	}
+	selfHosts := make(map[string]struct{}, 2)
+	if addr := p.ns.ClusterAddr(); addr != nil {
+		selfHosts[addr.String()] = struct{}{}
+	}
+	if adv := p.opts.ClusterAdvertise; adv != "" {
+		selfHosts[adv] = struct{}{}
+	}
+	if len(selfHosts) == 0 {
+		return in
+	}
+	out := make([]*url.URL, 0, len(in))
+	for _, u := range in {
+		if u == nil {
+			continue
+		}
+		if _, ok := selfHosts[u.Host]; ok {
+			p.logger.Debug(context.Background(), "nats refresh: dropping self route",
+				slog.F("host", u.Host),
+			)
+			continue
+		}
+		out = append(out, u)
+	}
+	return out
 }
 
 // Publish publishes a message under the given legacy event name.

@@ -2,11 +2,19 @@ package nats
 
 import (
 	"context"
+	"errors"
 	"net/url"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
 )
+
+// ErrStandalone is returned by RefreshPeers when the Pubsub was
+// constructed without a PeerProvider, or with a provider that returned
+// zero peers at startup. A standalone Pubsub cannot be promoted to a
+// clustered one at runtime.
+var ErrStandalone = errors.New("nats pubsub is in standalone mode")
 
 // routeAuthUsername is the synthetic username carried in route CONNECT
 // userinfo. The NATS route authenticator requires a nonempty username
@@ -24,8 +32,11 @@ type Peer struct {
 	RouteURL string
 }
 
-// PeerProvider returns the set of cluster peers to seed route discovery on
-// startup. V1 only consults the provider once during New.
+// PeerProvider returns the set of cluster peers used to seed route
+// discovery. New calls Peers once during startup. RefreshPeers may call
+// Peers again from any goroutine; implementations must be safe for
+// repeated calls and should return a fresh slice each time so callers
+// can mutate it without affecting the provider's internal state.
 type PeerProvider interface {
 	Peers(ctx context.Context) ([]Peer, error)
 }
@@ -86,4 +97,60 @@ func routeURLs(peers []Peer, token string) ([]*url.URL, error) {
 		out = append(out, u)
 	}
 	return out, nil
+}
+
+// sortRouteURLs returns a new slice containing the same *url.URL pointers
+// as in, sorted by URL.String(). The input slice is not mutated.
+func sortRouteURLs(in []*url.URL) []*url.URL {
+	out := make([]*url.URL, len(in))
+	copy(out, in)
+	sort.Slice(out, func(i, j int) bool {
+		var a, b string
+		if out[i] != nil {
+			a = out[i].String()
+		}
+		if out[j] != nil {
+			b = out[j].String()
+		}
+		return a < b
+	})
+	return out
+}
+
+// routeURLsEqual reports whether a and b contain the same set of route
+// URLs in the same order, comparing by URL.String().
+func routeURLsEqual(a, b []*url.URL) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		var as, bs string
+		if a[i] != nil {
+			as = a[i].String()
+		}
+		if b[i] != nil {
+			bs = b[i].String()
+		}
+		if as != bs {
+			return false
+		}
+	}
+	return true
+}
+
+// cloneRouteURLs returns a deep copy of in. Each *url.URL is shallow
+// copied (URL has no pointer fields except User which is not mutated).
+func cloneRouteURLs(in []*url.URL) []*url.URL {
+	if in == nil {
+		return nil
+	}
+	out := make([]*url.URL, len(in))
+	for i, u := range in {
+		if u == nil {
+			continue
+		}
+		cp := *u
+		out[i] = &cp
+	}
+	return out
 }
