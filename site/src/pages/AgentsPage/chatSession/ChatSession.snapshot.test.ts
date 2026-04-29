@@ -183,6 +183,25 @@ const makeMessagesData = (
 	has_more: false,
 });
 
+const startForegroundStream = (
+	session: ChatSession,
+	sockets: readonly MockSocket[],
+): MockSocket => {
+	session.hydrateFromRest({
+		chatMessages: [],
+		chatRecord: makeChat(session.chatId, "running"),
+		chatMessagesData: makeMessagesData(),
+		chatQueuedMessages: [],
+	});
+	session.enterForeground({ now: 1 });
+	const socket = sockets[0];
+	if (!socket) {
+		throw new Error("Expected a stream socket to be created.");
+	}
+	socket.emitOpen();
+	return socket;
+};
+
 afterEach(() => {
 	vi.clearAllTimers();
 	vi.useRealTimers();
@@ -324,6 +343,145 @@ describe("ChatSession metadata snapshot", () => {
 		unsubscribe();
 		session.setFollowMode(true);
 		expect(snapshots).toHaveLength(8);
+	});
+
+	it("marks new offscreen content once for durable messages newer than the captured viewport", () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = makeSession();
+		session.setFollowMode(false);
+		session.setViewportAnchor({
+			messageId: 10,
+			offsetTop: 100,
+			newestMessageIdAtCapture: 10,
+		});
+		const socket = startForegroundStream(session, sockets);
+		const listener = vi.fn();
+		session.subscribe(listener);
+
+		socket.emitData({
+			type: "message",
+			chat_id: "chat-1",
+			message: makeMessage("chat-1", 11, "user"),
+		});
+
+		expect(session.getSnapshot().hasNewOffscreenContent).toBe(true);
+		expect(listener).toHaveBeenCalledTimes(1);
+
+		socket.emitData({
+			type: "message",
+			chat_id: "chat-1",
+			message: makeMessage("chat-1", 12, "user"),
+		});
+		expect(listener).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not mark new offscreen content for durable messages at or before the captured viewport", () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = makeSession();
+		session.setFollowMode(false);
+		session.setViewportAnchor({
+			messageId: 10,
+			offsetTop: 100,
+			newestMessageIdAtCapture: 10,
+		});
+		const socket = startForegroundStream(session, sockets);
+		const listener = vi.fn();
+		session.subscribe(listener);
+
+		for (const id of [9, 10]) {
+			socket.emitData({
+				type: "message",
+				chat_id: "chat-1",
+				message: makeMessage("chat-1", id, "user"),
+			});
+		}
+
+		expect(session.getSnapshot().hasNewOffscreenContent).toBe(false);
+		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it("does not mark new offscreen content for durable messages while in follow mode", () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = makeSession();
+		session.setViewportAnchor({
+			messageId: 10,
+			offsetTop: 100,
+			newestMessageIdAtCapture: 10,
+		});
+		const socket = startForegroundStream(session, sockets);
+		const listener = vi.fn();
+		session.subscribe(listener);
+
+		socket.emitData({
+			type: "message",
+			chat_id: "chat-1",
+			message: makeMessage("chat-1", 11, "user"),
+		});
+
+		expect(session.getSnapshot().hasNewOffscreenContent).toBe(false);
+		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it("does not mark new offscreen content for durable messages without a viewport anchor", () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = makeSession();
+		session.setFollowMode(false);
+		const socket = startForegroundStream(session, sockets);
+		const listener = vi.fn();
+		session.subscribe(listener);
+
+		socket.emitData({
+			type: "message",
+			chat_id: "chat-1",
+			message: makeMessage("chat-1", 11, "user"),
+		});
+
+		expect(session.getSnapshot().hasNewOffscreenContent).toBe(false);
+		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it("marks new offscreen content once for stream parts outside follow mode", () => {
+		vi.useFakeTimers();
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = makeSession();
+		session.setFollowMode(false);
+		const socket = startForegroundStream(session, sockets);
+		const listener = vi.fn();
+		session.subscribe(listener);
+
+		socket.emitData({
+			type: "message_part",
+			chat_id: "chat-1",
+			message_part: { part: { type: "text", text: "first" } },
+		});
+
+		expect(session.getSnapshot().hasNewOffscreenContent).toBe(true);
+		expect(listener).toHaveBeenCalledTimes(1);
+
+		socket.emitData({
+			type: "message_part",
+			chat_id: "chat-1",
+			message_part: { part: { type: "text", text: "second" } },
+		});
+		expect(listener).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not mark new offscreen content for stream parts while in follow mode", () => {
+		vi.useFakeTimers();
+		const sockets = mockWatchChatWithFreshSockets();
+		const session = makeSession();
+		const socket = startForegroundStream(session, sockets);
+		const listener = vi.fn();
+		session.subscribe(listener);
+
+		socket.emitData({
+			type: "message_part",
+			chat_id: "chat-1",
+			message_part: { part: { type: "text", text: "first" } },
+		});
+
+		expect(session.getSnapshot().hasNewOffscreenContent).toBe(false);
+		expect(listener).not.toHaveBeenCalled();
 	});
 
 	it("does not notify metadata subscribers for store and cache changes", () => {

@@ -450,6 +450,7 @@ export class ChatSession {
 						}
 						this.flushMessageParts();
 						this.store.clearRetryState();
+						this.maybeMarkNewDurableOffscreenContent(message.id);
 						pendingMessages.push(message);
 						this.advanceLastMessageId(message.id);
 						if (message.role === "assistant") {
@@ -507,8 +508,41 @@ export class ChatSession {
 		if (!part) {
 			return;
 		}
+		this.maybeMarkStreamPartOffscreenContent();
 		this.store.clearRetryState();
 		this.partsBuffer.push(part);
+	}
+
+	private maybeMarkNewDurableOffscreenContent(
+		messageId: number | undefined,
+	): void {
+		if (this.snapshot.followMode !== false) {
+			return;
+		}
+		const captureId = this.snapshot.viewportAnchor?.newestMessageIdAtCapture;
+		if (captureId === undefined) {
+			return;
+		}
+		if (messageId === undefined) {
+			return;
+		}
+		if (messageId <= captureId) {
+			return;
+		}
+		if (this.snapshot.hasNewOffscreenContent) {
+			return;
+		}
+		this.markNewOffscreenContent();
+	}
+
+	private maybeMarkStreamPartOffscreenContent(): void {
+		if (this.snapshot.followMode !== false) {
+			return;
+		}
+		if (this.snapshot.hasNewOffscreenContent) {
+			return;
+		}
+		this.markNewOffscreenContent();
 	}
 
 	private handleStatusEvent(streamEvent: TypesGen.ChatStreamEvent): void {

@@ -332,6 +332,23 @@ describe("ChatSessionManager", () => {
 		expect(fake.enterBackgroundNoReadSpy).toHaveBeenCalledTimes(1);
 	});
 
+	it("disconnects inactive sessions instead of retaining them when follow mode is false", () => {
+		const { manager, sessions } = setupManager();
+		const session = manager.getOrCreate("chat-1");
+		const fake = getSession(sessions, "chat-1");
+		session.store.setChatStatus("running");
+		fake.setFollowMode(false);
+
+		manager.releaseVisible("chat-1");
+
+		expect(fake.disconnectSpy).toHaveBeenCalledTimes(1);
+		expect(fake.enterBackgroundNoReadSpy).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+
+		vi.advanceTimersByTime(500);
+		expect(fake.enterBackgroundNoReadSpy).not.toHaveBeenCalled();
+	});
+
 	it("keeps a visible chat out of the background during the debounce", () => {
 		const { manager, sessions } = setupManager();
 		const session = manager.getOrCreate("chat-1");
