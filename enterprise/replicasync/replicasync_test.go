@@ -233,7 +233,7 @@ func TestReplica(t *testing.T) {
 			done := false
 
 			var m sync.Mutex
-			server.SetCallback(func() {
+			_ = server.AddCallback(func() {
 				m.Lock()
 				defer m.Unlock()
 				if len(server.AllPrimary()) != count {
@@ -266,6 +266,113 @@ func TestReplica(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return server.Self().UpdatedAt.After(deleteTime)
 		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+}
+
+func TestAddCallback(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FiresOnceOnAdd", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		// Disable the periodic sync so we only observe the on-add fire.
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			UpdateInterval: time.Hour,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		fired := make(chan struct{}, 8)
+		remove := server.AddCallback(func() {
+			fired <- struct{}{}
+		})
+		defer remove()
+
+		// Should fire exactly once on registration.
+		select {
+		case <-fired:
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("AddCallback did not fire on registration")
+		}
+		select {
+		case <-fired:
+			t.Fatal("AddCallback fired more than once without a sync")
+		case <-time.After(testutil.IntervalFast):
+		}
+	})
+
+	t.Run("MultipleCallbacksAllFireOnSync", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			UpdateInterval: time.Hour,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		var aCount, bCount atomic.Uint32
+		removeA := server.AddCallback(func() { aCount.Add(1) })
+		defer removeA()
+		removeB := server.AddCallback(func() { bCount.Add(1) })
+		defer removeB()
+
+		// Fire both via an explicit sync. With two AddCallback fires
+		// plus one sync, each callback should run at least twice.
+		require.NoError(t, server.UpdateNow(ctx))
+		require.Eventually(t, func() bool {
+			return aCount.Load() >= 2 && bCount.Load() >= 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("RemoveDetachesFromSync", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			UpdateInterval: time.Hour,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		var count atomic.Uint32
+		remove := server.AddCallback(func() { count.Add(1) })
+		// Wait for the on-add fire to land.
+		require.Eventually(t, func() bool {
+			return count.Load() >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		remove()
+		before := count.Load()
+		// A subsequent sync must not invoke the removed callback.
+		require.NoError(t, server.UpdateNow(ctx))
+		// Give any spurious dispatch time to land.
+		time.Sleep(testutil.IntervalFast)
+		require.Equal(t, before, count.Load())
+	})
+
+	t.Run("RemoveIsIdempotent", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			UpdateInterval: time.Hour,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		remove := server.AddCallback(func() {})
+		// Calling remove repeatedly must not panic.
+		require.NotPanics(t, func() {
+			remove()
+			remove()
+			remove()
+		})
 	})
 }
 
