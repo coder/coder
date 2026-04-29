@@ -62,7 +62,6 @@ export const parameters: Parameters = {
 					height: "450px",
 					width: "720px",
 				},
-				type: "desktop",
 			},
 			terminal: {
 				name: "Terminal",

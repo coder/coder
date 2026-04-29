@@ -460,11 +460,9 @@ export const WithToolbarEndContent: Story = {
 // Covers 200% browser zoom on a 1440x900 desktop (CSS viewport
 // 720x450). The empty state must stay on the desktop branch (sidebar
 // and chat area side-by-side), not collapse into the mobile stack.
-// Chromatic renders this story at 720 px and captures the desktop
-// layout visually; the play function below asserts at the class level
-// that the outer flex container uses the sm: breakpoint so the
-// behavior is enforced even in the vitest/playwright runner (where
-// the real viewport is larger than 720 px).
+// Chromatic and Storybook render this story at 720 px. The play
+// function asserts the rendered layout so the regression guard stays
+// tied to user-visible behavior instead of Tailwind class tokens.
 export const EmptyStateZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
@@ -474,11 +472,10 @@ export const EmptyStateZoom200Desktop: Story = {
 		const canvas = within(canvasElement);
 		const outer = await canvas.findByTestId("agents-page-outer");
 
-		// The sm: breakpoint (640 px) keeps the layout horizontal at
-		// 720 px (1440 px desktop at 200% zoom). The previous md:
-		// breakpoint (768 px) collapsed the layout to the mobile stack.
-		await expect(outer.className).toContain("sm:flex-row");
-		await expect(outer.className).not.toContain("md:flex-row");
+		await waitFor(() => {
+			const styles = getComputedStyle(outer);
+			expect(styles.flexDirection).toBe("row");
+		});
 	},
 };
 
