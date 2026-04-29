@@ -2,7 +2,6 @@ package nats
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"sort"
 	"strings"
@@ -10,11 +9,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// ErrStandalone is returned by RefreshPeers when the Pubsub was
-// constructed without a PeerProvider, or with a provider that returned
-// zero peers at startup. A standalone Pubsub cannot be promoted to a
-// clustered one at runtime.
-var ErrStandalone = errors.New("nats pubsub is in standalone mode")
+// ErrNoEmbeddedServer is returned by RefreshPeers when the Pubsub was
+// constructed via NewFromConn and therefore does not own an embedded
+// NATS server whose route configuration can be reloaded.
+var ErrNoEmbeddedServer = xerrors.New("nats pubsub has no embedded server")
 
 // routeAuthUsername is the synthetic username carried in route CONNECT
 // userinfo. The NATS route authenticator requires a nonempty username

@@ -59,10 +59,13 @@ type Pubsub struct {
 	// detect no-op refreshes.
 	currentRoutes []*url.URL
 
-	// standalone is true when the Pubsub cannot be refreshed: either no
-	// provider was configured, the provider returned zero peers, or
-	// this Pubsub wraps an externally provided connection.
-	standalone bool
+	// effectiveClusterToken is the cluster token that was actually
+	// applied to the embedded server. It mirrors opts.ClusterToken when
+	// the caller supplied one and otherwise holds an internally
+	// generated ephemeral token. RefreshPeers uses this to construct
+	// route URLs so that auto-generated tokens stay consistent across
+	// refreshes.
+	effectiveClusterToken string
 }
 
 type subscription struct {
@@ -109,7 +112,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		}
 		peers = normalized
 	}
-	ns, sopts, err := startEmbeddedServer(logger, opts, peers)
+	ns, sopts, token, err := startEmbeddedServer(logger, opts, peers)
 	if err != nil {
 		return nil, err
 	}
@@ -125,9 +128,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.provider = opts.PeerProvider
 	p.serverOpts = sopts
 	p.currentRoutes = sortRouteURLs(cloneRouteURLs(sopts.Routes))
-	// Standalone if no provider, or provider yielded zero peers at
-	// startup. Either way we cannot promote to clustered later.
-	p.standalone = opts.PeerProvider == nil || len(peers) == 0
+	p.effectiveClusterToken = token
 
 	handlers := connHandlers{
 		disconnectErr: func(_ *natsgo.Conn, err error) {
@@ -175,24 +176,25 @@ func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 	p := newPubsub(logger, Options{})
 	p.nc = nc
 	// NewFromConn does not own a server, so refresh has nothing to
-	// reload.
-	p.standalone = true
+	// reload. RefreshPeers returns ErrNoEmbeddedServer.
 	return p, nil
 }
 
 // RefreshPeers re-queries the configured PeerProvider and applies any
 // route additions or removals to the embedded NATS server via
-// ReloadOptions, without restarting the server. It returns
-// ErrStandalone for Pubsubs that were not constructed with a peer set
-// (NewFromConn, no PeerProvider, or a provider that returned zero
-// peers at startup); a standalone server cannot be promoted to
-// clustered at runtime.
+// ReloadOptions, without restarting the server.
+//
+// RefreshPeers returns:
+//   - ErrNoEmbeddedServer when called on a Pubsub created via
+//     NewFromConn (no embedded server to reload).
+//   - A configuration error when the Pubsub was created via New
+//     without a PeerProvider.
+//   - nil when the resulting route set is identical to the
+//     currently-applied one (no-op refresh), including the empty-set
+//     case for a "cluster of 1".
 //
 // RefreshPeers is safe to call concurrently with publish/subscribe
 // traffic. Concurrent RefreshPeers calls are serialized internally.
-// A refresh whose resulting route set is identical (regardless of
-// peer order) to the currently-applied set is a no-op and returns
-// nil.
 func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 	p.mu.Lock()
 	if p.closed {
@@ -201,8 +203,11 @@ func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 	}
 	p.mu.Unlock()
 
-	if p.provider == nil || p.standalone {
-		return ErrStandalone
+	if p.ns == nil {
+		return ErrNoEmbeddedServer
+	}
+	if p.provider == nil {
+		return xerrors.New("nats pubsub: no PeerProvider configured")
 	}
 
 	p.refreshMu.Lock()
@@ -216,7 +221,7 @@ func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("normalize peers: %w", err)
 	}
-	urls, err := routeURLs(normalized, p.opts.ClusterToken)
+	urls, err := routeURLs(normalized, p.effectiveClusterToken)
 	if err != nil {
 		return xerrors.Errorf("build route urls: %w", err)
 	}

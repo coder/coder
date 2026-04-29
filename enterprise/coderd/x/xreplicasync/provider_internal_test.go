@@ -315,7 +315,7 @@ func TestProvider_RetryBackoffThenSuccessThenReset(t *testing.T) {
 	require.Equal(t, 3.0, testutil.ToFloat64(failures.WithLabelValues()))
 }
 
-func TestProvider_StandaloneIsTerminalForOneSignal(t *testing.T) {
+func TestProvider_NoEmbeddedServerIsTerminalForOneSignal(t *testing.T) {
 	t.Parallel()
 	ctx := muxtestutil.Context(t, muxtestutil.WaitShort)
 	self := uuid.New()
@@ -327,7 +327,7 @@ func TestProvider_StandaloneIsTerminalForOneSignal(t *testing.T) {
 	defer trap.Close()
 	p, failures := newTestProvider(t, src, func(o *Options) { o.Clock = clk })
 	r := newFakeRefresher(8)
-	r.Enqueue(nats.ErrStandalone, nil)
+	r.Enqueue(nats.ErrNoEmbeddedServer, nil)
 	require.NoError(t, p.startWithRefresher(ctx, r))
 	t.Cleanup(func() { _ = p.Close() })
 
