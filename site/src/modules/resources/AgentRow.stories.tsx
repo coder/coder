@@ -165,7 +165,7 @@ export const Example: Story = {};
 export const BunchOfApps: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				M.MockWorkspaceApp,
 				M.MockWorkspaceApp,
@@ -203,7 +203,10 @@ export const Timeout: Story = {
 
 export const Starting: Story = {
 	args: {
-		agent: M.MockWorkspaceAgentStarting,
+		agent: {
+			...M.MockWorkspaceAgentStarting,
+			logs_length: logs.length,
+		},
 	},
 };
 
@@ -357,7 +360,7 @@ export const Deprecated: Story = {
 export const HideApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,
@@ -371,7 +374,7 @@ export const HideApp: Story = {
 export const GroupApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,

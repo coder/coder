@@ -39,6 +39,7 @@ import {
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tabs,
 	TabsContent,
@@ -494,9 +495,26 @@ export const AgentRow: FC<AgentRowProps> = ({
 					>
 						<ChevronDownIcon open={showLogs} />
 						<span>Logs</span>
+						{agent.lifecycle_state === "starting" &&
+							agent.log_sources.length > 0 &&
+							healthIssues.length === 0 && (
+								<Badge
+									variant="default"
+									size="xs"
+									className="ml-1.5"
+									svgSize="sm"
+								>
+									<Spinner
+										size="lg"
+										loading={true}
+										className="text-content-secondary -ml-1"
+									/>
+									<span>{agent.log_sources.length}</span>
+								</Badge>
+							)}
 						{healthIssues.length > 0 && (
 							<Badge variant="warning" size="xs" className="ml-1.5">
-								<TriangleAlertIcon />
+								<TriangleAlertIcon className="-ml-0.5" />
 								<span>{healthIssues.length}</span>
 							</Badge>
 						)}
