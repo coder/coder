@@ -283,13 +283,13 @@ func formatMissingSecrets(reqs []codersdk.SecretRequirementStatus) string {
 		if i > 0 {
 			_, _ = b.WriteString("\n")
 		}
-		switch req.Kind {
-		case codersdk.SecretRequirementKindEnv:
-			_, _ = fmt.Fprintf(&b, "%s %s", req.Kind, req.Env)
-		case codersdk.SecretRequirementKindFile:
-			_, _ = fmt.Fprintf(&b, "%s %s", req.Kind, req.File)
+		switch {
+		case req.Env != "" && req.File == "":
+			_, _ = fmt.Fprintf(&b, "env %s", req.Env)
+		case req.File != "" && req.Env == "":
+			_, _ = fmt.Fprintf(&b, "file %s", req.File)
 		default:
-			_, _ = fmt.Fprintf(&b, "%s", req.Kind)
+			_, _ = b.WriteString("invalid secret requirement")
 		}
 		if req.HelpMessage != "" {
 			_, _ = fmt.Fprintf(&b, ": %s", req.HelpMessage)

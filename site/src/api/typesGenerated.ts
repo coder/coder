@@ -6605,13 +6605,7 @@ export interface STUNReport {
 }
 
 // From codersdk/parameters.go
-export type SecretRequirementKind = "env" | "file";
-
-export const SecretRequirementKinds: SecretRequirementKind[] = ["env", "file"];
-
-// From codersdk/parameters.go
 export interface SecretRequirementStatus {
-	readonly kind: SecretRequirementKind;
 	readonly env?: string;
 	readonly file?: string;
 	readonly help_message: string;

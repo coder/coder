@@ -371,41 +371,39 @@ func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID u
 	}
 
 	statuses := make([]codersdk.SecretRequirementStatus, 0, len(reqs))
-	seen := make(map[string]int, len(reqs))
+	type secretRequirementDedupKey struct {
+		env  string
+		file string
+	}
+	seen := make(map[secretRequirementDedupKey]int, len(reqs))
 	for _, req := range reqs {
-		// Defensive: SecretFromBlock should reject this upstream.
-		if req.Env == "" && req.File == "" {
+		// Defensive: SecretFromBlock should reject invalid inputs upstream.
+		if (req.Env == "") == (req.File == "") {
 			continue
 		}
 
-		var kind codersdk.SecretRequirementKind
 		var env string
 		var file string
-		var value string
 		satisfied := false
 		switch {
 		case req.Env != "":
-			kind = codersdk.SecretRequirementKindEnv
 			env = req.Env
-			value = req.Env
 			_, satisfied = envSet[req.Env]
 		case req.File != "":
-			kind = codersdk.SecretRequirementKindFile
 			file = req.File
-			value = req.File
 			_, satisfied = fileSet[req.File]
 		}
 
-		// NUL cannot appear in valid env names or file paths.
-		const secretRequirementDedupSep = "\x00"
-
-		// Dedup by (Kind, Env/File). On collision, keep the
+		// Dedup by Env/File. On collision, keep the
 		// lexicographically smallest non-empty HelpMessage. This is
 		// deterministic across runs; preview's SortSecretRequirements
 		// sorts on (Env, File) and does not guarantee a stable order
 		// when multiple coder_secret blocks declare the same value, so
 		// we cannot rely on "first source wins."
-		key := string(kind) + secretRequirementDedupSep + value
+		key := secretRequirementDedupKey{
+			env:  env,
+			file: file,
+		}
 		if i, ok := seen[key]; ok {
 			statuses[i].Satisfied = statuses[i].Satisfied || satisfied
 			if req.HelpMessage != "" && (statuses[i].HelpMessage == "" || req.HelpMessage < statuses[i].HelpMessage) {
@@ -415,7 +413,6 @@ func (r *dynamicRenderer) checkSecretRequirements(ctx context.Context, ownerID u
 		}
 		seen[key] = len(statuses)
 		statuses = append(statuses, codersdk.SecretRequirementStatus{
-			Kind:        kind,
 			Env:         env,
 			File:        file,
 			HelpMessage: req.HelpMessage,

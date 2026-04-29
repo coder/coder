@@ -274,7 +274,6 @@ func TestResolveParameters(t *testing.T) {
 				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}).
 				Return(renderResultWithSecretRequirements(
 					[]codersdk.SecretRequirementStatus{{
-						Kind:        codersdk.SecretRequirementKindEnv,
 						Env:         "GITHUB_TOKEN",
 						HelpMessage: "Add a GitHub PAT",
 						Satisfied:   false,
@@ -309,7 +308,6 @@ func TestResolveParameters(t *testing.T) {
 				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}, gomock.Any()).
 				Return(renderResultWithSecretRequirements(
 					[]codersdk.SecretRequirementStatus{{
-						Kind:        codersdk.SecretRequirementKindEnv,
 						Env:         "GITHUB_TOKEN",
 						HelpMessage: "Add a GitHub PAT",
 						Satisfied:   false,
@@ -347,7 +345,6 @@ func TestResolveParameters(t *testing.T) {
 				Render(gomock.Any(), ownerID, map[string]string{"use_github": "true"}, gomock.Any()).
 				Return(renderResultWithSecretRequirements(
 					[]codersdk.SecretRequirementStatus{{
-						Kind:        codersdk.SecretRequirementKindEnv,
 						Env:         "GITHUB_TOKEN",
 						HelpMessage: "Add a GitHub PAT",
 						Satisfied:   false,

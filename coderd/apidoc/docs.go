@@ -19949,17 +19949,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.SecretRequirementKind": {
-            "type": "string",
-            "enum": [
-                "env",
-                "file"
-            ],
-            "x-enum-varnames": [
-                "SecretRequirementKindEnv",
-                "SecretRequirementKindFile"
-            ]
-        },
         "codersdk.SecretRequirementStatus": {
             "type": "object",
             "properties": {
@@ -19971,9 +19960,6 @@ const docTemplate = `{
                 },
                 "help_message": {
                     "type": "string"
-                },
-                "kind": {
-                    "$ref": "#/definitions/codersdk.SecretRequirementKind"
                 },
                 "satisfied": {
                     "type": "boolean"

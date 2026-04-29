@@ -408,7 +408,6 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			require.NotEqual(t, dynamicparameters.DiagCodeMissingSecret, diag.Extra.Code)
 		}
 		require.Equal(t, []codersdk.SecretRequirementStatus{{
-			Kind:        codersdk.SecretRequirementKindEnv,
 			Env:         "GITHUB_TOKEN",
 			HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 			Satisfied:   false,

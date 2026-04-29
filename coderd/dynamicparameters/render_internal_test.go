@@ -67,7 +67,6 @@ func TestDynamicRender_MissingSecretRequirement(t *testing.T) {
 	require.NotNil(t, out.Output)
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
-		Kind:        codersdk.SecretRequirementKindEnv,
 		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   false,
@@ -84,7 +83,6 @@ func TestDynamicRender_MissingSecretRequirement(t *testing.T) {
 	out, diags2 := renderer.Render(ctx, owner.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags2)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
-		Kind:        codersdk.SecretRequirementKindEnv,
 		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   true,
@@ -111,7 +109,6 @@ func TestDynamicRender_ConditionalSecretRequirement(t *testing.T) {
 	out, diags = renderer.Render(ctx, owner.ID, map[string]string{"use_github": "true"}, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
-		Kind:        codersdk.SecretRequirementKindEnv,
 		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT",
 		Satisfied:   false,
@@ -142,13 +139,11 @@ func TestDynamicRender_SingleSecretSatisfiesEnvAndFile(t *testing.T) {
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{
 		{
-			Kind:        codersdk.SecretRequirementKindFile,
 			File:        "~/.ssh/id_rsa",
 			HelpMessage: "needs file",
 			Satisfied:   true,
 		},
 		{
-			Kind:        codersdk.SecretRequirementKindEnv,
 			Env:         "GITHUB_TOKEN",
 			HelpMessage: "needs env",
 			Satisfied:   true,
@@ -179,13 +174,11 @@ func TestDynamicRender_PartialEnvAndFileSatisfaction(t *testing.T) {
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{
 		{
-			Kind:        codersdk.SecretRequirementKindFile,
 			File:        "~/.ssh/id_rsa",
 			HelpMessage: "needs file",
 			Satisfied:   false,
 		},
 		{
-			Kind:        codersdk.SecretRequirementKindEnv,
 			Env:         "GITHUB_TOKEN",
 			HelpMessage: "needs env",
 			Satisfied:   true,
@@ -215,7 +208,6 @@ func TestDynamicRender_OwnerSwitch(t *testing.T) {
 	out, diags := renderer.Render(ctx, ownerA.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
-		Kind:        codersdk.SecretRequirementKindEnv,
 		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   true,
@@ -225,7 +217,6 @@ func TestDynamicRender_OwnerSwitch(t *testing.T) {
 	out, diags = renderer.Render(ctx, ownerB.ID, nil, IncludeSecretRequirements())
 	requireNoMissingSecret(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
-		Kind:        codersdk.SecretRequirementKindEnv,
 		Env:         "GITHUB_TOKEN",
 		HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
 		Satisfied:   false,
@@ -250,7 +241,6 @@ func TestDynamicRender_DeduplicatesSecretRequirements(t *testing.T) {
 	statuses, diags := renderer.checkSecretRequirements(ctx, owner.ID, reqs)
 	require.Empty(t, diags)
 	require.Equal(t, []codersdk.SecretRequirementStatus{{
-		Kind:        codersdk.SecretRequirementKindEnv,
 		Env:         "GITHUB_TOKEN",
 		HelpMessage: "a help",
 		Satisfied:   false,

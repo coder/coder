@@ -170,19 +170,11 @@ type DynamicParametersRequest struct {
 	OwnerID uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
 }
 
-type SecretRequirementKind string
-
-const (
-	SecretRequirementKindEnv  SecretRequirementKind = "env"
-	SecretRequirementKindFile SecretRequirementKind = "file"
-)
-
 type SecretRequirementStatus struct {
-	Kind        SecretRequirementKind `json:"kind"`
-	Env         string                `json:"env,omitempty"`
-	File        string                `json:"file,omitempty"`
-	HelpMessage string                `json:"help_message"`
-	Satisfied   bool                  `json:"satisfied"`
+	Env         string `json:"env,omitempty"`
+	File        string `json:"file,omitempty"`
+	HelpMessage string `json:"help_message"`
+	Satisfied   bool   `json:"satisfied"`
 }
 
 type DynamicParametersResponse struct {

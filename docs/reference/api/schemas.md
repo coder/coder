@@ -4553,7 +4553,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "env": "string",
       "file": "string",
       "help_message": "string",
-      "kind": "env",
       "satisfied": true
     }
   ]
@@ -8881,20 +8880,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
 
-## codersdk.SecretRequirementKind
-
-```json
-"env"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)      |
-|---------------|
-| `env`, `file` |
-
 ## codersdk.SecretRequirementStatus
 
 ```json
@@ -8902,20 +8887,18 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "env": "string",
   "file": "string",
   "help_message": "string",
-  "kind": "env",
   "satisfied": true
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                             | Required | Restrictions | Description |
-|----------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `env`          | string                                                           | false    |              |             |
-| `file`         | string                                                           | false    |              |             |
-| `help_message` | string                                                           | false    |              |             |
-| `kind`         | [codersdk.SecretRequirementKind](#codersdksecretrequirementkind) | false    |              |             |
-| `satisfied`    | boolean                                                          | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `env`          | string  | false    |              |             |
+| `file`         | string  | false    |              |             |
+| `help_message` | string  | false    |              |             |
+| `satisfied`    | boolean | false    |              |             |
 
 ## codersdk.ServerSentEvent
 
