@@ -249,6 +249,9 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				result["updated_to_active_version"] = true
 				result["update_reason"] = "template requires active versions"
 				result["message"] = "Workspace started and was updated to the active template version because the template requires active versions."
+				if args.PresetID != "" {
+					result["preset_cleared_on_update"] = true
+				}
 			}
 
 			// Re-fire after the agent is fully ready so

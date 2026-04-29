@@ -3172,10 +3172,10 @@ func (api *API) chatCreateWorkspace(
 	return workspace, nil
 }
 
-// chatStartWorkspace starts a stopped workspace by creating a new
+// ChatStartWorkspace starts a stopped workspace by creating a new
 // build with the "start" transition. It mirrors chatCreateWorkspace
-// but for the start path.
-func (api *API) chatStartWorkspace(
+// but for the start path. Exported for use in tests.
+func (api *API) ChatStartWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	workspaceID uuid.UUID,
@@ -3208,11 +3208,11 @@ func (api *API) chatStartWorkspace(
 
 			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
 			req.TemplateVersionID = template.ActiveVersionID
-			// Clear any stale preset ID from the previous
-			// version. The wsbuilder will run
-			// FindMatchingPresetID against the new version's
-			// parameters if applicable.
-			req.TemplateVersionPresetID = uuid.Nil
+			if updatedToActiveVersion {
+				// Clear stale preset from previous version. wsbuilder will find a
+				// matching preset if needed.
+				req.TemplateVersionPresetID = uuid.Nil
+			}
 		}
 	}
 

@@ -473,6 +473,72 @@ func TestStartWorkspace(t *testing.T) {
 		require.Equal(t, true, result["updated_to_active_version"])
 		require.Equal(t, "template requires active versions", result["update_reason"])
 		require.Contains(t, result["message"], "updated to the active template version")
+		require.Nil(t, result["preset_cleared_on_update"], "preset_cleared_on_update must not appear when no preset was supplied")
+	})
+
+	t.Run("AutoUpdateClearsPreset", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-auto-update-clears-preset",
+		})
+		require.NoError(t, err)
+
+		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			require.Equal(t, ws.ID, wsID)
+			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStart,
+				BuildNumber: 2,
+			}).Do()
+			return codersdk.WorkspaceBuild{
+				ID:                buildResp.Build.ID,
+				TemplateVersionID: uuid.New(), // different from build's version → triggers auto-update branch
+			}, nil
+		}
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.ID,
+			ChatID:  chat.ID,
+			StartFn: startFn,
+			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, func() {}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		presetID := uuid.New()
+		input := fmt.Sprintf(`{"preset_id":%q}`, presetID.String())
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: input})
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, true, result["updated_to_active_version"])
+		require.Equal(t, true, result["preset_cleared_on_update"])
 	})
 
 	t.Run("PassesParameters", func(t *testing.T) {

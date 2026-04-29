@@ -12186,6 +12186,114 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 	})
 }
 
+// requireActiveVersionStore always returns RequireActiveVersion: true so
+// tests can exercise relevant code paths without an enterprise license.
+type requireActiveVersionStore struct{}
+
+func (requireActiveVersionStore) GetTemplateAccessControl(_ database.Template) dbauthz.TemplateAccessControl {
+	return dbauthz.TemplateAccessControl{RequireActiveVersion: true}
+}
+
+func (requireActiveVersionStore) SetTemplateAccessControl(_ context.Context, _ database.Store, _ uuid.UUID, _ dbauthz.TemplateAccessControl) error {
+	return nil
+}
+
+func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {
+	t.Parallel()
+
+	// test helper stands up an API using requireActiveVersionStore.
+	newAPI := func(t *testing.T) (*codersdk.Client, *coderd.API) {
+		t.Helper()
+		dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentAgents)}
+		})
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		var store dbauthz.AccessControlStore = requireActiveVersionStore{}
+		api.AccessControlStore.Store(&store)
+		return rawClient, api
+	}
+
+	t.Run("PresetClearedOnVersionUpdate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawClient, api := newAPI(t)
+		db := api.Database
+		user := coderdtest.CreateFirstUser(t, rawClient)
+
+		// Given: active template version v1 + workspace stopped on v1
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		tmplID := wsResp.Workspace.TemplateID
+		v1ID := wsResp.Build.TemplateVersionID
+
+		// Given: a new active version v2 is published
+		v2Resp := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tmplID, Valid: true},
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Do()
+		v2 := v2Resp.TemplateVersion
+		require.NotEqual(t, v1ID, v2.ID, "v2 must differ from v1")
+
+		// When: we pass a random preset_id that does not exist in the DB
+		build, err := api.ChatStartWorkspace(ctx, user.UserID, wsResp.Workspace.ID,
+			codersdk.CreateWorkspaceBuildRequest{
+				Transition:              codersdk.WorkspaceTransitionStart,
+				TemplateVersionPresetID: uuid.New(),
+			})
+
+		// Then: the build should be on the active version and the preset should be cleared
+		require.NoError(t, err)
+		require.Equal(t, v2.ID, build.TemplateVersionID, "build must be on the active version")
+		require.Nil(t, build.TemplateVersionPresetID, "preset must be cleared when version changed")
+	})
+
+	t.Run("PresetPreservedOnSameVersion", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawClient, api := newAPI(t)
+		db := api.Database
+		user := coderdtest.CreateFirstUser(t, rawClient)
+
+		// Given: active template version v1 + workspace stopped on v1
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		activeVersionID := wsResp.Build.TemplateVersionID
+
+		// Given: a preset exists for v1
+		preset := dbgen.Preset(t, db, database.InsertPresetParams{
+			ID:                uuid.New(),
+			TemplateVersionID: activeVersionID,
+			Name:              "test-preset",
+		})
+
+		// When: we start a workspace build on v1 with the requested preset ID
+		build, err := api.ChatStartWorkspace(ctx, user.UserID, wsResp.Workspace.ID,
+			codersdk.CreateWorkspaceBuildRequest{
+				Transition:              codersdk.WorkspaceTransitionStart,
+				TemplateVersionPresetID: preset.ID,
+			})
+
+		// Then: the build should be on the active version and the preset should be preserved
+		require.NoError(t, err)
+		require.Equal(t, activeVersionID, build.TemplateVersionID, "build must stay on active version")
+		require.NotNil(t, build.TemplateVersionPresetID, "preset must be preserved when version unchanged")
+		require.Equal(t, preset.ID, *build.TemplateVersionPresetID, "preset ID must match what was passed")
+	})
+}
+
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
 	t.Helper()
 
