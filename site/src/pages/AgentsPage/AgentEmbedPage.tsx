@@ -82,16 +82,8 @@ const applyEmbedTheme = (theme: ConcreteThemeName) => {
 	if (root.dataset.embedTheme === theme) {
 		return;
 	}
-	// Clear every possible theme class, not just light/dark, so switching
-	// between a colorblind variant and the base theme does not leave a
-	// stale class on the root.
 	root.classList.remove(...CONCRETE_THEMES);
 	root.classList.add(theme);
-	// Also apply the base mode class (`dark` or `light`) so Tailwind's
-	// `dark:` variant and any `.dark`/`.light` selector-based theming
-	// keep matching when a colorblind variant is active. The mode class
-	// is already part of `CONCRETE_THEMES`, so the clear above removes
-	// any stale value before we add the fresh one.
 	root.classList.add(baseModeFor(theme));
 	root.dataset.embedTheme = theme;
 };

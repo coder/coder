@@ -69,17 +69,10 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 			return;
 		}
 		root.classList.add(concreteName);
-		// Also apply the base mode class (`dark` or `light`) so Tailwind's
-		// `dark:` variant (configured as `darkMode: ["selector"]`) and any
-		// selector-based theming keyed on `.dark`/`.light` continue to match
-		// when a colorblind variant is the concrete theme.
 		root.classList.add(baseModeFor(concreteName));
 
 		return () => {
 			if (!root.dataset.embedTheme) {
-				// Remove every theme class we might have applied so switching
-				// between two concrete themes never leaves both classes on the
-				// root. This also removes the base mode class we added above.
 				root.classList.remove(...CONCRETE_THEMES);
 			}
 		};

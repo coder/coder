@@ -35,9 +35,6 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 
 export const DEFAULT_THEME = "dark";
 
-// Keep the keys of this object in sync with `CONCRETE_THEMES` in
-// `./colorblind.ts`. The `ConcreteThemeName` type and a test in
-// `colorblind.test.ts` enforce the invariant at build time.
 const theme = {
 	dark,
 	light,
