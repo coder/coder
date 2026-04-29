@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -66,7 +67,7 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
-	server := newActiveTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -149,7 +150,7 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	firstModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
 	secondModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
-	server := newActiveTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -230,7 +231,7 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 		},
 	)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -312,7 +313,7 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 		},
 	)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -381,6 +382,22 @@ type persistedResponsesMessage struct {
 	role               database.ChatMessageRole
 	parts              []codersdk.ChatMessagePart
 	providerResponseID string
+}
+
+func newOpenAIResponsesTestServer(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+) *chatd.Server {
+	t.Helper()
+	return newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		// Let CreateChat and SendMessage publish their pending status
+		// before wake-driven processing starts. The responses tests are
+		// not exercising periodic polling, and PostgreSQL can otherwise
+		// deliver that stale pending notification after processChat
+		// subscribes to control events.
+		cfg.PendingChatAcquireInterval = testutil.WaitLong
+	})
 }
 
 func insertOpenAIResponsesModelConfig(
