@@ -3613,9 +3613,7 @@ type ReportBoundaryLogsRequest struct {
 	// for all batches produced by a single boundary run.
 	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// confined_process is the name of the process that boundary is
-	// confining (e.g. "claude-code", "codex", "copilot"). Provided on
-	// every report so that coderd can lazily create boundary_sessions
-	// rows without requiring a separate registration RPC.
+	// confining (e.g. "claude-code", "codex", "copilot").
 	ConfinedProcess string `protobuf:"bytes,3,opt,name=confined_process,json=confinedProcess,proto3" json:"confined_process,omitempty"`
 }
 
