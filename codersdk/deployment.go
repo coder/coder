@@ -1194,6 +1194,13 @@ type RetentionConfig struct {
 	// Logs from the latest build are always retained regardless of age.
 	// Defaults to 7 days to preserve existing behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
+	// BoundaryLogs controls how long boundary audit log entries are
+	// retained. Boundary logs record every HTTP request processed by
+	// a Boundary confinement proxy. Set to 0 to disable automatic
+	// deletion (keep indefinitely). The default of 90 days aligns
+	// with common compliance retention windows (e.g. SOC 2, GDPR);
+	// adjust to match your organization's requirements.
+	BoundaryLogs serpent.Duration `json:"boundary_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -4701,6 +4708,17 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "7d",
 			Group:       &deploymentGroupRetention,
 			YAML:        "workspace_agent_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Boundary Log Retention",
+			Description: "How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). The default of 90 days aligns with common compliance retention windows (e.g. SOC 2, GDPR); adjust to match your organization's requirements.",
+			Flag:        "boundary-log-retention",
+			Env:         "CODER_BOUNDARY_LOG_RETENTION",
+			Value:       &c.Retention.BoundaryLogs,
+			Default:     "2160h",
+			Group:       &deploymentGroupRetention,
+			YAML:        "boundary_logs",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
