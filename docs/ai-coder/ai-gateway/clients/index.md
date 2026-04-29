@@ -144,6 +144,8 @@ For base URL setup, the client machine must have network access to the AI Gatewa
 
 Users can generate a long-lived API token from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
+For headless scenarios, first [create a service account](../../../admin/users/headless-auth.md#create-a-service-account), then generate a long-lived token for it.
+
 <details>
 <summary>Example</summary>
 For clients supporting [base URL](#base-urls), eg. [Claude Code](./claude-code.md):
