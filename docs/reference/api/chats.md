@@ -13,6 +13,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats \
 
 `GET /experimental/chats`
 
+Experimental: this endpoint is subject to change.
+
 ### Parameters
 
 | Name    | In    | Type   | Required | Description                                                    |
@@ -283,6 +285,8 @@ curl -X POST http://coder-server:8080/api/v2/experimental/chats \
 ```
 
 `POST /experimental/chats`
+
+Experimental: this endpoint is subject to change.
 
 > Body parameter
 
@@ -600,6 +604,8 @@ curl -X POST http://coder-server:8080/api/v2/experimental/chats/files?organizati
 
 `POST /experimental/chats/files`
 
+Experimental: this endpoint is subject to change.
+
 ### Parameters
 
 | Name           | In     | Type         | Required | Description     |
@@ -637,6 +643,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/files/{file} \
 
 `GET /experimental/chats/files/{file}`
 
+Experimental: this endpoint is subject to change.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -663,6 +671,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/watch \
 ```
 
 `GET /experimental/chats/watch`
+
+Experimental: this endpoint is subject to change.
 
 ### Example responses
 
@@ -823,6 +833,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat} \
 ```
 
 `GET /experimental/chats/{chat}`
+
+Experimental: this endpoint is subject to change.
 
 ### Parameters
 
@@ -1099,6 +1111,8 @@ curl -X PATCH http://coder-server:8080/api/v2/experimental/chats/{chat} \
 
 `PATCH /experimental/chats/{chat}`
 
+Experimental: this endpoint is subject to change.
+
 > Body parameter
 
 ```json
@@ -1143,6 +1157,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/diff \
 
 `GET /experimental/chats/{chat}/diff`
 
+Experimental: this endpoint is subject to change.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -1184,6 +1200,8 @@ curl -X POST http://coder-server:8080/api/v2/experimental/chats/{chat}/interrupt
 
 `POST /experimental/chats/{chat}/interrupt`
 
+Experimental: this endpoint is subject to change.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -1210,6 +1228,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/messages \
 ```
 
 `GET /experimental/chats/{chat}/messages`
+
+Experimental: this endpoint is subject to change.
 
 ### Parameters
 
@@ -1392,6 +1412,8 @@ curl -X POST http://coder-server:8080/api/v2/experimental/chats/{chat}/messages 
 ```
 
 `POST /experimental/chats/{chat}/messages`
+
+Experimental: this endpoint is subject to change.
 
 > Body parameter
 
@@ -1596,6 +1618,8 @@ curl -X PATCH http://coder-server:8080/api/v2/experimental/chats/{chat}/messages
 
 `PATCH /experimental/chats/{chat}/messages/{message}`
 
+Experimental: this endpoint is subject to change.
+
 > Body parameter
 
 ```json
@@ -1728,6 +1752,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/stream \
 ```
 
 `GET /experimental/chats/{chat}/stream`
+
+Experimental: this endpoint is subject to change.
 
 ### Parameters
 
@@ -2101,6 +2127,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/stream/des
 
 `GET /experimental/chats/{chat}/stream/desktop`
 
+Experimental: this endpoint is subject to change.
+
 ### Parameters
 
 | Name   | In   | Type         | Required | Description |
@@ -2127,6 +2155,8 @@ curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/stream/git
 ```
 
 `GET /experimental/chats/{chat}/stream/git`
+
+Experimental: this endpoint is subject to change.
 
 ### Parameters
 
@@ -2175,6 +2205,8 @@ curl -X POST http://coder-server:8080/api/v2/experimental/chats/{chat}/title/reg
 ```
 
 `POST /experimental/chats/{chat}/title/regenerate`
+
+Experimental: this endpoint is subject to change.
 
 ### Parameters
 

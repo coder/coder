@@ -167,6 +167,7 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 // @Produce json
 // @Success 200 {object} codersdk.ChatWatchEvent
 // @Router /experimental/chats/watch [get]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -313,6 +314,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /experimental/chats [get]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -619,6 +621,7 @@ func (api *API) upsertChatAgentModelOverrideConfig(
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
 // @Router /experimental/chats [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -1664,6 +1667,7 @@ func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
 // @Router /experimental/chats/{chat} [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
@@ -1740,6 +1744,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page size, 1 to 200. Defaults to 50."
 // @Success 200 {object} codersdk.ChatMessagesResponse
 // @Router /experimental/chats/{chat}/messages [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
@@ -1892,6 +1897,7 @@ func (api *API) authorizeChatWorkspaceExec(
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentGitServerMessage
 // @Router /experimental/chats/{chat}/stream/git [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
@@ -2046,6 +2052,7 @@ proxyLoop:
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 101
 // @Router /experimental/chats/{chat}/stream/desktop [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
@@ -2236,6 +2243,7 @@ func (api *API) applyChatTitleUpdate(
 // @Param request body codersdk.UpdateChatRequest true "Update chat request"
 // @Success 204
 // @Router /experimental/chats/{chat} [patch]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -2545,6 +2553,7 @@ func (api *API) writeChildUnarchiveGuard(
 // @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
 // @Success 201 {object} codersdk.CreateChatMessageResponse
 // @Router /experimental/chats/{chat}/messages [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -2729,6 +2738,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.EditChatMessageRequest true "Edit chat message request"
 // @Success 200 {object} codersdk.EditChatMessageResponse
 // @Router /experimental/chats/{chat}/messages/{message} [patch]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -2966,6 +2976,7 @@ func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /experimental/chats/{chat}/stream [get]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3109,6 +3120,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 204
 // @Router /experimental/chats/{chat}/interrupt [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3150,6 +3162,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
 // @Router /experimental/chats/{chat}/title/regenerate [post]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
@@ -3245,6 +3258,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatDiffContents
 // @Router /experimental/chats/{chat}/diff [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
@@ -4935,6 +4949,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Param Content-Type header string true "File MIME type"
 // @Success 201 {object} codersdk.UploadChatFileResponse
 // @Router /experimental/chats/files [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -5071,6 +5086,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
 // @Router /experimental/chats/files/{file} [get]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

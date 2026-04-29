@@ -1106,6 +1106,7 @@
 		},
 		"/experimental/chats": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "List chats",
@@ -1142,6 +1143,7 @@
 				]
 			},
 			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -1229,6 +1231,7 @@
 		},
 		"/experimental/chats/files": {
 			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"consumes": [
 					"image/png",
 					"image/jpeg",
@@ -1278,6 +1281,7 @@
 		},
 		"/experimental/chats/files/{file}": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/octet-stream"],
 				"tags": ["Chats"],
 				"summary": "Get chat file",
@@ -1306,6 +1310,7 @@
 		},
 		"/experimental/chats/watch": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Watch chat events for a user via WebSockets",
@@ -1327,6 +1332,7 @@
 		},
 		"/experimental/chats/{chat}": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat by ID",
@@ -1356,6 +1362,7 @@
 				]
 			},
 			"patch": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"consumes": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat",
@@ -1393,6 +1400,7 @@
 		},
 		"/experimental/chats/{chat}/diff": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Get chat diff contents",
@@ -1424,6 +1432,7 @@
 		},
 		"/experimental/chats/{chat}/interrupt": {
 			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"tags": ["Chats"],
 				"summary": "Interrupt chat",
 				"operationId": "interrupt-chat",
@@ -1451,6 +1460,7 @@
 		},
 		"/experimental/chats/{chat}/messages": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "List chat messages",
@@ -1498,6 +1508,7 @@
 				]
 			},
 			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -1539,6 +1550,7 @@
 		},
 		"/experimental/chats/{chat}/messages/{message}": {
 			"patch": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Chats"],
@@ -1587,6 +1599,7 @@
 		},
 		"/experimental/chats/{chat}/stream": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Stream chat events via WebSockets",
@@ -1621,6 +1634,7 @@
 		},
 		"/experimental/chats/{chat}/stream/desktop": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/octet-stream"],
 				"tags": ["Chats"],
 				"summary": "Connect to chat workspace desktop via WebSockets",
@@ -1649,6 +1663,7 @@
 		},
 		"/experimental/chats/{chat}/stream/git": {
 			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Watch chat workspace git state via WebSockets",
@@ -1680,6 +1695,7 @@
 		},
 		"/experimental/chats/{chat}/title/regenerate": {
 			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Regenerate chat title",

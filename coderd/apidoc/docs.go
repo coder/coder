@@ -1269,6 +1269,7 @@ const docTemplate = `{
         },
         "/experimental/chats": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
@@ -1309,6 +1310,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1410,6 +1412,7 @@ const docTemplate = `{
         },
         "/experimental/chats/files": {
             "post": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "consumes": [
                     "image/png",
                     "image/jpeg",
@@ -1463,6 +1466,7 @@ const docTemplate = `{
         },
         "/experimental/chats/files/{file}": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/octet-stream"
                 ],
@@ -1495,6 +1499,7 @@ const docTemplate = `{
         },
         "/experimental/chats/watch": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
@@ -1520,6 +1525,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
@@ -1553,6 +1559,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1594,6 +1601,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/diff": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
@@ -1629,6 +1637,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/interrupt": {
             "post": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "tags": [
                     "Chats"
                 ],
@@ -1658,6 +1667,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/messages": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
@@ -1709,6 +1719,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1756,6 +1767,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/messages/{message}": {
             "patch": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1810,6 +1822,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/stream": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
@@ -1848,6 +1861,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/stream/desktop": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/octet-stream"
                 ],
@@ -1880,6 +1894,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/stream/git": {
             "get": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],
@@ -1915,6 +1930,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/title/regenerate": {
             "post": {
+                "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
                     "application/json"
                 ],

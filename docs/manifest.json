@@ -1491,7 +1491,8 @@
 						},
 						{
 							"title": "Chats",
-							"path": "./reference/api/chats.md"
+							"path": "./reference/api/chats.md",
+							"state": ["experimental"]
 						},
 						{
 							"title": "Debug",
