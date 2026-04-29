@@ -89,6 +89,15 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceBoundaryLog
+	// Valid Actions
+	//  - "ActionCreate" :: persist boundary audit logs reported by the workspace agent
+	//  - "ActionDelete" :: delete boundary audit logs past the retention period
+	//  - "ActionRead" :: read boundary audit logs and session metadata
+	ResourceBoundaryLog = Object{
+		Type: "boundary_log",
+	}
+
 	// ResourceBoundaryUsage
 	// Valid Actions
 	//  - "ActionDelete" :: delete boundary usage statistics
@@ -467,6 +476,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
 		ResourceConnectionLog,

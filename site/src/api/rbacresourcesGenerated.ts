@@ -50,6 +50,11 @@ export const RBACResourceActions: Partial<
 		create: "create new audit log entries",
 		read: "read audit logs",
 	},
+	boundary_log: {
+		create: "persist boundary audit logs reported by the workspace agent",
+		delete: "delete boundary audit logs past the retention period",
+		read: "read boundary audit logs and session metadata",
+	},
 	boundary_usage: {
 		delete: "delete boundary usage statistics",
 		read: "read boundary usage statistics",

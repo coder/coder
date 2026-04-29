@@ -242,7 +242,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_provider:create',
     'ai_provider:delete',
     'ai_provider:read',
-    'ai_provider:update'
+    'ai_provider:update',
+    'boundary_log:*',
+    'boundary_log:create',
+    'boundary_log:delete',
+    'boundary_log:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

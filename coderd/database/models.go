@@ -311,6 +311,10 @@ const (
 	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
 	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
 	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
+	ApiKeyScopeBoundaryLog                         APIKeyScope = "boundary_log:*"
+	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
+	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
+	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -565,7 +569,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAiProviderCreate,
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
-		ApiKeyScopeAiProviderUpdate:
+		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead:
 		return true
 	}
 	return false
@@ -789,6 +797,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
 		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
 	}
 }
 
