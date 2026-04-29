@@ -516,6 +516,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mark3labs/mcp-go v0.38.0
+	github.com/nats-io/nats.go v1.51.0
 	github.com/openai/openai-go/v3 v3.28.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/smallstep/pkcs7 v0.2.1
@@ -612,6 +613,8 @@ require (
 	github.com/moby/moby/api v1.54.0 // indirect
 	github.com/moby/moby/client v0.3.0 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
+	github.com/nats-io/nkeys v0.4.15 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
