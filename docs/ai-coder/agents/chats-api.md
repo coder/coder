@@ -200,13 +200,14 @@ indicator without polling.
 
 Each event is a JSON object with `kind` and `chat` fields:
 
-| Kind                 | Description                      |
-|----------------------|----------------------------------|
-| `created`            | A new chat was created.          |
-| `status_change`      | A chat's status changed.         |
-| `title_change`       | A chat's title was updated.      |
-| `diff_status_change` | A chat's diff/PR status changed. |
-| `deleted`            | A chat was deleted.              |
+| Kind                 | Description                          |
+|----------------------|--------------------------------------|
+| `created`            | A new chat was created.              |
+| `status_change`      | A chat's status changed.             |
+| `title_change`       | A chat's title was updated.          |
+| `diff_status_change` | A chat's diff/PR status changed.     |
+| `action_required`    | A chat is waiting for a tool result. |
+| `deleted`            | A chat was deleted.                  |
 
 ### List chats
 
@@ -333,8 +334,10 @@ The response contains an `id` you can reference as `file_id` in a
 `ChatInputPart` with `"type": "file"`. To retrieve a previously uploaded
 file, use `GET /api/experimental/chats/files/{file}`.
 
-Supported formats: PNG, JPEG, GIF, WebP (up to 10 MB). The server
-validates actual file content regardless of the declared `Content-Type`.
+Supported formats: PNG, JPEG, GIF, WebP, plus `text/plain`, `text/markdown`,
+`text/csv`, `application/json`, and `application/pdf` (up to 10 MB). The
+server validates actual file content regardless of the declared
+`Content-Type`.
 
 Files referenced in messages are automatically linked to the chat and
 appear in the `files` field on subsequent
@@ -347,8 +350,6 @@ appear in the `files` field on subsequent
 | `waiting`         | Idle. Newly created, finished successfully, or interrupted.                  |
 | `pending`         | Queued for processing.                                                       |
 | `running`         | Agent is actively working.                                                   |
-| `paused`          | Agent is paused (for example, waiting for user input).                       |
-| `completed`       | Agent finished and the task is complete.                                     |
 | `error`           | Agent encountered an error.                                                  |
 | `requires_action` | Agent invoked a client-provided tool and needs the result before continuing. |
 
@@ -363,13 +364,13 @@ deployment-admin privileges.
 Chats whose newest non-deleted message is older than
 `auto_archive_days` are automatically archived by a background job.
 Pinned chats and chats belonging to a still-active thread are
-exempt. `0` disables the feature; the default is 90.
+exempt. `0` disables the feature, which is the default.
 
 ```sh
 # Read
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   https://coder.example.com/api/experimental/chats/config/auto-archive-days
-# { "auto_archive_days": 90 }
+# { "auto_archive_days": 0 }
 
 # Update
 curl -X PUT -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
