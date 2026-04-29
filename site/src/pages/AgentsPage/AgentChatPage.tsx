@@ -231,16 +231,18 @@ export const runPromoteQueuedMessage = async (params: {
 		handleUsageLimitError,
 	} = params;
 	const previousSnapshot = store.getSnapshot();
-	store.suppressQueuedMessageID(id);
-	store.setQueuedMessages(
-		previousSnapshot.queuedMessages.filter((message) => message.id !== id),
-	);
-	store.clearStreamState();
+	store.batch(() => {
+		store.suppressQueuedMessageID(id);
+		store.setQueuedMessages(
+			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
+		);
+		store.clearStreamState();
+		store.clearStreamError();
+		store.setChatStatus("pending");
+	});
 	if (agentId) {
 		clearChatErrorReason(agentId);
 	}
-	store.clearStreamError();
-	store.setChatStatus("pending");
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {

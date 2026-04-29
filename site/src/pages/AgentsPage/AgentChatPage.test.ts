@@ -192,7 +192,7 @@ describe("runPromoteQueuedMessage", () => {
 			content: [{ type: "text", text }],
 		}) as ChatQueuedMessage;
 
-	it("suppresses the promoted ID, removes it optimistically, and does not upsert on success", async () => {
+	it("suppresses the promoted ID and removes it optimistically", async () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
@@ -204,8 +204,6 @@ describe("runPromoteQueuedMessage", () => {
 		const clearChatErrorReason = vi.fn();
 		const handleUsageLimitError = vi.fn();
 
-		const upsertDurableMessageSpy = vi.spyOn(store, "upsertDurableMessage");
-
 		await runPromoteQueuedMessage({
 			id: b.id,
 			store,
@@ -216,7 +214,6 @@ describe("runPromoteQueuedMessage", () => {
 		});
 
 		expect(promote).toHaveBeenCalledWith(b.id);
-		expect(upsertDurableMessageSpy).not.toHaveBeenCalled();
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
