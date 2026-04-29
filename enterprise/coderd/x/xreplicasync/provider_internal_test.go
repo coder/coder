@@ -28,11 +28,12 @@ type fakeReplicaSource struct {
 	mu       sync.Mutex
 	id       uuid.UUID
 	replicas []database.Replica
-	cb       func()
+	cbs      map[uint64]func()
+	nextID   uint64
 }
 
 func newFakeSource(id uuid.UUID, replicas []database.Replica) *fakeReplicaSource {
-	return &fakeReplicaSource{id: id, replicas: replicas}
+	return &fakeReplicaSource{id: id, replicas: replicas, cbs: map[uint64]func(){}}
 }
 
 func (f *fakeReplicaSource) ID() uuid.UUID {
@@ -49,25 +50,48 @@ func (f *fakeReplicaSource) Regional() []database.Replica {
 	return out
 }
 
-func (f *fakeReplicaSource) SetCallback(cb func()) {
+// AddCallback matches the production ReplicaSource contract: it stores
+// the callback under a unique ID and returns an idempotent remove
+// function. Unlike the real Manager, it does NOT auto-fire on add so
+// tests can drive callbacks via Trigger explicitly.
+func (f *fakeReplicaSource) AddCallback(cb func()) func() {
+	f.mu.Lock()
+	if f.cbs == nil {
+		f.cbs = map[uint64]func(){}
+	}
+	id := f.nextID
+	f.nextID++
+	f.cbs[id] = cb
+	f.mu.Unlock()
+	return func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		delete(f.cbs, id)
+	}
+}
+
+// CallbackCount reports how many callbacks are currently registered.
+// Tests use this to assert that Close detaches the provider's callback.
+func (f *fakeReplicaSource) CallbackCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.cb = cb
+	return len(f.cbs)
 }
 
 func (f *fakeReplicaSource) SetReplicas(replicas []database.Replica) {
 	f.mu.Lock()
 	f.replicas = replicas
-	cb := f.cb
 	f.mu.Unlock()
-	_ = cb
 }
 
 func (f *fakeReplicaSource) Trigger() {
 	f.mu.Lock()
-	cb := f.cb
+	cbs := make([]func(), 0, len(f.cbs))
+	for _, cb := range f.cbs {
+		cbs = append(cbs, cb)
+	}
 	f.mu.Unlock()
-	if cb != nil {
+	for _, cb := range cbs {
 		cb()
 	}
 }
@@ -359,6 +383,30 @@ func TestProvider_CloseIdempotent(t *testing.T) {
 	require.NoError(t, p2.startWithRefresher(ctx, r))
 	require.NoError(t, p2.Close())
 	require.NoError(t, p2.Close())
+}
+
+func TestProvider_CloseDetachesCallback(t *testing.T) {
+	t.Parallel()
+	ctx := muxtestutil.Context(t, muxtestutil.WaitShort)
+	self := uuid.New()
+	other := uuid.New()
+	src := newFakeSource(self, []database.Replica{mkReplica(other, "host-a", true)})
+	p, _ := newTestProvider(t, src)
+	r := newFakeRefresher(8)
+	require.NoError(t, p.startWithRefresher(ctx, r))
+
+	require.Equal(t, 1, src.CallbackCount(), "provider should register exactly one callback")
+
+	src.Trigger()
+	mustWaitCall(ctx, t, r.calls)
+
+	require.NoError(t, p.Close())
+	require.Equal(t, 0, src.CallbackCount(), "Close must detach the provider callback")
+
+	// Subsequent triggers must not produce refresh calls because the
+	// callback is detached and the worker has exited.
+	src.Trigger()
+	mustNotWaitCall(t, r.calls, 50*time.Millisecond)
 }
 
 func TestProvider_StartRequiresPubsub(t *testing.T) {

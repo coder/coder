@@ -780,6 +780,11 @@ type API struct {
 
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
+	// replicaCallbackRemove detaches the most recent callback registered
+	// on replicaManager from updateEntitlements. Access is serialized by
+	// the entitlements update semaphore (see Set.Update); we never touch
+	// this field outside the entitlements fetch closure.
+	replicaCallbackRemove func()
 	// Meshes DERP connections from multiple replicas.
 	derpMesh *derpmesh.Mesh
 	// ProxyHealth checks the reachability of all workspace proxies.
@@ -959,7 +964,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					coordinator = haCoordinator
 				}
 
-				api.replicaManager.SetCallback(func() {
+				// Replace any previously-registered replica callback so we
+				// don't accumulate stale subscribers across HA toggles.
+				if api.replicaCallbackRemove != nil {
+					api.replicaCallbackRemove()
+					api.replicaCallbackRemove = nil
+				}
+				api.replicaCallbackRemove = api.replicaManager.AddCallback(func() {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
@@ -979,7 +990,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
-				api.replicaManager.SetCallback(func() {
+				if api.replicaCallbackRemove != nil {
+					api.replicaCallbackRemove()
+					api.replicaCallbackRemove = nil
+				}
+				api.replicaCallbackRemove = api.replicaManager.AddCallback(func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
 					_ = api.updateEntitlements(api.ctx)
