@@ -91,7 +91,11 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				)}
 			</NavLink>
 
-			<NavItems className="ml-4" user={user} canCreateChat={canCreateChat} />
+			<NavItems
+				className="ml-4 hidden md:flex"
+				user={user}
+				canCreateChat={canCreateChat}
+			/>
 
 			{prerelease && buildInfo?.version && (
 				<a
