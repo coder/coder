@@ -140,7 +140,7 @@ resource "coder_agent" "dev" {
 
 You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Gateway. Use the same settings as the in-workspace case, configure the [base URL](#base-urls) and authenticate with a Coder API token.
 
-For base URL setup, the client machine must have network access to the AI Gateway endpoint on your Coder deployment. Clients using [AI Gateway Proxy](../ai-gateway-proxy/index.md) must be able reach the proxy endpoint and trust its CA certificate.
+For base URL setup, the client machine must have network access to the AI Gateway endpoint on your Coder deployment. Clients using [AI Gateway Proxy](../ai-gateway-proxy/index.md) must be able to reach the proxy endpoint and trust its CA certificate.
 
 Users can generate a long-lived API token from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
