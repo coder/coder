@@ -18,13 +18,13 @@ import {
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	type ChatStore,
 	selectChatStatus,
 	selectHasStreamState,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
 	useChatSelector,
-	type useChatStore,
 } from "./ChatConversation/chatStore";
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
@@ -35,7 +35,7 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+type ChatStoreHandle = ChatStore;
 
 const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,

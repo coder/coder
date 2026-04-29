@@ -26,7 +26,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
-import type { useChatStore } from "./components/ChatConversation/chatStore";
+import type { ChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
@@ -44,7 +44,7 @@ import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+type ChatStoreHandle = ChatStore;
 
 // Re-use the inner presentational components directly. They are
 

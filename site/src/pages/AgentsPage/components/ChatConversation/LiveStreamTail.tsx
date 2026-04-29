@@ -7,6 +7,7 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import {
+	type ChatStore,
 	selectIsAwaitingFirstStreamChunk,
 	selectReconnectState,
 	selectRetryState,
@@ -14,7 +15,6 @@ import {
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatSelector,
-	type useChatStore,
 } from "./chatStore";
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
 import { StreamingOutput } from "./StreamingOutput";
@@ -28,7 +28,7 @@ const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "reconnecting" ||
 	liveStatus.hasAccumulatedOutput;
 
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+type ChatStoreHandle = ChatStore;
 
 interface LiveStreamTailContentProps {
 	isTranscriptEmpty: boolean;

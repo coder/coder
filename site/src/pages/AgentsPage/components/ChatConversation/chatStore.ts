@@ -607,5 +607,3 @@ export const useChatSelector = <T>(
 	const getSnapshot = () => selector(store.getSnapshot());
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };
-
-export { useChatStore } from "./useChatStore";
