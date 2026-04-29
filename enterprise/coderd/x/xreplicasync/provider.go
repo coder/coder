@@ -243,8 +243,8 @@ func (p *Provider) handleSignal(ctx context.Context, refresher pubsubRefresher) 
 			p.mu.Unlock()
 			return
 		}
-		if errors.Is(err, nats.ErrStandalone) {
-			p.logger.Warn(ctx, "xreplicasync: pubsub is standalone, refresh is terminal for this signal", slog.Error(err))
+		if errors.Is(err, nats.ErrNoEmbeddedServer) {
+			p.logger.Warn(ctx, "xreplicasync: pubsub has no embedded server, refresh is terminal for this signal", slog.Error(err))
 			return
 		}
 		p.logger.Error(ctx, "xreplicasync: refresh peers", slog.Error(err))

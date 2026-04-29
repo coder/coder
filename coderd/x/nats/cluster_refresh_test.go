@@ -233,26 +233,49 @@ func TestPubsubRefreshPeers_NoOp_DifferentOrder(t *testing.T) {
 	require.Equal(t, 2, len(a.currentRoutes))
 }
 
-func TestPubsubRefreshPeers_Standalone_NilProvider(t *testing.T) {
+func TestPubsubRefreshPeers_NilProvider_ConfigError(t *testing.T) {
 	t.Parallel()
-	p := newStandalonePubsub(t, Options{})
+	// New with no PeerProvider: server is up (cluster of 1), but
+	// RefreshPeers cannot do anything because there is no provider to
+	// query. Returns a config error, NOT ErrNoEmbeddedServer.
+	p := newSoloPubsub(t, Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	err := p.RefreshPeers(ctx)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrStandalone))
+	require.False(t, errors.Is(err, ErrNoEmbeddedServer))
+	require.Contains(t, err.Error(), "no PeerProvider")
 }
 
-func TestPubsubRefreshPeers_Standalone_ZeroPeers(t *testing.T) {
+func TestPubsubRefreshPeers_ZeroPeers_NoOp(t *testing.T) {
 	t.Parallel()
-	p := newStandalonePubsub(t, Options{
+	// New with a PeerProvider that returns zero peers: cluster of 1.
+	// RefreshPeers must succeed (no-op): empty currentRoutes ==
+	// empty refreshed set, no ReloadOptions call needed.
+	p := newSoloPubsub(t, Options{
 		PeerProvider: StaticPeerProvider(nil),
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	err := p.RefreshPeers(ctx)
+	require.NoError(t, p.RefreshPeers(ctx))
+	require.Empty(t, p.currentRoutes)
+}
+
+func TestPubsubRefreshPeers_NewFromConn_NoEmbeddedServer(t *testing.T) {
+	t.Parallel()
+	// NewFromConn does not own a server. RefreshPeers must return
+	// ErrNoEmbeddedServer regardless of whether a provider could
+	// theoretically be wired in.
+	host := newSoloPubsub(t, Options{})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	p, err := NewFromConn(logger, host.nc)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = p.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	err = p.RefreshPeers(ctx)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrStandalone))
+	require.True(t, errors.Is(err, ErrNoEmbeddedServer))
 }
 
 func TestPubsubRefreshPeers_TLSAndToken(t *testing.T) {
@@ -269,7 +292,7 @@ func TestPubsubRefreshPeers_TLSAndToken(t *testing.T) {
 		}
 	}
 
-	token := "tls-refresh-token"
+	token := "tls-refresh-token" //nolint:gosec // test-only shared cluster token, not a real credential
 	portA := freePort(t)
 	portB := freePort(t)
 	portC := freePort(t)
