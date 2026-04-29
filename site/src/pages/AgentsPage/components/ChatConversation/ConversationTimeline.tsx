@@ -456,6 +456,7 @@ export const BlockList: FC<{
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
+	anchorMessageId?: number;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -484,6 +485,7 @@ const ChatMessageItem = memo<{
 	({
 		message,
 		parsed,
+		anchorMessageId,
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
@@ -529,6 +531,12 @@ const ChatMessageItem = memo<{
 					isAfterEditingMessage && "opacity-40 pointer-events-none",
 					"group/msg relative transition-opacity duration-200",
 				)}
+				data-chat-message-anchor={
+					anchorMessageId === undefined ? undefined : ""
+				}
+				data-chat-message-id={
+					anchorMessageId === undefined ? undefined : String(anchorMessageId)
+				}
 			>
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
@@ -640,6 +648,7 @@ const ChatMessageItem = memo<{
 const StickyUserMessage = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
+	anchorMessageId?: number;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -651,6 +660,7 @@ const StickyUserMessage = memo<{
 	({
 		message,
 		parsed,
+		anchorMessageId,
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
@@ -866,6 +876,14 @@ const StickyUserMessage = memo<{
 						className={
 							isStuck && !isTooTall ? undefined : "pointer-events-auto"
 						}
+						data-chat-message-anchor={
+							anchorMessageId === undefined ? undefined : ""
+						}
+						data-chat-message-id={
+							anchorMessageId === undefined
+								? undefined
+								: String(anchorMessageId)
+						}
 						style={
 							isStuck && !isTooTall
 								? { opacity: "calc(1 - var(--overlay-ready, 0))" }
@@ -1057,6 +1075,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									key={message.id}
 									message={message}
 									parsed={parsed}
+									anchorMessageId={message.id}
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
@@ -1072,6 +1091,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								key={message.id}
 								message={message}
 								parsed={parsed}
+								anchorMessageId={message.id}
 								onImplementPlan={onImplementPlan}
 								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 								isChatCompleted={isChatCompleted}
