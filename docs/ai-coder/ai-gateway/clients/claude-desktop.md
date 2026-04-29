@@ -1,77 +1,78 @@
 # Claude Desktop
 
-Claude Desktop (Cowork and Code tabs) can route all model inference through
-AI Gateway using its third-party inference mode. This mode is configured via
-the built-in setup UI or through MDM for fleet-wide deployment.
+Claude Desktop's Code tab runs the Claude Code engine and makes API calls to
+`api.anthropic.com`. [AI Gateway Proxy](../ai-gateway-proxy/index.md)
+intercepts this traffic transparently, so users keep their normal Anthropic
+login, conversation history, and the full Claude Desktop experience (Chat,
+Cowork, and Code tabs) while AI Gateway provides governance and observability.
 
-> [!NOTE]
-> Cowork on third-party platforms is a
-> [Research Preview](https://claude.com/docs/cowork/3p/overview).
-> Features and configuration keys may change.
+To use Claude Desktop with AI Gateway, make sure AI Gateway Proxy is
+configured. See [AI Gateway Proxy Setup](../ai-gateway-proxy/setup.md) for
+instructions.
+
+For general client configuration requirements, see
+[AI Gateway Proxy Client Configuration](../ai-gateway-proxy/setup.md#client-configuration).
 
 ## Prerequisites
 
 - Claude Desktop installed ([download](https://claude.com/download))
-- A **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway
+- [AI Gateway Proxy](../ai-gateway-proxy/setup.md) enabled on your Coder
+  deployment
+- A **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**
+  for authentication with AI Gateway
 
-## Centralized API Key
+## Proxy configuration
 
-### Single-machine setup (Developer Mode)
+Claude Desktop respects system proxy settings. Configure the proxy so that
+traffic to `api.anthropic.com` is routed through AI Gateway Proxy.
 
-1. Open Claude Desktop (you do not need to sign in).
-1. Go to **Help** > **Troubleshooting** > **Enable Developer Mode**.
-1. Go to **Developer** > **Configure Third-Party Inference**.
-1. In the **Connection** section, configure:
-   - **Inference provider**: Select **Gateway (Anthropic-compatible)**.
-   - **Gateway base URL**: Enter
-     `https://coder.example.com/api/v2/aibridge/anthropic`.
-   - **Gateway auth scheme**: Leave as **bearer**.
-   - **Gateway API key**: Enter your
-     **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
-1. In the **Models** section, add the models you want to use
-   (for example `claude-sonnet-4-6`, `claude-opus-4-7`).
-1. Click **Apply locally**, then quit and reopen Claude Desktop.
-1. On the sign-in screen, choose **Continue with Gateway**.
+### Environment variable
 
-### MDM deployment
-
-For fleet-wide rollout, distribute a managed configuration profile via
-Jamf, Intune, or Group Policy. The key fields are:
-
-```json
-{
-  "inferenceProvider": "gateway",
-  "inferenceGatewayBaseUrl": "https://coder.example.com/api/v2/aibridge/anthropic",
-  "inferenceGatewayApiKey": "<coder-api-token>",
-  "inferenceGatewayAuthScheme": "bearer",
-  "inferenceModels": ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5"]
-}
+```bash
+export HTTPS_PROXY="https://coder:<your-coder-api-token>@<proxy-host>:8888"
 ```
 
-Replace `coder.example.com` with your Coder deployment URL.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname.
 
-You can export a ready-to-deploy profile from the setup UI:
+> [!NOTE]
+> If [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration)
+> on the proxy, replace `https://` with `http://` in the proxy URL.
 
-- **macOS**: Click **Export** to save a `.mobileconfig` file for Jamf or
-  Kandji.
-- **Windows**: Click **Export** to save a `.reg` file for Intune or Group
-  Policy.
+### System proxy (alternative)
 
-When the app launches and finds a managed configuration, it enters
-third-party mode automatically without requiring users to sign in.
+You can also configure the proxy at the OS level so Claude Desktop picks it
+up automatically:
 
-## Limitations
+- **macOS**: System Settings > Network > your connection > Details > Proxies.
+- **Windows**: Settings > Network & Internet > Proxy > Manual proxy setup.
 
-- **BYOK is not supported.** Claude Desktop's gateway mode sends a single
-  credential (`inferenceGatewayApiKey`) on every request. There is no
-  built-in mechanism to separate the gateway authentication token from a
-  personal provider API key, so Bring Your Own Key mode is not available
-  through this client.
-- **Claude Code CLI configuration is separate.** Claude Desktop and the
-  Claude Code CLI read their own configuration independently. If you also
-  use Claude Code in the terminal, configure it separately with
-  [environment variables](./claude-code.md).
+Enter the proxy host, port, and credentials (username: `coder`, password:
+your Coder API token).
+
+## CA certificate trust
+
+Claude Desktop must trust the AI Gateway Proxy CA certificate. Add the
+certificate to your operating system's trust store.
+
+See [Trusting the CA certificate](../ai-gateway-proxy/setup.md#trusting-the-ca-certificate)
+for how to download the certificate, and
+[System trust store](../ai-gateway-proxy/setup.md#system-trust-store) for
+platform-specific instructions.
+
+When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration)
+on the proxy, add the TLS certificate to the system trust store as well.
+
+## Claude Code CLI
+
+Claude Desktop and the Claude Code CLI read their own configuration
+independently. If you also use Claude Code in the terminal, you can either:
+
+- Configure the CLI to use AI Gateway Proxy with the same `HTTPS_PROXY`
+  and CA certificate settings described above.
+- Configure the CLI to use AI Gateway directly with
+  [environment variables](./claude-code.md), which does not require the
+  proxy.
 
 **References:**
-[Cowork on third-party platforms](https://claude.com/docs/cowork/3p/overview),
-[Install and configure](https://support.claude.com/en/articles/14680741-install-and-configure-claude-cowork-with-third-party-platforms)
+[Claude Desktop documentation](https://code.claude.com/docs/en/desktop),
+[AI Gateway Proxy Setup](../ai-gateway-proxy/setup.md)
