@@ -53,7 +53,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	defer span.End()
 
 	logs = loadtestutil.NewSyncWriter(logs)
-	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelWarn)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelInfo)
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
