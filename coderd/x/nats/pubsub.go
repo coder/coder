@@ -72,8 +72,19 @@ func newPubsub(logger slog.Logger, opts Options) *Pubsub {
 // New creates a new embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and client connection and shuts them down on Close.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
-	_ = ctx
-	ns, err := startEmbeddedServer(opts)
+	var peers []Peer
+	if opts.PeerProvider != nil {
+		raw, err := opts.PeerProvider.Peers(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("nats peer discovery: %w", err)
+		}
+		normalized, err := normalizePeers(raw)
+		if err != nil {
+			return nil, xerrors.Errorf("nats peer normalize: %w", err)
+		}
+		peers = normalized
+	}
+	ns, err := startEmbeddedServer(logger, opts, peers)
 	if err != nil {
 		return nil, err
 	}
