@@ -47,7 +47,6 @@ import {
 } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipArrow,
@@ -480,10 +479,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											<TooltipArrow className="fill-border" />
 										</TooltipContent>
 									</Tooltip>
-									<Stack
-										spacing={0}
-										className="text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]"
-									>
+									<div className="flex flex-col text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]">
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
 											<span className="text-[12px] text-content-disabled">
@@ -491,7 +487,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 												{usage.times_used === 1 ? "time" : "times"}
 											</span>
 										)}
-									</Stack>
+									</div>
 								</div>
 							);
 						})}

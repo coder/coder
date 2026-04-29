@@ -22,7 +22,6 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/FullWidthPageHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { Stats, StatsItem } from "#/components/Stats/Stats";
 import {
 	TAB_PADDING_X,
@@ -101,14 +100,13 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	return (
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
-				<Stack direction="row">
+				<div className="flex flex-row gap-4">
 					<BuildAvatar build={build} size="lg" />
 					<div>
 						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
 						<PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>
 					</div>
-				</Stack>
-
+				</div>
 				<Stats
 					aria-label="Build details"
 					className="flex flex-col items-start gap-2 px-0 border-none grow basis-0 md:flex-row md:gap-x-12 md:gap-y-6"

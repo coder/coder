@@ -4,7 +4,6 @@ import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { Stack } from "#/components/Stack/Stack";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
 import { docs } from "#/utils/docs";
@@ -71,19 +70,18 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 					</>
 				}
 				cta={
-					<Stack alignItems="center" spacing={4}>
+					<div className="flex flex-col gap-8 items-center">
 						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
 								<TemplateExampleCard example={example} key={example.id} />
 							))}
 						</div>
-
 						<Button size="sm" asChild className="rounded-full">
 							<RouterLink to="/starter-templates">
 								View all starter templates
 							</RouterLink>
 						</Button>
-					</Stack>
+					</div>
 				}
 			/>
 		);

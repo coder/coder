@@ -15,7 +15,6 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Stack } from "#/components/Stack/Stack";
 import { docs } from "#/utils/docs";
 import { Section } from "../Section";
 
@@ -258,7 +257,7 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 			title="Change login type"
 			confirmLoading={loading}
 			description={
-				<Stack spacing={4}>
+				<div className="flex flex-col gap-8">
 					<p>
 						After changing your login type, you will not be able to change it
 						again. Are you sure you want to proceed and change your login type?
@@ -283,7 +282,7 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 						label="Confirm your password"
 						type="password"
 					/>
-				</Stack>
+				</div>
 			}
 		/>
 	);

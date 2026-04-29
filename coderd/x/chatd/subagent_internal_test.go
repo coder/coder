@@ -132,6 +132,7 @@ func newInternalTestServerWithLoggerAndClock(
 		PendingChatAcquireInterval: testutil.WaitLong,
 		ProviderAPIKeys:            keys,
 	})
+	server.Start()
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})

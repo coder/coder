@@ -1,7 +1,6 @@
 import FormHelperText from "@mui/material/FormHelperText";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	sortedDays,
 	type TemplateAutostartRequirementDaysValue,
@@ -21,14 +20,8 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 	onChange,
 }) => {
 	return (
-		<Stack alignItems="start" spacing={1}>
-			<Stack
-				direction="row"
-				spacing={0}
-				alignItems="baseline"
-				justifyContent="center"
-				className="w-full gap-0.5"
-			>
+		<div className="flex flex-col gap-2 items-start">
+			<div className="flex flex-row items-baseline justify-center w-full gap-0.5">
 				{(
 					[
 						{ value: "monday", key: "Mon" },
@@ -60,11 +53,11 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 						{day.key}
 					</Button>
 				))}
-			</Stack>
+			</div>
 			<FormHelperText>
 				<AutostartHelperText allowed={enabled} days={value} />
 			</FormHelperText>
-		</Stack>
+		</div>
 	);
 };
 

@@ -135,7 +135,8 @@ var (
 // Server handles background processing of pending chats.
 type Server struct {
 	cancel     context.CancelFunc
-	closed     chan struct{}
+	ctx        context.Context
+	wg         sync.WaitGroup
 	inflight   sync.WaitGroup
 	inflightMu sync.Mutex
 
@@ -249,8 +250,9 @@ func (p *Server) loadCachedWorkspaceContext(
 	}
 
 	var tools []fantasy.AgentTool
+	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
 	for _, t := range entry.tools {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn))
+		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn, invalidate))
 	}
 
 	return tools
@@ -3678,7 +3680,6 @@ func New(cfg Config) *Server {
 
 	p := &Server{
 		cancel:                         cancel,
-		closed:                         make(chan struct{}),
 		db:                             cfg.Database,
 		workerID:                       workerID,
 		logger:                         cfg.Logger.Named("processor"),
@@ -3749,33 +3750,34 @@ func New(cfg Config) *Server {
 		}
 		p.configCacheUnsubscribe = cancelConfigSub
 	}
-	go p.start(ctx)
 
-	return p
-}
+	p.ctx = ctx
 
-func (p *Server) start(ctx context.Context) {
-	defer close(p.closed)
-
-	// Recover stale chats on startup and periodically thereafter
-	// to handle chats orphaned by crashed or redeployed workers.
-	// Use debugService() (not existingDebugService) so the service
-	// is initialized eagerly on startup. This ensures stale debug
-	// rows left by a previous crash are finalized even when no
-	// request has triggered lazy initialization yet.
+	// Recover stale chats on startup.
 	p.recoverStaleChats(ctx)
 	if debugSvc := p.debugService(); debugSvc != nil {
-		_, err := debugSvc.FinalizeStale(ctx)
-		if err != nil {
+		if _, err := debugSvc.FinalizeStale(ctx); err != nil {
 			p.logger.Warn(ctx, "failed to finalize stale chat debug rows", slog.Error(err))
 		}
 	}
 
-	// Single heartbeat loop for all chats on this replica.
-	go p.heartbeatLoop(ctx)
+	// Spawn background goroutines that all servers need.
+	p.wg.Go(func() { p.heartbeatLoop(ctx) })
+	p.wg.Go(func() { p.streamJanitorLoop(ctx) })
 
-	go p.streamJanitorLoop(ctx)
+	return p
+}
 
+// Start runs the background acquire/wake loop that picks up
+// pending chats and processes them. Callers that want a passive
+// server (e.g. tests) can skip this call; heartbeat, stream
+// janitor, and stale recovery still run.
+func (p *Server) Start() *Server {
+	p.wg.Go(func() { p.acquireLoop(p.ctx) })
+	return p
+}
+
+func (p *Server) acquireLoop(ctx context.Context) {
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
 		"chatd",
@@ -5038,9 +5040,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 	).withCreatedBy(chat.OwnerID))
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
 	if err != nil {
-		logger.Error(ctx, "failed to promote queued message",
-			slog.F("queued_message_id", nextQueued.ID), slog.Error(err))
-		return nil, nil, false, nil
+		return nil, nil, false, xerrors.Errorf("insert promoted message: %w", err)
 	}
 	msg := msgs[0]
 
@@ -5146,7 +5146,8 @@ func (p *Server) finishActiveChat(
 			var promoteErr error
 			result.promotedMessage, result.remainingQueuedMessages, result.shouldPublishQueueUpdate, promoteErr = p.tryAutoPromoteQueuedMessage(ctx, tx, latestChat)
 			if promoteErr != nil {
-				logger.Error(ctx, "failed to auto-promote queued message", slog.Error(promoteErr))
+				logger.Error(ctx, "auto-promote queued message failed, rolling back", slog.Error(promoteErr))
+				return xerrors.Errorf("auto-promote queued message: %w", promoteErr)
 			} else if result.promotedMessage != nil {
 				status = database.ChatStatusPending
 			}
@@ -6290,9 +6291,10 @@ func (p *Server) runChat(
 				}
 			}
 
+			invalidate := func() { p.workspaceMCPToolsCache.Delete(chat.ID) }
 			for _, t := range toolsResp.Tools {
 				workspaceMCPTools = append(workspaceMCPTools,
-					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate),
 				)
 			}
 			return nil
@@ -8109,7 +8111,7 @@ func (p *Server) Close() error {
 		unsub()
 	}
 	p.cancel()
-	<-p.closed
+	p.wg.Wait()
 	p.drainInflight()
 	return nil
 }

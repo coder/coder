@@ -8,7 +8,7 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
-FROM ubuntu:resolute@sha256:cc925e589b7543b910fea57a240468940003fbfc0515245a495dd0ad8fe7cef1 AS go
+FROM ubuntu:26.04@sha256:5e275723f82c67e387ba9e3c24baa0abdcb268917f276a0561c97bef9450d0b4 AS go
 
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.25.9
@@ -27,7 +27,7 @@ ENV PATH=$PATH:/usr/local/go/bin
 ARG GOPATH="/tmp/"
 # Install Go utilities.
 RUN apt-get update && \
-	apt-get install --yes gcc && \
+	apt-get install --yes build-essential && \
 	mkdir --parents /usr/local/go && \
 	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
 	mkdir --parents "$GOPATH" && \
@@ -67,7 +67,7 @@ RUN apt-get update && \
 	# mockgen for generating mocks (v0.6.0+ required for Go 1.25)
 	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
-	apt-get remove --yes gcc && \
+	apt-get remove --yes build-essential && \
 	apt-get autoremove --yes && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists/* && \
@@ -83,7 +83,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:resolute@sha256:cc925e589b7543b910fea57a240468940003fbfc0515245a495dd0ad8fe7cef1
+FROM ubuntu:26.04@sha256:5e275723f82c67e387ba9e3c24baa0abdcb268917f276a0561c97bef9450d0b4
 
 SHELL ["/bin/bash", "-c"]
 
@@ -255,7 +255,7 @@ RUN source $NVM_DIR/nvm.sh && \
 ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 RUN corepack enable && \
 	corepack prepare npm@10.8.1 --activate && \
-	corepack prepare pnpm@10.14.0 --activate
+	corepack prepare pnpm@10.33.2 --activate
 
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 

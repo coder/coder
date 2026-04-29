@@ -1,7 +1,6 @@
 import TextField from "@mui/material/TextField";
 import { type ChangeEvent, type FC, useState } from "react";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Stack } from "#/components/Stack/Stack";
 import { type FileTree, isFolder, validatePath } from "#/utils/filetree";
 
 interface CreateFileDialogProps {
@@ -59,7 +58,7 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 			confirmText="Create"
 			title="Create File"
 			description={
-				<Stack spacing={4}>
+				<div className="flex flex-col gap-8">
 					<p>
 						Specify the path to a file to be created. This path can contain
 						slashes too.
@@ -81,7 +80,7 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 						onChange={handleChange}
 						label="File Path"
 					/>
-				</Stack>
+				</div>
 			}
 		/>
 	);
@@ -180,7 +179,7 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 			confirmText="Rename"
 			title="Rename File"
 			description={
-				<Stack>
+				<div className="flex flex-col gap-4">
 					<p>
 						Rename <strong>{filename}</strong> to something else. This path can
 						contain slashes too!
@@ -202,7 +201,7 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 						onChange={handleChange}
 						label="File Path"
 					/>
-				</Stack>
+				</div>
 			}
 		/>
 	);
