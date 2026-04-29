@@ -2069,6 +2069,17 @@ How long expired API keys are retained before being deleted. Keeping expired key
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
 
+### --boundary-log-retention
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_BOUNDARY_LOG_RETENTION</code> |
+| YAML        | <code>retention.boundary_logs</code>       |
+| Default     | <code>2160h</code>                         |
+
+How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). The default of 90 days aligns with common compliance retention windows (e.g. SOC 2, GDPR); adjust to match your organization's requirements.
+
 ### --disable-template-builder
 
 |             |                                              |

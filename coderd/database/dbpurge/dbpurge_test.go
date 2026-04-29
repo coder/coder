@@ -1785,6 +1785,129 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 	})
 }
 
+func TestDeleteOldBoundaryLogs(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 90 * 24 * time.Hour
+	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 91 days ago (older than threshold)
+	beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
+
+	testCases := []struct {
+		name                  string
+		retentionConfig       codersdk.RetentionConfig
+		oldLogTime            time.Time
+		recentLogTime         *time.Time // nil means no recent log created
+		expectOldDeleted      bool
+		expectedLogsRemaining int
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			oldLogTime:            afterThreshold,
+			recentLogTime:         &beforeThreshold,
+			expectOldDeleted:      true,
+			expectedLogsRemaining: 1, // only recent log remains
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(0),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Setup test fixtures: workspace agent chain required
+			// for boundary_sessions FK.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+			wb := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, now, 1)
+			agent := mustCreateAgent(t, db, wb)
+
+			session := dbgen.BoundarySession(t, db, database.BoundarySession{
+				WorkspaceAgentID: agent.ID,
+			})
+
+			// Create old boundary log.
+			oldLog := dbgen.BoundaryLog(t, db, database.BoundaryLog{
+				SessionID:      session.ID,
+				SequenceNumber: 0,
+				CapturedAt:     tc.oldLogTime,
+				CreatedAt:      tc.oldLogTime,
+			})
+
+			// Create recent boundary log if specified.
+			var recentLog database.BoundaryLog
+			if tc.recentLogTime != nil {
+				recentLog = dbgen.BoundaryLog(t, db, database.BoundaryLog{
+					SessionID:      session.ID,
+					SequenceNumber: 1,
+					CapturedAt:     *tc.recentLogTime,
+					CreatedAt:      *tc.recentLogTime,
+				})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.ListBoundaryLogsBySessionID(ctx, database.ListBoundaryLogsBySessionIDParams{
+				SessionID: session.ID,
+				SeqAfter:  -1,
+				SeqBefore: -1,
+				LimitOpt:  100,
+			})
+			require.NoError(t, err)
+			require.Len(t, logs, tc.expectedLogsRemaining, "unexpected number of boundary logs remaining")
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, l := range logs {
+				logIDs[i] = l.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old boundary log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old boundary log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent boundary log should be kept")
+			}
+		})
+	}
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 
