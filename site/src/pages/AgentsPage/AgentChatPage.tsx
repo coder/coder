@@ -54,6 +54,7 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { useChatSession, useChatSessionsManager } from "./chatSession/hooks";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	getParentChatID,
@@ -64,7 +65,6 @@ import {
 	type ChatStoreState,
 	selectChatStatus,
 	useChatSelector,
-	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
 import type { PendingAttachment } from "./components/ChatPageContent";
@@ -656,6 +656,20 @@ const AgentChatPage: FC = () => {
 			: "",
 	);
 
+	const manager = useChatSessionsManager();
+	const session = useChatSession(agentId ?? "");
+	const store = session.store;
+
+	useEffect(() => {
+		if (!agentId) {
+			return;
+		}
+		manager.markVisible(agentId);
+		return () => {
+			manager.releaseVisible(agentId);
+		};
+	}, [agentId, manager]);
+
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
@@ -840,7 +854,7 @@ const AgentChatPage: FC = () => {
 	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
 
 	// Build a synthetic ChatMessagesResponse from the flattened
-	// data for backward compat with useChatStore.
+	// data for chat session hydration.
 	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
 		chatMessagesList
 			? {
@@ -926,15 +940,24 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
-	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
-		chatID: agentId,
-		chatMessages: chatMessagesList,
+	useEffect(() => {
+		if (!agentId) {
+			return;
+		}
+		session.hydrateFromRest({
+			chatMessages: chatMessagesList,
+			chatRecord,
+			chatMessagesData,
+			chatQueuedMessages,
+		});
+	}, [
+		agentId,
+		session,
+		chatMessagesList,
 		chatRecord,
 		chatMessagesData,
 		chatQueuedMessages,
-		setChatErrorReason,
-		clearChatErrorReason,
-	});
+	]);
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
 	const persistedError = getPersistedDetailError({
@@ -1109,7 +1132,7 @@ const AgentChatPage: FC = () => {
 		if (agentId) {
 			clearChatErrorReason(agentId);
 		}
-		store.clearStreamError();
+		session.clearStreamError();
 		store.setChatStatus("pending");
 		try {
 			const promotedMessage = await promoteQueuedMessage(id);
@@ -1117,7 +1140,7 @@ const AgentChatPage: FC = () => {
 			// immediately so it appears in the timeline without
 			// waiting for the WebSocket to deliver it.
 			store.upsertDurableMessage(promotedMessage);
-			upsertCacheMessages([promotedMessage]);
+			session.upsertCacheMessages([promotedMessage]);
 		} catch (error) {
 			restoreOptimisticRequestSnapshot(store, previousSnapshot);
 			handleUsageLimitError(error);
@@ -1299,7 +1322,7 @@ const AgentChatPage: FC = () => {
 				: undefined;
 			const previousSnapshot = store.getSnapshot();
 			clearChatErrorReason(agentId);
-			clearStreamError();
+			session.clearStreamError();
 			store.batch(() => {
 				store.setQueuedMessages([]);
 				store.setChatStatus("running");
@@ -1337,7 +1360,7 @@ const AgentChatPage: FC = () => {
 				: {}),
 		};
 		clearChatErrorReason(agentId);
-		clearStreamError();
+		session.clearStreamError();
 		scrollToBottomRef.current?.();
 
 		// Don't clear stream state before the POST completes.
@@ -1368,7 +1391,7 @@ const AgentChatPage: FC = () => {
 			store.setChatStatus("running");
 			if (response.message) {
 				store.upsertDurableMessage(response.message);
-				upsertCacheMessages([response.message]);
+				session.upsertCacheMessages([response.message]);
 			}
 		}
 		if (selectedModelConfigID) {
