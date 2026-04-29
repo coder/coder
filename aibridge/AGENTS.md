@@ -20,7 +20,7 @@ attribution, and MCP tool administration. It runs as part of `coderd`
 (the Coder control plane). Users authenticate with their Coder session
 tokens.
 
-```
+```text
 ┌─────────────┐     ┌──────────────────────────────────────────┐
 │  AI Client   │     │               aibridge                   │
 │ (Claude Code,│────▶│  RequestBridge (http.Handler)             │
