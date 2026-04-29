@@ -789,7 +789,7 @@ func New(options *Options) *API {
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
 			CreateWorkspace:                api.chatCreateWorkspace,
-			StartWorkspace:                 api.ChatStartWorkspace,
+			StartWorkspace:                 api.chatStartWorkspace,
 			Pubsub:                         options.Pubsub,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,

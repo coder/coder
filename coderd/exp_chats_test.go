@@ -12243,7 +12243,7 @@ func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {
 		require.NotEqual(t, v1ID, v2.ID, "v2 must differ from v1")
 
 		// When: we pass a random preset_id that does not exist in the DB
-		build, err := api.ChatStartWorkspace(ctx, user.UserID, wsResp.Workspace.ID,
+		build, err := coderd.ChatStartWorkspace(api, ctx, user.UserID, wsResp.Workspace.ID,
 			codersdk.CreateWorkspaceBuildRequest{
 				Transition:              codersdk.WorkspaceTransitionStart,
 				TemplateVersionPresetID: uuid.New(),
@@ -12280,7 +12280,7 @@ func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {
 		})
 
 		// When: we start a workspace build on v1 with the requested preset ID
-		build, err := api.ChatStartWorkspace(ctx, user.UserID, wsResp.Workspace.ID,
+		build, err := coderd.ChatStartWorkspace(api, ctx, user.UserID, wsResp.Workspace.ID,
 			codersdk.CreateWorkspaceBuildRequest{
 				Transition:              codersdk.WorkspaceTransitionStart,
 				TemplateVersionPresetID: preset.ID,
