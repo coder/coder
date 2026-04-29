@@ -4268,6 +4268,27 @@ func (q *querier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg
 	return tv, nil
 }
 
+func (q *querier) GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionDlpPolicy, error) {
+	if _, err := q.GetTemplateVersionByID(ctx, templateVersionID); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx, templateVersionID)
+}
+
+func (q *querier) GetTemplateVersionDLPPolicyByAgentID(ctx context.Context, agentID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return database.TemplateVersionDlpPolicy{}, err
+	}
+	return q.db.GetTemplateVersionDLPPolicyByAgentID(ctx, agentID)
+}
+
+func (q *querier) GetTemplateVersionDLPPolicyByVersionAndName(ctx context.Context, arg database.GetTemplateVersionDLPPolicyByVersionAndNameParams) (database.TemplateVersionDlpPolicy, error) {
+	if _, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID); err != nil {
+		return database.TemplateVersionDlpPolicy{}, err
+	}
+	return q.db.GetTemplateVersionDLPPolicyByVersionAndName(ctx, arg)
+}
+
 func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	// An actor can read template version parameters if they can read the related template.
 	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
@@ -5670,6 +5691,13 @@ func (q *querier) InsertTemplateVersion(ctx context.Context, arg database.Insert
 	}
 
 	return q.db.InsertTemplateVersion(ctx, arg)
+}
+
+func (q *querier) InsertTemplateVersionDLPPolicy(ctx context.Context, arg database.InsertTemplateVersionDLPPolicyParams) (database.TemplateVersionDlpPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate); err != nil {
+		return database.TemplateVersionDlpPolicy{}, err
+	}
+	return q.db.InsertTemplateVersionDLPPolicy(ctx, arg)
 }
 
 func (q *querier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {

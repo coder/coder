@@ -2395,6 +2395,7 @@ CREATE TABLE workspace_agents (
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    dlp_policy_id uuid,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -2639,6 +2640,17 @@ COMMENT ON COLUMN template_usage_stats.vscode_mins IS 'Total minutes the user ha
 COMMENT ON COLUMN template_usage_stats.jetbrains_mins IS 'Total minutes the user has been using JetBrains.';
 
 COMMENT ON COLUMN template_usage_stats.app_usage_mins IS 'Object with app names as keys and total minutes used as values. Null means no app usage was recorded.';
+
+CREATE TABLE template_version_dlp_policies (
+    id uuid NOT NULL,
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    ssh_access boolean NOT NULL,
+    web_terminal_access boolean NOT NULL,
+    port_forwarding_access boolean NOT NULL,
+    allowed_applications text[],
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
@@ -3742,6 +3754,12 @@ ALTER TABLE ONLY telemetry_locks
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
+ALTER TABLE ONLY template_version_dlp_policies
+    ADD CONSTRAINT template_version_dlp_policies_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_dlp_policies
+    ADD CONSTRAINT template_version_dlp_policies_template_version_id_name_key UNIQUE (template_version_id, name);
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -4512,6 +4530,9 @@ ALTER TABLE ONLY tasks
 ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_dlp_policies
+    ADD CONSTRAINT template_version_dlp_policies_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
@@ -4616,6 +4637,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_dlp_policy_id_fkey FOREIGN KEY (dlp_policy_id) REFERENCES template_version_dlp_policies(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

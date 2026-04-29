@@ -150,6 +150,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		DisplayApps:              displayApps,
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
+		DlpPolicyID:              parentAgent.DlpPolicyID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert sub agent: %w", err)

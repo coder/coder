@@ -89,6 +89,9 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.18:
 //   - Added new message type `DLPPolicy`.
 //   - Added new field `dlp_policy` to `provisioner.Agent`.
+//   - Added new field `name` to `provisioner.DLPPolicy`.
+//   - Added new field `dlp_policies` to `provisioner.GraphComplete` and
+//     `CompletedJob.TemplateImport`.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 18

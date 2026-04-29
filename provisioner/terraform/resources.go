@@ -170,6 +170,11 @@ type State struct {
 	AITasks               []*proto.AITask
 	HasAITasks            bool
 	HasExternalAgents     bool
+	// DLPPolicies is every `coder_dlp_policy` resource declared in the
+	// template, including ones not referenced by an agent. The unique
+	// `(template_version_id, name)` constraint at persist time relies on
+	// every declaration reaching coderd.
+	DLPPolicies []*proto.DLPPolicy
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
@@ -690,18 +695,22 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	// produces one entry in this map; agents look up their referenced id and
 	// attach the resolved policy. Multiple agents may share one policy.
 	dlpPoliciesByID := map[string]*proto.DLPPolicy{}
+	dlpPolicies := make([]*proto.DLPPolicy, 0, len(sortedResources["coder_dlp_policy"]))
 	for _, resource := range sortedResources["coder_dlp_policy"] {
 		var attrs provider.DLPPolicy
 		if err := mapstructure.Decode(resource.AttributeValues, &attrs); err != nil {
 			return nil, xerrors.Errorf("decode coder_dlp_policy attributes: %w", err)
 		}
-		dlpPoliciesByID[attrs.ID] = &proto.DLPPolicy{
+		policy := &proto.DLPPolicy{
 			Id:                   attrs.ID,
+			Name:                 resource.Name,
 			SshAccess:            attrs.SSHAccess,
 			WebTerminalAccess:    attrs.WebTerminalAccess,
 			PortForwardingAccess: attrs.PortForwardingAccess,
 			AllowedApplications:  attrs.AllowedApplications,
 		}
+		dlpPoliciesByID[attrs.ID] = policy
+		dlpPolicies = append(dlpPolicies, policy)
 	}
 	for _, agents := range resourceAgents {
 		for _, agent := range agents {
@@ -1111,6 +1120,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		HasAITasks:            len(aiTasks) > 0,
 		AITasks:               aiTasks,
 		HasExternalAgents:     hasExternalAgentResources(graph),
+		DLPPolicies:           dlpPolicies,
 	}, nil
 }
 

@@ -5329,6 +5329,97 @@ func newFakeStream(ctx context.Context) *fakeStream {
 	}
 }
 
+func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
+	t.Parallel()
+
+	logger := testutil.Logger(t)
+	db, ps := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+
+	t.Run("InsertsAllAndDistinguishesByName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			JobID:          job.ID,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		policies := []*sdkproto.DLPPolicy{
+			{
+				Name:                 "strict",
+				SshAccess:            true,
+				WebTerminalAccess:    false,
+				PortForwardingAccess: true,
+				AllowedApplications:  []string{"code-server", "vscode-desktop"},
+			},
+			{
+				Name:                 "lax",
+				SshAccess:            true,
+				WebTerminalAccess:    true,
+				PortForwardingAccess: true,
+				AllowedApplications:  nil,
+			},
+		}
+
+		err := provisionerdserver.InsertTemplateVersionDLPPolicies(ctx, logger, db, job.ID, templateVersion.ID, policies, time.Now())
+		require.NoError(t, err)
+
+		got, err := db.GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx, templateVersion.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+
+		byName := map[string]database.TemplateVersionDlpPolicy{}
+		for _, p := range got {
+			byName[p.Name] = p
+		}
+
+		strict := byName["strict"]
+		require.Equal(t, templateVersion.ID, strict.TemplateVersionID)
+		require.True(t, strict.SshAccess)
+		require.False(t, strict.WebTerminalAccess)
+		require.True(t, strict.PortForwardingAccess)
+		require.Equal(t, []string{"code-server", "vscode-desktop"}, strict.AllowedApplications)
+
+		lax := byName["lax"]
+		require.True(t, lax.SshAccess)
+		require.True(t, lax.WebTerminalAccess)
+		require.True(t, lax.PortForwardingAccess)
+		require.Empty(t, lax.AllowedApplications)
+	})
+
+	t.Run("RejectsDuplicateNames", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			JobID:          job.ID,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		policies := []*sdkproto.DLPPolicy{
+			{Name: "shared"},
+			{Name: "shared"},
+		}
+		err := provisionerdserver.InsertTemplateVersionDLPPolicies(ctx, logger, db, job.ID, templateVersion.ID, policies, time.Now())
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "shared")
+	})
+}
+
 func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()

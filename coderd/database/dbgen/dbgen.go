@@ -564,6 +564,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			DisplayApps:              nil,
 			DisplayOrder:             agt.DisplayOrder,
 			APIKeyScope:              agt.APIKeyScope,
+			DlpPolicyID:              agt.DlpPolicyID,
 		})
 		require.NoError(t, err, "insert workspace agent subagent antagonist")
 		err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)

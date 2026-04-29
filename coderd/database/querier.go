@@ -697,6 +697,9 @@ type sqlcQuerier interface {
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
+	GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionDlpPolicy, error)
+	GetTemplateVersionDLPPolicyByAgentID(ctx context.Context, agentID uuid.UUID) (TemplateVersionDlpPolicy, error)
+	GetTemplateVersionDLPPolicyByVersionAndName(ctx context.Context, arg GetTemplateVersionDLPPolicyByVersionAndNameParams) (TemplateVersionDlpPolicy, error)
 	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
 	GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error)
 	GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error)
@@ -952,6 +955,7 @@ type sqlcQuerier interface {
 	InsertTelemetryLock(ctx context.Context, arg InsertTelemetryLockParams) error
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error
+	InsertTemplateVersionDLPPolicy(ctx context.Context, arg InsertTemplateVersionDLPPolicyParams) (TemplateVersionDlpPolicy, error)
 	InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error)
 	InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error
 	InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error)
