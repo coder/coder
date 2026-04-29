@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +22,9 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -112,6 +115,10 @@ type ServerOptions struct {
 
 	AgentProvider  AgentProvider
 	StatsCollector *StatsCollector
+
+	// Database is used to look up DLP policies attached to workspace agents
+	// when gating dashboard traffic.
+	Database database.Store
 }
 
 // Server serves workspace apps endpoints, including:
@@ -636,6 +643,38 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		appURL.Scheme = protocol
 	}
 
+	// DLP gate. Port view (dashboard "Ports" tab) is gated by
+	// `port_forwarding_access`; coder_app slugs are gated by membership in
+	// `allowed_applications`. The HTML error-page form matches existing
+	// browser-facing denials in this handler.
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
+	if err != nil {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:      http.StatusInternalServerError,
+			Title:       "Internal Server Error",
+			Description: "Failed to load workspace data loss prevention policy.",
+		})
+		return
+	}
+	if dlp != nil {
+		if isPort && !dlp.PortForwardingAccess {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusForbidden,
+				Title:       "Blocked by DLP Policy",
+				Description: fmt.Sprintf("DLP policy %q denies the dashboard Ports tab for this workspace.", dlp.Name),
+			})
+			return
+		}
+		if !isPort && !slices.Contains(dlp.AllowedApplications, app.AppSlugOrPort) {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusForbidden,
+				Title:       "Blocked by DLP Policy",
+				Description: fmt.Sprintf("Application %q is not in DLP policy %q's allowed_applications list.", app.AppSlugOrPort, dlp.Name),
+			})
+			return
+		}
+	}
+
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
@@ -732,6 +771,21 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
 	log.Debug(ctx, "resolved PTY request")
+
+	// DLP gate. Run before the WebSocket upgrade so we can return a JSON 403
+	// instead of a close code that the dashboard can't surface cleanly.
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if dlp != nil && !dlp.WebTerminalAccess {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "The web terminal is blocked by a data loss prevention policy.",
+			Detail:  fmt.Sprintf("DLP policy %q denies web terminal access for this workspace agent.", dlp.Name),
+		})
+		return
+	}
 
 	values := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()

@@ -1270,6 +1270,10 @@ type sqlcQuerier interface {
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
+	// UpdateWorkspaceAgentDLPPolicyByID is intended for tests and admin-tooling
+	// only. In normal operation `dlp_policy_id` is set at agent insert time and
+	// not modified afterwards.
+	UpdateWorkspaceAgentDLPPolicyByID(ctx context.Context, arg UpdateWorkspaceAgentDLPPolicyByIDParams) error
 	UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error
 	UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error

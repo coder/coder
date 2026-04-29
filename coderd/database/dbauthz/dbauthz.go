@@ -7487,6 +7487,13 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentDLPPolicyByID(ctx context.Context, arg database.UpdateWorkspaceAgentDLPPolicyByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentDLPPolicyByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg database.UpdateWorkspaceAgentDirectoryByIDParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
