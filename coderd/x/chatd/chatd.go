@@ -2045,7 +2045,12 @@ func (p *Server) DeleteQueued(
 	return nil
 }
 
-// PromoteQueued promotes a queued message into chat history and marks the chat pending.
+// PromoteQueued promotes a queued message into chat history. On a
+// running chat with a fresh worker heartbeat the promote is deferred
+// to the worker's persist+auto-promote so partial assistant output
+// is not lost; otherwise it inserts the user message synchronously.
+// A stale heartbeat falls through to the synchronous path so the chat
+// is not stranded in waiting.
 func (p *Server) PromoteQueued(
 	ctx context.Context,
 	opts PromoteQueuedOptions,
@@ -2091,22 +2096,28 @@ func (p *Server) PromoteQueued(
 			}
 		}
 		if !found {
-			return xerrors.New("queued message not found")
+			return xerrors.Errorf("queued message %d not found in chat %s", opts.QueuedMessageID, opts.ChatID)
 		}
 
-		// Setting pending here would clear WorkerID and trip the
-		// persistStep ownership guard, dropping any partial assistant
-		// output the active worker is mid-stream. Set waiting instead
-		// (which the guard accepts) and reorder the queued row so the
-		// worker's auto-promote picks it up after the persist. Mutating
-		// only created_at preserves the queued row's id; the frontend
-		// identifies queued messages by id.
-		if lockedChat.Status == database.ChatStatusRunning {
-			if err := tx.ReorderChatQueuedMessageToFront(ctx, database.ReorderChatQueuedMessageToFrontParams{
+		// Setting pending would trip persistStep's ownership guard
+		// and drop the worker's partial output. Set waiting and
+		// reorder the queued row so the worker's auto-promote picks
+		// it up after the persist.
+		heartbeatFresh := lockedChat.HeartbeatAt.Valid &&
+			time.Since(lockedChat.HeartbeatAt.Time) < p.inFlightChatStaleAfter
+		if lockedChat.Status == database.ChatStatusRunning && heartbeatFresh {
+			rowsAffected, err := tx.ReorderChatQueuedMessageToFront(ctx, database.ReorderChatQueuedMessageToFrontParams{
 				ChatID:   opts.ChatID,
 				TargetID: opts.QueuedMessageID,
-			}); err != nil {
+			})
+			if err != nil {
 				return xerrors.Errorf("reorder queued message to front: %w", err)
+			}
+			// Defensive guard against a future non-chat-locked
+			// queue mutator. The found check above makes this a
+			// no-op on the current code path.
+			if rowsAffected != 1 {
+				return xerrors.Errorf("reorder queued message to front affected %d rows, want 1", rowsAffected)
 			}
 			updatedChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 				ID:          opts.ChatID,
@@ -5324,6 +5335,30 @@ func (p *Server) finishActiveChat(
 		switch {
 		case latestChat.Status == database.ChatStatusPending:
 			status = database.ChatStatusPending
+		case latestChat.Status == database.ChatStatusWaiting && status != database.ChatStatusWaiting && !latestChat.Archived:
+			// PromoteQueued's deferred path won the status race.
+			// Insert synthetic tool results before auto-promoting,
+			// or a RequiresAction worker outcome reintroduces the
+			// stops-dead bug this PR exists to fix.
+			if synthErr := insertSyntheticToolResultsTx(
+				ctx, tx, latestChat,
+				"Tool execution interrupted by queued message promotion",
+			); synthErr != nil {
+				return xerrors.Errorf("insert synthetic tool results during promote-driven cleanup: %w", synthErr)
+			}
+			var promoteErr error
+			result.promotedMessage, result.remainingQueuedMessages, result.shouldPublishQueueUpdate, promoteErr = p.tryAutoPromoteQueuedMessage(ctx, tx, latestChat)
+			if promoteErr != nil {
+				logger.Error(ctx, "auto-promote queued message failed during promote-driven cleanup", slog.Error(promoteErr))
+				return xerrors.Errorf("auto-promote queued message: %w", promoteErr)
+			}
+			if result.promotedMessage != nil {
+				status = database.ChatStatusPending
+			} else {
+				// Queue drained between snapshot and lock; honor
+				// the external Waiting.
+				status = database.ChatStatusWaiting
+			}
 		case status == database.ChatStatusWaiting && !latestChat.Archived:
 			// Queued messages were already admitted through SendMessage,
 			// so auto-promotion only preserves FIFO order here. Archived
@@ -8139,6 +8174,14 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 						slog.F("chat_id", chat.ID))
 					return nil
 				}
+			case database.ChatStatusWaiting:
+				// Deferred-promote stranding: worker died before its
+				// post-cancel cleanup ran. Re-check freshness.
+				if !locked.UpdatedAt.Before(staleAfter) {
+					p.logger.Debug(ctx, "chat updated since snapshot, skipping recovery",
+						slog.F("chat_id", chat.ID))
+					return nil
+				}
 			default:
 				// Status changed since our snapshot; skip.
 				p.logger.Debug(ctx, "chat status changed since snapshot, skipping recovery",
@@ -8188,6 +8231,27 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				}
 			}
 
+			if locked.Status == database.ChatStatusWaiting {
+				// Same stops-dead guard as the finishActiveChat
+				// external-Waiting case: if the assistant has
+				// unresolved dynamic tool calls, the LLM rejects
+				// the next turn unless we close them first.
+				if synthErr := insertSyntheticToolResultsTx(ctx, tx, locked, "Tool execution interrupted by queued message promotion"); synthErr != nil {
+					p.logger.Warn(ctx, "failed to insert synthetic tool results during stale recovery",
+						slog.F("chat_id", chat.ID),
+						slog.Error(synthErr),
+					)
+				}
+				promoted, _, _, promoteErr := p.tryAutoPromoteQueuedMessage(ctx, tx, locked)
+				if promoteErr != nil {
+					return xerrors.Errorf("auto-promote during stale recovery: %w", promoteErr)
+				}
+				if promoted == nil {
+					// Empty queue means nothing to recover.
+					return nil
+				}
+			}
+
 			// Reset so any replica can pick it up (pending) or
 			// the client sees the failure (error).
 			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -8215,11 +8279,11 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 	}
 }
 
-// insertSyntheticToolResultsTx inserts error tool-result messages for
-// every pending dynamic tool call in the last assistant message. This
-// keeps the LLM message history valid (every tool-call has a matching
-// tool-result) when a requires_action chat times out or is interrupted.
-// It operates on the provided store, which may be a transaction handle.
+// insertSyntheticToolResultsTx inserts IsError tool-result messages
+// for unresolved dynamic tool calls in the last assistant message,
+// skipping calls already handled (e.g. by chatloop dispatching a
+// name-colliding dynamic tool as a built-in). It operates on the
+// provided store, which may be a transaction handle.
 func insertSyntheticToolResultsTx(
 	ctx context.Context,
 	store database.Store,
@@ -8248,10 +8312,37 @@ func insertSyntheticToolResultsTx(
 		return xerrors.Errorf("parse assistant message: %w", err)
 	}
 
+	// Mirrors SubmitToolResults.
+	afterMsgs, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: lastAssistant.ID,
+	})
+	if err != nil {
+		return xerrors.Errorf("get messages after assistant: %w", err)
+	}
+	handledCallIDs := make(map[string]bool)
+	for _, msg := range afterMsgs {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		msgParts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			continue
+		}
+		for _, mp := range msgParts {
+			if mp.Type == codersdk.ChatMessagePartTypeToolResult {
+				handledCallIDs[mp.ToolCallID] = true
+			}
+		}
+	}
+
 	// Collect dynamic tool calls that need synthetic results.
 	var resultContents []pqtype.NullRawMessage
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeToolCall || !dynamicToolNames[part.ToolName] {
+			continue
+		}
+		if handledCallIDs[part.ToolCallID] {
 			continue
 		}
 		resultPart := codersdk.ChatMessagePart{

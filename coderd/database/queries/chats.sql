@@ -760,10 +760,13 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck and need recovery. This covers:
+-- Find chats that appear stuck and need recovery:
 --   1. Running chats whose heartbeat has expired (worker crash).
---   2. Chats awaiting client action (requires_action) past the
---      timeout threshold (client disappeared).
+--   2. requires_action chats past the timeout threshold (client
+--      disappeared).
+--   3. Waiting chats with a non-empty queue and stale updated_at
+--      (deferred-promote stranding when the worker dies before its
+--      post-cancel cleanup runs).
 SELECT
     *
 FROM
@@ -772,7 +775,13 @@ WHERE
     (status = 'running'::chat_status
         AND heartbeat_at < @stale_threshold::timestamptz)
     OR (status = 'requires_action'::chat_status
-        AND updated_at < @stale_threshold::timestamptz);
+        AND updated_at < @stale_threshold::timestamptz)
+    OR (status = 'waiting'::chat_status
+        AND updated_at < @stale_threshold::timestamptz
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
+            WHERE cqm.chat_id = chats.id
+        ));
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -934,7 +943,7 @@ WHERE id = (
 )
 RETURNING *;
 
--- name: ReorderChatQueuedMessageToFront :exec
+-- name: ReorderChatQueuedMessageToFront :execrows
 -- Mutates only created_at on the target row; ids are unchanged so
 -- consumers can keep tracking queued messages by id.
 UPDATE chat_queued_messages AS target

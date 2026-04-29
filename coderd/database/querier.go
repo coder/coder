@@ -591,10 +591,13 @@ type sqlcQuerier interface {
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
-	// Find chats that appear stuck and need recovery. This covers:
+	// Find chats that appear stuck and need recovery:
 	//   1. Running chats whose heartbeat has expired (worker crash).
-	//   2. Chats awaiting client action (requires_action) past the
-	//      timeout threshold (client disappeared).
+	//   2. requires_action chats past the timeout threshold (client
+	//      disappeared).
+	//   3. Waiting chats with a non-empty queue and stale updated_at
+	//      (deferred-promote stranding when the worker dies before its
+	//      post-cancel cleanup runs).
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)
@@ -1014,7 +1017,7 @@ type sqlcQuerier interface {
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
-	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) error
+	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
 	// Resolves the effective spend limit for a user using the hierarchy:
 	// 1. Individual user override (highest priority, applies globally across
 	//    all organizations since it lives on the users table)

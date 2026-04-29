@@ -8825,7 +8825,7 @@ func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 	require.NoError(t, err)
 
 	var chatBeforePromote database.Chat
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
@@ -8833,7 +8833,7 @@ func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 		chatBeforePromote = got
 		return got.Status == database.ChatStatusRequiresAction ||
 			got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	require.Equal(t, database.ChatStatusRequiresAction, chatBeforePromote.Status,
 		"expected requires_action, got %s (last_error=%q)",
 		chatBeforePromote.Status, chatLastErrorMessage(chatBeforePromote.LastError))
@@ -8924,14 +8924,13 @@ func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 	require.Less(t, syntheticToolResult.ID, promotedUserMessage.ID,
 		"synthetic tool result must precede the promoted user message")
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
 		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
-
+	}, testutil.IntervalFast)
 	final, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, final.Status,
@@ -9005,7 +9004,7 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 	require.NoError(t, err)
 
 	var chatBeforePromote database.Chat
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
@@ -9013,7 +9012,7 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 		chatBeforePromote = got
 		return got.Status == database.ChatStatusRequiresAction ||
 			got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	require.Equal(t, database.ChatStatusRequiresAction, chatBeforePromote.Status,
 		"expected requires_action, got %s (last_error=%q)",
 		chatBeforePromote.Status, chatLastErrorMessage(chatBeforePromote.LastError))
@@ -10090,50 +10089,68 @@ func TestPromoteQueuedWhileRunning(t *testing.T) {
 		}
 	}, testutil.IntervalFast)
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
 		return got.Status == database.ChatStatusWaiting && !got.WorkerID.Valid
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Partial assistant output is preserved (not lost as it was
-	// pre-fix) and precedes the promoted user message.
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-
+	// pre-fix) and precedes the promoted user message. The chat
+	// status reaching waiting is necessary but not sufficient: the
+	// status flips when PromoteQueued's TX commits, before
+	// finishActiveChat persists the partial output and runs the
+	// auto-promote. Poll on the messages themselves so this test
+	// doesn't race the persist+auto-promote pipeline under load.
 	var (
 		partialAssistantID int64
 		promotedUserID     int64
 	)
-	for _, msg := range messages {
-		switch msg.Role {
-		case database.ChatMessageRoleAssistant:
-			parts, parseErr := chatprompt.ParseContent(msg)
-			require.NoError(t, parseErr)
-			for _, part := range parts {
-				if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "partial-running-output") {
-					partialAssistantID = msg.ID
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return false
+		}
+		var (
+			assistantID int64
+			userID      int64
+		)
+		for _, msg := range messages {
+			switch msg.Role {
+			case database.ChatMessageRoleAssistant:
+				parts, parseErr := chatprompt.ParseContent(msg)
+				if parseErr != nil {
+					continue
 				}
-			}
-		case database.ChatMessageRoleUser:
-			parts, parseErr := chatprompt.ParseContent(msg)
-			require.NoError(t, parseErr)
-			for _, part := range parts {
-				if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "promote me") {
-					promotedUserID = msg.ID
+				for _, part := range parts {
+					if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "partial-running-output") {
+						assistantID = msg.ID
+					}
+				}
+			case database.ChatMessageRoleUser:
+				parts, parseErr := chatprompt.ParseContent(msg)
+				if parseErr != nil {
+					continue
+				}
+				for _, part := range parts {
+					if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "promote me") {
+						userID = msg.ID
+					}
 				}
 			}
 		}
-	}
-	require.NotZero(t, partialAssistantID,
-		"partial assistant output must be persisted before promotion")
-	require.NotZero(t, promotedUserID,
-		"promoted user message must appear in history after auto-promote")
+		if assistantID == 0 || userID == 0 {
+			return false
+		}
+		partialAssistantID = assistantID
+		promotedUserID = userID
+		return true
+	}, testutil.IntervalFast)
 	require.Less(t, partialAssistantID, promotedUserID,
 		"promoted user message must follow the persisted partial output")
 }
@@ -10246,7 +10263,7 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 
 	// Poll for B in history rather than asserting the queue
 	// state, which races the worker's auto-promote pipeline.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		messages, getErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
@@ -10269,7 +10286,7 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 			}
 		}
 		return false
-	}, testutil.WaitLong, testutil.IntervalFast,
+	}, testutil.IntervalFast,
 		"the promoted message B must appear in chat history")
 
 	// A and C must end up in queue or history, not dropped.
@@ -10301,4 +10318,649 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 		"message A must not be lost")
 	require.True(t, remainingIDs[queueC.QueuedMessage.ID] || promotedTexts["C"],
 		"message C must not be lost")
+}
+
+// TestFinishActiveChatExternalWaitingInsertsSyntheticResults
+// guards against a regression of the "stops dead" failure mode this
+// PR exists to fix.
+//
+// Race interleaving:
+//  1. Worker is mid-stream; persistStep wrote an assistant message
+//     with an unresolved dynamic tool call.
+//  2. PromoteQueued's deferred path commits: status=Waiting,
+//     worker_id cleared. A queued message sits at the front.
+//  3. The control notification cancels the worker, but before the
+//     cancellation arrives the chatloop completed naturally with
+//     status=RequiresAction.
+//  4. finishActiveChat reads latestChat.Status=Waiting and local
+//     status=RequiresAction. Without the new external-Waiting case,
+//     the default branch wrote RequiresAction, dropping the promote
+//     and stranding the queue. With the fix, finishActiveChat
+//     inserts synthetic tool-result messages for the unresolved tool
+//     calls and auto-promotes the queued message into a user message.
+//
+// The next chatloop run then loads
+// [..., assistant_with_tool_call, synth_tool_result, user_message]
+// which the LLM accepts.
+func TestFinishActiveChatExternalWaitingInsertsSyntheticResults(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	server := newActiveTestServer(t, db, ps)
+	user, org, model := seedChatDependencies(t, db)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "my_dynamic_tool",
+		Description: "A test dynamic tool.",
+		InputSchema: mcpgo.ToolInputSchema{
+			Type:       "object",
+			Properties: map[string]any{},
+		},
+	}})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		Title:             "external-waiting-stops-dead-guard",
+		LastModelConfigID: model.ID,
+		DynamicTools:      nullRawMessage(dynamicToolsJSON),
+	})
+	require.NoError(t, err)
+
+	// Seed a user message and an assistant message with an
+	// unresolved dynamic tool call. This mirrors what the worker
+	// would have persisted before the deferred promote arrived.
+	insertUserTextMessage(t, db, chat.ID, user.ID, model.ID, "user input")
+
+	pendingCallID := "call_pending_dynamic"
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: pendingCallID,
+			ToolName:   "my_dynamic_tool",
+			Args:       json.RawMessage(`{}`),
+		},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{model.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(assistantContent.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	// Queue a message and put the chat in the post-promote
+	// Waiting state (no worker, queue at front).
+	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued-after-promote"),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        chat.ID,
+		Content:       queuedContent.RawMessage,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Refresh chat with current status (Waiting, no worker).
+	latestChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	// Drive the cleanup path with the local-RequiresAction outcome.
+	updated, promoted, finishErr := chatd.FinishActiveChatForTest(
+		ctx, server, latestChat, database.ChatStatusRequiresAction, "",
+	)
+	require.NoError(t, finishErr)
+	require.NotNil(t, promoted, "queued message must be auto-promoted into history")
+	require.Equal(t, database.ChatStatusPending, updated.Status,
+		"chat must end Pending so the run loop picks it up")
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var (
+		assistantIdx    = -1
+		synthToolIdx    = -1
+		promotedUserIdx = -1
+	)
+	for i, msg := range messages {
+		switch msg.Role {
+		case database.ChatMessageRoleAssistant:
+			assistantIdx = i
+		case database.ChatMessageRoleTool:
+			parts, parseErr := chatprompt.ParseContent(msg)
+			require.NoError(t, parseErr)
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult &&
+					part.ToolCallID == pendingCallID && part.IsError {
+					synthToolIdx = i
+				}
+			}
+		case database.ChatMessageRoleUser:
+			parts, parseErr := chatprompt.ParseContent(msg)
+			require.NoError(t, parseErr)
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeText &&
+					part.Text == "queued-after-promote" {
+					promotedUserIdx = i
+				}
+			}
+		}
+	}
+	require.NotEqual(t, -1, assistantIdx, "assistant tool-call message present")
+	require.NotEqual(t, -1, synthToolIdx,
+		"synthetic tool result for the unresolved dynamic tool call must be inserted")
+	require.NotEqual(t, -1, promotedUserIdx,
+		"promoted queued message must be inserted as a user message")
+	require.Less(t, assistantIdx, synthToolIdx,
+		"synthetic tool result must follow the assistant message")
+	require.Less(t, synthToolIdx, promotedUserIdx,
+		"promoted user message must follow the synthetic tool result")
+}
+
+// TestPromoteQueuedFallsThroughOnStaleHeartbeat covers the
+// promote-time half of the deferred-promote recovery story: when
+// the running chat's heartbeat is older than InFlightChatStaleAfter,
+// the worker is unlikely to run the post-cancel cleanup that drives
+// the deferred promote. PromoteQueued falls through to the
+// synchronous path and inserts the user message directly so the
+// chat does not strand in Waiting.
+func TestPromoteQueuedFallsThroughOnStaleHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	staleAfter := 100 * time.Millisecond
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     staleAfter,
+	})
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		Title:             "stale-heartbeat-promote-fallthrough",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	// Place the chat in Running with a stale heartbeat. We do not
+	// start the server's run loop, so no worker will ever pick this
+	// chat up; the test isolates the fall-through decision in
+	// PromoteQueued.
+	deadWorker := uuid.New()
+	staleTime := time.Now().Add(-2 * staleAfter)
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: deadWorker, Valid: true},
+		StartedAt:   sql.NullTime{Time: staleTime, Valid: true},
+		HeartbeatAt: sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+
+	queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("promote me")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queued.Queued)
+	require.NotNil(t, queued.QueuedMessage)
+
+	result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queued.QueuedMessage.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+	require.NotZero(t, result.PromotedMessage.ID,
+		"stale heartbeat must take the synchronous path and insert a user message inline")
+
+	got, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, got.Status,
+		"synchronous promote ends Pending")
+	require.False(t, got.WorkerID.Valid,
+		"worker_id is cleared by the synchronous promote")
+}
+
+// TestRecoverStaleChatsRecoversWaitingWithQueue covers the residual
+// recovery hole: a chat that PromoteQueued's deferred path moved to
+// Waiting whose worker died before finishActiveChat ran. The
+// extended GetStaleChats query picks up Waiting chats with a
+// non-empty queue and a stale updated_at, and recoverStaleChats
+// auto-promotes the front-of-queue message and sets the chat to
+// Pending so any replica can pick it up.
+func TestRecoverStaleChatsRecoversWaitingWithQueue(t *testing.T) {
+	t.Parallel()
+
+	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	staleAfter := 100 * time.Millisecond
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     staleAfter,
+	})
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		Title:             "stale-waiting-with-queue",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued-stranded"),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        chat.ID,
+		Content:       queuedContent.RawMessage,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+	})
+	require.NoError(t, err)
+	// Backdate updated_at directly so the chat is past the stale
+	// threshold without sleeping.
+	_, err = rawDB.ExecContext(ctx,
+		"UPDATE chats SET updated_at = $1 WHERE id = $2",
+		time.Now().Add(-time.Hour), chat.ID)
+	require.NoError(t, err)
+
+	chatd.RecoverStaleChatsForTest(ctx, server)
+
+	got, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, got.Status,
+		"stale-recovery must promote the front-of-queue and set Pending")
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	var foundPromoted bool
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText &&
+				part.Text == "queued-stranded" {
+				foundPromoted = true
+			}
+		}
+	}
+	require.True(t, foundPromoted,
+		"the front-of-queue message must be promoted into history")
+
+	remaining, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, remaining,
+		"the queue is drained after the recovery promotes its only entry")
+}
+
+// TestRecoverStaleChatsWaitingWithUnresolvedToolCallInsertsSyntheticResults
+// covers the worker-died-before-cleanup half of the deferred-promote
+// stranding: the chat sits in Waiting with a non-empty queue and the
+// last assistant has an unresolved dynamic tool call. Without
+// inserting synthetic tool results before promoting, stale recovery
+// would reintroduce the stops-dead bug this PR exists to fix.
+func TestRecoverStaleChatsWaitingWithUnresolvedToolCallInsertsSyntheticResults(t *testing.T) {
+	t.Parallel()
+
+	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	staleAfter := 100 * time.Millisecond
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     staleAfter,
+	})
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	user, org, model := seedChatDependencies(t, db)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		Name:        "my_dynamic_tool",
+		Description: "A test dynamic tool.",
+		InputSchema: mcpgo.ToolInputSchema{
+			Type:       "object",
+			Properties: map[string]any{},
+		},
+	}})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		Title:             "stale-waiting-with-unresolved-tool-call",
+		LastModelConfigID: model.ID,
+		DynamicTools:      nullRawMessage(dynamicToolsJSON),
+	})
+	require.NoError(t, err)
+
+	insertUserTextMessage(t, db, chat.ID, user.ID, model.ID, "please call the tool")
+
+	pendingCallID := "call_unresolved_dynamic"
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: pendingCallID,
+			ToolName:   "my_dynamic_tool",
+			Args:       json.RawMessage(`{}`),
+		},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{model.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(assistantContent.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued-after-crash"),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        chat.ID,
+		Content:       queuedContent.RawMessage,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = rawDB.ExecContext(ctx,
+		"UPDATE chats SET updated_at = $1 WHERE id = $2",
+		time.Now().Add(-time.Hour), chat.ID)
+	require.NoError(t, err)
+
+	chatd.RecoverStaleChatsForTest(ctx, server)
+
+	got, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, got.Status)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var (
+		assistantIdx    = -1
+		synthIdx        = -1
+		promotedUserIdx = -1
+	)
+	for i, msg := range messages {
+		switch msg.Role {
+		case database.ChatMessageRoleAssistant:
+			assistantIdx = i
+		case database.ChatMessageRoleTool:
+			parts, parseErr := chatprompt.ParseContent(msg)
+			require.NoError(t, parseErr)
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult &&
+					part.ToolCallID == pendingCallID && part.IsError {
+					synthIdx = i
+				}
+			}
+		case database.ChatMessageRoleUser:
+			parts, parseErr := chatprompt.ParseContent(msg)
+			require.NoError(t, parseErr)
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeText &&
+					part.Text == "queued-after-crash" {
+					promotedUserIdx = i
+				}
+			}
+		}
+	}
+	require.NotEqual(t, -1, assistantIdx, "assistant tool-call message present")
+	require.NotEqual(t, -1, synthIdx,
+		"stale recovery must insert synthetic tool result for the unresolved dynamic tool call")
+	require.NotEqual(t, -1, promotedUserIdx,
+		"queued message must be promoted into history")
+	require.Less(t, assistantIdx, synthIdx)
+	require.Less(t, synthIdx, promotedUserIdx)
+}
+
+// TestInsertSyntheticToolResultsTxSkipsAlreadyHandledCalls covers
+// DEREM-3: when a dynamic tool name collides with a built-in, the
+// chatloop dispatches it as the built-in and persists a real
+// tool-result. The raw chat.DynamicTools blob still lists the
+// colliding name, so without dedup the helper would insert a second
+// (synthetic) result for the same call ID and the LLM would reject
+// the next turn.
+func TestInsertSyntheticToolResultsTxSkipsAlreadyHandledCalls(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user, org, model := seedChatDependencies(t, db)
+
+	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{
+		{
+			Name:        "duplicate_call_tool",
+			Description: "Tool whose call already has a result.",
+			InputSchema: mcpgo.ToolInputSchema{Type: "object", Properties: map[string]any{}},
+		},
+		{
+			Name:        "still_pending_tool",
+			Description: "Tool whose call has no result yet.",
+			InputSchema: mcpgo.ToolInputSchema{Type: "object", Properties: map[string]any{}},
+		},
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusRequiresAction,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		Title:             "synth-results-dedup",
+		LastModelConfigID: model.ID,
+		DynamicTools:      nullRawMessage(dynamicToolsJSON),
+	})
+	require.NoError(t, err)
+
+	insertUserTextMessage(t, db, chat.ID, user.ID, model.ID, "please call both tools")
+
+	handledCallID := "call_already_handled"
+	pendingCallID := "call_still_pending"
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: handledCallID,
+			ToolName:   "duplicate_call_tool",
+			Args:       json.RawMessage(`{}`),
+		},
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: pendingCallID,
+			ToolName:   "still_pending_tool",
+			Args:       json.RawMessage(`{}`),
+		},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{model.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(assistantContent.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	// Pre-insert a tool-result for the handled call ID. This
+	// simulates the chatloop having dispatched the colliding
+	// dynamic tool name as a built-in.
+	handledResultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: handledCallID,
+			ToolName:   "duplicate_call_tool",
+			Result:     json.RawMessage(`"already done"`),
+		},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{model.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleTool},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(handledResultContent.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	chatRow, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	require.NoError(t, chatd.InsertSyntheticToolResultsTxForTest(
+		ctx, db, chatRow, "synth reason",
+	))
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var (
+		handledCount        int
+		pendingCount        int
+		syntheticForPending bool
+	)
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult {
+				continue
+			}
+			switch part.ToolCallID {
+			case handledCallID:
+				handledCount++
+			case pendingCallID:
+				pendingCount++
+				if part.IsError {
+					syntheticForPending = true
+				}
+			}
+		}
+	}
+	require.Equal(t, 1, handledCount,
+		"handled call must keep exactly one tool result")
+	require.Equal(t, 1, pendingCount,
+		"pending call must get exactly one synthetic tool result")
+	require.True(t, syntheticForPending,
+		"the new tool result for the pending call must be marked IsError")
+}
+
+// nullRawMessage wraps raw JSON in a NullRawMessage. An empty input
+// becomes the zero value (Valid=false).
+func nullRawMessage(raw []byte) pqtype.NullRawMessage {
+	if len(raw) == 0 {
+		return pqtype.NullRawMessage{}
+	}
+	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
 }
