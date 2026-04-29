@@ -20,8 +20,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -29,6 +31,93 @@ import (
 )
 
 const activeToolName = "read_file"
+
+func validWebSearchProviderMetadataForTest() fantasy.ProviderMetadata {
+	return fantasy.ProviderMetadata{
+		fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{
+			Results: []fantasyanthropic.WebSearchResultItem{
+				{
+					URL:              "https://example.com",
+					Title:            "Example",
+					EncryptedContent: "encrypted",
+				},
+			},
+		},
+	}
+}
+
+func safeToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {
+	var zero fantasy.ToolCallContent
+	switch value := block.(type) {
+	case fantasy.ToolCallContent:
+		return value, true
+	case *fantasy.ToolCallContent:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func safeToolResultContent(block fantasy.Content) (fantasy.ToolResultContent, bool) {
+	var zero fantasy.ToolResultContent
+	switch value := block.(type) {
+	case fantasy.ToolResultContent:
+		return value, true
+	case *fantasy.ToolResultContent:
+		if value == nil {
+			return zero, false
+		}
+		return *value, true
+	default:
+		return zero, false
+	}
+}
+
+func safeToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	var zero fantasy.ToolCallPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolCallPart); ok && value == nil {
+		return zero, false
+	}
+	type toolCallPart = fantasy.ToolCallPart
+	return fantasy.AsMessagePart[toolCallPart](part)
+}
+
+func safeToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	var zero fantasy.ToolResultPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolResultPart); ok && value == nil {
+		return zero, false
+	}
+	type toolResultPart = fantasy.ToolResultPart
+	return fantasy.AsMessagePart[toolResultPart](part)
+}
+
+func toolCallContentToPart(toolCall fantasy.ToolCallContent) fantasy.ToolCallPart {
+	return fantasy.ToolCallPart{
+		ToolCallID:       toolCall.ToolCallID,
+		ToolName:         toolCall.ToolName,
+		Input:            toolCall.Input,
+		ProviderExecuted: toolCall.ProviderExecuted,
+		ProviderOptions:  fantasy.ProviderOptions(toolCall.ProviderMetadata),
+	}
+}
+
+func toolResultContentToPart(toolResult fantasy.ToolResultContent) fantasy.ToolResultPart {
+	return fantasy.ToolResultPart{
+		ToolCallID:       toolResult.ToolCallID,
+		Output:           toolResult.Result,
+		ProviderExecuted: toolResult.ProviderExecuted,
+		ProviderOptions:  fantasy.ProviderOptions(toolResult.ProviderMetadata),
+	}
+}
 
 func awaitRunResult(ctx context.Context, t *testing.T, done <-chan error) error {
 	t.Helper()
@@ -1041,6 +1130,21 @@ func requireNoProviderExecutedToolResultContent(t *testing.T, content []fantasy.
 	}
 }
 
+func requireTextPrompt(t *testing.T, prompt []fantasy.Message, text string) fantasy.TextPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+			if ok && textPart.Text == text {
+				return textPart
+			}
+		}
+	}
+	t.Fatalf("missing prompt text %q", text)
+	return fantasy.TextPart{}
+}
+
 func requireNoProviderExecutedToolCallPrompt(t *testing.T, prompt []fantasy.Message) {
 	t.Helper()
 
@@ -1106,6 +1210,75 @@ func requireToolResultPrompt(t *testing.T, prompt []fantasy.Message, id string) 
 	}
 	t.Fatalf("missing prompt tool result %q", id)
 	return fantasy.ToolResultPart{}
+}
+
+func requireNoProviderExecutedToolResultPrompt(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+
+	for i, message := range prompt {
+		for j, part := range message.Content {
+			toolResult, ok := safeToolResultPart(part)
+			if ok && toolResult.ProviderExecuted {
+				t.Fatalf("prompt[%d].content[%d]: unexpected provider-executed result", i, j)
+			}
+		}
+	}
+}
+
+func requireProviderExecutedToolCallPrompt(
+	t *testing.T,
+	prompt []fantasy.Message,
+	id string,
+) fantasy.ToolCallPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			toolCall, ok := safeToolCallPart(part)
+			if ok && toolCall.ProviderExecuted && toolCall.ToolCallID == id {
+				return toolCall
+			}
+		}
+	}
+	t.Fatalf("missing provider-executed prompt tool call %q", id)
+	return fantasy.ToolCallPart{}
+}
+
+func requireProviderExecutedToolResultPrompt(
+	t *testing.T,
+	prompt []fantasy.Message,
+	id string,
+) fantasy.ToolResultPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			toolResult, ok := safeToolResultPart(part)
+			if ok && toolResult.ProviderExecuted && toolResult.ToolCallID == id {
+				return toolResult
+			}
+		}
+	}
+	t.Fatalf("missing provider-executed prompt tool result %q", id)
+	return fantasy.ToolResultPart{}
+}
+
+func requireAnthropicProviderToolPromptSafe(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+
+	require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory(prompt))
+}
+
+func requireLogField(t *testing.T, entry slog.SinkEntry, name string) any {
+	t.Helper()
+
+	for _, field := range entry.Fields {
+		if field.Name == name {
+			return field.Value
+		}
+	}
+	t.Fatalf("missing log field %q", name)
+	return nil
 }
 
 func containsPromptSentinel(prompt []fantasy.Message) bool {
@@ -2027,6 +2200,7 @@ func TestRun_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
 					ID:               "ws-1",
 					ToolCallName:     "web_search",
 					ProviderExecuted: true,
+					ProviderMetadata: validWebSearchProviderMetadataForTest(),
 				},
 				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "search done"},
@@ -2320,6 +2494,535 @@ func TestRun_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T) {
 	require.False(t, toolResult.ProviderExecuted)
 	promptResult := requireToolResultPrompt(t, secondCallPrompt, "tc-1")
 	require.False(t, promptResult.ProviderExecuted)
+}
+
+func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
+	t.Parallel()
+
+	providerCall := func(id, name, input string) fantasy.ToolCallContent {
+		return fantasy.ToolCallContent{
+			ToolCallID:       id,
+			ToolName:         name,
+			Input:            input,
+			ProviderExecuted: true,
+		}
+	}
+	providerResult := func(id, name string) fantasy.ToolResultContent {
+		return fantasy.ToolResultContent{
+			ToolCallID:       id,
+			ToolName:         name,
+			ProviderExecuted: true,
+			ProviderMetadata: validWebSearchProviderMetadataForTest(),
+			Result:           fantasy.ToolResultOutputContentText{Text: "ok"},
+		}
+	}
+	localCall := func(id, name string) fantasy.ToolCallContent {
+		return fantasy.ToolCallContent{
+			ToolCallID: id,
+			ToolName:   name,
+			Input:      `{}`,
+		}
+	}
+	localResult := func(id, name string) fantasy.ToolResultContent {
+		return fantasy.ToolResultContent{
+			ToolCallID: id,
+			ToolName:   name,
+			Result:     fantasy.ToolResultOutputContentText{Text: "ok"},
+		}
+	}
+	type contentSummary struct {
+		providerCalls   []string
+		providerResults []string
+		localCalls      []string
+		localResults    []string
+	}
+	summarizeContent := func(content []fantasy.Content) contentSummary {
+		var summary contentSummary
+		for _, block := range content {
+			if toolCall, ok := safeToolCallContent(block); ok {
+				if toolCall.ProviderExecuted {
+					summary.providerCalls = append(summary.providerCalls, toolCall.ToolCallID)
+				} else {
+					summary.localCalls = append(summary.localCalls, toolCall.ToolCallID)
+				}
+				continue
+			}
+			if toolResult, ok := safeToolResultContent(block); ok {
+				if toolResult.ProviderExecuted {
+					summary.providerResults = append(summary.providerResults, toolResult.ToolCallID)
+				} else {
+					summary.localResults = append(summary.localResults, toolResult.ToolCallID)
+				}
+			}
+		}
+		return summary
+	}
+	assertProviderHistoryValid := func(t *testing.T, content []fantasy.Content) {
+		t.Helper()
+
+		parts := make([]fantasy.MessagePart, 0)
+		for _, block := range content {
+			if toolCall, ok := safeToolCallContent(block); ok && toolCall.ProviderExecuted {
+				parts = append(parts, toolCallContentToPart(toolCall))
+				continue
+			}
+			if toolResult, ok := safeToolResultContent(block); ok && toolResult.ProviderExecuted {
+				parts = append(parts, toolResultContentToPart(toolResult))
+			}
+		}
+		if len(parts) == 0 {
+			return
+		}
+		require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory([]fantasy.Message{
+			{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: parts,
+			},
+		}))
+	}
+
+	metadataCall := providerCall("ws-meta", "web_search", `{"query":"coder"}`)
+	metadataCall.ProviderMetadata = fantasy.ProviderMetadata{fantasyanthropic.Name: nil}
+	metadataResult := providerResult("ws-meta", "web_search")
+	metadataResult.ProviderMetadata = fantasy.ProviderMetadata{fantasyanthropic.Name: nil}
+	pointerCall := providerCall("ws-pointer", "web_search", `{"query":"coder"}`)
+	var nilToolCall *fantasy.ToolCallContent
+
+	testCases := []struct {
+		name               string
+		provider           string
+		content            []fantasy.Content
+		wantSummary        contentSummary
+		wantRemovedCalls   int
+		wantRemovedResults int
+		wantTexts          []string
+		validateAnthropic  bool
+	}{
+		{
+			name:     "orphan provider result textified",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				fantasy.TextContent{Text: "keep"},
+				providerResult("ws-1", "web_search"),
+			},
+			wantRemovedResults: 1,
+			wantTexts:          []string{"keep", "ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "result before call removes both provider blocks",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerResult("ws-1", "web_search"),
+				providerCall("ws-1", "web_search", `{"query":"coder"}`),
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "valid web search pair preserved",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("ws-1", "web_search", `{"query":"coder"}`),
+				providerResult("ws-1", "web_search"),
+				fantasy.TextContent{Text: "search done"},
+			},
+			wantSummary: contentSummary{
+				providerCalls:   []string{"ws-1"},
+				providerResults: []string{"ws-1"},
+			},
+			wantTexts:         []string{"search done"},
+			validateAnthropic: true,
+		},
+		{
+			name:     "invalid JSON provider call drops pair",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("ws-1", "web_search", `{`),
+				providerResult("ws-1", "web_search"),
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "empty ID provider call drops pair",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("", "web_search", `{"query":"coder"}`),
+				providerResult("", "web_search"),
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "empty tool name provider call drops pair",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("ws-empty", "", `{"query":"coder"}`),
+				providerResult("ws-empty", ""),
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "non web search provider pair drops through serializable helper",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("code-1", "code_execution", `{"code":"print(1)"}`),
+				providerResult("code-1", "code_execution"),
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "mismatched provider result tool name drops pair",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("ws-mismatch", "web_search", `{"query":"coder"}`),
+				providerResult("ws-mismatch", "code_execution"),
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "duplicate provider IDs drop all provider content for ID",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("dup-1", "web_search", `{"query":"coder"}`),
+				providerResult("dup-1", "web_search"),
+				providerCall("dup-1", "web_search", `{"query":"coder"}`),
+			},
+			wantRemovedCalls:   2,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "mismatched provider flags remove only provider side",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				providerCall("mix-1", "web_search", `{"query":"coder"}`),
+				localResult("mix-1", "web_search"),
+				localCall("mix-2", "read_file"),
+				providerResult("mix-2", "web_search"),
+			},
+			wantSummary: contentSummary{
+				localCalls:   []string{"mix-2"},
+				localResults: []string{"mix-1"},
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "malformed provider metadata textifies result",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				metadataCall,
+				metadataResult,
+			},
+			wantRemovedCalls:   1,
+			wantRemovedResults: 1,
+			wantTexts:          []string{"ok"},
+			validateAnthropic:  true,
+		},
+		{
+			name:     "pointer and nil pointer variants are handled safely",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				nilToolCall,
+				&pointerCall,
+				providerResult("ws-pointer", "web_search"),
+			},
+			wantSummary: contentSummary{
+				providerCalls:   []string{"ws-pointer"},
+				providerResults: []string{"ws-pointer"},
+			},
+			validateAnthropic: true,
+		},
+		{
+			name:     "local tool content is unchanged",
+			provider: fantasyanthropic.Name,
+			content: []fantasy.Content{
+				localCall("tc-1", "read_file"),
+				localResult("tc-1", "read_file"),
+			},
+			wantSummary: contentSummary{
+				localCalls:   []string{"tc-1"},
+				localResults: []string{"tc-1"},
+			},
+			validateAnthropic: true,
+		},
+		{
+			name:     "non Anthropic provider content is unchanged",
+			provider: "fake",
+			content: []fantasy.Content{
+				providerCall("ws-1", "web_search", `{"query":"coder"}`),
+			},
+			wantSummary: contentSummary{
+				providerCalls: []string{"ws-1"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolContent(tc.provider, tc.content)
+			require.Equal(t, tc.wantRemovedCalls, stats.RemovedToolCalls)
+			require.Equal(t, tc.wantRemovedResults, stats.RemovedToolResults)
+			require.Zero(t, stats.DroppedMessages)
+
+			summary := summarizeContent(sanitized)
+			assert.ElementsMatch(t, tc.wantSummary.providerCalls, summary.providerCalls)
+			assert.ElementsMatch(t, tc.wantSummary.providerResults, summary.providerResults)
+			assert.ElementsMatch(t, tc.wantSummary.localCalls, summary.localCalls)
+			assert.ElementsMatch(t, tc.wantSummary.localResults, summary.localResults)
+			for _, text := range tc.wantTexts {
+				requireTextContent(t, sanitized, text)
+			}
+			if tc.validateAnthropic {
+				assertProviderHistoryValid(t, sanitized)
+			}
+		})
+	}
+}
+
+func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
+	t.Parallel()
+
+	webSearchTool := ProviderTool{
+		Definition: fantasy.ProviderDefinedTool{
+			ID:   "anthropic.web_search",
+			Name: "web_search",
+		},
+	}
+	providerPair := func(id string) []fantasy.MessagePart {
+		return []fantasy.MessagePart{
+			fantasy.ToolCallPart{
+				ToolCallID:       id,
+				ToolName:         "web_search",
+				Input:            `{"query":"coder"}`,
+				ProviderExecuted: true,
+			},
+			fantasy.ToolResultPart{
+				ToolCallID:       id,
+				Output:           fantasy.ToolResultOutputContentText{Text: "ok"},
+				ProviderExecuted: true,
+				ProviderOptions:  fantasy.ProviderOptions(validWebSearchProviderMetadataForTest()),
+			},
+		}
+	}
+	completionModel := func(capturedPrompt *[]fantasy.Message) *chattest.FakeModel {
+		return &chattest.FakeModel{
+			ProviderName: fantasyanthropic.Name,
+			ModelName:    "claude-test",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+				*capturedPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		}
+	}
+
+	t.Run("allowed web search survives when provider tool is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedPrompt []fantasy.Message
+		err := Run(context.Background(), RunOptions{
+			Model: completionModel(&capturedPrompt),
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "search"),
+				{
+					Role:    fantasy.MessageRoleAssistant,
+					Content: providerPair("ws-allowed"),
+				},
+				textMessage(fantasy.MessageRoleUser, "continue"),
+			},
+			ProviderTools: []ProviderTool{webSearchTool},
+			MaxSteps:      1,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+		})
+		require.NoError(t, err)
+
+		toolCall := requireProviderExecutedToolCallPrompt(t, capturedPrompt, "ws-allowed")
+		require.Equal(t, "web_search", toolCall.ToolName)
+		requireProviderExecutedToolResultPrompt(t, capturedPrompt, "ws-allowed")
+		requireAnthropicProviderToolPromptSafe(t, capturedPrompt)
+	})
+
+	t.Run("web search history survives when provider tool is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedPrompt []fantasy.Message
+		err := Run(context.Background(), RunOptions{
+			Model: completionModel(&capturedPrompt),
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "search and read"),
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: append(providerPair("ws-disabled"), fantasy.ToolCallPart{
+						ToolCallID: "tc-1",
+						ToolName:   "read_file",
+						Input:      `{"path":"main.go"}`,
+					}),
+				},
+				{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{
+						fantasy.ToolResultPart{
+							ToolCallID: "tc-1",
+							Output:     fantasy.ToolResultOutputContentText{Text: "file"},
+						},
+					},
+				},
+				textMessage(fantasy.MessageRoleUser, "continue"),
+			},
+			MaxSteps: 1,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+		})
+		require.NoError(t, err)
+
+		requireProviderExecutedToolCallPrompt(t, capturedPrompt, "ws-disabled")
+		requireProviderExecutedToolResultPrompt(t, capturedPrompt, "ws-disabled")
+		promptResult := requireToolResultPrompt(t, capturedPrompt, "tc-1")
+		require.False(t, promptResult.ProviderExecuted)
+		requireAnthropicProviderToolPromptSafe(t, capturedPrompt)
+	})
+
+	t.Run("direct guard textifies orphaned provider result", func(t *testing.T) {
+		t.Parallel()
+
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+			context.Background(),
+			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			fantasyanthropic.Name,
+			"claude-test",
+			[]fantasy.Message{
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "keep"},
+						fantasy.ToolResultPart{
+							ToolCallID:       "ws-orphan",
+							Output:           fantasy.ToolResultOutputContentText{Text: "search result"},
+							ProviderExecuted: true,
+						},
+					},
+				},
+			},
+		)
+
+		requireNoProviderExecutedToolResultPrompt(t, guarded)
+		requireAnthropicProviderToolPromptSafe(t, guarded)
+		require.Len(t, guarded, 1)
+		require.Len(t, guarded[0].Content, 2)
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](guarded[0].Content[0])
+		require.True(t, ok)
+		require.Equal(t, "keep", textPart.Text)
+		textPart, ok = fantasy.AsMessagePart[fantasy.TextPart](guarded[0].Content[1])
+		require.True(t, ok)
+		require.Equal(t, "search result", textPart.Text)
+	})
+
+	t.Run("direct guard leaves valid provider history unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		content := []fantasy.MessagePart{fantasy.TextPart{Text: "keep"}}
+		content = append(content, providerPair("ws-one")...)
+		content = append(content, providerPair("ws-two")...)
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+			context.Background(),
+			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			fantasyanthropic.Name,
+			"claude-test",
+			[]fantasy.Message{{Role: fantasy.MessageRoleAssistant, Content: content}},
+		)
+
+		requireAnthropicProviderToolPromptSafe(t, guarded)
+		require.Len(t, guarded, 1)
+		require.Len(t, guarded[0].Content, len(content))
+		requireProviderExecutedToolCallPrompt(t, guarded, "ws-one")
+		requireProviderExecutedToolResultPrompt(t, guarded, "ws-one")
+		requireProviderExecutedToolCallPrompt(t, guarded, "ws-two")
+		requireProviderExecutedToolResultPrompt(t, guarded, "ws-two")
+	})
+
+	t.Run("direct guard leaves non Anthropic providers unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		prompt := []fantasy.Message{
+			{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: providerPair("ws-other-provider"),
+			},
+		}
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+			context.Background(),
+			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			"fake",
+			"fake-model",
+			prompt,
+		)
+		require.Equal(t, prompt, guarded)
+	})
+
+	t.Run("guard logs removals", func(t *testing.T) {
+		t.Parallel()
+
+		logSink := testutil.NewFakeSink(t)
+		logger := logSink.Logger()
+		logPair := providerPair("ws-log")
+		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+			context.Background(),
+			logger,
+			fantasyanthropic.Name,
+			"claude-test",
+			[]fantasy.Message{
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						logPair[1],
+						logPair[0],
+					},
+				},
+			},
+		)
+
+		requireNoProviderExecutedToolCallPrompt(t, guarded)
+		requireNoProviderExecutedToolResultPrompt(t, guarded)
+		requireTextPrompt(t, guarded, "ok")
+		entries := logSink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelWarn &&
+				e.Message == "removed provider-executed tool history"
+		})
+		require.Len(t, entries, 1)
+		require.Equal(t, "pre_request_guard", requireLogField(t, entries[0], "phase"))
+		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
+		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_results"))
+	})
 }
 
 // TestRun_PersistStepInterruptedFallback verifies that when the normal

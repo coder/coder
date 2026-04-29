@@ -44,6 +44,7 @@ import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useArchivedFilterParam } from "./hooks/useArchivedFilterParam";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -67,9 +68,7 @@ const AgentsPage: FC = () => {
 	const { appearance } = useDashboard();
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
-	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
-		"active",
-	);
+	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page

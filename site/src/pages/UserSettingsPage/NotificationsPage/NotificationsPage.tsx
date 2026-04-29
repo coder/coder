@@ -278,6 +278,7 @@ function canSeeNotificationGroup(
 			return permissions.createUser;
 		case "Workspace Events":
 		case "Task Events":
+		case "Chat Events":
 		case "Custom Events":
 			return true;
 		default:

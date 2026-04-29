@@ -23740,6 +23740,7 @@ const docTemplate = `{
                 "EACS04",
                 "EDERP01",
                 "EDERP02",
+                "EDERP03",
                 "EPD01",
                 "EPD02",
                 "EPD03"
@@ -23760,6 +23761,7 @@ const docTemplate = `{
                 "CodeAccessURLNotOK",
                 "CodeDERPNodeUsesWebsocket",
                 "CodeDERPOneNodeUnhealthy",
+                "CodeDERPNoNodes",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
                 "CodeProvisionerDaemonAPIMajorVersionDeprecated"

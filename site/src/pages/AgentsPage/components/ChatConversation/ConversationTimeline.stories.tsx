@@ -1768,6 +1768,64 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 	},
 };
 
+/** Collapsed thinking should visually align with adjacent tool calls. */
+export const ThinkingBlockWithToolCall: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "always_collapsed" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "I need to inspect the package metadata before answering.",
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "read_file",
+						args: { path: "package.json" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-1",
+						result: { content: '{"name":"coder"}' },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /thinking/i }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: /read package\.json/i }),
+		).toBeInTheDocument();
+	},
+};
+
 /**
  * A completed thinking block with auto mode should be collapsed
  * (non-streaming state means auto collapses).

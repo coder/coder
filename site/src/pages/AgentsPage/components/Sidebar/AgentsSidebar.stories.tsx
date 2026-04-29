@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
@@ -11,6 +12,13 @@ import {
 } from "#/testHelpers/storybook";
 import type { ModelSelectorOption } from "../ChatElements";
 import { AgentsSidebar } from "./AgentsSidebar";
+
+// Probe element used by the archived-filter preservation story to surface the
+// search string of whatever child route the sidebar's NavLink ends up at.
+const ChildSearchProbe = () => {
+	const location = useLocation();
+	return <div data-testid="child-search">{location.search}</div>;
+};
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -904,6 +912,44 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
 		});
 		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+	},
+};
+
+export const PreservesArchivedFilterOnChatNavigation: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-nav-1",
+				title: "Archived nav target",
+				archived: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+		archivedFilter: "archived",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: [
+				{ path: "/agents", useStoryElement: true },
+				{ path: "/agents/:agentId", element: <ChildSearchProbe /> },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link", {
+			name: /Archived nav target/,
+		});
+		await userEvent.click(link);
+		await waitFor(() => {
+			expect(canvas.getByTestId("child-search")).toHaveTextContent(
+				"archived=archived",
+			);
+		});
 	},
 };
 

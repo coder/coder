@@ -422,6 +422,29 @@ message InitComplete {
   bytes module_files_hash = 5;
 }
 
+// UserSecretValue carries a single user secret to a provisioner. env_name and
+// file_path describe the bindings the user requested when creating the secret.
+// The terraform provisioner exposes secrets via CODER_SECRET_ENV_* and
+// CODER_SECRET_FILE_* environment variables consumed by terraform-provider-coder's
+// coder_secret data source
+message UserSecretValue {
+  // Environment variable name the user selected (e.g. "GITHUB_TOKEN"). Intended
+  // to be treated as an opaque lookup key, i.e. consumers must preserve it
+  // verbatim when matching against a data.coder_secret.env_name attribute.
+  // Consumers can assume names are POSIX-compliant. Optional: env_name and
+  // file_path are independent.
+  string env_name = 1;
+  // Filesystem path the user requested this secret be bound to (e.g. "~/creds"
+  // or "/etc/creds"). This path is not expanded. Expansion happens only where
+  // the secret is actually materialized on disk. Intended to be treated as an
+  // opaque lookup key, i.e. consumers must preserve it verbatim when matching
+  // against a data.coder_secret.file attribute. Optional; env_name and
+  // file_path are independent.
+  string file_path = 2;
+  // Secret value, which may be arbitrary binary data.
+  bytes value = 3;
+}
+
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
 message PlanRequest {
   Metadata metadata = 1;
@@ -432,6 +455,12 @@ message PlanRequest {
 
   // state is the provisioner state (if any)
   bytes state = 6;
+
+  // User secrets to make available during plan. Not carried on ApplyRequest
+  // because plan evaluates data.coder_secret references and bakes the
+  // resolved values into plan state, so apply does not need the raw secrets.
+  // Provisioner-specific handling is documented on the UserSecretValue message.
+  repeated UserSecretValue user_secrets = 7;
 }
 
 // PlanComplete indicates a request to plan completed.

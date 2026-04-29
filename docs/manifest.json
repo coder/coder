@@ -366,6 +366,13 @@
 					"description": "Personalize your environment with dotfiles",
 					"path": "./user-guides/workspace-dotfiles.md",
 					"icon_path": "./images/icons/art-pad.svg"
+				},
+				{
+					"title": "User secrets",
+					"description": "Store secret values in Coder and automatically inject them into workspaces",
+					"path": "./user-guides/user-secrets.md",
+					"icon_path": "./images/icons/secrets.svg",
+					"state": ["early access"]
 				}
 			]
 		},

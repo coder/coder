@@ -32,6 +32,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationsmock"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -176,6 +179,92 @@ func TestMetrics(t *testing.T) {
 			"success": "true",
 		})
 		require.Nil(t, successHist, "should not have success=true metric on failure")
+	})
+
+	// A failed retention read must not block unrelated purges,
+	// but must skip the chat passes and surface as a failed
+	// iteration via the metric.
+	t.Run("FailedChatRetentionRead", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).
+			Return(int32(0), xerrors.New("simulated retention read error")).
+			MinTimes(1)
+		// Both reads happen before the bail; InTx still runs
+		// so unrelated purges commit best-effort.
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			Return(nil).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		hist := promhelp.HistogramValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.NotNil(t, hist)
+		require.Greater(t, hist.GetSampleCount(), uint64(0),
+			"failed retention read must record a failed iteration")
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "should not have success=true metric on retention read failure")
+	})
+
+	// Same contract as FailedChatRetentionRead, but the
+	// auto-archive read is the half that fails.
+	t.Run("FailedChatAutoArchiveRead", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
+			Return(int32(0), xerrors.New("simulated auto-archive read error")).
+			MinTimes(1)
+		// InTx still runs so unrelated purges commit; chat
+		// passes inside the tx are skipped.
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			Return(nil).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		hist := promhelp.HistogramValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.NotNil(t, hist)
+		require.Greater(t, hist.GetSampleCount(), uint64(0),
+			"failed auto-archive read must record a failed iteration")
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "should not have success=true metric on auto-archive read failure")
 	})
 }
 
@@ -2348,15 +2437,19 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
+				// Not archived, no audits, no digests.
 				refreshed, err := db.GetChatByID(ctx, staleChat.ID)
 				require.NoError(t, err)
 				require.False(t, refreshed.Archived, "chat should stay active when auto-archive is disabled")
+
 				require.Empty(t, auditor.AuditLogs(), "no audit log entries expected")
+				require.Empty(t, enqueuer.Sent(), "no digest notifications expected")
 			},
 		},
 		{
@@ -2365,7 +2458,10 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				h := newArchiveHarness(t, now)
 				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
+				// Regression guard: ensure that both auto-archive and retention
+				// are both set to a distinct non-zero value.
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
 
 				// Inactive root: newest message 100 days old.
 				staleChat := createArchiveChat(ctx, t, db, rawDB, deps, "stale-chat", now.Add(-120*24*time.Hour))
@@ -2377,8 +2473,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2390,6 +2487,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.NoError(t, err)
 				require.False(t, refreshedActive.Archived, "active chat should stay live")
 
+				// Exactly one audit entry, for the stale root.
 				logs := auditor.AuditLogs()
 				require.Len(t, logs, 1, "expected one audit entry")
 				require.Equal(t, staleChat.ID, logs[0].ResourceID)
@@ -2397,6 +2495,15 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Equal(t, database.AuditActionWrite, logs[0].Action)
 				require.Contains(t, string(logs[0].AdditionalFields), "chat_auto_archive",
 					"audit entry must carry the auto-archive subsystem tag")
+
+				// Exactly one digest, addressed to the owner.
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1, "expected one digest notification")
+				require.Equal(t, notifications.TemplateChatAutoArchiveDigest, sent[0].TemplateID)
+				require.Equal(t, deps.user.ID, sent[0].UserID)
+				// Ensure that config-derived fields flow through to payload.
+				require.Equal(t, "90", sent[0].Data["auto_archive_days"])
+				require.Equal(t, "30", sent[0].Data["retention_days"])
 			},
 		},
 		{
@@ -2498,8 +2605,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2512,6 +2620,7 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.False(t, refreshedChild.Archived, "child must stay active")
 
 				require.Empty(t, auditor.AuditLogs(), "no chats should be archived")
+				require.Empty(t, enqueuer.Sent(), "no notifications should be sent")
 			},
 		},
 		{
@@ -2552,8 +2661,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2580,6 +2690,12 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				logs := auditor.AuditLogs()
 				require.Len(t, logs, 1, "only the completed chat should produce an audit entry")
 				require.Equal(t, completedChat.ID, logs[0].ResourceID)
+
+				// Assert number of sent notifications to catch dispatch regressions.
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1, "expected one digest notification for the completed chat")
+				require.Equal(t, notifications.TemplateChatAutoArchiveDigest, sent[0].TemplateID)
+				require.Equal(t, deps.user.ID, sent[0].UserID)
 			},
 		},
 		{
@@ -2608,8 +2724,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2628,6 +2745,62 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				// One audit entry for the root; the cascaded child is
 				// not audited individually.
 				require.Len(t, auditor.AuditLogs(), 1)
+
+				// Digest should list only the root (one row).
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1)
+				data := sent[0].Data
+				require.NotNil(t, data)
+				chats, ok := data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats, 1, "digest should only list the root")
+				require.Equal(t, "root-chat", chats[0]["title"])
+			},
+		},
+		{
+			name: "DigestOverflowCap",
+			run: func(t *testing.T) {
+				// 27 inactive roots exceed chatAutoArchiveDigestMaxChats
+				// (25). All 27 should archive, but the digest payload
+				// lists at most 25 titles and surfaces the rest via
+				// additional_archived_count so the template can render
+				// "...and N more".
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				const total = 27
+				for i := range total {
+					createArchiveChat(ctx, t, db, rawDB, deps,
+						fmt.Sprintf("stale-%02d", i),
+						now.Add(-60*24*time.Hour))
+				}
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// All 27 roots archived (one audit each).
+				require.Len(t, auditor.AuditLogs(), total)
+
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1, "one digest per owner")
+				chats, ok := sent[0].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats, 25, "digest caps titles at 25")
+				require.Equal(t, "2", sent[0].Data["additional_archived_count"],
+					"overflow count is total - cap")
+				// Humanized timestamp is computed from LastActivityAt
+				// and the tick-start time, not a static fixture, so we
+				// only assert the suffix the humanizer emits.
+				humanized, _ := chats[0]["last_activity_humanized"].(string)
+				require.Contains(t, humanized, "ago",
+					"last_activity_humanized should be a past relative time")
 			},
 		},
 		{
@@ -2640,8 +2813,8 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
 
-				// Two stale roots per owner, backdated well past the
-				// 30-day cutoff.
+				// Two stale roots per owner, backdated well past
+				// the 30-day cutoff.
 				u1Deps := deps
 				u2Deps := chatAutoArchiveDeps{user: user2, org: deps.org, modelConfig: deps.modelConfig}
 				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-a", now.Add(-60*24*time.Hour))
@@ -2651,22 +2824,45 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
-				// Four audit rows, one per archived root. Each entry
-				// carries the owning UserID so downstream consumers can
+				// Four audit rows, one per archived root, attributed
+				// to the owning user so downstream consumers can
 				// correlate per-owner activity.
 				logs := auditor.AuditLogs()
 				require.Len(t, logs, 4)
-				byUser := map[uuid.UUID]int{}
+				auditsByUser := map[uuid.UUID]int{}
 				for _, l := range logs {
-					byUser[l.UserID]++
+					auditsByUser[l.UserID]++
 				}
-				require.Equal(t, 2, byUser[deps.user.ID])
-				require.Equal(t, 2, byUser[user2.ID])
+				require.Equal(t, 2, auditsByUser[deps.user.ID])
+				require.Equal(t, 2, auditsByUser[user2.ID])
+
+				// One digest per owner, each listing only that owner's
+				// two chats.
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 2, "expected one digest per owner")
+
+				byUser := map[uuid.UUID][]string{}
+				for _, s := range sent {
+					require.Equal(t, notifications.TemplateChatAutoArchiveDigest, s.TemplateID)
+					chats, ok := s.Data["archived_chats"].([]map[string]any)
+					require.True(t, ok, "archived_chats should be []map[string]any")
+					for _, c := range chats {
+						title, _ := c["title"].(string)
+						byUser[s.UserID] = append(byUser[s.UserID], title)
+					}
+				}
+				require.Contains(t, byUser, deps.user.ID)
+				require.Contains(t, byUser, user2.ID)
+				slices.Sort(byUser[deps.user.ID])
+				slices.Sort(byUser[user2.ID])
+				require.Equal(t, []string{"u1-a", "u1-b"}, byUser[deps.user.ID])
+				require.Equal(t, []string{"u2-a", "u2-b"}, byUser[user2.ID])
 			},
 		},
 		{
@@ -2683,8 +2879,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk))
 				// Defer driver.close() after closer.Close(): defers
 				// run LIFO, so this frees shutdown's ticker.Stop()
 				// before the dbpurge goroutine blocks on it.
@@ -2692,8 +2889,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				defer driver.close()
 				driver.awaitInitial(ctx, t)
 
-				// Tick 1: both archived.
+				// Tick 1: both archived, one digest.
 				require.Len(t, auditor.AuditLogs(), 2, "tick 1 audits")
+				require.Len(t, enqueuer.Sent(), 1, "tick 1 digests")
 
 				// Seed a third stale root between ticks so tick 2 has
 				// genuine work and we can distinguish "ignored already
@@ -2702,11 +2900,17 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				driver.awaitNext(ctx, t)
 
-				// Tick 2: exactly one new audit for the third chat;
-				// tick 1's rows must not be re-archived.
+				// Tick 2: exactly one new audit + one new digest for
+				// the third chat; tick 1's rows must not be re-archived.
 				require.Len(t, auditor.AuditLogs(), 3, "tick 2 cumulative audits")
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 2, "tick 2 cumulative digests")
+				chats, ok := sent[1].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats, 1, "tick 2 digest lists only the new chat")
+				require.Equal(t, "second-c", chats[0]["title"])
 
-				// All three chats should remain archived.
+				// First-tick chats stayed archived.
 				for _, id := range []uuid.UUID{firstA.ID, firstB.ID, third.ID} {
 					refreshed, err := db.GetChatByID(ctx, id)
 					require.NoError(t, err)
@@ -2718,10 +2922,18 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 			name: "BatchSizePagination",
 			run: func(t *testing.T) {
 				// With 27 stale roots and batch size 20, tick 1
-				// archives 20, tick 2 archives the remaining 7, tick 3
-				// archives none. We assert the audit dispatch follows
-				// the same pattern: no dispatch runs when rows == 0,
-				// so tick 3 emits no new audits.
+				// archives 20, tick 2 archives the remaining 7, and
+				// tick 3 archives none. We assert the dispatch side
+				// effects (audits, digests) follow the same pattern:
+				// dispatch only runs when rows > 0, so tick 3 emits
+				// no new audits or digests.
+				//
+				// The two-digest count asserted here is a consequence
+				// of the per-tick enqueue model, not a product
+				// invariant. notification_messages dedupe does not
+				// collapse these because each tick's payload differs.
+				// If enqueue is ever restructured to one notification
+				// per owner per day, this assertion changes with it.
 				h := newArchiveHarness(t, now)
 				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
 
@@ -2736,8 +2948,9 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 
 				auditor := audit.NewMock()
 				auditorPtr := mockAuditorPtr(auditor)
+				enqueuer := notificationstest.NewFakeEnqueuer()
 				driver := newTickDriver(t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk), dbpurge.WithChatAutoArchiveBatchSize(20))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(enqueuer), dbpurge.WithClock(clk), dbpurge.WithChatAutoArchiveBatchSize(20))
 				// Defer driver.close() after closer.Close() so trap
 				// cleanup frees shutdown's ticker.Stop() before the
 				// dbpurge goroutine blocks on it.
@@ -2745,15 +2958,137 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				defer driver.close()
 				driver.awaitInitial(ctx, t)
 
+				// Tick 1: first batch (20) archived.
 				require.Len(t, auditor.AuditLogs(), 20, "tick 1 audits")
+				sent := enqueuer.Sent()
+				require.Len(t, sent, 1, "tick 1 digests")
+				chats1, ok := sent[0].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats1, 20, "tick 1 digest lists all 20 titles")
+				require.NotContains(t, sent[0].Data, "additional_archived_count",
+					"no overflow when batch <= digest cap; 20 <= 25")
 
 				driver.awaitNext(ctx, t)
+
+				// Tick 2: remaining 7 archived.
 				require.Len(t, auditor.AuditLogs(), 27, "tick 2 cumulative audits")
+				sent = enqueuer.Sent()
+				require.Len(t, sent, 2, "tick 2 cumulative digests")
+				chats2, ok := sent[1].Data["archived_chats"].([]map[string]any)
+				require.True(t, ok, "archived_chats should be []map[string]any")
+				require.Len(t, chats2, 7, "tick 2 digest lists remaining 7")
 
 				driver.awaitNext(ctx, t)
-				// Tick 3: nothing left to archive; dispatch is gated
-				// on len(archivedChats) > 0 so no new audits.
+
+				// Tick 3: nothing left to archive. The dispatch is
+				// gated on len(archivedChats) > 0, so no new audits
+				// or digests are produced. If that gate is ever
+				// removed, update this assertion intentionally.
 				require.Len(t, auditor.AuditLogs(), 27, "tick 3 cumulative audits unchanged")
+				require.Len(t, enqueuer.Sent(), 2, "tick 3 cumulative digests unchanged")
+			},
+		},
+		{
+			name: "ShutdownCancelsDigestDispatch",
+			run: func(t *testing.T) {
+				// Two owners with one stale root each. The first
+				// EnqueueWithData call blocks until ctx is canceled.
+				// Closing the purger must propagate cancellation
+				// into the in-flight call and short-circuit the
+				// rest of the loop, so Close returns promptly
+				// instead of hanging on dispatch.
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+				user2 := dbgen.User(t, db, database.User{})
+				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: deps.org.ID})
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				u1Deps := deps
+				u2Deps := chatAutoArchiveDeps{user: user2, org: deps.org, modelConfig: deps.modelConfig}
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-stale", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-stale", now.Add(-60*24*time.Hour))
+
+				// Dispatch iterates owner IDs in ascending UUID order (convention).
+				expectedFirst := deps.user.ID
+				if user2.ID.String() < deps.user.ID.String() {
+					expectedFirst = user2.ID
+				}
+
+				ctrl := gomock.NewController(t)
+				mockEnq := notificationsmock.NewMockEnqueuer(ctrl)
+				started := make(chan struct{})
+				mockEnq.EXPECT().EnqueueWithData(gomock.Any(), gomock.Eq(expectedFirst), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, _ map[string]string, _ map[string]any, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
+						close(started)
+						<-ctx.Done()
+						return nil, ctx.Err()
+					}).Times(1)
+
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithNotificationsEnqueuer(mockEnq), dbpurge.WithClock(clk))
+
+				// Wait for the forced initial tick to reach the first
+				// enqueue, which then blocks on ctx.Done().
+				testutil.TryReceive(ctx, t, started)
+
+				// Blocked enqueue receives ctx cancellation via the parent context.
+				// Loop-head check abandons the remaining owner instead of trying to enqueue.
+				done := make(chan error)
+				go func() { done <- closer.Close() }()
+				testutil.RequireReceive(ctx, t, done)
+			},
+		},
+		{
+			// A transient enqueue failure for one owner must not abort the dispatch loop.
+			name: "TransientEnqueueFailureDoesNotAbortLoop",
+			run: func(t *testing.T) {
+				h := newArchiveHarness(t, now)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+				user2 := dbgen.User(t, db, database.User{})
+				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: deps.org.ID})
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(30)))
+
+				u1Deps := deps
+				u2Deps := chatAutoArchiveDeps{user: user2, org: deps.org, modelConfig: deps.modelConfig}
+				createArchiveChat(ctx, t, db, rawDB, u1Deps, "u1-stale", now.Add(-60*24*time.Hour))
+				createArchiveChat(ctx, t, db, rawDB, u2Deps, "u2-stale", now.Add(-60*24*time.Hour))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+
+				ctrl := gomock.NewController(t)
+				mockEnq := notificationsmock.NewMockEnqueuer(ctrl)
+				var calls atomic.Int32
+				var successUserID uuid.UUID
+				mockEnq.EXPECT().EnqueueWithData(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, userID, _ uuid.UUID, _ map[string]string, _ map[string]any, _ string, _ ...uuid.UUID) ([]uuid.UUID, error) {
+						if calls.Add(1) == 1 {
+							return nil, xerrors.New("simulated transient enqueue failure")
+						}
+						successUserID = userID
+						return nil, nil
+					}).Times(2)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithNotificationsEnqueuer(mockEnq), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				// Both owners must have been audited regardless of
+				// digest enqueue outcomes; the audit and digest
+				// paths are independent.
+				require.Len(t, auditor.AuditLogs(), 2, "both archived roots must be audited")
+
+				// gomock's .Times(2) already enforces both calls
+				// happened; this assertion makes the contract
+				// explicit at the test site.
+				require.Equal(t, int32(2), calls.Load(),
+					"loop must attempt every owner even when one fails")
+
+				// The second attempt succeeded for one of the two owners.
+				require.Contains(t, []uuid.UUID{deps.user.ID, user2.ID}, successUserID,
+					"successful digest must belong to one of the two owners")
 			},
 		},
 	}

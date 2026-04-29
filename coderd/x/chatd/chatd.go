@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -134,7 +135,8 @@ var (
 // Server handles background processing of pending chats.
 type Server struct {
 	cancel     context.CancelFunc
-	closed     chan struct{}
+	ctx        context.Context
+	wg         sync.WaitGroup
 	inflight   sync.WaitGroup
 	inflightMu sync.Mutex
 
@@ -248,8 +250,9 @@ func (p *Server) loadCachedWorkspaceContext(
 	}
 
 	var tools []fantasy.AgentTool
+	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
 	for _, t := range entry.tools {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn))
+		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn, invalidate))
 	}
 
 	return tools
@@ -3263,6 +3266,12 @@ type chainModeInfo struct {
 	// hasUnresolvedLocalToolCalls is true when previousResponseID
 	// points at an assistant message with pending local tool calls.
 	hasUnresolvedLocalToolCalls bool
+	// providerMissingToolResults is true when the assistant message
+	// has local tool calls with local results, but no follow-up
+	// assistant message exists to confirm the results were sent
+	// back to the provider. This happens when StopAfterTool
+	// terminates a turn before the results are round-tripped.
+	providerMissingToolResults bool
 }
 
 func userMessageContributesToChainMode(msg database.ChatMessage) bool {
@@ -3342,10 +3351,57 @@ func assistantHasUnresolvedLocalToolCalls(
 	return len(resolvedCallIDs) != len(localCallIDs)
 }
 
+// providerHasMissingToolResults reports whether the assistant message
+// at assistantIdx has local tool calls whose results exist in the DB
+// but were never sent back to the provider. This is detected by the
+// absence of a follow-up assistant message after the tool results:
+// in normal flow the LLM processes tool results and produces a
+// follow-up response, but StopAfterTool skips that round-trip.
+func providerHasMissingToolResults(
+	messages []database.ChatMessage,
+	assistantIdx int,
+) bool {
+	if assistantIdx < 0 || assistantIdx >= len(messages) {
+		return false
+	}
+
+	parts, err := chatprompt.ParseContent(messages[assistantIdx])
+	if err != nil {
+		// Parsing errors are already handled by
+		// assistantHasUnresolvedLocalToolCalls.
+		return false
+	}
+
+	if !slices.ContainsFunc(parts, func(p codersdk.ChatMessagePart) bool {
+		return p.Type == codersdk.ChatMessagePartTypeToolCall && !p.ProviderExecuted
+	}) {
+		return false
+	}
+
+	// Scan forward past tool messages. If the first non-tool message
+	// is not an assistant, the tool results were never round-tripped
+	// to the provider.
+	for i := assistantIdx + 1; i < len(messages); i++ {
+		switch messages[i].Role {
+		case database.ChatMessageRoleTool:
+			continue
+		case database.ChatMessageRoleAssistant:
+			// A follow-up assistant exists; results were sent.
+			return false
+		default:
+			// User or system message with no follow-up assistant.
+			return true
+		}
+	}
+	// Reached end of messages without a follow-up assistant.
+	return true
+}
+
 // shouldActivateChainMode reports whether a follow-up turn can use
 // previous_response_id instead of replaying history. It requires store=true,
-// a matching model config, meaningful trailing user input, non-plan mode, and
-// complete local tool state so the provider has all required outputs.
+// a matching model config, meaningful trailing user input, non-plan mode,
+// complete local tool state, and confirmation that tool results were
+// actually sent to the provider (not just persisted locally).
 func shouldActivateChainMode(
 	providerOptions fantasy.ProviderOptions,
 	info chainModeInfo,
@@ -3357,7 +3413,8 @@ func shouldActivateChainMode(
 		info.contributingTrailingUserCount > 0 &&
 		info.modelConfigID == modelConfigID &&
 		!isPlanModeTurn &&
-		!info.hasUnresolvedLocalToolCalls
+		!info.hasUnresolvedLocalToolCalls &&
+		!info.providerMissingToolResults
 }
 
 // resolveChainMode scans DB messages from the end to count trailing user
@@ -3385,6 +3442,9 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 					info.modelConfigID = messages[i].ModelConfigID.UUID
 				}
 				info.hasUnresolvedLocalToolCalls = assistantHasUnresolvedLocalToolCalls(messages, i)
+				if !info.hasUnresolvedLocalToolCalls {
+					info.providerMissingToolResults = providerHasMissingToolResults(messages, i)
+				}
 				return info
 			}
 			return info
@@ -3620,7 +3680,6 @@ func New(cfg Config) *Server {
 
 	p := &Server{
 		cancel:                         cancel,
-		closed:                         make(chan struct{}),
 		db:                             cfg.Database,
 		workerID:                       workerID,
 		logger:                         cfg.Logger.Named("processor"),
@@ -3691,33 +3750,34 @@ func New(cfg Config) *Server {
 		}
 		p.configCacheUnsubscribe = cancelConfigSub
 	}
-	go p.start(ctx)
 
-	return p
-}
+	p.ctx = ctx
 
-func (p *Server) start(ctx context.Context) {
-	defer close(p.closed)
-
-	// Recover stale chats on startup and periodically thereafter
-	// to handle chats orphaned by crashed or redeployed workers.
-	// Use debugService() (not existingDebugService) so the service
-	// is initialized eagerly on startup. This ensures stale debug
-	// rows left by a previous crash are finalized even when no
-	// request has triggered lazy initialization yet.
+	// Recover stale chats on startup.
 	p.recoverStaleChats(ctx)
 	if debugSvc := p.debugService(); debugSvc != nil {
-		_, err := debugSvc.FinalizeStale(ctx)
-		if err != nil {
+		if _, err := debugSvc.FinalizeStale(ctx); err != nil {
 			p.logger.Warn(ctx, "failed to finalize stale chat debug rows", slog.Error(err))
 		}
 	}
 
-	// Single heartbeat loop for all chats on this replica.
-	go p.heartbeatLoop(ctx)
+	// Spawn background goroutines that all servers need.
+	p.wg.Go(func() { p.heartbeatLoop(ctx) })
+	p.wg.Go(func() { p.streamJanitorLoop(ctx) })
 
-	go p.streamJanitorLoop(ctx)
+	return p
+}
 
+// Start runs the background acquire/wake loop that picks up
+// pending chats and processes them. Callers that want a passive
+// server (e.g. tests) can skip this call; heartbeat, stream
+// janitor, and stale recovery still run.
+func (p *Server) Start() *Server {
+	p.wg.Go(func() { p.acquireLoop(p.ctx) })
+	return p
+}
+
+func (p *Server) acquireLoop(ctx context.Context) {
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
 		"chatd",
@@ -4980,9 +5040,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 	).withCreatedBy(chat.OwnerID))
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
 	if err != nil {
-		logger.Error(ctx, "failed to promote queued message",
-			slog.F("queued_message_id", nextQueued.ID), slog.Error(err))
-		return nil, nil, false, nil
+		return nil, nil, false, xerrors.Errorf("insert promoted message: %w", err)
 	}
 	msg := msgs[0]
 
@@ -5088,7 +5146,8 @@ func (p *Server) finishActiveChat(
 			var promoteErr error
 			result.promotedMessage, result.remainingQueuedMessages, result.shouldPublishQueueUpdate, promoteErr = p.tryAutoPromoteQueuedMessage(ctx, tx, latestChat)
 			if promoteErr != nil {
-				logger.Error(ctx, "failed to auto-promote queued message", slog.Error(promoteErr))
+				logger.Error(ctx, "auto-promote queued message failed, rolling back", slog.Error(promoteErr))
+				return xerrors.Errorf("auto-promote queued message: %w", promoteErr)
 			} else if result.promotedMessage != nil {
 				status = database.ChatStatusPending
 			}
@@ -6232,9 +6291,10 @@ func (p *Server) runChat(
 				}
 			}
 
+			invalidate := func() { p.workspaceMCPToolsCache.Delete(chat.ID) }
 			for _, t := range toolsResp.Tools {
 				workspaceMCPTools = append(workspaceMCPTools,
-					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate),
 				)
 			}
 			return nil
@@ -6243,8 +6303,8 @@ func (p *Server) runChat(
 	if err := g2.Wait(); err != nil {
 		return result, err
 	}
-	prompt, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(model.Provider(), prompt)
-	chatprompt.LogAnthropicProviderToolSanitization(
+	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), prompt)
+	chatsanitize.LogAnthropicProviderToolSanitization(
 		ctx, logger, "persisted_history_replay", model.Provider(), model.Model(), sanitizeStats,
 	)
 	subagentInstruction := ""
@@ -6761,6 +6821,16 @@ func (p *Server) runChat(
 		modelConfig.ID,
 		isPlanModeTurn,
 	)
+	if !chainModeActive && chainInfo.previousResponseID != "" {
+		logger.Debug(ctx, "chain mode disabled",
+			slog.F("has_unresolved_local_tool_calls", chainInfo.hasUnresolvedLocalToolCalls),
+			slog.F("provider_missing_tool_results", chainInfo.providerMissingToolResults),
+			slog.F("is_plan_mode_turn", isPlanModeTurn),
+			slog.F("model_config_match", chainInfo.modelConfigID == modelConfig.ID),
+			slog.F("store_enabled", chatprovider.IsResponsesStoreEnabled(providerOptions)),
+			slog.F("contributing_trailing_user_count", chainInfo.contributingTrailingUserCount),
+		)
+	}
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
@@ -6871,8 +6941,8 @@ func (p *Server) runChat(
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
-			reloadedPrompt, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(model.Provider(), reloadedPrompt)
-			chatprompt.LogAnthropicProviderToolSanitization(
+			reloadedPrompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), reloadedPrompt)
+			chatsanitize.LogAnthropicProviderToolSanitization(
 				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), sanitizeStats,
 			)
 			// Re-derive instruction and skills from the reloaded
@@ -8041,7 +8111,7 @@ func (p *Server) Close() error {
 		unsub()
 	}
 	p.cancel()
-	<-p.closed
+	p.wg.Wait()
 	p.drainInflight()
 	return nil
 }

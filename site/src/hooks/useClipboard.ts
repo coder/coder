@@ -61,7 +61,7 @@ export const useClipboard = (
 			};
 
 			try {
-				await window.navigator.clipboard.writeText(textToCopy);
+				await navigator.clipboard.writeText(textToCopy);
 				markSuccess();
 			} catch (err) {
 				const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);

@@ -1861,6 +1861,15 @@ export interface ChatMessageUsage {
  */
 export interface ChatMessagesPaginationOptions {
 	readonly BeforeID: number;
+	/**
+	 * AfterID, when > 0, restricts results to messages with id strictly
+	 * greater than AfterID. When set without BeforeID, results come back
+	 * in ASCENDING id order so a polling caller can advance its cursor
+	 * to max(returned_ids) without gaps. When combined with BeforeID,
+	 * results come back in DESC order over the open range
+	 * (AfterID, BeforeID).
+	 */
+	readonly AfterID: number;
 	readonly Limit: number;
 }
 
@@ -4159,6 +4168,7 @@ export type HealthCode =
 	| "EACS02"
 	| "EACS04"
 	| "EACS01"
+	| "EDERP03"
 	| "EDERP01"
 	| "EDERP02"
 	| "EDB01"
@@ -4188,6 +4198,7 @@ export const HealthCodes: HealthCode[] = [
 	"EACS02",
 	"EACS04",
 	"EACS01",
+	"EDERP03",
 	"EDERP01",
 	"EDERP02",
 	"EDB01",
