@@ -589,6 +589,9 @@ export const CancellingRenameDialogKeepsTitle: Story = {
 	},
 };
 
+const animatedGeneratedTitle =
+	"AI suggested title for a complex workspace migration with focused follow up tasks";
+
 export const RenameChatGenerateFillsInput: Story = {
 	args: {
 		chats: [
@@ -598,7 +601,7 @@ export const RenameChatGenerateFillsInput: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		onProposeTitle: fn(async () => "AI suggested title"),
+		onProposeTitle: fn(async () => animatedGeneratedTitle),
 		onRenameTitle: fn(() => Promise.resolve()),
 	},
 	parameters: {
@@ -625,9 +628,25 @@ export const RenameChatGenerateFillsInput: Story = {
 		});
 
 		await userEvent.click(body.getByRole("button", { name: "Generate" }));
-		await waitFor(() => {
-			expect(input).toHaveValue("AI suggested title");
-		});
+		await waitFor(
+			() => {
+				const value = input.value;
+				expect(value.length).toBeGreaterThan(0);
+				expect(animatedGeneratedTitle.startsWith(value)).toBe(true);
+				expect(value).not.toBe(animatedGeneratedTitle);
+				expect(body.getByRole("button", { name: "Generate" })).toBeDisabled();
+				expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
+			},
+			{ timeout: 2_000 },
+		);
+		await waitFor(
+			() => {
+				expect(input).toHaveValue(animatedGeneratedTitle);
+			},
+			{ timeout: 4_000 },
+		);
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+		expect(body.getByRole("button", { name: "Save" })).toBeEnabled();
 		expect(args.onProposeTitle).toHaveBeenCalledWith("rename-generate");
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 	},
@@ -680,6 +699,7 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 			expect(input).toHaveAttribute("aria-invalid", "true");
 		});
 		expect(input).toHaveValue("Original title");
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
 	},
 };
 
@@ -692,7 +712,7 @@ export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		onProposeTitle: fn(async () => "Server suggestion"),
+		onProposeTitle: fn(async () => animatedGeneratedTitle),
 		onRenameTitle: fn(() => Promise.resolve()),
 	},
 	parameters: {
@@ -718,13 +738,41 @@ export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
 			name: "Chat title",
 		});
 		await userEvent.click(body.getByRole("button", { name: "Generate" }));
-		await waitFor(() => {
-			expect(input).toHaveValue("Server suggestion");
-		});
+		await waitFor(
+			() => {
+				const value = input.value;
+				expect(value.length).toBeGreaterThan(0);
+				expect(animatedGeneratedTitle.startsWith(value)).toBe(true);
+				expect(value).not.toBe(animatedGeneratedTitle);
+				expect(body.getByRole("button", { name: "Generate" })).toBeDisabled();
+				expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
+			},
+			{ timeout: 2_000 },
+		);
 
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await waitFor(() => {
+			expect(
+				body.queryByRole("heading", { name: "Rename chat" }),
+			).not.toBeInTheDocument();
+		});
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 		expect(canvas.getByText("Keep this one")).toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Keep this one",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+		const reopenedInput = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		expect(reopenedInput).toHaveValue("Keep this one");
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		expect(reopenedInput).toHaveValue("Keep this one");
 	},
 };
 
