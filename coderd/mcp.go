@@ -32,22 +32,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// oidcMCPTokenSource implements mcpclient.UserOIDCTokenSource by
-// reading the calling user's OIDC link from user_links, refreshing
-// the access token transparently if it has expired, and writing the
-// refreshed token back. The logic mirrors
-// provisionerdserver.ObtainOIDCAccessToken; it is duplicated here to
-// avoid an awkward MCP -> provisionerdserver dependency. Keep the two
-// implementations in sync.
+// oidcMCPTokenSource implements mcpclient.UserOIDCTokenSource using
+// the same refresh strategy as provisionerdserver.ObtainOIDCAccessToken.
+// The logic is duplicated to avoid importing provisionerdserver from
+// coderd; keep the two in sync.
 type oidcMCPTokenSource struct {
 	db     database.Store
 	config promoauth.OAuth2Config
 	logger slog.Logger
 }
 
-// newOIDCMCPTokenSource returns nil if the deployment has no OIDC
-// provider configured. The chatd MCP client treats a nil source the
-// same as a missing user_links row: no Authorization header is sent.
+// newOIDCMCPTokenSource returns nil when no OIDC provider is
+// configured. mcpclient treats a nil source the same as "no token
+// available" and omits the Authorization header.
 func newOIDCMCPTokenSource(db database.Store, config promoauth.OAuth2Config, logger slog.Logger) mcpclient.UserOIDCTokenSource {
 	if config == nil {
 		return nil
@@ -59,10 +56,9 @@ func newOIDCMCPTokenSource(db database.Store, config promoauth.OAuth2Config, log
 	}
 }
 
-// OIDCAccessToken returns the user's OIDC access token, refreshing it
-// transparently if it has expired. It returns ("", nil) when the user
-// has no OIDC link or a non-fatal refresh error occurred, matching the
-// contract documented on mcpclient.UserOIDCTokenSource.
+// OIDCAccessToken implements mcpclient.UserOIDCTokenSource. It
+// refreshes expired tokens and persists the refreshed token back
+// to user_links.
 func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error) {
 	link, err := s.db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    userID,
@@ -79,14 +75,13 @@ func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UU
 		token, err := s.config.TokenSource(ctx, &oauth2.Token{
 			AccessToken:  link.OAuthAccessToken,
 			RefreshToken: link.OAuthRefreshToken,
-			// shouldRefreshOIDCToken returns an expiresAt in the past
-			// to force the TokenSource to refresh.
+			// Use the expiresAt returned by shouldRefreshOIDCToken.
+			// It will force a refresh with an expired time.
 			Expiry: expiresAt,
 		}).Token()
 		if err != nil {
-			// Treat refresh failures as a missing token. The MCP request
-			// will go out without an Authorization header and the upstream
-			// server can decide how to respond.
+			// Don't fail the request; the upstream MCP server will see no
+			// Authorization header and can return a 401 if it requires one.
 			s.logger.Warn(ctx, "failed to refresh OIDC token for MCP request",
 				slog.F("user_id", userID),
 				slog.Error(err),
@@ -118,16 +113,15 @@ func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UU
 	return link.OAuthAccessToken, nil
 }
 
-// shouldRefreshOIDCToken decides whether to refresh the user's OIDC
-// access token. It mirrors the same-named helper in
-// provisionerdserver and applies the same 10-minute pre-expiry buffer
-// so that an in-flight request is unlikely to outlive the token.
+// shouldRefreshOIDCToken mirrors provisionerdserver.shouldRefreshOIDCToken.
+// See that function for the rationale behind the 10-minute pre-expiry
+// buffer.
 func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
 	if link.OAuthRefreshToken == "" {
 		return false, link.OAuthExpiry
 	}
 	if link.OAuthExpiry.IsZero() {
-		// Zero means the token never expires.
+		// A zero expiry means the token never expires.
 		return false, link.OAuthExpiry
 	}
 	expiresAt := link.OAuthExpiry.Add(-time.Minute * 10)
