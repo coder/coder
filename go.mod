@@ -2,6 +2,10 @@ module github.com/coder/coder/v2
 
 go 1.26.2
 
+// PROTOTYPE: local checkout of terraform-provider-coder for the DLP policy
+// resource. Must not land on main; replace with a real version before merge.
+replace github.com/coder/terraform-provider-coder/v2 => ../terraform-provider-coder
+
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
 // should be fine...
