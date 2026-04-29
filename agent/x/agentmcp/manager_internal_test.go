@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -227,7 +228,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	m := &Manager{}
+	m := &Manager{execer: agentexec.DefaultExecer}
 	client, err := m.connectServer(ctx, cfg)
 	require.NoError(t, err, "connectServer should succeed")
 	t.Cleanup(func() { _ = client.Close() })

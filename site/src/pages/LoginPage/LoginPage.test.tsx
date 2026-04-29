@@ -13,8 +13,8 @@ import LoginPage from "./LoginPage";
 
 describe("LoginPage", () => {
 	// Capture original values before any test stubs take effect.
-	const origLocationOrigin = window.location.origin;
-	const origLocationHref = window.location.href;
+	const origLocationOrigin = location.origin;
+	const origLocationHref = location.href;
 	const locationHrefSpy = vi.fn();
 
 	beforeEach(() => {

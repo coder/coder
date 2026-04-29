@@ -26,6 +26,15 @@ root regardless of individual pin status. Admins and users who want
 to retain a conversation long after its last message should pin the
 root.
 
+## Notifications
+
+When your chats are auto-archived, you receive a digest notification
+listing the titles of the archived conversations and the
+auto-archive window currently configured.
+
+If you find the digest noisy, you can disable the "Chats
+Auto-Archived" notification entirely from your notification preferences.
+
 ## Interaction with retention
 
 Auto-archive and deletion are two independent controls:
@@ -79,6 +88,4 @@ set `auto_archive_days` back to `0`.
 
 Each auto-archived root chat produces an audit log entry with the
 background subsystem tag `chat_auto_archive`. Cascaded children are
-not audited individually. The audit entry records the chat ID, owner
-ID, and organization ID, and the diff shows `archived` flipping from
-`false` to `true`.
+not audited individually.

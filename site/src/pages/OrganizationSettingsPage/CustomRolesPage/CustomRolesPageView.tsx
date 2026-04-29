@@ -13,7 +13,6 @@ import {
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -49,7 +48,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	isCustomRolesEnabled,
 }) => {
 	return (
-		<Stack spacing={4}>
+		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
 				<PaywallPremium
 					message="Custom Roles"
@@ -57,11 +56,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					documentationLink={docs("/admin/users/groups-roles")}
 				/>
 			)}
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<span>
 					<h2 className="mb-0 text-lg">Custom Roles</h2>
 					<span className="text-sm text-content-secondary leading-relaxed">
@@ -77,7 +72,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 						</RouterLink>
 					</Button>
 				)}
-			</Stack>
+			</div>
 			<RoleTable
 				roles={customRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
@@ -101,7 +96,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				canDeleteOrgRole={canDeleteOrgRole}
 				onDeleteRole={onDeleteRole}
 			/>
-		</Stack>
+		</div>
 	);
 };
 

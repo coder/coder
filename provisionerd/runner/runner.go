@@ -958,6 +958,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
 		PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
 		State:                   r.job.GetWorkspaceBuild().State,
+		UserSecrets:             r.job.GetWorkspaceBuild().UserSecrets,
 	})
 	if failed != nil {
 		return nil, failed

@@ -2,15 +2,12 @@ package coderd_test
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -19,7 +16,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -38,7 +34,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestRegions(t *testing.T) {
@@ -613,27 +608,8 @@ func TestProxyRegisterDeregister(t *testing.T) {
 	t.Run("RegisterWithDisabledBuiltInDERP/DerpEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a DERP map file. Currently, Coder refuses to start if there
-		// are zero DERP regions.
-		// TODO: ideally coder can start without any DERP servers if the
-		// customer is going to be using DERPs via proxies. We could make it
-		// a configuration value to allow an empty DERP map on startup or
-		// something.
-		tmpDir := t.TempDir()
-		derpPath := filepath.Join(tmpDir, "derp.json")
-		content, err := json.Marshal(&tailcfg.DERPMap{
-			Regions: map[int]*tailcfg.DERPRegion{
-				1: {
-					Nodes: []*tailcfg.DERPNode{{}},
-				},
-			},
-		})
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(derpPath, content, 0o600))
-
 		dv := coderdtest.DeploymentValues(t)
 		dv.DERP.Server.Enable = false // disable built-in DERP server
-		dv.DERP.Config.Path = serpent.String(derpPath)
 		client, _ := setupWithDeploymentValues(t, dv)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -659,25 +635,11 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.Equal(t, registerRes.DERPMeshKey, coderdtest.DefaultDERPMeshKey)
 	})
 
-	t.Run("RegisterWithDisabledBuiltInDERP/DerpEnabled", func(t *testing.T) {
+	t.Run("RegisterWithDisabledBuiltInDERP/DerpDisabled", func(t *testing.T) {
 		t.Parallel()
-
-		// Same as above.
-		tmpDir := t.TempDir()
-		derpPath := filepath.Join(tmpDir, "derp.json")
-		content, err := json.Marshal(&tailcfg.DERPMap{
-			Regions: map[int]*tailcfg.DERPRegion{
-				1: {
-					Nodes: []*tailcfg.DERPNode{{}},
-				},
-			},
-		})
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(derpPath, content, 0o600))
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.DERP.Server.Enable = false // disable built-in DERP server
-		dv.DERP.Config.Path = serpent.String(derpPath)
 		client, _ := setupWithDeploymentValues(t, dv)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
