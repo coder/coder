@@ -103,7 +103,7 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 | Cursor                           | ❌      | ❌         | ❌    | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
 | Sourcegraph Amp                  | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
 | Kiro                             | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Gemini CLI                       | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/aibridge/issues/27).                                                               |
+| Gemini CLI                       | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/coder/issues/24804).                                                               |
 | Antigravity                      | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
 |
 
