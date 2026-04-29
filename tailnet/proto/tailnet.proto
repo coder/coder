@@ -235,6 +235,39 @@ message Agent {
 	bytes workspace_id = 3; // UUID
 }
 
+// TailnetPeerUpdate is a wire payload published on cross-replica pubsub
+// channels to announce peer node changes without requiring subscribers to
+// query the database. It is not part of the Tailnet RPC service.
+message TailnetPeerUpdate {
+	bytes peer_id = 1; // UUID
+	bytes coordinator_id = 2; // UUID
+	// status int32 values are assigned by this proto, not the database.
+	// Stable order: 0=ok, 1=lost, 2=disconnected. The first two map to
+	// database.TailnetStatus string values ("ok", "lost"). "disconnected"
+	// is reserved for future use and has no DB enum equivalent today.
+	int32 status = 3;
+	// node carries an already-marshalled coder.tailnet.v2.Node payload, or
+	// is empty for delete-style updates.
+	bytes node = 4;
+	google.protobuf.Timestamp updated_at = 5;
+}
+
+// TailnetTunnelUpdate is a wire payload published on cross-replica pubsub
+// channels to announce tunnel changes without requiring subscribers to
+// query the database. It is not part of the Tailnet RPC service.
+message TailnetTunnelUpdate {
+	bytes src_id = 1; // UUID
+	bytes dst_id = 2; // UUID
+	bytes coordinator_id = 3; // UUID
+
+	enum Op {
+		OP_UNSPECIFIED = 0;
+		OP_UPSERT = 1;
+		OP_DELETE = 2;
+	}
+	Op op = 4;
+}
+
 service Tailnet {
 	rpc PostTelemetry(TelemetryRequest) returns (TelemetryResponse);
 	rpc StreamDERPMaps(StreamDERPMapsRequest) returns (stream DERPMap);

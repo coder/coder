@@ -301,6 +301,55 @@ func (Workspace_Status) EnumDescriptor() ([]byte, []int) {
 	return file_tailnet_proto_tailnet_proto_rawDescGZIP(), []int{14, 0}
 }
 
+type TailnetTunnelUpdate_Op int32
+
+const (
+	TailnetTunnelUpdate_OP_UNSPECIFIED TailnetTunnelUpdate_Op = 0
+	TailnetTunnelUpdate_OP_UPSERT      TailnetTunnelUpdate_Op = 1
+	TailnetTunnelUpdate_OP_DELETE      TailnetTunnelUpdate_Op = 2
+)
+
+// Enum value maps for TailnetTunnelUpdate_Op.
+var (
+	TailnetTunnelUpdate_Op_name = map[int32]string{
+		0: "OP_UNSPECIFIED",
+		1: "OP_UPSERT",
+		2: "OP_DELETE",
+	}
+	TailnetTunnelUpdate_Op_value = map[string]int32{
+		"OP_UNSPECIFIED": 0,
+		"OP_UPSERT":      1,
+		"OP_DELETE":      2,
+	}
+)
+
+func (x TailnetTunnelUpdate_Op) Enum() *TailnetTunnelUpdate_Op {
+	p := new(TailnetTunnelUpdate_Op)
+	*p = x
+	return p
+}
+
+func (x TailnetTunnelUpdate_Op) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TailnetTunnelUpdate_Op) Descriptor() protoreflect.EnumDescriptor {
+	return file_tailnet_proto_tailnet_proto_enumTypes[5].Descriptor()
+}
+
+func (TailnetTunnelUpdate_Op) Type() protoreflect.EnumType {
+	return &file_tailnet_proto_tailnet_proto_enumTypes[5]
+}
+
+func (x TailnetTunnelUpdate_Op) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TailnetTunnelUpdate_Op.Descriptor instead.
+func (TailnetTunnelUpdate_Op) EnumDescriptor() ([]byte, []int) {
+	return file_tailnet_proto_tailnet_proto_rawDescGZIP(), []int{17, 0}
+}
+
 type DERPMap struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1491,6 +1540,168 @@ func (x *Agent) GetWorkspaceId() []byte {
 	return nil
 }
 
+// TailnetPeerUpdate is a wire payload published on cross-replica pubsub
+// channels to announce peer node changes without requiring subscribers to
+// query the database. It is not part of the Tailnet RPC service.
+type TailnetPeerUpdate struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PeerId        []byte `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`                      // UUID
+	CoordinatorId []byte `protobuf:"bytes,2,opt,name=coordinator_id,json=coordinatorId,proto3" json:"coordinator_id,omitempty"` // UUID
+	// status int32 values are assigned by this proto, not the database.
+	// Stable order: 0=ok, 1=lost, 2=disconnected. The first two map to
+	// database.TailnetStatus string values ("ok", "lost"). "disconnected"
+	// is reserved for future use and has no DB enum equivalent today.
+	Status int32 `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
+	// node carries an already-marshalled coder.tailnet.v2.Node payload, or
+	// is empty for delete-style updates.
+	Node      []byte                 `protobuf:"bytes,4,opt,name=node,proto3" json:"node,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+}
+
+func (x *TailnetPeerUpdate) Reset() {
+	*x = TailnetPeerUpdate{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TailnetPeerUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TailnetPeerUpdate) ProtoMessage() {}
+
+func (x *TailnetPeerUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TailnetPeerUpdate.ProtoReflect.Descriptor instead.
+func (*TailnetPeerUpdate) Descriptor() ([]byte, []int) {
+	return file_tailnet_proto_tailnet_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *TailnetPeerUpdate) GetPeerId() []byte {
+	if x != nil {
+		return x.PeerId
+	}
+	return nil
+}
+
+func (x *TailnetPeerUpdate) GetCoordinatorId() []byte {
+	if x != nil {
+		return x.CoordinatorId
+	}
+	return nil
+}
+
+func (x *TailnetPeerUpdate) GetStatus() int32 {
+	if x != nil {
+		return x.Status
+	}
+	return 0
+}
+
+func (x *TailnetPeerUpdate) GetNode() []byte {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+func (x *TailnetPeerUpdate) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+// TailnetTunnelUpdate is a wire payload published on cross-replica pubsub
+// channels to announce tunnel changes without requiring subscribers to
+// query the database. It is not part of the Tailnet RPC service.
+type TailnetTunnelUpdate struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SrcId         []byte                 `protobuf:"bytes,1,opt,name=src_id,json=srcId,proto3" json:"src_id,omitempty"`                         // UUID
+	DstId         []byte                 `protobuf:"bytes,2,opt,name=dst_id,json=dstId,proto3" json:"dst_id,omitempty"`                         // UUID
+	CoordinatorId []byte                 `protobuf:"bytes,3,opt,name=coordinator_id,json=coordinatorId,proto3" json:"coordinator_id,omitempty"` // UUID
+	Op            TailnetTunnelUpdate_Op `protobuf:"varint,4,opt,name=op,proto3,enum=coder.tailnet.v2.TailnetTunnelUpdate_Op" json:"op,omitempty"`
+}
+
+func (x *TailnetTunnelUpdate) Reset() {
+	*x = TailnetTunnelUpdate{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TailnetTunnelUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TailnetTunnelUpdate) ProtoMessage() {}
+
+func (x *TailnetTunnelUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[17]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TailnetTunnelUpdate.ProtoReflect.Descriptor instead.
+func (*TailnetTunnelUpdate) Descriptor() ([]byte, []int) {
+	return file_tailnet_proto_tailnet_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *TailnetTunnelUpdate) GetSrcId() []byte {
+	if x != nil {
+		return x.SrcId
+	}
+	return nil
+}
+
+func (x *TailnetTunnelUpdate) GetDstId() []byte {
+	if x != nil {
+		return x.DstId
+	}
+	return nil
+}
+
+func (x *TailnetTunnelUpdate) GetCoordinatorId() []byte {
+	if x != nil {
+		return x.CoordinatorId
+	}
+	return nil
+}
+
+func (x *TailnetTunnelUpdate) GetOp() TailnetTunnelUpdate_Op {
+	if x != nil {
+		return x.Op
+	}
+	return TailnetTunnelUpdate_OP_UNSPECIFIED
+}
+
 type DERPMap_HomeParams struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1502,7 +1713,7 @@ type DERPMap_HomeParams struct {
 func (x *DERPMap_HomeParams) Reset() {
 	*x = DERPMap_HomeParams{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[16]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1515,7 +1726,7 @@ func (x *DERPMap_HomeParams) String() string {
 func (*DERPMap_HomeParams) ProtoMessage() {}
 
 func (x *DERPMap_HomeParams) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[16]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1554,7 +1765,7 @@ type DERPMap_Region struct {
 func (x *DERPMap_Region) Reset() {
 	*x = DERPMap_Region{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[17]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1567,7 +1778,7 @@ func (x *DERPMap_Region) String() string {
 func (*DERPMap_Region) ProtoMessage() {}
 
 func (x *DERPMap_Region) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[17]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1648,7 +1859,7 @@ type DERPMap_Region_Node struct {
 func (x *DERPMap_Region_Node) Reset() {
 	*x = DERPMap_Region_Node{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[20]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1661,7 +1872,7 @@ func (x *DERPMap_Region_Node) String() string {
 func (*DERPMap_Region_Node) ProtoMessage() {}
 
 func (x *DERPMap_Region_Node) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[20]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1779,7 +1990,7 @@ type CoordinateRequest_UpdateSelf struct {
 func (x *CoordinateRequest_UpdateSelf) Reset() {
 	*x = CoordinateRequest_UpdateSelf{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[23]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1792,7 +2003,7 @@ func (x *CoordinateRequest_UpdateSelf) String() string {
 func (*CoordinateRequest_UpdateSelf) ProtoMessage() {}
 
 func (x *CoordinateRequest_UpdateSelf) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[23]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1824,7 +2035,7 @@ type CoordinateRequest_Disconnect struct {
 func (x *CoordinateRequest_Disconnect) Reset() {
 	*x = CoordinateRequest_Disconnect{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[24]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1837,7 +2048,7 @@ func (x *CoordinateRequest_Disconnect) String() string {
 func (*CoordinateRequest_Disconnect) ProtoMessage() {}
 
 func (x *CoordinateRequest_Disconnect) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[24]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1864,7 +2075,7 @@ type CoordinateRequest_Tunnel struct {
 func (x *CoordinateRequest_Tunnel) Reset() {
 	*x = CoordinateRequest_Tunnel{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[25]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1877,7 +2088,7 @@ func (x *CoordinateRequest_Tunnel) String() string {
 func (*CoordinateRequest_Tunnel) ProtoMessage() {}
 
 func (x *CoordinateRequest_Tunnel) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[25]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1915,7 +2126,7 @@ type CoordinateRequest_ReadyForHandshake struct {
 func (x *CoordinateRequest_ReadyForHandshake) Reset() {
 	*x = CoordinateRequest_ReadyForHandshake{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[26]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1928,7 +2139,7 @@ func (x *CoordinateRequest_ReadyForHandshake) String() string {
 func (*CoordinateRequest_ReadyForHandshake) ProtoMessage() {}
 
 func (x *CoordinateRequest_ReadyForHandshake) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[26]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1965,7 +2176,7 @@ type CoordinateResponse_PeerUpdate struct {
 func (x *CoordinateResponse_PeerUpdate) Reset() {
 	*x = CoordinateResponse_PeerUpdate{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[27]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[29]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1978,7 +2189,7 @@ func (x *CoordinateResponse_PeerUpdate) String() string {
 func (*CoordinateResponse_PeerUpdate) ProtoMessage() {}
 
 func (x *CoordinateResponse_PeerUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[27]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[29]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2034,7 +2245,7 @@ type Netcheck_NetcheckIP struct {
 func (x *Netcheck_NetcheckIP) Reset() {
 	*x = Netcheck_NetcheckIP{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[30]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[32]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2047,7 +2258,7 @@ func (x *Netcheck_NetcheckIP) String() string {
 func (*Netcheck_NetcheckIP) ProtoMessage() {}
 
 func (x *Netcheck_NetcheckIP) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[30]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[32]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2090,7 +2301,7 @@ type TelemetryEvent_P2PEndpoint struct {
 func (x *TelemetryEvent_P2PEndpoint) Reset() {
 	*x = TelemetryEvent_P2PEndpoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_tailnet_proto_tailnet_proto_msgTypes[31]
+		mi := &file_tailnet_proto_tailnet_proto_msgTypes[33]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2103,7 +2314,7 @@ func (x *TelemetryEvent_P2PEndpoint) String() string {
 func (*TelemetryEvent_P2PEndpoint) ProtoMessage() {}
 
 func (x *TelemetryEvent_P2PEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_tailnet_proto_tailnet_proto_msgTypes[31]
+	mi := &file_tailnet_proto_tailnet_proto_msgTypes[33]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2533,41 +2744,67 @@ var file_tailnet_proto_tailnet_proto_rawDesc = []byte{
 	0x28, 0x0c, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x21, 0x0a, 0x0c, 0x77, 0x6f,
 	0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c,
-	0x52, 0x0b, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x49, 0x64, 0x32, 0xed, 0x03,
-	0x0a, 0x07, 0x54, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x12, 0x58, 0x0a, 0x0d, 0x50, 0x6f, 0x73,
-	0x74, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x12, 0x22, 0x2e, 0x63, 0x6f, 0x64,
+	0x52, 0x0b, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x49, 0x64, 0x22, 0xba, 0x01,
+	0x0a, 0x11, 0x54, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x50, 0x65, 0x65, 0x72, 0x55, 0x70, 0x64,
+	0x61, 0x74, 0x65, 0x12, 0x17, 0x0a, 0x07, 0x70, 0x65, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x70, 0x65, 0x65, 0x72, 0x49, 0x64, 0x12, 0x25, 0x0a, 0x0e,
+	0x63, 0x6f, 0x6f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x74, 0x6f, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0c, 0x52, 0x0d, 0x63, 0x6f, 0x6f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x74, 0x6f,
+	0x72, 0x49, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x05, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x12, 0x0a, 0x04, 0x6e,
+	0x6f, 0x64, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x12,
+	0x39, 0x0a, 0x0a, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x61, 0x74, 0x18, 0x05, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52,
+	0x09, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74, 0x22, 0xdc, 0x01, 0x0a, 0x13, 0x54,
+	0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x54, 0x75, 0x6e, 0x6e, 0x65, 0x6c, 0x55, 0x70, 0x64, 0x61,
+	0x74, 0x65, 0x12, 0x15, 0x0a, 0x06, 0x73, 0x72, 0x63, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x05, 0x73, 0x72, 0x63, 0x49, 0x64, 0x12, 0x15, 0x0a, 0x06, 0x64, 0x73, 0x74,
+	0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x64, 0x73, 0x74, 0x49, 0x64,
+	0x12, 0x25, 0x0a, 0x0e, 0x63, 0x6f, 0x6f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x74, 0x6f, 0x72, 0x5f,
+	0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0d, 0x63, 0x6f, 0x6f, 0x72, 0x64, 0x69,
+	0x6e, 0x61, 0x74, 0x6f, 0x72, 0x49, 0x64, 0x12, 0x38, 0x0a, 0x02, 0x6f, 0x70, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x0e, 0x32, 0x28, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c,
+	0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x54, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x54, 0x75,
+	0x6e, 0x6e, 0x65, 0x6c, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x2e, 0x4f, 0x70, 0x52, 0x02, 0x6f,
+	0x70, 0x22, 0x36, 0x0a, 0x02, 0x4f, 0x70, 0x12, 0x12, 0x0a, 0x0e, 0x4f, 0x50, 0x5f, 0x55, 0x4e,
+	0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x4f,
+	0x50, 0x5f, 0x55, 0x50, 0x53, 0x45, 0x52, 0x54, 0x10, 0x01, 0x12, 0x0d, 0x0a, 0x09, 0x4f, 0x50,
+	0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x45, 0x10, 0x02, 0x32, 0xed, 0x03, 0x0a, 0x07, 0x54, 0x61,
+	0x69, 0x6c, 0x6e, 0x65, 0x74, 0x12, 0x58, 0x0a, 0x0d, 0x50, 0x6f, 0x73, 0x74, 0x54, 0x65, 0x6c,
+	0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x12, 0x22, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74,
+	0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65,
+	0x74, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x63, 0x6f, 0x64,
 	0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x54, 0x65,
-	0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23,
-	0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76,
-	0x32, 0x2e, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x12, 0x56, 0x0a, 0x0e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x44, 0x45, 0x52,
-	0x50, 0x4d, 0x61, 0x70, 0x73, 0x12, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61,
-	0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x44,
-	0x45, 0x52, 0x50, 0x4d, 0x61, 0x70, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x19,
-	0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76,
-	0x32, 0x2e, 0x44, 0x45, 0x52, 0x50, 0x4d, 0x61, 0x70, 0x30, 0x01, 0x12, 0x6f, 0x0a, 0x12, 0x52,
-	0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x54, 0x6f, 0x6b, 0x65,
-	0x6e, 0x12, 0x2b, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65,
-	0x74, 0x2e, 0x76, 0x32, 0x2e, 0x52, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x73, 0x75,
-	0x6d, 0x65, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2c,
-	0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76,
-	0x32, 0x2e, 0x52, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x54,
-	0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x0a,
-	0x43, 0x6f, 0x6f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x12, 0x23, 0x2e, 0x63, 0x6f, 0x64,
-	0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x43, 0x6f,
-	0x6f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x24, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e,
-	0x76, 0x32, 0x2e, 0x43, 0x6f, 0x6f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x28, 0x01, 0x30, 0x01, 0x12, 0x62, 0x0a, 0x10, 0x57, 0x6f, 0x72,
-	0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x73, 0x12, 0x29, 0x2e,
+	0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x56, 0x0a, 0x0e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x44, 0x45, 0x52, 0x50, 0x4d, 0x61, 0x70,
+	0x73, 0x12, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65,
+	0x74, 0x2e, 0x76, 0x32, 0x2e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x44, 0x45, 0x52, 0x50, 0x4d,
+	0x61, 0x70, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x19, 0x2e, 0x63, 0x6f, 0x64,
+	0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x44, 0x45,
+	0x52, 0x50, 0x4d, 0x61, 0x70, 0x30, 0x01, 0x12, 0x6f, 0x0a, 0x12, 0x52, 0x65, 0x66, 0x72, 0x65,
+	0x73, 0x68, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x12, 0x2b, 0x2e,
 	0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32,
-	0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
-	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72,
-	0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x57, 0x6f, 0x72, 0x6b,
-	0x73, 0x70, 0x61, 0x63, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x30, 0x01, 0x42, 0x29, 0x5a,
-	0x27, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65,
-	0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x74, 0x61, 0x69, 0x6c, 0x6e,
-	0x65, 0x74, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x2e, 0x52, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x54, 0x6f,
+	0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2c, 0x2e, 0x63, 0x6f, 0x64,
+	0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x52, 0x65,
+	0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x54, 0x6f, 0x6b, 0x65, 0x6e,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5b, 0x0a, 0x0a, 0x43, 0x6f, 0x6f, 0x72,
+	0x64, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x12, 0x23, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74,
+	0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x43, 0x6f, 0x6f, 0x72, 0x64, 0x69,
+	0x6e, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x63, 0x6f,
+	0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x43,
+	0x6f, 0x6f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x28, 0x01, 0x30, 0x01, 0x12, 0x62, 0x0a, 0x10, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61,
+	0x63, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x73, 0x12, 0x29, 0x2e, 0x63, 0x6f, 0x64, 0x65,
+	0x72, 0x2e, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x57, 0x6f, 0x72,
+	0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x74, 0x61, 0x69,
+	0x6c, 0x6e, 0x65, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63,
+	0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x30, 0x01, 0x42, 0x29, 0x5a, 0x27, 0x67, 0x69, 0x74,
+	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f,
+	0x64, 0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x74, 0x61, 0x69, 0x6c, 0x6e, 0x65, 0x74, 0x2f, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -2582,119 +2819,124 @@ func file_tailnet_proto_tailnet_proto_rawDescGZIP() []byte {
 	return file_tailnet_proto_tailnet_proto_rawDescData
 }
 
-var file_tailnet_proto_tailnet_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_tailnet_proto_tailnet_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_tailnet_proto_tailnet_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_tailnet_proto_tailnet_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_tailnet_proto_tailnet_proto_goTypes = []interface{}{
 	(CoordinateResponse_PeerUpdate_Kind)(0),     // 0: coder.tailnet.v2.CoordinateResponse.PeerUpdate.Kind
 	(IPFields_IPClass)(0),                       // 1: coder.tailnet.v2.IPFields.IPClass
 	(TelemetryEvent_Status)(0),                  // 2: coder.tailnet.v2.TelemetryEvent.Status
 	(TelemetryEvent_ClientType)(0),              // 3: coder.tailnet.v2.TelemetryEvent.ClientType
 	(Workspace_Status)(0),                       // 4: coder.tailnet.v2.Workspace.Status
-	(*DERPMap)(nil),                             // 5: coder.tailnet.v2.DERPMap
-	(*StreamDERPMapsRequest)(nil),               // 6: coder.tailnet.v2.StreamDERPMapsRequest
-	(*Node)(nil),                                // 7: coder.tailnet.v2.Node
-	(*RefreshResumeTokenRequest)(nil),           // 8: coder.tailnet.v2.RefreshResumeTokenRequest
-	(*RefreshResumeTokenResponse)(nil),          // 9: coder.tailnet.v2.RefreshResumeTokenResponse
-	(*CoordinateRequest)(nil),                   // 10: coder.tailnet.v2.CoordinateRequest
-	(*CoordinateResponse)(nil),                  // 11: coder.tailnet.v2.CoordinateResponse
-	(*IPFields)(nil),                            // 12: coder.tailnet.v2.IPFields
-	(*Netcheck)(nil),                            // 13: coder.tailnet.v2.Netcheck
-	(*TelemetryEvent)(nil),                      // 14: coder.tailnet.v2.TelemetryEvent
-	(*TelemetryRequest)(nil),                    // 15: coder.tailnet.v2.TelemetryRequest
-	(*TelemetryResponse)(nil),                   // 16: coder.tailnet.v2.TelemetryResponse
-	(*WorkspaceUpdatesRequest)(nil),             // 17: coder.tailnet.v2.WorkspaceUpdatesRequest
-	(*WorkspaceUpdate)(nil),                     // 18: coder.tailnet.v2.WorkspaceUpdate
-	(*Workspace)(nil),                           // 19: coder.tailnet.v2.Workspace
-	(*Agent)(nil),                               // 20: coder.tailnet.v2.Agent
-	(*DERPMap_HomeParams)(nil),                  // 21: coder.tailnet.v2.DERPMap.HomeParams
-	(*DERPMap_Region)(nil),                      // 22: coder.tailnet.v2.DERPMap.Region
-	nil,                                         // 23: coder.tailnet.v2.DERPMap.RegionsEntry
-	nil,                                         // 24: coder.tailnet.v2.DERPMap.HomeParams.RegionScoreEntry
-	(*DERPMap_Region_Node)(nil),                 // 25: coder.tailnet.v2.DERPMap.Region.Node
-	nil,                                         // 26: coder.tailnet.v2.Node.DerpLatencyEntry
-	nil,                                         // 27: coder.tailnet.v2.Node.DerpForcedWebsocketEntry
-	(*CoordinateRequest_UpdateSelf)(nil),        // 28: coder.tailnet.v2.CoordinateRequest.UpdateSelf
-	(*CoordinateRequest_Disconnect)(nil),        // 29: coder.tailnet.v2.CoordinateRequest.Disconnect
-	(*CoordinateRequest_Tunnel)(nil),            // 30: coder.tailnet.v2.CoordinateRequest.Tunnel
-	(*CoordinateRequest_ReadyForHandshake)(nil), // 31: coder.tailnet.v2.CoordinateRequest.ReadyForHandshake
-	(*CoordinateResponse_PeerUpdate)(nil),       // 32: coder.tailnet.v2.CoordinateResponse.PeerUpdate
-	nil,                                         // 33: coder.tailnet.v2.Netcheck.RegionV4LatencyEntry
-	nil,                                         // 34: coder.tailnet.v2.Netcheck.RegionV6LatencyEntry
-	(*Netcheck_NetcheckIP)(nil),                 // 35: coder.tailnet.v2.Netcheck.NetcheckIP
-	(*TelemetryEvent_P2PEndpoint)(nil),          // 36: coder.tailnet.v2.TelemetryEvent.P2PEndpoint
-	(*timestamppb.Timestamp)(nil),               // 37: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),                 // 38: google.protobuf.Duration
-	(*wrapperspb.BoolValue)(nil),                // 39: google.protobuf.BoolValue
-	(*wrapperspb.FloatValue)(nil),               // 40: google.protobuf.FloatValue
+	(TailnetTunnelUpdate_Op)(0),                 // 5: coder.tailnet.v2.TailnetTunnelUpdate.Op
+	(*DERPMap)(nil),                             // 6: coder.tailnet.v2.DERPMap
+	(*StreamDERPMapsRequest)(nil),               // 7: coder.tailnet.v2.StreamDERPMapsRequest
+	(*Node)(nil),                                // 8: coder.tailnet.v2.Node
+	(*RefreshResumeTokenRequest)(nil),           // 9: coder.tailnet.v2.RefreshResumeTokenRequest
+	(*RefreshResumeTokenResponse)(nil),          // 10: coder.tailnet.v2.RefreshResumeTokenResponse
+	(*CoordinateRequest)(nil),                   // 11: coder.tailnet.v2.CoordinateRequest
+	(*CoordinateResponse)(nil),                  // 12: coder.tailnet.v2.CoordinateResponse
+	(*IPFields)(nil),                            // 13: coder.tailnet.v2.IPFields
+	(*Netcheck)(nil),                            // 14: coder.tailnet.v2.Netcheck
+	(*TelemetryEvent)(nil),                      // 15: coder.tailnet.v2.TelemetryEvent
+	(*TelemetryRequest)(nil),                    // 16: coder.tailnet.v2.TelemetryRequest
+	(*TelemetryResponse)(nil),                   // 17: coder.tailnet.v2.TelemetryResponse
+	(*WorkspaceUpdatesRequest)(nil),             // 18: coder.tailnet.v2.WorkspaceUpdatesRequest
+	(*WorkspaceUpdate)(nil),                     // 19: coder.tailnet.v2.WorkspaceUpdate
+	(*Workspace)(nil),                           // 20: coder.tailnet.v2.Workspace
+	(*Agent)(nil),                               // 21: coder.tailnet.v2.Agent
+	(*TailnetPeerUpdate)(nil),                   // 22: coder.tailnet.v2.TailnetPeerUpdate
+	(*TailnetTunnelUpdate)(nil),                 // 23: coder.tailnet.v2.TailnetTunnelUpdate
+	(*DERPMap_HomeParams)(nil),                  // 24: coder.tailnet.v2.DERPMap.HomeParams
+	(*DERPMap_Region)(nil),                      // 25: coder.tailnet.v2.DERPMap.Region
+	nil,                                         // 26: coder.tailnet.v2.DERPMap.RegionsEntry
+	nil,                                         // 27: coder.tailnet.v2.DERPMap.HomeParams.RegionScoreEntry
+	(*DERPMap_Region_Node)(nil),                 // 28: coder.tailnet.v2.DERPMap.Region.Node
+	nil,                                         // 29: coder.tailnet.v2.Node.DerpLatencyEntry
+	nil,                                         // 30: coder.tailnet.v2.Node.DerpForcedWebsocketEntry
+	(*CoordinateRequest_UpdateSelf)(nil),        // 31: coder.tailnet.v2.CoordinateRequest.UpdateSelf
+	(*CoordinateRequest_Disconnect)(nil),        // 32: coder.tailnet.v2.CoordinateRequest.Disconnect
+	(*CoordinateRequest_Tunnel)(nil),            // 33: coder.tailnet.v2.CoordinateRequest.Tunnel
+	(*CoordinateRequest_ReadyForHandshake)(nil), // 34: coder.tailnet.v2.CoordinateRequest.ReadyForHandshake
+	(*CoordinateResponse_PeerUpdate)(nil),       // 35: coder.tailnet.v2.CoordinateResponse.PeerUpdate
+	nil,                                         // 36: coder.tailnet.v2.Netcheck.RegionV4LatencyEntry
+	nil,                                         // 37: coder.tailnet.v2.Netcheck.RegionV6LatencyEntry
+	(*Netcheck_NetcheckIP)(nil),                 // 38: coder.tailnet.v2.Netcheck.NetcheckIP
+	(*TelemetryEvent_P2PEndpoint)(nil),          // 39: coder.tailnet.v2.TelemetryEvent.P2PEndpoint
+	(*timestamppb.Timestamp)(nil),               // 40: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),                 // 41: google.protobuf.Duration
+	(*wrapperspb.BoolValue)(nil),                // 42: google.protobuf.BoolValue
+	(*wrapperspb.FloatValue)(nil),               // 43: google.protobuf.FloatValue
 }
 var file_tailnet_proto_tailnet_proto_depIdxs = []int32{
-	21, // 0: coder.tailnet.v2.DERPMap.home_params:type_name -> coder.tailnet.v2.DERPMap.HomeParams
-	23, // 1: coder.tailnet.v2.DERPMap.regions:type_name -> coder.tailnet.v2.DERPMap.RegionsEntry
-	37, // 2: coder.tailnet.v2.Node.as_of:type_name -> google.protobuf.Timestamp
-	26, // 3: coder.tailnet.v2.Node.derp_latency:type_name -> coder.tailnet.v2.Node.DerpLatencyEntry
-	27, // 4: coder.tailnet.v2.Node.derp_forced_websocket:type_name -> coder.tailnet.v2.Node.DerpForcedWebsocketEntry
-	38, // 5: coder.tailnet.v2.RefreshResumeTokenResponse.refresh_in:type_name -> google.protobuf.Duration
-	37, // 6: coder.tailnet.v2.RefreshResumeTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
-	28, // 7: coder.tailnet.v2.CoordinateRequest.update_self:type_name -> coder.tailnet.v2.CoordinateRequest.UpdateSelf
-	29, // 8: coder.tailnet.v2.CoordinateRequest.disconnect:type_name -> coder.tailnet.v2.CoordinateRequest.Disconnect
-	30, // 9: coder.tailnet.v2.CoordinateRequest.add_tunnel:type_name -> coder.tailnet.v2.CoordinateRequest.Tunnel
-	30, // 10: coder.tailnet.v2.CoordinateRequest.remove_tunnel:type_name -> coder.tailnet.v2.CoordinateRequest.Tunnel
-	31, // 11: coder.tailnet.v2.CoordinateRequest.ready_for_handshake:type_name -> coder.tailnet.v2.CoordinateRequest.ReadyForHandshake
-	32, // 12: coder.tailnet.v2.CoordinateResponse.peer_updates:type_name -> coder.tailnet.v2.CoordinateResponse.PeerUpdate
+	24, // 0: coder.tailnet.v2.DERPMap.home_params:type_name -> coder.tailnet.v2.DERPMap.HomeParams
+	26, // 1: coder.tailnet.v2.DERPMap.regions:type_name -> coder.tailnet.v2.DERPMap.RegionsEntry
+	40, // 2: coder.tailnet.v2.Node.as_of:type_name -> google.protobuf.Timestamp
+	29, // 3: coder.tailnet.v2.Node.derp_latency:type_name -> coder.tailnet.v2.Node.DerpLatencyEntry
+	30, // 4: coder.tailnet.v2.Node.derp_forced_websocket:type_name -> coder.tailnet.v2.Node.DerpForcedWebsocketEntry
+	41, // 5: coder.tailnet.v2.RefreshResumeTokenResponse.refresh_in:type_name -> google.protobuf.Duration
+	40, // 6: coder.tailnet.v2.RefreshResumeTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	31, // 7: coder.tailnet.v2.CoordinateRequest.update_self:type_name -> coder.tailnet.v2.CoordinateRequest.UpdateSelf
+	32, // 8: coder.tailnet.v2.CoordinateRequest.disconnect:type_name -> coder.tailnet.v2.CoordinateRequest.Disconnect
+	33, // 9: coder.tailnet.v2.CoordinateRequest.add_tunnel:type_name -> coder.tailnet.v2.CoordinateRequest.Tunnel
+	33, // 10: coder.tailnet.v2.CoordinateRequest.remove_tunnel:type_name -> coder.tailnet.v2.CoordinateRequest.Tunnel
+	34, // 11: coder.tailnet.v2.CoordinateRequest.ready_for_handshake:type_name -> coder.tailnet.v2.CoordinateRequest.ReadyForHandshake
+	35, // 12: coder.tailnet.v2.CoordinateResponse.peer_updates:type_name -> coder.tailnet.v2.CoordinateResponse.PeerUpdate
 	1,  // 13: coder.tailnet.v2.IPFields.class:type_name -> coder.tailnet.v2.IPFields.IPClass
-	39, // 14: coder.tailnet.v2.Netcheck.OSHasIPv6:type_name -> google.protobuf.BoolValue
-	39, // 15: coder.tailnet.v2.Netcheck.MappingVariesByDestIP:type_name -> google.protobuf.BoolValue
-	39, // 16: coder.tailnet.v2.Netcheck.HairPinning:type_name -> google.protobuf.BoolValue
-	39, // 17: coder.tailnet.v2.Netcheck.UPnP:type_name -> google.protobuf.BoolValue
-	39, // 18: coder.tailnet.v2.Netcheck.PMP:type_name -> google.protobuf.BoolValue
-	39, // 19: coder.tailnet.v2.Netcheck.PCP:type_name -> google.protobuf.BoolValue
-	33, // 20: coder.tailnet.v2.Netcheck.RegionV4Latency:type_name -> coder.tailnet.v2.Netcheck.RegionV4LatencyEntry
-	34, // 21: coder.tailnet.v2.Netcheck.RegionV6Latency:type_name -> coder.tailnet.v2.Netcheck.RegionV6LatencyEntry
-	35, // 22: coder.tailnet.v2.Netcheck.GlobalV4:type_name -> coder.tailnet.v2.Netcheck.NetcheckIP
-	35, // 23: coder.tailnet.v2.Netcheck.GlobalV6:type_name -> coder.tailnet.v2.Netcheck.NetcheckIP
-	37, // 24: coder.tailnet.v2.TelemetryEvent.time:type_name -> google.protobuf.Timestamp
+	42, // 14: coder.tailnet.v2.Netcheck.OSHasIPv6:type_name -> google.protobuf.BoolValue
+	42, // 15: coder.tailnet.v2.Netcheck.MappingVariesByDestIP:type_name -> google.protobuf.BoolValue
+	42, // 16: coder.tailnet.v2.Netcheck.HairPinning:type_name -> google.protobuf.BoolValue
+	42, // 17: coder.tailnet.v2.Netcheck.UPnP:type_name -> google.protobuf.BoolValue
+	42, // 18: coder.tailnet.v2.Netcheck.PMP:type_name -> google.protobuf.BoolValue
+	42, // 19: coder.tailnet.v2.Netcheck.PCP:type_name -> google.protobuf.BoolValue
+	36, // 20: coder.tailnet.v2.Netcheck.RegionV4Latency:type_name -> coder.tailnet.v2.Netcheck.RegionV4LatencyEntry
+	37, // 21: coder.tailnet.v2.Netcheck.RegionV6Latency:type_name -> coder.tailnet.v2.Netcheck.RegionV6LatencyEntry
+	38, // 22: coder.tailnet.v2.Netcheck.GlobalV4:type_name -> coder.tailnet.v2.Netcheck.NetcheckIP
+	38, // 23: coder.tailnet.v2.Netcheck.GlobalV6:type_name -> coder.tailnet.v2.Netcheck.NetcheckIP
+	40, // 24: coder.tailnet.v2.TelemetryEvent.time:type_name -> google.protobuf.Timestamp
 	2,  // 25: coder.tailnet.v2.TelemetryEvent.status:type_name -> coder.tailnet.v2.TelemetryEvent.Status
 	3,  // 26: coder.tailnet.v2.TelemetryEvent.client_type:type_name -> coder.tailnet.v2.TelemetryEvent.ClientType
-	36, // 27: coder.tailnet.v2.TelemetryEvent.p2p_endpoint:type_name -> coder.tailnet.v2.TelemetryEvent.P2PEndpoint
-	5,  // 28: coder.tailnet.v2.TelemetryEvent.derp_map:type_name -> coder.tailnet.v2.DERPMap
-	13, // 29: coder.tailnet.v2.TelemetryEvent.latest_netcheck:type_name -> coder.tailnet.v2.Netcheck
-	38, // 30: coder.tailnet.v2.TelemetryEvent.connection_age:type_name -> google.protobuf.Duration
-	38, // 31: coder.tailnet.v2.TelemetryEvent.connection_setup:type_name -> google.protobuf.Duration
-	38, // 32: coder.tailnet.v2.TelemetryEvent.p2p_setup:type_name -> google.protobuf.Duration
-	38, // 33: coder.tailnet.v2.TelemetryEvent.derp_latency:type_name -> google.protobuf.Duration
-	38, // 34: coder.tailnet.v2.TelemetryEvent.p2p_latency:type_name -> google.protobuf.Duration
-	40, // 35: coder.tailnet.v2.TelemetryEvent.throughput_mbits:type_name -> google.protobuf.FloatValue
-	14, // 36: coder.tailnet.v2.TelemetryRequest.events:type_name -> coder.tailnet.v2.TelemetryEvent
-	19, // 37: coder.tailnet.v2.WorkspaceUpdate.upserted_workspaces:type_name -> coder.tailnet.v2.Workspace
-	20, // 38: coder.tailnet.v2.WorkspaceUpdate.upserted_agents:type_name -> coder.tailnet.v2.Agent
-	19, // 39: coder.tailnet.v2.WorkspaceUpdate.deleted_workspaces:type_name -> coder.tailnet.v2.Workspace
-	20, // 40: coder.tailnet.v2.WorkspaceUpdate.deleted_agents:type_name -> coder.tailnet.v2.Agent
+	39, // 27: coder.tailnet.v2.TelemetryEvent.p2p_endpoint:type_name -> coder.tailnet.v2.TelemetryEvent.P2PEndpoint
+	6,  // 28: coder.tailnet.v2.TelemetryEvent.derp_map:type_name -> coder.tailnet.v2.DERPMap
+	14, // 29: coder.tailnet.v2.TelemetryEvent.latest_netcheck:type_name -> coder.tailnet.v2.Netcheck
+	41, // 30: coder.tailnet.v2.TelemetryEvent.connection_age:type_name -> google.protobuf.Duration
+	41, // 31: coder.tailnet.v2.TelemetryEvent.connection_setup:type_name -> google.protobuf.Duration
+	41, // 32: coder.tailnet.v2.TelemetryEvent.p2p_setup:type_name -> google.protobuf.Duration
+	41, // 33: coder.tailnet.v2.TelemetryEvent.derp_latency:type_name -> google.protobuf.Duration
+	41, // 34: coder.tailnet.v2.TelemetryEvent.p2p_latency:type_name -> google.protobuf.Duration
+	43, // 35: coder.tailnet.v2.TelemetryEvent.throughput_mbits:type_name -> google.protobuf.FloatValue
+	15, // 36: coder.tailnet.v2.TelemetryRequest.events:type_name -> coder.tailnet.v2.TelemetryEvent
+	20, // 37: coder.tailnet.v2.WorkspaceUpdate.upserted_workspaces:type_name -> coder.tailnet.v2.Workspace
+	21, // 38: coder.tailnet.v2.WorkspaceUpdate.upserted_agents:type_name -> coder.tailnet.v2.Agent
+	20, // 39: coder.tailnet.v2.WorkspaceUpdate.deleted_workspaces:type_name -> coder.tailnet.v2.Workspace
+	21, // 40: coder.tailnet.v2.WorkspaceUpdate.deleted_agents:type_name -> coder.tailnet.v2.Agent
 	4,  // 41: coder.tailnet.v2.Workspace.status:type_name -> coder.tailnet.v2.Workspace.Status
-	24, // 42: coder.tailnet.v2.DERPMap.HomeParams.region_score:type_name -> coder.tailnet.v2.DERPMap.HomeParams.RegionScoreEntry
-	25, // 43: coder.tailnet.v2.DERPMap.Region.nodes:type_name -> coder.tailnet.v2.DERPMap.Region.Node
-	22, // 44: coder.tailnet.v2.DERPMap.RegionsEntry.value:type_name -> coder.tailnet.v2.DERPMap.Region
-	7,  // 45: coder.tailnet.v2.CoordinateRequest.UpdateSelf.node:type_name -> coder.tailnet.v2.Node
-	7,  // 46: coder.tailnet.v2.CoordinateResponse.PeerUpdate.node:type_name -> coder.tailnet.v2.Node
-	0,  // 47: coder.tailnet.v2.CoordinateResponse.PeerUpdate.kind:type_name -> coder.tailnet.v2.CoordinateResponse.PeerUpdate.Kind
-	38, // 48: coder.tailnet.v2.Netcheck.RegionV4LatencyEntry.value:type_name -> google.protobuf.Duration
-	38, // 49: coder.tailnet.v2.Netcheck.RegionV6LatencyEntry.value:type_name -> google.protobuf.Duration
-	12, // 50: coder.tailnet.v2.Netcheck.NetcheckIP.fields:type_name -> coder.tailnet.v2.IPFields
-	12, // 51: coder.tailnet.v2.TelemetryEvent.P2PEndpoint.fields:type_name -> coder.tailnet.v2.IPFields
-	15, // 52: coder.tailnet.v2.Tailnet.PostTelemetry:input_type -> coder.tailnet.v2.TelemetryRequest
-	6,  // 53: coder.tailnet.v2.Tailnet.StreamDERPMaps:input_type -> coder.tailnet.v2.StreamDERPMapsRequest
-	8,  // 54: coder.tailnet.v2.Tailnet.RefreshResumeToken:input_type -> coder.tailnet.v2.RefreshResumeTokenRequest
-	10, // 55: coder.tailnet.v2.Tailnet.Coordinate:input_type -> coder.tailnet.v2.CoordinateRequest
-	17, // 56: coder.tailnet.v2.Tailnet.WorkspaceUpdates:input_type -> coder.tailnet.v2.WorkspaceUpdatesRequest
-	16, // 57: coder.tailnet.v2.Tailnet.PostTelemetry:output_type -> coder.tailnet.v2.TelemetryResponse
-	5,  // 58: coder.tailnet.v2.Tailnet.StreamDERPMaps:output_type -> coder.tailnet.v2.DERPMap
-	9,  // 59: coder.tailnet.v2.Tailnet.RefreshResumeToken:output_type -> coder.tailnet.v2.RefreshResumeTokenResponse
-	11, // 60: coder.tailnet.v2.Tailnet.Coordinate:output_type -> coder.tailnet.v2.CoordinateResponse
-	18, // 61: coder.tailnet.v2.Tailnet.WorkspaceUpdates:output_type -> coder.tailnet.v2.WorkspaceUpdate
-	57, // [57:62] is the sub-list for method output_type
-	52, // [52:57] is the sub-list for method input_type
-	52, // [52:52] is the sub-list for extension type_name
-	52, // [52:52] is the sub-list for extension extendee
-	0,  // [0:52] is the sub-list for field type_name
+	40, // 42: coder.tailnet.v2.TailnetPeerUpdate.updated_at:type_name -> google.protobuf.Timestamp
+	5,  // 43: coder.tailnet.v2.TailnetTunnelUpdate.op:type_name -> coder.tailnet.v2.TailnetTunnelUpdate.Op
+	27, // 44: coder.tailnet.v2.DERPMap.HomeParams.region_score:type_name -> coder.tailnet.v2.DERPMap.HomeParams.RegionScoreEntry
+	28, // 45: coder.tailnet.v2.DERPMap.Region.nodes:type_name -> coder.tailnet.v2.DERPMap.Region.Node
+	25, // 46: coder.tailnet.v2.DERPMap.RegionsEntry.value:type_name -> coder.tailnet.v2.DERPMap.Region
+	8,  // 47: coder.tailnet.v2.CoordinateRequest.UpdateSelf.node:type_name -> coder.tailnet.v2.Node
+	8,  // 48: coder.tailnet.v2.CoordinateResponse.PeerUpdate.node:type_name -> coder.tailnet.v2.Node
+	0,  // 49: coder.tailnet.v2.CoordinateResponse.PeerUpdate.kind:type_name -> coder.tailnet.v2.CoordinateResponse.PeerUpdate.Kind
+	41, // 50: coder.tailnet.v2.Netcheck.RegionV4LatencyEntry.value:type_name -> google.protobuf.Duration
+	41, // 51: coder.tailnet.v2.Netcheck.RegionV6LatencyEntry.value:type_name -> google.protobuf.Duration
+	13, // 52: coder.tailnet.v2.Netcheck.NetcheckIP.fields:type_name -> coder.tailnet.v2.IPFields
+	13, // 53: coder.tailnet.v2.TelemetryEvent.P2PEndpoint.fields:type_name -> coder.tailnet.v2.IPFields
+	16, // 54: coder.tailnet.v2.Tailnet.PostTelemetry:input_type -> coder.tailnet.v2.TelemetryRequest
+	7,  // 55: coder.tailnet.v2.Tailnet.StreamDERPMaps:input_type -> coder.tailnet.v2.StreamDERPMapsRequest
+	9,  // 56: coder.tailnet.v2.Tailnet.RefreshResumeToken:input_type -> coder.tailnet.v2.RefreshResumeTokenRequest
+	11, // 57: coder.tailnet.v2.Tailnet.Coordinate:input_type -> coder.tailnet.v2.CoordinateRequest
+	18, // 58: coder.tailnet.v2.Tailnet.WorkspaceUpdates:input_type -> coder.tailnet.v2.WorkspaceUpdatesRequest
+	17, // 59: coder.tailnet.v2.Tailnet.PostTelemetry:output_type -> coder.tailnet.v2.TelemetryResponse
+	6,  // 60: coder.tailnet.v2.Tailnet.StreamDERPMaps:output_type -> coder.tailnet.v2.DERPMap
+	10, // 61: coder.tailnet.v2.Tailnet.RefreshResumeToken:output_type -> coder.tailnet.v2.RefreshResumeTokenResponse
+	12, // 62: coder.tailnet.v2.Tailnet.Coordinate:output_type -> coder.tailnet.v2.CoordinateResponse
+	19, // 63: coder.tailnet.v2.Tailnet.WorkspaceUpdates:output_type -> coder.tailnet.v2.WorkspaceUpdate
+	59, // [59:64] is the sub-list for method output_type
+	54, // [54:59] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_tailnet_proto_tailnet_proto_init() }
@@ -2896,7 +3138,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 			}
 		}
 		file_tailnet_proto_tailnet_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DERPMap_HomeParams); i {
+			switch v := v.(*TailnetPeerUpdate); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2908,6 +3150,30 @@ func file_tailnet_proto_tailnet_proto_init() {
 			}
 		}
 		file_tailnet_proto_tailnet_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TailnetTunnelUpdate); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_tailnet_proto_tailnet_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DERPMap_HomeParams); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_tailnet_proto_tailnet_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DERPMap_Region); i {
 			case 0:
 				return &v.state
@@ -2919,7 +3185,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DERPMap_Region_Node); i {
 			case 0:
 				return &v.state
@@ -2931,7 +3197,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CoordinateRequest_UpdateSelf); i {
 			case 0:
 				return &v.state
@@ -2943,7 +3209,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CoordinateRequest_Disconnect); i {
 			case 0:
 				return &v.state
@@ -2955,7 +3221,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CoordinateRequest_Tunnel); i {
 			case 0:
 				return &v.state
@@ -2967,7 +3233,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CoordinateRequest_ReadyForHandshake); i {
 			case 0:
 				return &v.state
@@ -2979,7 +3245,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CoordinateResponse_PeerUpdate); i {
 			case 0:
 				return &v.state
@@ -2991,7 +3257,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Netcheck_NetcheckIP); i {
 			case 0:
 				return &v.state
@@ -3003,7 +3269,7 @@ func file_tailnet_proto_tailnet_proto_init() {
 				return nil
 			}
 		}
-		file_tailnet_proto_tailnet_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
+		file_tailnet_proto_tailnet_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TelemetryEvent_P2PEndpoint); i {
 			case 0:
 				return &v.state
@@ -3021,8 +3287,8 @@ func file_tailnet_proto_tailnet_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_tailnet_proto_tailnet_proto_rawDesc,
-			NumEnums:      5,
-			NumMessages:   32,
+			NumEnums:      6,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
