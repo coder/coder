@@ -22884,6 +22884,9 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "exit_code": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -22907,10 +22910,28 @@ const docTemplate = `{
                 "start_blocks_login": {
                     "type": "boolean"
                 },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptStatus"
+                },
                 "timeout": {
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentScriptStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "exit_failure",
+                "timed_out",
+                "pipes_left_open"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentScriptStatusOK",
+                "WorkspaceAgentScriptStatusExitFailure",
+                "WorkspaceAgentScriptStatusTimedOut",
+                "WorkspaceAgentScriptStatusPipesLeftOpen"
+            ]
         },
         "codersdk.WorkspaceAgentStartupScriptBehavior": {
             "type": "string",

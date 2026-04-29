@@ -542,7 +542,7 @@ func (api *API) postWorkspaceBuildsInternal(
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
 		[]database.WorkspaceAppStatus{},
-		[]database.WorkspaceAgentScript{},
+		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 		provisionerDaemons,
@@ -982,7 +982,7 @@ type workspaceBuildsData struct {
 	agents             []database.WorkspaceAgent
 	apps               []database.WorkspaceApp
 	appStatuses        []database.WorkspaceAppStatus
-	scripts            []database.WorkspaceAgentScript
+	scripts            []database.GetWorkspaceAgentScriptsByAgentIDsRow
 	logSources         []database.WorkspaceAgentLogSource
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 }
@@ -1070,7 +1070,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 
 	var (
 		apps       []database.WorkspaceApp
-		scripts    []database.WorkspaceAgentScript
+		scripts    []database.GetWorkspaceAgentScriptsByAgentIDsRow
 		logSources []database.WorkspaceAgentLogSource
 	)
 
@@ -1129,7 +1129,7 @@ func (api *API) convertWorkspaceBuilds(
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
 	agentAppStatuses []database.WorkspaceAppStatus,
-	agentScripts []database.WorkspaceAgentScript,
+	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
@@ -1196,7 +1196,7 @@ func (api *API) convertWorkspaceBuild(
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
 	agentAppStatuses []database.WorkspaceAppStatus,
-	agentScripts []database.WorkspaceAgentScript,
+	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
@@ -1217,7 +1217,7 @@ func (api *API) convertWorkspaceBuild(
 	for _, app := range agentApps {
 		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
 	}
-	scriptsByAgentID := map[uuid.UUID][]database.WorkspaceAgentScript{}
+	scriptsByAgentID := map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow{}
 	for _, script := range agentScripts {
 		scriptsByAgentID[script.WorkspaceAgentID] = append(scriptsByAgentID[script.WorkspaceAgentID], script)
 	}
