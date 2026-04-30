@@ -392,6 +392,39 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	require.Equal(t, preferredConfig, gotConfig)
 }
 
+func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	preferredConfig := database.ChatModelConfig{
+		ID:       uuid.New(),
+		Provider: preferredTitleModels[1].provider,
+		Model:    preferredTitleModels[1].model,
+		Enabled:  true,
+	}
+
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{
+		{Provider: "openai", Model: "gpt-4.1", Enabled: true},
+		preferredConfig,
+	}, nil)
+
+	server := titleOverrideTestServer(db, logger)
+	model, gotConfig, err := server.resolveManualTitleModel(
+		ctx,
+		db,
+		chat,
+		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model)
+	require.Equal(t, preferredConfig, gotConfig)
+}
+
 func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) {
 	t.Parallel()
 
