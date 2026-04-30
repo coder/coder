@@ -41,7 +41,7 @@ export const Pill: FC<PillProps> = ({
 				"[&>svg]:size-[14px]",
 				size === "md" && "h-6 gap-[5px] px-3",
 				Boolean(icon) && size === "md" && "pl-[5px]",
-				size === "lg" && "gap-[10px] px-4 py-[14px]",
+				size === "lg" && "gap-[10px] px-4 py-2",
 				Boolean(icon) && size === "lg" && "pl-[10px]",
 				className,
 			)}
