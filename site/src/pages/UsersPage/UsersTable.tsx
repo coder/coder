@@ -229,7 +229,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 
 									{user.status !== "suspended" && (
 										<DropdownMenuItem
-											disabled={user.login_type === "password"}
+											disabled={user.login_type !== "password"}
 											onClick={() => onResetUserPassword(user)}
 										>
 											Reset password&hellip;
