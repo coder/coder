@@ -6,11 +6,12 @@ export type KnownModelSourceMetadata = {
 
 export type KnownModel = {
 	provider: string;
-	model: string;
+	modelIdentifier: string;
 	displayName: string;
 	aliases: readonly string[];
 	contextLimit?: number;
 	maxOutputTokens?: number;
+	/** USD per million tokens. Flat base rate from models.dev. */
 	inputCost?: number;
 	outputCost?: number;
 	cacheReadCost?: number;

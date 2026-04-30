@@ -1,3 +1,4 @@
+import { normalizeProvider } from "../helpers";
 import { anthropicKnownModels } from "./anthropic";
 import { openAIKnownModels } from "./openai";
 
@@ -11,9 +12,6 @@ const knownModelsByProvider = {
 } as const satisfies Record<string, readonly KnownModel[]>;
 
 type KnownProvider = keyof typeof knownModelsByProvider;
-
-const normalizeProvider = (provider: string): string =>
-	provider.trim().toLowerCase();
 
 const isKnownProvider = (provider: string): provider is KnownProvider =>
 	provider in knownModelsByProvider;
@@ -46,9 +44,11 @@ export const searchKnownModels = (
 	}
 
 	return providerModels.filter((knownModel) =>
-		[knownModel.model, knownModel.displayName, ...knownModel.aliases].some(
-			(value) => normalizeSearchText(value).includes(normalizedQuery),
-		),
+		[
+			knownModel.modelIdentifier,
+			knownModel.displayName,
+			...knownModel.aliases,
+		].some((value) => normalizeSearchText(value).includes(normalizedQuery)),
 	);
 };
 
@@ -61,7 +61,7 @@ export const findKnownModelByCanonicalId = (
 		return undefined;
 	}
 	return getKnownModelsForProvider(normalizedProvider).find(
-		(knownModel) => knownModel.model === modelId,
+		(knownModel) => knownModel.modelIdentifier === modelId,
 	);
 };
 
@@ -69,7 +69,7 @@ const formatCompactNumber = (value: number): string => {
 	if (Number.isInteger(value)) {
 		return String(value);
 	}
-	return value.toFixed(2).replace(/0$/, "");
+	return value.toFixed(2).replace(/\.?0+$/, "");
 };
 
 export const formatContextBadge = (contextLimit: number): string => {

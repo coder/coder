@@ -6,7 +6,7 @@ describe("anthropicKnownModels", () => {
 	it("returns Anthropic canonical IDs in declared order", () => {
 		expect(
 			getKnownModelsForProvider("anthropic").map(
-				(knownModel) => knownModel.model,
+				(knownModel) => knownModel.modelIdentifier,
 			),
 		).toEqual([
 			"claude-opus-4-7",
@@ -18,7 +18,9 @@ describe("anthropicKnownModels", () => {
 	});
 
 	it("has source metadata, provider equality, and declared order", () => {
-		expect(anthropicKnownModels.map((knownModel) => knownModel.model)).toEqual([
+		expect(
+			anthropicKnownModels.map((knownModel) => knownModel.modelIdentifier),
+		).toEqual([
 			"claude-opus-4-7",
 			"claude-opus-4-6",
 			"claude-sonnet-4-6",

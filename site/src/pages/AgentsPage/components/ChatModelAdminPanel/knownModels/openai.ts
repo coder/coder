@@ -2,16 +2,16 @@ import type { KnownModel } from "./types";
 
 // Array order controls suggestion order. Keep sourceMetadata.lastUpdated in
 // sync with the corresponding models.dev last_updated value for each model.
+// Coder currently persists flat pricing only. Tiered models.dev pricing,
+// such as context_over_200k, is intentionally omitted.
 export const openAIKnownModels = [
 	{
 		provider: "openai",
-		model: "gpt-5.5",
+		modelIdentifier: "gpt-5.5",
 		displayName: "GPT-5.5",
 		aliases: [],
 		contextLimit: 1_050_000,
 		maxOutputTokens: 128_000,
-		// Coder currently persists flat pricing only. Tiered models.dev pricing,
-		// such as context_over_200k, is intentionally omitted.
 		inputCost: 5,
 		outputCost: 30,
 		cacheReadCost: 0.5,
@@ -23,13 +23,11 @@ export const openAIKnownModels = [
 	},
 	{
 		provider: "openai",
-		model: "gpt-5.5-pro",
+		modelIdentifier: "gpt-5.5-pro",
 		displayName: "GPT-5.5 Pro",
 		aliases: [],
 		contextLimit: 1_050_000,
 		maxOutputTokens: 128_000,
-		// Coder currently persists flat pricing only. Tiered models.dev pricing,
-		// such as context_over_200k, is intentionally omitted.
 		inputCost: 30,
 		outputCost: 180,
 		sourceMetadata: {
@@ -40,13 +38,11 @@ export const openAIKnownModels = [
 	},
 	{
 		provider: "openai",
-		model: "gpt-5.4",
+		modelIdentifier: "gpt-5.4",
 		displayName: "GPT-5.4",
 		aliases: [],
 		contextLimit: 1_050_000,
 		maxOutputTokens: 128_000,
-		// Coder currently persists flat pricing only. Tiered models.dev pricing,
-		// such as context_over_200k, is intentionally omitted.
 		inputCost: 2.5,
 		outputCost: 15,
 		cacheReadCost: 0.25,
@@ -58,13 +54,11 @@ export const openAIKnownModels = [
 	},
 	{
 		provider: "openai",
-		model: "gpt-5.4-mini",
+		modelIdentifier: "gpt-5.4-mini",
 		displayName: "GPT-5.4 mini",
 		aliases: [],
 		contextLimit: 400_000,
 		maxOutputTokens: 128_000,
-		// Coder currently persists flat pricing only. Tiered models.dev pricing,
-		// such as context_over_200k, is intentionally omitted.
 		inputCost: 0.75,
 		outputCost: 4.5,
 		cacheReadCost: 0.075,
@@ -76,13 +70,11 @@ export const openAIKnownModels = [
 	},
 	{
 		provider: "openai",
-		model: "gpt-5.4-nano",
+		modelIdentifier: "gpt-5.4-nano",
 		displayName: "GPT-5.4 nano",
 		aliases: [],
 		contextLimit: 400_000,
 		maxOutputTokens: 128_000,
-		// Coder currently persists flat pricing only. Tiered models.dev pricing,
-		// such as context_over_200k, is intentionally omitted.
 		inputCost: 0.2,
 		outputCost: 1.25,
 		cacheReadCost: 0.02,
@@ -94,13 +86,11 @@ export const openAIKnownModels = [
 	},
 	{
 		provider: "openai",
-		model: "gpt-5.3-codex",
+		modelIdentifier: "gpt-5.3-codex",
 		displayName: "GPT-5.3 Codex",
 		aliases: [],
 		contextLimit: 400_000,
 		maxOutputTokens: 128_000,
-		// Coder currently persists flat pricing only. Tiered models.dev pricing,
-		// such as context_over_200k, is intentionally omitted.
 		inputCost: 1.75,
 		outputCost: 14,
 		cacheReadCost: 0.175,

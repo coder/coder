@@ -1,4 +1,9 @@
-import type { ModelFormValues } from "../modelConfigFormLogic";
+import { snakeToCamel, toFormFieldKey } from "#/api/chatModelOptions";
+import {
+	deepGet,
+	deepSet,
+	type ModelFormValues,
+} from "../modelConfigFormLogic";
 import { pricingFieldNameList } from "../pricingFields";
 import type { KnownModel } from "./types";
 
@@ -34,54 +39,6 @@ const pricingModelFieldByName = {
 	KnownModelCostField
 >;
 
-const snakeToCamel = (value: string): string =>
-	value.replace(/_([a-z0-9])/g, (_, character: string) =>
-		character.toUpperCase(),
-	);
-
-const formPathForPricingField = (fieldName: string): string =>
-	`config.${fieldName.split(".").map(snakeToCamel).join(".")}`;
-
-const getPath = (value: unknown, path: readonly string[]): unknown => {
-	let current = value;
-	for (const segment of path) {
-		if (
-			current === null ||
-			current === undefined ||
-			typeof current !== "object"
-		) {
-			return undefined;
-		}
-		current = (current as Record<string, unknown>)[segment];
-	}
-	return current;
-};
-
-const setPath = (
-	value: unknown,
-	path: readonly string[],
-	nextValue: string,
-): void => {
-	if (value === null || value === undefined || typeof value !== "object") {
-		throw new Error("default application target must be an object");
-	}
-
-	let current = value as Record<string, unknown>;
-	for (const segment of path.slice(0, -1)) {
-		const child = current[segment];
-		if (child === null || child === undefined || typeof child !== "object") {
-			current[segment] = {};
-		}
-		current = current[segment] as Record<string, unknown>;
-	}
-
-	const leaf = path.at(-1);
-	if (leaf === undefined) {
-		throw new Error("default application path must not be empty");
-	}
-	current[leaf] = nextValue;
-};
-
 const maybeApplyDefault = ({
 	appliedFields,
 	initialValues,
@@ -98,11 +55,11 @@ const maybeApplyDefault = ({
 	values: ModelFormValues;
 }): void => {
 	const segments = path.split(".");
-	if (getPath(values, segments) !== getPath(initialValues, segments)) {
+	if (deepGet(values, segments) !== deepGet(initialValues, segments)) {
 		return;
 	}
 
-	setPath(nextValues, segments, value);
+	deepSet(nextValues as Record<string, unknown>, segments, value);
 	appliedFields.push(path);
 };
 
@@ -150,11 +107,19 @@ export const applyKnownModelDefaults = ({
 		if (cost === undefined) {
 			continue;
 		}
+		const path = toFormFieldKey("config", fieldName);
+		const previousPath = `config.${fieldName
+			.split(".")
+			.map(snakeToCamel)
+			.join(".")}`;
+		if (path !== previousPath) {
+			throw new Error("pricing field form path must match legacy path");
+		}
 		maybeApplyDefault({
 			appliedFields,
 			initialValues,
 			nextValues,
-			path: formPathForPricingField(fieldName),
+			path,
 			value: String(cost),
 			values,
 		});

@@ -12,10 +12,13 @@ import {
 	type KnownModelSourceMetadata,
 } from "./index";
 
-const requireKnownModel = (provider: string, model: string): KnownModel => {
-	const knownModel = findKnownModelByCanonicalId(provider, model);
+const requireKnownModel = (
+	provider: string,
+	modelIdentifier: string,
+): KnownModel => {
+	const knownModel = findKnownModelByCanonicalId(provider, modelIdentifier);
 	if (knownModel === undefined) {
-		throw new Error(`missing test Known Model: ${provider}/${model}`);
+		throw new Error(`missing test Known Model: ${provider}/${modelIdentifier}`);
 	}
 	return knownModel;
 };
@@ -67,7 +70,7 @@ const testSourceMetadata = (): KnownModelSourceMetadata => ({
 
 const customKnownModel = (overrides: Partial<KnownModel>): KnownModel => ({
 	provider: "openai",
-	model: "test-model",
+	modelIdentifier: "test-model",
 	displayName: "Test Model",
 	aliases: [],
 	sourceMetadata: testSourceMetadata(),
@@ -303,7 +306,8 @@ describe("applyKnownModelDefaults", () => {
 			knownModel: requireKnownModel("openai", "gpt-5.5"),
 		});
 
-		expect(result.values.model).toBe("typed-model");
+		const { model: resultModel } = result.values;
+		expect(resultModel).toBe("typed-model");
 		expect(result.appliedFields).not.toContain("model");
 	});
 

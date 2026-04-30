@@ -7,7 +7,9 @@ import {
 } from "./index";
 
 const modelIds = (provider: string): readonly string[] =>
-	getKnownModelsForProvider(provider).map((knownModel) => knownModel.model);
+	getKnownModelsForProvider(provider).map(
+		(knownModel) => knownModel.modelIdentifier,
+	);
 
 describe("formatContextBadge", () => {
 	it("formats 200K context", () => {
@@ -16,6 +18,10 @@ describe("formatContextBadge", () => {
 
 	it("formats 400K context", () => {
 		expect(formatContextBadge(400_000)).toBe("400K context");
+	});
+
+	it("formats 1M context without trailing decimals", () => {
+		expect(formatContextBadge(1_000_000)).toBe("1M context");
 	});
 
 	it("formats 1.05M context", () => {
@@ -54,14 +60,16 @@ describe("getKnownModelsForProvider", () => {
 describe("searchKnownModels", () => {
 	it("returns provider list in display order for empty search query", () => {
 		expect(
-			searchKnownModels("openai", "").map((knownModel) => knownModel.model),
+			searchKnownModels("openai", "").map(
+				(knownModel) => knownModel.modelIdentifier,
+			),
 		).toEqual(modelIds("openai"));
 	});
 
 	it("matches canonical Model Identifier", () => {
 		expect(
 			searchKnownModels("openai", "gpt-5.4-mini").map(
-				(knownModel) => knownModel.model,
+				(knownModel) => knownModel.modelIdentifier,
 			),
 		).toEqual(["gpt-5.4-mini"]);
 	});
@@ -69,7 +77,7 @@ describe("searchKnownModels", () => {
 	it("matches display name", () => {
 		expect(
 			searchKnownModels("openai", "codex").map(
-				(knownModel) => knownModel.model,
+				(knownModel) => knownModel.modelIdentifier,
 			),
 		).toEqual(["gpt-5.3-codex"]);
 	});
@@ -77,7 +85,7 @@ describe("searchKnownModels", () => {
 	it("matches alias with hyphen, underscore, dot, and whitespace normalization", () => {
 		expect(
 			searchKnownModels("anthropic", "haiku 4_5.20251001").map(
-				(knownModel) => knownModel.model,
+				(knownModel) => knownModel.modelIdentifier,
 			),
 		).toEqual(["claude-haiku-4-5"]);
 	});

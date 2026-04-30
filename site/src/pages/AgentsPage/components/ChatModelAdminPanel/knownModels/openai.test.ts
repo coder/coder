@@ -5,7 +5,9 @@ import { openAIKnownModels } from "./openai";
 describe("openAIKnownModels", () => {
 	it("returns OpenAI canonical IDs in declared order", () => {
 		expect(
-			getKnownModelsForProvider("openai").map((knownModel) => knownModel.model),
+			getKnownModelsForProvider("openai").map(
+				(knownModel) => knownModel.modelIdentifier,
+			),
 		).toEqual([
 			"gpt-5.5",
 			"gpt-5.5-pro",
@@ -17,7 +19,9 @@ describe("openAIKnownModels", () => {
 	});
 
 	it("has source metadata, provider equality, and declared order", () => {
-		expect(openAIKnownModels.map((knownModel) => knownModel.model)).toEqual([
+		expect(
+			openAIKnownModels.map((knownModel) => knownModel.modelIdentifier),
+		).toEqual([
 			"gpt-5.5",
 			"gpt-5.5-pro",
 			"gpt-5.4",

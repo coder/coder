@@ -11,6 +11,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
+import { normalizeProvider } from "./helpers";
 import {
 	findKnownModelByCanonicalId,
 	formatContextBadge,
@@ -43,11 +44,8 @@ type AppliedModel = {
 	model: string;
 };
 
-const normalizeProvider = (provider: string | null): string =>
-	provider?.trim().toLowerCase() ?? "";
-
 const knownModelToOption = (knownModel: KnownModel): ModelIdentifierOption => ({
-	model: knownModel.model,
+	model: knownModel.modelIdentifier,
 	displayName: knownModel.displayName,
 	contextLimit: knownModel.contextLimit,
 	knownModel,
@@ -72,7 +70,7 @@ export const ModelIdentifierField = ({
 		initialValuesRef.current = form.initialValues;
 	}
 
-	const normalizedProvider = normalizeProvider(selectedProvider);
+	const normalizedProvider = normalizeProvider(selectedProvider ?? "");
 	const providerKnownModels = getKnownModelsForProvider(normalizedProvider);
 	const usesKnownModelCatalog =
 		mode === "add" &&
@@ -158,7 +156,10 @@ export const ModelIdentifierField = ({
 			return;
 		}
 
-		const nextValuesForHelper = { ...form.values, model: knownModel.model };
+		const nextValuesForHelper = {
+			...form.values,
+			model: knownModel.modelIdentifier,
+		};
 		const result = applyKnownModelDefaults({
 			values: nextValuesForHelper,
 			initialValues,
@@ -170,7 +171,7 @@ export const ModelIdentifierField = ({
 		// ref skips the repeat apply so feedback does not flicker or duplicate.
 		lastAppliedProviderModelRef.current = {
 			provider: normalizedProvider,
-			model: knownModel.model,
+			model: knownModel.modelIdentifier,
 		};
 		setFeedback(
 			result.appliedFields.length > 0
@@ -188,7 +189,7 @@ export const ModelIdentifierField = ({
 		const lastApplied = lastAppliedProviderModelRef.current;
 		if (
 			lastApplied?.provider === normalizedProvider &&
-			lastApplied.model === found.model
+			lastApplied.model === found.modelIdentifier
 		) {
 			return;
 		}

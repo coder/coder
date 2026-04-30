@@ -1195,7 +1195,7 @@ const expectKnownModelOptionsInOrder = async (
 			throw new Error(`Expected option at index ${index}.`);
 		}
 		expect(option).toHaveTextContent(knownModel.displayName);
-		expect(option).toHaveTextContent(knownModel.model);
+		expect(option).toHaveTextContent(knownModel.modelIdentifier);
 		if (knownModel.contextLimit !== undefined) {
 			expect(option).toHaveTextContent(
 				formatContextBadge(knownModel.contextLimit),
