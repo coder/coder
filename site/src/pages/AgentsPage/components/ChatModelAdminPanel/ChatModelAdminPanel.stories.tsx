@@ -7,6 +7,7 @@ import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
 } from "./ChatModelAdminPanel";
+import { formatContextBadge, getKnownModelsForProvider } from "./knownModels";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -990,6 +991,20 @@ const expandSection = async (body: ReturnType<typeof within>, name: string) => {
 	await userEvent.click(btn);
 };
 
+const enterModelIdentifier = async (
+	body: ReturnType<typeof within>,
+	value: string,
+) => {
+	const field = await body.findByLabelText(/Model Identifier/i);
+	if (field instanceof HTMLInputElement) {
+		await userEvent.type(field, value);
+		return;
+	}
+
+	await userEvent.click(field);
+	await userEvent.type(await body.findByRole("combobox"), value);
+};
+
 export const NoModelConfigByDefault: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
@@ -1009,7 +1024,7 @@ export const NoModelConfigByDefault: Story = {
 		// Open "Add model" dropdown and select the OpenAI provider.
 		await openAddModelForm(body, "OpenAI");
 
-		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
+		await enterModelIdentifier(body, "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 
 		// Max output tokens is under the "Advanced" toggle.
@@ -1058,10 +1073,7 @@ export const SubmitModelConfigExplicitly: Story = {
 		// Open "Add model" dropdown and select the OpenAI provider.
 		await openAddModelForm(body, "OpenAI");
 
-		await userEvent.type(
-			body.getByLabelText(/Model Identifier/i),
-			"gpt-5-pro-custom",
-		);
+		await enterModelIdentifier(body, "gpt-5-pro-custom");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 		// Max output tokens is under "Advanced".
 		await expandSection(body, "Advanced");
@@ -1159,6 +1171,127 @@ const providerFormSetup = (provider: string, displayName: string) => ({
 		],
 	},
 });
+
+const findOptionByText = (options: HTMLElement[], text: string) => {
+	for (const option of options) {
+		if (option.textContent?.includes(text)) {
+			return option;
+		}
+	}
+	throw new Error(`Expected visible option containing ${text}.`);
+};
+
+const expectKnownModelOptionsInOrder = async (
+	body: ReturnType<typeof within>,
+	provider: string,
+) => {
+	const knownModels = getKnownModelsForProvider(provider);
+	const options = await body.findAllByRole("option");
+	expect(options.length).toBeGreaterThanOrEqual(knownModels.length);
+
+	for (const [index, knownModel] of knownModels.entries()) {
+		const option = options[index];
+		if (!option) {
+			throw new Error(`Expected option at index ${index}.`);
+		}
+		expect(option).toHaveTextContent(knownModel.displayName);
+		expect(option).toHaveTextContent(knownModel.model);
+		if (knownModel.contextLimit !== undefined) {
+			expect(option).toHaveTextContent(
+				formatContextBadge(knownModel.contextLimit),
+			);
+		}
+	}
+
+	return options;
+};
+
+export const OpenAIKnownModelHappyPath: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await userEvent.click(await body.findByLabelText(/Model Identifier/i));
+		const options = await expectKnownModelOptionsInOrder(body, "openai");
+		await userEvent.click(findOptionByText(options, "gpt-5.5"));
+
+		await expect(body.getByLabelText(/Model Identifier/i)).toHaveTextContent(
+			"gpt-5.5",
+		);
+		await expect(await body.findByRole("status")).toHaveTextContent(
+			"Defaults applied from GPT-5.5. Review and adjust before saving.",
+		);
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1050000");
+
+		await expandSection(body, "Provider Configuration");
+		await expect(
+			await body.findByLabelText(/Max Completion Tokens/i),
+		).toHaveValue("128000");
+	},
+};
+
+export const AnthropicKnownModelHappyPath: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+
+		await userEvent.click(await body.findByLabelText(/Model Identifier/i));
+		const options = await body.findAllByRole("option");
+		await userEvent.click(findOptionByText(options, "claude-opus-4-7"));
+
+		await expect(body.getByLabelText(/Model Identifier/i)).toHaveTextContent(
+			"claude-opus-4-7",
+		);
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1000000");
+
+		await expandSection(body, "Advanced");
+		await expect(await body.findByLabelText(/Max Output Tokens/i)).toHaveValue(
+			"128000",
+		);
+
+		await expandSection(body, "Provider Configuration");
+		const sendReasoningGroup = await body.findByRole("radiogroup", {
+			name: "Send Reasoning",
+		});
+		await expect(
+			within(sendReasoningGroup).getByRole("radio", { name: "On" }),
+		).toHaveAttribute("aria-checked", "false");
+		await expect(
+			within(sendReasoningGroup).getByRole("radio", { name: "Off" }),
+		).toHaveAttribute("aria-checked", "false");
+		await expect(
+			await body.findByLabelText(/Thinking Budget Tokens/i),
+		).toHaveValue("");
+		const reasoningEffortGroup = await body.findByRole("radiogroup", {
+			name: "Reasoning Effort",
+		});
+		for (const option of ["Low", "Medium", "High", "Xhigh", "Max"]) {
+			await expect(
+				within(reasoningEffortGroup).getByRole("radio", { name: option }),
+			).toHaveAttribute("aria-checked", "false");
+		}
+	},
+};
+
+export const UnsupportedProviderFallback: Story = {
+	...providerFormSetup("google", "Google"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Google");
+
+		const modelInput = await body.findByLabelText(/Model Identifier/i);
+		await userEvent.click(modelInput);
+		expect(body.queryByRole("option")).not.toBeInTheDocument();
+		await userEvent.type(modelInput, "gemini-custom-model");
+		await userEvent.tab();
+
+		await expect(modelInput).toHaveValue("gemini-custom-model");
+		expect(body.queryByText("Model ID is required.")).not.toBeInTheDocument();
+		expect(body.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
 
 export const ModelFormOpenAI: Story = {
 	...providerFormSetup("openai", "OpenAI"),
@@ -1559,7 +1692,7 @@ export const ValidatesModelConfigFields: Story = {
 		// Open "Add model" dropdown and select the OpenAI provider.
 		await openAddModelForm(body, "OpenAI");
 
-		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
+		await enterModelIdentifier(body, "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 		// Max output tokens is under the "Advanced" toggle.
 		await userEvent.click(body.getByText("Advanced"));
