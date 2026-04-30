@@ -323,6 +323,34 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	require.Equal(t, overrideConfig, gotConfig)
 }
 
+func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{Provider: "openai"}}, nil)
+
+	server := titleOverrideTestServer(db, logger)
+	model, gotConfig, err := server.resolveManualTitleModel(
+		ctx,
+		db,
+		chat,
+		chatprovider.ProviderAPIKeys{},
+	)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "resolve manual title generation model override")
+	require.ErrorContains(t, err, "credentials are unavailable")
+	require.Nil(t, model)
+	require.Equal(t, database.ChatModelConfig{}, gotConfig)
+}
+
 func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T) {
 	t.Parallel()
 

@@ -22,7 +22,7 @@ func readTitleGenerationModelOverride(
 	ctx context.Context,
 	db database.Store,
 ) (modelConfigID string, isMalformed bool, err error) {
-	//nolint:gocritic // Chatd needs scoped deployment-config read access here.
+	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	raw, err := db.GetChatTitleGenerationModelOverride(chatdCtx)
 	if err != nil {
@@ -40,6 +40,20 @@ func readTitleGenerationModelOverride(
 	return modelConfigUUID.String(), false, nil
 }
 
+// resolveTitleGenerationModelConfig resolves the deployment-wide title
+// generation model override. It returns four values:
+//
+//   - modelConfig and model: populated only on success.
+//   - overrideSet: true when the admin configured a non-empty override,
+//     regardless of whether resolution succeeded. Callers MUST always check
+//     err first; overrideSet alone does not imply the model is usable.
+//   - err: non-nil when resolution failed. With overrideSet=true, the
+//     override is configured but unusable (deleted model, missing credentials,
+//     etc.) and callers should treat this as a hard failure for
+//     explicit-override semantics, not a soft fallback.
+//
+// When the override is unset or stored as malformed, the function returns
+// (zero, nil, false, nil) so callers can fall back to default behavior.
 func (p *Server) resolveTitleGenerationModelConfig(
 	ctx context.Context,
 	chat database.Chat,
@@ -76,7 +90,7 @@ func (p *Server) resolveTitleGenerationModelConfig(
 	)
 	if err != nil {
 		switch {
-		case xerrors.Is(err, sql.ErrNoRows):
+		case errors.Is(err, sql.ErrNoRows):
 			return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
 				"title generation model override is unavailable: %s",
 				configuredModelConfigID,
