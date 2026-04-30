@@ -447,10 +447,13 @@ network boundaries, scoping credentials, and pre-installing dependencies.
 ### Pre-creating a workspace for deterministic results
 
 Letting the agent pick a template and provision a workspace works well
-for exploratory chats. If you instead want deterministic results, for
-example for automation, recurring workflows, or any case that needs a
-known reproducible environment, pre-create the workspace yourself and
-attach it when you create the chat.
+for exploratory chats. If your workflow requires deterministic results like:
+
+- Automations
+- Recurring processes
+- Generally any case that needs a known reproducible environment
+
+pre-create the workspace yourself and attach it when you create the chat.
 
 The pattern is two API calls:
 
