@@ -65,7 +65,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
 						{Boolean(info) && (
-							<div className="rounded-md border border-border-destructive bg-surface-destructive px-4 py-2 text-content-primary">
+							<div className="rounded-md border border-solid border-border-warning bg-surface-orange px-4 py-2 text-content-primary">
 								{info}
 							</div>
 						)}
