@@ -583,11 +583,16 @@ func TestTools(t *testing.T) {
 		})
 		// Attach a preset with one parameter so we can assert
 		// PresetParameters round-trip end-to-end.
+		const gtPresetDesiredPrebuildInstances = 3
 		gtPreset := dbgen.Preset(t, store, database.InsertPresetParams{
 			TemplateVersionID: gtBuild.TemplateVersion.ID,
 			Name:              testutil.GetRandomNameHyphenated(t),
 			CreatedAt:         gtBuild.TemplateVersion.CreatedAt,
 			Description:       "Preset for GetTemplate tests.",
+			DesiredInstances: sql.NullInt32{
+				Int32: gtPresetDesiredPrebuildInstances,
+				Valid: true,
+			},
 		})
 		dbgen.PresetParameter(t, store, database.InsertPresetParametersParams{
 			TemplateVersionPresetID: gtPreset.ID,
@@ -629,6 +634,14 @@ func TestTools(t *testing.T) {
 			require.Len(t, result.Presets[0].Parameters, 1)
 			require.Equal(t, "region", result.Presets[0].Parameters[0].Name)
 			require.Equal(t, "us-west-2", result.Presets[0].Parameters[0].Value)
+
+			// DesiredPrebuildInstances round-trips through toPresetView.
+			// The tool description tells the LLM to prefer presets with
+			// desired_prebuild_instances > 0; if this field stops
+			// flowing, that hint silently breaks.
+			require.NotNil(t, result.Presets[0].DesiredPrebuildInstances,
+				"desired_prebuild_instances should be populated when the preset has DesiredInstances")
+			require.EqualValues(t, gtPresetDesiredPrebuildInstances, *result.Presets[0].DesiredPrebuildInstances)
 		})
 
 		t.Run("WithoutPresets", func(t *testing.T) {
