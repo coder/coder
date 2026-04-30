@@ -1,22 +1,19 @@
-package chatcompletions //nolint:testpackage // tests unexported internals
+package responses //nolint:testpackage // tests unexported internals
 
 import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -26,109 +23,19 @@ import (
 	"github.com/coder/quartz"
 )
 
-// Test that when the upstream provider returns an error before streaming starts,
-// the error status code and body are correctly relayed to the client.
-func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
-	t.Parallel()
+// Streaming request body for the OpenAI Responses API.
+const streamingRequestBody = `{"input":"hi","model":"gpt-4o-mini","stream":true}`
 
-	tests := []struct {
-		name           string
-		statusCode     int
-		responseBody   string
-		expectedErrStr string
-		expectedBody   string
-	}{
-		{
-			name:           "bad request error",
-			statusCode:     http.StatusBadRequest,
-			responseBody:   `{"error":{"message":"Invalid request","type":"invalid_request_error","code":"invalid_request"}}`,
-			expectedErrStr: "Invalid request",
-			expectedBody:   "invalid_request",
-		},
-		{
-			name:           "rate limit error",
-			statusCode:     http.StatusTooManyRequests,
-			responseBody:   `{"error":{"message":"Rate limit exceeded","type":"rate_limit_error","code":"rate_limit_exceeded"}}`,
-			expectedErrStr: "Rate limit exceeded",
-			expectedBody:   "rate_limit",
-		},
-		{
-			name:           "internal server error",
-			statusCode:     http.StatusInternalServerError,
-			responseBody:   `{"error":{"message":"Internal server error","type":"server_error","code":"internal_error"}}`,
-			expectedErrStr: "Internal server error",
-			expectedBody:   "server_error",
-		},
-	}
+// OpenAI Responses API SSE body for a successful streaming response.
+const streamingSuccessBody = `event: response.created
+data: {"type":"response.created","response":{"id":"resp_01","object":"response","status":"in_progress"},"sequence_number":0}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Setup a mock server that returns an error immediately (before any streaming)
-			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("x-should-retry", "false")
-				w.WriteHeader(tc.statusCode)
-				_, _ = w.Write([]byte(tc.responseBody))
-			}))
-			t.Cleanup(mockServer.Close)
-
-			// Create interceptor with mock server URL
-			cfg := config.OpenAI{
-				BaseURL: mockServer.URL,
-				Key:     "test-key",
-			}
-
-			req := &ChatCompletionNewParamsWrapper{
-				ChatCompletionNewParams: openai.ChatCompletionNewParams{
-					Model: "gpt-4",
-					Messages: []openai.ChatCompletionMessageParamUnion{
-						openai.UserMessage("hello"),
-					},
-				},
-				Stream: true,
-			}
-
-			// Create test request
-			w := httptest.NewRecorder()
-			httpReq := httptest.NewRequest(http.MethodPost, "/chat/completions", nil)
-
-			tracer := otel.Tracer("test")
-			interceptor := NewStreamingInterceptor(uuid.New(), req, config.ProviderOpenAI, cfg, httpReq.Header, "Authorization", tracer, intercept.CredentialInfo{})
-
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
-
-			// Process the request
-			err := interceptor.ProcessRequest(w, httpReq)
-
-			// Verify error was returned
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.expectedErrStr)
-
-			// Verify status code was written to response
-			assert.Equal(t, tc.statusCode, w.Code, "expected status code to be relayed to client")
-
-			// Verify error body contains expected error info
-			body := w.Body.String()
-			assert.Contains(t, body, tc.expectedBody, "expected error type in response body")
-		})
-	}
-}
-
-// OpenAI-shaped SSE body for a successful streaming response.
-const streamingSuccessBody = `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
-
-data: [DONE]
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_01","object":"response","status":"completed","model":"gpt-4o-mini","output":[{"type":"message","id":"msg_01","role":"assistant","content":[{"type":"output_text","text":"Hello!"}]}],"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}},"sequence_number":1}
 
 `
 
-func TestStreamingInterception_KeyFailover(t *testing.T) {
+func TestStreamingResponsesInterceptor_KeyFailover(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -349,9 +256,12 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				cfg.Key = tc.byokKey
 			}
 
+			payload, err := NewRequestPayload([]byte(streamingRequestBody))
+			require.NoError(t, err)
+
 			interceptor := NewStreamingInterceptor(
 				uuid.New(),
-				newRequestParams(true),
+				payload,
 				config.ProviderOpenAI,
 				cfg,
 				http.Header{},
@@ -361,9 +271,9 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			)
 			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 			w := httptest.NewRecorder()
-			err := interceptor.ProcessRequest(w, req)
+			err = interceptor.ProcessRequest(w, req)
 			if tc.expectedStatusCode == http.StatusOK {
 				require.NoError(t, err)
 			} else {
@@ -382,36 +292,34 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 
 // SSE bodies covering an agentic-continuation flow.
 const (
-	// First response: a tool_calls delta referencing the
+	// First response: a function_call output referencing the
 	// injected "test_tool". Triggers the agentic continuation
 	// loop.
-	toolUseStreamBody = `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_01","type":"function","function":{"name":"test_tool","arguments":""}}]},"finish_reason":null}]}
+	toolUseStreamBody = `event: response.created
+data: {"type":"response.created","response":{"id":"resp_01","object":"response","status":"in_progress"},"sequence_number":0}
 
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{}"}}]},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
-
-data: [DONE]
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_01","object":"response","status":"completed","model":"gpt-4o-mini","output":[{"type":"function_call","id":"fc_01","call_id":"call_01","name":"test_tool","arguments":"{}","status":"completed"}],"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}},"sequence_number":1}
 
 `
 
 	// Second response (after the tool result is sent back):
-	// a plain text completion that ends the loop.
-	textStreamBody = `data: {"id":"chatcmpl-02","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"done"},"finish_reason":null}]}
+	// a plain text message that ends the loop.
+	textStreamBody = `event: response.created
+data: {"type":"response.created","response":{"id":"resp_02","object":"response","status":"in_progress"},"sequence_number":0}
 
-data: {"id":"chatcmpl-02","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":15,"completion_tokens":3,"total_tokens":18}}
-
-data: [DONE]
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_02","object":"response","status":"completed","model":"gpt-4o-mini","output":[{"type":"message","id":"msg_02","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":15,"output_tokens":3,"total_tokens":18}},"sequence_number":1}
 
 `
 )
 
-// TestStreamingInterception_AgenticLoopFailover covers the
-// scenarios that span an agentic-loop continuation: the initial
-// client request and the subsequent tool-call continuation can
-// each fail over independently. Each iteration gets its own
-// walker.
-func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
+// TestStreamingResponsesInterceptor_AgenticLoopFailover covers
+// the scenarios that span an agentic-loop continuation: the
+// initial client request and the subsequent tool-call
+// continuation can each fail over independently. Each iteration
+// gets its own walker.
+func TestStreamingResponsesInterceptor_AgenticLoopFailover(t *testing.T) {
 	t.Parallel()
 
 	sseHeaders := map[string]string{"Content-Type": "text/event-stream"}
@@ -427,8 +335,6 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 		// success marker (e.g. "done") or an error marker
 		// (e.g. "rate_limit_error").
 		expectedBodyContains string
-		// True when the error must be relayed as an SSE event.
-		expectErrorAsSSEEvent bool
 		// True when ProcessRequest is expected to return an
 		// error (e.g. all keys exhausted).
 		expectedErr       bool
@@ -442,10 +348,9 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				{statusCode: http.StatusOK, headers: sseHeaders, body: toolUseStreamBody},
 				{statusCode: http.StatusOK, headers: sseHeaders, body: textStreamBody},
 			},
-			expectedRequestCount:  2,
-			expectedSeenKeys:      []string{"k0", "k0"},
-			expectedBodyContains:  "done",
-			expectErrorAsSSEEvent: false,
+			expectedRequestCount: 2,
+			expectedSeenKeys:     []string{"k0", "k0"},
+			expectedBodyContains: "done",
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateValid,
 				keypool.KeyStateValid,
@@ -466,10 +371,9 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				},
 				{statusCode: http.StatusOK, headers: sseHeaders, body: textStreamBody},
 			},
-			expectedRequestCount:  3,
-			expectedSeenKeys:      []string{"k0", "k0", "k1"},
-			expectedBodyContains:  "done",
-			expectErrorAsSSEEvent: false,
+			expectedRequestCount: 3,
+			expectedSeenKeys:     []string{"k0", "k0", "k1"},
+			expectedBodyContains: "done",
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
@@ -494,11 +398,10 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 					body:       rateLimitBody,
 				},
 			},
-			expectedRequestCount:  3,
-			expectedSeenKeys:      []string{"k0", "k0", "k1"},
-			expectedBodyContains:  "all configured keys are rate-limited",
-			expectErrorAsSSEEvent: true,
-			expectedErr:           true,
+			expectedRequestCount: 3,
+			expectedSeenKeys:     []string{"k0", "k0", "k1"},
+			expectedBodyContains: "all configured keys are rate-limited",
+			expectedErr:          true,
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateTemporary,
 				keypool.KeyStateTemporary,
@@ -544,9 +447,12 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				KeyPool: pool,
 			}
 
+			payload, err := NewRequestPayload([]byte(streamingRequestBody))
+			require.NoError(t, err)
+
 			interceptor := NewStreamingInterceptor(
 				uuid.New(),
-				newRequestParams(true),
+				payload,
 				config.ProviderOpenAI,
 				cfg,
 				http.Header{},
@@ -555,8 +461,8 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				intercept.NewCredentialInfo(intercept.CredentialKindCentralized, ""),
 			)
 
-			// Mock proxy with a tool the upstream's tool_calls
-			// chunks will reference. The stub caller returns a
+			// Mock proxy with a tool the upstream's function_call
+			// response will reference. The stub caller returns a
 			// fixed text result.
 			proxy := &mockServerProxier{
 				tools: []*mcp.Tool{
@@ -571,7 +477,7 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			}
 			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, proxy)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 			w := httptest.NewRecorder()
 			err = interceptor.ProcessRequest(w, req)
 			if tc.expectedErr {
@@ -583,12 +489,6 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			assert.Equal(t, tc.expectedRequestCount, requestCount.Load(), "upstream request count")
 			body := w.Body.String()
 			assert.Contains(t, body, tc.expectedBodyContains, "response body")
-			if tc.expectErrorAsSSEEvent {
-				// SSE was opened before the failure, so the body
-				// must start with stream chunks, not a direct
-				// HTTP error body.
-				assert.True(t, strings.HasPrefix(body, "data: "), "body must start with SSE chunks")
-			}
 
 			seenKeysMu.Lock()
 			defer seenKeysMu.Unlock()

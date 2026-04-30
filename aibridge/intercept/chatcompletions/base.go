@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
@@ -20,6 +23,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -44,8 +48,16 @@ type interceptionBase struct {
 	credential intercept.CredentialInfo
 }
 
+// newCompletionsService builds the SDK service used for upstream
+// calls. BYOK auth is set here. Centralized auth is set
+// per-attempt by the failover loop.
 func (i *interceptionBase) newCompletionsService() openai.ChatCompletionService {
-	opts := []option.RequestOption{option.WithAPIKey(i.cfg.Key), option.WithBaseURL(i.cfg.BaseURL)}
+	var opts []option.RequestOption
+	// BYOK auth.
+	if i.cfg.KeyPool == nil {
+		opts = append(opts, option.WithAPIKey(i.cfg.Key))
+	}
+	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Add extra headers if configured.
 	// Some providers require additional headers that are not added by the SDK.
@@ -179,6 +191,10 @@ func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *res
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// Set Retry-After when a cooldown is configured.
+	if oaiErr.RetryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(oaiErr.RetryAfter.Seconds()))))
+	}
 	w.WriteHeader(oaiErr.StatusCode)
 
 	out, err := json.Marshal(oaiErr)
@@ -190,10 +206,59 @@ func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *res
 		"type": "error",
 		"message":"error marshaling upstream error",
 		"code": "server_error"
-	},
+	}
 }`))
 	} else {
 		_, _ = w.Write(out)
+	}
+}
+
+// For centralized requests, markKeyOnError extracts an OpenAI
+// SDK error from err and marks the key based on its status
+// code. Returns true if the status was a key-specific failover
+// trigger so callers can retry with the next key.
+func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
+	if i.cfg.KeyPool == nil {
+		return false
+	}
+	var apiErr *openai.Error
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return keypool.MarkKeyOnStatus(
+		ctx, key, apiErr.StatusCode, apiErr.Response,
+		i.logger, i.providerName,
+	)
+}
+
+// For centralized requests, mapExhaustionError translates a
+// keypool exhaustion error into a developer-facing responseError
+// shaped for the OpenAI API. Returns nil if err is not an
+// exhaustion error.
+func (i *interceptionBase) mapExhaustionError(err error) *responseError {
+	if i.cfg.KeyPool == nil {
+		return nil
+	}
+	var transient *keypool.TransientExhaustionError
+	switch {
+	case errors.As(err, &transient):
+		return newErrorResponse(
+			"all configured keys are rate-limited",
+			"rate_limit_error",
+			"rate_limit_exceeded",
+			http.StatusTooManyRequests,
+			transient.RetryAfter,
+		)
+	case errors.Is(err, keypool.ErrPermanentExhaustion):
+		return newErrorResponse(
+			"all configured keys failed authentication",
+			"api_error",
+			"server_error",
+			http.StatusBadGateway,
+			0,
+		)
+	default:
+		return nil
 	}
 }
 
@@ -233,15 +298,7 @@ func getErrorResponse(err error) *responseError {
 	if !errors.As(err, &apiErr) {
 		return nil
 	}
-
-	return &responseError{
-		ErrorObject: &shared.ErrorObject{
-			Code:    apiErr.Code,
-			Message: apiErr.Message,
-			Type:    apiErr.Type,
-		},
-		StatusCode: apiErr.StatusCode,
-	}
+	return newErrorResponse(apiErr.Message, apiErr.Type, apiErr.Code, apiErr.StatusCode, 0)
 }
 
 var _ error = &responseError{}
@@ -249,15 +306,18 @@ var _ error = &responseError{}
 type responseError struct {
 	ErrorObject *shared.ErrorObject `json:"error"`
 	StatusCode  int                 `json:"-"`
+	RetryAfter  time.Duration       `json:"-"`
 }
 
-func newErrorResponse(msg error) *responseError {
+func newErrorResponse(msg, errType, code string, status int, retryAfter time.Duration) *responseError {
 	return &responseError{
 		ErrorObject: &shared.ErrorObject{
-			Code:    "error",
-			Message: msg.Error(),
-			Type:    "error",
+			Code:    code,
+			Message: msg,
+			Type:    errType,
 		},
+		StatusCode: status,
+		RetryAfter: retryAfter,
 	}
 }
 

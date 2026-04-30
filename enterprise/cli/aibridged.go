@@ -122,15 +122,18 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 		}
 		switch p.Type {
 		case aibridge.ProviderOpenAI:
-			// TODO(ssncferreira): pass a keypool.Pool instead.
-			var key string
+			var pool *keypool.Pool
 			if len(p.Keys) > 0 {
-				key = p.Keys[0]
+				var err error
+				pool, err = keypool.New(p.Keys, quartz.NewReal())
+				if err != nil {
+					return nil, xerrors.Errorf("create openai key pool for provider %q: %w", name, err)
+				}
 			}
 			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              key,
+				KeyPool:          pool,
 				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
