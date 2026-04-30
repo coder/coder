@@ -82,10 +82,7 @@ export const DialogHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
 }) => {
 	return (
 		<div
-			className={cn(
-				"flex flex-col space-y-5 text-center sm:text-left",
-				className,
-			)}
+			className={cn("flex flex-col gap-5 text-center sm:text-left", className)}
 			{...props}
 		/>
 	);

@@ -78,7 +78,7 @@ const UsersPage: React.FC = () => {
 	const [userToDelete, setUserToDelete] = useState<User | undefined>(undefined);
 	const deleteUserMutation = useMutation(deleteUser(queryClient));
 
-	const [userToUpdateRoles, setUserToUpdateRoles] = useState<User | undefined>(
+	const [userToEditRoles, setUserToEditRoles] = useState<User | undefined>(
 		undefined,
 	);
 	const updateUserRolesMutation = useMutation(updateRoles(queryClient));
@@ -114,7 +114,7 @@ const UsersPage: React.FC = () => {
 				usersQuery={usersQuery}
 				groupsByUserId={groupsByUserIdQuery.data}
 				showAISeatColumn={showAISeatColumn}
-				onEditUserRoles={setUserToUpdateRoles}
+				onEditUserRoles={setUserToEditRoles}
 				isUpdatingUserRoles={updateUserRolesMutation.isPending}
 				onResetUserPassword={(user) => {
 					setConfirmResetPassword({
@@ -136,14 +136,14 @@ const UsersPage: React.FC = () => {
 			/>
 
 			<RoleSelectorDialog
-				key={userToUpdateRoles?.username}
-				user={userToUpdateRoles}
-				assignableRoles={rolesQuery.data}
+				key={userToEditRoles?.username}
+				user={userToEditRoles}
+				availableRoles={rolesQuery.data}
 				onUpdateUserRoles={async (userId, roles) => {
 					try {
 						await updateUserRolesMutation.mutateAsync({ userId, roles });
 						toast.success("User roles updated successfully.");
-						setUserToUpdateRoles(undefined);
+						setUserToEditRoles(undefined);
 					} catch (e) {
 						toast.error(getErrorMessage(e, "Error updating user roles."), {
 							description: getErrorDetail(e),

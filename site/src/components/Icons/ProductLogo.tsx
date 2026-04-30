@@ -1,13 +1,13 @@
 import type { FC } from "react";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { getApplicationName, getLogoURL } from "#/utils/appearance";
 import { cn } from "#/utils/cn";
+import { CoderIcon } from "./CoderIcon";
 
 /**
  * Enterprise customers can set a custom logo for their Coder application. Use
  * the custom logo wherever the Coder logo is used, if a custom one is provided.
  */
-export const CustomLogo: FC<{ className?: string }> = ({ className }) => {
+export const ProductLogo: FC<{ className?: string }> = ({ className }) => {
 	const applicationName = getApplicationName();
 	const logoURL = getLogoURL();
 

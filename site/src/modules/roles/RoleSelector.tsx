@@ -7,23 +7,24 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { roleDescriptions } from "./index";
 
-interface RoleSelectorProps {
-	roles: AssignableRoles[];
-	selectedRoles: Set<string>;
-	onChange: (roles: Set<string>) => void;
+type RoleSelectorProps = {
 	loading?: boolean;
 	error?: unknown;
-}
+	hide
+	availableRoles?: AssignableRoles[];
+	selectedRoles: Set<string>;
+	onChange: (roles: Set<string>) => void;
+};
 
 export const RoleSelector: FC<RoleSelectorProps> = ({
-	roles,
-	selectedRoles,
-	onChange,
 	loading,
 	error,
+	availableRoles = [],
+	selectedRoles,
+	onChange,
 }) => {
 	const baseId = useId();
-	const selectableRoles = roles.filter(
+	const selectableRoles = availableRoles.filter(
 		(r) => r.assignable && r.name !== "member",
 	);
 
@@ -48,6 +49,10 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 		);
 	}
 
+	if (selectableRoles.length === 0) {
+		return null;
+	}
+
 	const handleToggle = (roleName: string) => {
 		const newRoles = new Set(selectedRoles);
 		if (newRoles.has(roleName)) {
@@ -61,34 +66,32 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	return (
 		<RoleSelectorLayout>
 			{selectableRoles.length > 0 && (
-				<div className="border border-border border-solid rounded-md">
-					<div className="overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
-						{selectableRoles.map((role) => {
-							const checkboxId = `${baseId}-${role.name}`;
-							return (
-								<label
-									key={role.name}
-									htmlFor={checkboxId}
-									className="flex items-start gap-2 cursor-pointer"
-								>
-									<Checkbox
-										id={checkboxId}
-										checked={selectedRoles.has(role.name)}
-										onCheckedChange={() => handleToggle(role.name)}
-										className="mt-1 shrink-0"
-									/>
-									<div className="flex flex-col">
-										<span className="text-sm font-medium">
-											{role.display_name || role.name}
-										</span>
-										<span className="text-sm text-content-secondary">
-											{roleDescriptions[role.name] ?? ""}
-										</span>
-									</div>
-								</label>
-							);
-						})}
-					</div>
+				<div className="border border-border border-solid rounded-md overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
+					{selectableRoles.map((role) => {
+						const checkboxId = `${baseId}-${role.name}`;
+						return (
+							<label
+								key={role.name}
+								htmlFor={checkboxId}
+								className="flex items-start gap-2 cursor-pointer"
+							>
+								<Checkbox
+									id={checkboxId}
+									checked={selectedRoles.has(role.name)}
+									onCheckedChange={() => handleToggle(role.name)}
+									className="mt-1 shrink-0"
+								/>
+								<div className="flex flex-col">
+									<span className="text-sm font-medium">
+										{role.display_name || role.name}
+									</span>
+									<span className="text-sm text-content-secondary">
+										{roleDescriptions[role.name] ?? ""}
+									</span>
+								</div>
+							</label>
+						);
+					})}
 				</div>
 			)}
 

@@ -38,7 +38,7 @@ const CreateUserPage: FC = () => {
 							password: user.password,
 							user_status: null,
 							service_account: user.service_account,
-							roles: user.roles,
+							roles: [...user.roles],
 						},
 						{
 							onSuccess: () => {
