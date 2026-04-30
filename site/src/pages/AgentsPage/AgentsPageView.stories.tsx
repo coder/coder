@@ -161,9 +161,16 @@ const AgentsRouteElement = () => (
 			model_config_id: "",
 			is_malformed: false,
 		}}
+		titleGenerationModelData={{
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		onSaveTitleGenerationModel={fn()}
+		isSavingTitleGenerationModel={false}
+		isSaveTitleGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}

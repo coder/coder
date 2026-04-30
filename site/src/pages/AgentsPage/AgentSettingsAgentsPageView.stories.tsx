@@ -10,6 +10,8 @@ const OVERRIDE_MALFORMED_WARNING =
 	"The saved override is malformed and is being treated as unset. Click Save to clear it.";
 const UNAVAILABLE_SAVED_MODEL_WARNING =
 	"The saved model is no longer enabled and will be ignored until you choose a new override.";
+const TITLE_UNAVAILABLE_SAVED_MODEL_WARNING =
+	"The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting.";
 
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig>,
@@ -37,6 +39,14 @@ const buildOverrideData = (
 	...overrides,
 });
 
+const buildTitleGenerationModelData = (
+	overrides: Partial<TypesGen.ChatTitleGenerationModelConfigResponse> = {},
+): TypesGen.ChatTitleGenerationModelConfigResponse => ({
+	model_config_id: "",
+	is_malformed: false,
+	...overrides,
+});
+
 const generalModelConfig = buildModelConfig({
 	id: "model-general-gpt-4.1-mini",
 	display_name: "GPT 4.1 Mini",
@@ -48,6 +58,13 @@ const claudeSonnetModelConfig = buildModelConfig({
 	model: "claude-sonnet-4",
 	display_name: "Claude Sonnet 4",
 	context_limit: 200_000,
+});
+
+const titleModelConfig = buildModelConfig({
+	id: "model-title-gpt-4o-mini",
+	model: "gpt-4o-mini",
+	display_name: "GPT 4o Mini",
+	context_limit: 128_000,
 });
 
 const exploreFallbackModelConfig = buildModelConfig({
@@ -65,6 +82,14 @@ const generalDisabledModelConfig = buildModelConfig({
 	enabled: false,
 });
 
+const titleDisabledModelConfig = buildModelConfig({
+	id: "model-title-disabled",
+	model: "gpt-4o-mini-legacy",
+	display_name: "GPT 4o Mini Legacy",
+	enabled: false,
+	context_limit: 128_000,
+});
+
 const exploreDisabledModelConfig = buildModelConfig({
 	id: "model-explore-disabled",
 	provider: "anthropic",
@@ -77,8 +102,10 @@ const exploreDisabledModelConfig = buildModelConfig({
 const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	generalModelConfig,
 	claudeSonnetModelConfig,
+	titleModelConfig,
 	exploreFallbackModelConfig,
 	generalDisabledModelConfig,
+	titleDisabledModelConfig,
 	exploreDisabledModelConfig,
 ];
 
@@ -86,6 +113,7 @@ const makeArgs = (
 	overrides: Partial<AgentSettingsAgentsPageViewProps> = {},
 ): AgentSettingsAgentsPageViewProps => ({
 	generalModelOverrideData: buildOverrideData("general"),
+	titleGenerationModelData: buildTitleGenerationModelData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
 	modelConfigsError: undefined,
@@ -93,6 +121,9 @@ const makeArgs = (
 	onSaveGeneralModelOverride: fn(),
 	isSavingGeneralModelOverride: false,
 	isSaveGeneralModelOverrideError: false,
+	onSaveTitleGenerationModel: fn(),
+	isSavingTitleGenerationModel: false,
+	isSaveTitleGenerationModelError: false,
 	onSaveExploreModelOverride: fn(),
 	isSavingExploreModelOverride: false,
 	isSaveExploreModelOverrideError: false,
@@ -146,13 +177,28 @@ export const AllOverridesUnset: Story = {
 		const headings = await canvas.findAllByRole("heading", { level: 3 });
 		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
 			"General model",
+			"Title generation model",
 			"Explore subagent model",
 		]);
+		await canvas.findByText(
+			"Choose a model for generated chat titles. Leave unset to use Coder's default title algorithm, which currently tries fast title models for configured providers first, for example Claude Haiku, GPT-4o mini, and Gemini Flash, then falls back to the chat's current model. When a model is selected here, Coder uses only that model for title generation. Recommended title models are fast and low cost.",
+		);
 
-		for (const headingName of ["General model", "Explore subagent model"]) {
+		const unsetSections = [
+			{ headingName: "General model", placeholder: "Use chat default" },
+			{
+				headingName: "Title generation model",
+				placeholder: "Use title default",
+			},
+			{
+				headingName: "Explore subagent model",
+				placeholder: "Use chat default",
+			},
+		];
+		for (const { headingName, placeholder } of unsetSections) {
 			const section = await getSection(canvasElement, headingName);
 			expect(
-				within(section).getByRole("combobox", { name: "Use chat default" }),
+				within(section).getByRole("combobox", { name: placeholder }),
 			).toBeInTheDocument();
 			expect(
 				within(section).getByRole("button", { name: "Save" }),
@@ -166,12 +212,19 @@ export const EachOverrideSetToEnabledModel: Story = {
 		generalModelOverrideData: buildOverrideData("general", {
 			model_config_id: generalModelConfig.id,
 		}),
+		titleGenerationModelData: buildTitleGenerationModelData({
+			model_config_id: titleModelConfig.id,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			model_config_id: exploreFallbackModelConfig.id,
 		}),
 	}),
 	play: async ({ canvasElement, args }) => {
 		const generalSection = await getSection(canvasElement, "General model");
+		const titleSection = await getSection(
+			canvasElement,
+			"Title generation model",
+		);
 		const exploreSection = await getSection(
 			canvasElement,
 			"Explore subagent model",
@@ -182,6 +235,12 @@ export const EachOverrideSetToEnabledModel: Story = {
 				name: /claude-sonnet-4-20250514/i,
 			}),
 		).toHaveTextContent("claude-sonnet-4-20250514");
+
+		expect(
+			within(titleSection).getByRole("combobox", {
+				name: /gpt 4o mini/i,
+			}),
+		).toHaveTextContent("GPT 4o Mini");
 
 		await selectModelInSection(
 			generalSection,
@@ -198,6 +257,26 @@ export const EachOverrideSetToEnabledModel: Story = {
 		await userEvent.click(generalSaveButton);
 		await waitFor(() => {
 			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
+				{ model_config_id: claudeSonnetModelConfig.id },
+				expect.anything(),
+			);
+		});
+
+		await selectModelInSection(
+			titleSection,
+			canvasElement,
+			/gpt 4o mini/i,
+			"Claude Sonnet 4",
+		);
+		const titleSaveButton = within(titleSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(titleSaveButton).toBeEnabled();
+		});
+		await userEvent.click(titleSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveTitleGenerationModel).toHaveBeenCalledWith(
 				{ model_config_id: claudeSonnetModelConfig.id },
 				expect.anything(),
 			);
@@ -228,18 +307,25 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 		generalModelOverrideData: buildOverrideData("general", {
 			is_malformed: true,
 		}),
+		titleGenerationModelData: buildTitleGenerationModelData({
+			is_malformed: true,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			is_malformed: true,
 		}),
 	}),
 	play: async ({ canvasElement, args }) => {
 		const generalSection = await getSection(canvasElement, "General model");
+		const titleSection = await getSection(
+			canvasElement,
+			"Title generation model",
+		);
 		const exploreSection = await getSection(
 			canvasElement,
 			"Explore subagent model",
 		);
 
-		for (const section of [generalSection, exploreSection]) {
+		for (const section of [generalSection, titleSection, exploreSection]) {
 			await within(section).findByText(OVERRIDE_MALFORMED_WARNING);
 		}
 
@@ -252,6 +338,20 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 		await userEvent.click(generalSaveButton);
 		await waitFor(() => {
 			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
+
+		const titleSaveButton = within(titleSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(titleSaveButton).toBeEnabled();
+		});
+		await userEvent.click(titleSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveTitleGenerationModel).toHaveBeenCalledWith(
 				{ model_config_id: "" },
 				expect.anything(),
 			);
@@ -278,12 +378,19 @@ export const UnavailableSavedModels: Story = {
 		generalModelOverrideData: buildOverrideData("general", {
 			model_config_id: generalDisabledModelConfig.id,
 		}),
+		titleGenerationModelData: buildTitleGenerationModelData({
+			model_config_id: titleDisabledModelConfig.id,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			model_config_id: exploreDisabledModelConfig.id,
 		}),
 	}),
 	play: async ({ canvasElement }) => {
 		const generalSection = await getSection(canvasElement, "General model");
+		const titleSection = await getSection(
+			canvasElement,
+			"Title generation model",
+		);
 		const exploreSection = await getSection(
 			canvasElement,
 			"Explore subagent model",
@@ -295,5 +402,13 @@ export const UnavailableSavedModels: Story = {
 				within(section).getByRole("combobox", { name: "Unavailable model" }),
 			).toBeInTheDocument();
 		}
+		await within(titleSection).findByText(
+			TITLE_UNAVAILABLE_SAVED_MODEL_WARNING,
+		);
+		expect(
+			within(titleSection).getByRole("combobox", {
+				name: "Unavailable model",
+			}),
+		).toBeInTheDocument();
 	},
 };

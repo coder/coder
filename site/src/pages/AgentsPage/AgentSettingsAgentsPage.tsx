@@ -17,6 +17,10 @@ const generalOverrideContext: TypesGen.ChatAgentModelOverrideContext =
 const exploreOverrideContext: TypesGen.ChatAgentModelOverrideContext =
 	"explore";
 
+const chatTitleGenerationModelConfigKey = [
+	"chat-title-generation-model-config",
+] as const;
+
 const chatAgentModelOverrideKey = (
 	context: TypesGen.ChatAgentModelOverrideContext,
 ) => ["chat-agent-model-override", context] as const;
@@ -28,6 +32,11 @@ const chatAgentModelOverrideQuery = (
 	queryFn: () => API.experimental.getChatAgentModelOverride(context),
 });
 
+const chatTitleGenerationModelConfigQuery = () => ({
+	queryKey: chatTitleGenerationModelConfigKey,
+	queryFn: () => API.experimental.getChatTitleGenerationModelConfig(),
+});
+
 const updateChatAgentModelOverrideMutation = (
 	queryClient: QueryClient,
 	context: TypesGen.ChatAgentModelOverrideContext,
@@ -37,6 +46,19 @@ const updateChatAgentModelOverrideMutation = (
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatAgentModelOverrideKey(context),
+			exact: true,
+		});
+	},
+});
+
+const updateChatTitleGenerationModelConfigMutation = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (req: TypesGen.UpdateChatTitleGenerationModelConfigRequest) =>
+		API.experimental.updateChatTitleGenerationModelConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatTitleGenerationModelConfigKey,
 			exact: true,
 		});
 	},
@@ -55,9 +77,16 @@ const AgentSettingsAgentsPage: FC = () => {
 		...chatAgentModelOverrideQuery(exploreOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
+	const titleGenerationModelQuery = useQuery({
+		...chatTitleGenerationModelConfigQuery(),
+		enabled: canEditDeploymentConfig,
+	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const saveGeneralModelOverrideMutation = useMutation(
 		updateChatAgentModelOverrideMutation(queryClient, generalOverrideContext),
+	);
+	const saveTitleGenerationModelMutation = useMutation(
+		updateChatTitleGenerationModelConfigMutation(queryClient),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
 		updateChatAgentModelOverrideMutation(queryClient, exploreOverrideContext),
@@ -67,6 +96,7 @@ const AgentSettingsAgentsPage: FC = () => {
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
 			<AgentSettingsAgentsPageView
 				generalModelOverrideData={generalModelOverrideQuery.data}
+				titleGenerationModelData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
 				modelConfigsError={modelConfigsQuery.error}
@@ -77,6 +107,13 @@ const AgentSettingsAgentsPage: FC = () => {
 				}
 				isSaveGeneralModelOverrideError={
 					saveGeneralModelOverrideMutation.isError
+				}
+				onSaveTitleGenerationModel={saveTitleGenerationModelMutation.mutate}
+				isSavingTitleGenerationModel={
+					saveTitleGenerationModelMutation.isPending
+				}
+				isSaveTitleGenerationModelError={
+					saveTitleGenerationModelMutation.isError
 				}
 				onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
 				isSavingExploreModelOverride={
