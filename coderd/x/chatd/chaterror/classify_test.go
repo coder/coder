@@ -3,6 +3,7 @@ package chaterror_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,6 +193,82 @@ func TestClassify(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.want, chaterror.Classify(tt.err))
+		})
+	}
+}
+
+func TestClassify_OpenAIResponsesAPIDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          string
+		responseBody string
+		wantDetail   string
+		forbidden    []string
+	}{
+		{
+			name:         "FunctionCallOutputMissing",
+			err:          "No Tool Output Found For Function Call call_sensitive123",
+			responseBody: `{"error":{"message":"No tool output found for function call call_sensitive123"}}`,
+			wantDetail:   "OpenAI Responses API request continuity diagnostic: match=function_call_output_missing.",
+			forbidden:    []string{"call_sensitive123"},
+		},
+		{
+			name:         "WebSearchReasoningMissing",
+			err:          "Item 'ws_sensitive123' of type 'web_search_call' WAS PROVIDED WITHOUT ITS REQUIRED 'reasoning' item: 'rs_sensitive123'",
+			responseBody: `{"error":{"message":"Item 'ws_sensitive123' of type 'web_search_call' was provided without its required 'reasoning' item: 'rs_sensitive123'"}}`,
+			wantDetail:   "OpenAI Responses API request continuity diagnostic: match=web_search_reasoning_missing.",
+			forbidden:    []string{"ws_sensitive123", "rs_sensitive123"},
+		},
+	}
+
+	assertNoLeak := func(t *testing.T, classified chaterror.ClassifiedError, forbidden []string) {
+		t.Helper()
+		for _, value := range forbidden {
+			require.NotContains(t, classified.Message, value)
+			require.NotContains(t, classified.Detail, value)
+		}
+	}
+
+	assertDirectionalMessage := func(t *testing.T, message string) {
+		t.Helper()
+		require.Contains(t, message, "chat continuation")
+		require.Contains(t, message, "internal state mismatch")
+		require.Contains(t, message, "not a configuration or billing issue")
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"/BareString", func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, chaterror.KindGeneric, classified.Kind)
+			require.False(t, classified.Retryable)
+			require.Zero(t, classified.StatusCode)
+			assertDirectionalMessage(t, classified.Message)
+			require.Equal(t, tt.wantDetail, classified.Detail)
+			assertNoLeak(t, classified, tt.forbidden)
+		})
+
+		t.Run(tt.name+"/WrappedProviderError", func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.Errorf(
+				"provider request failed: %w",
+				testProviderError(
+					"",
+					400,
+					nil,
+					testProviderResponseDump(tt.responseBody),
+				),
+			))
+			require.Equal(t, chaterror.KindGeneric, classified.Kind)
+			require.False(t, classified.Retryable)
+			require.Equal(t, 400, classified.StatusCode)
+			assertDirectionalMessage(t, classified.Message)
+			require.Equal(t, tt.wantDetail, classified.Detail)
+			assertNoLeak(t, classified, tt.forbidden)
 		})
 	}
 }
@@ -574,7 +651,7 @@ func TestWithProviderPreservesRetryAfter(t *testing.T) {
 	t.Parallel()
 
 	classified := chaterror.Classify(testProviderError(
-		"upstream failed",
+		"",
 		429,
 		map[string]string{"Retry-After": "30"},
 	))
@@ -591,10 +668,75 @@ func TestWithProviderPreservesRetryAfter(t *testing.T) {
 	}, enriched)
 }
 
-func testProviderError(message string, statusCode int, headers map[string]string) error {
+func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"type":"invalid_request_error","message":"Image exceeds 5 MB maximum."}}`),
+	))
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "The AI provider returned an unexpected error (HTTP 400).",
+		Detail:     "Image exceeds 5 MB maximum.",
+		Kind:       chaterror.KindGeneric,
+		Provider:   "",
+		Retryable:  false,
+		StatusCode: 400,
+	}, classified)
+}
+
+func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"  image exceeds 5 MB maximum  ",
+		400,
+		nil,
+		testProviderResponseDump("not-json"),
+	))
+
+	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
+}
+
+func TestClassify_TruncatesProviderDetail(t *testing.T) {
+	t.Parallel()
+
+	detail := strings.Repeat("x", 510)
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+detail+`"}}`),
+	))
+
+	require.Len(t, []rune(classified.Detail), 500)
+	require.True(t, strings.HasSuffix(classified.Detail, "…"))
+}
+
+func testProviderError(
+	message string,
+	statusCode int,
+	headers map[string]string,
+	responseBody ...[]byte,
+) error {
+	var body []byte
+	if len(responseBody) > 0 {
+		body = responseBody[0]
+	}
 	return &fantasy.ProviderError{
 		Message:         message,
 		StatusCode:      statusCode,
 		ResponseHeaders: headers,
+		ResponseBody:    body,
 	}
+}
+
+func testProviderResponseDump(body string) []byte {
+	return []byte(`HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+` + body)
 }

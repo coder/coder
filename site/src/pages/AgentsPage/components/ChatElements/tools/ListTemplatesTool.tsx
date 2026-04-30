@@ -6,7 +6,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import { asRecord, asString, type ToolStatus } from "./utils";
 
@@ -37,13 +36,11 @@ export const ListTemplatesTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
-					<span className={cn("text-sm", "text-content-secondary")}>
-						{label}
-					</span>
+					<span className="text-[13px]">{label}</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to list templates"}
@@ -51,7 +48,7 @@ export const ListTemplatesTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}
@@ -68,7 +65,7 @@ export const ListTemplatesTool: React.FC<{
 
 					if (!name) {
 						return (
-							<div key={index} className="text-sm text-content-secondary">
+							<div key={index} className="text-[13px] text-content-secondary">
 								{templateName}
 							</div>
 						);
@@ -79,7 +76,7 @@ export const ListTemplatesTool: React.FC<{
 							<Link
 								to={`/templates/${name}`}
 								onClick={(e) => e.stopPropagation()}
-								className="flex items-center gap-1.5 text-sm text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+								className="flex items-center gap-1.5 text-[13px] text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 							>
 								<span>{templateName}</span>
 								<ExternalLinkIcon className="h-3 w-3 shrink-0" />

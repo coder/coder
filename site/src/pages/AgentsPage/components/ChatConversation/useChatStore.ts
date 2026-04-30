@@ -1,4 +1,10 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
@@ -18,13 +24,17 @@ import type { RetryState } from "./types";
 
 const normalizeChatDetailError = (
 	error: TypesGen.ChatStreamError | undefined,
-): ChatDetailError => ({
-	message: error?.message.trim() || "Chat processing failed.",
-	kind: error?.kind?.trim() || "generic",
-	provider: error?.provider?.trim() || undefined,
-	retryable: error?.retryable,
-	statusCode: error?.status_code,
-});
+): ChatDetailError => {
+	const detail = error?.detail?.trim();
+	return {
+		message: error?.message.trim() || "Chat processing failed.",
+		kind: error?.kind?.trim() || "generic",
+		provider: error?.provider?.trim() || undefined,
+		retryable: error?.retryable,
+		statusCode: error?.status_code,
+		...(detail ? { detail } : {}),
+	};
+};
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
@@ -131,7 +141,7 @@ export const useChatStore = (
 	// last REST fetch, and structural sharing can suppress the
 	// refetch-driven store update when no new durable messages
 	// have been committed to the DB yet.
-	const upsertCacheMessages = useEffectEvent(
+	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (!chatID || messages.length === 0) {
 				return;
@@ -172,6 +182,7 @@ export const useChatStore = (
 				};
 			});
 		},
+		[chatID, queryClient],
 	);
 
 	useEffect(() => {
@@ -379,9 +390,9 @@ export const useChatStore = (
 		};
 
 		// Discard buffered parts without applying them. Used when
-		// stream state is about to be cleared (pending, waiting,
-		// retry) — flushing would re-populate the state that the
-		// event is about to clear.
+		// the stream is no longer active (pending, waiting, retry)
+		// so stale buffered parts are not applied after the
+		// status transition.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
@@ -497,7 +508,6 @@ export const useChatStore = (
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearStreamState();
 								store.clearRetryState();
 							}
 							if (nextStatus === "running") {
@@ -626,7 +636,7 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [chatID, initialDataLoaded, queryClient, store]);
+	}, [chatID, initialDataLoaded, queryClient, store, upsertCacheMessages]);
 	return {
 		store,
 		clearStreamError: () => {

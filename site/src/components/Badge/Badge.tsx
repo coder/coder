@@ -18,7 +18,7 @@ const badgeVariants = cva(
 				default:
 					"border-surface-secondary bg-surface-secondary text-content-secondary shadow",
 				warning:
-					"border-border-warning bg-surface-orange text-content-warning shadow",
+					"border-highlight-orange bg-surface-orange text-highlight-orange shadow",
 				destructive:
 					"border-border-destructive bg-surface-red text-highlight-red shadow",
 				green:

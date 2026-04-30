@@ -9,7 +9,6 @@ import {
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { AdminBadge } from "./AdminBadge";
 import { BackButton } from "./BackButton";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { SectionHeader } from "./SectionHeader";
@@ -51,7 +50,6 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 		<SectionHeader
 			label="Spend management"
 			description="Review spend details for a specific user."
-			badge={<AdminBadge />}
 			action={
 				<DateRangePicker
 					value={displayDateRange}

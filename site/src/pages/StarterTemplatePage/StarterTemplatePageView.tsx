@@ -14,7 +14,6 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { Stack } from "#/components/Stack/Stack";
 
 interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;
@@ -59,7 +58,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 					</>
 				}
 			>
-				<Stack direction="row" spacing={3} alignItems="center">
+				<div className="flex flex-row gap-6 items-center">
 					<div className="h-12 w-12 flex items-center justify-center [&_img]:w-full">
 						<ExternalImage src={starterTemplate.icon} />
 					</div>
@@ -69,7 +68,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 							{starterTemplate.description}
 						</PageHeaderSubtitle>
 					</div>
-				</Stack>
+				</div>
 			</PageHeader>
 
 			<div

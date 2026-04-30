@@ -226,6 +226,7 @@ var (
 					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					rbac.ResourceFile.Type:            {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
+					rbac.ResourceAiSeat.Type:          {policy.ActionCreate}, // Required for UpsertAISeatState via SeatTracker.
 					rbac.ResourceTemplate.Type:        {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
 					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
@@ -245,6 +246,7 @@ var (
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
 					// Provisionerd creates usage events
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
+					rbac.ResourceUserSecret.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -269,6 +271,7 @@ var (
 					rbac.ResourceTask.Type:                {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:                {policy.ActionRead},
+					rbac.ResourceUserSecret.Type:          {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspaceDormant.Type:    {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 				}),
@@ -595,6 +598,7 @@ var (
 				DisplayName: "Usage Publisher",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceLicense.Type: {policy.ActionRead},
+					rbac.ResourceAiSeat.Type:  {policy.ActionRead}, // Required for GetActiveAISeatCount.
 					// The usage publisher doesn't create events, just
 					// reads/processes them.
 					rbac.ResourceUsageEvent.Type: {policy.ActionRead, policy.ActionUpdate},
@@ -622,6 +626,7 @@ var (
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAiSeat.Type:               {policy.ActionCreate}, // Required for UpsertAISeatState.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -643,6 +648,8 @@ var (
 					rbac.ResourceNotificationMessage.Type:  {policy.ActionDelete},
 					rbac.ResourceApiKey.Type:               {policy.ActionDelete},
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
+					// Chat auto-archive sets archived=true on inactive chats.
+					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -1592,6 +1599,16 @@ func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg databas
 	return q.db.ArchiveUnusedTemplateVersions(ctx, arg)
 }
 
+func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.AutoArchiveInactiveChatsParams) ([]database.AutoArchiveInactiveChatsRow, error) {
+	// Background write by dbpurge. The LATERAL read of chat_messages rows
+	// happens below the RBAC boundary; only the chat row itself requires
+	// authorization.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.AutoArchiveInactiveChats(ctx, arg)
+}
+
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	// This is a system-level operation used by the gitsync
 	// background worker to reschedule failed refreshes. Same
@@ -1887,6 +1904,13 @@ func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) e
 		return err
 	}
 	return q.db.DeleteChatModelConfigByID(ctx, id)
+}
+
+func (q *querier) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.DeleteChatModelConfigsByProvider(ctx, provider)
 }
 
 func (q *querier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error {
@@ -2202,10 +2226,10 @@ func (q *querier) DeleteUserChatProviderKey(ctx context.Context, arg database.De
 	return q.db.DeleteUserChatProviderKey(ctx, arg)
 }
 
-func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
+func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
-		return 0, err
+		return database.UserSecret{}, err
 	}
 	return q.db.DeleteUserSecretByUserIDAndName(ctx, arg)
 }
@@ -2460,7 +2484,7 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 }
 
 func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceLicense); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiSeat); err != nil {
 		return 0, err
 	}
 	return q.db.GetActiveAISeatCount(ctx)
@@ -2561,6 +2585,28 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
+func (q *querier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
+	// The advisor configuration is a deployment-wide setting read by any
+	// authenticated chat user and by chatd when deciding whether to attach
+	// advisor behavior. We only require that an explicit actor is present
+	// in the context so unauthenticated calls fail closed.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
+	return q.db.GetChatAdvisorConfig(ctx)
+}
+
+func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
+	// Chat auto-archive is a deployment-wide config read by dbpurge.
+	// Only requires a valid actor in context. The HTTP GET handler
+	// allows any authenticated user; the PUT handler enforces admin
+	// access (policy.ActionUpdate on ResourceDeploymentConfig).
+	if _, ok := ActorFromContext(ctx); !ok {
+		return 0, ErrNoActor
+	}
+	return q.db.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
+}
+
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
@@ -2570,14 +2616,20 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 }
 
 func (q *querier) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
+	// The owner's chats, may cross orgs. AnyOrganization() authorizes
+	// the caller if they hold read permission on chats owned by
+	// arg.OwnerID in any org they belong to.
+	// TODO(CODAGT-161): the underlying SQL queries filter only by owner_id, not
+	// organization_id.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
 		return nil, err
 	}
 	return q.db.GetChatCostPerChat(ctx, arg)
 }
 
 func (q *querier) GetChatCostPerModel(ctx context.Context, arg database.GetChatCostPerModelParams) ([]database.GetChatCostPerModelRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
+	// See GetChatCostPerChat for the authorization rationale.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
 		return nil, err
 	}
 	return q.db.GetChatCostPerModel(ctx, arg)
@@ -2591,7 +2643,8 @@ func (q *querier) GetChatCostPerUser(ctx context.Context, arg database.GetChatCo
 }
 
 func (q *querier) GetChatCostSummary(ctx context.Context, arg database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
+	// See GetChatCostPerChat for the authorization rationale.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
 		return database.GetChatCostSummaryRow{}, err
 	}
 	return q.db.GetChatCostSummary(ctx, arg)
@@ -2734,6 +2787,13 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return files, nil
 }
 
+func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatGeneralModelOverride(ctx)
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
@@ -2839,11 +2899,25 @@ func (q *querier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (databa
 	return q.db.GetChatProviderByID(ctx, id)
 }
 
+func (q *querier) GetChatProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatProvider{}, err
+	}
+	return q.db.GetChatProviderByIDForUpdate(ctx, id)
+}
+
 func (q *querier) GetChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatProvider{}, err
 	}
 	return q.db.GetChatProviderByProvider(ctx, provider)
+}
+
+func (q *querier) GetChatProviderByProviderForUpdate(ctx context.Context, provider string) (database.ChatProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatProvider{}, err
+	}
+	return q.db.GetChatProviderByProviderForUpdate(ctx, provider)
 }
 
 func (q *querier) GetChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
@@ -3015,16 +3089,14 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
-	// Any user who can read chat resources can read the default
-	// model config, since model resolution is required to create
-	// a chat. This avoids gating on ResourceDeploymentConfig
-	// which regular members lack.
-	act, ok := ActorFromContext(ctx)
-	if !ok {
+	// Reading the default model config is needed for chat creation.
+	// TODO(CODAGT-161): scope this check when org context is available.
+	// This function has no org context to scope the check, and
+	// ResourceDeploymentConfig is too restrictive (admin-only).
+	// The handler layer gates chat creation via ActionCreate on
+	// the org-scoped ResourceChat.
+	if _, ok := ActorFromContext(ctx); !ok {
 		return database.ChatModelConfig{}, ErrNoActor
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(act.ID)); err != nil {
-		return database.ChatModelConfig{}, err
 	}
 	return q.db.GetDefaultChatModelConfig(ctx)
 }
@@ -4181,7 +4253,7 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 }
 
 func (q *querier) GetUserAISeatStates(ctx context.Context, userIDs []uuid.UUID) ([]uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiSeat); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserAISeatStates(ctx, userIDs)
@@ -4332,6 +4404,10 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 	return q.db.GetUserNotificationPreferences(ctx, userID)
 }
 
+func (q *querier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
+	return fetch(q.log, q.auth, q.db.GetUserSecretByID)(ctx, id)
+}
+
 func (q *querier) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
@@ -4392,6 +4468,17 @@ func (q *querier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) 
 		return "", err
 	}
 	return q.db.GetUserThemePreference(ctx, userID)
+}
+
+func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.GetUserThinkingDisplayMode(ctx, userID)
 }
 
 func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
@@ -4547,7 +4634,7 @@ func (q *querier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, i
 	return q.db.GetWorkspaceAgentScriptTimingsByBuildID(ctx, id)
 }
 
-func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetWorkspaceAgentScriptsByAgentIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
@@ -5778,7 +5865,7 @@ func (q *querier) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUI
 	// This query returns decrypted secret values and must only be called
 	// from system contexts (provisioner, agent manifest). REST API
 	// handlers should use ListUserSecrets (metadata only).
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserSecret); err != nil {
 		return nil, err
 	}
 	return q.db.ListUserSecretsWithValues(ctx, userID)
@@ -7020,6 +7107,17 @@ func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.Up
 	return q.db.UpdateUserThemePreference(ctx, arg)
 }
 
+func (q *querier) UpdateUserThinkingDisplayMode(ctx context.Context, arg database.UpdateUserThinkingDisplayModeParams) (string, error) {
+	user, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, user); err != nil {
+		return "", err
+	}
+	return q.db.UpdateUserThinkingDisplayMode(ctx, arg)
+}
+
 func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return err
@@ -7327,7 +7425,7 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 }
 
 func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAiSeat); err != nil {
 		return false, err
 	}
 	return q.db.UpsertAISeatState(ctx, arg)
@@ -7352,6 +7450,20 @@ func (q *querier) UpsertBoundaryUsageStats(ctx context.Context, arg database.Ups
 		return false, err
 	}
 	return q.db.UpsertBoundaryUsageStats(ctx, arg)
+}
+
+func (q *querier) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatAdvisorConfig(ctx, value)
+}
+
+func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
 }
 
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
@@ -7397,6 +7509,13 @@ func (q *querier) UpsertChatExploreModelOverride(ctx context.Context, value stri
 		return err
 	}
 	return q.db.UpsertChatExploreModelOverride(ctx, value)
+}
+
+func (q *querier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatGeneralModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {

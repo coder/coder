@@ -29,6 +29,22 @@ import (
 
 const defaultSubscriptionCacheTTL = 3 * time.Minute
 
+// isStaleSubscriptionStatus reports whether a status code from a push
+// service indicates that the subscription is permanently invalid and
+// should be removed from the database. Other 4xx and 5xx responses
+// (rate limits, transient failures) leave the subscription in place
+// so it can be retried on the next dispatch.
+func isStaleSubscriptionStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusBadRequest, // 400: malformed subscription per the push service.
+		http.StatusForbidden, // 403: Apple BadJwtToken / VAPID rejected, key rotation.
+		http.StatusNotFound,  // 404: FCM/Mozilla endpoint no longer valid.
+		http.StatusGone:      // 410: standard "subscription expired" signal.
+		return true
+	}
+	return false
+}
+
 // Dispatcher is an interface that can be used to dispatch
 // web push notifications to clients such as browsers.
 type Dispatcher interface {
@@ -203,11 +219,23 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 				return xerrors.Errorf("send webpush notification: %w", err)
 			}
 
-			if statusCode == http.StatusGone {
-				// The subscription is no longer valid, remove it.
+			if isStaleSubscriptionStatus(statusCode) {
+				// Remove subscriptions that the push service has marked as
+				// permanently invalid (Apple returns 403 BadJwtToken and 404
+				// for invalidated subscriptions, FCM returns 404 for
+				// expired endpoints, all push services return 410 for
+				// permanently gone subscriptions, and 400 indicates a
+				// malformed subscription that cannot be retried). Without
+				// this, stale rows accumulate after PWA reinstalls and the
+				// in-memory cache keeps trying to deliver to dead
+				// subscriptions.
 				mu.Lock()
 				cleanupSubscriptions = append(cleanupSubscriptions, subscription.ID)
 				mu.Unlock()
+			}
+
+			if statusCode == http.StatusGone {
+				// 410 Gone is informational, not a delivery error.
 				return nil
 			}
 
@@ -221,22 +249,41 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 		})
 	}
 
-	err = eg.Wait()
-	if err != nil {
-		return xerrors.Errorf("send webpush notifications: %w", err)
-	}
+	dispatchErr := eg.Wait()
 
-	if len(cleanupSubscriptions) > 0 {
-		// nolint:gocritic // These are known to be invalid subscriptions.
-		err = n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
-		if err != nil {
-			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
-		} else {
-			n.pruneSubscriptions(userID, cleanupSubscriptions)
-		}
+	// Always remove subscriptions that the push service rejected as
+	// permanently invalid, even when sibling deliveries returned a
+	// non-stale error. The cleanup must run before the error return so a
+	// transient delivery failure on one subscription cannot block the
+	// deletion of a 410/404/403/400 sibling. Without this ordering,
+	// stale rows accumulate after PWA reinstalls and silently mask the
+	// new subscription on every subsequent dispatch.
+	n.cleanupStaleSubscriptions(ctx, userID, cleanupSubscriptions)
+
+	if dispatchErr != nil {
+		return xerrors.Errorf("send webpush notifications: %w", dispatchErr)
 	}
 
 	return nil
+}
+
+// cleanupStaleSubscriptions deletes the rows the push service flagged as
+// permanently invalid (see isStaleSubscriptionStatus) and clears the cached
+// entries for the affected user. Failures are logged at error level rather
+// than returned: the caller is in the middle of returning a delivery error
+// and shouldn't have its error shadowed by a cleanup failure. The cache
+// prune is gated on a successful database delete so a partial state cannot
+// leak into the cache.
+func (n *Webpusher) cleanupStaleSubscriptions(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) {
+	if len(ids) == 0 {
+		return
+	}
+	// nolint:gocritic // These are known to be invalid subscriptions.
+	if err := n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), ids); err != nil {
+		n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
+		return
+	}
+	n.pruneSubscriptions(userID, ids)
 }
 
 func (n *Webpusher) subscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {

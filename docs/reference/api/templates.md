@@ -632,9 +632,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| Status | Meaning                                                         | Description | Schema                                                         |
+|--------|-----------------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |                                                                |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2493,6 +2494,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
           {
             "cron": "string",
             "display_name": "string",
+            "exit_code": 0,
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -2500,6 +2502,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "run_on_stop": true,
             "script": "string",
             "start_blocks_login": true,
+            "status": "ok",
             "timeout": 0
           }
         ],
@@ -2619,6 +2622,7 @@ Status Code **200**
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» exit_code`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -2626,6 +2630,7 @@ Status Code **200**
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceAgentScriptStatus](schemas.md#codersdkworkspaceagentscriptstatus)                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
@@ -2657,8 +2662,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -2796,6 +2801,14 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
         "valid": true,
         "value": "string"
       }
+    }
+  ],
+  "secret_requirements": [
+    {
+      "env": "string",
+      "file": "string",
+      "help_message": "string",
+      "satisfied": true
     }
   ]
 }
@@ -3159,6 +3172,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
           {
             "cron": "string",
             "display_name": "string",
+            "exit_code": 0,
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -3166,6 +3180,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "run_on_stop": true,
             "script": "string",
             "start_blocks_login": true,
+            "status": "ok",
             "timeout": 0
           }
         ],
@@ -3285,6 +3300,7 @@ Status Code **200**
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» exit_code`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -3292,6 +3308,7 @@ Status Code **200**
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceAgentScriptStatus](schemas.md#codersdkworkspaceagentscriptstatus)                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
@@ -3323,8 +3340,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

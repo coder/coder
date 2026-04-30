@@ -58,6 +58,7 @@ func newTestServer(
 		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{DialerFn: dialer, Clock: clock}),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
+	server.Start()
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -80,6 +81,7 @@ func newActiveWorkerServer(
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 	})
+	server.Start()
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -1308,6 +1310,7 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 		PendingChatAcquireInterval: time.Hour,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 	})
+	worker.Start()
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})
@@ -1467,9 +1470,18 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Clock:                      workerClock,
 	})
+	worker.Start()
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})
+
+	// Use a mock clock for the subscriber so the relay drain
+	// timer never fires until we explicitly advance it. This
+	// removes the nondeterministic 200ms race between the drain
+	// timer and the multi-hop snapshot forwarding pipeline.
+	subscriberClock := quartz.NewMock(t)
+	trapDrain := subscriberClock.Trap().NewTimer("drain")
+	defer trapDrain.Close()
 
 	// Subscriber dials through to the worker. On cancel the relay
 	// drain fires well inside the worker's 5s grace, exercising the
@@ -1490,7 +1502,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 			return nil, nil, nil, xerrors.New("worker subscribe failed")
 		}
 		return snapshot, relayEvents, cancel, nil
-	}, nil)
+	}, subscriberClock)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(ctx, t, db)
@@ -1514,9 +1526,13 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// the assistant message and at least one message_part so we know
 	// processChat's defer has flipped buffering=false and populated
 	// bufferRetainedAt before the subscriber detaches.
+	//
+	// Each Eventually gets its own context so one slow assertion
+	// cannot starve subsequent ones of their deadline.
 	var committedAssistantMsgs int
 	var messagePartsSeen int
-	testutil.Eventually(ctx, t, func(context.Context) bool {
+	evCtx1 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx1, t, func(context.Context) bool {
 		select {
 		case event := <-events:
 			switch event.Type {
@@ -1533,7 +1549,36 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		}
 	}, testutil.IntervalFast)
 
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+	// Drain all NewTimer("drain") calls in a background goroutine.
+	// The merge loop may create one or two drain timers depending
+	// on the relative ordering of the status=WAITING pubsub
+	// notification and the async relay dial completion. Each
+	// trapped call must be released so the production goroutine
+	// is unblocked, and the clock must be advanced past the
+	// 200ms drain timeout to fire the timer.
+	var drainsFired atomic.Int32
+	go func() {
+		for {
+			call, err := trapDrain.Wait(ctx)
+			if err != nil {
+				return
+			}
+			if err := call.Release(ctx); err != nil {
+				return
+			}
+			subscriberClock.Advance(200 * time.Millisecond)
+			drainsFired.Add(1)
+		}
+	}()
+
+	// Wait for DB status=waiting AND at least one drain timer to
+	// have fired. Checking drainsFired proves the relay was torn
+	// down by the drain path, not by context cancellation.
+	evCtx2 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx2, t, func(ctx context.Context) bool {
+		if drainsFired.Load() == 0 {
+			return false
+		}
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
@@ -1550,7 +1595,8 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// worker observes the teardown. The retry itself re-enters
 	// cleanupStreamIfIdle via its own cancel defer but still
 	// early-returns because grace is still open.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+	evCtx3 := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(evCtx3, t, func(ctx context.Context) bool {
 		snap, _, snapCancel, ok := worker.Subscribe(ctx, chat.ID, nil, math.MaxInt64)
 		if !ok {
 			return false
@@ -1620,6 +1666,7 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 		PendingChatAcquireInterval: time.Second,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 	})
+	worker.Start()
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})

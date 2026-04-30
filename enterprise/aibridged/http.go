@@ -8,8 +8,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )

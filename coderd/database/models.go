@@ -224,6 +224,9 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
+	ApiKeyScopeAiSeat                              APIKeyScope = "ai_seat:*"
+	ApiKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
+	ApiKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -467,7 +470,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatRead,
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
-		ApiKeyScopeChat:
+		ApiKeyScopeChat,
+		ApiKeyScopeAiSeat,
+		ApiKeyScopeAiSeatCreate,
+		ApiKeyScopeAiSeatRead:
 		return true
 	}
 	return false
@@ -680,6 +686,9 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
+		ApiKeyScopeAiSeat,
+		ApiKeyScopeAiSeatCreate,
+		ApiKeyScopeAiSeatRead,
 	}
 }
 
@@ -3205,6 +3214,8 @@ const (
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
+	ResourceTypeChat                        ResourceType = "chat"
+	ResourceTypeUserSecret                  ResourceType = "user_secret"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3270,7 +3281,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
-		ResourceTypeAiSeat:
+		ResourceTypeAiSeat,
+		ResourceTypeChat,
+		ResourceTypeUserSecret:
 		return true
 	}
 	return false
@@ -3305,6 +3318,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
+		ResourceTypeChat,
+		ResourceTypeUserSecret,
 	}
 }
 
@@ -4506,10 +4521,11 @@ type ChatProvider struct {
 }
 
 type ChatQueuedMessage struct {
-	ID        int64           `db:"id" json:"id"`
-	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content   json.RawMessage `db:"content" json:"content"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	ID            int64           `db:"id" json:"id"`
+	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content       json.RawMessage `db:"content" json:"content"`
+	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
+	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -4726,6 +4742,7 @@ type MCPServerConfig struct {
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 }
 
 type MCPServerUserToken struct {

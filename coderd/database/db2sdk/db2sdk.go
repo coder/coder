@@ -675,6 +675,27 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 	}
 }
 
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+	script := codersdk.WorkspaceAgentScript{
+		ID:               dbScript.ID,
+		LogPath:          dbScript.LogPath,
+		LogSourceID:      dbScript.LogSourceID,
+		Script:           dbScript.Script,
+		Cron:             dbScript.Cron,
+		RunOnStart:       dbScript.RunOnStart,
+		RunOnStop:        dbScript.RunOnStop,
+		StartBlocksLogin: dbScript.StartBlocksLogin,
+		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+		DisplayName:      dbScript.DisplayName,
+		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
+	}
+	if dbScript.Status.Valid {
+		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
+		script.Status = &status
+	}
+	return script
+}
+
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
 		ID:             dbDaemon.ID,
@@ -1038,11 +1059,12 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			Name:      row.UserName,
 			AvatarURL: row.UserAvatarUrl,
 		}),
-		Providers: row.Providers,
-		Models:    row.Models,
-		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
-		StartedAt: row.StartedAt,
-		Threads:   row.Threads,
+		Providers:    row.Providers,
+		Models:       row.Models,
+		Metadata:     jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt:    row.StartedAt,
+		Threads:      row.Threads,
+		LastActiveAt: row.LastActiveAt,
 		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
 			InputTokens:           row.InputTokens,
 			OutputTokens:          row.OutputTokens,
@@ -1516,10 +1538,11 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 	}
 
 	return codersdk.ChatQueuedMessage{
-		ID:        message.ID,
-		ChatID:    message.ChatID,
-		Content:   parts,
-		CreatedAt: message.CreatedAt,
+		ID:            message.ID,
+		ChatID:        message.ChatID,
+		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
+		Content:       parts,
+		CreatedAt:     message.CreatedAt,
 	}
 }
 
@@ -1559,6 +1582,13 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	}
 	value := v.Int64
 	return &value
+}
+
+func nullInt32Ptr(n sql.NullInt32) *int32 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int32
 }
 
 func nullStringPtr(v sql.NullString) *string {

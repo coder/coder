@@ -8,7 +8,6 @@ import {
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { AdminBadge } from "./components/AdminBadge";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
 
 const AgentSettingsMCPServersPage: FC = () => {
@@ -26,7 +25,6 @@ const AgentSettingsMCPServersPage: FC = () => {
 			<MCPServerAdminPanel
 				sectionLabel="MCP Servers"
 				sectionDescription="Configure external MCP servers that provide additional tools for Coder Agents."
-				sectionBadge={<AdminBadge />}
 				serversData={serversQuery.data}
 				isLoadingServers={serversQuery.isLoading}
 				serversError={serversQuery.isError ? serversQuery.error : null}

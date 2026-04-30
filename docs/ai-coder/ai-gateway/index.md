@@ -5,6 +5,7 @@
 AI Gateway is a smart gateway for AI. It acts as an intermediary between your users' coding agents / IDEs
 and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
 the upstream APIs, AI Gateway can record user prompts, token usage, and tool invocations.
+AI Gateway supports clients running inside or outside Coder workspaces.
 
 AI Gateway solves 3 key problems:
 

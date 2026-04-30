@@ -528,6 +528,7 @@ const makeMCPServer = (
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
+	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -652,6 +653,39 @@ export const PlanningIndicator: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Disable plan mode" }),
+		).toBeVisible();
+	},
+};
+
+export const DisablePlanModeFromBadge: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dismiss = canvas.getByRole("button", {
+			name: "Disable plan mode",
+		});
+		await userEvent.click(dismiss);
+		expect(args.onPlanModeToggle).toHaveBeenCalledTimes(1);
+		expect(args.onPlanModeToggle).toHaveBeenCalledWith(false);
+	},
+};
+
+export const PlanningIndicatorWithoutToggle: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Disable plan mode" }),
+		).not.toBeInTheDocument();
 	},
 };
 

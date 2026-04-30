@@ -122,6 +122,7 @@ const docTemplate = `{
                 ],
                 "summary": "List AI Bridge interceptions",
                 "operationId": "list-ai-bridge-interceptions",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -5468,6 +5469,9 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
+                    },
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -13134,7 +13138,7 @@ const docTemplate = `{
                     ]
                 },
                 "circuit_breaker_enabled": {
-                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
+                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
                     "type": "boolean"
                 },
                 "circuit_breaker_failure_threshold": {
@@ -13308,6 +13312,10 @@ const docTemplate = `{
                 "bedrock_small_fast_model": {
                     "type": "string"
                 },
+                "dump_dir": {
+                    "description": "DumpDir is the directory path for dumping API requests and responses.",
+                    "type": "string"
+                },
                 "name": {
                     "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
                     "type": "string"
@@ -13374,6 +13382,10 @@ const docTemplate = `{
                 },
                 "initiator": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "last_active_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "last_prompt": {
                     "type": "string"
@@ -13790,6 +13802,9 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_seat:*",
+                "ai_seat:create",
+                "ai_seat:read",
                 "aibridge_interception:*",
                 "aibridge_interception:create",
                 "aibridge_interception:read",
@@ -13999,6 +14014,9 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiSeatAll",
+                "APIKeyScopeAiSeatCreate",
+                "APIKeyScopeAiSeatRead",
                 "APIKeyScopeAibridgeInterceptionAll",
                 "APIKeyScopeAibridgeInterceptionCreate",
                 "APIKeyScopeAibridgeInterceptionRead",
@@ -15403,6 +15421,13 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "roles": {
+                    "description": "Roles is an optional list of site-level roles to assign at creation.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "service_account": {
                     "description": "Service accounts are admin-managed accounts that cannot login.",
                     "type": "boolean"
@@ -16179,6 +16204,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.PreviewParameter"
+                    }
+                },
+                "secret_requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SecretRequirementStatus"
                     }
                 }
             }
@@ -19458,6 +19489,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_seat",
                 "aibridge_interception",
                 "api_key",
                 "assign_org_role",
@@ -19504,6 +19536,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
                 "ResourceAssignOrgRole",
@@ -19757,7 +19790,9 @@ const docTemplate = `{
                 "workspace_agent",
                 "workspace_app",
                 "task",
-                "ai_seat"
+                "ai_seat",
+                "chat",
+                "user_secret"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -19786,7 +19821,9 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
-                "ResourceTypeAISeat"
+                "ResourceTypeAISeat",
+                "ResourceTypeChat",
+                "ResourceTypeUserSecret"
             ]
         },
         "codersdk.Response": {
@@ -19930,6 +19967,23 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.SecretRequirementStatus": {
+            "type": "object",
+            "properties": {
+                "env": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "help_message": {
+                    "type": "string"
+                },
+                "satisfied": {
+                    "type": "boolean"
                 }
             }
         },
@@ -21221,6 +21275,21 @@ const docTemplate = `{
                 "TerminalFontJetBrainsMono"
             ]
         },
+        "codersdk.ThinkingDisplayMode": {
+            "type": "string",
+            "enum": [
+                "auto",
+                "preview",
+                "always_expanded",
+                "always_collapsed"
+            ],
+            "x-enum-varnames": [
+                "ThinkingDisplayModeAuto",
+                "ThinkingDisplayModePreview",
+                "ThinkingDisplayModeAlwaysExpanded",
+                "ThinkingDisplayModeAlwaysCollapsed"
+            ]
+        },
         "codersdk.TimingStage": {
             "type": "string",
             "enum": [
@@ -21539,6 +21608,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },
@@ -21997,6 +22069,9 @@ const docTemplate = `{
             "properties": {
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
+                },
+                "thinking_display_mode": {
+                    "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
             }
         },
@@ -22851,6 +22926,9 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "exit_code": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -22874,10 +22952,28 @@ const docTemplate = `{
                 "start_blocks_login": {
                     "type": "boolean"
                 },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptStatus"
+                },
                 "timeout": {
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentScriptStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "exit_failure",
+                "timed_out",
+                "pipes_left_open"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentScriptStatusOK",
+                "WorkspaceAgentScriptStatusExitFailure",
+                "WorkspaceAgentScriptStatusTimedOut",
+                "WorkspaceAgentScriptStatusPipesLeftOpen"
+            ]
         },
         "codersdk.WorkspaceAgentStartupScriptBehavior": {
             "type": "string",
@@ -23705,6 +23801,7 @@ const docTemplate = `{
                 "EACS04",
                 "EDERP01",
                 "EDERP02",
+                "EDERP03",
                 "EPD01",
                 "EPD02",
                 "EPD03"
@@ -23725,6 +23822,7 @@ const docTemplate = `{
                 "CodeAccessURLNotOK",
                 "CodeDERPNodeUsesWebsocket",
                 "CodeDERPOneNodeUnhealthy",
+                "CodeDERPNoNodes",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
                 "CodeProvisionerDaemonAPIMajorVersionDeprecated"

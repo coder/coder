@@ -2,7 +2,7 @@ import {
 	SettingsIcon as GeneralIcon,
 	CodeIcon as ParameterIcon,
 	TimerIcon as ScheduleIcon,
-	Users as SharingIcon,
+	UsersIcon as SharingIcon,
 } from "lucide-react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {

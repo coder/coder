@@ -794,7 +794,7 @@ func New(options *Options) *API {
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
-		})
+		}).Start()
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
 			api.resolveGitProvider,
@@ -1184,14 +1184,16 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/explore-model-override", api.getChatExploreModelOverride)
-				r.Put("/explore-model-override", api.putChatExploreModelOverride)
+				r.Get("/agent-model-override/{context}", api.getChatAgentModelOverride)
+				r.Put("/agent-model-override/{context}", api.putChatAgentModelOverride)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/debug-logging", api.getChatDebugLogging)
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
 				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
+				r.Get("/advisor", api.getChatAdvisorConfig)
+				r.Put("/advisor", api.putChatAdvisorConfig)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
@@ -1201,6 +1203,8 @@ func New(options *Options) *API {
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
 				r.Get("/retention-days", api.getChatRetentionDays)
 				r.Put("/retention-days", api.putChatRetentionDays)
+				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
+				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
 				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
 				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})

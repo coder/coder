@@ -6,11 +6,12 @@ import {
 } from "#/theme/constants";
 import { cn } from "#/utils/cn";
 
-type Size = "regular" | "medium" | "small";
+export type Size = "regular" | "medium" | "condensed" | "small";
 
 const widthBySize: Record<Size, number> = {
 	regular: containerWidth,
 	medium: containerWidthMedium,
+	condensed: containerWidth / 2,
 	small: containerWidth / 3,
 };
 

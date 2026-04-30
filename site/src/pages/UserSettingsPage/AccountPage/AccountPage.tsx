@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "#/api/queries/groups";
-import { Stack } from "#/components/Stack/Stack";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -22,7 +21,7 @@ const AccountPage: FC = () => {
 	});
 
 	return (
-		<Stack spacing={6}>
+		<div className="flex flex-col gap-12">
 			<Section title="Account" description="Update your account info">
 				<AccountForm
 					editable={permissions?.updateUsers ?? false}
@@ -41,7 +40,7 @@ const AccountPage: FC = () => {
 					error={groupsQuery.error}
 				/>
 			)}
-		</Stack>
+		</div>
 	);
 };
 

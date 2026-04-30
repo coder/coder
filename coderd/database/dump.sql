@@ -220,7 +220,10 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'ai_seat:*',
+    'ai_seat:create',
+    'ai_seat:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -525,7 +528,9 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_app',
     'prebuilds_settings',
     'task',
-    'ai_seat'
+    'ai_seat',
+    'chat',
+    'user_secret'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1421,7 +1426,8 @@ CREATE TABLE chat_queued_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_config_id uuid
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -1482,7 +1488,9 @@ CREATE TABLE chats (
     dynamic_tools jsonb,
     organization_id uuid NOT NULL,
     plan_mode chat_plan_mode,
-    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL
+    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
+    CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
+    CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
 
 CREATE TABLE connection_logs (
@@ -1787,6 +1795,7 @@ CREATE TABLE mcp_server_configs (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     model_intent boolean DEFAULT false NOT NULL,
+    allow_in_plan_mode boolean DEFAULT false NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -3865,6 +3874,8 @@ CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btre
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
 
+CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
+
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
@@ -3996,6 +4007,8 @@ CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX webpush_subscriptions_user_id_endpoint_idx ON webpush_subscriptions USING btree (user_id, endpoint);
 
 CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
 
@@ -4167,9 +4180,6 @@ ALTER TABLE ONLY chat_messages
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
-
-ALTER TABLE ONLY chat_model_configs
-    ADD CONSTRAINT chat_model_configs_provider_fkey FOREIGN KEY (provider) REFERENCES chat_providers(provider) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);

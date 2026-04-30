@@ -560,12 +560,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses,
-		options.DeploymentValues.DERP.Config.URL.Value(),
-		options.DeploymentValues.DERP.Config.Path.Value(),
-		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
-	)
-	require.NoError(t, err)
+	derpConfigURL := options.DeploymentValues.DERP.Config.URL.Value()
+	derpConfigPath := options.DeploymentValues.DERP.Config.Path.Value()
+	var derpMap *tailcfg.DERPMap
+	if region == nil && derpConfigURL == "" && derpConfigPath == "" {
+		derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+	} else {
+		derpMap, err = tailnet.NewDERPMap(
+			ctx, region, stunAddresses,
+			derpConfigURL, derpConfigPath,
+			options.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		)
+		require.NoError(t, err)
+	}
 
 	return func(h http.Handler) {
 			mutex.Lock()

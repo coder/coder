@@ -1,4 +1,4 @@
-import { Container, ExternalLinkIcon } from "lucide-react";
+import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -184,7 +184,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				bg-surface-primary px-2
 				text-xs text-content-secondary"
 			>
-				<Container size={12} className="mr-1.5" />
+				<ContainerIcon size={12} className="mr-1.5" />
 				{devcontainer.subagent_id ? (
 					<Tooltip>
 						<TooltipTrigger asChild>

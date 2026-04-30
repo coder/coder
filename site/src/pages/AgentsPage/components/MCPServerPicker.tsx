@@ -204,7 +204,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
-			if (event.origin !== window.location.origin) return;
+			if (event.origin !== location.origin) return;
 			if (
 				event.data?.type === "mcp-oauth2-complete" &&
 				typeof event.data.serverID === "string"

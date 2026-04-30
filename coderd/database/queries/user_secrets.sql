@@ -3,6 +3,11 @@ SELECT *
 FROM user_secrets
 WHERE user_id = @user_id AND name = @name;
 
+-- name: GetUserSecretByID :one
+SELECT *
+FROM user_secrets
+WHERE id = @id;
+
 -- name: ListUserSecrets :many
 -- Returns metadata only (no value or value_key_id) for the
 -- REST API list and get endpoints.
@@ -56,6 +61,7 @@ SET
 WHERE user_id = @user_id AND name = @name
 RETURNING *;
 
--- name: DeleteUserSecretByUserIDAndName :execrows
+-- name: DeleteUserSecretByUserIDAndName :one
 DELETE FROM user_secrets
-WHERE user_id = @user_id AND name = @name;
+WHERE user_id = @user_id AND name = @name
+RETURNING *;
