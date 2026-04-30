@@ -23,11 +23,11 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 	return (
 		<div
 			key={agent.id}
-			className="relative flex flex-row items-center justify-between gap-4 bg-surface-primary px-8 pb-4 pt-4 text-base [&:not(:last-child)]:pb-0 after:absolute after:left-[43px] after:top-0 after:h-full after:w-0.5 after:bg-border after:content-['']"
+			className="relative flex flex-row items-center justify-between gap-4 bg-surface-secondary px-8 pb-4 pt-4 text-base [&:not(:last-child)]:pb-0 after:absolute after:left-[43px] after:top-0 after:h-full after:w-0.5 after:bg-border after:content-['']"
 		>
 			<div className="flex flex-row items-baseline gap-4">
 				<div className="flex w-6 shrink-0 justify-center">
-					<div className="relative z-[1] size-2.5 rounded-full border-2 border-content-secondary bg-surface-primary" />
+					<div className="relative z-[1] size-2.5 rounded-full border-solid border-2 border-content-secondary bg-surface-secondary" />
 				</div>
 				<div className="flex flex-row items-baseline gap-8 text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
 					<div
