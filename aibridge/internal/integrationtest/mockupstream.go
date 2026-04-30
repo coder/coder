@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net"
 	"net/http"
@@ -244,18 +246,31 @@ func isBedrockPath(path string) bool {
 }
 
 // isBinaryEventStream returns true when data looks like an AWS
-// EventStream binary frame rather than SSE text. EventStream frames
-// start with a 4-byte big-endian total length; SSE starts with ASCII
-// text like "event:" or "data:".
+// EventStream binary frame rather than SSE text. Each EventStream
+// frame begins with a 12-byte prelude:
+//
+//	bytes 0..3              - frame length (uint32 big-endian)
+//	bytes 4..7              - headers length (uint32 big-endian)
+//	bytes 8..11             - CRC32(IEEE) of bytes 0..7
+//	bytes frameLen-4..end   - CRC32(IEEE) of bytes 0..frameLen-4
+//
+// Validating both CRCs against random bytes (e.g. SSE text) is a
+// 1-in-2^64 coincidence.
 func isBinaryEventStream(data []byte) bool {
-	if len(data) < 4 {
+	const minFrameLen = 16 // 12-byte prelude + 4-byte trailing message CRC
+	if len(data) < minFrameLen {
 		return false
 	}
-	// SSE fixtures always start with printable ASCII (e.g. "event:",
-	// "data:"). A binary EventStream frame starts with a uint32 length
-	// whose high byte is almost always 0x00 for typical message sizes,
-	// so checking for a non-printable first byte is a reliable heuristic.
-	return data[0] == 0
+	preludeCRC := binary.BigEndian.Uint32(data[8:12])
+	if crc32.ChecksumIEEE(data[0:8]) != preludeCRC {
+		return false
+	}
+	frameLen := binary.BigEndian.Uint32(data[0:4])
+	if frameLen < minFrameLen || frameLen > uint32(len(data)) {
+		return false
+	}
+	messageCRC := binary.BigEndian.Uint32(data[frameLen-4 : frameLen])
+	return crc32.ChecksumIEEE(data[0:frameLen-4]) == messageCRC
 }
 
 // writeEventStream writes raw binary eventstream data as-is.
