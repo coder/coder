@@ -36,11 +36,11 @@ changes:
    [Authentication](#authentication) for which token to use.
 1. Click **Save**.
 
-| Agents provider                                                             | Base URL                                              |
-|-----------------------------------------------------------------------------|-------------------------------------------------------|
-| Anthropic                                                                   | `https://coder.example.com/api/v2/aibridge/anthropic` |
-| OpenAI                                                                      | `https://coder.example.com/api/v2/aibridge/openai/v1` |
-| [OpenAI Compatible](#when-to-use-openai-compatible) (named OpenAI instance) | `https://coder.example.com/api/v2/aibridge/<name>/v1` |
+| Agents provider                           | Base URL                                              |
+|-------------------------------------------|-------------------------------------------------------|
+| Anthropic                                 | `https://coder.example.com/api/v2/aibridge/anthropic` |
+| OpenAI                                    | `https://coder.example.com/api/v2/aibridge/openai/v1` |
+| OpenAI Compatible (named OpenAI instance) | `https://coder.example.com/api/v2/aibridge/<name>/v1` |
 
 Replace `coder.example.com` with your Coder deployment URL.
 
@@ -51,6 +51,15 @@ named `anthropic-corp` becomes
 `https://coder.example.com/api/v2/aibridge/anthropic-corp`, and an OpenAI
 instance named `azure-openai` becomes
 `https://coder.example.com/api/v2/aibridge/azure-openai/v1`.
+
+> [!NOTE]
+> The table above covers the Coder Agents provider types most commonly
+> routed through AI Gateway. Coder Agents also supports Azure OpenAI,
+> AWS Bedrock, Google, OpenRouter, and Vercel AI Gateway provider types,
+> but only providers that speak a wire protocol AI Gateway supports
+> (Anthropic, OpenAI, or Copilot today) can be routed through it. The
+> base URL pattern is the same for any compatible provider: point it at
+> `https://<your-coder-host>/api/v2/aibridge/<instance-name>`.
 
 After saving, [add or update a model](../../agents/models.md#add-a-model) on
 each provider so developers can select it from the chat. Models from a
@@ -100,7 +109,9 @@ outgoing request. Today AI Gateway uses two of them:
 
 Coder Agents also sends `X-Coder-Owner-Id`, `X-Coder-Subchat-Id`, and
 `X-Coder-Workspace-Id`. These are emitted for forward compatibility but
-are not consumed by AI Gateway today.
+are not consumed by AI Gateway today, which is why per-developer
+attribution is not preserved. See
+[Known limitations](#known-limitations) for details.
 
 You don't need to configure these headers; they are set automatically.
 
