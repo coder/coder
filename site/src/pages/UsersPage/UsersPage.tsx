@@ -128,7 +128,7 @@ const UsersPage: React.FC = () => {
 				onSuspendUser={setUserToSuspend}
 				onActivateUser={setUserToActivate}
 				onDeleteUser={setUserToDelete}
-				actorID={me.id}
+				me={me.id}
 				canCreateUser={canCreateUser}
 				canEditUsers={canEditUsers}
 				canViewActivity={entitlements.features.audit_log.enabled}
@@ -140,9 +140,12 @@ const UsersPage: React.FC = () => {
 				user={userToEditRoles}
 				availableRoles={rolesQuery.data}
 				onCancel={() => setUserToEditRoles(undefined)}
-				onUpdateUserRoles={async (userId, roles) => {
+				onUpdateRoles={async (roles) => {
 					try {
-						await updateUserRolesMutation.mutateAsync({ userId, roles });
+						await updateUserRolesMutation.mutateAsync({
+							userId: userToEditRoles!.id,
+							roles,
+						});
 						toast.success("User roles updated successfully.");
 						setUserToEditRoles(undefined);
 					} catch (e) {
@@ -151,7 +154,7 @@ const UsersPage: React.FC = () => {
 						});
 					}
 				}}
-				isUpdatingUserRoles={updateUserRolesMutation.isPending}
+				isUpdatingRoles={updateUserRolesMutation.isPending}
 			/>
 
 			<DeleteDialog

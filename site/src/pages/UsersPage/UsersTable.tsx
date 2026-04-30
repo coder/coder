@@ -62,7 +62,7 @@ export type UsersTableProps = {
 	 * Used to disable the UI of actions that users cannot perform on themselves,
 	 * like delete.
 	 */
-	actorID: string;
+	me: string;
 	canEditUsers: boolean;
 	canViewActivity?: boolean;
 	/** User roles cannot be edited if OIDC Role Sync is enabled. */
@@ -70,14 +70,14 @@ export type UsersTableProps = {
 };
 
 export const UsersTable: React.FC<UsersTableProps> = (props) => {
-	const { showAISeatColumn, canEditUsers } = props;
+	const { showAISeatColumn } = props;
 
 	return (
 		<Table data-testid="users-table">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-2/6">User</TableHead>
-					<TableHead className="w-2/6">
+					<TableHead className="w-1/6">
 						<div className="flex flex-row gap-2 items-center">
 							<span>Roles</span>
 							<RolesHelpPopover />
@@ -98,7 +98,6 @@ export const UsersTable: React.FC<UsersTableProps> = (props) => {
 						</TableHead>
 					)}
 					<TableHead className="w-1/6">Status</TableHead>
-					{canEditUsers && <TableHead className="w-auto" />}
 				</TableRow>
 			</TableHeader>
 
@@ -122,7 +121,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	onActivateUser,
 	onDeleteUser,
 
-	actorID,
+	me,
 	canEditUsers,
 	canViewActivity,
 	oidcRoleSyncEnabled,
@@ -254,7 +253,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 									<DropdownMenuItem
 										className="text-content-destructive focus:text-content-destructive"
 										onClick={() => onDeleteUser(user)}
-										disabled={user.id === actorID}
+										disabled={user.id === me}
 									>
 										<TrashIcon className="size-icon-xs" />
 										Delete&hellip;

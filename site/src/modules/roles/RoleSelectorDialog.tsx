@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AssignableRoles, User } from "#/api/typesGenerated";
+import type { AssignableRoles, SlimRole } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import {
 	Dialog,
@@ -17,21 +17,28 @@ type RoleSelectorDialogProps = {
 	 * The user who is currently being edited. The dialog will be hidden if no
 	 * no user is provided.
 	 */
-	user?: User;
+	user?: ThingWithRoles;
 	/** The roles available in this context that can be given or removed from the user */
 	availableRoles?: AssignableRoles[];
 
 	onCancel: () => void;
-	onUpdateUserRoles: (userId: string, roles: string[]) => Promise<void>;
-	isUpdatingUserRoles: boolean;
+	onUpdateRoles: (roles: string[]) => Promise<void>;
+	isUpdatingRoles: boolean;
+};
+
+type ThingWithRoles = {
+	username: string;
+	email: string;
+	roles: readonly SlimRole[];
+	avatar_url?: string;
 };
 
 export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
 	user,
-	availableRoles,
+	availableRoles = [],
 	onCancel,
-	onUpdateUserRoles,
-	isUpdatingUserRoles,
+	onUpdateRoles,
+	isUpdatingRoles,
 }) => {
 	if (!user) {
 		return null;
@@ -42,34 +49,15 @@ export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
 			user={user}
 			availableRoles={availableRoles}
 			onCancel={onCancel}
-			onUpdateUserRoles={onUpdateUserRoles}
-			isUpdatingUserRoles={isUpdatingUserRoles}
+			onUpdateRoles={onUpdateRoles}
+			isUpdatingRoles={isUpdatingRoles}
 		/>
 	);
 };
 
-type ActiveRoleSelectorDialogProps = {
-	/**
-	 * The user who is currently being edited.
-	 */
-	user: User;
-	/** The roles available in this context that can be given or removed from the user */
-	availableRoles?: AssignableRoles[];
-
-	onCancel: () => void;
-	onUpdateUserRoles: (userId: string, roles: string[]) => Promise<void>;
-	isUpdatingUserRoles: boolean;
-};
-
 export const ActiveRoleSelectorDialog: React.FC<
-	ActiveRoleSelectorDialogProps
-> = ({
-	user,
-	availableRoles,
-	onCancel,
-	onUpdateUserRoles,
-	isUpdatingUserRoles,
-}) => {
+	Required<RoleSelectorDialogProps>
+> = ({ user, availableRoles, onCancel, onUpdateRoles, isUpdatingRoles }) => {
 	const [selectedRoles, setSelectedRoles] = useState<Set<string>>(
 		() => new Set(getRoleNames(user.roles)),
 	);
@@ -103,8 +91,8 @@ export const ActiveRoleSelectorDialog: React.FC<
 				<DialogFooter>
 					<DialogActionButtons
 						onCancel={onCancel}
-						onConfirm={() => onUpdateUserRoles(user.id, [...selectedRoles])}
-						confirmLoading={isUpdatingUserRoles}
+						onConfirm={() => onUpdateRoles([...selectedRoles])}
+						confirmLoading={isUpdatingRoles}
 					/>
 				</DialogFooter>
 			</DialogContent>

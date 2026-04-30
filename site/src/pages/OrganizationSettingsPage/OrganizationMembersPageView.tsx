@@ -26,6 +26,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import type { useFilter } from "#/components/Filter/Filter";
@@ -55,11 +56,13 @@ import {
 	RolesHelpPopover,
 } from "#/modules/users/UserHelpPopovers";
 import { UserRoleCell } from "#/modules/users/UserRoleCell";
+import { Link } from "react-router";
+import { PremiumBadge } from "#/components/Badges/Badges";
 
 interface OrganizationMembersPageViewProps {
-	allAvailableRoles: readonly SlimRole[] | undefined;
 	canEditMembers: boolean;
 	canViewMembers: boolean;
+	canViewActivity: boolean;
 	error: unknown;
 	filterProps: { filter: ReturnType<typeof useFilter> };
 	isUpdatingMemberRoles: boolean;
@@ -71,10 +74,8 @@ interface OrganizationMembersPageViewProps {
 	};
 	addMembers: (users: User[]) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
-	updateMemberRoles: (
-		member: OrganizationMemberWithUserData,
-		newRoles: string[],
-	) => Promise<void>;
+	onEditMemberRoles: (member: OrganizationMemberWithUserData) => void;
+	organizationName: string;
 }
 
 interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
@@ -84,7 +85,6 @@ interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
 export const OrganizationMembersPageView: React.FC<
 	OrganizationMembersPageViewProps
 > = ({
-	allAvailableRoles,
 	canEditMembers,
 	canViewMembers,
 	error,
@@ -96,7 +96,9 @@ export const OrganizationMembersPageView: React.FC<
 	members,
 	addMembers,
 	removeMember,
-	updateMemberRoles,
+	onEditMemberRoles,
+	canViewActivity,
+	organizationName,
 }) => {
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
@@ -187,11 +189,42 @@ export const OrganizationMembersPageView: React.FC<
 															</Button>
 														</DropdownMenuTrigger>
 														<DropdownMenuContent align="end">
+															<DropdownMenuItem asChild>
+																<Link
+																	to={`/workspaces?filter=${encodeURIComponent(`owner:${member.username} organization:${organizationName}`)}`}
+																>
+																	View workspaces
+																</Link>
+															</DropdownMenuItem>
+
+															{canViewActivity && (
+																<DropdownMenuItem
+																	asChild
+																	disabled={!canViewActivity}
+																>
+																	<Link
+																		to={`/audit?filter=${encodeURIComponent(`username:${member.username} organization:${organizationName}`)}`}
+																	>
+																		View activity{" "}
+																		{!canViewActivity && <PremiumBadge />}
+																	</Link>
+																</DropdownMenuItem>
+															)}
+
+															<DropdownMenuItem
+																disabled={isUpdatingMemberRoles}
+																onClick={() => onEditMemberRoles(member)}
+															>
+																Edit roles
+															</DropdownMenuItem>
+
+															<DropdownMenuSeparator />
+
 															<DropdownMenuItem
 																className="text-content-destructive focus:text-content-destructive"
 																onClick={() => removeMember(member)}
 															>
-																Remove
+																Remove&hellip;
 															</DropdownMenuItem>
 														</DropdownMenuContent>
 													</DropdownMenu>

@@ -42,6 +42,10 @@ import {
 } from "#/components/Table/Table";
 import { isEveryoneGroup } from "#/modules/groups";
 import type { GroupPageOutletContext } from "./GroupPage";
+import { AiAddonHelpPopover } from "#/modules/users/UserHelpPopovers";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
+import { UserRoleCell } from "#/modules/users/UserRoleCell";
 
 const GroupMembersPage: FC = () => {
 	const {
@@ -53,11 +57,15 @@ const GroupMembersPage: FC = () => {
 		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
+	const { entitlements } = useDashboard();
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
+
 	const addMembersMutation = useMutation(addMembers(queryClient, organization));
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
-	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+
+	const canUpdateGroup = permissions.canUpdateGroup;
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -81,9 +89,17 @@ const GroupMembersPage: FC = () => {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead className="w-2/5">User</TableHead>
-							<TableHead className="w-3/5">Status</TableHead>
-							<TableHead className="w-auto" />
+							<TableHead className="w-3/6">User</TableHead>
+							<TableHead className="w-1/6">Roles</TableHead>
+							<TableHead className="w-1/6">Status</TableHead>
+							{showAISeatColumn && (
+								<TableHead className="w-1/6">
+									<div className="flex flex-row gap-2 items-center">
+										<span>AI add-on</span>
+										<AiAddonHelpPopover />
+									</div>
+								</TableHead>
+							)}
 						</TableRow>
 					</TableHeader>
 
@@ -247,6 +263,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 					}
 				/>
 			</TableCell>
+
 			<TableCell
 				width="40%"
 				css={[styles.status, member.status === "suspended" && styles.suspended]}

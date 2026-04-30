@@ -44,7 +44,7 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 		} as UsePaginatedQueryResult,
 		addMembers: () => Promise.resolve(),
 		removeMember: () => Promise.resolve(),
-		updateMemberRoles: () => Promise.resolve(),
+		onEditMemberRoles: () => Promise.resolve(),
 	},
 };
 
