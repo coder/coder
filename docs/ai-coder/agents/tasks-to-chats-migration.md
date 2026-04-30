@@ -10,7 +10,8 @@ to the Chats API.
 
 > [!NOTE]
 > The Chats API is experimental and gated behind the `agents` experiment
-> flag. Endpoints live under `/api/experimental/chats` and may change
+> flag in current Coder releases. The flag is being removed for the May Beta
+> release. Endpoints live under `/api/experimental/chats` and may change
 > without notice.
 
 ## When to migrate
@@ -63,7 +64,8 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 
 ### 1. Enable the `agents` experiment
 
-The Chats API requires the `agents` experiment flag on the Coder server:
+In current releases the Chats API is gated behind the `agents` experiment
+flag on the Coder server:
 
 ```diff
 - coder server
@@ -72,6 +74,10 @@ The Chats API requires the `agents` experiment flag on the Coder server:
 
 If you already use other experiments, add `agents` to the comma-separated
 list.
+
+The flag is being removed for the May Beta release. Once you upgrade to a
+release that drops the flag, the variable becomes a no-op and the API is
+always available.
 
 ### 2. Configure an LLM provider
 
@@ -97,7 +103,7 @@ curl -X POST https://coder.example.com/api/v2/tasks/me \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "template_version_id": "0ba39c92-...",
+    "template_version_id": "<template-version-uuid>",
     "input": "Fix the failing tests in the auth service"
   }'
 ```
@@ -111,6 +117,7 @@ curl -X POST https://coder.example.com/api/experimental/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [
       {"type": "text", "text": "Fix the failing tests in the auth service"}
     ]
@@ -121,6 +128,8 @@ Key differences:
 
 - The `{user}` path parameter is removed. The authenticated user is
   inferred from the session token.
+- `organization_id` is required in the request body. The caller must be a
+  member of that organization.
 - The prompt is now an array of `ChatInputPart` objects (supporting `text`,
   `file`, and `file-reference` types) instead of a plain string.
 - `template_version_id` and `template_version_preset_id` are removed. The
@@ -195,20 +204,21 @@ client already has.
 
 ### 6. Update status handling
 
-Task and chat statuses use different values:
+Task and chat statuses use different values. The Chats API status set is
+defined in `codersdk.ChatStatus`:
 
-| Tasks API status | Chats API status | Notes                                                |
-|------------------|------------------|------------------------------------------------------|
-| `pending`        | `pending`        | Queued for processing                                |
-| `running`        | `running`        | Agent is actively working                            |
-| `complete`       | `waiting`        | Agent finished — idle and ready for new messages     |
-| `paused`         | `paused`         | Agent paused (e.g. waiting for user input)           |
-| `failed`         | `error`          | Agent encountered an error                           |
-| —                | `completed`      | Agent finished and considers the task fully complete |
+| Tasks API status | Chats API status  | Notes                                                                                                                                                                                                                         |
+|------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pending`        | `pending`         | Queued for processing.                                                                                                                                                                                                        |
+| `running`        | `running`         | Agent is actively working.                                                                                                                                                                                                    |
+| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                                                                                                                                   |
+| `paused`         | —                 | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. The `paused` enum value exists in code but no production path on `main` transitions a chat into it today. |
+| `failed`         | `error`           | Agent encountered an error.                                                                                                                                                                                                   |
+| —                | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                         |
 
-The Chats API uses `waiting` as the default idle state (not `complete`),
-and has a separate `completed` status for when the agent considers the task
-fully done.
+The Chats API uses `waiting` as the default idle state (not `complete`).
+The `completed` enum value is also defined but is not currently set by any
+production code path on `main`; treat `waiting` as "agent is done."
 
 ### 7. Replace delete with archive
 
@@ -323,6 +333,13 @@ Key differences:
 - No `github-user-id` mapping — the session token determines the user.
 - LLM credentials are no longer passed through the template. They are
   configured in the Coder control plane.
+
+> [!NOTE]
+> A dedicated `coder/create-agent-chat-action` GitHub Action with parity
+> to `create-task-action` is in development
+> ([CODAGT-127](https://linear.app/codercom/issue/CODAGT-127)). When
+> released, you can swap the inline `curl` for the action without changing
+> the rest of your workflow.
 
 ## Template recommendations
 
@@ -445,14 +462,17 @@ confirm the Chats API integration is working end-to-end.
 
 ### 1. Verify the experiment is active
 
-Confirm the `agents` experiment is enabled on your deployment:
+On current releases that still gate the API behind the `agents` experiment,
+confirm it is enabled on your deployment:
 
 ```sh
 curl -s https://coder.example.com/api/v2/buildinfo \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.experiments'
 ```
 
-The response should include `"agents"` in the array.
+The response should include `"agents"` in the array. On the May Beta
+release and later this check is no longer required, since the flag is
+removed.
 
 ### 2. Confirm LLM provider connectivity
 
@@ -589,7 +609,8 @@ curl -s -X PATCH \
 
 Use this checklist to confirm each part of your integration:
 
-- [ ] `agents` experiment is enabled
+- [ ] `agents` experiment is enabled (or you are running the May Beta or
+      later, where the flag is removed)
 - [ ] At least one LLM model is configured and returned by `/chats/models`
 - [ ] `POST /chats` creates a chat and returns a valid `Chat` object
 - [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
@@ -640,18 +661,23 @@ Chats API returns a `Chat` object with conversation-centric fields:
 
 ## CLI changes
 
-If you use the `coder` CLI for task management, note that the Tasks CLI
-(`coder task`) and the Chats API are separate:
+The Tasks CLI (`coder task`) and the Coder Agents CLI are separate. Coder
+ships an experimental TUI for Coder Agents at `coder exp agents` (planned
+to graduate to `coder agents` in the May Beta release per
+[#24432](https://github.com/coder/coder/pull/24432)). The TUI talks to the
+same `/api/experimental/chats` endpoints documented in this guide; for
+automation, prefer direct API calls.
 
-| Tasks CLI           | Chats equivalent                   |
-|---------------------|------------------------------------|
-| `coder task create` | Use the Chats API directly         |
-| `coder task list`   | Use the Chats API directly         |
-| `coder task logs`   | Use the Chats API stream endpoint  |
-| `coder task pause`  | Use `POST /chats/{chat}/interrupt` |
-| `coder task resume` | Send a message to the chat         |
+| Tasks CLI           | Chats equivalent                        |
+|---------------------|-----------------------------------------|
+| `coder task create` | `coder exp agents` TUI or `POST /chats` |
+| `coder task list`   | `coder exp agents` TUI or `GET /chats`  |
+| `coder task logs`   | `GET /chats/{chat}/stream` (WebSocket)  |
+| `coder task pause`  | `POST /chats/{chat}/interrupt`          |
+| `coder task resume` | Send a follow-up message to the chat    |
 
 > [!NOTE]
-> The Chats API does not yet have dedicated CLI commands. Use `curl` or
-> your HTTP client of choice for automation. CLI support may be added in
-> a future release.
+> The Coder Agents CLI today is an interactive TUI rather than a set of
+> per-action subcommands like `coder task`. Use `curl`, the SDK, or your
+> HTTP client of choice for non-interactive automation. Dedicated
+> non-interactive subcommands may be added in a future release.

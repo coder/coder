@@ -1258,19 +1258,20 @@
 							"path": "./ai-coder/agents/extending-agents.md",
 							"state": ["early access"]
 						},
-							{
-								"title": "Chats API",
-								"description": "Programmatic access to Coder Agents via the experimental Chats API",
-								"path": "./ai-coder/agents/chats-api.md",
-								"state": ["early access"]
-							},
-							{
-								"title": "Tasks to Chats Migration",
-								"description": "Guide for migrating from the Tasks API to the Chats API",
-								"path": "./ai-coder/agents/tasks-to-chats-migration.md",
-								"state": ["early access"]
-							}
-						]				}
+						{
+							"title": "Chats API",
+							"description": "Programmatic access to Coder Agents via the experimental Chats API",
+							"path": "./ai-coder/agents/chats-api.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Tasks to Chats Migration",
+							"description": "Guide for migrating from the Tasks API to the Chats API",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
+							"state": ["early access"]
+						}
+					]
+				}
 			]
 		},
 		{
