@@ -172,17 +172,30 @@ export const TogglesDesktop: Story = {
 };
 
 export const ComputerUseProviderAnthropic: Story = {
+	args: {
+		desktopEnabledData: { enable_desktop: true },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText("Computer use provider");
 		const providerSelect = await getComputerUseProviderSelect(canvasElement);
 
+		expect(providerSelect).not.toBeDisabled();
 		expect(providerSelect).toHaveTextContent("Anthropic");
+	},
+};
+
+export const ComputerUseProviderDisabledWhenDesktopDisabled: Story = {
+	play: async ({ canvasElement }) => {
+		const providerSelect = await getComputerUseProviderSelect(canvasElement);
+
+		expect(providerSelect).toBeDisabled();
 	},
 };
 
 export const SelectsOpenAIProvider: Story = {
 	args: {
+		desktopEnabledData: { enable_desktop: true },
 		onSaveComputerUseProvider: fn(),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -198,6 +211,7 @@ export const SelectsOpenAIProvider: Story = {
 
 export const SelectsAnthropicProvider: Story = {
 	args: {
+		desktopEnabledData: { enable_desktop: true },
 		computerUseProviderData: { provider: "openai" },
 		onSaveComputerUseProvider: fn(),
 	},
@@ -226,6 +240,7 @@ export const ComputerUseProviderSaveError: Story = {
 
 export const ComputerUseProviderSaving: Story = {
 	args: {
+		desktopEnabledData: { enable_desktop: true },
 		isSavingComputerUseProvider: true,
 	},
 	play: async ({ canvasElement }) => {

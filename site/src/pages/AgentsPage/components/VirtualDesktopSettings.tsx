@@ -67,7 +67,11 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 	const isDesktopSwitchDisabled =
 		isSavingDesktopEnabled || isLoadingDesktopEnabled;
 	const isComputerUseProviderSelectDisabled =
-		isSavingComputerUseProvider || isLoadingComputerUseProvider;
+		!desktopEnabled ||
+		isSavingDesktopEnabled ||
+		isLoadingDesktopEnabled ||
+		isSavingComputerUseProvider ||
+		isLoadingComputerUseProvider;
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -111,11 +115,11 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 					provider to be configured.
 				</p>
 			</div>
-			<div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+			<div className="ml-2 flex flex-col gap-2 border-0 border-l border-solid border-border pl-4 pt-2 sm:ml-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 				<div className="flex flex-col gap-1">
 					<h4
 						id="computer-use-provider-label"
-						className="m-0 text-sm font-semibold text-content-primary"
+						className="m-0 text-sm font-medium text-content-primary"
 					>
 						Computer use provider
 					</h4>
@@ -123,7 +127,8 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 						id="computer-use-provider-description"
 						className="m-0 text-xs text-content-secondary"
 					>
-						Select the provider agents use for computer-use actions.
+						Select the provider agents use for computer-use actions when virtual
+						desktop is enabled.
 					</p>
 				</div>
 				<Select
