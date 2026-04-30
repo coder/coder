@@ -171,17 +171,17 @@ var (
 	//go:embed bedrock/simple.req.json
 	BedrockSimpleReq []byte
 
-	//go:embed bedrock/simple.resp.bin
-	BedrockSimpleResp []byte
+	//go:embed bedrock/simple_streaming.resp.bin
+	BedrockSimpleStreamingResp []byte
+
+	//go:embed bedrock/simple_blocking.resp.json
+	BedrockSimpleBlockingResp []byte
 
 	//go:embed bedrock/single_builtin_tool.req.json
 	BedrockSingleBuiltinToolReq []byte
 
 	//go:embed bedrock/single_builtin_tool.resp.bin
 	BedrockSingleBuiltinToolResp []byte
-
-	//go:embed bedrock/simple_blocking.resp.json
-	BedrockSimpleBlockingResp []byte
 )
 
 // Section name constants matching the file names used in txtar fixtures.

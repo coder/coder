@@ -2151,7 +2151,7 @@ func TestNativeBedrockSimple(t *testing.T) {
 		{
 			name:            "streaming",
 			streaming:       true,
-			response:        fixtures.BedrockSimpleResp,
+			response:        fixtures.BedrockSimpleStreamingResp,
 			urlSuffix:       "/invoke-with-response-stream",
 			wantContentType: "application/vnd.amazon.eventstream",
 		},
