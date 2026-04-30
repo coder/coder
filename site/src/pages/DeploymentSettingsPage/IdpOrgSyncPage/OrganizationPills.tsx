@@ -22,10 +22,7 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	return (
 		<div className="flex flex-row gap-2">
 			{orgs.length > 0 ? (
-				<Pill
-					type={orgs[0].isUUID ? "error" : "muted"}
-					className="w-fit border-0"
-				>
+				<Pill type={orgs[0].isUUID ? "error" : "muted"} className="w-fit">
 					{orgs[0].name}
 				</Pill>
 			) : (
@@ -45,11 +42,7 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill
-					type="muted"
-					className="w-fit border-0"
-					data-testid="overflow-pill"
-				>
+				<Pill type="muted" className="w-fit" data-testid="overflow-pill">
 					+{organizations.length}
 				</Pill>
 			</TooltipTrigger>
@@ -60,7 +53,7 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 						<li key={organization.name}>
 							<Pill
 								type={organization.isUUID ? "error" : "muted"}
-								className="w-fit border-0"
+								className="w-fit"
 							>
 								{organization.name}
 							</Pill>

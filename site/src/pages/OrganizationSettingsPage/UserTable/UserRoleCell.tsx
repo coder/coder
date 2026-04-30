@@ -54,7 +54,6 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 		mainDisplayRole.name === "organization-admin";
 
 	const displayName = mainDisplayRole.display_name || mainDisplayRole.name;
-	const isOrgLocalMainPill = !hasOwnerRole && !mainDisplayRole.global;
 
 	return (
 		<TableCell>
@@ -83,12 +82,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 							? "notice"
 							: mainDisplayRole.global
 								? "active"
-								: "inactive"
-					}
-					className={
-						isOrgLocalMainPill
-							? "!border-border-secondary !bg-surface-secondary"
-							: undefined
+								: "muted"
 					}
 				>
 					{mainDisplayRole.global ? (
@@ -120,25 +114,12 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 		<TooltipProvider>
 			<Tooltip delayDuration={0}>
 				<TooltipTrigger asChild>
-					<Pill
-						type="inactive"
-						className="!border-border-default !bg-surface-primary"
-					>
-						+{roles.length} more
-					</Pill>
+					<Pill type="muted">+{roles.length} more</Pill>
 				</TooltipTrigger>
 
 				<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">
 					{roles.map((role) => (
-						<Pill
-							key={role.name}
-							type={role.global ? "active" : "inactive"}
-							className={
-								role.global
-									? undefined
-									: "!border-border-secondary !bg-surface-secondary"
-							}
-						>
+						<Pill key={role.name} type={role.global ? "active" : "muted"}>
 							{role.global ? (
 								<span title="This user has this role for all organizations.">
 									{role.display_name || role.name}*

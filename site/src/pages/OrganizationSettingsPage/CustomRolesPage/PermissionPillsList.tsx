@@ -76,7 +76,11 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill className="w-fit" data-testid="overflow-permissions-pill">
+				<Pill
+					type="muted"
+					className="w-fit"
+					data-testid="overflow-permissions-pill"
+				>
 					+{resources.length} more
 				</Pill>
 			</TooltipTrigger>

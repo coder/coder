@@ -36,7 +36,9 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill data-testid="overflow-pill">+{roles.length} more</Pill>
+				<Pill type="muted" className="w-fit" data-testid="overflow-pill">
+					+{roles.length} more
+				</Pill>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">
