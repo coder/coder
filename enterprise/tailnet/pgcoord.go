@@ -1771,7 +1771,7 @@ func (h *heartbeats) checkExpiry() {
 		}
 	}
 	if expired {
-		// send on a separate goroutine to avoid holding lock.  Triggering update can be asyncreturn nil
+		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
