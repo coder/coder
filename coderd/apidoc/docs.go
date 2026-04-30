@@ -1497,6 +1497,32 @@ const docTemplate = `{
                 ]
             }
         },
+        "/experimental/chats/models": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat models",
+                "operationId": "list-chat-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/experimental/chats/watch": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -15976,6 +16002,67 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatModel": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelProvider": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModel"
+                    }
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "unavailable_reason": {
+                    "$ref": "#/definitions/codersdk.ChatModelProviderUnavailableReason"
+                }
+            }
+        },
+        "codersdk.ChatModelProviderUnavailableReason": {
+            "type": "string",
+            "enum": [
+                "missing_api_key",
+                "fetch_failed",
+                "user_api_key_required"
+            ],
+            "x-enum-varnames": [
+                "ChatModelProviderUnavailableMissingAPIKey",
+                "ChatModelProviderUnavailableFetchFailed",
+                "ChatModelProviderUnavailableReasonUserAPIKeyRequired"
+            ]
+        },
+        "codersdk.ChatModelsResponse": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelProvider"
                     }
                 }
             }

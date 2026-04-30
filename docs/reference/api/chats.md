@@ -659,6 +659,53 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List chat models
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/models \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /experimental/chats/models`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "providers": [
+    {
+      "available": true,
+      "models": [
+        {
+          "display_name": "string",
+          "id": "string",
+          "model": "string",
+          "provider": "string"
+        }
+      ],
+      "provider": "string",
+      "unavailable_reason": "missing_api_key"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelsResponse](schemas.md#codersdkchatmodelsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Watch chat events for a user via WebSockets
 
 ### Code samples

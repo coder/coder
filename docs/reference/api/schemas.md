@@ -2943,6 +2943,95 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
 
+## codersdk.ChatModel
+
+```json
+{
+  "display_name": "string",
+  "id": "string",
+  "model": "string",
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `model`        | string | false    |              |             |
+| `provider`     | string | false    |              |             |
+
+## codersdk.ChatModelProvider
+
+```json
+{
+  "available": true,
+  "models": [
+    {
+      "display_name": "string",
+      "id": "string",
+      "model": "string",
+      "provider": "string"
+    }
+  ],
+  "provider": "string",
+  "unavailable_reason": "missing_api_key"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                                       | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `available`          | boolean                                                                                    | false    |              |             |
+| `models`             | array of [codersdk.ChatModel](#codersdkchatmodel)                                          | false    |              |             |
+| `provider`           | string                                                                                     | false    |              |             |
+| `unavailable_reason` | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
+
+## codersdk.ChatModelProviderUnavailableReason
+
+```json
+"missing_api_key"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                   |
+|------------------------------------------------------------|
+| `fetch_failed`, `missing_api_key`, `user_api_key_required` |
+
+## codersdk.ChatModelsResponse
+
+```json
+{
+  "providers": [
+    {
+      "available": true,
+      "models": [
+        {
+          "display_name": "string",
+          "id": "string",
+          "model": "string",
+          "provider": "string"
+        }
+      ],
+      "provider": "string",
+      "unavailable_reason": "missing_api_key"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                              | Required | Restrictions | Description |
+|-------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `providers` | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider) | false    |              |             |
+
 ## codersdk.ChatPlanMode
 
 ```json
