@@ -24654,9 +24654,10 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 	return i, err
 }
 
-const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :execrows
+const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :one
 DELETE FROM user_secrets
 WHERE user_id = $1 AND name = $2
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
 `
 
 type DeleteUserSecretByUserIDAndNameParams struct {
@@ -24664,12 +24665,46 @@ type DeleteUserSecretByUserIDAndNameParams struct {
 	Name   string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteUserSecretByUserIDAndName, arg.UserID, arg.Name)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+	)
+	return i, err
+}
+
+const getUserSecretByID = `-- name: GetUserSecretByID :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+FROM user_secrets
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByID, id)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+	)
+	return i, err
 }
 
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
@@ -33312,18 +33347,44 @@ func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg Up
 }
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name, id FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+SELECT
+	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id,
+	workspace_agent_script_timings.exit_code,
+	workspace_agent_script_timings.status
+	FROM workspace_agent_scripts
+	LEFT JOIN workspace_agent_script_timings
+		ON workspace_agent_script_timings.script_id = workspace_agent_scripts.id
+	WHERE workspace_agent_scripts.workspace_agent_id = ANY($1 :: uuid [ ])
+	ORDER BY workspace_agent_scripts.id, workspace_agent_script_timings.started_at
+	DESC NULLS LAST
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
+type GetWorkspaceAgentScriptsByAgentIDsRow struct {
+	WorkspaceAgentID uuid.UUID                            `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      uuid.UUID                            `db:"log_source_id" json:"log_source_id"`
+	LogPath          string                               `db:"log_path" json:"log_path"`
+	CreatedAt        time.Time                            `db:"created_at" json:"created_at"`
+	Script           string                               `db:"script" json:"script"`
+	Cron             string                               `db:"cron" json:"cron"`
+	StartBlocksLogin bool                                 `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       bool                                 `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        bool                                 `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   int32                                `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string                               `db:"display_name" json:"display_name"`
+	ID               uuid.UUID                            `db:"id" json:"id"`
+	ExitCode         sql.NullInt32                        `db:"exit_code" json:"exit_code"`
+	Status           NullWorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WorkspaceAgentScript
+	var items []GetWorkspaceAgentScriptsByAgentIDsRow
 	for rows.Next() {
-		var i WorkspaceAgentScript
+		var i GetWorkspaceAgentScriptsByAgentIDsRow
 		if err := rows.Scan(
 			&i.WorkspaceAgentID,
 			&i.LogSourceID,
@@ -33337,6 +33398,8 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 			&i.TimeoutSeconds,
 			&i.DisplayName,
 			&i.ID,
+			&i.ExitCode,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}

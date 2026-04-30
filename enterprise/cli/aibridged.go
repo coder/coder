@@ -116,6 +116,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 				Name:             name,
 				BaseURL:          p.BaseURL,
 				Key:              p.Key,
+				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
 			}))
@@ -124,6 +125,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 				Name:             name,
 				BaseURL:          p.BaseURL,
 				Key:              p.Key,
+				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
 			}, bedrockConfigFromProvider(p)))
@@ -131,6 +133,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 			providers = append(providers, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
 				Name:           name,
 				BaseURL:        p.BaseURL,
+				APIDumpDir:     p.DumpDir,
 				CircuitBreaker: cbConfig,
 			}))
 		default:

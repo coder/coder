@@ -794,6 +794,7 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
+			Logger(api.Logger.Named("wsbuilder")).
 			BuildMetrics(api.WorkspaceBuilderMetrics)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
@@ -860,7 +861,7 @@ func createWorkspace(
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
 		[]database.WorkspaceAppStatus{},
-		[]database.WorkspaceAgentScript{},
+		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 		provisionerDaemons,

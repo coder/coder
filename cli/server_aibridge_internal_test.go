@@ -34,6 +34,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-zdr",
 				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant-xxx",
 				"CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
+				"CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR=/tmp/aibridge-dump",
 			},
 			expected: []codersdk.AIBridgeProviderConfig{
 				{
@@ -41,6 +42,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 					Name:    "anthropic-zdr",
 					Key:     "sk-ant-xxx",
 					BaseURL: "https://api.anthropic.com/",
+					DumpDir: "/tmp/aibridge-dump",
 				},
 			},
 		},

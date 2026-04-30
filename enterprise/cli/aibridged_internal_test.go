@@ -43,8 +43,19 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Key: "sk-zdr"},
-				{Type: aibridge.ProviderOpenAI, Name: "openai-azure", Key: "sk-azure", BaseURL: "https://azure.openai.com"},
+				{
+					Type:    aibridge.ProviderAnthropic,
+					Name:    "anthropic-zdr",
+					Key:     "sk-zdr",
+					DumpDir: "/tmp/anthropic-dump",
+				},
+				{
+					Type:    aibridge.ProviderOpenAI,
+					Name:    "openai-azure",
+					Key:     "sk-azure",
+					BaseURL: "https://azure.openai.com",
+					DumpDir: "/tmp/openai-dump",
+				},
 			},
 		}
 
@@ -53,6 +64,8 @@ func TestBuildProviders(t *testing.T) {
 
 		names := providerNames(providers)
 		assert.Equal(t, []string{"anthropic-zdr", "openai-azure"}, names)
+		assert.Equal(t, "/tmp/anthropic-dump", providers[0].APIDumpDir())
+		assert.Equal(t, "/tmp/openai-dump", providers[1].APIDumpDir())
 	})
 
 	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
@@ -154,7 +167,7 @@ func TestBuildProviders(t *testing.T) {
 		// Copilot API hosts via an explicit BASE_URL.
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot},
+				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot, DumpDir: "/tmp/copilot-dump"},
 				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness},
 				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotEnterprise, BaseURL: "https://" + agplaibridge.HostCopilotEnterprise},
 			},
@@ -165,6 +178,7 @@ func TestBuildProviders(t *testing.T) {
 		require.Len(t, providers, 3)
 
 		assert.Equal(t, aibridge.ProviderCopilot, providers[0].Name())
+		assert.Equal(t, "/tmp/copilot-dump", providers[0].APIDumpDir())
 		assert.Equal(t, agplaibridge.ProviderCopilotBusiness, providers[1].Name())
 		assert.Equal(t, "https://"+agplaibridge.HostCopilotBusiness, providers[1].BaseURL())
 		assert.Equal(t, agplaibridge.ProviderCopilotEnterprise, providers[2].Name())

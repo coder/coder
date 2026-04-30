@@ -4114,6 +4114,8 @@ type AIBridgeProviderConfig struct {
 	Key string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
+	// DumpDir is the directory path for dumping API requests and responses.
+	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
 	BedrockBaseURL         string `json:"-"`

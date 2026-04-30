@@ -13312,6 +13312,10 @@ const docTemplate = `{
                 "bedrock_small_fast_model": {
                     "type": "string"
                 },
+                "dump_dir": {
+                    "description": "DumpDir is the directory path for dumping API requests and responses.",
+                    "type": "string"
+                },
                 "name": {
                     "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
                     "type": "string"
@@ -16194,6 +16198,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.PreviewParameter"
+                    }
+                },
+                "secret_requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SecretRequirementStatus"
                     }
                 }
             }
@@ -19773,7 +19783,8 @@ const docTemplate = `{
                 "workspace_app",
                 "task",
                 "ai_seat",
-                "chat"
+                "chat",
+                "user_secret"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -19803,7 +19814,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
                 "ResourceTypeAISeat",
-                "ResourceTypeChat"
+                "ResourceTypeChat",
+                "ResourceTypeUserSecret"
             ]
         },
         "codersdk.Response": {
@@ -19947,6 +19959,23 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.SecretRequirementStatus": {
+            "type": "object",
+            "properties": {
+                "env": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "help_message": {
+                    "type": "string"
+                },
+                "satisfied": {
+                    "type": "boolean"
                 }
             }
         },
@@ -22889,6 +22918,9 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "exit_code": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -22912,10 +22944,28 @@ const docTemplate = `{
                 "start_blocks_login": {
                     "type": "boolean"
                 },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentScriptStatus"
+                },
                 "timeout": {
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentScriptStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "exit_failure",
+                "timed_out",
+                "pipes_left_open"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentScriptStatusOK",
+                "WorkspaceAgentScriptStatusExitFailure",
+                "WorkspaceAgentScriptStatusTimedOut",
+                "WorkspaceAgentScriptStatusPipesLeftOpen"
+            ]
         },
         "codersdk.WorkspaceAgentStartupScriptBehavior": {
             "type": "string",

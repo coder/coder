@@ -67,7 +67,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		ctx        = r.Context()
 		waws       = httpmw.WorkspaceAgentAndWorkspaceParam(r)
 		dbApps     []database.WorkspaceApp
-		scripts    []database.WorkspaceAgentScript
+		scripts    []database.GetWorkspaceAgentScriptsByAgentIDsRow
 		logSources []database.WorkspaceAgentLogSource
 	)
 
@@ -1634,21 +1634,10 @@ func convertLogSources(dbLogSources []database.WorkspaceAgentLogSource) []coders
 	return logSources
 }
 
-func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.WorkspaceAgentScript {
+func convertScripts(dbScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []codersdk.WorkspaceAgentScript {
 	scripts := make([]codersdk.WorkspaceAgentScript, 0)
 	for _, dbScript := range dbScripts {
-		scripts = append(scripts, codersdk.WorkspaceAgentScript{
-			ID:               dbScript.ID,
-			LogPath:          dbScript.LogPath,
-			LogSourceID:      dbScript.LogSourceID,
-			Script:           dbScript.Script,
-			Cron:             dbScript.Cron,
-			RunOnStart:       dbScript.RunOnStart,
-			RunOnStop:        dbScript.RunOnStop,
-			StartBlocksLogin: dbScript.StartBlocksLogin,
-			Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
-			DisplayName:      dbScript.DisplayName,
-		})
+		scripts = append(scripts, db2sdk.WorkspaceAgentScript(dbScript))
 	}
 	return scripts
 }

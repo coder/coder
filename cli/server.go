@@ -2981,6 +2981,8 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			provider.Key = v.Value
 		case "BASE_URL":
 			provider.BaseURL = v.Value
+		case "DUMP_DIR":
+			provider.DumpDir = v.Value
 		case "BEDROCK_BASE_URL":
 			provider.BedrockBaseURL = v.Value
 		case "BEDROCK_REGION":
