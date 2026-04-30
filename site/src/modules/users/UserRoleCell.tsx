@@ -1,18 +1,3 @@
-/**
- * @file Defines the visual logic for the Roles cell in the Users page table.
- *
- * The previous implementation tried to dynamically truncate the number of roles
- * that would get displayed in a cell, only truncating if there were more roles
- * than room in the cell. But there was a problem – that information can't
- * exist on the first render, because the DOM nodes haven't been made yet.
- *
- * The only way to avoid UI flickering was by juggling between useLayoutEffect
- * for direct DOM node mutations for any renders that had new data, and normal
- * state logic for all other renders. It was clunky, and required duplicating
- * the logic in two places (making things easy to accidentally break), so we
- * went with a simpler design. If we decide we really do need to display the
- * users like that, though, know that it will be painful
- */
 import type { SlimRole } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell } from "#/components/Table/Table";
