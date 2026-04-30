@@ -2604,9 +2604,11 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 }
 
 func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
-	// The computer-use provider is a deployment-wide setting read by any
-	// authenticated chat user. We only require that an explicit actor is
-	// present in the context so unauthenticated calls fail closed.
+	// The computer-use provider is a deployment-wide runtime chat setting
+	// read by authenticated chat users and chatd. Feature and experiment
+	// access is enforced at caller and API boundaries where applicable, so
+	// this matches peer runtime config getters and only requires an explicit
+	// actor so unauthenticated calls fail closed.
 	if _, ok := ActorFromContext(ctx); !ok {
 		return "", ErrNoActor
 	}
