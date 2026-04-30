@@ -10304,7 +10304,7 @@ func TestChatModelOverrides(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
-func TestChatTitleGenerationModelConfig(t *testing.T) {
+func TestChatTitleGenerationModelOverride(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -10326,13 +10326,13 @@ func TestChatTitleGenerationModelConfig(t *testing.T) {
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	getConfig := func(ctx context.Context) (codersdk.ChatTitleGenerationModelConfigResponse, error) {
-		return adminClient.GetChatTitleGenerationModelConfig(ctx)
+	getOverride := func(ctx context.Context) (codersdk.ChatTitleGenerationModelOverrideResponse, error) {
+		return adminClient.GetChatTitleGenerationModelOverride(ctx)
 	}
-	putConfig := func(ctx context.Context, modelConfigID string) error {
-		return adminClient.UpdateChatTitleGenerationModelConfig(
+	putOverride := func(ctx context.Context, modelConfigID string) error {
+		return adminClient.UpdateChatTitleGenerationModelOverride(
 			ctx,
-			codersdk.UpdateChatTitleGenerationModelConfigRequest{ModelConfigID: modelConfigID},
+			codersdk.UpdateChatTitleGenerationModelOverrideRequest{ModelConfigID: modelConfigID},
 		)
 	}
 	getRaw := func(ctx context.Context) string {
@@ -10343,7 +10343,7 @@ func TestChatTitleGenerationModelConfig(t *testing.T) {
 	}
 
 	t.Run("DefaultGETReturnsEmpty", func(t *testing.T) {
-		resp, err := getConfig(ctx)
+		resp, err := getOverride(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resp.ModelConfigID)
 		require.False(t, resp.IsMalformed)
@@ -10351,25 +10351,25 @@ func TestChatTitleGenerationModelConfig(t *testing.T) {
 	})
 
 	t.Run("AdminPUTEmptyClearsSetting", func(t *testing.T) {
-		err := putConfig(ctx, openAIModel.ID.String())
+		err := putOverride(ctx, openAIModel.ID.String())
 		require.NoError(t, err)
 		require.Equal(t, openAIModel.ID.String(), getRaw(ctx))
 
-		err = putConfig(ctx, "")
+		err = putOverride(ctx, "")
 		require.NoError(t, err)
 		require.Empty(t, getRaw(ctx))
 
-		resp, err := getConfig(ctx)
+		resp, err := getOverride(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resp.ModelConfigID)
 		require.False(t, resp.IsMalformed)
 	})
 
 	t.Run("AdminPUTValidEnabledModelSucceeds", func(t *testing.T) {
-		err := putConfig(ctx, openAIModel.ID.String())
+		err := putOverride(ctx, openAIModel.ID.String())
 		require.NoError(t, err)
 
-		resp, err := getConfig(ctx)
+		resp, err := getOverride(ctx)
 		require.NoError(t, err)
 		require.Equal(t, openAIModel.ID.String(), resp.ModelConfigID)
 		require.False(t, resp.IsMalformed)
@@ -10377,22 +10377,27 @@ func TestChatTitleGenerationModelConfig(t *testing.T) {
 	})
 
 	t.Run("NonAdminPUTReturns403", func(t *testing.T) {
-		err := memberClient.UpdateChatTitleGenerationModelConfig(
+		err := memberClient.UpdateChatTitleGenerationModelOverride(
 			ctx,
-			codersdk.UpdateChatTitleGenerationModelConfigRequest{ModelConfigID: defaultModel.ID.String()},
+			codersdk.UpdateChatTitleGenerationModelOverrideRequest{ModelConfigID: defaultModel.ID.String()},
 		)
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 
+	t.Run("NonAdminGETReturns404", func(t *testing.T) {
+		_, err := memberClient.GetChatTitleGenerationModelOverride(ctx)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
 	t.Run("InvalidUUIDReturns400", func(t *testing.T) {
-		err := putConfig(ctx, "not-a-uuid")
+		err := putOverride(ctx, "not-a-uuid")
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
 		require.Equal(t, "Value \"not-a-uuid\" is not a valid UUID.", sdkErr.Detail)
 	})
 
 	t.Run("DisabledModelReturns400", func(t *testing.T) {
-		err := putConfig(ctx, disabledModel.ID.String())
+		err := putOverride(ctx, disabledModel.ID.String())
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
 	})
@@ -10404,7 +10409,7 @@ func TestChatTitleGenerationModelConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		resp, err := getConfig(ctx)
+		resp, err := getOverride(ctx)
 		require.NoError(t, err)
 		require.Empty(t, resp.ModelConfigID)
 		require.True(t, resp.IsMalformed)

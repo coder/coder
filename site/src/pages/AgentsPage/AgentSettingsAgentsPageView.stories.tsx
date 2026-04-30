@@ -39,9 +39,9 @@ const buildOverrideData = (
 	...overrides,
 });
 
-const buildTitleGenerationModelData = (
-	overrides: Partial<TypesGen.ChatTitleGenerationModelConfigResponse> = {},
-): TypesGen.ChatTitleGenerationModelConfigResponse => ({
+const buildTitleGenerationModelOverrideData = (
+	overrides: Partial<TypesGen.ChatTitleGenerationModelOverrideResponse> = {},
+): TypesGen.ChatTitleGenerationModelOverrideResponse => ({
 	model_config_id: "",
 	is_malformed: false,
 	...overrides,
@@ -113,7 +113,7 @@ const makeArgs = (
 	overrides: Partial<AgentSettingsAgentsPageViewProps> = {},
 ): AgentSettingsAgentsPageViewProps => ({
 	generalModelOverrideData: buildOverrideData("general"),
-	titleGenerationModelData: buildTitleGenerationModelData(),
+	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
 	modelConfigsError: undefined,
@@ -212,7 +212,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 		generalModelOverrideData: buildOverrideData("general", {
 			model_config_id: generalModelConfig.id,
 		}),
-		titleGenerationModelData: buildTitleGenerationModelData({
+		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			model_config_id: titleModelConfig.id,
 		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
@@ -307,7 +307,7 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 		generalModelOverrideData: buildOverrideData("general", {
 			is_malformed: true,
 		}),
-		titleGenerationModelData: buildTitleGenerationModelData({
+		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			is_malformed: true,
 		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
@@ -378,7 +378,7 @@ export const UnavailableSavedModels: Story = {
 		generalModelOverrideData: buildOverrideData("general", {
 			model_config_id: generalDisabledModelConfig.id,
 		}),
-		titleGenerationModelData: buildTitleGenerationModelData({
+		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			model_config_id: titleDisabledModelConfig.id,
 		}),
 		exploreModelOverrideData: buildOverrideData("explore", {

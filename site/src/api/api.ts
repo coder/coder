@@ -3282,17 +3282,17 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatTitleGenerationModelConfig =
-		async (): Promise<TypesGen.ChatTitleGenerationModelConfigResponse> => {
+	getChatTitleGenerationModelOverride =
+		async (): Promise<TypesGen.ChatTitleGenerationModelOverrideResponse> => {
 			const response =
-				await this.axios.get<TypesGen.ChatTitleGenerationModelConfigResponse>(
+				await this.axios.get<TypesGen.ChatTitleGenerationModelOverrideResponse>(
 					"/api/experimental/chats/config/title-generation-model",
 				);
 			return response.data;
 		};
 
-	updateChatTitleGenerationModelConfig = async (
-		req: TypesGen.UpdateChatTitleGenerationModelConfigRequest,
+	updateChatTitleGenerationModelOverride = async (
+		req: TypesGen.UpdateChatTitleGenerationModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
 			"/api/experimental/chats/config/title-generation-model",

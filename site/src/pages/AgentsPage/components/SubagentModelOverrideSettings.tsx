@@ -12,7 +12,7 @@ export interface MutationCallbacks {
 }
 
 interface ModelOverrideData {
-	readonly model_config_id?: string;
+	readonly model_config_id: string;
 	readonly is_malformed: boolean;
 }
 

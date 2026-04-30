@@ -590,7 +590,7 @@ func (api *API) upsertChatAgentModelOverrideConfig(
 	return siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID))
 }
 
-func (api *API) readChatTitleGenerationModelConfig(
+func (api *API) readChatTitleGenerationModelOverrideHTTP(
 	ctx context.Context,
 ) (*uuid.UUID, bool, error) {
 	return api.getChatModelOverrideConfig(
@@ -600,7 +600,7 @@ func (api *API) readChatTitleGenerationModelConfig(
 	)
 }
 
-func (api *API) upsertChatTitleGenerationModelConfig(
+func (api *API) upsertChatTitleGenerationModelOverride(
 	ctx context.Context,
 	modelConfigID *uuid.UUID,
 ) error {
@@ -4069,14 +4069,14 @@ func (api *API) putChatAgentModelOverride(rw http.ResponseWriter, r *http.Reques
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatTitleGenerationModelConfig(rw http.ResponseWriter, r *http.Request) {
+func (api *API) getChatTitleGenerationModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	modelConfigID, isMalformed, err := api.readChatTitleGenerationModelConfig(ctx)
+	modelConfigID, isMalformed, err := api.readChatTitleGenerationModelOverrideHTTP(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching title generation model override.",
@@ -4085,7 +4085,7 @@ func (api *API) getChatTitleGenerationModelConfig(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	resp := codersdk.ChatTitleGenerationModelConfigResponse{
+	resp := codersdk.ChatTitleGenerationModelOverrideResponse{
 		ModelConfigID: formatChatModelOverride(modelConfigID),
 		IsMalformed:   isMalformed,
 	}
@@ -4094,14 +4094,14 @@ func (api *API) getChatTitleGenerationModelConfig(rw http.ResponseWriter, r *htt
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatTitleGenerationModelConfig(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putChatTitleGenerationModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	var req codersdk.UpdateChatTitleGenerationModelConfigRequest
+	var req codersdk.UpdateChatTitleGenerationModelOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -4121,7 +4121,7 @@ func (api *API) putChatTitleGenerationModelConfig(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	if err := api.upsertChatTitleGenerationModelConfig(ctx, modelConfigID); err != nil {
+	if err := api.upsertChatTitleGenerationModelOverride(ctx, modelConfigID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating title generation model override.",
 			Detail:  err.Error(),

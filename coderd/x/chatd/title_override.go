@@ -18,93 +18,109 @@ import (
 
 const titleGenerationOverrideContext = "title_generation"
 
+type titleGenerationModelOverrideRead struct {
+	id          uuid.UUID
+	rawValue    string
+	isSet       bool
+	isMalformed bool
+	parseErr    error
+}
+
 func readTitleGenerationModelOverride(
 	ctx context.Context,
 	db database.Store,
-) (modelConfigID string, isMalformed bool, err error) {
+) (titleGenerationModelOverrideRead, error) {
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	raw, err := db.GetChatTitleGenerationModelOverride(chatdCtx)
 	if err != nil {
-		return "", false, err
+		return titleGenerationModelOverrideRead{}, xerrors.Errorf(
+			"get chat title generation model override: %w",
+			err,
+		)
 	}
 
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return "", false, nil
+		return titleGenerationModelOverrideRead{}, nil
 	}
 	modelConfigUUID, err := uuid.Parse(trimmed)
 	if err != nil {
-		return "", true, nil
+		return titleGenerationModelOverrideRead{
+			rawValue:    trimmed,
+			isSet:       true,
+			isMalformed: true,
+			parseErr:    err,
+		}, nil
 	}
-	return modelConfigUUID.String(), false, nil
+	return titleGenerationModelOverrideRead{
+		id:       modelConfigUUID,
+		rawValue: trimmed,
+		isSet:    true,
+	}, nil
 }
 
-// resolveTitleGenerationModelConfig resolves the deployment-wide title
+// resolveTitleGenerationModelOverride resolves the deployment-wide title
 // generation model override. It returns four values:
 //
 //   - modelConfig and model: populated only on success.
 //   - overrideSet: true when the admin configured a non-empty override,
 //     regardless of whether resolution succeeded. Callers MUST always check
 //     err first; overrideSet alone does not imply the model is usable.
-//   - err: non-nil when resolution failed. With overrideSet=true, the
-//     override is configured but unusable (deleted model, missing credentials,
-//     etc.) and callers should treat this as a hard failure for
-//     explicit-override semantics, not a soft fallback.
+//   - err: non-nil when resolution failed. DB read failure returns
+//     (zero, nil, false, err). With overrideSet=true, the override is
+//     configured but unusable (deleted model, missing credentials, etc.) and
+//     callers should treat this as a hard failure for explicit-override
+//     semantics, not a soft fallback.
 //
 // When the override is unset or stored as malformed, the function returns
 // (zero, nil, false, nil) so callers can fall back to default behavior.
-func (p *Server) resolveTitleGenerationModelConfig(
+func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (database.ChatModelConfig, fantasy.LanguageModel, bool, error) {
-	modelConfigID, malformed, err := readTitleGenerationModelOverride(ctx, p.db)
+	read, err := readTitleGenerationModelOverride(ctx, p.db)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
 		)
 	}
-	if malformed {
+	if read.isMalformed {
 		p.logger.Info(ctx,
 			"invalid model override, ignoring",
 			slog.F("override_context", titleGenerationOverrideContext),
+			slog.F("raw_value", read.rawValue),
+			slog.Error(read.parseErr),
 		)
 		return database.ChatModelConfig{}, nil, false, nil
 	}
-	if modelConfigID == "" {
+	if !read.isSet {
 		return database.ChatModelConfig{}, nil, false, nil
 	}
 
-	configuredModelConfigID, err := uuid.Parse(modelConfigID)
-	if err != nil {
-		return database.ChatModelConfig{}, nil, false, xerrors.Errorf(
-			"parse normalized title generation model override: %w",
-			err,
-		)
-	}
 	modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(
 		ctx,
-		configuredModelConfigID,
+		read.id,
 	)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
 				"title generation model override is unavailable: %s",
-				configuredModelConfigID,
+				read.id,
 			)
 		case errors.Is(err, errInvalidModelOverrideMetadata):
 			return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
 				"title generation model override metadata is invalid for %s: %w",
-				configuredModelConfigID,
+				read.id,
 				err,
 			)
 		default:
 			return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
 				"resolve title generation model override %s: %w",
-				configuredModelConfigID,
+				read.id,
 				err,
 			)
 		}

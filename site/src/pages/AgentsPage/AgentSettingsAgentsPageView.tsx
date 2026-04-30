@@ -13,7 +13,7 @@ type SaveModelOverride = (
 
 export interface AgentSettingsAgentsPageViewProps {
 	generalModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
-	titleGenerationModelData?: TypesGen.ChatTitleGenerationModelConfigResponse;
+	titleGenerationModelOverrideData?: TypesGen.ChatTitleGenerationModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	modelConfigsError: unknown;
@@ -33,7 +33,7 @@ export const AgentSettingsAgentsPageView: FC<
 	AgentSettingsAgentsPageViewProps
 > = ({
 	generalModelOverrideData,
-	titleGenerationModelData,
+	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
 	modelConfigsData,
 	modelConfigsError,
@@ -97,7 +97,7 @@ export const AgentSettingsAgentsPageView: FC<
 				<SubagentModelOverrideSettings
 					title="Title generation model"
 					description="Choose a model for generated chat titles."
-					modelOverrideData={titleGenerationModelData}
+					modelOverrideData={titleGenerationModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
 					modelConfigsError={modelConfigsError}
 					isLoading={isLoadingModelConfigs}

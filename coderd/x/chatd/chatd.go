@@ -3110,7 +3110,7 @@ func (p *Server) resolveManualTitleModel(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (fantasy.LanguageModel, database.ChatModelConfig, error) {
-	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelConfig(
+	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
 		keys,
@@ -3122,9 +3122,11 @@ func (p *Server) resolveManualTitleModel(
 				overrideErr,
 			)
 		}
-		return nil, database.ChatModelConfig{}, overrideErr
-	}
-	if overrideSet {
+		p.logger.Debug(ctx, "failed to resolve title generation model override for manual title",
+			slog.F("chat_id", chat.ID),
+			slog.Error(overrideErr),
+		)
+	} else if overrideSet {
 		return overrideModel, overrideConfig, nil
 	}
 

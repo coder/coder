@@ -2,6 +2,7 @@ package chatd //nolint:testpackage // Tests internal title override helpers.
 
 import (
 	"context"
+	"database/sql"
 	"sync/atomic"
 	"testing"
 
@@ -122,6 +123,53 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, wantTitle, gotTitle)
 	})
+}
+
+func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, messages := titleOverrideTestChatAndMessages(t)
+	wantTitle := "Fallback title"
+
+	var fallbackCalls atomic.Int32
+	fallbackModel := &chattest.FakeModel{
+		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			fallbackCalls.Add(1)
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": wantTitle},
+			}, nil
+		},
+	}
+
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
+	db.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+		ID:    chat.ID,
+		Title: wantTitle,
+	}).Return(chatWithTitle(chat, wantTitle), nil)
+
+	generated := &generatedChatTitle{}
+	server := titleOverrideTestServer(db, logger)
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		messages,
+		"openai",
+		"fallback-chat-model",
+		fallbackModel,
+		chatprovider.ProviderAPIKeys{},
+		generated,
+		logger,
+		nil,
+	)
+
+	require.Equal(t, int32(1), fallbackCalls.Load())
+	gotTitle, ok := generated.Load()
+	require.True(t, ok)
+	require.Equal(t, wantTitle, gotTitle)
 }
 
 func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {

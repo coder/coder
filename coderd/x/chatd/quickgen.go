@@ -131,14 +131,14 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelConfig(
+	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		titleCtx,
 		chat,
 		keys,
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			logger.Info(ctx, "title generation model override unavailable, skipping title generation",
+			logger.Warn(ctx, "title generation model override unavailable, skipping title generation",
 				slog.F("chat_id", chat.ID),
 				slog.F("override_context", titleGenerationOverrideContext),
 				slog.Error(overrideErr),
@@ -228,16 +228,20 @@ func (p *Server) maybeGenerateChatTitle(
 		finishDebugRun(err)
 		if err != nil {
 			lastErr = err
-			fields := []slog.Field{
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			}
 			if overrideSet {
-				fields = append(fields,
+				logger.Warn(ctx, "title model candidate failed",
+					slog.F("chat_id", chat.ID),
 					slog.F("override_context", titleGenerationOverrideContext),
+					slog.F("provider", candidate.provider),
+					slog.F("model", candidate.model),
+					slog.Error(err),
+				)
+			} else {
+				logger.Debug(ctx, "title model candidate failed",
+					slog.F("chat_id", chat.ID),
+					slog.Error(err),
 				)
 			}
-			logger.Debug(ctx, "title model candidate failed", fields...)
 			continue
 		}
 		if title == "" || title == chat.Title {
@@ -262,16 +266,18 @@ func (p *Server) maybeGenerateChatTitle(
 	}
 
 	if lastErr != nil {
-		fields := []slog.Field{
-			slog.F("chat_id", chat.ID),
-			slog.Error(lastErr),
-		}
 		if overrideSet {
-			fields = append(fields,
+			logger.Warn(ctx, "all title model candidates failed",
+				slog.F("chat_id", chat.ID),
 				slog.F("override_context", titleGenerationOverrideContext),
+				slog.Error(lastErr),
+			)
+		} else {
+			logger.Debug(ctx, "all title model candidates failed",
+				slog.F("chat_id", chat.ID),
+				slog.Error(lastErr),
 			)
 		}
-		logger.Debug(ctx, "all title model candidates failed", fields...)
 	}
 }
 

@@ -161,7 +161,7 @@ const AgentsRouteElement = () => (
 			model_config_id: "",
 			is_malformed: false,
 		}}
-		titleGenerationModelData={{
+		titleGenerationModelOverrideData={{
 			model_config_id: "",
 			is_malformed: false,
 		}}
