@@ -107,22 +107,30 @@ func allSubagentDefinitions() []subagentDefinition {
 				if !p.isDesktopEnabled(ctx) {
 					return `type "computer_use" is unavailable because desktop access is not enabled`
 				}
-				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return fmt.Sprintf(
 						`type "computer_use" is unavailable because %s`,
 						err.Error(),
 					)
 				}
-				if !p.isProviderConfigured(ctx, provider) {
-					return fmt.Sprintf(
-						`type "computer_use" is unavailable because the selected provider %q has no API key configured`,
+				return ""
+			},
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				configured, err := p.providerConfigured(ctx, provider)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				if !configured {
+					return childSubagentChatOptions{}, xerrors.Errorf(
+						`API key for computer-use provider %q is not configured`,
 						provider,
 					)
 				}
-				return ""
-			},
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,

@@ -77,28 +77,28 @@ type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
 }
 
-// isProviderConfigured reports whether a provider has an API key from
+// providerConfigured reports whether a provider has an API key from
 // static configuration or from the database provider configuration.
-func (p *Server) isProviderConfigured(ctx context.Context, provider string) bool {
+func (p *Server) providerConfigured(ctx context.Context, provider string) (bool, error) {
 	normalizedProvider := chatprovider.NormalizeProvider(provider)
 	if normalizedProvider == "" {
-		return false
+		return false, nil
 	}
 	if p.providerAPIKeys.APIKey(normalizedProvider) != "" {
-		return true
+		return true, nil
 	}
 
 	dbProviders, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
-		return false
+		return false, xerrors.Errorf("list enabled chat providers: %w", err)
 	}
 	for _, prov := range dbProviders {
 		if chatprovider.NormalizeProvider(prov.Provider) == normalizedProvider &&
 			strings.TrimSpace(prov.APIKey) != "" {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {

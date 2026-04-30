@@ -1324,7 +1324,7 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	require.Contains(t, description, subagentTypeComputerUse)
 }
 
-func TestSpawnAgent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
+func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1334,7 +1334,7 @@ func TestSpawnAgent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-unavailable",
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-missing-key",
 	)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
@@ -1343,7 +1343,7 @@ func TestSpawnAgent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
 	description := tool.Info().Description
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
-	require.NotContains(t, description, subagentTypeComputerUse)
+	require.Contains(t, description, subagentTypeComputerUse)
 }
 
 func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
@@ -1428,7 +1428,7 @@ func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing
 	require.NotContains(t, guidance, "may inspect or modify workspace files")
 }
 
-func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
+func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1451,9 +1451,9 @@ func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		spawnAgentArgs{Type: "invalid", Prompt: "delegate work"},
 	)
 	require.True(t, invalidResp.IsError)
-	require.Contains(t, invalidResp.Content, "type must be one of: general, explore")
+	require.Contains(t, invalidResp.Content, "type must be one of: general, explore, computer_use")
 
-	unavailableResp := runSubagentTool(
+	credentialResp := runSubagentTool(
 		ctx,
 		t,
 		server,
@@ -1462,8 +1462,10 @@ func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		spawnAgentToolName,
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
-	require.True(t, unavailableResp.IsError)
-	require.Contains(t, unavailableResp.Content, `type "computer_use" is unavailable because the selected provider "anthropic" has no API key configured`)
+	require.True(t, credentialResp.IsError)
+	require.Contains(t, credentialResp.Content, "API key")
+	require.Contains(t, credentialResp.Content, "computer-use")
+	require.Contains(t, credentialResp.Content, "anthropic")
 }
 
 func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) {
@@ -1518,12 +1520,32 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-missing",
 	)
 
+	ids := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.Contains(t, ids, subagentTypeComputerUse)
+	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
+		OwnerID:   user.ID,
+		AfterID:   uuid.Nil,
+		OffsetOpt: 0,
+		LimitOpt:  100,
+	})
+	require.NoError(t, err)
+
 	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeComputerUse,
 		Prompt: "open the browser",
 	})
 	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, `selected provider "openai" has no API key configured`)
+	require.Contains(t, resp.Content, "API key")
+	require.Contains(t, resp.Content, "computer-use")
+	require.Contains(t, resp.Content, "openai")
+	afterChats, err := db.GetChats(ctx, database.GetChatsParams{
+		OwnerID:   user.ID,
+		AfterID:   uuid.Nil,
+		OffsetOpt: 0,
+		LimitOpt:  100,
+	})
+	require.NoError(t, err)
+	require.Len(t, afterChats, len(beforeChats))
 }
 
 func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
