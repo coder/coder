@@ -449,21 +449,7 @@ network boundaries, scoping credentials, and pre-installing dependencies.
 After completing the migration steps above, walk through these checks to
 confirm the Chats API integration is working end-to-end.
 
-### 1. Verify the experiment is active
-
-On current releases that still gate the API behind the `agents` experiment,
-confirm it is enabled on your deployment:
-
-```sh
-curl -s https://coder.example.com/api/v2/buildinfo \
-  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.experiments'
-```
-
-The response should include `"agents"` in the array. On the May Beta
-release and later this check is no longer required, since the flag is
-removed.
-
-### 2. Confirm LLM provider connectivity
+### 1. Confirm LLM provider connectivity
 
 List available models to verify at least one provider is configured and
 reachable:
@@ -476,7 +462,7 @@ curl -s https://coder.example.com/api/experimental/chats/models \
 If this returns an empty list or an error, revisit
 [Step 1: Configure an LLM provider](#1-configure-an-llm-provider).
 
-### 3. Create a chat and confirm the response
+### 2. Create a chat and confirm the response
 
 Create a simple chat that does not require a workspace:
 
@@ -492,7 +478,7 @@ curl -s -X POST https://coder.example.com/api/experimental/chats \
 You should receive a `Chat` object with `status` set to `"waiting"` or
 `"pending"`. Save the `id` for subsequent steps.
 
-### 4. Stream the response
+### 3. Stream the response
 
 Open a WebSocket connection to verify the agent processes the prompt and
 returns a response. Using [websocat](https://github.com/vi/websocat):
@@ -506,7 +492,7 @@ You should see JSON envelopes with `"type": "data"` containing
 `message_part` and `status` events. The chat should eventually reach
 `"waiting"` status, indicating the agent completed its response.
 
-### 5. Send a follow-up message
+### 4. Send a follow-up message
 
 Verify multi-turn conversation works:
 
@@ -524,7 +510,7 @@ The response should include `"queued": false` (delivered immediately) or
 `"queued": true` (agent was busy. The message is queued and will be
 processed next).
 
-### 6. Test workspace provisioning
+### 5. Test workspace provisioning
 
 Create a chat that requires workspace access to confirm the agent can
 select a template and provision infrastructure:
@@ -553,7 +539,7 @@ curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
 A non-null `workspace_id` confirms the agent successfully provisioned a
 workspace.
 
-### 7. Verify interrupt works
+### 6. Verify interrupt works
 
 Start a long-running chat and interrupt it:
 
@@ -570,7 +556,7 @@ curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.status'
 ```
 
-### 8. Validate archive and restore
+### 7. Validate archive and restore
 
 ```sh
 # Archive
@@ -598,8 +584,6 @@ curl -s -X PATCH \
 
 Use this checklist to confirm each part of your integration:
 
-- [ ] `agents` experiment is enabled (or you are running the May Beta or
-      later, where the flag is removed)
 - [ ] At least one LLM model is configured and returned by `/chats/models`
 - [ ] `POST /chats` creates a chat and returns a valid `Chat` object
 - [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
