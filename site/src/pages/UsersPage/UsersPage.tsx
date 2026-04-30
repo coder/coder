@@ -139,6 +139,7 @@ const UsersPage: React.FC = () => {
 				key={userToEditRoles?.username}
 				user={userToEditRoles}
 				availableRoles={rolesQuery.data}
+				onCancel={() => setUserToEditRoles(undefined)}
 				onUpdateUserRoles={async (userId, roles) => {
 					try {
 						await updateUserRolesMutation.mutateAsync({ userId, roles });

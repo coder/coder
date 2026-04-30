@@ -8,15 +8,16 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { roleDescriptions } from "./index";
 
 type RoleSelectorProps = {
+	hideLabel?: boolean;
 	loading?: boolean;
 	error?: unknown;
-	hide
 	availableRoles?: AssignableRoles[];
 	selectedRoles: Set<string>;
 	onChange: (roles: Set<string>) => void;
 };
 
 export const RoleSelector: FC<RoleSelectorProps> = ({
+	hideLabel,
 	loading,
 	error,
 	availableRoles = [],
@@ -64,7 +65,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	};
 
 	return (
-		<RoleSelectorLayout>
+		<RoleSelectorLayout hideLabel={hideLabel}>
 			{selectableRoles.length > 0 && (
 				<div className="border border-border border-solid rounded-md overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
 					{selectableRoles.map((role) => {
@@ -100,12 +101,18 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	);
 };
 
-const RoleSelectorLayout: React.FC<React.PropsWithChildren> = ({
+type RoleSelectorLayoutProps = {
+	hideLabel?: boolean;
+	children: React.ReactNode;
+};
+
+const RoleSelectorLayout: React.FC<RoleSelectorLayoutProps> = ({
+	hideLabel,
 	children,
 }) => {
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-sm font-medium">Roles</span>
+			{!hideLabel && <span className="text-sm font-medium">Roles</span>}
 			{children}
 		</div>
 	);
