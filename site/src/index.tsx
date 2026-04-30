@@ -23,7 +23,7 @@ window.addEventListener("vite:preloadError", () => {
 	const now = Date.now();
 	if (!last || now - Number(last) > 10_000) {
 		sessionStorage.setItem(key, String(now));
-		window.location.reload();
+		location.reload();
 	}
 });
 

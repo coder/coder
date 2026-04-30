@@ -13,7 +13,7 @@ export const ChatAccessDeniedAlert: FC = () => {
 		<Alert
 			severity="info"
 			actions={
-				<Button size="sm" onClick={() => window.location.reload()}>
+				<Button size="sm" onClick={() => location.reload()}>
 					Refresh
 				</Button>
 			}

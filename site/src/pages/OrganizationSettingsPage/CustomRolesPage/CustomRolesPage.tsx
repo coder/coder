@@ -12,7 +12,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -71,18 +70,14 @@ const CustomRolesPage: FC = () => {
 			<RequirePermission
 				isFeatureVisible={organizationPermissions?.viewOrgRoles ?? false}
 			>
-				<Stack
-					alignItems="baseline"
-					direction="row"
-					justifyContent="space-between"
-				>
+				<div className="flex flex-row gap-4 items-baseline justify-between">
 					<SettingsHeader>
 						<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
 						<SettingsHeaderDescription>
 							Manage roles for this organization.
 						</SettingsHeaderDescription>
 					</SettingsHeader>
-				</Stack>
+				</div>
 
 				<CustomRolesPageView
 					builtInRoles={builtInRoles}

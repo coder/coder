@@ -5,7 +5,6 @@ import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -97,13 +96,11 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 
 	return (
 		<div key={resource.id} css={styles.resourceCard} className="resource-card">
-			<Stack
-				direction="row"
-				alignItems="flex-start"
+			<div
+				className="flex flex-row items-start gap-20"
 				css={styles.resourceCardHeader}
-				spacing={10}
 			>
-				<Stack direction="row" spacing={1} css={styles.resourceCardProfile}>
+				<div className="flex flex-row gap-2" css={styles.resourceCardProfile}>
 					<div>
 						<ResourceAvatar resource={resource} />
 					</div>
@@ -111,7 +108,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 						<div css={styles.metadataLabel}>{resource.type}</div>
 						<div css={styles.metadataValue}>{resource.name}</div>
 					</div>
-				</Stack>
+				</div>
 
 				<div
 					className="grow-[2] grid gap-x-10 gap-y-6"
@@ -180,7 +177,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 						</TooltipContent>
 					</Tooltip>
 				)}
-			</Stack>
+			</div>
 
 			{resource.agents && resource.agents.length > 0 && (
 				<div>{resource.agents.map(agentRow)}</div>

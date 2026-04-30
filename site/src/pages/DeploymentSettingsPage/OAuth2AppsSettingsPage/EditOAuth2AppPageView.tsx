@@ -18,7 +18,6 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -81,11 +80,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Edit OAuth2 application</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -99,7 +94,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 						All OAuth2 Applications
 					</RouterLink>
 				</Button>
-			</Stack>
+			</div>
 
 			{fullNewSecret && (
 				<ConfirmDialog
@@ -124,7 +119,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 				/>
 			)}
 
-			<Stack>
+			<div className="flex flex-col gap-4">
 				{searchParams.has("created") && (
 					<Alert severity="info" dismissible>
 						Your OAuth2 application has been created. Generate a client secret
@@ -204,7 +199,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 						)}
 					</>
 				)}
-			</Stack>
+			</div>
 		</>
 	);
 };
@@ -226,11 +221,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<h2>Client secrets</h2>
 				<Button
 					disabled={mutatingResource.createSecret}
@@ -240,7 +231,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 					<Spinner loading={mutatingResource.createSecret} />
 					Generate secret
 				</Button>
-			</Stack>
+			</div>
 
 			<Table>
 				<TableHeader>

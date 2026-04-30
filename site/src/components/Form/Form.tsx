@@ -8,7 +8,6 @@ import {
 	useContext,
 } from "react";
 import { AlphaBadge, DeprecatedBadge } from "#/components/Badges/Badges";
-import { Stack } from "#/components/Stack/Stack";
 import { cn } from "#/utils/cn";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
@@ -120,11 +119,13 @@ export const FormSection: FC<FormSectionProps> = ({
 	);
 };
 
-export const FormFields: FC<ComponentProps<typeof Stack>> = (props) => {
+export const FormFields: FC<ComponentProps<"div">> = ({
+	className,
+	...props
+}) => {
 	return (
-		<Stack
-			direction="column"
-			spacing={3}
+		<div
+			className={cn("flex flex-col gap-6", className)}
 			{...props}
 			css={styles.formSectionFields}
 		/>

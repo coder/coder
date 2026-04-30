@@ -2,7 +2,7 @@
 
 ## Implementation Details
 
-`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
+`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/coder/tree/main/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
 
 ![AI Gateway implementation details](../../images/aibridge/aibridge-implementation-details.png)
 
@@ -38,4 +38,4 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ## Troubleshooting
 
-To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for AI Gateway](https://github.com/coder/aibridge). If you encounter issues with AI Gateway, please reach out to us via [Discord](https://discord.gg/coder).
+To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository](https://github.com/coder/coder/issues). If you encounter issues with AI Gateway, please reach out to us via [Discord](https://discord.gg/coder).

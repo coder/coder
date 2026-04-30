@@ -466,6 +466,7 @@ interface ChatTreeNodeProps {
 }
 
 const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+	const location = useLocation();
 	const {
 		chatTree,
 		chatById,
@@ -645,7 +646,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 						</div>
 						<NavLink
-							to={`/agents/${chat.id}`}
+							to={{
+								pathname: `/agents/${chat.id}`,
+								search: location.search,
+							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
 							{({ isActive }) => (
@@ -1101,7 +1105,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									isSettingsPanel && "text-content-primary",
 								)}
 							>
-								<Link to="/agents/settings" state={{ from: location.pathname }}>
+								<Link
+									to="/agents/settings"
+									state={{ from: location.pathname + location.search }}
+								>
 									<SettingsIcon />
 								</Link>
 							</Button>
@@ -1122,7 +1129,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						icon={SquarePenIcon}
 						label="New Agent"
 						active={!activeChatId && sidebarView.panel === "chats"}
-						to="/agents"
+						to={`/agents${location.search}`}
 						onClick={onBeforeNewAgent}
 						disabled={isCreating}
 					/>

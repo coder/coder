@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { Template, TemplateExample } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { Stack } from "#/components/Stack/Stack";
 
 interface SelectedTemplateProps {
 	template: Template | TemplateExample;
@@ -9,17 +8,14 @@ interface SelectedTemplateProps {
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 	return (
-		<Stack
-			direction="row"
-			className="py-5 px-6 rounded-lg bg-surface-primary border border-solid border-border"
-		>
+		<div className="flex flex-row gap-4 py-5 px-6 rounded-lg bg-surface-primary border border-solid border-border">
 			<Avatar
 				variant="icon"
 				size="lg"
 				src={template.icon}
 				fallback={template.name}
 			/>
-			<Stack direction="column" spacing={0}>
+			<div className="flex flex-col">
 				<span className="text-base">
 					{"display_name" in template && template.display_name.length > 0
 						? template.display_name
@@ -30,7 +26,7 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 						{template.description}
 					</span>
 				)}
-			</Stack>
-		</Stack>
+			</div>
+		</div>
 	);
 };

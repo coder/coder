@@ -173,6 +173,25 @@ curl -v "https://coder.company.com/derp"
 # DERP requires connection upgrade
 ```
 
+### EDERP03
+
+#### No DERP servers available
+
+**Problem:** This is shown when Coder's effective DERP map does not contain
+any DERP servers. Without at least one working DERP server, workspace
+networking may not work.
+
+This can happen if the built-in DERP server is disabled and no external DERP
+map is configured, or if workspace proxies are expected to provide DERP but no
+healthy DERP-enabled proxy is currently available.
+
+**Solution:** Ensure that at least one DERP server is available to the
+deployment. For example:
+
+- Restart `coderd` with the built-in DERP server enabled
+- Restart `coderd` with an external DERP map configured
+- Make sure a workspace proxy with DERP server enabled is running and healthy
+
 ### ESTUN01
 
 #### No STUN servers available
