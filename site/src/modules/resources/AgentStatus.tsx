@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
@@ -24,6 +23,13 @@ import {
 	agentConnectionMessages,
 	agentScriptMessages,
 } from "../workspaces/health";
+
+const statusDotBaseClassName = "size-1.5 shrink-0 rounded-full";
+const statusDotConnectedClassName =
+	"bg-content-success shadow-[0_0_12px_0] shadow-content-success";
+const statusDotDisconnectedClassName = "bg-content-secondary";
+const statusDotConnectingClassName =
+	"bg-content-link [animation:pulse_1.5s_0.5s_ease-in-out_infinite]";
 
 // If we think in the agent status and lifecycle into a single enum/state I'd
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -87,7 +93,7 @@ const ReadyLifecycle: FC = () => {
 			role="status"
 			data-testid="agent-status-ready"
 			aria-label="Ready"
-			css={[styles.status, styles.connected]}
+			className={cn(statusDotBaseClassName, statusDotConnectedClassName)}
 		/>
 	);
 };
@@ -99,7 +105,7 @@ const StartingLifecycle: FC = () => {
 				<div
 					role="status"
 					aria-label="Starting..."
-					css={[styles.status, styles.connecting]}
+					className={cn(statusDotBaseClassName, statusDotConnectingClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Starting...</TooltipContent>
@@ -147,7 +153,7 @@ const ShuttingDownLifecycle: FC = () => {
 				<div
 					role="status"
 					aria-label="Stopping..."
-					css={[styles.status, styles.connecting]}
+					className={cn(statusDotBaseClassName, statusDotConnectingClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Stopping...</TooltipContent>
@@ -181,7 +187,7 @@ const OffLifecycle: FC = () => {
 				<div
 					role="status"
 					aria-label="Stopped"
-					css={[styles.status, styles.disconnected]}
+					className={cn(statusDotBaseClassName, statusDotDisconnectedClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Stopped</TooltipContent>
@@ -232,7 +238,7 @@ const DisconnectedStatus: FC = () => {
 				<div
 					role="status"
 					aria-label="Disconnected"
-					css={[styles.status, styles.disconnected]}
+					className={cn(statusDotBaseClassName, statusDotDisconnectedClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Disconnected</TooltipContent>
@@ -247,7 +253,7 @@ const ConnectingStatus: FC = () => {
 				<div
 					role="status"
 					aria-label="Connecting..."
-					css={[styles.status, styles.connecting]}
+					className={cn(statusDotBaseClassName, statusDotConnectingClassName)}
 				/>
 			</TooltipTrigger>
 			<TooltipContent side="bottom">Connecting...</TooltipContent>
@@ -329,38 +335,3 @@ export const DevcontainerStatus: FC<DevcontainerStatusProps> = ({
 
 	return <SubAgentStatus agent={agent} />;
 };
-
-const styles = {
-	status: {
-		width: 6,
-		height: 6,
-		borderRadius: "100%",
-		flexShrink: 0,
-	},
-
-	connected: (theme) => ({
-		backgroundColor: theme.palette.success.light,
-		boxShadow: `0 0 12px 0 ${theme.palette.success.light}`,
-	}),
-
-	disconnected: (theme) => ({
-		backgroundColor: theme.palette.text.secondary,
-	}),
-
-	"@keyframes pulse": {
-		"0%": {
-			opacity: 1,
-		},
-		"50%": {
-			opacity: 0.4,
-		},
-		"100%": {
-			opacity: 1,
-		},
-	},
-
-	connecting: (theme) => ({
-		backgroundColor: theme.palette.info.light,
-		animation: "$pulse 1.5s 0.5s ease-in-out forwards infinite",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
