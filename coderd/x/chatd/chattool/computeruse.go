@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -24,11 +25,12 @@ const (
 	ComputerUseProviderAnthropic = "anthropic"
 	// ComputerUseProviderOpenAI identifies OpenAI computer use.
 	ComputerUseProviderOpenAI = "openai"
-	// ComputerUseModelProvider is the default model provider name for
+	// ComputerUseModelProviderDefault is the default model provider name for
 	// computer use, equal to ComputerUseProviderAnthropic.
-	ComputerUseModelProvider = ComputerUseProviderAnthropic
-	// ComputerUseModelName is the default model used for computer use subagents.
-	ComputerUseModelName = "claude-opus-4-6"
+	ComputerUseModelProviderDefault = ComputerUseProviderAnthropic
+	// ComputerUseAnthropicModelName is the default Anthropic model used for
+	// computer use subagents.
+	ComputerUseAnthropicModelName = "claude-opus-4-6"
 	// ComputerUseOpenAIModelName is the default OpenAI model used for computer use.
 	ComputerUseOpenAIModelName = "gpt-5.5"
 )
@@ -44,11 +46,7 @@ func SupportedComputerUseProviders() []string {
 
 // IsSupportedComputerUseProvider reports whether provider supports computer use.
 func IsSupportedComputerUseProvider(provider string) bool {
-	switch provider {
-	case ComputerUseProviderAnthropic, ComputerUseProviderOpenAI:
-		return true
-	}
-	return false
+	return slices.Contains(SupportedComputerUseProviders(), provider)
 }
 
 // DefaultComputerUseProvider returns the effective computer use provider.
@@ -63,7 +61,7 @@ func DefaultComputerUseProvider(provider string) string {
 func DefaultComputerUseModel(provider string) (modelProvider, modelName string, ok bool) {
 	switch DefaultComputerUseProvider(provider) {
 	case ComputerUseProviderAnthropic:
-		return ComputerUseModelProvider, ComputerUseModelName, true
+		return ComputerUseModelProviderDefault, ComputerUseAnthropicModelName, true
 	case ComputerUseProviderOpenAI:
 		// Keep OpenAI isolated here because computer-use models may advance.
 		return ComputerUseProviderOpenAI, ComputerUseOpenAIModelName, true
@@ -250,10 +248,6 @@ func (t *computerUseTool) runOpenAIComputerUse(
 			fmt.Sprintf("invalid computer use input: %v", err),
 		), nil
 	}
-	// TODO: Fantasy preserves raw OpenAI computer-call JSON in assistant
-	// metadata, but this local runner callback does not expose pending safety
-	// checks usefully yet.
-
 	conn, err := t.getWorkspaceConn(ctx)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(

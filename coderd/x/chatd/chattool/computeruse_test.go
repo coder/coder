@@ -37,15 +37,15 @@ func TestDefaultComputerUseModel(t *testing.T) {
 		{
 			name:              "empty defaults to Anthropic",
 			provider:          "",
-			wantModelProvider: chattool.ComputerUseProviderAnthropic,
-			wantModelName:     "claude-opus-4-6",
+			wantModelProvider: chattool.ComputerUseModelProviderDefault,
+			wantModelName:     chattool.ComputerUseAnthropicModelName,
 			wantOK:            true,
 		},
 		{
 			name:              "Anthropic",
 			provider:          chattool.ComputerUseProviderAnthropic,
-			wantModelProvider: chattool.ComputerUseProviderAnthropic,
-			wantModelName:     "claude-opus-4-6",
+			wantModelProvider: chattool.ComputerUseModelProviderDefault,
+			wantModelName:     chattool.ComputerUseAnthropicModelName,
 			wantOK:            true,
 		},
 		{
