@@ -3990,6 +3990,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "allowed_private_cidrs",
 		},
+		{
+			Name:        "AI Bridge Proxy API Dump Directory",
+			Description: "Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
+			Flag:        "aibridge-proxy-api-dump-dir",
+			Env:         "CODER_AIBRIDGE_PROXY_API_DUMP_DIR",
+			Value:       &c.AI.BridgeProxyConfig.APIDumpDir,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "api_dump_dir",
+		},
 
 		// Retention settings
 		{
@@ -4144,6 +4154,7 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
 	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
+	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type ChatConfig struct {

@@ -5,12 +5,14 @@ package cli
 import (
 	"context"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/enterprise/coderd"
 )
@@ -26,6 +28,13 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API, providers []aibridge.Provider)
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridgeproxyd_", coderAPI.PrometheusRegistry)
 	metrics := aibridgeproxyd.NewMetrics(reg)
 
+	var newDumper func(provider, requestID string) aibridgeproxyd.RequestDumper
+	if dumpDir := coderAPI.DeploymentValues.AI.BridgeProxyConfig.APIDumpDir.String(); dumpDir != "" {
+		newDumper = func(provider, requestID string) aibridgeproxyd.RequestDumper {
+			return apidump.NewDumper(filepath.Join(dumpDir, provider, requestID), logger)
+		}
+	}
+
 	srv, err := aibridgeproxyd.New(ctx, logger, aibridgeproxyd.Options{
 		ListenAddr:               coderAPI.DeploymentValues.AI.BridgeProxyConfig.ListenAddr.String(),
 		TLSCertFile:              coderAPI.DeploymentValues.AI.BridgeProxyConfig.TLSCertFile.String(),
@@ -38,6 +47,7 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API, providers []aibridge.Provider)
 		UpstreamProxy:            coderAPI.DeploymentValues.AI.BridgeProxyConfig.UpstreamProxy.String(),
 		UpstreamProxyCA:          coderAPI.DeploymentValues.AI.BridgeProxyConfig.UpstreamProxyCA.String(),
 		AllowedPrivateCIDRs:      coderAPI.DeploymentValues.AI.BridgeProxyConfig.AllowedPrivateCIDRs.Value(),
+		NewDumper:                newDumper,
 		Metrics:                  metrics,
 	})
 	if err != nil {
