@@ -4,9 +4,8 @@ This guide walks platform teams and administrators through setting up Coder
 Agents, preparing your deployment, and running your first Coder Agent.
 
 > [!NOTE]
-> Coder Agents is in [Early Access](./early-access.md). Deploy to a
-> **test or development environment** — not production — while evaluating
-> the feature.
+> Coder Agents is in Beta. APIs, behavior, and configuration may change
+> between releases without notice; pin a release before broad rollout.
 
 ## Prerequisites
 
@@ -129,13 +128,12 @@ credential scoping, and pre-installing dependencies.
 
 ## Things to know before you start
 
-### Deploy to a non-production environment
+### Plan for change between releases
 
-Coder Agents is under active development. APIs, behavior, and configuration
-may change between releases without notice. Run your evaluation on a
-dedicated test or staging deployment to avoid disruption to production
-developer workflows. See [Early Access](./early-access.md) for the full
-set of expectations and limitations.
+Coder Agents is under active development. APIs, behavior, and
+configuration may change between releases without notice. Pin a
+specific release before broad rollout and review the release notes
+before upgrading so changes do not surprise developers in production.
 
 ### Use HTTPS for push notifications
 
@@ -285,7 +283,7 @@ Good feedback includes:
 - **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
-Your input directly influences product direction during Early Access.
+Your input directly influences product direction during Beta.
 
 ## Next steps
 
