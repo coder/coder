@@ -24654,9 +24654,10 @@ func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretP
 	return i, err
 }
 
-const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :execrows
+const deleteUserSecretByUserIDAndName = `-- name: DeleteUserSecretByUserIDAndName :one
 DELETE FROM user_secrets
 WHERE user_id = $1 AND name = $2
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
 `
 
 type DeleteUserSecretByUserIDAndNameParams struct {
@@ -24664,12 +24665,46 @@ type DeleteUserSecretByUserIDAndNameParams struct {
 	Name   string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteUserSecretByUserIDAndName, arg.UserID, arg.Name)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+func (q *sqlQuerier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+	)
+	return i, err
+}
+
+const getUserSecretByID = `-- name: GetUserSecretByID :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id
+FROM user_secrets
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByID, id)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+	)
+	return i, err
 }
 
 const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
