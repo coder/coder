@@ -1,6 +1,7 @@
 package chattool_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 
@@ -36,12 +37,17 @@ func TestReadTemplate_IncludesPresets(t *testing.T) {
 	})
 
 	// Create a preset with parameters.
+	const usEastLargeDesiredPrebuildInstances = 3
 	preset := dbgen.Preset(t, db, database.InsertPresetParams{
 		TemplateVersionID: tv.ID,
 		Name:              "us-east-large",
 		IsDefault:         true,
 		Description:       "US East large instance",
 		Icon:              "/icon/us.png",
+		DesiredInstances: sql.NullInt32{
+			Int32: usEastLargeDesiredPrebuildInstances,
+			Valid: true,
+		},
 	})
 	_ = dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
 		TemplateVersionPresetID: preset.ID,
@@ -95,6 +101,9 @@ func TestReadTemplate_IncludesPresets(t *testing.T) {
 	require.Equal(t, true, foundPreset["default"])
 	require.Equal(t, "US East large instance", foundPreset["description"])
 	require.Equal(t, "/icon/us.png", foundPreset["icon"])
+	// Prebuild count round-trips so the LLM can prefer presets
+	// backed by prebuilt workspaces.
+	require.EqualValues(t, usEastLargeDesiredPrebuildInstances, foundPreset["desired_prebuild_instances"])
 
 	// Verify preset parameters.
 	presetParamsRaw, ok := foundPreset["parameters"].([]any)
@@ -124,6 +133,8 @@ func TestReadTemplate_IncludesPresets(t *testing.T) {
 	require.False(t, hasDesc, "empty-preset should not have description")
 	_, hasIcon := emptyPreset["icon"]
 	require.False(t, hasIcon, "empty-preset should not have icon")
+	_, hasPrebuilds := emptyPreset["desired_prebuild_instances"]
+	require.False(t, hasPrebuilds, "empty-preset should not have desired_prebuild_instances")
 	emptyParams, ok := emptyPreset["parameters"].([]any)
 	require.True(t, ok)
 	require.Empty(t, emptyParams, "empty-preset should have no parameters")

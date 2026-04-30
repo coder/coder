@@ -177,6 +177,12 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 					if icon := strings.TrimSpace(p.Icon); icon != "" {
 						preset["icon"] = icon
 					}
+					// Surface the prebuild count when set so the LLM can prefer
+					// presets backed by prebuilt workspaces. Match the toolsdk
+					// `desired_prebuild_instances` key for cross-surface consistency.
+					if p.DesiredInstances.Valid && p.DesiredInstances.Int32 > 0 {
+						preset["desired_prebuild_instances"] = p.DesiredInstances.Int32
+					}
 					if params, ok := paramsByPreset[p.ID]; ok {
 						preset["parameters"] = params
 					} else {
