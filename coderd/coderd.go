@@ -1192,6 +1192,8 @@ func New(options *Options) *API {
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
 				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
+				r.Get("/advisor", api.getChatAdvisorConfig)
+				r.Put("/advisor", api.putChatAdvisorConfig)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
