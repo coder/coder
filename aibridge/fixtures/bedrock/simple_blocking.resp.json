@@ -1,0 +1,24 @@
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "id": "msg_bdrk_01EtwapSyH1pru19iBrwrDib",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "This famous question is often used to mock medieval scholars for supposedly engaging in pointless theological debates, but it's actually a myth—there's no evidence medieval philosophers actually debated this.\n\nThe question is sometimes attributed to Thomas Aquinas and other"
+    }
+  ],
+  "stop_reason": "max_tokens",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 18,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 50
+  }
+}
