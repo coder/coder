@@ -443,6 +443,9 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("dst_id", tun.dst),
 			slog.Error(err),
 		)
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
+		}
 	case !tun.active:
 		_, err = t.store.DeleteTailnetTunnel(t.ctx, database.DeleteTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -458,6 +461,9 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return nil // No row deleted, skip publish.
 		}
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
+		}
 	default:
 		panic("unreachable")
 	}
@@ -467,11 +473,6 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("dst_id", tun.dst),
 			slog.F("active", tun.active),
 			slog.Error(err))
-	}
-	// Publish for upsert/delete single tunnel cases. The DeleteAll case
-	// publishes its own updates above since it returns multiple rows.
-	if err == nil && tun.dst != uuid.Nil {
-		publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
 	}
 	return err
 }
