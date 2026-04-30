@@ -1268,7 +1268,7 @@
 							"title": "Tasks to Chats Migration",
 							"description": "Guide for migrating from the Tasks API to the Chats API",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
-							"state": ["early access"]
+							"state": ["beta"]
 						}
 					]
 				}

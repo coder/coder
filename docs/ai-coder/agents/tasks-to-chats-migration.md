@@ -1,7 +1,7 @@
 # Migrating from the Tasks API to the Chats API
 
 The [Tasks API](../../reference/api/tasks.md) (`/api/v2/tasks`) and the
-[Chats API](./chats-api.md) (`/api/experimental/chats`) serve similar
+[Chats API](../../reference/api/chats.md) (`/api/experimental/chats`) serve similar
 goals (programmatic access to AI-powered coding agents) but they differ
 significantly in architecture, capabilities, and usage patterns.
 
@@ -200,8 +200,11 @@ defined in `codersdk.ChatStatus`:
 | n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                         |
 
 The Chats API uses `waiting` as the default idle state (not `complete`).
-The `completed` enum value is also defined but is not currently set by any
-production code path on `main`; treat `waiting` as "agent is done."
+A chat enters `waiting` when it is first created (before any message is
+queued) and again whenever a run finishes or is interrupted, so treat
+`waiting` as "the agent is not currently working" rather than only "the
+agent just finished." The `completed` enum value is also defined but is
+not currently set by any production code path on `main`.
 
 ### 6. Replace delete with archive
 
