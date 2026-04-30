@@ -40,12 +40,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { isEveryoneGroup } from "#/modules/groups";
-import type { GroupPageOutletContext } from "./GroupPage";
-import { AiAddonHelpPopover } from "#/modules/users/UserHelpPopovers";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
-import { UserRoleCell } from "#/modules/users/UserRoleCell";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { isEveryoneGroup } from "#/modules/groups";
+import { AiAddonHelpPopover } from "#/modules/users/UserHelpPopovers";
+import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {
 	const {

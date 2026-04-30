@@ -4,17 +4,18 @@ import {
 	UserPlusIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
-	SlimRole,
 	User,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -56,8 +57,6 @@ import {
 	RolesHelpPopover,
 } from "#/modules/users/UserHelpPopovers";
 import { UserRoleCell } from "#/modules/users/UserRoleCell";
-import { Link } from "react-router";
-import { PremiumBadge } from "#/components/Badges/Badges";
 
 interface OrganizationMembersPageViewProps {
 	canEditMembers: boolean;

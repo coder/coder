@@ -24,9 +24,9 @@ import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
-import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();
