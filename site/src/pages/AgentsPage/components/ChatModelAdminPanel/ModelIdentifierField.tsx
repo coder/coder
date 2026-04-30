@@ -19,8 +19,8 @@ import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
 import { normalizeProvider } from "./helpers";
 import {
-	findKnownModelByAlias,
 	findKnownModelByCanonicalId,
+	findKnownModelByExactAlias,
 	formatContextBadge,
 	getKnownModelsForProvider,
 	type KnownModel,
@@ -300,18 +300,21 @@ export const ModelIdentifierField = ({
 			return;
 		}
 
-		const aliasKnownModel = findKnownModelByAlias(normalizedProvider, typed);
-		if (aliasKnownModel) {
-			clearSearchSnapshot();
-			return;
-		}
-
 		const exactKnownModel = findKnownModelByCanonicalId(
 			normalizedProvider,
 			typed,
 		);
 		if (exactKnownModel) {
 			applyDefaultsForKnownModel(exactKnownModel);
+			clearSearchSnapshot();
+			return;
+		}
+
+		const aliasKnownModel = findKnownModelByExactAlias(
+			normalizedProvider,
+			typed,
+		);
+		if (aliasKnownModel) {
 			clearSearchSnapshot();
 			return;
 		}

@@ -67,6 +67,16 @@ export const findKnownModelByAlias = (
 	);
 };
 
+export const findKnownModelByExactAlias = (
+	provider: string,
+	value: string,
+): KnownModel | undefined => {
+	const lowercaseValue = value.toLowerCase();
+	return getKnownModelsForProvider(provider).find((knownModel) =>
+		knownModel.aliases.some((alias) => alias.toLowerCase() === lowercaseValue),
+	);
+};
+
 export const findKnownModelByCanonicalId = (
 	provider: string,
 	modelId: string,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	findKnownModelByAlias,
 	findKnownModelByCanonicalId,
+	findKnownModelByExactAlias,
 	formatContextBadge,
 	getKnownModelsForProvider,
 	searchKnownModels,
@@ -119,6 +120,37 @@ describe("findKnownModelByAlias", () => {
 			findKnownModelByAlias("anthropic", "CLAUDE HAIKU_4.5 20251001")
 				?.modelIdentifier,
 		).toBe("claude-haiku-4-5");
+	});
+});
+
+describe("findKnownModelByExactAlias", () => {
+	it("returns verbatim alias lookup case-insensitively", () => {
+		expect(
+			findKnownModelByExactAlias("anthropic", "CLAUDE-HAIKU-4-5-20251001")
+				?.modelIdentifier,
+		).toBe("claude-haiku-4-5");
+	});
+
+	it("does not normalize punctuation differences", () => {
+		expect(
+			findKnownModelByExactAlias("anthropic", "claude.haiku.4.5.20251001"),
+		).toBeUndefined();
+	});
+
+	it("does not match alias substrings", () => {
+		expect(findKnownModelByExactAlias("anthropic", "haiku")).toBeUndefined();
+	});
+
+	it("does not match unknown strings", () => {
+		expect(
+			findKnownModelByExactAlias("anthropic", "unknown-model"),
+		).toBeUndefined();
+	});
+
+	it("does not match canonical Model Identifiers", () => {
+		expect(
+			findKnownModelByExactAlias("anthropic", "claude-haiku-4-5"),
+		).toBeUndefined();
 	});
 });
 

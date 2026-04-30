@@ -1668,6 +1668,17 @@ export const AnthropicKnownModelAliasTypedValueCancels: Story = {
 	},
 };
 
+export const AnthropicKnownModelPunctuationVariantCommits: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	name: "Add mode / DEREM-27: off-catalog with punctuation variant commits",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+
+		await expectOffCatalogModelCommitted(body, "claude.haiku.4.5.20251001");
+	},
+};
+
 export const KnownModelOffCatalogSubstringCommits: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
