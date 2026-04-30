@@ -37,10 +37,11 @@ const (
 	HostCopilot   = "api.individual.githubcopilot.com"
 )
 
-// RequestDumper captures an HTTP request/response pair to disk.
-type RequestDumper interface {
+// RoundTripDumper captures an HTTP request/response pair to disk.
+type RoundTripDumper interface {
 	DumpRequest(*http.Request) error
 	DumpResponse(*http.Response) error
+	DumpError(error) error
 }
 
 const (
@@ -131,9 +132,9 @@ type Server struct {
 	caCert []byte
 	// allowedPrivateRanges are CIDR ranges exempt from the blocked IP denylist.
 	allowedPrivateRanges []net.IPNet
-	// newDumper creates a RequestDumper for a given provider and request
+	// newDumper creates a RoundTripDumper for a given provider and request
 	// ID. Nil when dumping is disabled.
-	newDumper func(provider, requestID string) RequestDumper
+	newDumper func(provider, requestID string) RoundTripDumper
 	// Metrics is the Prometheus metrics for the proxy. If nil, metrics are disabled.
 	metrics *Metrics
 }
@@ -158,7 +159,7 @@ type requestContext struct {
 	RequestID uuid.UUID
 	// Dumper captures request/response pairs to disk when API dump is
 	// enabled. Nil when dumping is disabled.
-	Dumper RequestDumper
+	Dumper RoundTripDumper
 }
 
 // Options configures the AI Bridge Proxy server.
@@ -206,10 +207,10 @@ type Options struct {
 	// ranges blocked. If empty, all private ranges are blocked.
 	AllowedPrivateCIDRs []string
 	// NewDumper, when non-nil, is called for each MITM request to create
-	// a RequestDumper that writes .req.txt and .resp.txt files. The
+	// a RoundTripDumper that writes .req.txt and .resp.txt files. The
 	// caller is responsible for constructing the dumper with the correct
 	// base path.
-	NewDumper func(provider, requestID string) RequestDumper
+	NewDumper func(provider, requestID string) RoundTripDumper
 	// Metrics is the prometheus metrics instance for recording proxy metrics.
 	// If nil, metrics will not be recorded.
 	Metrics *Metrics
@@ -428,8 +429,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// goproxy calls handlers in registration order: this must come after the MITM handler
 	// so it only handles requests that weren't matched by the allowlist.
 	proxy.OnRequest().HandleConnectFunc(srv.tunneledMiddleware)
-
-	// Handle decrypted requests: route to aibridged for known AI
 
 	// Handle decrypted requests: route to aibridged for known AI
 	// providers, or tunnel to original destination.
@@ -1070,7 +1069,7 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 		s.metrics.MITMResponsesTotal.WithLabelValues(strconv.Itoa(resp.StatusCode), provider).Inc()
 	}
 
-	// Dump the response to disk when API dumping is enabled.
+	// Dump the response to disk when a dumper was created for this request.
 	if reqCtx != nil && reqCtx.Dumper != nil {
 		if err := reqCtx.Dumper.DumpResponse(resp); err != nil {
 			logger.Warn(s.ctx, "failed to dump response", slog.Error(err))

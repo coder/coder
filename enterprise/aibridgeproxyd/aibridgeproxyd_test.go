@@ -156,7 +156,7 @@ type testProxyConfig struct {
 	upstreamProxy            string
 	upstreamProxyCA          string
 	allowedPrivateCIDRs      []string
-	newDumper                func(string, string) aibridgeproxyd.RequestDumper
+	newDumper                func(string, string) aibridgeproxyd.RoundTripDumper
 	metrics                  *aibridgeproxyd.Metrics
 }
 
@@ -231,7 +231,7 @@ func withAllowedPrivateCIDRs(cidrs ...string) testProxyOption {
 	}
 }
 
-func withNewDumper(fn func(string, string) aibridgeproxyd.RequestDumper) testProxyOption {
+func withNewDumper(fn func(string, string) aibridgeproxyd.RoundTripDumper) testProxyOption {
 	return func(cfg *testProxyConfig) {
 		cfg.newDumper = fn
 	}
@@ -2387,7 +2387,7 @@ func TestProxy_APIDump(t *testing.T) {
 		withAllowedPorts("443"),
 		withDomainAllowlist(aibridgeproxyd.HostAnthropic),
 		withAIBridgeProviderFromHost(testProviderFromHost),
-		withNewDumper(func(provider, requestID string) aibridgeproxyd.RequestDumper {
+		withNewDumper(func(provider, requestID string) aibridgeproxyd.RoundTripDumper {
 			dumpedProvider = provider
 			dumpedRequestID = requestID
 			return &mockDumper{
@@ -2419,9 +2419,49 @@ func TestProxy_APIDump(t *testing.T) {
 	assert.True(t, respDumped, "DumpResponse should have been called")
 }
 
+// TestProxy_APIDump_ErrorsDoNotAffectProxy verifies that dump failures
+// do not break the proxied request/response flow.
+func TestProxy_APIDump_ErrorsDoNotAffectProxy(t *testing.T) {
+	t.Parallel()
+
+	aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(aibridgedServer.Close)
+
+	srv := newTestProxy(t,
+		withCoderAccessURL(aibridgedServer.URL),
+		withAllowedPorts("443"),
+		withDomainAllowlist(aibridgeproxyd.HostAnthropic),
+		withAIBridgeProviderFromHost(testProviderFromHost),
+		withNewDumper(func(_, _ string) aibridgeproxyd.RoundTripDumper {
+			return &failingDumper{}
+		}),
+	)
+
+	certPool := getProxyCertPool(t)
+	client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.anthropic.com/v1/messages", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer user-token")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	// The proxy must return the upstream response despite dump errors.
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.JSONEq(t, `{"ok":true}`, string(body))
+}
+
 type mockDumper struct {
 	onRequest  func()
 	onResponse func()
+	onError    func()
 }
 
 func (m *mockDumper) DumpRequest(_ *http.Request) error {
@@ -2437,3 +2477,18 @@ func (m *mockDumper) DumpResponse(_ *http.Response) error {
 	}
 	return nil
 }
+
+func (m *mockDumper) DumpError(_ error) error {
+	if m.onError != nil {
+		m.onError()
+	}
+	return nil
+}
+
+// failingDumper always returns errors, used to verify dump failures
+// do not affect proxy behavior.
+type failingDumper struct{}
+
+func (*failingDumper) DumpRequest(*http.Request) error   { return xerrors.New("dump request failed") }
+func (*failingDumper) DumpResponse(*http.Response) error { return xerrors.New("dump response failed") }
+func (*failingDumper) DumpError(error) error              { return xerrors.New("dump error failed") }

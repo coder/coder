@@ -175,7 +175,7 @@ AI BRIDGE OPTIONS:
           exporting these records to external SIEM or observability systems.
 
 AI BRIDGE PROXY OPTIONS: 
-      --aibridge-proxy-api-dump-dir string, $CODER_AIBRIDGE_PROXY_API_DUMP_DIR
+      --aibridge-proxy-dump-dir string, $CODER_AIBRIDGE_PROXY_DUMP_DIR
           Directory for dumping MITM request/response pairs to disk for
           debugging. When set, each proxied request produces .req.txt and
           .resp.txt files organized by provider. Sensitive headers are redacted.

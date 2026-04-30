@@ -28,9 +28,9 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API, providers []aibridge.Provider)
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridgeproxyd_", coderAPI.PrometheusRegistry)
 	metrics := aibridgeproxyd.NewMetrics(reg)
 
-	var newDumper func(provider, requestID string) aibridgeproxyd.RequestDumper
+	var newDumper func(provider, requestID string) aibridgeproxyd.RoundTripDumper
 	if dumpDir := coderAPI.DeploymentValues.AI.BridgeProxyConfig.APIDumpDir.String(); dumpDir != "" {
-		newDumper = func(provider, requestID string) aibridgeproxyd.RequestDumper {
+		newDumper = func(provider, requestID string) aibridgeproxyd.RoundTripDumper {
 			return apidump.NewDumper(filepath.Join(dumpDir, provider, requestID), logger)
 		}
 	}

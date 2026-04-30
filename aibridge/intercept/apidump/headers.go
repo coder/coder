@@ -2,15 +2,15 @@ package apidump
 
 // sensitiveRequestHeaders are headers that should be redacted from request dumps.
 var sensitiveRequestHeaders = map[string]struct{}{
-	"Authorization":                       {},
-	"X-Api-Key":                           {},
-	"Api-Key":                             {},
-	"X-Auth-Token":                        {},
-	"Cookie":                              {},
-	"Proxy-Authorization":                 {},
-	"X-Amz-Security-Token":                {},
-	"X-Coder-Ai-Governance-Token":         {},
-	"X-Coder-Ai-Governance-Session-Token": {},
+	"Api-Key":                               {},
+	"Authorization":                         {},
+	"Cookie":                                {},
+	"Proxy-Authorization":                   {},
+	"X-Amz-Security-Token":                  {},
+	"X-Api-Key":                             {},
+	"X-Auth-Token":                          {},
+	"X-Coder-AI-Governance-Session-Token":   {},
+	"X-Coder-AI-Governance-Token":           {},
 }
 
 // sensitiveResponseHeaders are headers that should be redacted from response dumps.
