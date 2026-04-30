@@ -444,6 +444,53 @@ See
 for the full guide on writing discoverable descriptions, configuring
 network boundaries, scoping credentials, and pre-installing dependencies.
 
+### Best practice: pre-create workspaces for deterministic workflows
+
+Letting the agent pick a template and provision a workspace works well
+for exploratory chats, but for automation, recurring workflows, or
+anything where you need a known, reproducible environment, pre-create the
+workspace yourself and attach it when you create the chat.
+
+The pattern is two API calls:
+
+1. Create a workspace from a specific template via
+   [`POST /api/v2/users/{user}/workspaces`](../../reference/api/workspaces.md#create-user-workspace).
+   You control the template, the version, and any rich parameters.
+2. Create the chat with `workspace_id` set to the workspace you just
+   created. The agent runs against that workspace instead of selecting
+   one heuristically.
+
+```sh
+# 1. Provision the workspace from the exact template you want.
+WORKSPACE_ID=$(curl -s -X POST \
+  https://coder.example.com/api/v2/users/me/workspaces \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_id": "<your-agent-template-uuid>",
+    "name": "agent-run-${GITHUB_RUN_ID}"
+  }' | jq -r '.id')
+
+# 2. Create the chat bound to that workspace.
+curl -s -X POST https://coder.example.com/api/experimental/chats \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"organization_id\": \"<your-org-id>\",
+    \"workspace_id\": \"$WORKSPACE_ID\",
+    \"content\": [
+      {\"type\": \"text\", \"text\": \"Fix the failing tests in the auth service\"}
+    ]
+  }"
+```
+
+This pattern is the closest analogue to the Tasks API behavior of
+`template_version_id` plus `coder-template-name`: you decide which
+template runs, the agent decides what to do inside it. The same approach
+works from the
+[`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action)
+GHA, which exposes the same pin via its `workspace-id` input.
+
 ## How to test your migration
 
 After completing the migration steps above, walk through these checks to
