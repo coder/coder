@@ -5,7 +5,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { isUUID } from "#/utils/uuid";
 
 interface OrganizationPillsProps {
@@ -24,10 +23,8 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 		<div className="flex flex-row gap-2">
 			{orgs.length > 0 ? (
 				<Pill
-					className={cn(
-						"border-none w-fit",
-						orgs[0].isUUID ? "bg-surface-destructive" : "bg-surface-secondary",
-					)}
+					type={orgs[0].isUUID ? "error" : "muted"}
+					className="w-fit border-0"
 				>
 					{orgs[0].name}
 				</Pill>
@@ -49,7 +46,8 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<Pill
-					className="min-h-4 min-w-6 bg-surface-secondary border-none px-3 py-1"
+					type="muted"
+					className="w-fit border-0"
 					data-testid="overflow-pill"
 				>
 					+{organizations.length}
@@ -61,12 +59,8 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 					{organizations.map((organization) => (
 						<li key={organization.name}>
 							<Pill
-								className={cn(
-									"border-none w-fit",
-									organization.isUUID
-										? "bg-surface-destructive"
-										: "bg-surface-secondary",
-								)}
+								type={organization.isUUID ? "error" : "muted"}
+								className="w-fit border-0"
 							>
 								{organization.name}
 							</Pill>
