@@ -57,20 +57,6 @@ each provider so developers can select it from the chat. Models from a
 provider only appear in the model selector once the provider has valid
 credentials.
 
-### When to use OpenAI Compatible
-
-Use the **OpenAI Compatible** provider type for an OpenAI-typed AI Gateway
-named instance (such as Azure OpenAI or ChatGPT) when you want to opt out
-of the OpenAI-specific options the Agents **OpenAI** provider applies by
-default, such as reasoning effort or parallel tool calls. The Base URL
-pattern is the same as a named OpenAI instance.
-
-> [!NOTE]
-> OpenAI Compatible speaks the OpenAI wire protocol, so it cannot target
-> Anthropic-typed AI Gateway instances. To route a named Anthropic
-> instance through AI Gateway, configure the Agents **Anthropic**
-> provider as shown above.
-
 ## Authentication
 
 AI Gateway only accepts Coder-issued tokens for client authentication. The
