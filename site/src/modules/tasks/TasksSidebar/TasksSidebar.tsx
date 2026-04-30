@@ -41,6 +41,7 @@ import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
 import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";
 import { UserCombobox } from "./UserCombobox";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 
 export const TasksSidebar: FC = () => {
 	const { user, permissions } = useAuthenticated();
@@ -69,7 +70,7 @@ export const TasksSidebar: FC = () => {
 							asChild
 						>
 							<RouterLink to="/tasks">
-								<CoderIcon className="fill-content-primary !size-6 !p-0" />
+								<ProductLogo className="size-6" />
 								<span className="sr-only">Navigate to tasks</span>
 							</RouterLink>
 						</Button>

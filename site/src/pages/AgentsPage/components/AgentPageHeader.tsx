@@ -27,9 +27,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -135,11 +133,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 			) : (
 				<div className="inline-flex shrink-0 items-center gap-2 md:hidden">
 					<NavLink to="/workspaces" className="inline-flex">
-						{logoUrl ? (
-							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-						) : (
-							<CoderIcon className="h-6 w-6 fill-content-primary" />
-						)}
+						<ProductLogo className="size-6" />
 					</NavLink>
 					<FeatureStageBadge contentType="beta" size="sm" />
 				</div>

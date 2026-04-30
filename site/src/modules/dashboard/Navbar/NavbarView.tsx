@@ -5,8 +5,6 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
 import {
 	Tooltip,
 	TooltipContent,
@@ -22,6 +20,7 @@ import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 
 interface NavbarViewProps {
 	logo_url?: string;
@@ -83,11 +82,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			}}
 		>
 			<NavLink to="/workspaces">
-				{logo_url ? (
-					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />
-				) : (
-					<CoderIcon className="h-7 w-7 fill-content-primary" />
-				)}
+				<ProductLogo className="h-7" />
 			</NavLink>
 
 			<NavItems

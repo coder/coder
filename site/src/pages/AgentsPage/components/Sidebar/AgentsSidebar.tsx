@@ -88,9 +88,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -110,6 +108,7 @@ import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
 import { RenameChatDialog } from "./RenameChatDialog";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -1090,11 +1089,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<div className="mb-2.5 flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<NavLink to="/workspaces" className="inline-flex">
-								{logoUrl ? (
-									<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-								) : (
-									<CoderIcon className="h-6 w-6 fill-content-primary" />
-								)}
+								<ProductLogo className="size-6" />
 							</NavLink>
 							<FeatureStageBadge contentType="beta" size="sm" />
 						</div>
