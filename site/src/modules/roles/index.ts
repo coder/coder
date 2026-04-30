@@ -21,9 +21,6 @@ export const memberRole: ScopedSlimRole = {
 } as const;
 
 export function getRoleNames(roles: readonly SlimRole[]): string[] {
-	if (roles.length === 0) {
-		return [memberRole.name];
-	}
 	return roles.map((role) => role.name);
 }
 

@@ -20,7 +20,7 @@ interface ScheduleDialogProps extends ConfirmDialogProps {
 export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 	cancelText,
 	confirmLoading,
-	confirmDisabled: disabled = false,
+	confirmDisabled = false,
 	hideCancel,
 	onClose,
 	onConfirm,
@@ -129,7 +129,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 					cancelText={cancelText}
 					confirmLoading={confirmLoading}
 					confirmText="Submit"
-					confirmDisabled={disabled}
+					confirmDisabled={confirmDisabled}
 					onCancel={!hideCancel ? onClose : undefined}
 					onConfirm={onConfirm || onClose}
 					type="delete"

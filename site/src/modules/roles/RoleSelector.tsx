@@ -25,6 +25,8 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	selectedRoles,
 	onChange,
 }) => {
+	console.log(selectedRoles);
+
 	const baseId = useId();
 	const selectableRoles = availableRoles.filter((r) => r.name !== "member");
 
