@@ -808,7 +808,7 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 
 // cliResponseHeaderTimeout bounds how long a single coderd request may
 // sit waiting for response headers. Past this point the client returns a
-// net.Error with Timeout()==true, which isRetryableError recognises.
+// net.Error with Timeout()==true, which isRetryableError recognizes.
 const cliResponseHeaderTimeout = 30 * time.Second
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
