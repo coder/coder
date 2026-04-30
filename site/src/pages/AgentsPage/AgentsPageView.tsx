@@ -156,7 +156,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	};
 
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
+		<div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
 			<div
 				className={cn(
