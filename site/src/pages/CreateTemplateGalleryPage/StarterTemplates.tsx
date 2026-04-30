@@ -1,8 +1,8 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
+import { cn } from "#/utils/cn";
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
@@ -66,13 +66,22 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		<div className="flex flex-row gap-8 items-start">
 			{starterTemplatesByTag && tags && (
 				<div className="flex flex-col gap-4 w-[202px] shrink-0 sticky">
-					<h2 css={styles.sectionTitle}>Choose a starter template</h2>
-					<span css={styles.filterCaption}>Filter</span>
+					<h2 className="m-0 text-base font-normal text-content-primary">
+						Choose a starter template
+					</h2>
+					<span className="text-xs font-semibold uppercase tracking-[0.1em] text-content-secondary">
+						Filter
+					</span>
 					{tags.map((tag) => (
 						<Link
 							key={tag}
 							to={`?tag=${tag}`}
-							css={[styles.tagLink, tag === activeTag && styles.tagLinkActive]}
+							className={cn(
+								"text-sm capitalize no-underline hover:text-content-primary",
+								tag === activeTag
+									? "font-semibold text-content-primary"
+									: "text-content-secondary",
+							)}
 						>
 							{getTagLabel(tag)} ({starterTemplatesByTag[tag].length})
 						</Link>
@@ -95,36 +104,3 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	filterCaption: (theme) => ({
-		textTransform: "uppercase",
-		fontWeight: 600,
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		letterSpacing: "0.1em",
-	}),
-
-	tagLink: (theme) => ({
-		color: theme.palette.text.secondary,
-		textDecoration: "none",
-		fontSize: 14,
-		textTransform: "capitalize",
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-		},
-	}),
-
-	tagLinkActive: (theme) => ({
-		color: theme.palette.text.primary,
-		fontWeight: 600,
-	}),
-
-	sectionTitle: (theme) => ({
-		color: theme.palette.text.primary,
-		fontSize: 16,
-		fontWeight: 400,
-		margin: 0,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
