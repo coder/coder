@@ -9,17 +9,12 @@ This guide walks you through updating your integrations from the Tasks API
 to the Chats API.
 
 > [!NOTE]
-> The Chats API is experimental and gated behind the `agents` experiment
-> flag in current Coder releases. The flag is being removed for the May Beta
-> release. Endpoints live under `/api/experimental/chats` and may change
-> without notice.
+> The Chats API is experimental in current Coder releases. Endpoints live under `/api/experimental/chats` and may change without notice until the feature graduates to GA.
 
 ## When to migrate
 
 Coder Tasks is being deprecated. Support continues on the ESR release and
-through Coder v2.36; after v2.36, Tasks support is available only on the
-12-month ESR release for Coder Premium customers. See the deprecation
-notice on the [Coder Tasks](../tasks.md) page for the full timeline.
+through Coder v2.36. See the deprecation notice on the [Coder Tasks](../tasks.md) page for the full timeline.
 
 If you currently run workflows on the Tasks API, you should plan to
 migrate to the Chats API and [Coder Agents](./index.md). Coder Agents
@@ -67,24 +62,7 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 
 ## Migration steps
 
-### 1. Enable the `agents` experiment
-
-In current releases the Chats API is gated behind the `agents` experiment
-flag on the Coder server:
-
-```diff
-- coder server
-+ CODER_EXPERIMENTS="agents" coder server
-```
-
-If you already use other experiments, add `agents` to the comma-separated
-list.
-
-The flag is being removed for the May Beta release. Once you upgrade to a
-release that drops the flag, the variable becomes a no-op and the API is
-always available.
-
-### 2. Configure an LLM provider
+### 1. Configure an LLM provider
 
 With Tasks, LLM credentials are injected into the workspace as environment
 variables (e.g. `ANTHROPIC_API_KEY`). With Coder Agents, credentials are
@@ -95,9 +73,9 @@ configured once in the control plane:
    and save.
 1. Under **Models**, add at least one model and set it as the default.
 
-You no longer pass API keys in template variables or workspace environment.
+You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information. 
 
-### 3. Update task creation calls
+### 2. Update task creation calls
 
 **Tasks API**. You specify the user, template version, and a prompt
 string:
@@ -144,7 +122,7 @@ Key differences:
 - Optionally pass `model_config_id` to override the default model, or
   `mcp_server_ids` to attach MCP servers.
 
-### 4. Update follow-up message calls
+### 3. Update follow-up message calls
 
 **Tasks API**. Follow-ups use the send endpoint with a plain string:
 
@@ -176,7 +154,7 @@ is queued automatically and delivered when the agent finishes its current
 step. The response includes a `queued` field indicating whether the message
 was delivered immediately or queued.
 
-### 5. Switch from log polling to WebSocket streaming
+### 4. Switch from log polling to WebSocket streaming
 
 **Tasks API**. You poll for logs:
 
@@ -207,7 +185,7 @@ The WebSocket sends JSON envelopes with a `type` field (`"ping"`,
 Use `after_id` as a query parameter when reconnecting to skip messages the
 client already has.
 
-### 6. Update status handling
+### 5. Update status handling
 
 Task and chat statuses use different values. The Chats API status set is
 defined in `codersdk.ChatStatus`:
@@ -225,7 +203,7 @@ The Chats API uses `waiting` as the default idle state (not `complete`).
 The `completed` enum value is also defined but is not currently set by any
 production code path on `main`; treat `waiting` as "agent is done."
 
-### 7. Replace delete with archive
+### 6. Replace delete with archive
 
 The Tasks API uses `DELETE` to remove a task. The Chats API uses archiving:
 
@@ -241,7 +219,7 @@ The Tasks API uses `DELETE` to remove a task. The Chats API uses archiving:
 
 Archived chats can be restored by setting `archived` to `false`.
 
-### 8. Replace pause/resume with interrupt and messaging
+### 7. Replace pause/resume with interrupt and messaging
 
 **Tasks API**. Pause and resume stop and start the workspace:
 
@@ -282,7 +260,7 @@ Chats API, interrupt stops the agent loop in the control plane; the
 workspace may remain running. The workspace lifecycle is managed
 independently.
 
-### 9. Update GitHub Actions integrations
+### 8. Update GitHub Actions integrations
 
 If you use the
 [Create Task Action](https://github.com/coder/create-task-action) GitHub
