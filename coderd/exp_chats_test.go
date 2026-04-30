@@ -12517,12 +12517,7 @@ func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-		dv.Experiments = []string{string(codersdk.ExperimentAgents)}
-	})
-	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues: dv,
-	})
+	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 	var store dbauthz.AccessControlStore = requireActiveVersionStore{}
 	api.AccessControlStore.Store(&store)
 	db := api.Database
