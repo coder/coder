@@ -94,6 +94,8 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 	coord2 := uuid.UUID{2}
 	coord3 := uuid.UUID{3}
 
+	uut.listen(ctx, []byte(coord2.String()), nil)
+
 	// coord 3 heartbeat comes very soon after
 	mClock.Advance(time.Millisecond).MustWait(ctx)
 	go uut.listen(ctx, []byte(coord3.String()), nil)
