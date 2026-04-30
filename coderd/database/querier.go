@@ -711,6 +711,21 @@ type sqlcQuerier interface {
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error)
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
+	// Returns deployment-wide aggregates for the telemetry snapshot.
+	//
+	// The denominator for both user-level counts and the per-user
+	// distribution is active non-system users. Soft-deleted users are
+	// excluded because Coder soft-deletes by flipping users.deleted
+	// rather than removing rows, so their secrets persist in user_secrets
+	// but are no longer reachable. System users (is_system = true) cover
+	// internal subjects like the prebuilds user that never use secrets.
+	//
+	// The percentile distribution is computed across all active non-system
+	// users, including those with zero secrets, so the percentiles reflect
+	// deployment-wide adoption rather than only the power-user subset.
+	// percentile_disc returns an actual integer count from the underlying
+	// values rather than interpolating between rows.
+	GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)

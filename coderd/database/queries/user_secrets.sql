@@ -65,3 +65,48 @@ RETURNING *;
 DELETE FROM user_secrets
 WHERE user_id = @user_id AND name = @name
 RETURNING *;
+
+-- name: GetUserSecretsTelemetrySummary :one
+-- Returns deployment-wide aggregates for the telemetry snapshot.
+--
+-- The denominator for both user-level counts and the per-user
+-- distribution is active non-system users. Soft-deleted users are
+-- excluded because Coder soft-deletes by flipping users.deleted
+-- rather than removing rows, so their secrets persist in user_secrets
+-- but are no longer reachable. System users (is_system = true) cover
+-- internal subjects like the prebuilds user that never use secrets.
+--
+-- The percentile distribution is computed across all active non-system
+-- users, including those with zero secrets, so the percentiles reflect
+-- deployment-wide adoption rather than only the power-user subset.
+-- percentile_disc returns an actual integer count from the underlying
+-- values rather than interpolating between rows.
+WITH active_users AS (
+    SELECT id AS user_id
+    FROM users
+    WHERE deleted = false AND is_system = false
+),
+per_user AS (
+    SELECT au.user_id, COUNT(us.id)::bigint AS n
+    FROM active_users au
+    LEFT JOIN user_secrets us ON us.user_id = au.user_id
+    GROUP BY au.user_id
+),
+secrets_filtered AS (
+    SELECT us.env_name, us.file_path
+    FROM user_secrets us
+    JOIN active_users au ON au.user_id = us.user_id
+)
+SELECT
+    COUNT(*) FILTER (WHERE n > 0)::bigint                                                       AS users_with_secrets,
+    (SELECT COUNT(*) FROM secrets_filtered)::bigint                                             AS total_secrets,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name != '' AND file_path = '' )::bigint    AS env_name_only,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name = ''  AND file_path != '')::bigint    AS file_path_only,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name != '' AND file_path != '')::bigint    AS both,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name = ''  AND file_path = '' )::bigint    AS neither,
+    COALESCE(MAX(n), 0)::bigint                                                                 AS secrets_per_user_max,
+    COALESCE(percentile_disc(0.25) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p25,
+    COALESCE(percentile_disc(0.50) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p50,
+    COALESCE(percentile_disc(0.75) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p75,
+    COALESCE(percentile_disc(0.90) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p90
+FROM per_user;
