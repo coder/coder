@@ -264,9 +264,16 @@ independently.
 
 If you use the
 [Create Task Action](https://github.com/coder/create-task-action) GitHub
-Action, replace it with direct Chats API calls. The Tasks API GHA creates
-a task for a specific user on a specific template. The Chats API
-equivalent:
+Action, replace it with the dedicated
+[`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action).
+It handles the API call, the GitHub user lookup, and the optional issue
+comment, so most existing workflows can swap one `uses:` line and rename
+a few inputs.
+
+We are actively shipping new features for `create-agent-chat-action`, so
+pin to a major version (for example `@v0`) and watch the
+[releases](https://github.com/coder/create-agent-chat-action/releases) for
+updates.
 
 ```diff
 # .github/workflows/triage-bug.yaml
@@ -291,38 +298,37 @@ jobs:
 -         github-issue-url: ${{ github.event.issue.html_url }}
 -         github-token: ${{ github.token }}
 -         comment-on-issue: true
-+     - name: Create Coder Agent Chat
-+       run: |
-+         RESPONSE=$(curl -s -X POST \
-+           "${{ secrets.CODER_URL }}/api/experimental/chats" \
-+           -H "Coder-Session-Token: ${{ secrets.CODER_TOKEN }}" \
-+           -H "Content-Type: application/json" \
-+           -d '{
-+             "content": [
-+               {
-+                 "type": "text",
-+                 "text": "Read the GitHub issue at ${{ github.event.issue.html_url }}, fix the issue, and create a PR."
-+               }
-+             ]
-+           }')
-+         CHAT_ID=$(echo "$RESPONSE" | jq -r '.id')
-+         echo "chat_id=$CHAT_ID" >> "$GITHUB_OUTPUT"
++     - name: Coder Create Agent Chat
++       uses: coder/create-agent-chat-action@v0
++       with:
++         coder-url: ${{ secrets.CODER_URL }}
++         coder-token: ${{ secrets.CODER_TOKEN }}
++         chat-prompt: >-
++           Use the gh CLI to read
++           ${{ github.event.issue.html_url }},
++           fix the issue, and create a PR.
++         github-user-id: ${{ github.event.sender.id }}
++         github-issue-url: ${{ github.event.issue.html_url }}
++         github-token: ${{ github.token }}
++         comment-on-issue: true
 ```
 
-Key differences:
+Key differences from the Tasks GHA:
 
-- No `template_version_id` or `coder-template-name`. The agent selects a
-  template automatically.
-- No `github-user-id` mapping. The session token determines the user.
+- No `coder-template-name` or `coder-task-name-prefix`. The agent
+  auto-provisions a workspace; pass `workspace-id` if you want to pin to
+  an existing workspace instead.
+- The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template. They are
   configured in the Coder control plane.
+- Identify the user with `github-user-id` (the action resolves it to a
+  Coder user via the GitHub OAuth link) or with `coder-username`
+  directly.
 
-> [!NOTE]
-> A dedicated `coder/create-agent-chat-action` GitHub Action with parity
-> to `create-task-action` is in development
-> ([CODAGT-127](https://linear.app/codercom/issue/CODAGT-127)). When
-> released, you can swap the inline `curl` for the action without changing
-> the rest of your workflow.
+See the
+[action README](https://github.com/coder/create-agent-chat-action#inputs)
+for the full input and output reference, including the `existing-chat-id`
+input for sending follow-up messages on a previous chat.
 
 ## Template recommendations
 
