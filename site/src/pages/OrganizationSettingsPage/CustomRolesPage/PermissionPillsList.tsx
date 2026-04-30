@@ -57,7 +57,7 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 	);
 
 	return (
-		<Pill type="inactive" className="w-fit">
+		<Pill type="muted" className="w-fit">
 			<b>{resource}</b>:{" "}
 			{actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
 		</Pill>

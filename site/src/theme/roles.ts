@@ -24,6 +24,9 @@ export interface Roles {
 	 */
 	inactive: Role;
 
+	/** Neutral zinc chip pills (formerly experimental pillDefault). */
+	muted: Role;
+
 	/** Actions that have long lasting or irreversible effects.
 	 * Deletion, immutable parameters, etc.
 	 */

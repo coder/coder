@@ -16,7 +16,7 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
 		<Stack direction="row" spacing={1}>
 			{roles.length > 0 ? (
-				<Pill type={isUUID(roles[0]) ? "error" : "inactive"} className="w-fit">
+				<Pill className="w-fit" type={isUUID(roles[0]) ? "error" : "muted"}>
 					{roles[0]}
 				</Pill>
 			) : (
@@ -43,10 +43,7 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 				<ul className="flex flex-col gap-2 list-none my-0 pl-0">
 					{roles.map((role) => (
 						<li key={role}>
-							<Pill
-								type={isUUID(role) ? "error" : "inactive"}
-								className="w-fit"
-							>
+							<Pill className="w-fit" type={isUUID(role) ? "error" : "muted"}>
 								{role}
 							</Pill>
 						</li>

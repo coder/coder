@@ -16,6 +16,7 @@ const themeStyles = (type: ThemeRole) => (theme: Theme) => {
 	return {
 		backgroundColor: palette.background,
 		borderColor: palette.outline,
+		color: palette.text,
 	};
 };
 
@@ -30,7 +31,7 @@ export const Pill: FC<PillProps> = ({
 	size = "md",
 	...divProps
 }) => {
-	const typeStyles = useMemo(() => themeStyles(type), [type]);
+	const fillStyles = useMemo(() => themeStyles(type), [type]);
 
 	return (
 		<div
@@ -39,7 +40,7 @@ export const Pill: FC<PillProps> = ({
 				Boolean(icon) && size === "md" && styles.pillWithIcon,
 				size === "lg" && styles.pillLg,
 				Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
-				typeStyles,
+				fillStyles,
 			]}
 			{...divProps}
 		>
