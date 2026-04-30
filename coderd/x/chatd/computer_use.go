@@ -124,7 +124,7 @@ func appendComputerUseProviderTool(
 		return providerTools, nil
 	}
 
-	desktopGeometry := workspacesdk.DefaultDesktopGeometry()
+	desktopGeometry := chattool.DefaultComputerUseDesktopGeometry(opts.provider)
 	definition, err := chattool.ComputerUseProviderTool(
 		opts.provider,
 		desktopGeometry.DeclaredWidth,

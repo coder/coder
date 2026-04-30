@@ -74,6 +74,46 @@ func TestDefaultComputerUseModel(t *testing.T) {
 	}
 }
 
+func TestDefaultComputerUseDesktopGeometry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		provider       string
+		declaredWidth  int
+		declaredHeight int
+	}{
+		{
+			name:           "empty defaults to Anthropic geometry",
+			provider:       "",
+			declaredWidth:  1280,
+			declaredHeight: 720,
+		},
+		{
+			name:           "Anthropic",
+			provider:       chattool.ComputerUseProviderAnthropic,
+			declaredWidth:  1280,
+			declaredHeight: 720,
+		},
+		{
+			name:           "OpenAI",
+			provider:       chattool.ComputerUseProviderOpenAI,
+			declaredWidth:  1440,
+			declaredHeight: 900,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			geometry := chattool.DefaultComputerUseDesktopGeometry(tt.provider)
+			assert.Equal(t, tt.declaredWidth, geometry.DeclaredWidth)
+			assert.Equal(t, tt.declaredHeight, geometry.DeclaredHeight)
+		})
+	}
+}
+
 func TestComputerUseProviderTool(t *testing.T) {
 	t.Parallel()
 

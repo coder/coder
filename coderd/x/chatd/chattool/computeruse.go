@@ -72,6 +72,17 @@ func DefaultComputerUseModel(provider string) (modelProvider, modelName string, 
 	}
 }
 
+// DefaultComputerUseDesktopGeometry returns provider-specific model-facing
+// desktop geometry for computer use.
+func DefaultComputerUseDesktopGeometry(provider string) workspacesdk.DesktopGeometry {
+	switch DefaultComputerUseProvider(provider) {
+	case ComputerUseProviderOpenAI:
+		return workspacesdk.DefaultOpenAIComputerUseDesktopGeometry()
+	default:
+		return workspacesdk.DefaultDesktopGeometry()
+	}
+}
+
 // computerUseTool implements fantasy.AgentTool and chatloop.ToolDefiner.
 type computerUseTool struct {
 	provider         string
@@ -644,7 +655,7 @@ func executeScreenshotAction(
 
 func (t *computerUseTool) declaredActionDimensions() (declaredWidth, declaredHeight int) {
 	if t.declaredWidth <= 0 || t.declaredHeight <= 0 {
-		geometry := workspacesdk.DefaultDesktopGeometry()
+		geometry := DefaultComputerUseDesktopGeometry(t.provider)
 		return geometry.DeclaredWidth, geometry.DeclaredHeight
 	}
 	return t.declaredWidth, t.declaredHeight
