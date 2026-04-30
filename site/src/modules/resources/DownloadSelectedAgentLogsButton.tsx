@@ -55,9 +55,16 @@ export const DownloadSelectedAgentLogsButton: FC<
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="subtle" size="sm" disabled={disabled || isDownloading}>
+				<Button
+					variant="subtle"
+					size="sm"
+					disabled={disabled || isDownloading}
+					className="min-w-0"
+				>
 					<DownloadIcon />
-					{isDownloading ? "Downloading..." : "Download logs"}
+					<span className="sr-only">
+						{isDownloading ? "Downloading..." : "Download logs"}
+					</span>
 					<ChevronDownIcon className="size-icon-sm" />
 				</Button>
 			</DropdownMenuTrigger>
