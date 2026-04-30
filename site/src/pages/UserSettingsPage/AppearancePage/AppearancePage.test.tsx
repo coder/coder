@@ -279,4 +279,41 @@ describe("appearance page", () => {
 			await Promise.resolve();
 		});
 	});
+	it("resyncs the local draft when initialValues change between renders", () => {
+		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
+		const { rerender } = render(
+			<TooltipProvider delayDuration={100}>
+				<AppearanceForm
+					activeScheme="dark"
+					initialValues={putResponse({
+						theme_preference: "dark",
+						theme_mode: "single",
+						theme_light: "light",
+						theme_dark: "dark",
+					})}
+					onSubmit={onSubmit}
+				/>
+			</TooltipProvider>,
+		);
+
+		expect(screen.getByRole("radio", { name: /dark default/i })).toBeChecked();
+
+		rerender(
+			<TooltipProvider delayDuration={100}>
+				<AppearanceForm
+					activeScheme="dark"
+					initialValues={putResponse({
+						theme_preference: "light",
+						theme_mode: "single",
+						theme_light: "light",
+						theme_dark: "dark",
+					})}
+					onSubmit={onSubmit}
+				/>
+			</TooltipProvider>,
+		);
+
+		expect(screen.getByRole("radio", { name: /light default/i })).toBeChecked();
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
 });

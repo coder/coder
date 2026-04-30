@@ -2880,22 +2880,6 @@ func (m queryMetricsStore) GetUserTaskNotificationAlertDismissed(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserTerminalFont(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserTerminalFont").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserTerminalFont").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserThemePreference(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserThemePreference").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThemePreference").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserThinkingDisplayMode(ctx, userID)

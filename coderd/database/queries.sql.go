@@ -25314,40 +25314,6 @@ func (q *sqlQuerier) GetUserTaskNotificationAlertDismissed(ctx context.Context, 
 	return task_notification_alert_dismissed, err
 }
 
-const getUserTerminalFont = `-- name: GetUserTerminalFont :one
-SELECT
-	value as terminal_font
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'terminal_font'
-`
-
-func (q *sqlQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserTerminalFont, userID)
-	var terminal_font string
-	err := row.Scan(&terminal_font)
-	return terminal_font, err
-}
-
-const getUserThemePreference = `-- name: GetUserThemePreference :one
-SELECT
-	value as theme_preference
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'theme_preference'
-`
-
-func (q *sqlQuerier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserThemePreference, userID)
-	var theme_preference string
-	err := row.Scan(&theme_preference)
-	return theme_preference, err
-}
-
 const getUserThinkingDisplayMode = `-- name: GetUserThinkingDisplayMode :one
 SELECT
 	value AS thinking_display_mode

@@ -708,8 +708,6 @@ type sqlcQuerier interface {
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
 	GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error)
-	GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error)
-	GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.

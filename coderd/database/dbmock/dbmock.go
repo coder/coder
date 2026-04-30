@@ -5386,36 +5386,6 @@ func (mr *MockStoreMockRecorder) GetUserTaskNotificationAlertDismissed(ctx, user
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTaskNotificationAlertDismissed", reflect.TypeOf((*MockStore)(nil).GetUserTaskNotificationAlertDismissed), ctx, userID)
 }
 
-// GetUserTerminalFont mocks base method.
-func (m *MockStore) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserTerminalFont", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserTerminalFont indicates an expected call of GetUserTerminalFont.
-func (mr *MockStoreMockRecorder) GetUserTerminalFont(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTerminalFont", reflect.TypeOf((*MockStore)(nil).GetUserTerminalFont), ctx, userID)
-}
-
-// GetUserThemePreference mocks base method.
-func (m *MockStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserThemePreference", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserThemePreference indicates an expected call of GetUserThemePreference.
-func (mr *MockStoreMockRecorder) GetUserThemePreference(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemePreference", reflect.TypeOf((*MockStore)(nil).GetUserThemePreference), ctx, userID)
-}
-
 // GetUserThinkingDisplayMode mocks base method.
 func (m *MockStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()

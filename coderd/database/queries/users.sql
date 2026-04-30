@@ -143,15 +143,6 @@ WHERE
 		'terminal_font'
 	);
 
--- name: GetUserThemePreference :one
-SELECT
-	value as theme_preference
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'theme_preference';
-
 -- name: UpdateUserThemePreference :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -165,15 +156,6 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_preference'
 RETURNING *;
-
--- name: GetUserTerminalFont :one
-SELECT
-	value as terminal_font
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'terminal_font';
 
 -- name: UpdateUserTerminalFont :one
 INSERT INTO

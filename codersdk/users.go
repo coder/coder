@@ -299,8 +299,16 @@ type UpdateUserAppearanceSettingsRequest struct {
 	// unchanged so older CLI clients do not erase sync-mode settings.
 	// Legacy auto preferences are the exception: they clear theme_mode
 	// so clients can migrate the old sync-with-system setting.
-	ThemeMode    ThemeMode        `json:"theme_mode" validate:"omitempty,oneof=sync single"`
-	ThemeLight   string           `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
+	ThemeMode ThemeMode `json:"theme_mode" validate:"omitempty,oneof=sync single"`
+	// ThemeLight is required when ThemeMode is "sync". In "single"
+	// mode an empty value means "preserve the previously persisted
+	// slot" rather than "clear the slot", so partial updates that send
+	// only one slot keep the other intact.
+	ThemeLight string `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
+	// ThemeDark is required when ThemeMode is "sync". In "single" mode
+	// an empty value means "preserve the previously persisted slot"
+	// rather than "clear the slot", so partial updates that send only
+	// one slot keep the other intact.
 	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
 	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
 }

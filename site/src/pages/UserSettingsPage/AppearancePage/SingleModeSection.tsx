@@ -54,6 +54,7 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 				"flex cursor-pointer flex-col gap-3 rounded-md border border-solid border-border p-4",
 				selected &&
 					"border-content-link outline outline-2 outline-content-link",
+				"has-[input:focus-visible]:outline has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-content-link",
 			)}
 		>
 			<input

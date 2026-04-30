@@ -28,14 +28,14 @@ export const SyncModeSection: FC<SyncModeSectionProps> = ({
 	return (
 		<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 			<SyncCard
-				key={`light-${light}`}
+				key="light"
 				scheme="light"
 				selected={light}
 				active={activeScheme === "light"}
 				onSelect={(theme) => onSelect("light", theme)}
 			/>
 			<SyncCard
-				key={`dark-${dark}`}
+				key="dark"
 				scheme="dark"
 				selected={dark}
 				active={activeScheme === "dark"}

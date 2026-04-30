@@ -1,4 +1,4 @@
-import { type FC, useMemo, useRef, useState } from "react";
+import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -65,10 +65,10 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	initialValues,
 	activeScheme,
 }) => {
-	// Seed the working draft once from the persisted settings. The
-	// draft carries all four slots (mode, single, light, dark) so the
-	// user can switch the dropdown without losing their other-mode
-	// selection mid-interaction.
+	// Seed the working draft from the persisted settings. The draft
+	// carries all four slots (mode, single, light, dark) so the user
+	// can switch the dropdown without losing their other-mode selection
+	// mid-interaction.
 	const [draft, setDraft] = useState<ThemeModeDraft>(() =>
 		draftFromState(migrateLegacyPreference(initialValues), {
 			light: initialValues.theme_light,
@@ -81,6 +81,33 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		[initialValues.terminal_font],
 	);
 	const submitInFlightRef = useRef(false);
+
+	// Resync the local draft when the persisted settings change while
+	// no submit is in flight. This keeps the form in sync with fresh
+	// React Query data (for example when the metadata-backed initial
+	// snapshot is replaced by a /appearance refetch, or another tab
+	// updates the user's settings) without overwriting an in-progress
+	// optimistic edit. Submit-driven updates are guarded by
+	// submitInFlightRef so the optimistic draft survives until the
+	// mutation resolves.
+	const { theme_preference, theme_mode, theme_light, theme_dark } =
+		initialValues;
+	useEffect(() => {
+		if (submitInFlightRef.current) {
+			return;
+		}
+		setDraft(
+			draftFromState(
+				migrateLegacyPreference({
+					theme_preference,
+					theme_mode,
+					theme_light,
+					theme_dark,
+				}),
+				{ light: theme_light, dark: theme_dark },
+			),
+		);
+	}, [theme_preference, theme_mode, theme_light, theme_dark]);
 
 	const submit = (next: ThemeModeDraft, terminalFont: TerminalFontName) => {
 		if (isUpdating || submitInFlightRef.current) {

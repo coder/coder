@@ -8049,7 +8049,19 @@ export interface UpdateUserAppearanceSettingsRequest {
 	 * so clients can migrate the old sync-with-system setting.
 	 */
 	readonly theme_mode: ThemeMode;
+	/**
+	 * ThemeLight is required when ThemeMode is "sync". In "single"
+	 * mode an empty value means "preserve the previously persisted
+	 * slot" rather than "clear the slot", so partial updates that send
+	 * only one slot keep the other intact.
+	 */
 	readonly theme_light: string;
+	/**
+	 * ThemeDark is required when ThemeMode is "sync". In "single" mode
+	 * an empty value means "preserve the previously persisted slot"
+	 * rather than "clear the slot", so partial updates that send only
+	 * one slot keep the other intact.
+	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }

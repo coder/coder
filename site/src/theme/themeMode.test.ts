@@ -1,4 +1,5 @@
 import { DEFAULT_THEME } from ".";
+import { CONCRETE_THEMES } from "./colorblind";
 import {
 	draftFromState,
 	draftToUpdate,
@@ -339,15 +340,9 @@ describe("draftFromState", () => {
 		// Guards against a future theme being added to CONCRETE_THEMES
 		// without a matching FAMILY_PAIR entry. Mirrors the
 		// SingleModeSection module-load assertion at the unit level.
-		const concreteThemes = [
-			"light",
-			"dark",
-			"light-protan-deuter",
-			"dark-protan-deuter",
-			"light-tritan",
-			"dark-tritan",
-		] as const;
-		for (const theme of concreteThemes) {
+		// Importing CONCRETE_THEMES (rather than duplicating the list)
+		// ensures a seventh theme added to the registry is iterated here.
+		for (const theme of CONCRETE_THEMES) {
 			const draft = draftFromState({ mode: "single", theme });
 			expect(draft.mode).toBe("single");
 			expect(draft.single).toBe(theme);

@@ -2648,12 +2648,6 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserAppearanceSettings(gomock.Any(), u.ID).Return(settings, nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns(settings)
 	}))
-	s.Run("GetUserThemePreference", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		u := testutil.Fake(s.T(), faker, database.User{})
-		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserThemePreference(gomock.Any(), u.ID).Return("light", nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("light")
-	}))
 	s.Run("UpdateUserThemePreference", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		uc := database.UserConfig{UserID: u.ID, Key: "theme_preference", Value: "dark"}
@@ -2661,12 +2655,6 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserThemePreference(gomock.Any(), arg).Return(uc, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
-	}))
-	s.Run("GetUserTerminalFont", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		u := testutil.Fake(s.T(), faker, database.User{})
-		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserTerminalFont(gomock.Any(), u.ID).Return("ibm-plex-mono", nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("ibm-plex-mono")
 	}))
 	s.Run("UpdateUserTerminalFont", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
