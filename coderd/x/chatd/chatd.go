@@ -5833,9 +5833,8 @@ func (p *Server) appendRootChatTools(
 			OwnerID:            opts.chat.OwnerID,
 			AllowedTemplateIDs: p.chatTemplateAllowlist,
 		}),
-		chattool.CreateWorkspace(opts.chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
+		chattool.CreateWorkspace(opts.chat.OrganizationID, p.db, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
-			ChatID:                         opts.chat.ID,
 			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
@@ -5844,10 +5843,8 @@ func (p *Server) appendRootChatTools(
 			Logger:                         p.logger,
 			AllowedTemplateIDs:             p.chatTemplateAllowlist,
 		}),
-		chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:            p.db,
+		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			ChatID:        opts.chat.ID,
 			StartFn:       p.startWorkspaceFn,
 			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,

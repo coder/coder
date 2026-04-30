@@ -25,6 +25,7 @@ type readTemplateArgs struct {
 // ReadTemplate returns a tool that retrieves details about a specific
 // template, including its configurable rich parameters. The agent
 // uses this after list_templates and before create_workspace.
+// db must not be nil.
 func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTemplateOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_template",
@@ -33,10 +34,6 @@ func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTempl
 			"template with list_templates and before creating a "+
 			"workspace with create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if db == nil {
-				return fantasy.NewTextErrorResponse("database is not configured"), nil
-			}
-
 			templateIDStr := strings.TrimSpace(args.TemplateID)
 			if templateIDStr == "" {
 				return fantasy.NewTextErrorResponse("template_id is required"), nil

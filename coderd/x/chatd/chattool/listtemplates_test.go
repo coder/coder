@@ -245,8 +245,21 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
+			// CreateWorkspace requires a real chat row so the existing
+			// workspace lookup can fall through to creation.
+			model := seedModelConfig(ctx, t, db, user.ID)
+			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: model.ID,
+				Title:             "allowed-create",
+				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeApi,
+			})
+			require.NoError(t, err)
+
 			createCalled := false
-			tool := chattool.CreateWorkspace(org.ID, db, chattool.CreateWorkspaceOptions{
+			tool := chattool.CreateWorkspace(org.ID, db, chat.ID, chattool.CreateWorkspaceOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
 
@@ -269,7 +282,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 		t.Run("Disallowed", func(t *testing.T) {
 			createCalled := false
-			tool := chattool.CreateWorkspace(uuid.Nil, db, chattool.CreateWorkspaceOptions{
+			tool := chattool.CreateWorkspace(uuid.Nil, db, uuid.Nil, chattool.CreateWorkspaceOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
