@@ -1,6 +1,6 @@
 # Mobile Keyboard Fix: Screenshots
 
-Screenshots demonstrating the iOS virtual-keyboard layout bug and its fix
+Animated GIFs demonstrating the iOS virtual-keyboard layout bug and its fix
 in the Coder Agents chat page.
 
 ## Before (`h-full`)
@@ -10,7 +10,7 @@ On iOS the layout viewport stays at the full device height even after the
 keyboard opens. The browser then auto-scrolls to bring the focused chat
 input into view, pushing the oldest messages above the visible area.
 
-![Before: first messages pushed off-screen](before.png)
+![Before: first messages pushed off-screen](before.gif)
 
 ## After (`h-dvh`)
 
@@ -20,12 +20,13 @@ shrinks to the remaining visible height. The input is naturally anchored at
 the bottom of this smaller container without any browser scroll, so all
 messages stay in view.
 
-![After: full chat visible, input at bottom](after.png)
+![After: full chat visible, input at bottom](after.gif)
 
 ---
 
-Screenshots captured via Playwright against a Storybook story
+Captured via Playwright against a Storybook story
 (`AgentChatPageView: MessageOrderIsStillCorrect`) at iPhone 14 Pro
 dimensions (390 x 844 px), with the iOS keyboard simulated as a 336 px
-overlay. The "after" capture uses a viewport of 390 x 508 px to match
-the visual viewport that `100dvh` would resolve to with the keyboard open.
+overlay. The "after" capture uses a viewport that shrinks from 844 px to
+508 px to match the visual viewport that `100dvh` would resolve to with
+the keyboard open.
