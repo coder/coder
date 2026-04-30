@@ -53,7 +53,6 @@ type AppliedModel = {
 
 type PreviouslyAppliedDefaults = {
 	provider: string;
-	modelIdentifier: string;
 	fields: Record<string, unknown>;
 };
 
@@ -152,10 +151,9 @@ export const ModelIdentifierField = ({
 		searchDirtyRef.current = false;
 	};
 
-	const clearAppliedModelState = () => {
+	const clearAppliedModelFeedback = () => {
 		setFeedback(null);
 		lastAppliedProviderModelRef.current = null;
-		previouslyAppliedRef.current = null;
 	};
 
 	const applyDefaultsForKnownModel = (knownModel: KnownModel) => {
@@ -163,29 +161,59 @@ export const ModelIdentifierField = ({
 			return;
 		}
 
+		const nextValuesForHelper = {
+			...form.values,
+			model: knownModel.modelIdentifier,
+		};
 		let effectiveInitialValues = initialFormValues;
 		const previouslyApplied = previouslyAppliedRef.current;
+		const previouslyAppliedFields: Record<string, unknown> =
+			previouslyApplied?.provider === normalizedProvider
+				? { ...previouslyApplied.fields }
+				: {};
 		if (previouslyApplied?.provider === normalizedProvider) {
 			effectiveInitialValues = structuredClone(initialFormValues);
+			// This map persists for the form session and stores the last value
+			// written by Known Model defaulting for each path. A path is safe
+			// to overwrite only when the current value still matches either
+			// the original initial value or this stored Known Model value.
 			for (const [field, value] of Object.entries(previouslyApplied.fields)) {
+				const segments = field.split(".");
+				if (deepGet(nextValuesForHelper, segments) !== value) {
+					continue;
+				}
 				deepSet(
 					effectiveInitialValues as Record<string, unknown>,
-					field.split("."),
+					segments,
 					value,
 				);
 			}
 		}
 
-		const nextValuesForHelper = {
-			...form.values,
-			model: knownModel.modelIdentifier,
-		};
 		const result = applyKnownModelDefaults({
 			values: nextValuesForHelper,
 			initialValues: effectiveInitialValues,
 			provider: normalizedProvider,
 			knownModel,
 		});
+		const appliedFields = new Set(result.appliedFields);
+		for (const [field, value] of Object.entries(previouslyAppliedFields)) {
+			if (appliedFields.has(field)) {
+				continue;
+			}
+
+			const segments = field.split(".");
+			if (deepGet(result.values, segments) !== value) {
+				continue;
+			}
+
+			const initialValue = deepGet(initialFormValues, segments);
+			deepSet(result.values as Record<string, unknown>, segments, initialValue);
+			previouslyAppliedFields[field] = initialValue;
+		}
+		for (const field of result.appliedFields) {
+			previouslyAppliedFields[field] = deepGet(result.values, field.split("."));
+		}
 		void form.setValues(result.values);
 		// Selecting and blurring can both observe the same canonical model. This
 		// ref skips the repeat apply so feedback does not flicker or duplicate.
@@ -195,13 +223,7 @@ export const ModelIdentifierField = ({
 		};
 		previouslyAppliedRef.current = {
 			provider: normalizedProvider,
-			modelIdentifier: knownModel.modelIdentifier,
-			fields: Object.fromEntries(
-				result.appliedFields.map((field) => [
-					field,
-					deepGet(result.values, field.split(".")),
-				]),
-			),
+			fields: previouslyAppliedFields,
 		};
 		setFeedback(
 			result.appliedFields.length > 0
@@ -233,13 +255,13 @@ export const ModelIdentifierField = ({
 		if (!option) {
 			void form.setFieldValue("model", "");
 			setSearchSnapshot("");
-			clearAppliedModelState();
+			clearAppliedModelFeedback();
 			return;
 		}
 
 		if (!option.knownModel) {
 			void form.setFieldValue("model", option.model);
-			clearAppliedModelState();
+			clearAppliedModelFeedback();
 			return;
 		}
 
@@ -295,7 +317,6 @@ export const ModelIdentifierField = ({
 		}
 
 		void form.setFieldValue("model", typed);
-		previouslyAppliedRef.current = null;
 		clearSearchSnapshot();
 	};
 

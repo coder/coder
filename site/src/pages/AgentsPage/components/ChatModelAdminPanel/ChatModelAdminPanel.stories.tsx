@@ -1300,6 +1300,81 @@ const expectPricingValue = async (
 	await expect(await body.findByLabelText(label)).toHaveValue(value);
 };
 
+type OpenAIDefaultExpectations = {
+	modelIdentifier: string;
+	contextLimit: string;
+	maxCompletionTokens: string;
+	inputCost: string;
+	outputCost: string;
+	cacheReadCost?: string;
+	cacheWriteCost?: string;
+};
+
+const gpt55Defaults = {
+	modelIdentifier: "gpt-5.5",
+	contextLimit: "1050000",
+	maxCompletionTokens: "128000",
+	inputCost: "5",
+	outputCost: "30",
+	cacheReadCost: "0.5",
+} satisfies OpenAIDefaultExpectations;
+
+const gpt55ProDefaults = {
+	modelIdentifier: "gpt-5.5-pro",
+	contextLimit: "1050000",
+	maxCompletionTokens: "128000",
+	inputCost: "30",
+	outputCost: "180",
+} satisfies OpenAIDefaultExpectations;
+
+const gpt54MiniDefaults = {
+	modelIdentifier: "gpt-5.4-mini",
+	contextLimit: "400000",
+	maxCompletionTokens: "128000",
+	inputCost: "0.75",
+	outputCost: "4.5",
+	cacheReadCost: "0.075",
+} satisfies OpenAIDefaultExpectations;
+
+const ensureProviderConfigurationOpen = async (
+	body: ReturnType<typeof within>,
+) => {
+	if (body.queryByLabelText(/Max Completion Tokens/i)) {
+		return;
+	}
+	await expandSection(body, "Provider Configuration");
+	await body.findByLabelText(/Max Completion Tokens/i);
+};
+
+const expectOpenAIKnownModelDefaults = async (
+	body: ReturnType<typeof within>,
+	expectations: OpenAIDefaultExpectations,
+) => {
+	await expectModelIdentifierValue(body, expectations.modelIdentifier);
+	await expect(body.getByLabelText(/Context limit/i)).toHaveValue(
+		expectations.contextLimit,
+	);
+
+	await ensureProviderConfigurationOpen(body);
+	await expect(
+		await body.findByLabelText(/Max Completion Tokens/i),
+	).toHaveValue(expectations.maxCompletionTokens);
+
+	await ensureCostTrackingOpen(body);
+	await expectPricingValue(body, /^Input$/i, expectations.inputCost);
+	await expectPricingValue(body, /^Output$/i, expectations.outputCost);
+	await expectPricingValue(
+		body,
+		/^Cache Read$/i,
+		expectations.cacheReadCost ?? "",
+	);
+	await expectPricingValue(
+		body,
+		/^Cache Write$/i,
+		expectations.cacheWriteCost ?? "",
+	);
+};
+
 export const OpenAIKnownModelHappyPath: Story = {
 	...providerFormSetup("openai", "OpenAI"),
 	play: async ({ canvasElement }) => {
@@ -1322,6 +1397,27 @@ export const OpenAIKnownModelHappyPath: Story = {
 		await expect(
 			await body.findByLabelText(/Max Completion Tokens/i),
 		).toHaveValue("128000");
+	},
+};
+
+export const OpenAIKnownModelKeyboardSelection: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-25: keyboard selection applies defaults",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		const trigger = await body.findByLabelText(/Model Identifier/i);
+		trigger.focus();
+		await userEvent.keyboard("{Enter}");
+		await body.findByRole("combobox");
+		await userEvent.keyboard("{ArrowDown}");
+		await userEvent.keyboard("{Enter}");
+
+		await expectOpenAIKnownModelDefaults(body, gpt55ProDefaults);
+		await expect(await body.findByRole("status")).toHaveTextContent(
+			knownModelDefaultsFeedback("GPT-5.5 Pro"),
+		);
 	},
 };
 
@@ -1423,6 +1519,56 @@ export const OpenAIKnownModelSequentialSelectionReplacesDefaults: Story = {
 		await ensureCostTrackingOpen(body);
 		await expectPricingValue(body, /^Input$/i, "0.75");
 		await expectPricingValue(body, /^Output$/i, "4.5");
+	},
+};
+
+export const OpenAIKnownModelStaleCostFieldDoesNotPersist: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-24: stale cost fields do not persist",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5-pro");
+		await selectKnownModel(body, "gpt-5.4-mini");
+		await selectKnownModel(body, "gpt-5.5");
+
+		await expectOpenAIKnownModelDefaults(body, gpt55Defaults);
+	},
+};
+
+export const OpenAIKnownModelOffCatalogInterleavingKeepsTracking: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-24: off-catalog interleaving keeps tracking",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		await openKnownModelPopover(body);
+		await clearAndTypeKnownModelSearch(body, "my-custom-fine-tune");
+		await closeKnownModelPopoverToContextLimit(body);
+		await expectModelIdentifierValue(body, "my-custom-fine-tune");
+
+		await selectKnownModel(body, "gpt-5.4-mini");
+
+		await expectOpenAIKnownModelDefaults(body, gpt54MiniDefaults);
+	},
+};
+
+export const OpenAIKnownModelChainTrackingDoesNotLoseFields: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-24: chained selections retain tracking",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		await selectKnownModel(body, "gpt-5.5-pro");
+		await expectOpenAIKnownModelDefaults(body, gpt55ProDefaults);
+		await selectKnownModel(body, "gpt-5.4-mini");
+
+		await expectOpenAIKnownModelDefaults(body, gpt54MiniDefaults);
 	},
 };
 
