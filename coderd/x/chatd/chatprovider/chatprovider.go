@@ -720,6 +720,145 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 	}
 }
 
+// ApplyReasoningEffortToOptions applies the given reasoning_effort to every
+// provider entry in providerOptions that understands it. When model is
+// non-nil and the options map has no entry for the model's provider, this
+// function seeds a minimal provider-specific options struct so the mutation
+// still lands. Callers that produced providerOptions from a chat model
+// config with no provider_options block would otherwise see
+// reasoning_effort silently dropped.
+//
+// The returned map is the (possibly newly-allocated) providerOptions; the
+// input is mutated in-place when non-nil.
+func ApplyReasoningEffortToOptions(
+	providerOptions fantasy.ProviderOptions,
+	model fantasy.LanguageModel,
+	reasoningEffort string,
+) fantasy.ProviderOptions {
+	reasoningEffort = strings.TrimSpace(reasoningEffort)
+	if reasoningEffort == "" {
+		return providerOptions
+	}
+
+	if model != nil {
+		providerOptions = seedProviderOptionsForModel(providerOptions, model)
+	}
+	if providerOptions == nil {
+		return nil
+	}
+
+	applyReasoningEffortDispatch(providerOptions, reasoningEffort)
+	return providerOptions
+}
+
+// seedProviderOptionsForModel ensures providerOptions has an entry for the
+// given model's provider, allocating a minimal options struct when absent.
+// Returns the possibly newly-allocated options map. Unknown providers are
+// left untouched so callers get their input back unchanged.
+func seedProviderOptionsForModel(
+	providerOptions fantasy.ProviderOptions,
+	model fantasy.LanguageModel,
+) fantasy.ProviderOptions {
+	provider := model.Provider()
+	var seed fantasy.ProviderOptionsData
+	switch provider {
+	case fantasyopenai.Name:
+		if fantasyopenai.IsResponsesModel(model.Model()) {
+			seed = &fantasyopenai.ResponsesProviderOptions{}
+		} else {
+			seed = &fantasyopenai.ProviderOptions{}
+		}
+	case fantasyanthropic.Name:
+		seed = &fantasyanthropic.ProviderOptions{}
+	case fantasyopenaicompat.Name:
+		seed = &fantasyopenaicompat.ProviderOptions{}
+	case fantasyopenrouter.Name:
+		seed = &fantasyopenrouter.ProviderOptions{}
+	case fantasyvercel.Name:
+		seed = &fantasyvercel.ProviderOptions{}
+	default:
+		return providerOptions
+	}
+
+	if providerOptions == nil {
+		providerOptions = fantasy.ProviderOptions{}
+	}
+	if _, ok := providerOptions[provider]; !ok {
+		providerOptions[provider] = seed
+	}
+	return providerOptions
+}
+
+// applyReasoningEffortDispatch routes the normalized reasoning_effort to
+// every provider entry present in providerOptions. Adding a new provider
+// here (and only here) keeps chatd callers in sync automatically.
+func applyReasoningEffortDispatch(
+	providerOptions fantasy.ProviderOptions,
+	reasoningEffort string,
+) {
+	if normalized := ReasoningEffortFromChat(
+		fantasyopenai.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		effort := fantasyopenai.ReasoningEffort(*normalized)
+		if raw, ok := providerOptions[fantasyopenai.Name]; ok {
+			switch opts := raw.(type) {
+			case *fantasyopenai.ProviderOptions:
+				opts.ReasoningEffort = &effort
+			case *fantasyopenai.ResponsesProviderOptions:
+				opts.ReasoningEffort = &effort
+			}
+		}
+		if raw, ok := providerOptions[fantasyopenaicompat.Name]; ok {
+			if opts, ok := raw.(*fantasyopenaicompat.ProviderOptions); ok {
+				opts.ReasoningEffort = &effort
+			}
+		}
+	}
+
+	if normalized := ReasoningEffortFromChat(
+		fantasyanthropic.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		if raw, ok := providerOptions[fantasyanthropic.Name]; ok {
+			if opts, ok := raw.(*fantasyanthropic.ProviderOptions); ok {
+				effort := fantasyanthropic.Effort(*normalized)
+				opts.Effort = &effort
+			}
+		}
+	}
+
+	if normalized := ReasoningEffortFromChat(
+		fantasyopenrouter.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		if raw, ok := providerOptions[fantasyopenrouter.Name]; ok {
+			if opts, ok := raw.(*fantasyopenrouter.ProviderOptions); ok {
+				if opts.Reasoning == nil {
+					opts.Reasoning = &fantasyopenrouter.ReasoningOptions{}
+				}
+				effort := fantasyopenrouter.ReasoningEffort(*normalized)
+				opts.Reasoning.Effort = &effort
+			}
+		}
+	}
+
+	if normalized := ReasoningEffortFromChat(
+		fantasyvercel.Name,
+		&reasoningEffort,
+	); normalized != nil {
+		if raw, ok := providerOptions[fantasyvercel.Name]; ok {
+			if opts, ok := raw.(*fantasyvercel.ProviderOptions); ok {
+				if opts.Reasoning == nil {
+					opts.Reasoning = &fantasyvercel.ReasoningOptions{}
+				}
+				effort := fantasyvercel.ReasoningEffort(*normalized)
+				opts.Reasoning.Effort = &effort
+			}
+		}
+	}
+}
+
 // OpenAITextVerbosityFromChat normalizes chat-config text verbosity values for
 // OpenAI and returns the canonical provider verbosity value.
 func OpenAITextVerbosityFromChat(value *string) *fantasyopenai.TextVerbosity {

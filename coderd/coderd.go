@@ -768,7 +768,7 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
-	{ // Experimental: agents — chat daemon and git sync worker initialization.
+	{ // Chat daemon and git sync worker initialization.
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -1153,11 +1153,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		// Experimental(agents): chat API routes gated by ExperimentAgents.
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
@@ -1280,7 +1278,6 @@ func New(options *Options) *API {
 			)
 			// MCP server configuration endpoints.
 			r.Route("/servers", func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents))
 				r.Get("/", api.listMCPServerConfigs)
 				r.Post("/", api.createMCPServerConfig)
 				r.Route("/{mcpServer}", func(r chi.Router) {
@@ -2006,14 +2003,10 @@ func New(options *Options) *API {
 			"parsing additional CSP headers", slog.Error(cspParseErrors))
 	}
 
-	// Add blob: to img-src for chat file attachment previews when
-	// the agents experiment is enabled.
-	if api.Experiments.Enabled(codersdk.ExperimentAgents) {
-		additionalCSPHeaders[httpmw.CSPDirectiveImgSrc] = append(
-			additionalCSPHeaders[httpmw.CSPDirectiveImgSrc], "blob:",
-		)
-	}
-
+	// Add blob: to img-src for chat file attachment previews.
+	additionalCSPHeaders[httpmw.CSPDirectiveImgSrc] = append(
+		additionalCSPHeaders[httpmw.CSPDirectiveImgSrc], "blob:",
+	)
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspProxyHosts := func() []*proxyhealth.ProxyHost {
@@ -2161,9 +2154,9 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// Experimental(agents): chatDaemon handles background processing of pending chats.
+	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
-	// Experimental(agents): gitSyncWorker refreshes stale chat diff statuses in the background.
+	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker

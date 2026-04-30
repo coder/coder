@@ -1330,6 +1330,23 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 });
 
 export * from "./chatDebugLogging";
+export const chatAdvisorConfigKey = ["chat-advisor-config"] as const;
+
+export const chatAdvisorConfig = () => ({
+	queryKey: chatAdvisorConfigKey,
+	queryFn: (): Promise<TypesGen.AdvisorConfig> =>
+		API.experimental.getChatAdvisorConfig(),
+});
+
+export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateAdvisorConfigRequest) =>
+		API.experimental.updateChatAdvisorConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAdvisorConfigKey,
+		});
+	},
+});
 
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 

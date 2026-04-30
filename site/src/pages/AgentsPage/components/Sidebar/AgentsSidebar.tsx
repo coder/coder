@@ -89,6 +89,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -1087,13 +1088,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			>
 				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 					<div className="mb-2.5 flex items-center justify-between">
-						<NavLink to="/workspaces" className="inline-flex">
-							{logoUrl ? (
-								<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-							) : (
-								<CoderIcon className="h-6 w-6 fill-content-primary" />
-							)}
-						</NavLink>
+						<div className="flex items-center gap-2">
+							<NavLink to="/workspaces" className="inline-flex">
+								{logoUrl ? (
+									<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+								) : (
+									<CoderIcon className="h-6 w-6 fill-content-primary" />
+								)}
+							</NavLink>
+							<FeatureStageBadge contentType="beta" size="sm" />
+						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
 								asChild

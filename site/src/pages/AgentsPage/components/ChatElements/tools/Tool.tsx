@@ -10,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
@@ -702,6 +703,55 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const AdvisorRenderer: FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const question = parsedArgs ? asString(parsedArgs.question) : "";
+	const rec = asRecord(result);
+	const rawResultType = rec ? asString(rec.type) : "";
+	const hasError = status === "error" || isError;
+	const advice = rec
+		? asString(rec.advice)
+		: typeof result === "string" && !hasError
+			? result
+			: undefined;
+	const adviceText = (advice ?? "").trim();
+	const resolvedResultType: AdvisorToolResultType | undefined =
+		rawResultType === "advice" ||
+		rawResultType === "limit_reached" ||
+		rawResultType === "error"
+			? rawResultType
+			: adviceText
+				? "advice"
+				: undefined;
+	const errorMessage =
+		(rec ? asString(rec.error || rec.message) : "") ||
+		(typeof result === "string" && (hasError || resolvedResultType === "error")
+			? result
+			: "");
+	const advisorModel = rec ? asString(rec.advisor_model) : "";
+	const remainingUses = rec
+		? asNumber(rec.remaining_uses, { parseString: true })
+		: undefined;
+
+	return (
+		<AdvisorTool
+			question={question}
+			status={status}
+			isError={hasError}
+			resultType={resolvedResultType}
+			advice={advice}
+			errorMessage={errorMessage || undefined}
+			advisorModel={advisorModel || undefined}
+			remainingUses={remainingUses}
+		/>
+	);
+};
+
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -950,6 +1000,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	chat_summarized: ChatSummarizedRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
+	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 };
 
@@ -992,7 +1043,8 @@ export const Tool = memo(
 				className={cn(
 					name === "execute" ||
 						name === "process_output" ||
-						name === "propose_plan"
+						name === "propose_plan" ||
+						name === "advisor"
 						? "w-full py-0.5"
 						: "py-0.5",
 					// Collapse padding between adjacent tool calls so they hug.
