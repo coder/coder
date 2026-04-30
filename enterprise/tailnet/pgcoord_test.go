@@ -237,89 +237,85 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Basic", func(t *testing.T) {
-		t.Parallel()
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	logger := testutil.Logger(t)
+	mClock := quartz.NewMock(t)
+	afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
+	defer afTrap.Close()
+	rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
+	defer rstTrap.Close()
 
-		store, ps := dbtestutil.NewDB(t)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-		logger := testutil.Logger(t)
-		mClock := quartz.NewMock(t)
-		afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
-		defer afTrap.Close()
-		rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
-		defer rstTrap.Close()
+	coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock)
+	require.NoError(t, err)
+	defer coordinator.Close()
 
-		coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock)
-		require.NoError(t, err)
-		defer coordinator.Close()
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent.Close(ctx)
+	agent.UpdateDERP(10)
 
-		agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
-		defer agent.Close(ctx)
-		agent.UpdateDERP(10)
+	client := agpltest.NewClient(ctx, t, coordinator, "client", agent.ID)
+	defer client.Close(ctx)
 
-		client := agpltest.NewClient(ctx, t, coordinator, "client", agent.ID)
-		defer client.Close(ctx)
+	client.AssertEventuallyHasDERP(agent.ID, 10)
+	client.UpdateDERP(11)
+	agent.AssertEventuallyHasDERP(client.ID, 11)
 
-		client.AssertEventuallyHasDERP(agent.ID, 10)
-		client.UpdateDERP(11)
-		agent.AssertEventuallyHasDERP(client.ID, 11)
+	// simulate a second coordinator via DB calls only --- our goal is to test broken heart-beating, so we can't use a
+	// real coordinator
+	fCoord2 := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		ps:    ps,
+		id:    uuid.New(),
+	}
 
-		// simulate a second coordinator via DB calls only --- our goal is to test broken heart-beating, so we can't use a
-		// real coordinator
-		fCoord2 := &fakeCoordinator{
-			ctx:   ctx,
-			t:     t,
-			store: store,
-			ps:    ps,
-			id:    uuid.New(),
-		}
+	fCoord2.heartbeat()
+	afTrap.MustWait(ctx).MustRelease(ctx) // heartbeat timeout started
 
-		fCoord2.heartbeat()
-		afTrap.MustWait(ctx).MustRelease(ctx) // heartbeat timeout started
+	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
+	client.AssertEventuallyHasDERP(agent.ID, 12)
 
-		fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
-		client.AssertEventuallyHasDERP(agent.ID, 12)
+	fCoord3 := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		ps:    ps,
+		id:    uuid.New(),
+	}
+	fCoord3.heartbeat()
+	rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
+	fCoord3.agentNode(agent.ID, &agpl.Node{PreferredDERP: 13})
+	client.AssertEventuallyHasDERP(agent.ID, 13)
 
-		fCoord3 := &fakeCoordinator{
-			ctx:   ctx,
-			t:     t,
-			store: store,
-			ps:    ps,
-			id:    uuid.New(),
-		}
-		fCoord3.heartbeat()
-		rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
-		fCoord3.agentNode(agent.ID, &agpl.Node{PreferredDERP: 13})
-		client.AssertEventuallyHasDERP(agent.ID, 13)
+	// fCoord2 sends in a second heartbeat, one period later (on time)
+	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+	fCoord2.heartbeat()
+	rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
 
-		// fCoord2 sends in a second heartbeat, one period later (on time)
-		mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-		fCoord2.heartbeat()
-		rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
+	// when the fCoord3 misses enough heartbeats, the real coordinator should send an update with the
+	// node from fCoord2 for the agent.
+	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+	w := mClock.Advance(tailnet.HeartbeatPeriod)
+	rstTrap.MustWait(ctx).MustRelease(ctx)
+	w.MustWait(ctx)
+	client.AssertEventuallyHasDERP(agent.ID, 12)
 
-		// when the fCoord3 misses enough heartbeats, the real coordinator should send an update with the
-		// node from fCoord2 for the agent.
-		mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-		w := mClock.Advance(tailnet.HeartbeatPeriod)
-		rstTrap.MustWait(ctx).MustRelease(ctx)
-		w.MustWait(ctx)
-		client.AssertEventuallyHasDERP(agent.ID, 12)
+	// one more heartbeat period will result in fCoord2 being expired, which should cause us to
+	// revert to the original agent mapping
+	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+	client.AssertEventuallyHasDERP(agent.ID, 10)
 
-		// one more heartbeat period will result in fCoord2 being expired, which should cause us to
-		// revert to the original agent mapping
-		mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-		client.AssertEventuallyHasDERP(agent.ID, 10)
+	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
+	fCoord3.heartbeat()
+	rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
+	client.AssertEventuallyHasDERP(agent.ID, 13)
 
-		// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
-		fCoord3.heartbeat()
-		rstTrap.MustWait(ctx).MustRelease(ctx) // timeout gets reset
-		client.AssertEventuallyHasDERP(agent.ID, 13)
-
-		agent.UngracefulDisconnect(ctx)
-		client.UngracefulDisconnect(ctx)
-		assertEventuallyLost(ctx, t, store, client.ID)
-	})
+	agent.UngracefulDisconnect(ctx)
+	client.UngracefulDisconnect(ctx)
+	assertEventuallyLost(ctx, t, store, client.ID)
 }
 
 func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
@@ -962,13 +958,8 @@ func (c *fakeCoordinator) heartbeat() {
 	c.t.Helper()
 	_, err := c.store.UpsertTailnetCoordinator(c.ctx, c.id)
 	require.NoError(c.t, err)
-	// The DB trigger that used to send pubsub notifications for
-	// coordinator heartbeats has been removed. Publish explicitly
-	// so the coordinator under test discovers us.
-	if c.ps != nil {
-		err = c.ps.Publish(tailnet.EventHeartbeats, []byte(c.id.String()))
-		require.NoError(c.t, err)
-	}
+	err = c.ps.Publish(tailnet.EventHeartbeats, []byte(c.id.String()))
+	require.NoError(c.t, err)
 }
 
 func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
@@ -984,11 +975,6 @@ func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
 		Status:        database.TailnetStatusOk,
 	})
 	require.NoError(c.t, err)
-	// The DB trigger that used to send pubsub notifications for peer
-	// updates has been removed. Publish explicitly so the coordinator
-	// under test picks up the new peer mapping.
-	if c.ps != nil {
-		err = c.ps.Publish("tailnet_peer_update", []byte(agentID.String()))
-		require.NoError(c.t, err)
-	}
+	err = c.ps.Publish("tailnet_peer_update", []byte(agentID.String()))
+	require.NoError(c.t, err)
 }

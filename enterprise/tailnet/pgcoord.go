@@ -58,6 +58,8 @@ func publishTunnelUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logg
 func publishCoordinatorHeartbeat(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, id uuid.UUID) {
 	if err := ps.Publish(EventHeartbeats, []byte(id.String())); err != nil {
 		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.F("coordinator_id", id), slog.Error(err))
+	} else {
+		logger.Debug(ctx, "sent heartbeat", slog.F("coordinator_id", id))
 	}
 }
 
@@ -602,9 +604,9 @@ func (b *binder) writeOne(bnd binding) error {
 			ID:            uuid.UUID(bnd.bKey),
 			CoordinatorID: b.coordinatorID,
 		})
+		// writeOne is idempotent
 		if xerrors.Is(err, sql.ErrNoRows) {
-			// No row deleted; peer was already gone. Skip publish.
-			return nil
+			err = nil
 		}
 	} else {
 		var nodeRaw []byte
@@ -1769,10 +1771,12 @@ func (h *heartbeats) checkExpiry() {
 		}
 	}
 	if expired {
+		// send on a separate goroutine to avoid holding lock.  Triggering update can be asyncreturn nil
 		go func() {
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
+	// we need to reset the timer for when the next oldest coordinator will expire, if any.
 	h.resetExpiryTimerWithLock()
 }
 
@@ -1803,7 +1807,6 @@ func (h *heartbeats) sendBeat() {
 		}
 		return
 	}
-	h.logger.Debug(h.ctx, "sent heartbeat")
 	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")

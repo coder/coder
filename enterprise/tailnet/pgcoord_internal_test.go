@@ -91,13 +91,8 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 		update:       make(chan hbUpdate, 4),
 		coordinators: make(map[uuid.UUID]time.Time),
 	}
-	uut.timer = mClock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, uut.checkExpiry, "heartbeats", "newHeartbeats")
-
 	coord2 := uuid.UUID{2}
 	coord3 := uuid.UUID{3}
-
-	go uut.listen(ctx, []byte(coord2.String()), nil)
-	trap.MustWait(ctx).MustRelease(ctx)
 
 	// coord 3 heartbeat comes very soon after
 	mClock.Advance(time.Millisecond).MustWait(ctx)
