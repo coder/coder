@@ -25,70 +25,51 @@ and set the **API Key** to a credential AI Gateway accepts. Because both
 services run in the same `coderd` process, the AI Gateway endpoint is just
 your deployment URL plus `/api/v2/aibridge/<provider>`.
 
-<div class="tabs">
-
-### Anthropic
+The steps are the same regardless of provider type, only the Base URL
+changes:
 
 1. Open the Coder dashboard and navigate to the **Agents** page.
 1. Click **Admin**, then select the **Providers** tab.
-1. Click **Anthropic**.
-1. Set the **Base URL** to
-   `https://coder.example.com/api/v2/aibridge/anthropic`.
+1. Click the provider you want to route through AI Gateway.
+1. Set the **Base URL** using the table below.
 1. Set the **API Key** to a Coder API token. See
    [Authentication](#authentication) for which token to use.
 1. Click **Save**.
 
-To target a [named Anthropic instance](../setup.md#multiple-instances-of-the-same-provider)
-in AI Gateway (for example, `anthropic-corp`), replace `anthropic` in the
-Base URL with the instance name:
-`https://coder.example.com/api/v2/aibridge/anthropic-corp`.
-
-### OpenAI
-
-1. Open the Coder dashboard and navigate to the **Agents** page.
-1. Click **Admin**, then select the **Providers** tab.
-1. Click **OpenAI**.
-1. Set the **Base URL** to
-   `https://coder.example.com/api/v2/aibridge/openai/v1`.
-1. Set the **API Key** to a Coder API token. See
-   [Authentication](#authentication) for which token to use.
-1. Click **Save**.
-
-To target a [named OpenAI instance](../setup.md#multiple-instances-of-the-same-provider)
-in AI Gateway (for example, an Azure OpenAI deployment named `azure-openai`),
-replace `openai` in the Base URL with the instance name:
-`https://coder.example.com/api/v2/aibridge/azure-openai/v1`.
-
-### OpenAI Compatible
-
-Use **OpenAI Compatible** for an OpenAI-typed AI Gateway named instance
-(for example, an Azure OpenAI or ChatGPT provider) when you want to
-opt out of the OpenAI-specific options the Agents OpenAI provider
-applies by default, such as reasoning effort or parallel tool calls.
-
-1. Open the Coder dashboard and navigate to the **Agents** page.
-1. Click **Admin**, then select the **Providers** tab.
-1. Click **OpenAI Compatible**.
-1. Set the **Base URL** to
-   `https://coder.example.com/api/v2/aibridge/<instance-name>/v1`.
-   The instance must be of type `openai` in AI Gateway.
-1. Set the **API Key** to a Coder API token.
-1. Click **Save**.
-
-> [!NOTE]
-> OpenAI Compatible speaks the OpenAI wire protocol, so it cannot target
-> Anthropic-typed AI Gateway instances. To route a named Anthropic instance
-> through AI Gateway, configure the Agents **Anthropic** provider as shown
-> above.
-
-</div>
+| Agents provider                                                             | Base URL                                              |
+|-----------------------------------------------------------------------------|-------------------------------------------------------|
+| Anthropic                                                                   | `https://coder.example.com/api/v2/aibridge/anthropic` |
+| OpenAI                                                                      | `https://coder.example.com/api/v2/aibridge/openai/v1` |
+| [OpenAI Compatible](#when-to-use-openai-compatible) (named OpenAI instance) | `https://coder.example.com/api/v2/aibridge/<name>/v1` |
 
 Replace `coder.example.com` with your Coder deployment URL.
+
+To target a [named AI Gateway instance](../setup.md#multiple-instances-of-the-same-provider)
+through the **Anthropic** or **OpenAI** providers, swap the provider segment
+of the Base URL for the instance name. For example, an Anthropic instance
+named `anthropic-corp` becomes
+`https://coder.example.com/api/v2/aibridge/anthropic-corp`, and an OpenAI
+instance named `azure-openai` becomes
+`https://coder.example.com/api/v2/aibridge/azure-openai/v1`.
 
 After saving, [add or update a model](../../agents/models.md#add-a-model) on
 each provider so developers can select it from the chat. Models from a
 provider only appear in the model selector once the provider has valid
 credentials.
+
+### When to use OpenAI Compatible
+
+Use the **OpenAI Compatible** provider type for an OpenAI-typed AI Gateway
+named instance (such as Azure OpenAI or ChatGPT) when you want to opt out
+of the OpenAI-specific options the Agents **OpenAI** provider applies by
+default, such as reasoning effort or parallel tool calls. The Base URL
+pattern is the same as a named OpenAI instance.
+
+> [!NOTE]
+> OpenAI Compatible speaks the OpenAI wire protocol, so it cannot target
+> Anthropic-typed AI Gateway instances. To route a named Anthropic
+> instance through AI Gateway, configure the Agents **Anthropic**
+> provider as shown above.
 
 ## Authentication
 
