@@ -34,7 +34,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 
 	return (
 		<TimelineEntry data-testid={`version-${version.id}`} {...clickableProps}>
-			<TableCell className="relative !border-b-0 !p-0">
+			<TableCell className="relative border-b-0 !p-0">
 				<div className="flex flex-row items-center justify-between gap-4 px-8 py-4">
 					<div className="flex flex-row items-center gap-4">
 						<Avatar
