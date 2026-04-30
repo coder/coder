@@ -2,7 +2,7 @@
 
 The [Tasks API](../../reference/api/tasks.md) (`/api/v2/tasks`) and the
 [Chats API](./chats-api.md) (`/api/experimental/chats`) serve similar
-goals — programmatic access to AI-powered coding agents — but they differ
+goals (programmatic access to AI-powered coding agents) but they differ
 significantly in architecture, capabilities, and usage patterns.
 
 This guide walks you through updating your integrations from the Tasks API
@@ -32,7 +32,7 @@ Before mapping individual endpoints, understand the structural changes:
 | Aspect                 | Tasks API                                                                        | Chats API                                                  |
 |------------------------|----------------------------------------------------------------------------------|------------------------------------------------------------|
 | Agent execution        | Agent runs **inside the workspace** (via AgentAPI)                               | Agent loop runs **in the control plane**                   |
-| LLM credentials        | Injected into workspace environment                                              | Stored in control plane only — never enter the workspace   |
+| LLM credentials        | Injected into workspace environment                                              | Stored in control plane only; never enters the workspace   |
 | Workspace provisioning | You specify a `template_version_id` at creation                                  | The agent auto-selects a template and provisions on demand |
 | Template requirements  | Requires `coder_ai_task` resource, `coder_task` data source, and an agent module | Any template with a clear description works                |
 | Chat state             | Stored in the workspace (AgentAPI state file)                                    | Persisted in the Coder database                            |
@@ -55,10 +55,10 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 | Get logs / stream | `GET /api/v2/tasks/{user}/{task}/logs`    | `GET /api/experimental/chats/{chat}/stream` (WebSocket)             |
 | Pause             | `POST /api/v2/tasks/{user}/{task}/pause`  | `POST /api/experimental/chats/{chat}/interrupt`                     |
 | Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/experimental/chats/{chat}/messages` (send a new message) |
-| Watch all         | —                                         | `GET /api/experimental/chats/watch` (WebSocket)                     |
-| Get messages      | —                                         | `GET /api/experimental/chats/{chat}/messages`                       |
-| List models       | —                                         | `GET /api/experimental/chats/models`                                |
-| Upload file       | —                                         | `POST /api/experimental/chats/files`                                |
+| Watch all         | n/a                                       | `GET /api/experimental/chats/watch` (WebSocket)                     |
+| Get messages      | n/a                                       | `GET /api/experimental/chats/{chat}/messages`                       |
+| List models       | n/a                                       | `GET /api/experimental/chats/models`                                |
+| Upload file       | n/a                                       | `POST /api/experimental/chats/files`                                |
 
 ## Migration steps
 
@@ -94,7 +94,7 @@ You no longer pass API keys in template variables or workspace environment.
 
 ### 3. Update task creation calls
 
-**Tasks API** — you specify the user, template version, and a prompt
+**Tasks API**. You specify the user, template version, and a prompt
 string:
 
 ```sh
@@ -108,7 +108,7 @@ curl -X POST https://coder.example.com/api/v2/tasks/me \
   }'
 ```
 
-**Chats API** — you send structured content parts. No template or user
+**Chats API**. You send structured content parts. No template or user
 path segment is required:
 
 ```sh
@@ -141,7 +141,7 @@ Key differences:
 
 ### 4. Update follow-up message calls
 
-**Tasks API** — follow-ups use the send endpoint with a plain string:
+**Tasks API**. Follow-ups use the send endpoint with a plain string:
 
 ```sh
 # Tasks API: send input
@@ -151,7 +151,7 @@ curl -X POST https://coder.example.com/api/v2/tasks/me/my-task/send \
   -d '{"input": "Now also update the integration tests"}'
 ```
 
-**Chats API** — follow-ups use the messages endpoint with content parts:
+**Chats API**. Follow-ups use the messages endpoint with content parts:
 
 ```sh
 # Chats API: send a message
@@ -173,7 +173,7 @@ was delivered immediately or queued.
 
 ### 5. Switch from log polling to WebSocket streaming
 
-**Tasks API** — you poll for logs:
+**Tasks API**. You poll for logs:
 
 ```sh
 # Tasks API: get logs
@@ -181,7 +181,7 @@ curl https://coder.example.com/api/v2/tasks/me/my-task/logs \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
-**Chats API** — you open a one-way WebSocket connection:
+**Chats API**. You open a one-way WebSocket connection:
 
 ```text
 GET wss://coder.example.com/api/experimental/chats/{chat}/stream
@@ -212,9 +212,9 @@ defined in `codersdk.ChatStatus`:
 | `pending`        | `pending`         | Queued for processing.                                                                                                                                                                                                        |
 | `running`        | `running`         | Agent is actively working.                                                                                                                                                                                                    |
 | `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                                                                                                                                   |
-| `paused`         | —                 | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. The `paused` enum value exists in code but no production path on `main` transitions a chat into it today. |
+| `paused`         | n/a               | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. The `paused` enum value exists in code but no production path on `main` transitions a chat into it today. |
 | `failed`         | `error`           | Agent encountered an error.                                                                                                                                                                                                   |
-| —                | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                         |
+| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                         |
 
 The Chats API uses `waiting` as the default idle state (not `complete`).
 The `completed` enum value is also defined but is not currently set by any
@@ -238,7 +238,7 @@ Archived chats can be restored by setting `archived` to `false`.
 
 ### 8. Replace pause/resume with interrupt and messaging
 
-**Tasks API** — pause and resume stop and start the workspace:
+**Tasks API**. Pause and resume stop and start the workspace:
 
 ```sh
 # Tasks API
@@ -251,7 +251,7 @@ curl -X POST \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
-**Chats API** — interrupt stops the current agent loop. Sending a new
+**Chats API**. Interrupt stops the current agent loop. Sending a new
 message resumes processing:
 
 ```sh
@@ -273,7 +273,7 @@ curl -X POST \
 ```
 
 In the Tasks API, pausing stops the workspace and frees compute. In the
-Chats API, interrupt stops the agent loop in the control plane — the
+Chats API, interrupt stops the agent loop in the control plane; the
 workspace may remain running. The workspace lifecycle is managed
 independently.
 
@@ -328,9 +328,9 @@ jobs:
 
 Key differences:
 
-- No `template_version_id` or `coder-template-name` — the agent selects a
+- No `template_version_id` or `coder-template-name`. The agent selects a
   template automatically.
-- No `github-user-id` mapping — the session token determines the user.
+- No `github-user-id` mapping. The session token determines the user.
 - LLM credentials are no longer passed through the template. They are
   configured in the Coder control plane.
 
@@ -353,7 +353,7 @@ Key differences:
 
 With Coder Tasks, every task-capable template requires specific Terraform
 resources (`coder_ai_task`, `coder_task`, agent modules, and LLM API
-keys). With Coder Agents, templates no longer need any of these — the
+keys). With Coder Agents, templates no longer need any of these. The
 agent runs in the control plane and treats the workspace as plain compute.
 
 However, **we still recommend creating dedicated templates for agent
@@ -532,7 +532,7 @@ curl -s -X POST \
 ```
 
 The response should include `"queued": false` (delivered immediately) or
-`"queued": true` (agent was busy — the message is queued and will be
+`"queued": true` (agent was busy. The message is queued and will be
 processed next).
 
 ### 6. Test workspace provisioning
@@ -639,25 +639,25 @@ API:
 | **Diff/PR tracking**                 | `GET /chats/{chat}/diff` returns change tracking and PR metadata               |
 | **Title regeneration**               | `POST /chats/{chat}/title/regenerate`                                          |
 | **Pinning**                          | Pin and reorder chats via the `pin_order` field                                |
-| **Automatic workspace provisioning** | No workspace needed for Q&A — provisioned only when the agent needs to act     |
+| **Automatic workspace provisioning** | No workspace needed for Q&A. Provisioned only when the agent needs to act      |
 
 ## Response schema changes
 
 The Tasks API returns a `Task` object with workspace-centric fields. The
 Chats API returns a `Chat` object with conversation-centric fields:
 
-| Tasks API field    | Chats API equivalent                          | Notes                                                             |
-|--------------------|-----------------------------------------------|-------------------------------------------------------------------|
-| `id`               | `id`                                          | Both are UUIDs                                                    |
-| `initial_prompt`   | First message in `GET /chats/{chat}/messages` | Prompt is a message, not a top-level field                        |
-| `display_name`     | `title`                                       | Auto-generated or set via `PATCH`                                 |
-| `status`           | `status`                                      | Different enum values (see status table above)                    |
-| `current_state`    | Latest `status` event from the stream         | No equivalent top-level field                                     |
-| `workspace_id`     | `workspace_id`                                | Nullable in Chats — may be `null` if no workspace was provisioned |
-| `workspace_status` | —                                             | Manage workspace lifecycle separately                             |
-| `template_id`      | —                                             | Not exposed; the agent selects templates internally               |
-| `owner_id`         | `owner_id`                                    | Same concept                                                      |
-| `name`             | —                                             | Chats use `id` for identification, not human-readable names       |
+| Tasks API field    | Chats API equivalent                          | Notes                                                            |
+|--------------------|-----------------------------------------------|------------------------------------------------------------------|
+| `id`               | `id`                                          | Both are UUIDs                                                   |
+| `initial_prompt`   | First message in `GET /chats/{chat}/messages` | Prompt is a message, not a top-level field                       |
+| `display_name`     | `title`                                       | Auto-generated or set via `PATCH`                                |
+| `status`           | `status`                                      | Different enum values (see status table above)                   |
+| `current_state`    | Latest `status` event from the stream         | No equivalent top-level field                                    |
+| `workspace_id`     | `workspace_id`                                | Nullable in Chats. May be `null` if no workspace was provisioned |
+| `workspace_status` | n/a                                           | Manage workspace lifecycle separately                            |
+| `template_id`      | n/a                                           | Not exposed; the agent selects templates internally              |
+| `owner_id`         | `owner_id`                                    | Same concept                                                     |
+| `name`             | n/a                                           | Chats use `id` for identification, not human-readable names      |
 
 ## CLI changes
 
