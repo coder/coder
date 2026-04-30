@@ -1175,6 +1175,14 @@ export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
 	id: "test-workspace-agent-start-timeout",
 	name: "a-workspace-agent-timed-out-while-running-startup-script",
 	lifecycle_state: "start_timeout",
+	scripts: [
+		{
+			...MockWorkspaceAgentScript,
+			status: "timed_out",
+		},
+	],
+	logs_length: 1,
+	log_sources: [MockWorkspaceAgentLogSource],
 };
 
 export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {

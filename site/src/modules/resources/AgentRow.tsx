@@ -24,7 +24,6 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
-	WorkspaceAgentScriptStatus,
 } from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -56,14 +55,8 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import {
-	agentScriptMessages,
-	getAgentHealthIssues,
-} from "#/modules/workspaces/health";
-import {
-	AgentAlert,
-	StartScriptFailureDetail,
-} from "#/pages/WorkspacePage/AgentAlert";
+import { getAgentHealthIssues } from "#/modules/workspaces/health";
+import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -140,7 +133,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	template,
 	onUpdateAgent,
 	initialMetadata,
-	agentScriptTimings,
 }) => {
 	const { browser_only, workspace_external_agent } = useFeatureVisibility();
 	const appSections = organizeAgentApps(agent.apps);
@@ -158,12 +150,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const healthIssues = getAgentHealthIssues(agent);
 	const hasAgentIssues = healthIssues.length > 0;
-	const failedStartTimings = agentScriptTimings?.filter(
-		(t) =>
-			t.workspace_agent_id === agent.id &&
-			t.stage === "start" &&
-			t.exit_code !== 0,
-	);
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
@@ -532,27 +518,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
 						{healthIssues.length > 0 && (
 							<div className="mb-4 flex flex-col gap-3">
-								{healthIssues.map((issue) => {
-									const isStartError =
-										issue.title === agentScriptMessages.start_error.title;
-									const detail =
-										isStartError && failedStartTimings?.length ? (
-											<StartScriptFailureDetail
-												baseDetail={issue.detail}
-												timings={failedStartTimings}
-											/>
-										) : (
-											issue.detail
-										);
-									return (
-										<AgentAlert
-											key={`${issue.title}-${issue.detail}`}
-											{...issue}
-											detail={detail}
-											troubleshootingURL={agent.troubleshooting_url}
-										/>
-									);
-								})}
+								{healthIssues.map((issue) => (
+									<AgentAlert
+										key={`${issue.title}-${issue.detail}`}
+										{...issue}
+										troubleshootingURL={agent.troubleshooting_url}
+									/>
+								))}
 							</div>
 						)}
 						{hasStartupFeatures && hasAnyLogs && (
