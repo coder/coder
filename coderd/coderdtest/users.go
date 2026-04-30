@@ -157,6 +157,7 @@ func UsersFilter(
 	users := make([]codersdk.User, 0)
 	users = append(users, firstUser)
 	orgID := firstUser.OrganizationIDs[0]
+	githubIDs := make(map[int]uuid.UUID)
 	for i := range 15 {
 		roles := []rbac.RoleIdentifier{}
 		if i%2 == 0 {
@@ -168,7 +169,6 @@ func UsersFilter(
 		userClient, userData := CreateAnotherUserMutators(t, client, orgID, roles, func(r *codersdk.CreateUserRequestWithOrgs) {
 			switch {
 			case i%7 == 0:
-				r.Username += fmt.Sprintf("-gh%d", i)
 				r.UserLoginType = codersdk.LoginTypeGithub
 				r.Password = ""
 			case i%6 == 0:
@@ -199,6 +199,7 @@ func UsersFilter(
 				},
 			})
 			require.NoError(t, err)
+			githubIDs[i] = userData.ID
 		}
 
 		user, err := userClient.User(setupCtx, codersdk.Me)
@@ -373,7 +374,7 @@ func UsersFilter(
 				SearchQuery: "github_com_user_id:7",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				return strings.HasSuffix(u.Username, "-gh7")
+				return u.ID == githubIDs[7]
 			},
 		},
 		{

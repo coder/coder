@@ -82,8 +82,6 @@ const WorkspacesPage: FC = () => {
 		},
 	});
 	const { permissions, user: me } = useAuthenticated();
-	const { experiments } = useDashboard();
-	const agentsEnabled = experiments.includes("agents");
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
@@ -147,7 +145,11 @@ const WorkspacesPage: FC = () => {
 	);
 	const chatsByWorkspaceQuery = useQuery({
 		...chatsByWorkspace(workspaceIds),
-		enabled: agentsEnabled && workspaceIds.length > 0,
+		// Only fetch chat lookups for users who can actually create chats;
+		// the endpoint still runs a DB query + RBAC post-filter and the
+		// AgentsNavItem / chat link UI is already hidden for users without
+		// this permission, so the query would return nothing useful for them.
+		enabled: permissions.createChat && workspaceIds.length > 0,
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();

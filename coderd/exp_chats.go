@@ -4221,6 +4221,108 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var resp codersdk.AdvisorConfig
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored advisor configuration is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
+	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateAdvisorConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.MaxUsesPerRun < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("max_uses_per_run %d must be non-negative.", req.MaxUsesPerRun),
+		})
+		return
+	}
+	if req.MaxOutputTokens < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("max_output_tokens %d must be non-negative.", req.MaxOutputTokens),
+		})
+		return
+	}
+	switch req.ReasoningEffort {
+	case "", "low", "medium", "high":
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(`reasoning_effort %q is not valid; must be one of "", "low", "medium", or "high".`, req.ReasoningEffort),
+		})
+		return
+	}
+	if req.ModelConfigID != uuid.Nil {
+		// Use system context because GetChatModelConfigByID requires
+		// deployment-config read access, which can be broader than the
+		// handler's explicit update check. The lookup only validates that
+		// the referenced model exists before persisting deployment config.
+		//nolint:gocritic // This admin-authorized validation lookup intentionally bypasses read authz.
+		if _, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), req.ModelConfigID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("model_config_id %q does not match any existing model config.", req.ModelConfigID),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error validating advisor model config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	raw, err := json.Marshal(req)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error encoding advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err := api.Database.UpsertChatAdvisorConfig(ctx, string(raw)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventAdvisorConfig, uuid.Nil)
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	raw, err := api.Database.GetChatWorkspaceTTL(ctx)

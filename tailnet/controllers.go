@@ -986,6 +986,30 @@ func (a *Agent) Clone() Agent {
 func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient) CloserWaiter {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	// Preserve workspace state from the previous updater so that DNS
+	// hosts remain programmed while we wait for the new server
+	// snapshot. Without this, a control-plane reconnection would
+	// leave the internal DNS resolver empty until the first
+	// workspace update arrives, breaking .coder resolution.
+	var previousWorkspaces map[uuid.UUID]*Workspace
+	if t.updater != nil {
+		t.updater.Lock()
+		if len(t.updater.workspaces) > 0 {
+			previousWorkspaces = make(map[uuid.UUID]*Workspace, len(t.updater.workspaces))
+			for id, w := range t.updater.workspaces {
+				clone := w.Clone()
+				previousWorkspaces[id] = &clone
+			}
+		}
+		t.updater.Unlock()
+	}
+
+	workspaces := make(map[uuid.UUID]*Workspace)
+	if previousWorkspaces != nil {
+		workspaces = previousWorkspaces
+	}
+
 	updater := &tunnelUpdater{
 		client:         client,
 		errChan:        make(chan error, 1),
@@ -996,8 +1020,26 @@ func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 		updateHandler:  t.updateHandler,
 		ownerUsername:  t.ownerUsername,
 		recvLoopDone:   make(chan struct{}),
-		workspaces:     make(map[uuid.UUID]*Workspace),
+		workspaces:     workspaces,
 	}
+
+	// If we inherited workspace state, immediately re-program DNS
+	// hosts so the resolver stays populated during the reconnection
+	// window.
+	if len(previousWorkspaces) > 0 {
+		dnsNames := updater.updateDNSNamesLocked()
+		if updater.dnsHostsSetter != nil {
+			t.logger.Debug(context.Background(), "re-applying DNS hosts from previous session",
+				slog.F("num_hosts", len(dnsNames)),
+			)
+			if err := updater.dnsHostsSetter.SetDNSHosts(dnsNames); err != nil {
+				t.logger.Warn(context.Background(), "failed to re-apply DNS hosts from previous session",
+					slog.Error(err),
+				)
+			}
+		}
+	}
+
 	t.updater = updater
 	go t.updater.recvLoop()
 	return t.updater
@@ -1156,6 +1198,14 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate, updateKind UpdateKind) error {
 	t.Lock()
 	defer t.Unlock()
+
+	// Snapshots represent the complete state, not a diff. Clear any
+	// inherited or previously accumulated workspace data so that
+	// workspaces absent from the snapshot (e.g. stopped while we
+	// were disconnected) do not linger.
+	if updateKind == Snapshot {
+		t.workspaces = make(map[uuid.UUID]*Workspace)
+	}
 
 	currentUpdate := WorkspaceUpdate{
 		UpsertedWorkspaces: []*Workspace{},

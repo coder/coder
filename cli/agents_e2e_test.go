@@ -8,15 +8,15 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestExpAgentsE2E(t *testing.T) {
+func TestAgentsE2E(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EmptyStateBoot", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _, _ := setupExpAgentsBackend(t)
-		session := startExpAgentsSession(t, ctx, client)
+		client, _, _ := setupAgentsBackend(t)
+		session := startAgentsSession(t, ctx, client)
 
 		session.expect(ctx, "No chats yet. Press n to start a new chat.")
 		session.quit()
@@ -27,13 +27,13 @@ func TestExpAgentsE2E(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, expClient, orgID := setupExpAgentsBackend(t)
+		client, expClient, orgID := setupAgentsBackend(t)
 
 		_ = seedChat(t, ctx, expClient, orgID, "alpha nav seed")
 		_ = seedChat(t, ctx, expClient, orgID, "bravo nav seed")
 		_ = seedChat(t, ctx, expClient, orgID, "charlie nav seed")
 
-		session := startExpAgentsSession(t, ctx, client)
+		session := startAgentsSession(t, ctx, client)
 
 		session.expect(ctx, "charlie nav seed")
 		session.expect(ctx, "enter: open")
@@ -49,12 +49,12 @@ func TestExpAgentsE2E(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, expClient, orgID := setupExpAgentsBackend(t)
+		client, expClient, orgID := setupAgentsBackend(t)
 
 		_ = seedChat(t, ctx, expClient, orgID, "alpha filter seed")
 		_ = seedChat(t, ctx, expClient, orgID, "zulu filter seed")
 
-		session := startExpAgentsSession(t, ctx, client)
+		session := startAgentsSession(t, ctx, client)
 
 		session.expect(ctx, "alpha filter seed")
 		session.expect(ctx, "enter: open")
@@ -72,10 +72,10 @@ func TestExpAgentsE2E(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, expClient, orgID := setupExpAgentsBackend(t)
+		client, expClient, orgID := setupAgentsBackend(t)
 
 		chat := seedChat(t, ctx, expClient, orgID, "direct open seed")
-		session := startExpAgentsSession(t, ctx, client, chat.ID.String())
+		session := startAgentsSession(t, ctx, client, chat.ID.String())
 
 		// The initial render contains both the chat title/content
 		// and the status bar in a single frame. Their relative
