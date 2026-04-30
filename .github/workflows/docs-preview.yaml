@@ -35,13 +35,18 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
-          # Find the first PR file under docs/ that ends in .md and
-          # was added, modified, or renamed (i.e., not a pure delete).
-          # `|| true` keeps the pipeline from failing when grep finds
-          # no matches under `set -o pipefail`.
-          first_doc=$(gh api --paginate \
+          # Fetch the list of non-deleted files from the PR.  This is
+          # intentionally not piped into grep so that a gh-api failure
+          # (network, auth, rate-limit) propagates immediately instead
+          # of being swallowed by `|| true`.
+          all_files=$(gh api --paginate \
             "repos/${REPO}/pulls/${PR_NUMBER}/files" \
-            --jq '.[] | select(.status != "removed") | .filename' \
+            --jq '.[] | select(.status != "removed") | .filename')
+
+          # Pick the first Markdown file under docs/.  `|| true` keeps
+          # the pipeline from failing when grep finds no matches or
+          # head triggers SIGPIPE under `set -o pipefail`.
+          first_doc=$(printf '%s\n' "$all_files" \
             | grep -E '^docs/.*\.md$' \
             | head -n 1) || true
 
