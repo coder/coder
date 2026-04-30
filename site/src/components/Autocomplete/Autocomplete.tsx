@@ -37,10 +37,13 @@ interface AutocompleteProps<TOption> {
 	onOpenChange?: (open: boolean) => void;
 	inputValue?: string;
 	onInputChange?: (value: string) => void;
+	onEscapeKeyDown?: () => void;
 	clearable?: boolean;
 	disabled?: boolean;
 	startAdornment?: ReactNode;
 	className?: string;
+	triggerAriaInvalid?: boolean;
+	triggerAriaDescribedBy?: string;
 	id?: string;
 	"data-testid"?: string;
 }
@@ -60,10 +63,13 @@ export function Autocomplete<TOption>({
 	onOpenChange,
 	inputValue: controlledInputValue,
 	onInputChange,
+	onEscapeKeyDown,
 	clearable = true,
 	disabled = false,
 	startAdornment,
 	className,
+	triggerAriaInvalid,
+	triggerAriaDescribedBy,
 	id,
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
@@ -127,10 +133,13 @@ export function Autocomplete<TOption>({
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent<HTMLInputElement>) => {
 			if (e.key === "Escape") {
+				e.preventDefault();
+				e.stopPropagation();
+				onEscapeKeyDown?.();
 				handleOpenChange(false);
 			}
 		},
-		[handleOpenChange],
+		[handleOpenChange, onEscapeKeyDown],
 	);
 
 	const displayValue = value ? getOptionLabel(value) : "";
@@ -145,6 +154,8 @@ export function Autocomplete<TOption>({
 					data-testid={testId}
 					aria-expanded={isOpen}
 					aria-haspopup="listbox"
+					aria-invalid={triggerAriaInvalid}
+					aria-describedby={triggerAriaDescribedBy}
 					disabled={disabled}
 					className={cn(
 						`flex h-10 w-full items-center justify-between gap-2
@@ -205,7 +216,7 @@ export function Autocomplete<TOption>({
 						placeholder={placeholder}
 						value={inputValue}
 						onValueChange={handleInputChange}
-						onKeyDown={handleKeyDown}
+						onKeyDownCapture={handleKeyDown}
 					/>
 					<CommandList>
 						{loading ? (

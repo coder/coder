@@ -1,6 +1,12 @@
 import type { FormikContextType } from "formik";
 import { CheckIcon, InfoIcon } from "lucide-react";
-import { type FocusEvent, useRef, useState } from "react";
+import {
+	type FocusEvent,
+	type KeyboardEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -20,7 +26,7 @@ import {
 	searchKnownModels,
 } from "./knownModels";
 import { applyKnownModelDefaults } from "./knownModels/applyKnownModelDefaults";
-import type { ModelFormValues } from "./modelConfigFormLogic";
+import { deepGet, deepSet, type ModelFormValues } from "./modelConfigFormLogic";
 
 type ModelFormMode = "add" | "edit" | "duplicate";
 
@@ -41,7 +47,13 @@ type ModelIdentifierOption = {
 
 type AppliedModel = {
 	provider: string;
-	model: string;
+	modelIdentifier: string;
+};
+
+type PreviouslyAppliedDefaults = {
+	provider: string;
+	modelIdentifier: string;
+	fields: Record<string, unknown>;
 };
 
 const knownModelToOption = (knownModel: KnownModel): ModelIdentifierOption => ({
@@ -58,84 +70,28 @@ export const ModelIdentifierField = ({
 	selectedProvider,
 	disabled,
 }: ModelIdentifierFieldProps) => {
-	const [inputValue, setInputValue] = useState("");
+	const [initialFormValues] = useState(() => form.initialValues);
 	const [open, setOpen] = useState(false);
+	const [searchValue, setSearchValue] = useState("");
 	const [feedback, setFeedback] = useState<string | null>(null);
-	const initialValuesRef = useRef<ModelFormValues | null>(null);
+	const searchValueRef = useRef("");
+	const searchDirtyRef = useRef(false);
+	const justSelectedRef = useRef(false);
+	const closeIntentRef = useRef<"escape" | null>(null);
 	const lastAppliedProviderModelRef = useRef<AppliedModel | null>(null);
-
-	if (initialValuesRef.current === null) {
-		// ModelsSection remounts this form when the add-mode provider changes, so
-		// this snapshot is the safety baseline for advisory default application.
-		initialValuesRef.current = form.initialValues;
-	}
+	const previouslyAppliedRef = useRef<PreviouslyAppliedDefaults | null>(null);
 
 	const normalizedProvider = normalizeProvider(selectedProvider ?? "");
 	const providerKnownModels = getKnownModelsForProvider(normalizedProvider);
 	const usesKnownModelCatalog =
-		mode === "add" &&
-		(normalizedProvider === "openai" || normalizedProvider === "anthropic") &&
-		providerKnownModels.length > 0;
-
-	const markTouched = () => {
-		void form.setFieldTouched("model", true);
-	};
-
-	const renderPlainInput = () => (
-		<div className="grid gap-1.5">
-			<Label
-				htmlFor={modelField.id}
-				className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
-			>
-				Model Identifier{" "}
-				<span className="text-xs font-bold text-content-destructive">*</span>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<InfoIcon className="h-3 w-3 text-content-secondary" />
-					</TooltipTrigger>
-					<TooltipContent side="top" className="max-w-[240px]">
-						The model identifier sent to the provider API.
-					</TooltipContent>
-				</Tooltip>
-			</Label>
-			<Input
-				id={modelField.id}
-				name={modelField.name}
-				className={cn(
-					"h-9 text-[13px] placeholder:text-content-disabled",
-					modelField.error && "border-content-destructive",
-				)}
-				placeholder="e.g. gpt-5, claude-sonnet-4-5"
-				value={modelField.value}
-				onChange={modelField.onChange}
-				onBlur={modelField.onBlur}
-				disabled={disabled}
-				aria-invalid={modelField.error}
-				aria-describedby={
-					modelField.error ? `${modelField.id}-error` : undefined
-				}
-			/>
-			{modelField.error && (
-				<p
-					id={`${modelField.id}-error`}
-					className="m-0 text-xs text-content-destructive"
-				>
-					{modelField.helperText}
-				</p>
-			)}
-		</div>
-	);
-
-	if (!usesKnownModelCatalog) {
-		return renderPlainInput();
-	}
-
-	const knownModelOptions = (
-		inputValue.trim() === ""
-			? providerKnownModels
-			: searchKnownModels(normalizedProvider, inputValue)
-	).map(knownModelToOption);
+		mode === "add" && providerKnownModels.length > 0;
 	const currentModel = String(form.values.model ?? "");
+	const activeSearchQuery = open ? searchValue : currentModel;
+	const knownModelOptions = (
+		activeSearchQuery.trim() === ""
+			? providerKnownModels
+			: searchKnownModels(normalizedProvider, activeSearchQuery)
+	).map(knownModelToOption);
 	const selectedKnownModel = findKnownModelByCanonicalId(
 		normalizedProvider,
 		currentModel,
@@ -145,15 +101,76 @@ export const ModelIdentifierField = ({
 		: currentModel
 			? { model: currentModel, displayName: currentModel }
 			: null;
+	const hasError = Boolean(modelField.error);
+	const errorId = hasError ? `${modelField.id}-error` : undefined;
+
+	useEffect(() => {
+		// This reset is keyed to provider changes even though the reset logic
+		// does not need the provider value itself.
+		void normalizedProvider;
+		setFeedback(null);
+		lastAppliedProviderModelRef.current = null;
+		justSelectedRef.current = false;
+		closeIntentRef.current = null;
+		setSearchValue("");
+		searchValueRef.current = "";
+		searchDirtyRef.current = false;
+		previouslyAppliedRef.current = null;
+	}, [normalizedProvider]);
+
+	useEffect(() => {
+		if (!usesKnownModelCatalog || !open) {
+			return;
+		}
+
+		const markEscapeCloseIntent = (event: globalThis.KeyboardEvent) => {
+			if (event.key === "Escape") {
+				closeIntentRef.current = "escape";
+			}
+		};
+
+		document.addEventListener("keydown", markEscapeCloseIntent, true);
+		return () => {
+			document.removeEventListener("keydown", markEscapeCloseIntent, true);
+		};
+	}, [open, usesKnownModelCatalog]);
+
+	const markTouched = () => {
+		void form.setFieldTouched("model", true);
+	};
+
+	const setSearchSnapshot = (value: string) => {
+		setSearchValue(value);
+		searchValueRef.current = value;
+	};
+
+	const clearSearchSnapshot = () => {
+		setSearchSnapshot("");
+		searchDirtyRef.current = false;
+	};
+
+	const clearAppliedModelState = () => {
+		setFeedback(null);
+		lastAppliedProviderModelRef.current = null;
+		previouslyAppliedRef.current = null;
+	};
 
 	const applyDefaultsForKnownModel = (knownModel: KnownModel) => {
 		if (knownModel.provider !== normalizedProvider) {
 			return;
 		}
 
-		const initialValues = initialValuesRef.current;
-		if (initialValues === null) {
-			return;
+		let effectiveInitialValues = initialFormValues;
+		const previouslyApplied = previouslyAppliedRef.current;
+		if (previouslyApplied?.provider === normalizedProvider) {
+			effectiveInitialValues = structuredClone(initialFormValues);
+			for (const [field, value] of Object.entries(previouslyApplied.fields)) {
+				deepSet(
+					effectiveInitialValues as Record<string, unknown>,
+					field.split("."),
+					value,
+				);
+			}
 		}
 
 		const nextValuesForHelper = {
@@ -162,7 +179,7 @@ export const ModelIdentifierField = ({
 		};
 		const result = applyKnownModelDefaults({
 			values: nextValuesForHelper,
-			initialValues,
+			initialValues: effectiveInitialValues,
 			provider: normalizedProvider,
 			knownModel,
 		});
@@ -171,7 +188,17 @@ export const ModelIdentifierField = ({
 		// ref skips the repeat apply so feedback does not flicker or duplicate.
 		lastAppliedProviderModelRef.current = {
 			provider: normalizedProvider,
-			model: knownModel.modelIdentifier,
+			modelIdentifier: knownModel.modelIdentifier,
+		};
+		previouslyAppliedRef.current = {
+			provider: normalizedProvider,
+			modelIdentifier: knownModel.modelIdentifier,
+			fields: Object.fromEntries(
+				result.appliedFields.map((field) => [
+					field,
+					deepGet(result.values, field.split(".")),
+				]),
+			),
 		};
 		setFeedback(
 			result.appliedFields.length > 0
@@ -180,7 +207,7 @@ export const ModelIdentifierField = ({
 		);
 	};
 
-	const applyDefaultsOnExactCanonicalBlur = () => {
+	const applyDefaultsOnExactCanonicalModel = () => {
 		const found = findKnownModelByCanonicalId(normalizedProvider, currentModel);
 		if (!found) {
 			return;
@@ -189,7 +216,7 @@ export const ModelIdentifierField = ({
 		const lastApplied = lastAppliedProviderModelRef.current;
 		if (
 			lastApplied?.provider === normalizedProvider &&
-			lastApplied.model === found.modelIdentifier
+			lastApplied.modelIdentifier === found.modelIdentifier
 		) {
 			return;
 		}
@@ -202,41 +229,77 @@ export const ModelIdentifierField = ({
 	const handleChange = (option: ModelIdentifierOption | null) => {
 		if (!option) {
 			void form.setFieldValue("model", "");
-			setInputValue("");
-			setFeedback(null);
-			lastAppliedProviderModelRef.current = null;
+			setSearchSnapshot("");
+			clearAppliedModelState();
 			return;
 		}
 
 		if (!option.knownModel) {
 			void form.setFieldValue("model", option.model);
-			setFeedback(null);
-			lastAppliedProviderModelRef.current = null;
+			clearAppliedModelState();
 			return;
 		}
 
+		justSelectedRef.current = true;
+		setSearchSnapshot(option.knownModel.modelIdentifier);
 		applyDefaultsForKnownModel(option.knownModel);
-		setInputValue("");
 	};
 
 	const handleInputChange = (value: string) => {
-		setInputValue(value);
+		setSearchSnapshot(value);
+		searchDirtyRef.current = true;
 		setFeedback(null);
 		lastAppliedProviderModelRef.current = null;
-		void form.setFieldValue("model", value);
 	};
 
 	const handleOpenChange = (nextOpen: boolean) => {
-		setOpen(nextOpen);
 		if (nextOpen) {
+			setSearchSnapshot(currentModel);
+			searchDirtyRef.current = false;
+			closeIntentRef.current = null;
+			setOpen(true);
 			return;
 		}
+
+		setOpen(false);
 		markTouched();
-		setInputValue("");
-		applyDefaultsOnExactCanonicalBlur();
+
+		const justSelected = justSelectedRef.current;
+		const closeIntent = closeIntentRef.current;
+		justSelectedRef.current = false;
+		closeIntentRef.current = null;
+		const typed = searchValueRef.current;
+
+		if (closeIntent === "escape" || justSelected || !searchDirtyRef.current) {
+			clearSearchSnapshot();
+			return;
+		}
+
+		const exactKnownModel = findKnownModelByCanonicalId(
+			normalizedProvider,
+			typed,
+		);
+		if (exactKnownModel) {
+			applyDefaultsForKnownModel(exactKnownModel);
+			clearSearchSnapshot();
+			return;
+		}
+
+		if (searchKnownModels(normalizedProvider, typed).length > 0) {
+			clearSearchSnapshot();
+			return;
+		}
+
+		void form.setFieldValue("model", typed);
+		previouslyAppliedRef.current = null;
+		clearSearchSnapshot();
 	};
 
 	const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+		if (open) {
+			return;
+		}
+
 		const relatedTarget = event.relatedTarget;
 		if (
 			relatedTarget instanceof Node &&
@@ -245,26 +308,37 @@ export const ModelIdentifierField = ({
 			return;
 		}
 		markTouched();
-		applyDefaultsOnExactCanonicalBlur();
+		applyDefaultsOnExactCanonicalModel();
 	};
 
-	return (
-		<div className="grid gap-1.5" onBlur={handleBlur}>
-			<Label
-				htmlFor={modelField.id}
-				className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
-			>
-				Model Identifier{" "}
-				<span className="text-xs font-bold text-content-destructive">*</span>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<InfoIcon className="h-3 w-3 text-content-secondary" />
-					</TooltipTrigger>
-					<TooltipContent side="top" className="max-w-[240px]">
-						The model identifier sent to the provider API.
-					</TooltipContent>
-				</Tooltip>
-			</Label>
+	const handleKeyDownCapture = (event: KeyboardEvent<HTMLDivElement>) => {
+		if (event.key === "Escape") {
+			closeIntentRef.current = "escape";
+		}
+	};
+
+	const renderControl = () => {
+		if (!usesKnownModelCatalog) {
+			return (
+				<Input
+					id={modelField.id}
+					name={modelField.name}
+					className={cn(
+						"h-9 text-[13px] placeholder:text-content-disabled",
+						hasError && "border-content-destructive",
+					)}
+					placeholder="e.g. gpt-5, claude-sonnet-4-5"
+					value={modelField.value}
+					onChange={modelField.onChange}
+					onBlur={modelField.onBlur}
+					disabled={disabled}
+					aria-invalid={hasError}
+					aria-describedby={errorId}
+				/>
+			);
+		}
+
+		return (
 			<Autocomplete
 				id={modelField.id}
 				value={selectedOption}
@@ -293,21 +367,50 @@ export const ModelIdentifierField = ({
 				)}
 				open={open}
 				onOpenChange={handleOpenChange}
-				inputValue={inputValue}
+				inputValue={open ? searchValue : currentModel}
 				onInputChange={handleInputChange}
+				onEscapeKeyDown={() => {
+					closeIntentRef.current = "escape";
+				}}
 				placeholder="e.g. gpt-5, claude-sonnet-4-5"
-				noOptionsText="No known models found"
+				noOptionsText="No matching known models. You can still use this identifier."
 				className={cn(
 					"h-9 text-[13px] placeholder:text-content-disabled",
-					modelField.error && "border-content-destructive",
+					hasError && "border-content-destructive",
 				)}
+				triggerAriaInvalid={hasError}
+				triggerAriaDescribedBy={errorId}
 				disabled={disabled}
 			/>
-			{modelField.error && (
-				<p
-					id={`${modelField.id}-error`}
-					className="m-0 text-xs text-content-destructive"
-				>
+		);
+	};
+
+	return (
+		<div
+			className="grid gap-1.5"
+			onBlur={usesKnownModelCatalog ? handleBlur : undefined}
+			onKeyDownCapture={
+				usesKnownModelCatalog ? handleKeyDownCapture : undefined
+			}
+		>
+			<Label
+				htmlFor={modelField.id}
+				className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
+			>
+				Model Identifier{" "}
+				<span className="text-xs font-bold text-content-destructive">*</span>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<InfoIcon className="h-3 w-3 text-content-secondary" />
+					</TooltipTrigger>
+					<TooltipContent side="top" className="max-w-[240px]">
+						The model identifier sent to the provider API.
+					</TooltipContent>
+				</Tooltip>
+			</Label>
+			{renderControl()}
+			{hasError && (
+				<p id={errorId} className="m-0 text-xs text-content-destructive">
 					{modelField.helperText}
 				</p>
 			)}
