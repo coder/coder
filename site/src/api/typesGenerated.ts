@@ -2523,6 +2523,10 @@ export interface CreateProvisionerKeyResponse {
 export interface CreateTaskRequest {
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
+	/**
+	 * RichParameterValues allows passing template parameter values for task workspace creation.
+	 */
+	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly input: string;
 	readonly name?: string;
 	readonly display_name?: string;
