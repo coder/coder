@@ -3,7 +3,6 @@ package tailnet
 import (
 	"context"
 	"database/sql"
-	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -40,7 +39,6 @@ const (
 	numHandshakerWorkers   = 5
 	dbMaxBackoff           = 10 * time.Second
 	cleanupPeriod          = time.Hour
-	mapperRefreshInterval  = 30 * time.Second
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
@@ -692,10 +690,6 @@ type mapper struct {
 	// coordinators are added or removed
 	update chan struct{}
 
-	// resetSent is signaled when a coordinator recovers and mappers need to
-	// clear their sent cache so all peers are re-evaluated from scratch.
-	resetSent chan struct{}
-
 	mappings chan []mapping
 
 	c *connIO
@@ -716,7 +710,6 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 		logger:     logger,
 		c:          c,
 		update:     make(chan struct{}),
-		resetSent:  make(chan struct{}, 1),
 		mappings:   make(chan []mapping),
 		heartbeats: h,
 		sent:       make(map[uuid.UUID]mapping),
@@ -737,15 +730,6 @@ func (m *mapper) run() {
 			best = m.bestMappings(mappings)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
-			// Check if a reset was requested. The resetSent channel is
-			// buffered so the signal arrives before or concurrently with
-			// the update signal.
-			select {
-			case <-m.resetSent:
-				m.logger.Debug(m.ctx, "clearing sent cache due to coordinator recovery")
-				m.sent = make(map[uuid.UUID]mapping)
-			default:
-			}
 			best = m.bestMappings(m.c.getLatestMapping())
 		}
 		update := m.bestToUpdate(best)
@@ -917,12 +901,11 @@ func newQuerier(ctx context.Context,
 	mappingWorkers := int(math.Ceil(float64(numWorkers) / 2))
 	peerWorkers := numWorkers - mappingWorkers
 
-	q.wg.Add(3 + mappingWorkers + peerWorkers)
+	q.wg.Add(2 + mappingWorkers + peerWorkers)
 	go func() {
 		<-firstHeartbeat
 		go q.handleIncoming()
 		go q.handleUpdates()
-		go q.periodicRefresh()
 		for range mappingWorkers {
 			go q.mappingWorker()
 		}
@@ -936,18 +919,6 @@ func newQuerier(ctx context.Context,
 func (q *querier) wait() {
 	q.wg.Wait()
 	q.heartbeats.wg.Wait()
-}
-
-func (q *querier) periodicRefresh() {
-	defer q.wg.Done()
-	tkr := q.clock.TickerFunc(q.ctx, mapperRefreshInterval, func() error {
-		q.resyncPeerMappings()
-		return nil
-	}, "querier", "periodicRefresh")
-	err := tkr.Wait()
-	if err != nil && q.ctx.Err() == nil {
-		q.logger.Error(q.ctx, "periodic refresh ended unexpectedly", slog.Error(err))
-	}
 }
 
 func (q *querier) handleIncoming() {
@@ -1387,9 +1358,7 @@ func (q *querier) handleUpdates() {
 		case <-q.ctx.Done():
 			return
 		case u := <-q.updates:
-			if u.filter == filterUpdateReset {
-				q.resetAllSentAndUpdate()
-			} else if u.filter == filterUpdateUpdated {
+			if u.filter == filterUpdateUpdated {
 				q.updateAll()
 			}
 			if u.health == healthUpdateUnhealthy {
@@ -1414,27 +1383,6 @@ func (q *querier) updateAll() {
 		go func(m *mapper) {
 			// make sure we send on the _mapper_ context, not our own in case the mapper is
 			// shutting down or shut down.
-			_ = agpl.SendCtx(m.ctx, m.update, struct{}{})
-		}(mpr)
-	}
-}
-
-// resetAllSentAndUpdate signals all mappers to clear their sent cache and then
-// triggers an update. This is called when a coordinator recovers after being
-// expired, so that previously-skipped LOST peers get re-evaluated.
-func (q *querier) resetAllSentAndUpdate() {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	for _, mpr := range q.mappers {
-		go func(m *mapper) {
-			// Signal reset first (buffered channel, non-blocking).
-			select {
-			case m.resetSent <- struct{}{}:
-			default:
-			}
-			// Then trigger the update so the mapper picks up the reset
-			// signal when it processes the update.
 			_ = agpl.SendCtx(m.ctx, m.update, struct{}{})
 		}(mpr)
 	}
@@ -1618,7 +1566,6 @@ type filterUpdate int
 const (
 	filterUpdateNone filterUpdate = iota
 	filterUpdateUpdated
-	filterUpdateReset
 )
 
 type healthUpdate int
@@ -1651,11 +1598,9 @@ type heartbeats struct {
 	firstHeartbeat   chan<- struct{}
 	failedHeartbeats int
 
-	lock                sync.RWMutex
-	coordinators        map[uuid.UUID]time.Time
-	lastDBHeartbeat     map[uuid.UUID]time.Time
-	expiredCoordinators map[uuid.UUID]struct{}
-	timer               *quartz.Timer
+	lock         sync.RWMutex
+	coordinators map[uuid.UUID]time.Time
+	timer        *quartz.Timer
 
 	wg sync.WaitGroup
 
@@ -1671,22 +1616,16 @@ func newHeartbeats(
 	clk quartz.Clock,
 ) *heartbeats {
 	h := &heartbeats{
-		ctx:                 ctx,
-		logger:              logger,
-		pubsub:              ps,
-		store:               store,
-		self:                self,
-		update:              update,
-		firstHeartbeat:      firstHeartbeat,
-		coordinators:        make(map[uuid.UUID]time.Time),
-		lastDBHeartbeat:     make(map[uuid.UUID]time.Time),
-		expiredCoordinators: make(map[uuid.UUID]struct{}),
-		clock:               clk,
+		ctx:            ctx,
+		logger:         logger,
+		pubsub:         ps,
+		store:          store,
+		self:           self,
+		update:         update,
+		firstHeartbeat: firstHeartbeat,
+		coordinators:   make(map[uuid.UUID]time.Time),
+		clock:          clk,
 	}
-	// Start the expiry timer so checkExpiry runs even if no pubsub
-	// heartbeat is ever received. This enables DB-based discovery of
-	// coordinators whose pubsub notifications are permanently lost.
-	h.timer = h.clock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry, "heartbeats", "newHeartbeats")
 	h.wg.Add(3)
 	h.subscribe()
 	go h.sendBeats()
@@ -1772,27 +1711,19 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	if _, ok := h.coordinators[id]; !ok {
-		// Determine whether this coordinator is recovering after expiry
-		// or joining for the first time. Recovery needs a full reset so
-		// mappers re-evaluate peers that were LOST during the absence.
-		// First-time joins only need an incremental update.
-		_, wasExpired := h.expiredCoordinators[id]
-		delete(h.expiredCoordinators, id)
-		filter := filterUpdateUpdated
-		if wasExpired {
-			filter = filterUpdateReset
-		}
-		h.logger.Info(h.ctx, "heartbeats (re)started",
-			slog.F("other_coordinator_id", id),
-			slog.F("was_expired", wasExpired),
-		)
+		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
 		// send on a separate goroutine to avoid holding lock.
 		go func() {
-			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
+			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
 	h.coordinators[id] = h.clock.Now("heartbeats", "recvBeat")
 
+	if h.timer == nil {
+		// this is the first beat, schedule the expiry timer.
+		h.timer = h.clock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry, "heartbeats", "recvBeat")
+		return
+	}
 	h.resetExpiryTimerWithLock()
 }
 
@@ -1808,12 +1739,6 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 		"heartbeats", "resetExpiryTimerWithLock",
 	)
 	if len(h.coordinators) == 0 {
-		// Even with no known coordinators, schedule a fallback timer so
-		// checkExpiry runs periodically and can discover coordinators
-		// from the database whose pubsub heartbeats were never received.
-		fallback := MissedHeartbeats * HeartbeatPeriod
-		h.logger.Debug(h.ctx, "no coordinators known, setting fallback expiry timer", slog.F("fallback_duration", fallback))
-		h.timer.Reset(fallback, "heartbeats", "resetExpiryTimerWithLock")
 		return
 	}
 	h.logger.Debug(h.ctx, "computed oldest heartbeat", slog.F("oldest", oldestTime), slog.F("time_to_expiry", d))
@@ -1823,189 +1748,38 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 	h.timer.Reset(d, "heartbeats", "resetExpiryTimerWithLock")
 }
 
-// filterCandidates rescues expiry candidates whose database heartbeat
-// has advanced since the last observation, proving they are still alive
-// despite missed pubsub heartbeats.
-func (h *heartbeats) filterCandidates(candidates map[uuid.UUID]time.Duration, dbHeartbeats map[uuid.UUID]time.Time, oldDBHeartbeats map[uuid.UUID]time.Time) {
-	now := h.clock.Now()
-	for id := range candidates {
-		dbTime, inDB := dbHeartbeats[id]
-		// If the coordinator is not in the database, it is not alive.
-		if !inDB {
-			continue
-		}
-
-		// If the database heartbeat has not advanced since the last observation, it is not alive.
-		prevTime, hasPrev := oldDBHeartbeats[id]
-		if !hasPrev || !dbTime.After(prevTime) {
-			continue
-		}
-		// Require absolute freshness as well: tailnet_coordinators rows
-		// persist for 24h after a coordinator dies, so a stale row with
-		// one advancing window must not rescue a dead coordinator.
-		if now.Sub(dbTime) >= MissedHeartbeats*HeartbeatPeriod {
-			continue
-		}
-		h.logger.Info(h.ctx, "coordinator heartbeat recovered from database",
-			slog.F("other_coordinator_id", id),
-			slog.F("db_heartbeat_at", dbTime),
-		)
-		h.coordinators[id] = now
-		delete(candidates, id)
-	}
-}
-
-// discoverCoordinators finds coordinators present in the database that
-// have never been seen via pubsub. Uses a two-observation pattern: the
-// first sighting stores a baseline in lastDBHeartbeat, and only on the
-// second observation with an advanced heartbeat_at is the coordinator
-// added.
-func (h *heartbeats) discoverCoordinators(dbMap map[uuid.UUID]time.Time, prevDBHeartbeats map[uuid.UUID]time.Time) filterUpdate {
-	now := h.clock.Now()
-	var discovered []uuid.UUID
-	for id, dbTime := range dbMap {
-		if id == h.self {
-			continue
-		}
-		if _, known := h.coordinators[id]; known {
-			continue
-		}
-		prevTime, hasPrev := prevDBHeartbeats[id]
-		if !hasPrev {
-			h.logger.Debug(h.ctx, "recorded baseline for unknown coordinator",
-				slog.F("other_coordinator_id", id),
-				slog.F("db_heartbeat_at", dbTime),
-			)
-			continue
-		}
-		if !dbTime.After(prevTime) {
-			continue
-		}
-		// Require absolute freshness: prevent discovery of dead
-		// coordinators whose rows haven't been cleaned up yet (24h
-		// retention on tailnet_coordinators).
-		if now.Sub(dbTime) >= MissedHeartbeats*HeartbeatPeriod {
-			continue
-		}
-		h.logger.Info(h.ctx, "discovered coordinator from database",
-			slog.F("other_coordinator_id", id),
-			slog.F("db_heartbeat_at", dbTime),
-		)
-		h.coordinators[id] = now
-		discovered = append(discovered, id)
-	}
-	if len(discovered) == 0 {
-		return filterUpdateNone
-	}
-	// If any discovered coordinator was previously expired, mappers
-	// need a full reset to re-evaluate peers marked LOST.
-	needsReset := false
-	for _, id := range discovered {
-		if _, ok := h.expiredCoordinators[id]; ok {
-			delete(h.expiredCoordinators, id)
-			needsReset = true
-		}
-	}
-	if needsReset {
-		return filterUpdateReset
-	}
-	return filterUpdateUpdated
-}
-
-// cleanupStaleEntries removes tracking state for coordinators that
-// are no longer active in memory or present in the database. This
-// prevents lastDBHeartbeat and expiredCoordinators from growing
-// monotonically as coordinators come and go.
-func (h *heartbeats) cleanupStaleEntries(dbMap map[uuid.UUID]time.Time) {
-	isStale := func(id uuid.UUID) bool {
-		if _, inCoords := h.coordinators[id]; inCoords {
-			return false
-		}
-		_, inDB := dbMap[id]
-		return !inDB
-	}
-	maps.DeleteFunc(h.lastDBHeartbeat, func(id uuid.UUID, _ time.Time) bool {
-		return isStale(id)
-	})
-	maps.DeleteFunc(h.expiredCoordinators, func(id uuid.UUID, _ struct{}) bool {
-		return isStale(id)
-	})
-}
-
 func (h *heartbeats) checkExpiry() {
 	if h.ctx.Err() != nil {
 		return
 	}
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
-
-	// Query the database BEFORE acquiring the lock to avoid blocking
-	// heartbeat processing during the DB round-trip.
-	dbCoords, err := h.store.GetAllTailnetCoordinators(h.ctx)
-
 	h.lock.Lock()
 	defer h.lock.Unlock()
-
-	// Collect candidates whose pubsub heartbeats have expired.
 	now := h.clock.Now()
-	threshold := MissedHeartbeats * HeartbeatPeriod
-	candidates := make(map[uuid.UUID]time.Duration)
+	expired := false
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
 		h.logger.Debug(h.ctx, "last heartbeat from coordinator",
 			slog.F("other_coordinator_id", id),
 			slog.F("last_heartbeat", lastHB),
 		)
-		if lastHB >= threshold {
-			candidates[id] = lastHB
+		if lastHB >= MissedHeartbeats*HeartbeatPeriod {
+			expired = true
+			delete(h.coordinators, id)
+			h.logger.Info(h.ctx, "coordinator failed heartbeat check",
+				slog.F("other_coordinator_id", id),
+				slog.F("last_heartbeat", lastHB),
+			)
 		}
-	}
-
-	if err != nil {
-		h.logger.Warn(h.ctx, "failed to query coordinators from database for heartbeat fallback", slog.Error(err))
-	} else {
-		dbHeartbeats := make(map[uuid.UUID]time.Time, len(dbCoords))
-		for _, c := range dbCoords {
-			dbHeartbeats[c.ID] = c.HeartbeatAt
-		}
-
-		// Snapshot previous DB heartbeats before updating, so helpers
-		// can compare old vs new to detect advancement.
-		oldDBHeartbeats := make(map[uuid.UUID]time.Time, len(h.lastDBHeartbeat))
-		maps.Copy(oldDBHeartbeats, h.lastDBHeartbeat)
-
-		// Update all baselines from the fresh DB snapshot.
-		maps.Copy(h.lastDBHeartbeat, dbHeartbeats)
-
-		// Remove candidates that are still alive from the database.
-		h.filterCandidates(candidates, dbHeartbeats, oldDBHeartbeats)
-		// Discover coordinators that are alive in the database but not in the memory.
-		if filter := h.discoverCoordinators(dbHeartbeats, oldDBHeartbeats); filter != filterUpdateNone {
-			go func() {
-				_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filter})
-			}()
-		}
-		h.cleanupStaleEntries(dbHeartbeats)
-	}
-
-	// Expire remaining candidates.
-	expired := false
-	for id, lastHB := range candidates {
-		expired = true
-		delete(h.coordinators, id)
-		h.expiredCoordinators[id] = struct{}{}
-		h.logger.Info(h.ctx, "coordinator failed heartbeat check",
-			slog.F("other_coordinator_id", id),
-			slog.F("last_heartbeat", lastHB),
-		)
 	}
 	if expired {
 		go func() {
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
-
 	h.resetExpiryTimerWithLock()
 }
+
 
 func (h *heartbeats) sendBeats() {
 	defer h.wg.Done()
