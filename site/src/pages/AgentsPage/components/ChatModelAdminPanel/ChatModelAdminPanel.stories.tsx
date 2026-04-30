@@ -1271,6 +1271,19 @@ const expectDefaultsFeedbackCount = (
 	expect(getDefaultsFeedback(body, message)).toHaveLength(count);
 };
 
+const expectOffCatalogModelCommitted = async (
+	body: ReturnType<typeof within>,
+	value: string,
+) => {
+	await openKnownModelPopover(body);
+	await clearAndTypeKnownModelSearch(body, value);
+	await closeKnownModelPopoverToContextLimit(body);
+
+	await expectModelIdentifierValue(body, value);
+	expect(body.queryByRole("status")).not.toBeInTheDocument();
+	expect(body.queryByText("Model ID is required.")).not.toBeInTheDocument();
+};
+
 const ensureCostTrackingOpen = async (body: ReturnType<typeof within>) => {
 	if (body.queryByLabelText(/^Input$/i)) {
 		return;
@@ -1484,6 +1497,46 @@ export const AnthropicKnownModelAliasTypedValueCancels: Story = {
 		await expectModelIdentifierValue(body, "custom-anthropic-model");
 		expect(body.queryByRole("status")).not.toBeInTheDocument();
 		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("");
+	},
+};
+
+export const KnownModelOffCatalogSubstringCommits: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-anthropic-known-model-substring",
+				provider: "anthropic",
+				display_name: "Anthropic",
+				source: "database",
+				has_api_key: true,
+			}),
+			createProviderConfig({
+				id: "provider-openai-known-model-substring",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+	},
+	name: "Add mode / DEREM-19: off-catalog identifier substring-matching catalog metadata commits",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await openAddModelForm(body, "Anthropic");
+		await expectOffCatalogModelCommitted(body, "haiku");
+		await userEvent.click(body.getByRole("button", { name: /^Cancel$/i }));
+		await waitFor(() => {
+			expect(
+				body.queryByLabelText(/Model Identifier/i),
+			).not.toBeInTheDocument();
+		});
+
+		await openAddModelForm(body, "OpenAI");
+		await expectOffCatalogModelCommitted(body, "mini");
+		await expectOffCatalogModelCommitted(body, "pro");
+		await expectOffCatalogModelCommitted(body, "gpt-5");
 	},
 };
 

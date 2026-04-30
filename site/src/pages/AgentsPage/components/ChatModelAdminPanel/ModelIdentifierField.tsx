@@ -19,6 +19,7 @@ import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
 import { normalizeProvider } from "./helpers";
 import {
+	findKnownModelByAlias,
 	findKnownModelByCanonicalId,
 	formatContextBadge,
 	getKnownModelsForProvider,
@@ -129,8 +130,10 @@ export const ModelIdentifierField = ({
 			}
 		};
 
+		window.addEventListener("keydown", markEscapeCloseIntent, true);
 		document.addEventListener("keydown", markEscapeCloseIntent, true);
 		return () => {
+			window.removeEventListener("keydown", markEscapeCloseIntent, true);
 			document.removeEventListener("keydown", markEscapeCloseIntent, true);
 		};
 	}, [open, usesKnownModelCatalog]);
@@ -275,17 +278,18 @@ export const ModelIdentifierField = ({
 			return;
 		}
 
+		const aliasKnownModel = findKnownModelByAlias(normalizedProvider, typed);
+		if (aliasKnownModel) {
+			clearSearchSnapshot();
+			return;
+		}
+
 		const exactKnownModel = findKnownModelByCanonicalId(
 			normalizedProvider,
 			typed,
 		);
 		if (exactKnownModel) {
 			applyDefaultsForKnownModel(exactKnownModel);
-			clearSearchSnapshot();
-			return;
-		}
-
-		if (searchKnownModels(normalizedProvider, typed).length > 0) {
 			clearSearchSnapshot();
 			return;
 		}

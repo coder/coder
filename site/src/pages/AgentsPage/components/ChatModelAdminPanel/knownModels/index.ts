@@ -52,6 +52,21 @@ export const searchKnownModels = (
 	);
 };
 
+export const findKnownModelByAlias = (
+	provider: string,
+	value: string,
+): KnownModel | undefined => {
+	const normalizedAlias = normalizeSearchText(value);
+	if (normalizedAlias === "") {
+		return undefined;
+	}
+	return getKnownModelsForProvider(provider).find((knownModel) =>
+		knownModel.aliases.some(
+			(alias) => normalizeSearchText(alias) === normalizedAlias,
+		),
+	);
+};
+
 export const findKnownModelByCanonicalId = (
 	provider: string,
 	modelId: string,

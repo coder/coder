@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	findKnownModelByAlias,
 	findKnownModelByCanonicalId,
 	formatContextBadge,
 	getKnownModelsForProvider,
@@ -88,6 +89,36 @@ describe("searchKnownModels", () => {
 				(knownModel) => knownModel.modelIdentifier,
 			),
 		).toEqual(["claude-haiku-4-5"]);
+	});
+});
+
+describe("findKnownModelByAlias", () => {
+	it("returns exact alias lookup", () => {
+		expect(
+			findKnownModelByAlias("anthropic", "claude-haiku-4-5-20251001")
+				?.modelIdentifier,
+		).toBe("claude-haiku-4-5");
+	});
+
+	it("does not match canonical Model Identifiers", () => {
+		expect(
+			findKnownModelByAlias("anthropic", "claude-haiku-4-5"),
+		).toBeUndefined();
+	});
+
+	it("does not match unknown strings", () => {
+		expect(findKnownModelByAlias("anthropic", "unknown-model")).toBeUndefined();
+	});
+
+	it("does not match alias substrings", () => {
+		expect(findKnownModelByAlias("anthropic", "haiku")).toBeUndefined();
+	});
+
+	it("normalizes case, whitespace, hyphens, underscores, and dots", () => {
+		expect(
+			findKnownModelByAlias("anthropic", "CLAUDE HAIKU_4.5 20251001")
+				?.modelIdentifier,
+		).toBe("claude-haiku-4-5");
 	});
 });
 

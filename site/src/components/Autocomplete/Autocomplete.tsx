@@ -131,11 +131,14 @@ export function Autocomplete<TOption>({
 	);
 
 	const handleKeyDown = useCallback(
-		(e: KeyboardEvent<HTMLInputElement>) => {
+		(e: KeyboardEvent<HTMLElement>) => {
 			if (e.key === "Escape") {
+				// cmdk consumes Escape unless default is prevented before its handler.
 				e.preventDefault();
-				e.stopPropagation();
-				onEscapeKeyDown?.();
+				if (onEscapeKeyDown) {
+					e.stopPropagation();
+					onEscapeKeyDown();
+				}
 				handleOpenChange(false);
 			}
 		},
@@ -210,13 +213,13 @@ export function Autocomplete<TOption>({
 			<PopoverContent
 				className="w-[var(--radix-popover-trigger-width)] p-0"
 				align="start"
+				onKeyDownCapture={handleKeyDown}
 			>
 				<Command shouldFilter={controlledInputValue === undefined}>
 					<CommandInput
 						placeholder={placeholder}
 						value={inputValue}
 						onValueChange={handleInputChange}
-						onKeyDownCapture={handleKeyDown}
 					/>
 					<CommandList>
 						{loading ? (
