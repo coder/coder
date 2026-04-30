@@ -444,7 +444,7 @@ See
 for the full guide on writing discoverable descriptions, configuring
 network boundaries, scoping credentials, and pre-installing dependencies.
 
-### Option: pre-create workspaces for deterministic results
+### Pre-creating a workspace for deterministic results
 
 Letting the agent pick a template and provision a workspace works well
 for exploratory chats. If you instead want deterministic results, for
