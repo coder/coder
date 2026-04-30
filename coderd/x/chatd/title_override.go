@@ -2,15 +2,11 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"strings"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -18,46 +14,20 @@ import (
 
 const titleGenerationOverrideContext = "title_generation"
 
-type titleGenerationModelOverrideRead struct {
-	id          uuid.UUID
-	rawValue    string
-	isSet       bool
-	isMalformed bool
-	parseErr    error
-}
-
 func readTitleGenerationModelOverride(
 	ctx context.Context,
 	db database.Store,
-) (titleGenerationModelOverrideRead, error) {
+) (string, error) {
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	raw, err := db.GetChatTitleGenerationModelOverride(chatdCtx)
 	if err != nil {
-		return titleGenerationModelOverrideRead{}, xerrors.Errorf(
+		return "", xerrors.Errorf(
 			"get chat title generation model override: %w",
 			err,
 		)
 	}
-
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return titleGenerationModelOverrideRead{}, nil
-	}
-	modelConfigUUID, err := uuid.Parse(trimmed)
-	if err != nil {
-		return titleGenerationModelOverrideRead{
-			rawValue:    trimmed,
-			isSet:       true,
-			isMalformed: true,
-			parseErr:    err,
-		}, nil
-	}
-	return titleGenerationModelOverrideRead{
-		id:       modelConfigUUID,
-		rawValue: trimmed,
-		isSet:    true,
-	}, nil
+	return raw, nil
 }
 
 // resolveTitleGenerationModelOverride resolves the deployment-wide title
@@ -80,59 +50,30 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (database.ChatModelConfig, fantasy.LanguageModel, bool, error) {
-	read, err := readTitleGenerationModelOverride(ctx, p.db)
+	raw, err := readTitleGenerationModelOverride(ctx, p.db)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
 		)
 	}
-	if read.isMalformed {
-		p.logger.Info(ctx,
-			"invalid model override, ignoring",
-			slog.F("override_context", titleGenerationOverrideContext),
-			slog.F("raw_value", read.rawValue),
-			slog.Error(read.parseErr),
-		)
-		return database.ChatModelConfig{}, nil, false, nil
-	}
-	if !read.isSet {
-		return database.ChatModelConfig{}, nil, false, nil
-	}
 
-	modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(
+	modelConfig, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
-		read.id,
+		titleGenerationOverrideContext,
+		raw,
+		chat.OwnerID,
+		p.resolveModelConfigAndNormalizedProvider,
+		func(context.Context, uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
+			return keys, nil
+		},
+		modelOverrideFailureModeHard,
 	)
 	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
-				"title generation model override is unavailable: %s",
-				read.id,
-			)
-		case errors.Is(err, errInvalidModelOverrideMetadata):
-			return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
-				"title generation model override metadata is invalid for %s: %w",
-				read.id,
-				err,
-			)
-		default:
-			return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
-				"resolve title generation model override %s: %w",
-				read.id,
-				err,
-			)
-		}
+		return database.ChatModelConfig{}, nil, overrideSet, err
 	}
-
-	if keys.APIKey(providerName) == "" &&
-		!(chatprovider.ProviderAllowsAmbientCredentials(providerName) &&
-			keys.HasProvider(providerName)) {
-		return database.ChatModelConfig{}, nil, true, xerrors.Errorf(
-			"title generation model override credentials are unavailable for provider %q",
-			providerName,
-		)
+	if !overrideSet {
+		return database.ChatModelConfig{}, nil, false, nil
 	}
 
 	model, err := chatprovider.ModelFromConfig(

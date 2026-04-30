@@ -834,6 +834,7 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 				ByProvider: map[string]string{"bedrock": ""},
 			}, nil
 		},
+		modelOverrideFailureModeSoft,
 	)
 	require.NoError(t, err)
 	require.True(t, ok)
