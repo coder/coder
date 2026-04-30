@@ -2,6 +2,7 @@ import Collapse from "@mui/material/Collapse";
 import {
 	CopyIcon,
 	EllipsisIcon,
+	InfoIcon,
 	PackageIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
@@ -152,6 +153,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const healthIssues = getAgentHealthIssues(agent);
 	const hasAgentIssues = healthIssues.length > 0;
+	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
 	const failedStartTimings = agentScriptTimings?.filter(
 		(t) =>
 			t.workspace_agent_id === agent.id &&
@@ -513,8 +515,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 								</Badge>
 							)}
 						{healthIssues.length > 0 && (
-							<Badge variant="warning" size="xs" className="ml-1.5">
-								<TriangleAlertIcon className="-ml-0.5" />
+							<Badge
+								variant={hasWarningIssues ? "warning" : "info"}
+								size="xs"
+								className="ml-1.5"
+							>
+								{hasWarningIssues ? (
+									<TriangleAlertIcon className="-ml-0.5" />
+								) : (
+									<InfoIcon className="-ml-0.5" />
+								)}
 								<span>{healthIssues.length}</span>
 							</Badge>
 						)}
