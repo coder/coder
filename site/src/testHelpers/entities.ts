@@ -984,7 +984,7 @@ const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	script: "echo 'hello world'",
 	start_blocks_login: false,
 	timeout: 0,
-	display_name: "Say Hello",
+	display_name: "Startup Script",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -1206,23 +1206,27 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 			log_source_id: "a2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			exit_code: 0,
 			status: "ok",
+			display_name: "coder",
 		},
 		{
 			...MockWorkspaceAgentScript,
 			id: "28eaca83-1221-4fad-b882-d1136981f54d",
 			log_source_id: "b2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			status: "timed_out",
+			display_name: "time",
 		},
 		{
 			...MockWorkspaceAgentScript,
 			id: "38eaca83-1221-4fad-b882-d1136981f54d",
 			log_source_id: "c2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			status: "pipes_left_open",
+			display_name: "pipe",
 		},
 		{
 			...MockWorkspaceAgentScript,
 			id: "48eaca83-1221-4fad-b882-d1136981f54d",
 			log_source_id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "running",
 		},
 	],
 	logs_length: 4,
