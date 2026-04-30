@@ -29,7 +29,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 				<div className="flex w-6 shrink-0 justify-center">
 					<div className="relative z-[1] size-2.5 rounded-full border-solid border-2 border-content-secondary bg-surface-secondary" />
 				</div>
-				<div className="flex flex-row items-baseline gap-8 text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
+				<div className="flex flex-row items-baseline gap-8 font-normal text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
 					<div
 						className={cn(
 							"flex shrink-0 flex-row items-baseline gap-2 max-md:w-fit max-md:flex-col max-md:items-start max-md:gap-2",
@@ -47,7 +47,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 						)}
 					>
 						<span>OS:</span>
-						<span className="text-sm capitalize text-content-primary">
+						<span className="font-normal text-sm capitalize text-content-primary">
 							{agent.operating_system}
 						</span>
 					</div>

@@ -38,12 +38,12 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 			key={resource.id}
 			className="resource-card border border-solid border-border bg-surface-primary [&:not(:last-child)]:border-b-0 first:rounded-t-[8px] last:rounded-b-[8px]"
 		>
-			<div className="flex flex-row items-start gap-20 border-b border-border border-0 border-solid px-8 py-6 last:border-b-0 max-md:w-full max-md:overflow-auto">
+			<div className="flex flex-row items-start gap-20 border-0 border-b border-solid border-border px-8 py-6 last:border-b-0 max-md:w-full max-md:overflow-auto">
 				<div className="flex w-fit min-w-[220px] shrink-0 flex-row gap-2">
 					<div>
 						<ResourceAvatar resource={resource} />
 					</div>
-					<div className="text-sm leading-6">
+					<div className="font-normal text-sm leading-6">
 						<div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-content-secondary">
 							{resource.type}
 						</div>
@@ -60,8 +60,8 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 					}}
 				>
 					{resource.daily_cost > 0 && (
-						<div className="text-sm leading-6">
-							<div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-content-secondary">
+						<div className="font-normal text-sm leading-6">
+							<div className="overflow-hidden text-ellipsis whitespace-nowrap font-normal text-xs text-content-secondary">
 								<b>Daily cost</b>
 							</div>
 							<div className="overflow-hidden text-ellipsis whitespace-nowrap">
@@ -71,8 +71,8 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 					)}
 					{visibleMetadata.map((meta) => {
 						return (
-							<div className="text-sm leading-6" key={meta.key}>
-								<div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-content-secondary">
+							<div className="font-normal text-sm leading-6" key={meta.key}>
+								<div className="overflow-hidden text-ellipsis whitespace-nowrap font-normal text-xs text-content-secondary">
 									{meta.key}
 								</div>
 								<div className="overflow-hidden text-ellipsis whitespace-nowrap">
