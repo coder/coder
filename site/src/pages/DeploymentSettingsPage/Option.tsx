@@ -102,15 +102,21 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };
 
 // OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
-export const OptionConfig: FC<OptionConfigProps> = ({ isSource, ...attrs }) => {
+export const OptionConfig: FC<OptionConfigProps> = ({
+	isSource,
+	className,
+	...attrs
+}) => {
 	return (
 		<div
 			{...attrs}
 			className={cn(
-				"inline-flex items-center gap-1.5 rounded border bg-surface-primary p-1.5 font-mono text-[13px] font-semibold leading-none",
-				isSource
-					? "border-content-link [&_[data-slot=option-config-flag]]:bg-content-link"
-					: "border-border",
+				"inline-flex items-center gap-1.5 rounded border border-solid p-1.5",
+				"font-mono text-[13px] font-semibold leading-none",
+				"border-border-secondary bg-surface-secondary",
+				isSource &&
+					"border-content-link [&_[data-slot=option-config-flag]]:bg-content-link",
+				className,
 			)}
 		/>
 	);
@@ -122,7 +128,9 @@ export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 			{...props}
 			data-slot="option-config-flag"
 			className={cn(
-				"block rounded-[1px] bg-border px-1 py-0.5 text-[10px] font-semibold leading-none",
+				"block rounded-[1px] bg-border-secondary px-1 py-0.5",
+				"text-[10px] font-semibold leading-none",
+				props.className,
 			)}
 		/>
 	);

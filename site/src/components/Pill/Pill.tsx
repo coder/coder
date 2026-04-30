@@ -36,10 +36,10 @@ export const Pill: FC<PillProps> = ({
 	return (
 		<div
 			className={cn(
-				"inline-flex h-6 items-center whitespace-nowrap rounded-full border border-solid",
+				"inline-flex items-center whitespace-nowrap rounded-full border border-solid",
 				"font-normal text-xs leading-none cursor-default",
 				"[&>svg]:size-[14px]",
-				size === "md" && "gap-[5px] px-3",
+				size === "md" && "h-6 gap-[5px] px-3",
 				Boolean(icon) && size === "md" && "pl-[5px]",
 				size === "lg" && "gap-[10px] px-4 py-[14px]",
 				Boolean(icon) && size === "lg" && "pl-[10px]",
