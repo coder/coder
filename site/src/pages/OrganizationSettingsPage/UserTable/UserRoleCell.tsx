@@ -13,7 +13,6 @@
  * went with a simpler design. If we decide we really do need to display the
  * users like that, though, know that it will be painful
  */
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { FC } from "react";
 import type { LoginType, SlimRole } from "#/api/typesGenerated";
 import { Pill } from "#/components/Pill/Pill";
@@ -55,6 +54,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 		mainDisplayRole.name === "organization-admin";
 
 	const displayName = mainDisplayRole.display_name || mainDisplayRole.name;
+	const isOrgLocalMainPill = !hasOwnerRole && !mainDisplayRole.global;
 
 	return (
 		<TableCell>
@@ -78,12 +78,17 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 				)}
 
 				<Pill
-					css={
+					type={
 						hasOwnerRole
-							? styles.ownerRoleBadge
+							? "notice"
 							: mainDisplayRole.global
-								? styles.globalRoleBadge
-								: styles.roleBadge
+								? "active"
+								: "inactive"
+					}
+					className={
+						isOrgLocalMainPill
+							? "!border-border-secondary !bg-surface-secondary"
+							: undefined
 					}
 				>
 					{mainDisplayRole.global ? (
@@ -111,17 +116,13 @@ type OverflowRolePillProps = {
 };
 
 const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
-	const theme = useTheme();
-
 	return (
 		<TooltipProvider>
 			<Tooltip delayDuration={0}>
 				<TooltipTrigger asChild>
 					<Pill
-						css={{
-							backgroundColor: theme.palette.background.paper,
-							borderColor: theme.palette.divider,
-						}}
+						type="inactive"
+						className="!border-border-default !bg-surface-primary"
 					>
 						+{roles.length} more
 					</Pill>
@@ -131,7 +132,12 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 					{roles.map((role) => (
 						<Pill
 							key={role.name}
-							css={role.global ? styles.globalRoleBadge : styles.roleBadge}
+							type={role.global ? "active" : "inactive"}
+							className={
+								role.global
+									? undefined
+									: "!border-border-secondary !bg-surface-secondary"
+							}
 						>
 							{role.global ? (
 								<span title="This user has this role for all organizations.">
@@ -147,21 +153,6 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 		</TooltipProvider>
 	);
 };
-
-const styles = {
-	globalRoleBadge: (theme) => ({
-		backgroundColor: theme.roles.active.background,
-		borderColor: theme.roles.active.outline,
-	}),
-	ownerRoleBadge: (theme) => ({
-		backgroundColor: theme.roles.notice.background,
-		borderColor: theme.roles.notice.outline,
-	}),
-	roleBadge: (theme) => ({
-		backgroundColor: theme.experimental.l2.background,
-		borderColor: theme.experimental.l2.outline,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 const fallbackRole: TieredSlimRole = {
 	name: "member",
