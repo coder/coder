@@ -645,10 +645,6 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 		agent.Name,
 		url.PathEscape(app.Slug),
 	)
-	// Pass the app slug instead of the raw command. The terminal
-	// page resolves the command from the workspace agent's app
-	// list, which lets it skip the confirmation dialog for
-	// trusted, admin-configured template apps.
 	if app.Command != "" {
 		u.Path = fmt.Sprintf(
 			"%s/@%s/%s.%s/terminal",
