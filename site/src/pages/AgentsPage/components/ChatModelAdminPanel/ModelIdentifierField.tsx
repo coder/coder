@@ -273,8 +273,6 @@ export const ModelIdentifierField = ({
 	const handleInputChange = (value: string) => {
 		setSearchSnapshot(value);
 		searchDirtyRef.current = true;
-		setFeedback(null);
-		lastAppliedProviderModelRef.current = null;
 	};
 
 	const handleOpenChange = (nextOpen: boolean) => {
@@ -320,6 +318,7 @@ export const ModelIdentifierField = ({
 		}
 
 		void form.setFieldValue("model", typed);
+		clearAppliedModelFeedback();
 		clearSearchSnapshot();
 	};
 

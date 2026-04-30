@@ -1505,10 +1505,12 @@ export const OpenAIKnownModelEscapeCancelsSearch: Story = {
 	name: "Add mode / DEREM-5: Escape cancels and preserves committed value",
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
+		const feedback = knownModelDefaultsFeedback("GPT-5.5");
 		await openAddModelForm(body, "OpenAI");
 
 		await selectKnownModel(body, "gpt-5.5");
 		await expectModelIdentifierValue(body, "gpt-5.5");
+		expectDefaultsFeedbackCount(body, feedback, 1);
 
 		await openKnownModelPopover(body);
 		await clearAndTypeKnownModelSearch(body, "cod");
@@ -1518,11 +1520,42 @@ export const OpenAIKnownModelEscapeCancelsSearch: Story = {
 			expect(body.queryByRole("combobox")).not.toBeInTheDocument();
 		});
 		await expectModelIdentifierValue(body, "gpt-5.5");
-		expect(body.queryByRole("status")).not.toBeInTheDocument();
+		expectDefaultsFeedbackCount(body, feedback, 1);
 
 		const reopenedInput = await openKnownModelPopover(body);
 		await expect(reopenedInput).toHaveValue("gpt-5.5");
 		await userEvent.keyboard("{Escape}");
+	},
+};
+
+export const OpenAIKnownModelEscapeDoesNotReapplyDefaultsFeedback: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-30: type-then-Escape does not re-apply defaults feedback",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const feedback = knownModelDefaultsFeedback("GPT-5.5");
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		expectDefaultsFeedbackCount(body, feedback, 1);
+		const initialFeedback = getDefaultsFeedback(body, feedback)[0];
+		if (!initialFeedback) {
+			throw new Error("Expected Known Model defaults feedback.");
+		}
+
+		await openKnownModelPopover(body);
+		await clearAndTypeKnownModelSearch(body, "a");
+		await userEvent.keyboard("{Escape}");
+
+		await waitFor(() => {
+			expect(body.queryByRole("combobox")).not.toBeInTheDocument();
+		});
+		await userEvent.click(body.getByLabelText(/Context limit/i));
+
+		expectDefaultsFeedbackCount(body, feedback, 1);
+		expect(getDefaultsFeedback(body, feedback)[0]).toBe(initialFeedback);
+		await expectModelIdentifierValue(body, "gpt-5.5");
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1050000");
 	},
 };
 
