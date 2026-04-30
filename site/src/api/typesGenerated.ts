@@ -1321,25 +1321,6 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
-export type ChatAgentModelOverrideContext = "explore" | "general";
-
-export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
-	"explore",
-	"general",
-];
-
-// From codersdk/chats.go
-/**
- * ChatAgentModelOverrideResponse is the response body for the chat agent
- * model override configuration endpoint.
- */
-export interface ChatAgentModelOverrideResponse {
-	readonly context: ChatAgentModelOverrideContext;
-	readonly model_config_id: string;
-	readonly is_malformed: boolean;
-}
-
-// From codersdk/chats.go
 /**
  * ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
  */
@@ -2096,6 +2077,29 @@ export interface ChatModelOpenRouterProviderOptions {
 }
 
 // From codersdk/chats.go
+export type ChatModelOverrideContext =
+	| "explore"
+	| "general"
+	| "title_generation";
+
+export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"explore",
+	"general",
+	"title_generation",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatModelOverrideResponse is the response body for the chat model override
+ * configuration endpoint.
+ */
+export interface ChatModelOverrideResponse {
+	readonly context: ChatModelOverrideContext;
+	readonly model_config_id: string;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
 /**
  * ChatModelProvider represents provider availability and model results.
  */
@@ -2452,16 +2456,6 @@ export interface ChatTemplateAllowlist {
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatTitleGenerationModelOverrideResponse is the response body for the chat
- * title generation model override endpoint.
- */
-export interface ChatTitleGenerationModelOverrideResponse {
-	readonly model_config_id: string;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
@@ -7816,15 +7810,6 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
- * UpdateChatAgentModelOverrideRequest is the request body for updating the
- * chat agent model override configuration endpoint.
- */
-export interface UpdateChatAgentModelOverrideRequest {
-	readonly model_config_id: string;
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatAutoArchiveDaysRequest is a request to update the chat
  * auto-archive period.
  */
@@ -7862,6 +7847,15 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelOverrideRequest is the request body for updating the chat
+ * model override configuration endpoint.
+ */
+export interface UpdateChatModelOverrideRequest {
+	readonly model_config_id: string;
 }
 
 // From codersdk/chats.go
@@ -7932,15 +7926,6 @@ export interface UpdateChatRetentionDaysRequest {
 export interface UpdateChatSystemPromptRequest {
 	readonly system_prompt: string;
 	readonly include_default_system_prompt?: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatTitleGenerationModelOverrideRequest is the request body for updating
- * the chat title generation model override endpoint.
- */
-export interface UpdateChatTitleGenerationModelOverrideRequest {
-	readonly model_config_id: string;
 }
 
 // From codersdk/chats.go

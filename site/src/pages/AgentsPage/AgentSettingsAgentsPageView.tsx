@@ -12,9 +12,9 @@ type SaveModelOverride = (
 ) => void;
 
 export interface AgentSettingsAgentsPageViewProps {
-	generalModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
-	titleGenerationModelOverrideData?: TypesGen.ChatTitleGenerationModelOverrideResponse;
-	exploreModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
+	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;

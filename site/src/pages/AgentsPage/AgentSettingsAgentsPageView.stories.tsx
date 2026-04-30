@@ -30,9 +30,9 @@ const buildModelConfig = (
 });
 
 const buildOverrideData = (
-	context: TypesGen.ChatAgentModelOverrideContext,
-	overrides: Partial<TypesGen.ChatAgentModelOverrideResponse> = {},
-): TypesGen.ChatAgentModelOverrideResponse => ({
+	context: TypesGen.ChatModelOverrideContext,
+	overrides: Partial<TypesGen.ChatModelOverrideResponse> = {},
+): TypesGen.ChatModelOverrideResponse => ({
 	context,
 	model_config_id: "",
 	is_malformed: false,
@@ -40,12 +40,9 @@ const buildOverrideData = (
 });
 
 const buildTitleGenerationModelOverrideData = (
-	overrides: Partial<TypesGen.ChatTitleGenerationModelOverrideResponse> = {},
-): TypesGen.ChatTitleGenerationModelOverrideResponse => ({
-	model_config_id: "",
-	is_malformed: false,
-	...overrides,
-});
+	overrides: Partial<TypesGen.ChatModelOverrideResponse> = {},
+): TypesGen.ChatModelOverrideResponse =>
+	buildOverrideData("title_generation", overrides);
 
 const generalModelConfig = buildModelConfig({
 	id: "model-general-gpt-4.1-mini",

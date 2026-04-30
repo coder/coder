@@ -104,12 +104,12 @@ func (p *Server) isDesktopEnabled(ctx context.Context) bool {
 }
 
 func subagentModelOverrideLogLabel(
-	overrideContext codersdk.ChatAgentModelOverrideContext,
+	overrideContext codersdk.ChatModelOverrideContext,
 ) string {
 	switch overrideContext {
-	case codersdk.ChatAgentModelOverrideContextGeneral:
+	case codersdk.ChatModelOverrideContextGeneral:
 		return "general delegated child"
-	case codersdk.ChatAgentModelOverrideContextExplore:
+	case codersdk.ChatModelOverrideContextExplore:
 		return "explore"
 	default:
 		return string(overrideContext)
@@ -119,16 +119,16 @@ func subagentModelOverrideLogLabel(
 func readSubagentModelOverride(
 	ctx context.Context,
 	db database.Store,
-	overrideContext codersdk.ChatAgentModelOverrideContext,
+	overrideContext codersdk.ChatModelOverrideContext,
 ) (string, error) {
 	switch overrideContext {
-	case codersdk.ChatAgentModelOverrideContextGeneral:
+	case codersdk.ChatModelOverrideContextGeneral:
 		return db.GetChatGeneralModelOverride(ctx)
-	case codersdk.ChatAgentModelOverrideContextExplore:
+	case codersdk.ChatModelOverrideContextExplore:
 		return db.GetChatExploreModelOverride(ctx)
 	default:
 		return "", xerrors.Errorf(
-			"unknown subagent model override context %q",
+			"unsupported subagent model override context %q",
 			overrideContext,
 		)
 	}
@@ -242,7 +242,7 @@ func (p *Server) resolveConfiguredModelOverride(
 func (p *Server) resolveSubagentModelConfigID(
 	ctx context.Context,
 	ownerID uuid.UUID,
-	overrideContext codersdk.ChatAgentModelOverrideContext,
+	overrideContext codersdk.ChatModelOverrideContext,
 ) (uuid.UUID, error) {
 	//nolint:gocritic // Chatd needs its scoped deployment-config read access here.
 	chatdCtx := dbauthz.AsChatd(ctx)
