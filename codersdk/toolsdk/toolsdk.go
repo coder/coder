@@ -846,7 +846,7 @@ connect to the workspace.
 				},
 				"template_version_preset_id": map[string]any{
 					"type":        "string",
-					"description": "(Optional) ID of a template version preset to apply. Only valid for start transitions. Obtain available presets from coder_get_template. When set, the preset's parameter values take precedence over conflicting entries in rich_parameters.",
+					"description": "(Optional) ID of a template version preset to apply. Only valid for start transitions. Obtain available presets from coder_get_template. Presets are scoped to the template version they were created on; pass template_version_id with the same version the preset came from when the workspace's current build is on a different version, otherwise the build may apply mismatched parameter defaults. When set, the preset's parameter values take precedence over conflicting entries in rich_parameters.",
 				},
 				"rich_parameters": map[string]any{
 					"type":        "object",
