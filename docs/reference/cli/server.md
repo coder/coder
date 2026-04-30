@@ -1993,6 +1993,16 @@ Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS conne
 
 Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.
 
+### --aibridge-proxy-api-dump-dir
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_API_DUMP_DIR</code> |
+| YAML        | <code>aibridgeproxy.api_dump_dir</code>         |
+
+Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.
+
 ### --audit-logs-retention
 
 |             |                                          |

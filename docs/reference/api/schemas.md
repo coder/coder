@@ -786,6 +786,7 @@
   "allowed_private_cidrs": [
     "string"
   ],
+  "api_dump_dir": "string",
   "cert_file": "string",
   "domain_allowlist": [
     "string"
@@ -805,6 +806,7 @@
 | Name                    | Type            | Required | Restrictions | Description |
 |-------------------------|-----------------|----------|--------------|-------------|
 | `allowed_private_cidrs` | array of string | false    |              |             |
+| `api_dump_dir`          | string          | false    |              |             |
 | `cert_file`             | string          | false    |              |             |
 | `domain_allowlist`      | array of string | false    |              |             |
 | `enabled`               | boolean         | false    |              |             |
@@ -1246,6 +1248,7 @@
     "allowed_private_cidrs": [
       "string"
     ],
+    "api_dump_dir": "string",
     "cert_file": "string",
     "domain_allowlist": [
       "string"
@@ -5229,6 +5232,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "allowed_private_cidrs": [
           "string"
         ],
+        "api_dump_dir": "string",
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -5820,6 +5824,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "allowed_private_cidrs": [
         "string"
       ],
+      "api_dump_dir": "string",
       "cert_file": "string",
       "domain_allowlist": [
         "string"
