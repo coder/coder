@@ -16,14 +16,19 @@ to the Chats API.
 
 ## When to migrate
 
-Migrate to the Chats API if you are adopting
-[Coder Agents](./index.md), which runs the agent loop in the Coder
-control plane rather than inside the workspace. The Tasks API remains
-available for workflows that use in-workspace agents such as Claude Code or
-Codex via [Coder Tasks](../tasks.md).
+Coder Tasks is being deprecated. Support continues on the ESR release and
+through Coder v2.36; after v2.36, Tasks support is available only on the
+12-month ESR release for Coder Premium customers. See the deprecation
+notice on the [Coder Tasks](../tasks.md) page for the full timeline.
+
+If you currently run workflows on the Tasks API, you should plan to
+migrate to the Chats API and [Coder Agents](./index.md). Coder Agents
+runs the agent loop in the Coder control plane rather than inside the
+workspace, and is the supported path going forward.
 
 The two systems are not interchangeable. Tasks and Chats are separate
-resources with separate APIs.
+resources with separate APIs, so plan to update your integrations rather
+than expecting a drop-in replacement.
 
 ## Key architectural differences
 
