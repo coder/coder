@@ -21,7 +21,7 @@ import (
 	"github.com/coder/websocket"
 )
 
-func TestExpAgents(t *testing.T) {
+func TestAgents(t *testing.T) {
 	t.Parallel()
 	t.Run("ResolveModel", func(t *testing.T) {
 		t.Parallel()
@@ -73,7 +73,7 @@ func TestExpAgents(t *testing.T) {
 		for _, tt := range tests {
 			t.Run("EscFromOverlayClosesIt/"+tt.name, func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				model.currentView = viewChat
 				model.overlay = tt.overlay
 
@@ -99,7 +99,7 @@ func TestExpAgents(t *testing.T) {
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+					model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 					model.currentView = viewChat
 					model.overlay = tt.overlay
 
@@ -113,7 +113,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EscFromChatViewReturnsToListAndRefreshes", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.overlay = overlayNone
 
@@ -126,7 +126,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EscFromChatViewAdvancesGeneration", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.overlay = overlayNone
 			model.chatGeneration = 4
@@ -142,7 +142,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("EscFromChatViewRejectsLateChatLoadMessages", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.overlay = overlayNone
 			model.chatGeneration = 4
@@ -175,7 +175,7 @@ func TestExpAgents(t *testing.T) {
 				{ID: uuid.New(), Title: "beta", Status: codersdk.ChatStatusCompleted, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 				{ID: uuid.New(), Title: "gamma", Status: codersdk.ChatStatusCompleted, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			}
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 			model = mustTUIModel(t, updatedModel, cmd)
 			model.currentView = viewList
@@ -211,7 +211,7 @@ func TestExpAgents(t *testing.T) {
 		} {
 			t.Run("CtrlCQuitsFromAnyState/"+name, func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				model.currentView = view
 
 				updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
@@ -237,7 +237,7 @@ func TestExpAgents(t *testing.T) {
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
-					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+					model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 					model.width, model.height = 100, 40
 					updatedModel, cmd := model.Update(tt.msg)
 					updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
@@ -259,7 +259,7 @@ func TestExpAgents(t *testing.T) {
 		})
 		t.Run("EscFromChatViewRestoresListHeaderAndPadsTerminal", func(t *testing.T) {
 			t.Parallel()
-			assertReturnToList := func(t testing.TB, model expChatsTUIModel) {
+			assertReturnToList := func(t testing.TB, model chatsTUIModel) {
 				t.Helper()
 				updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 				updated, _ := mustTUIModelWithCmd(t, updatedModel, cmd)
@@ -271,7 +271,7 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("SelectedChat", func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 				model = mustTUIModel(t, updatedModel, cmd)
 				model.list.loading = false
@@ -292,7 +292,7 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("DraftChat", func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 				model = mustTUIModel(t, updatedModel, cmd)
 				model.list.loading = false
@@ -308,7 +308,7 @@ func TestExpAgents(t *testing.T) {
 		t.Run("ChatViewOmitsListHeaderAndLoadingSpinner", func(t *testing.T) {
 			t.Parallel()
 
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 			model = mustTUIModel(t, updatedModel, cmd)
 			model.currentView = viewChat
@@ -336,7 +336,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("ReopensModelPickerAfterClosing", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			catalog := codersdk.ChatModelsResponse{
 				Providers: []codersdk.ChatModelProvider{{
@@ -378,7 +378,7 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("CancelClosesOverlay", func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				model.currentView = viewChat
 				model.width = 80
 				model.height = 24
@@ -396,7 +396,7 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("EscClosesPickerWithoutLeavingChat", func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				model.currentView = viewChat
 				model.width = 80
 				model.height = 24
@@ -430,7 +430,7 @@ func TestExpAgents(t *testing.T) {
 				for _, tt := range tests {
 					t.Run(tt.name, func(t *testing.T) {
 						t.Parallel()
-						model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+						model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 						model.currentView = viewChat
 						model.width = 80
 						model.height = 24
@@ -456,7 +456,7 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("EnterSelectsModelWithoutSendingDraft", func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				model.currentView = viewChat
 				model.width = 80
 				model.height = 24
@@ -488,7 +488,7 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("LoadErrorClosesOverlay", func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				model.currentView = viewChat
 				model.width = 80
 				model.height = 24
@@ -507,7 +507,7 @@ func TestExpAgents(t *testing.T) {
 
 			t.Run("ScrollAndSelectModel", func(t *testing.T) {
 				t.Parallel()
-				model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+				model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 				model.currentView = viewChat
 				model.width = 80
 				model.height = 24
@@ -535,7 +535,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("DiffDrawerLoadingState", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			chat := testChat(codersdk.ChatStatusCompleted)
 			model.chat.chat = &chat
@@ -549,7 +549,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("DiffDrawerErrorState", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.width = 80
 			chat := testChat(codersdk.ChatStatusCompleted)
@@ -565,7 +565,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("DiffDrawerMemoizesSummary", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.width = 80
 			chat := testChat(codersdk.ChatStatusCompleted)
@@ -602,7 +602,7 @@ func TestExpAgents(t *testing.T) {
 
 		t.Run("OverlayDismissedOnViewSwitch", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.overlay = overlayModelPicker
 
@@ -634,7 +634,7 @@ func TestExpAgents(t *testing.T) {
 				}},
 			}
 
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.overlay = overlayModelPicker
 			model.catalog = &catalog
@@ -665,7 +665,7 @@ func TestExpAgents(t *testing.T) {
 				}},
 			}
 
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			model.catalog = &catalog
 			model.chat.modelPickerFlat = catalog.Providers[0].Models
@@ -685,7 +685,7 @@ func TestExpAgents(t *testing.T) {
 			t.Parallel()
 			firstChatID := uuid.New()
 			secondChatID := uuid.New()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.width = 100
 			model.height = 40
 
@@ -1877,7 +1877,7 @@ func TestExpAgents(t *testing.T) {
 
 	t.Run("ChatView/ViewportScrolling", func(t *testing.T) {
 		t.Parallel()
-		applyWindowSize := func(t *testing.T, model expChatsTUIModel, width int, height int) expChatsTUIModel {
+		applyWindowSize := func(t *testing.T, model chatsTUIModel, width int, height int) chatsTUIModel {
 			t.Helper()
 			updatedModel, cmd := model.Update(tea.WindowSizeMsg{Width: width, Height: height})
 			return mustTUIModel(t, updatedModel, cmd)
@@ -2175,7 +2175,7 @@ func TestExpAgents(t *testing.T) {
 				}},
 			}
 
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 
 			updatedModel, cmd := model.Update(modelsListedMsg{catalog: catalog})
@@ -2210,7 +2210,7 @@ func TestExpAgents(t *testing.T) {
 		t.Parallel()
 		t.Run("StreamingChatSwitchBackToList", func(t *testing.T) {
 			t.Parallel()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.currentView = viewChat
 			chat := testChat(codersdk.ChatStatusRunning)
 			model.chat.chat = &chat
@@ -2230,7 +2230,7 @@ func TestExpAgents(t *testing.T) {
 		t.Run("ReOpenSameChatAfterEsc", func(t *testing.T) {
 			t.Parallel()
 			chatID := uuid.New()
-			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 			model.width = 100
 			model.height = 40
 
@@ -2895,7 +2895,7 @@ func TestExpAgents(t *testing.T) {
 		t.Run("RecordAskAnswer", func(t *testing.T) {
 			t.Parallel()
 
-			model := newExpChatsTUIModel(context.Background(), failingExperimentalClient(), nil, nil, nil, uuid.Nil)
+			model := newChatsTUIModel(context.Background(), failingExperimentalClient(), nil, nil, nil, uuid.Nil)
 			model.chat.activeChatID = uuid.New()
 			model.chat.chatGeneration = 4
 			state := newAskUserQuestionState("tool-1", []parsedAskQuestion{firstQuestion})
@@ -3136,7 +3136,7 @@ func TestExpAgents(t *testing.T) {
 	})
 }
 
-func TestExpAgents_View_LongInputFitsTerminal(t *testing.T) {
+func TestAgents_View_LongInputFitsTerminal(t *testing.T) {
 	t.Parallel()
 	model := newTestChatViewModel(nil)
 	model.width, model.height = 80, 24
@@ -3162,17 +3162,17 @@ func TestExpAgents_View_LongInputFitsTerminal(t *testing.T) {
 	require.NotEmpty(t, strings.TrimSpace(lines[len(lines)-1]))
 }
 
-func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) expChatsTUIModel {
+func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) chatsTUIModel {
 	t.Helper()
-	updated, ok := model.(expChatsTUIModel)
+	updated, ok := model.(chatsTUIModel)
 	require.True(t, ok)
 	require.Nil(t, cmd)
 	return updated
 }
 
-func mustTUIModelWithCmd(t testing.TB, model tea.Model, cmd tea.Cmd) (expChatsTUIModel, tea.Cmd) {
+func mustTUIModelWithCmd(t testing.TB, model tea.Model, cmd tea.Cmd) (chatsTUIModel, tea.Cmd) {
 	t.Helper()
-	updated, ok := model.(expChatsTUIModel)
+	updated, ok := model.(chatsTUIModel)
 	require.True(t, ok)
 	return updated, cmd
 }
@@ -3264,8 +3264,8 @@ func newTestChatViewModel(client *codersdk.ExperimentalClient) chatViewModel {
 	return newChatViewModel(context.Background(), client, nil, nil, uuid.Nil, newTUIStyles())
 }
 
-func newTestTUIModel() expChatsTUIModel {
-	return newExpChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
+func newTestTUIModel() chatsTUIModel {
+	return newChatsTUIModel(context.Background(), nil, nil, nil, nil, uuid.Nil)
 }
 
 func newReadyChatListModel() chatListModel {

@@ -220,7 +220,10 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'ai_seat:*',
+    'ai_seat:create',
+    'ai_seat:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -526,7 +529,8 @@ CREATE TYPE resource_type AS ENUM (
     'prebuilds_settings',
     'task',
     'ai_seat',
-    'chat'
+    'chat',
+    'user_secret'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

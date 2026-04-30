@@ -11,7 +11,6 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
@@ -26,7 +25,7 @@ type NetworkSettingsPageViewProps = {
 export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 	options,
 }) => (
-	<Stack direction="column" spacing={6}>
+	<div className="flex flex-col gap-12">
 		<div>
 			<SettingsHeader
 				actions={<SettingsHeaderDocsLink href={docs("/admin/networking")} />}
@@ -70,5 +69,5 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 				)}
 			</Badges>
 		</div>
-	</Stack>
+	</div>
 );

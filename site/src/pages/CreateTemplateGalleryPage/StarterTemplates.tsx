@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
-import { Stack } from "#/components/Stack/Stack";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 
@@ -64,9 +63,9 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		: undefined;
 
 	return (
-		<Stack direction="row" spacing={4} alignItems="flex-start">
+		<div className="flex flex-row gap-8 items-start">
 			{starterTemplatesByTag && tags && (
-				<Stack className="w-[202px] shrink-0 sticky">
+				<div className="flex flex-col gap-4 w-[202px] shrink-0 sticky">
 					<h2 css={styles.sectionTitle}>Choose a starter template</h2>
 					<span css={styles.filterCaption}>Filter</span>
 					{tags.map((tag) => (
@@ -78,7 +77,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 							{getTagLabel(tag)} ({starterTemplatesByTag[tag].length})
 						</Link>
 					))}
-				</Stack>
+				</div>
 			)}
 
 			<div className="flex flex-wrap gap-8 h-max">
@@ -93,7 +92,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 					/>
 				))}
 			</div>
-		</Stack>
+		</div>
 	);
 };
 

@@ -213,12 +213,20 @@ requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 
 **Supported keys per provider:**
 
-| Key        | Required | Description                                          |
-|------------|----------|------------------------------------------------------|
-| `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`   |
-| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE` |
-| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)  |
-| `BASE_URL` | No       | Base URL of the upstream API                         |
+| Key        | Required | Description                                           |
+|------------|----------|-------------------------------------------------------|
+| `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`    |
+| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE`  |
+| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)   |
+| `BASE_URL` | No       | Base URL of the upstream API                          |
+| `DUMP_DIR` | No       | Directory for provider API request and response dumps |
+
+> [!WARNING]
+> `DUMP_DIR` is not intended for regular use. Setting this option
+> results in a high number of writes. Dump files contain raw request and
+> response data, which may include proprietary or sensitive information
+> (prompts, completions, tool inputs). Enable only briefly for diagnostic
+> purposes and protect the target directory.
 
 For `anthropic` providers using AWS Bedrock, the following keys are also
 available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`,
