@@ -198,14 +198,14 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 	}}
 
 	tests := []struct {
-		name              string
-		isPlanModeTurn    bool
-		isExploreSubagent bool
-		isComputerUse     bool
+		name           string
+		isPlanModeTurn bool
+		isComputerUse  bool
 	}{
 		{name: "PlanMode", isPlanModeTurn: true, isComputerUse: true},
-		{name: "ExploreSubagent", isExploreSubagent: true, isComputerUse: true},
-		{name: "NotComputerUse"},
+		// Non-computer-use includes regular, master, general, and explore chats.
+		// Mode cannot be both ChatModeComputerUse and another chat mode.
+		{name: "NonComputerUseModes"},
 	}
 
 	for _, tt := range tests {
@@ -215,10 +215,9 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 			providerTools, err := appendComputerUseProviderTool(
 				baseTools,
 				computerUseProviderToolOptions{
-					provider:          chattool.ComputerUseProviderOpenAI,
-					isPlanModeTurn:    tt.isPlanModeTurn,
-					isExploreSubagent: tt.isExploreSubagent,
-					isComputerUse:     tt.isComputerUse,
+					provider:       chattool.ComputerUseProviderOpenAI,
+					isPlanModeTurn: tt.isPlanModeTurn,
+					isComputerUse:  tt.isComputerUse,
 				},
 			)
 			require.NoError(t, err)

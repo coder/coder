@@ -106,21 +106,24 @@ func (p *Server) resolveComputerUseModel(
 }
 
 type computerUseProviderToolOptions struct {
-	provider          string
-	isPlanModeTurn    bool
-	isExploreSubagent bool
-	isComputerUse     bool
-	getWorkspaceConn  func(context.Context) (workspacesdk.AgentConn, error)
-	storeFile         chattool.StoreFileFunc
-	clock             quartz.Clock
-	logger            slog.Logger
+	provider         string
+	isPlanModeTurn   bool
+	isComputerUse    bool
+	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	storeFile        chattool.StoreFileFunc
+	clock            quartz.Clock
+	logger           slog.Logger
 }
 
 func appendComputerUseProviderTool(
 	providerTools []chatloop.ProviderTool,
 	opts computerUseProviderToolOptions,
 ) ([]chatloop.ProviderTool, error) {
-	if opts.isPlanModeTurn || opts.isExploreSubagent || !opts.isComputerUse {
+	// This helper is called for every chat turn. Only chats created by the
+	// computer_use subagent definition have ChatModeComputerUse, which filters
+	// out root, general, and explore chats. Plan mode is separate from Mode, so
+	// planning turns stay gated even for computer-use chats.
+	if opts.isPlanModeTurn || !opts.isComputerUse {
 		return providerTools, nil
 	}
 

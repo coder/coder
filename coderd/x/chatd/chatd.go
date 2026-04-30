@@ -6891,14 +6891,13 @@ func (p *Server) runChat(
 	providerTools, err = appendComputerUseProviderTool(
 		providerTools,
 		computerUseProviderToolOptions{
-			provider:          computerUseProvider,
-			isPlanModeTurn:    isPlanModeTurn,
-			isExploreSubagent: isExploreSubagent,
-			isComputerUse:     isComputerUse,
-			getWorkspaceConn:  workspaceCtx.getWorkspaceConn,
-			storeFile:         storeChatAttachment,
-			clock:             p.clock,
-			logger:            p.logger.Named("computer_use"),
+			provider:         computerUseProvider,
+			isPlanModeTurn:   isPlanModeTurn,
+			isComputerUse:    isComputerUse,
+			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			storeFile:        storeChatAttachment,
+			clock:            p.clock,
+			logger:           p.logger.Named("computer_use"),
 		},
 	)
 	if err != nil {
