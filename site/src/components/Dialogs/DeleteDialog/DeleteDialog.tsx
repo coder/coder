@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
@@ -65,7 +64,11 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 						<p>
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
-						{Boolean(info) && <div css={styles.callout}>{info}</div>}
+						{Boolean(info) && (
+							<div className="rounded-md border border-border-destructive bg-surface-destructive px-4 py-2 text-content-primary">
+								{info}
+							</div>
+						)}
 						<p>
 							Type <strong>{name}</strong> below to confirm.
 						</p>
@@ -102,13 +105,3 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	callout: (theme) => ({
-		backgroundColor: theme.roles.danger.background,
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: theme.shape.borderRadius,
-		color: theme.roles.danger.text,
-		padding: "8px 16px",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
