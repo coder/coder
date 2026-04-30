@@ -1456,6 +1456,14 @@ func (m queryMetricsStore) GetChatTemplateAllowlist(ctx context.Context) (string
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTitleGenerationModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatTitleGenerationModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTitleGenerationModelOverride").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatUsageLimitConfig(ctx)
@@ -5405,6 +5413,14 @@ func (m queryMetricsStore) UpsertChatTemplateAllowlist(ctx context.Context, temp
 	r0 := m.s.UpsertChatTemplateAllowlist(ctx, templateAllowlist)
 	m.queryLatencies.WithLabelValues("UpsertChatTemplateAllowlist").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatTemplateAllowlist").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatTitleGenerationModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatTitleGenerationModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatTitleGenerationModelOverride").Inc()
 	return r0
 }
 

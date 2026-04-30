@@ -362,6 +362,7 @@ type sqlcQuerier interface {
 	// GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
+	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
@@ -1206,6 +1207,7 @@ type sqlcQuerier interface {
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
+	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error
 	UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertChatUsageLimitConfigParams) (ChatUsageLimitConfig, error)
 	UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (UpsertChatUsageLimitGroupOverrideRow, error)
 	UpsertChatUsageLimitUserOverride(ctx context.Context, arg UpsertChatUsageLimitUserOverrideParams) (UpsertChatUsageLimitUserOverrideRow, error)

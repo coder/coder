@@ -1194,6 +1194,8 @@ func New(options *Options) *API {
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
 				r.Get("/agent-model-override/{context}", api.getChatAgentModelOverride)
 				r.Put("/agent-model-override/{context}", api.putChatAgentModelOverride)
+				r.Get("/title-generation-model", api.getChatTitleGenerationModelConfig)
+				r.Put("/title-generation-model", api.putChatTitleGenerationModelConfig)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/debug-logging", api.getChatDebugLogging)

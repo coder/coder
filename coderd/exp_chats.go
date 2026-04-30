@@ -590,6 +590,26 @@ func (api *API) upsertChatAgentModelOverrideConfig(
 	return siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID))
 }
 
+func (api *API) readChatTitleGenerationModelConfig(
+	ctx context.Context,
+) (*uuid.UUID, bool, error) {
+	return api.getChatModelOverrideConfig(
+		ctx,
+		"title generation",
+		api.Database.GetChatTitleGenerationModelOverride,
+	)
+}
+
+func (api *API) upsertChatTitleGenerationModelConfig(
+	ctx context.Context,
+	modelConfigID *uuid.UUID,
+) error {
+	return api.Database.UpsertChatTitleGenerationModelOverride(
+		ctx,
+		formatChatModelOverride(modelConfigID),
+	)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4038,6 +4058,72 @@ func (api *API) putChatAgentModelOverride(rw http.ResponseWriter, r *http.Reques
 	if err := api.upsertChatAgentModelOverrideConfig(ctx, overrideContext, modelConfigID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error updating %s model override.", overrideContext),
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatTitleGenerationModelConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	modelConfigID, isMalformed, err := api.readChatTitleGenerationModelConfig(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching title generation model override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := codersdk.ChatTitleGenerationModelConfigResponse{
+		ModelConfigID: formatChatModelOverride(modelConfigID),
+		IsMalformed:   isMalformed,
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatTitleGenerationModelConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatTitleGenerationModelConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	modelConfigID, err := parseChatModelOverride(req.ModelConfigID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model_config_id.",
+			Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
+		})
+		return
+	}
+
+	status, resp := validateChatModelOverrideID(ctx, api.Database, modelConfigID)
+	if resp != nil {
+		httpapi.Write(ctx, rw, status, *resp)
+		return
+	}
+
+	if err := api.upsertChatTitleGenerationModelConfig(ctx, modelConfigID); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating title generation model override.",
 			Detail:  err.Error(),
 		})
 		return

@@ -20731,6 +20731,18 @@ func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, erro
 	return template_allowlist, err
 }
 
+const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
 SELECT
     COALESCE(
@@ -21082,6 +21094,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_temp
 
 func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatTemplateAllowlist, templateAllowlist)
+	return err
+}
+
+const upsertChatTitleGenerationModelOverride = `-- name: UpsertChatTitleGenerationModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverride, value)
 	return err
 }
 

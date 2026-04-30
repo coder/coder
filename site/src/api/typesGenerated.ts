@@ -2455,6 +2455,16 @@ export interface ChatTextPart {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatTitleGenerationModelConfigResponse is the response body for the chat
+ * title generation model configuration endpoint.
+ */
+export interface ChatTitleGenerationModelConfigResponse {
+	readonly model_config_id?: string;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
 export interface ChatToolCallPart {
 	readonly type: "tool-call";
 	readonly tool_call_id?: string;
@@ -7922,6 +7932,15 @@ export interface UpdateChatRetentionDaysRequest {
 export interface UpdateChatSystemPromptRequest {
 	readonly system_prompt: string;
 	readonly include_default_system_prompt?: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatTitleGenerationModelConfigRequest is the request body for updating
+ * the chat title generation model configuration endpoint.
+ */
+export interface UpdateChatTitleGenerationModelConfigRequest {
+	readonly model_config_id: string;
 }
 
 // From codersdk/chats.go

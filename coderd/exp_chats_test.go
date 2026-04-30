@@ -10303,6 +10303,114 @@ func TestChatModelOverrides(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestChatTitleGenerationModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	defaultModel := createChatModelConfig(t, adminClient)
+	openAIModel := createAdditionalChatModelConfig(
+		t,
+		adminClient,
+		defaultModel.Provider,
+		"gpt-4.1-title-generation-"+uuid.NewString(),
+	)
+	disabledModel := createDisabledChatModelConfig(
+		t,
+		adminClient,
+		defaultModel.Provider,
+		"gpt-4.1-title-generation-disabled-"+uuid.NewString(),
+	)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	getConfig := func(ctx context.Context) (codersdk.ChatTitleGenerationModelConfigResponse, error) {
+		return adminClient.GetChatTitleGenerationModelConfig(ctx)
+	}
+	putConfig := func(ctx context.Context, modelConfigID string) error {
+		return adminClient.UpdateChatTitleGenerationModelConfig(
+			ctx,
+			codersdk.UpdateChatTitleGenerationModelConfigRequest{ModelConfigID: modelConfigID},
+		)
+	}
+	getRaw := func(ctx context.Context) string {
+		t.Helper()
+		raw, err := db.GetChatTitleGenerationModelOverride(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		return raw
+	}
+
+	t.Run("DefaultGETReturnsEmpty", func(t *testing.T) {
+		resp, err := getConfig(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.ModelConfigID)
+		require.False(t, resp.IsMalformed)
+		require.Empty(t, getRaw(ctx))
+	})
+
+	t.Run("AdminPUTEmptyClearsSetting", func(t *testing.T) {
+		err := putConfig(ctx, openAIModel.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, openAIModel.ID.String(), getRaw(ctx))
+
+		err = putConfig(ctx, "")
+		require.NoError(t, err)
+		require.Empty(t, getRaw(ctx))
+
+		resp, err := getConfig(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.ModelConfigID)
+		require.False(t, resp.IsMalformed)
+	})
+
+	t.Run("AdminPUTValidEnabledModelSucceeds", func(t *testing.T) {
+		err := putConfig(ctx, openAIModel.ID.String())
+		require.NoError(t, err)
+
+		resp, err := getConfig(ctx)
+		require.NoError(t, err)
+		require.Equal(t, openAIModel.ID.String(), resp.ModelConfigID)
+		require.False(t, resp.IsMalformed)
+		require.Equal(t, openAIModel.ID.String(), getRaw(ctx))
+	})
+
+	t.Run("NonAdminPUTReturns403", func(t *testing.T) {
+		err := memberClient.UpdateChatTitleGenerationModelConfig(
+			ctx,
+			codersdk.UpdateChatTitleGenerationModelConfigRequest{ModelConfigID: defaultModel.ID.String()},
+		)
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("InvalidUUIDReturns400", func(t *testing.T) {
+		err := putConfig(ctx, "not-a-uuid")
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+		require.Equal(t, "Value \"not-a-uuid\" is not a valid UUID.", sdkErr.Detail)
+	})
+
+	t.Run("DisabledModelReturns400", func(t *testing.T) {
+		err := putConfig(ctx, disabledModel.ID.String())
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+	})
+
+	t.Run("MalformedStoredOverrideIsReported", func(t *testing.T) {
+		err := db.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
+			Key:   "agents_chat_title_generation_model_override",
+			Value: "not-a-uuid",
+		})
+		require.NoError(t, err)
+
+		resp, err := getConfig(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.ModelConfigID)
+		require.True(t, resp.IsMalformed)
+	})
+}
+
 func TestChatDesktopEnabled(t *testing.T) {
 	t.Parallel()
 

@@ -604,6 +604,19 @@ type UpdateChatAgentModelOverrideRequest struct {
 	ModelConfigID string `json:"model_config_id"`
 }
 
+// ChatTitleGenerationModelConfigResponse is the response body for the chat
+// title generation model configuration endpoint.
+type ChatTitleGenerationModelConfigResponse struct {
+	ModelConfigID string `json:"model_config_id,omitempty"`
+	IsMalformed   bool   `json:"is_malformed"`
+}
+
+// UpdateChatTitleGenerationModelConfigRequest is the request body for updating
+// the chat title generation model configuration endpoint.
+type UpdateChatTitleGenerationModelConfigRequest struct {
+	ModelConfigID string `json:"model_config_id"`
+}
+
 // UserChatCustomPrompt is the request and response body for the
 // user chat custom prompt configuration endpoint.
 type UserChatCustomPrompt struct {
@@ -2125,6 +2138,35 @@ func (c *ExperimentalClient) UpdateChatAgentModelOverride(ctx context.Context, o
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatTitleGenerationModelConfig returns the deployment-wide chat title
+// generation model configuration.
+func (c *ExperimentalClient) GetChatTitleGenerationModelConfig(ctx context.Context) (ChatTitleGenerationModelConfigResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/title-generation-model", nil)
+	if err != nil {
+		return ChatTitleGenerationModelConfigResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatTitleGenerationModelConfigResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatTitleGenerationModelConfigResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatTitleGenerationModelConfig updates the deployment-wide chat title
+// generation model configuration.
+func (c *ExperimentalClient) UpdateChatTitleGenerationModelConfig(ctx context.Context, req UpdateChatTitleGenerationModelConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/title-generation-model", req)
 	if err != nil {
 		return err
 	}
