@@ -73,7 +73,7 @@ configured once in the control plane:
    and save.
 1. Under **Models**, add at least one model and set it as the default.
 
-You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information. 
+You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information.
 
 ### 2. Update task creation calls
 
@@ -474,7 +474,7 @@ curl -s https://coder.example.com/api/experimental/chats/models \
 ```
 
 If this returns an empty list or an error, revisit
-[Step 2: Configure an LLM provider](#2-configure-an-llm-provider).
+[Step 1: Configure an LLM provider](#1-configure-an-llm-provider).
 
 ### 3. Create a chat and confirm the response
 
