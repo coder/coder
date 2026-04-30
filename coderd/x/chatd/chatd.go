@@ -3110,6 +3110,24 @@ func (p *Server) resolveManualTitleModel(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelConfig(
+		ctx,
+		chat,
+		keys,
+	)
+	if overrideErr != nil {
+		if overrideSet {
+			return nil, database.ChatModelConfig{}, xerrors.Errorf(
+				"resolve manual title generation model override: %w",
+				overrideErr,
+			)
+		}
+		return nil, database.ChatModelConfig{}, overrideErr
+	}
+	if overrideSet {
+		return overrideModel, overrideConfig, nil
+	}
+
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
