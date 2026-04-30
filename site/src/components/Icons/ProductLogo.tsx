@@ -1,7 +1,7 @@
 import type { FC } from "react";
-import { CoderIcon } from "./CoderIcon";
 import { getApplicationName, getLogoURL } from "#/utils/appearance";
 import { cn } from "#/utils/cn";
+import { CoderIcon } from "./CoderIcon";
 
 /**
  * Enterprise customers can set a custom logo for their Coder application. Use
