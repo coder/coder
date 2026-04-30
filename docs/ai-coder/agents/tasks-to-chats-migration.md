@@ -512,32 +512,30 @@ processed next).
 
 ### 5. Test workspace provisioning
 
-Create a chat that requires workspace access to confirm the agent can
-select a template and provision infrastructure:
+Create a workspace from your converted agent template through the
+standard Coder UI, then attach it to a new chat from the chat composer:
 
-```sh
-curl -s -X POST https://coder.example.com/api/experimental/chats \
-  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": [{
-      "type": "text",
-      "text": "List the files in the root directory of a workspace"
-    }]
-  }' | jq '{id, status, workspace_id}'
-```
+1. In the Coder dashboard, create a workspace from the agent template
+   you migrated.
+2. Open **Agents** and start a new chat.
+3. In the composer, use the workspace picker to attach the workspace you
+   just created.
+4. Send a prompt that exercises the workspace, for example: *"List the
+   files in the root directory of this workspace."*
 
-Stream the chat and watch for the agent to call `create_workspace` and
-`execute` tools. After the agent finishes, verify `workspace_id` is
-populated:
+The response stream should show the agent invoking workspace tools (such
+as `execute`) against the attached workspace. After the chat finishes,
+verify the chat is bound to the workspace via the API:
 
 ```sh
 curl -s "https://coder.example.com/api/experimental/chats/$CHAT_ID" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '{workspace_id, status}'
 ```
 
-A non-null `workspace_id` confirms the agent successfully provisioned a
-workspace.
+A `workspace_id` matching the workspace you attached confirms the chat
+is driving that workspace end-to-end. Auto-provisioning from the chat
+flow is also supported but is easier to verify once the manual-attach
+path is working.
 
 ### 6. Verify interrupt works
 
@@ -588,7 +586,8 @@ Use this checklist to confirm each part of your integration:
 - [ ] `POST /chats` creates a chat and returns a valid `Chat` object
 - [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
 - [ ] Follow-up messages via `/chats/{chat}/messages` are accepted
-- [ ] Agent provisions a workspace when the task requires one
+- [ ] Chat attached to a workspace from the converted template runs
+      tools against that workspace
 - [ ] `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
 - [ ] Archive and restore via `PATCH /chats/{chat}` works
 - [ ] (If applicable) GitHub Actions workflow creates chats successfully
