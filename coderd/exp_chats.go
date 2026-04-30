@@ -3204,9 +3204,9 @@ func (api *API) chatCreateWorkspace(
 // but for the start path.
 //
 // Aliased as ChatStartWorkspace in coderd/export_test.go so external
-// tests in the coderd_test package can drive the auto-update preset
-// clearing path. The proper fix is to extract the request building
-// into a pure function; tracked in CODAGT-292.
+// tests in the coderd_test package can drive the auto-update path
+// end-to-end. The proper fix is to extract the request building into
+// a pure function; tracked in CODAGT-292.
 func (api *API) chatStartWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -3240,11 +3240,6 @@ func (api *API) chatStartWorkspace(
 
 			updatedToActiveVersion = latestBuild.TemplateVersionID != template.ActiveVersionID
 			req.TemplateVersionID = template.ActiveVersionID
-			if updatedToActiveVersion {
-				// Clear stale preset from previous version. wsbuilder will find a
-				// matching preset if needed.
-				req.TemplateVersionPresetID = uuid.Nil
-			}
 		}
 	}
 

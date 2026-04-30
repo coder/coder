@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	"charm.land/fantasy"
@@ -39,7 +38,6 @@ type StartWorkspaceOptions struct {
 
 type startWorkspaceArgs struct {
 	Parameters map[string]string `json:"parameters,omitempty"`
-	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset. Obtain available presets from read_template."`
 }
 
 // StartWorkspace returns a tool that starts a stopped workspace
@@ -53,8 +51,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 			"running, it returns immediately. Use create_workspace "+
 			"first if no workspace exists yet. Provide parameter "+
 			"values (from read_template) only if necessary or "+
-			"explicitly requested by the user. Provide a preset_id "+
-			"(from read_template) to apply preset parameters.",
+			"explicitly requested by the user.",
 		func(ctx context.Context, args startWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.StartFn == nil {
 				return fantasy.NewTextErrorResponse("workspace starter is not configured"), nil
@@ -184,18 +181,6 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				)
 			}
 
-			// Apply preset if provided.
-			presetIDStr := strings.TrimSpace(args.PresetID)
-			if presetIDStr != "" {
-				presetID, err := uuid.Parse(presetIDStr)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(
-						xerrors.Errorf("invalid preset_id: %w", err).Error(),
-					), nil
-				}
-				startReq.TemplateVersionPresetID = presetID
-			}
-
 			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, startReq)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
@@ -249,9 +234,6 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				result["updated_to_active_version"] = true
 				result["update_reason"] = "template requires active versions"
 				result["message"] = "Workspace started and was updated to the active template version because the template requires active versions."
-				if args.PresetID != "" {
-					result["preset_cleared_on_update"] = true
-				}
 			}
 
 			// Re-fire after the agent is fully ready so
