@@ -1421,6 +1421,28 @@ export const OpenAIKnownModelKeyboardSelection: Story = {
 	},
 };
 
+export const OpenAIKnownModelReclickSelectedDoesNotClearField: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-26: re-clicking selected Known Model does not clear field",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		await openKnownModelPopover(body);
+		const options = await body.findAllByRole("option");
+		await userEvent.click(findOptionByText(options, "gpt-5.5"));
+
+		await expectModelIdentifierValue(body, "gpt-5.5");
+		await waitFor(() => {
+			expect(body.queryByRole("combobox")).not.toBeInTheDocument();
+		});
+		expect(
+			body.queryByRole("button", { name: /clear/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const AnthropicKnownModelHappyPath: Story = {
 	...providerFormSetup("anthropic", "Anthropic"),
 	play: async ({ canvasElement }) => {

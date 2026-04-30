@@ -363,9 +363,11 @@ export const ModelIdentifierField = ({
 			);
 		}
 
+		// Required field; off-catalog typing is the supported clear or replace path.
 		return (
 			<Autocomplete
 				id={modelField.id}
+				clearable={false}
 				value={selectedOption}
 				onChange={handleChange}
 				options={knownModelOptions}
