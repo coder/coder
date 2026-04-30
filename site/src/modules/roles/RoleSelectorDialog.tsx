@@ -84,13 +84,15 @@ export const ActiveRoleSelectorDialog: React.FC<
 			}}
 		>
 			<DialogContent>
-				<DialogHeader className="flex-row justify-between items-center">
-					<DialogTitle>Edit roles</DialogTitle>
-					<AvatarData
-						title={user.username}
-						subtitle={user.email}
-						src={user.avatar_url}
-					/>
+				<DialogHeader>
+					<div className="flex flex-row justify-between items-center">
+						<DialogTitle>Edit roles</DialogTitle>
+						<AvatarData
+							title={user.username}
+							subtitle={user.email}
+							src={user.avatar_url}
+						/>
+					</div>
 				</DialogHeader>
 				<RoleSelector
 					hideLabel
