@@ -444,12 +444,13 @@ See
 for the full guide on writing discoverable descriptions, configuring
 network boundaries, scoping credentials, and pre-installing dependencies.
 
-### Best practice: pre-create workspaces for deterministic workflows
+### Option: pre-create workspaces for deterministic results
 
 Letting the agent pick a template and provision a workspace works well
-for exploratory chats, but for automation, recurring workflows, or
-anything where you need a known, reproducible environment, pre-create the
-workspace yourself and attach it when you create the chat.
+for exploratory chats. If you instead want deterministic results, for
+example for automation, recurring workflows, or any case that needs a
+known reproducible environment, pre-create the workspace yourself and
+attach it when you create the chat.
 
 The pattern is two API calls:
 
