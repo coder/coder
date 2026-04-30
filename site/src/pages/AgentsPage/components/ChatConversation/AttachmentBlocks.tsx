@@ -18,7 +18,6 @@ import {
 	attachmentFailureFromError,
 	getChatFileURL,
 	isAbortError,
-	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
 import {
 	decodeInlineTextAttachment,
@@ -411,17 +410,17 @@ const RemoteImageBlock: FC<{
 	displayName: string;
 	onImageClick?: (src: string) => void;
 }> = ({ fileId, href, displayName, onImageClick }) => {
-	const { hasExpired, markExpired } = useExpiredFileIds();
-	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
+	const { getFailure, probeFailure } = useExpiredFileIds();
+	const knownFailure = fileId === undefined ? undefined : getFailure(fileId);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
-		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
+		() => knownFailure ?? { kind: "idle" },
 	);
-	const probeRequest = useLatestAbortController(isKnownExpired);
+	const probeRequest = useLatestAbortController(knownFailure !== undefined);
 
-	if (isKnownExpired) {
+	if (knownFailure) {
 		return (
 			<AttachmentFallbackTile
-				state={{ kind: "expired" }}
+				state={knownFailure}
 				labels={imageAttachmentFailureLabels}
 			/>
 		);
@@ -457,10 +456,6 @@ const RemoteImageBlock: FC<{
 						setFailureState({ kind: "failed" });
 						return;
 					}
-					if (hasExpired(fileId)) {
-						setFailureState({ kind: "expired" });
-						return;
-					}
 
 					const controller = probeRequest.start();
 					// Optimistically swap to the generic failure tile. The
@@ -469,13 +464,10 @@ const RemoteImageBlock: FC<{
 					// preferable to leaving the broken-image icon up.
 					setFailureState({ kind: "failed" });
 
-					void probeAttachmentFailure(href, controller.signal)
+					void probeFailure(fileId, href)
 						.then((reason) => {
 							if (!probeRequest.clear(controller)) {
 								return;
-							}
-							if (reason.kind === "expired") {
-								markExpired(fileId);
 							}
 							setFailureState(reason);
 						})
