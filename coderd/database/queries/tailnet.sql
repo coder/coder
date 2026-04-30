@@ -17,20 +17,18 @@ DELETE
 FROM tailnet_coordinators
 WHERE heartbeat_at < now() - INTERVAL '24 HOURS';
 
--- name: CleanTailnetLostPeers :many
+-- name: CleanTailnetLostPeers :exec
 DELETE
 FROM tailnet_peers
-WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
-RETURNING id;
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status;
 
--- name: CleanTailnetTunnels :many
+-- name: CleanTailnetTunnels :exec
 DELETE FROM tailnet_tunnels
 WHERE updated_at < now() - INTERVAL '24 HOURS' AND
       NOT EXISTS (
         SELECT 1 FROM tailnet_peers
         WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
-      )
-RETURNING src_id, dst_id;
+      );
 
 -- name: UpsertTailnetPeer :one
 INSERT INTO

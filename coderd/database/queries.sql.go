@@ -21197,72 +21197,29 @@ func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
 	return err
 }
 
-const cleanTailnetLostPeers = `-- name: CleanTailnetLostPeers :many
+const cleanTailnetLostPeers = `-- name: CleanTailnetLostPeers :exec
 DELETE
 FROM tailnet_peers
 WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status
-RETURNING id
 `
 
-func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, cleanTailnetLostPeers)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *sqlQuerier) CleanTailnetLostPeers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetLostPeers)
+	return err
 }
 
-const cleanTailnetTunnels = `-- name: CleanTailnetTunnels :many
+const cleanTailnetTunnels = `-- name: CleanTailnetTunnels :exec
 DELETE FROM tailnet_tunnels
 WHERE updated_at < now() - INTERVAL '24 HOURS' AND
       NOT EXISTS (
         SELECT 1 FROM tailnet_peers
         WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
       )
-RETURNING src_id, dst_id
 `
 
-type CleanTailnetTunnelsRow struct {
-	SrcID uuid.UUID `db:"src_id" json:"src_id"`
-	DstID uuid.UUID `db:"dst_id" json:"dst_id"`
-}
-
-func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) ([]CleanTailnetTunnelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, cleanTailnetTunnels)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []CleanTailnetTunnelsRow
-	for rows.Next() {
-		var i CleanTailnetTunnelsRow
-		if err := rows.Scan(&i.SrcID, &i.DstID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetTunnels)
+	return err
 }
 
 const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :many

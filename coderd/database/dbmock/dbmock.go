@@ -337,12 +337,11 @@ func (mr *MockStoreMockRecorder) CleanTailnetCoordinators(ctx any) *gomock.Call 
 }
 
 // CleanTailnetLostPeers mocks base method.
-func (m *MockStore) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
+func (m *MockStore) CleanTailnetLostPeers(ctx context.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanTailnetLostPeers", ctx)
-	ret0, _ := ret[0].([]uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // CleanTailnetLostPeers indicates an expected call of CleanTailnetLostPeers.
@@ -352,12 +351,11 @@ func (mr *MockStoreMockRecorder) CleanTailnetLostPeers(ctx any) *gomock.Call {
 }
 
 // CleanTailnetTunnels mocks base method.
-func (m *MockStore) CleanTailnetTunnels(ctx context.Context) ([]database.CleanTailnetTunnelsRow, error) {
+func (m *MockStore) CleanTailnetTunnels(ctx context.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanTailnetTunnels", ctx)
-	ret0, _ := ret[0].([]database.CleanTailnetTunnelsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // CleanTailnetTunnels indicates an expected call of CleanTailnetTunnels.

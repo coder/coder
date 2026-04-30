@@ -46,8 +46,8 @@ func TestHeartbeats_Cleanup(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).Times(2).Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).Times(2).Return(nil, nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).Times(2).Return(nil, nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).Times(2).Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).Times(2).Return(nil)
 
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().TickerFunc("heartbeats", "cleanupLoop")
@@ -205,9 +205,9 @@ func TestLostPeerCleanupQueries(t *testing.T) {
 	require.Equal(t, otherID, tunnels[0].DstID)
 
 	// this clean is a noop since the peer and tunnel are less than 24h old
-	_, err = store.CleanTailnetLostPeers(ctx)
+	err = store.CleanTailnetLostPeers(ctx)
 	require.NoError(t, err)
-	_, err = store.CleanTailnetTunnels(ctx)
+	err = store.CleanTailnetTunnels(ctx)
 	require.NoError(t, err)
 
 	peers, err = store.GetAllTailnetPeers(ctx)
@@ -225,9 +225,9 @@ func TestLostPeerCleanupQueries(t *testing.T) {
 	sqlDB.Exec("UPDATE tailnet_tunnels SET updated_at = $1", time.Now().Add(-25*time.Hour))
 
 	// this clean is still a noop since the peer hasn't been lost for 24 hours
-	_, err = store.CleanTailnetLostPeers(ctx)
+	err = store.CleanTailnetLostPeers(ctx)
 	require.NoError(t, err)
-	_, err = store.CleanTailnetTunnels(ctx)
+	err = store.CleanTailnetTunnels(ctx)
 	require.NoError(t, err)
 
 	peers, err = store.GetAllTailnetPeers(ctx)
@@ -245,9 +245,9 @@ func TestLostPeerCleanupQueries(t *testing.T) {
 	sqlDB.Exec("UPDATE tailnet_peers SET updated_at = $1", time.Now().Add(-25*time.Hour))
 
 	// this clean removes the peer and the associated tunnel
-	_, err = store.CleanTailnetLostPeers(ctx)
+	err = store.CleanTailnetLostPeers(ctx)
 	require.NoError(t, err)
-	_, err = store.CleanTailnetTunnels(ctx)
+	err = store.CleanTailnetTunnels(ctx)
 	require.NoError(t, err)
 
 	peers, err = store.GetAllTailnetPeers(ctx)
@@ -400,8 +400,8 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 
 	// these cleanup queries run, but we don't care for this test
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil, nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore, mClock)
@@ -521,4 +521,3 @@ func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
 	assert.Equal(t, peer, key)
 	q.done(key)
 }
-

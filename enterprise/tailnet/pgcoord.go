@@ -862,8 +862,6 @@ type querier struct {
 	mu      sync.Mutex
 	mappers map[mKey]*mapper
 	healthy bool
-
-	clock quartz.Clock
 }
 
 func newQuerier(ctx context.Context,
@@ -890,7 +888,6 @@ func newQuerier(ctx context.Context,
 		peerUpdateQ:      newWorkQ[uuid.UUID](ctx),
 		mappingQ:         newWorkQ[mKey](ctx),
 		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
-		clock:            clk,
 		mappers:          make(map[mKey]*mapper),
 		updates:          updates,
 		healthy:          true, // assume we start healthy
@@ -1343,11 +1340,11 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 
 func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
+	defer q.mu.Unlock()
 	keys := make([]mKey, 0, len(q.mappers))
 	for mk := range q.mappers {
 		keys = append(keys, mk)
 	}
-	q.mu.Unlock()
 	q.mappingQ.enqueue(keys...)
 }
 
@@ -1712,7 +1709,7 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	defer h.lock.Unlock()
 	if _, ok := h.coordinators[id]; !ok {
 		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
-		// send on a separate goroutine to avoid holding lock.
+		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
@@ -1720,8 +1717,9 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	h.coordinators[id] = h.clock.Now("heartbeats", "recvBeat")
 
 	if h.timer == nil {
-		// this is the first beat, schedule the expiry timer.
+		// this can only happen for the very first beat
 		h.timer = h.clock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry, "heartbeats", "recvBeat")
+		h.logger.Debug(h.ctx, "set initial heartbeat timeout")
 		return
 	}
 	h.resetExpiryTimerWithLock()
@@ -1749,9 +1747,6 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 }
 
 func (h *heartbeats) checkExpiry() {
-	if h.ctx.Err() != nil {
-		return
-	}
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
 	h.lock.Lock()
 	defer h.lock.Unlock()
@@ -1779,7 +1774,6 @@ func (h *heartbeats) checkExpiry() {
 	}
 	h.resetExpiryTimerWithLock()
 }
-
 
 func (h *heartbeats) sendBeats() {
 	defer h.wg.Done()
@@ -1809,9 +1803,6 @@ func (h *heartbeats) sendBeat() {
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
-	if h.ctx.Err() != nil {
-		return
-	}
 	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
@@ -1840,19 +1831,13 @@ func (h *heartbeats) cleanup() {
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup old coordinators", slog.Error(err))
 	}
-	deletedPeers, err := h.store.CleanTailnetLostPeers(h.ctx)
+	err = h.store.CleanTailnetLostPeers(h.ctx)
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup lost peers", slog.Error(err))
 	}
-	for _, peerID := range deletedPeers {
-		publishPeerUpdate(h.ctx, h.pubsub, h.logger, peerID)
-	}
-	deletedTunnels, err := h.store.CleanTailnetTunnels(h.ctx)
+	err = h.store.CleanTailnetTunnels(h.ctx)
 	if err != nil && !database.IsQueryCanceledError(err) {
 		h.logger.Error(h.ctx, "failed to cleanup abandoned tunnels", slog.Error(err))
-	}
-	for _, tun := range deletedTunnels {
-		publishTunnelUpdate(h.ctx, h.pubsub, h.logger, tun.SrcID, tun.DstID)
 	}
 	h.logger.Debug(h.ctx, "completed cleanup")
 }

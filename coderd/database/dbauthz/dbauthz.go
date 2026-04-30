@@ -1701,16 +1701,16 @@ func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	return q.db.CleanTailnetCoordinators(ctx)
 }
 
-func (q *querier) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
+func (q *querier) CleanTailnetLostPeers(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return nil, err
+		return err
 	}
 	return q.db.CleanTailnetLostPeers(ctx)
 }
 
-func (q *querier) CleanTailnetTunnels(ctx context.Context) ([]database.CleanTailnetTunnelsRow, error) {
+func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return nil, err
+		return err
 	}
 	return q.db.CleanTailnetTunnels(ctx)
 }

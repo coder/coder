@@ -264,20 +264,20 @@ func (m queryMetricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	return r0
 }
 
-func (m queryMetricsStore) CleanTailnetLostPeers(ctx context.Context) ([]uuid.UUID, error) {
+func (m queryMetricsStore) CleanTailnetLostPeers(ctx context.Context) error {
 	start := time.Now()
-	r0, r1 := m.s.CleanTailnetLostPeers(ctx)
+	r0 := m.s.CleanTailnetLostPeers(ctx)
 	m.queryLatencies.WithLabelValues("CleanTailnetLostPeers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CleanTailnetLostPeers").Inc()
-	return r0, r1
+	return r0
 }
 
-func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) ([]database.CleanTailnetTunnelsRow, error) {
+func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	start := time.Now()
-	r0, r1 := m.s.CleanTailnetTunnels(ctx)
+	r0 := m.s.CleanTailnetTunnels(ctx)
 	m.queryLatencies.WithLabelValues("CleanTailnetTunnels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CleanTailnetTunnels").Inc()
-	return r0, r1
+	return r0
 }
 
 func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
