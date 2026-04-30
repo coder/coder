@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide walks platform teams and administrators through enabling Coder
+This guide walks platform teams and administrators through setting up Coder
 Agents, preparing your deployment, and running your first Coder Agent.
 
 > [!NOTE]
@@ -12,8 +12,7 @@ Agents, preparing your deployment, and running your first Coder Agent.
 
 Before you begin, confirm the following:
 
-- **Coder deployment** running the latest release with the `agents`
-  experiment flag available.
+- **Coder deployment** running the latest release.
 - **LLM provider credentials** — an API key for at least one
   [supported provider](./models.md) (Anthropic, OpenAI, Google, Azure OpenAI,
   AWS Bedrock, OpenAI Compatible, OpenRouter, or Vercel AI Gateway).
@@ -22,40 +21,19 @@ Before you begin, confirm the following:
 - **At least one template** with a
   [descriptive name and description](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
-- **Admin access** to the Coder deployment for enabling the experiment and
-  configuring providers.
+- **Admin access** to the Coder deployment for configuring providers.
 - **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
   Owners can assign this from **Admin** > **Users**. See
-  [Grant Coder Agents User](#step-3-grant-coder-agents-user) below.
+  [Grant Coder Agents User](#step-2-grant-coder-agents-user) below.
 
-## Step 1: Enable the experiment
-
-Coder Agents is gated behind the `agents` experiment flag. Pass it when
-starting the Coder server:
-
-```sh
-CODER_EXPERIMENTS="agents" coder server
-# or
-coder server --experiments=agents
-```
-
-If you already use other experiments, add `agents` to the comma-separated list:
-
-```sh
-CODER_EXPERIMENTS="agents,oauth2,mcp-server-http" coder server
-```
-
-See [Enable Coder Agents](./early-access.md#enable-coder-agents) for full
-details.
-
-## Step 2: Configure an LLM provider and model
+## Step 1: Configure an LLM provider and model
 
 > [!IMPORTANT]
 > Configuring providers, models, and system prompts requires the
 > **Owner** role (Coder administrator). Non-admin users cannot access the
 > Admin panel or modify deployment-level Agents configuration.
 
-Once the server restarts with the experiment enabled:
+To configure Coder Agents:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Click **Admin** to open the configuration dialog.
@@ -72,7 +50,7 @@ Detailed instructions for each provider and model option are in the
 > Start with a single frontier model to validate your setup before adding
 > additional providers.
 
-## Step 3: Grant Coder Agents User
+## Step 2: Grant Coder Agents User
 
 The **Coder Agents User** role controls which users can interact with Coder Agents.
 Members do not have Coder Agents User by default.
@@ -105,7 +83,7 @@ coder users list -o json \
     done
 ```
 
-## Step 4: Start your first Coder Agent
+## Step 3: Start your first Coder Agent
 
 1. Go to the **Agents** page in the Coder dashboard.
 1. Select a model from the dropdown (your default will be pre-selected).
@@ -266,7 +244,7 @@ rather than developer session tokens. Keep automation credentials
 narrowly scoped.
 
 > [!NOTE]
-> The Chats API is experimental and may change without notice.
+> The Chats API is in beta and may change without notice.
 > See [Chats API](./chats-api.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
