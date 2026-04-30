@@ -1,15 +1,8 @@
 # Coder Agents
 
 [Coder Agents](../../agents/index.md) is a chat interface and API for delegating
-development work to coding agents that run inside the Coder control plane.
-Because the agent loop runs in `coderd`, Coder Agents is a first-class AI
-Gateway client: when AI Gateway is enabled on the same deployment, Agents
+development work to coding agents that run inside the Coder control plane. When AI Gateway is enabled on the same deployment, Coder Agents
 traffic can be routed through it for full audit and governance coverage.
-
-AI Gateway recognizes Coder Agents traffic automatically. Outbound LLM requests
-are sent with a `coder-agents/<version>` `User-Agent` and Coder identity
-headers, so sessions in the [audit UI](../audit.md) are attributed to the user
-who started the chat.
 
 ## Prerequisites
 
