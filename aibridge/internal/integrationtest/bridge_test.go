@@ -2243,52 +2243,101 @@ func TestNativeBedrockSingleBuiltinTool(t *testing.T) {
 
 	const bedrockModel = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
-	fix := fixtures.BedrockFixture{
-		Request:  fixtures.BedrockSingleBuiltinToolReq,
-		Response: fixtures.BedrockSingleBuiltinToolResp,
+	cases := []struct {
+		name            string
+		streaming       bool
+		response        []byte
+		urlSuffix       string
+		wantContentType string
+	}{
+		{
+			name:            "streaming",
+			streaming:       true,
+			response:        fixtures.BedrockSingleBuiltinToolStreamingResp,
+			urlSuffix:       "/invoke-with-response-stream",
+			wantContentType: "application/vnd.amazon.eventstream",
+		},
+		{
+			name:            "blocking",
+			streaming:       false,
+			response:        fixtures.BedrockSingleBuiltinToolBlockingResp,
+			urlSuffix:       "/invoke",
+			wantContentType: "application/json",
+		},
 	}
 
-	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-	t.Cleanup(cancel)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	upstream := newMockUpstream(ctx, t, upstreamResponse{
-		Streaming: fix.Response,
-	})
+			fix := fixtures.BedrockFixture{
+				Request:  fixtures.BedrockSingleBuiltinToolReq,
+				Response: tc.response,
+			}
 
-	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
 
-	path := "/bedrock/model/" + bedrockModel + "/invoke-with-response-stream"
-	clientHeaders := http.Header{
-		"Anthropic-Version": {"2023-06-01"},
-		"Anthropic-Beta":    {"claude-code-20250219"},
+			upResp := upstreamResponse{}
+			if tc.streaming {
+				upResp.Streaming = fix.Response
+			} else {
+				upResp.Blocking = fix.Response
+			}
+			upstream := newMockUpstream(ctx, t, upResp)
+
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+			path := "/bedrock/model/" + bedrockModel + tc.urlSuffix
+			clientHeaders := http.Header{
+				"Anthropic-Version": {"2023-06-01"},
+				"Anthropic-Beta":    {"claude-code-20250219"},
+			}
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, path, fix.Request, clientHeaders)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// Verify the response body is an exact passthrough of what the upstream sent.
+			bodyBytes, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			if tc.streaming {
+				assert.Equal(t, fix.Response, bodyBytes, "response body should be an exact passthrough")
+			} else {
+				assert.JSONEq(t, string(fix.Response), string(bodyBytes), "response body should be an exact passthrough")
+			}
+
+			// Verify response content type was forwarded.
+			assert.Equal(t, tc.wantContentType, resp.Header.Get("Content-Type"))
+
+			// Verify the upstream received the request with the original body.
+			received := upstream.receivedRequests()
+			require.Len(t, received, 1)
+			assert.Equal(t, "/model/"+bedrockModel+tc.urlSuffix, received[0].Path)
+			assert.JSONEq(t, string(fix.Request), string(received[0].Body), "request body should be forwarded as-is")
+
+			// Verify client headers were forwarded to upstream.
+			assert.Equal(t, "2023-06-01", received[0].Header.Get("Anthropic-Version"))
+			assert.Equal(t, "claude-code-20250219", received[0].Header.Get("Anthropic-Beta"))
+
+			// Verify SigV4 headers were added.
+			assert.NotEmpty(t, received[0].Header.Get("Authorization"), "SigV4 Authorization header should be present")
+			assert.Contains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256", "should be SigV4 signature")
+			assert.NotEmpty(t, received[0].Header.Get("X-Amz-Date"), "SigV4 X-Amz-Date header should be present")
+
+			// For blocking responses, the bedrock interceptor uses io.Copy
+			// which lets Go's http server flush the body to the client
+			// before the bridge has dispatched RecordInterceptionEnded.
+			// Wait for the async record to land before verifying.
+			require.Eventually(t, func() bool {
+				for _, intc := range bridgeServer.Recorder.RecordedInterceptions() {
+					if bridgeServer.Recorder.RecordedInterceptionEnd(intc.ID) == nil {
+						return false
+					}
+				}
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+			bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+		})
 	}
-	resp, err := bridgeServer.makeRequest(t, http.MethodPost, path, fix.Request, clientHeaders)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Verify the response body is an exact passthrough of what the upstream sent.
-	bodyBytes, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, fix.Response, bodyBytes, "response body should be an exact passthrough")
-
-	// Verify response content type was forwarded.
-	assert.Equal(t, "application/vnd.amazon.eventstream", resp.Header.Get("Content-Type"))
-
-	// Verify the upstream received the request with the original body.
-	received := upstream.receivedRequests()
-	require.Len(t, received, 1)
-	assert.JSONEq(t, string(fix.Request), string(received[0].Body), "request body should be forwarded as-is")
-
-	// Verify client headers were forwarded to upstream.
-	assert.Equal(t, "2023-06-01", received[0].Header.Get("Anthropic-Version"))
-	assert.Equal(t, "claude-code-20250219", received[0].Header.Get("Anthropic-Beta"))
-
-	// Verify SigV4 headers were added.
-	assert.NotEmpty(t, received[0].Header.Get("Authorization"), "SigV4 Authorization header should be present")
-	assert.Contains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256", "should be SigV4 signature")
-	assert.NotEmpty(t, received[0].Header.Get("X-Amz-Date"), "SigV4 X-Amz-Date header should be present")
-
-	// Verify interception lifecycle.
-	bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 }

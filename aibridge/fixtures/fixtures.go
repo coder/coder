@@ -180,8 +180,11 @@ var (
 	//go:embed bedrock/single_builtin_tool.req.json
 	BedrockSingleBuiltinToolReq []byte
 
-	//go:embed bedrock/single_builtin_tool.resp.bin
-	BedrockSingleBuiltinToolResp []byte
+	//go:embed bedrock/single_builtin_tool_streaming.resp.bin
+	BedrockSingleBuiltinToolStreamingResp []byte
+
+	//go:embed bedrock/single_builtin_tool_blocking.resp.json
+	BedrockSingleBuiltinToolBlockingResp []byte
 )
 
 // Section name constants matching the file names used in txtar fixtures.
