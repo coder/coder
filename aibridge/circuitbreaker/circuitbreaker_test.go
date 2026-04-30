@@ -32,11 +32,11 @@ func TestExecute_PerModelIsolation(t *testing.T) {
 	sonnetModel := "claude-sonnet-4-20250514"
 	haikuModel := "claude-3-5-haiku-20241022"
 
-	// Trip circuit on sonnet model (returns 429)
+	// Trip circuit on sonnet model (returns 503)
 	w := httptest.NewRecorder()
 	err := cbs.Execute(endpoint, sonnetModel, w, func(rw http.ResponseWriter) error {
 		sonnetCalls.Add(1)
-		rw.WriteHeader(http.StatusTooManyRequests)
+		rw.WriteHeader(http.StatusServiceUnavailable)
 		return nil
 	})
 	assert.NoError(t, err)
@@ -79,11 +79,11 @@ func TestExecute_PerEndpointIsolation(t *testing.T) {
 
 	model := "test-model"
 
-	// Trip circuit on /v1/messages endpoint (returns 429)
+	// Trip circuit on /v1/messages endpoint (returns 503)
 	w := httptest.NewRecorder()
 	err := cbs.Execute("/v1/messages", model, w, func(rw http.ResponseWriter) error {
 		messagesCalls.Add(1)
-		rw.WriteHeader(http.StatusTooManyRequests)
+		rw.WriteHeader(http.StatusServiceUnavailable)
 		return nil
 	})
 	assert.NoError(t, err)
@@ -179,7 +179,7 @@ func TestExecute_OnStateChange(t *testing.T) {
 	// Trip circuit
 	w := httptest.NewRecorder()
 	err := cbs.Execute(endpoint, model, w, func(rw http.ResponseWriter) error {
-		rw.WriteHeader(http.StatusTooManyRequests)
+		rw.WriteHeader(http.StatusServiceUnavailable)
 		return nil
 	})
 	assert.NoError(t, err)
@@ -202,7 +202,7 @@ func TestDefaultIsFailure(t *testing.T) {
 		{http.StatusOK, false},
 		{http.StatusBadRequest, false},
 		{http.StatusUnauthorized, false},
-		{http.StatusTooManyRequests, true}, // 429
+		{http.StatusTooManyRequests, false}, // 429: handled by key failover, not circuit breaker
 		{http.StatusInternalServerError, false},
 		{http.StatusBadGateway, false},
 		{http.StatusServiceUnavailable, true}, // 503

@@ -338,8 +338,8 @@ github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
-github.com/coder/preview v1.0.8 h1:RqejfDTplczgSiNqsrQTH7g2qV0p5FGZHTkc/psWZfM=
-github.com/coder/preview v1.0.8/go.mod h1:BvAfITWREXP08NIOasaAJ2hi2TWFWc6Y0CSPKEPsMzk=
+github.com/coder/preview v1.0.9 h1:SmEGRBAKN+TBn8BMlfKqLqD34m/CXYnmJfiUZTxu5EA=
+github.com/coder/preview v1.0.9/go.mod h1:3+ponddy+zyv07w6mU3QPaSiAQQ06l8i2aHbWBvpJhU=
 github.com/coder/quartz v0.3.0 h1:bUoSEJ77NBfKtUqv6CPSC0AS8dsjqAqqAv7bN02m1mg=
 github.com/coder/quartz v0.3.0/go.mod h1:BgE7DOj/8NfvRgvKw0jPLDQH/2Lya2kxcTaNJ8X0rZk=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=

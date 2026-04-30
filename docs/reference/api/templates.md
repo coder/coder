@@ -2802,6 +2802,14 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
         "value": "string"
       }
     }
+  ],
+  "secret_requirements": [
+    {
+      "env": "string",
+      "file": "string",
+      "help_message": "string",
+      "satisfied": true
+    }
   ]
 }
 ```
