@@ -38,7 +38,6 @@ import {
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
 import { Pill } from "#/components/Pill/Pill";
-import { Stack } from "#/components/Stack/Stack";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { TemplateStats } from "./TemplateStats";
@@ -250,23 +249,22 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					</>
 				}
 			>
-				<Stack direction="row">
+				<div className="flex flex-row gap-4">
 					<Avatar
 						size="lg"
 						variant="icon"
 						src={template.icon}
 						fallback={template.name}
 					/>
-
 					<div>
-						<Stack direction="row" alignItems="center" spacing={1}>
+						<div className="flex flex-row items-center gap-2">
 							<PageHeaderTitle>
 								{template.display_name.length > 0
 									? template.display_name
 									: template.name}
 							</PageHeaderTitle>
 							{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-						</Stack>
+						</div>
 
 						{template.deprecation_message !== "" ? (
 							<PageHeaderSubtitle condensed>
@@ -282,7 +280,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 							)
 						)}
 					</div>
-				</Stack>
+				</div>
 			</PageHeader>
 			<div className="pb-8">
 				<TemplateStats template={template} activeVersion={activeVersion} />

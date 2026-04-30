@@ -245,6 +245,7 @@ var (
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
 					// Provisionerd creates usage events
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
+					rbac.ResourceUserSecret.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -269,6 +270,7 @@ var (
 					rbac.ResourceTask.Type:                {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:                {policy.ActionRead},
+					rbac.ResourceUserSecret.Type:          {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspaceDormant.Type:    {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 				}),
@@ -2222,10 +2224,10 @@ func (q *querier) DeleteUserChatProviderKey(ctx context.Context, arg database.De
 	return q.db.DeleteUserChatProviderKey(ctx, arg)
 }
 
-func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
+func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
-		return 0, err
+		return database.UserSecret{}, err
 	}
 	return q.db.DeleteUserSecretByUserIDAndName(ctx, arg)
 }
@@ -4377,6 +4379,10 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 	return q.db.GetUserNotificationPreferences(ctx, userID)
 }
 
+func (q *querier) GetUserSecretByID(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
+	return fetch(q.log, q.auth, q.db.GetUserSecretByID)(ctx, id)
+}
+
 func (q *querier) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
@@ -4590,7 +4596,7 @@ func (q *querier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, i
 	return q.db.GetWorkspaceAgentScriptTimingsByBuildID(ctx, id)
 }
 
-func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetWorkspaceAgentScriptsByAgentIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
@@ -5821,7 +5827,7 @@ func (q *querier) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUI
 	// This query returns decrypted secret values and must only be called
 	// from system contexts (provisioner, agent manifest). REST API
 	// handlers should use ListUserSecrets (metadata only).
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserSecret); err != nil {
 		return nil, err
 	}
 	return q.db.ListUserSecretsWithValues(ctx, userID)

@@ -360,7 +360,7 @@ func Test_anthropicIsFailure(t *testing.T) {
 		{http.StatusOK, false},
 		{http.StatusBadRequest, false},
 		{http.StatusUnauthorized, false},
-		{http.StatusTooManyRequests, true}, // 429
+		{http.StatusTooManyRequests, false}, // 429: handled by key failover, not circuit breaker
 		{http.StatusInternalServerError, false},
 		{http.StatusBadGateway, false},
 		{http.StatusServiceUnavailable, true}, // 503

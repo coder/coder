@@ -468,6 +468,7 @@
       "bedrock_model": "string",
       "bedrock_region": "string",
       "bedrock_small_fast_model": "string",
+      "dump_dir": "string",
       "name": "string",
       "type": "string"
     }
@@ -486,7 +487,7 @@
 | `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
 | `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).                                                       |
+| `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                          |
 | `circuit_breaker_failure_threshold` | integer                                                                     | false    |              |                                                                                                                                                                             |
 | `circuit_breaker_interval`          | integer                                                                     | false    |              |                                                                                                                                                                             |
 | `circuit_breaker_max_requests`      | integer                                                                     | false    |              |                                                                                                                                                                             |
@@ -760,6 +761,7 @@
   "bedrock_model": "string",
   "bedrock_region": "string",
   "bedrock_small_fast_model": "string",
+  "dump_dir": "string",
   "name": "string",
   "type": "string"
 }
@@ -773,6 +775,7 @@
 | `bedrock_model`            | string | false    |              |                                                                                            |
 | `bedrock_region`           | string | false    |              |                                                                                            |
 | `bedrock_small_fast_model` | string | false    |              |                                                                                            |
+| `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
 | `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
 
@@ -1287,6 +1290,7 @@
         "bedrock_model": "string",
         "bedrock_region": "string",
         "bedrock_small_fast_model": "string",
+        "dump_dir": "string",
         "name": "string",
         "type": "string"
       }
@@ -2747,6 +2751,9 @@ This is required on creation to enable a user-flow of validating a template work
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "password": "string",
+  "roles": [
+    "string"
+  ],
   "service_account": true,
   "user_status": "active",
   "username": "string"
@@ -2762,6 +2769,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `name`             | string                                     | false    |              |                                                                                     |
 | `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
 | `password`         | string                                     | false    |              |                                                                                     |
+| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                |
 | `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
@@ -3322,6 +3330,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
+            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -3912,6 +3921,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "bedrock_model": "string",
           "bedrock_region": "string",
           "bedrock_small_fast_model": "string",
+          "dump_dir": "string",
           "name": "string",
           "type": "string"
         }
@@ -4547,17 +4557,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": "string"
       }
     }
+  ],
+  "secret_requirements": [
+    {
+      "env": "string",
+      "file": "string",
+      "help_message": "string",
+      "satisfied": true
+    }
   ]
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                                | Required | Restrictions | Description |
-|---------------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
-| `id`          | integer                                                             | false    |              |             |
-| `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
+| Name                  | Type                                                                          | Required | Restrictions | Description |
+|-----------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `diagnostics`         | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic)           | false    |              |             |
+| `id`                  | integer                                                                       | false    |              |             |
+| `parameters`          | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)               | false    |              |             |
+| `secret_requirements` | array of [codersdk.SecretRequirementStatus](#codersdksecretrequirementstatus) | false    |              |             |
 
 ## codersdk.Entitlement
 
@@ -7327,6 +7346,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -7334,6 +7354,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -8490,9 +8511,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_secret`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -8677,6 +8698,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -8684,6 +8706,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -8870,6 +8893,26 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
+
+## codersdk.SecretRequirementStatus
+
+```json
+{
+  "env": "string",
+  "file": "string",
+  "help_message": "string",
+  "satisfied": true
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `env`          | string  | false    |              |             |
+| `file`         | string  | false    |              |             |
+| `help_message` | string  | false    |              |             |
+| `satisfied`    | boolean | false    |              |             |
 
 ## codersdk.ServerSentEvent
 
@@ -11634,6 +11677,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -11641,6 +11685,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -11917,6 +11962,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "cron": "string",
       "display_name": "string",
+      "exit_code": 0,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "log_path": "string",
       "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -11924,6 +11970,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "run_on_stop": true,
       "script": "string",
       "start_blocks_login": true,
+      "status": "ok",
       "timeout": 0
     }
   ],
@@ -12423,6 +12470,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "cron": "string",
   "display_name": "string",
+  "exit_code": 0,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "log_path": "string",
   "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -12430,24 +12478,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "run_on_stop": true,
   "script": "string",
   "start_blocks_login": true,
+  "status": "ok",
   "timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `cron`               | string  | false    |              |             |
-| `display_name`       | string  | false    |              |             |
-| `id`                 | string  | false    |              |             |
-| `log_path`           | string  | false    |              |             |
-| `log_source_id`      | string  | false    |              |             |
-| `run_on_start`       | boolean | false    |              |             |
-| `run_on_stop`        | boolean | false    |              |             |
-| `script`             | string  | false    |              |             |
-| `start_blocks_login` | boolean | false    |              |             |
-| `timeout`            | integer | false    |              |             |
+| Name                 | Type                                                                       | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `cron`               | string                                                                     | false    |              |             |
+| `display_name`       | string                                                                     | false    |              |             |
+| `exit_code`          | integer                                                                    | false    |              |             |
+| `id`                 | string                                                                     | false    |              |             |
+| `log_path`           | string                                                                     | false    |              |             |
+| `log_source_id`      | string                                                                     | false    |              |             |
+| `run_on_start`       | boolean                                                                    | false    |              |             |
+| `run_on_stop`        | boolean                                                                    | false    |              |             |
+| `script`             | string                                                                     | false    |              |             |
+| `start_blocks_login` | boolean                                                                    | false    |              |             |
+| `status`             | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `timeout`            | integer                                                                    | false    |              |             |
+
+## codersdk.WorkspaceAgentScriptStatus
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                             |
+|------------------------------------------------------|
+| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -12793,6 +12858,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             {
               "cron": "string",
               "display_name": "string",
+              "exit_code": 0,
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -12800,6 +12866,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
+              "status": "ok",
               "timeout": 0
             }
           ],
@@ -13261,6 +13328,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         {
           "cron": "string",
           "display_name": "string",
+          "exit_code": 0,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "log_path": "string",
           "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -13268,6 +13336,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "run_on_stop": true,
           "script": "string",
           "start_blocks_login": true,
+          "status": "ok",
           "timeout": 0
         }
       ],
@@ -13609,6 +13678,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   {
                     "cron": "string",
                     "display_name": "string",
+                    "exit_code": 0,
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -13616,6 +13686,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "run_on_stop": true,
                     "script": "string",
                     "start_blocks_login": true,
+                    "status": "ok",
                     "timeout": 0
                   }
                 ],
@@ -13751,9 +13822,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                    |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                               |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 

@@ -138,7 +138,7 @@ AI BRIDGE OPTIONS:
 
       --aibridge-circuit-breaker-enabled bool, $CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED (default: false)
           Enable the circuit breaker to protect against cascading failures from
-          upstream AI provider rate limits (429, 503, 529 overloaded).
+          upstream AI provider overload (503, 529).
 
       --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 60d)
           Length of time to retain data such as interceptions and all related

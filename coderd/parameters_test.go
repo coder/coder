@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -385,6 +386,89 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.Len(t, preview.Parameters, 1)
 		coderdtest.AssertParameter(t, "variable_values", preview.Parameters).
 			Exists().Value("austin")
+	})
+
+	t.Run("MissingSecret", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/secret_required/main.tf")
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		previews := setup.stream.Chan()
+
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		for _, diag := range preview.Diagnostics {
+			require.NotEqual(t, dynamicparameters.DiagCodeMissingSecret, diag.Extra.Code)
+		}
+		require.Equal(t, []codersdk.SecretRequirementStatus{{
+			Env:         "GITHUB_TOKEN",
+			HelpMessage: "Add a GitHub PAT with env=GITHUB_TOKEN",
+			Satisfied:   false,
+		}}, preview.SecretRequirements)
+	})
+
+	// Regression test for PLAT-100: a workspace whose template has an
+	// unsatisfied coder_secret requirement must still be stoppable and
+	// deletable. Start remains blocked.
+	t.Run("SecretRequirementDoesNotBlockStopOrDelete", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/secret_required/main.tf")
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+		})
+		_ = setup.stream.Close(websocket.StatusGoingAway)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Owner must satisfy the coder_secret requirement to create
+		// the workspace; delete it later to provoke the bug scenario.
+		_, err = setup.client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:    "github-token",
+			Value:   "ghp_test",
+			EnvName: "GITHUB_TOKEN",
+		})
+		require.NoError(t, err)
+
+		wrk := coderdtest.CreateWorkspace(t, setup.client, setup.template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+
+		require.NoError(t, setup.client.DeleteUserSecret(ctx, codersdk.Me, "github-token"))
+
+		// Start on the now-unsatisfied requirement must still fail;
+		// otherwise we've over-filtered the diagnostic.
+		_, err = setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		})
+		require.Error(t, err, "start must still reject unsatisfied secret requirement")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Contains(t, sdkErr.Detail, "Missing required secrets")
+		require.Contains(t, sdkErr.Detail, "env GITHUB_TOKEN")
+
+		// Stop must succeed despite the unsatisfied requirement.
+		stop, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, stop.ID)
+
+		// Delete must succeed despite the unsatisfied requirement.
+		del, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, del.ID)
 	})
 }
 

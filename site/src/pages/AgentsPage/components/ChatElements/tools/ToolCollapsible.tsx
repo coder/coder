@@ -31,19 +31,25 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 					className={cn(
 						"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
 						"flex w-full items-center gap-2 cursor-pointer",
+						"text-content-secondary transition-colors hover:text-content-primary",
 						headerClassName,
 					)}
 				>
 					{header}
 					<ChevronDownIcon
 						className={cn(
-							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							"h-3 w-3 shrink-0 text-current transition-transform",
 							expanded ? "rotate-0" : "-rotate-90",
 						)}
 					/>
 				</button>
 			) : (
-				<div className={cn("flex items-center gap-2", headerClassName)}>
+				<div
+					className={cn(
+						"flex items-center gap-2 text-content-secondary",
+						headerClassName,
+					)}
+				>
 					{header}
 				</div>
 			)}

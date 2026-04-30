@@ -1002,6 +1002,18 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+export const proposeChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
+
+	onSettled: (
+		_data: { title: string } | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
 type UpdateChatTitleVariables = {
 	chatId: string;
 	title: string;
@@ -1347,6 +1359,22 @@ export const updateChatRetentionDays = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatRetentionDaysKey,
+		});
+	},
+});
+
+const chatAutoArchiveDaysKey = ["chat-auto-archive-days"] as const;
+
+export const chatAutoArchiveDays = () => ({
+	queryKey: chatAutoArchiveDaysKey,
+	queryFn: () => API.experimental.getChatAutoArchiveDays(),
+});
+
+export const updateChatAutoArchiveDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatAutoArchiveDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAutoArchiveDaysKey,
 		});
 	},
 });

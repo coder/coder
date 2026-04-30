@@ -7,7 +7,6 @@ import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -48,7 +47,7 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 	const theme = useTheme();
 
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			{Boolean(getTokensError) && <ErrorAlert error={getTokensError} />}
 			{Boolean(deleteTokenError) && <ErrorAlert error={deleteTokenError} />}
 
@@ -129,6 +128,6 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 					</ChooseOne>
 				</TableBody>
 			</Table>
-		</Stack>
+		</div>
 	);
 };

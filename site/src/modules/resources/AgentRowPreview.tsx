@@ -3,7 +3,6 @@ import type { FC } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import { TerminalIcon } from "#/components/Icons/TerminalIcon";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { Stack } from "#/components/Stack/Stack";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
@@ -22,27 +21,21 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 	alignValues,
 }) => {
 	return (
-		<Stack
+		<div
 			key={agent.id}
-			direction="row"
-			alignItems="center"
-			justifyContent="space-between"
+			className="flex flex-row items-center justify-between gap-4"
 			css={styles.agentRow}
 		>
-			<Stack direction="row" alignItems="baseline">
+			<div className="flex flex-row items-baseline gap-4">
 				<div css={styles.agentStatusWrapper}>
 					<div css={styles.agentStatusPreview} />
 				</div>
-				<Stack
-					alignItems="baseline"
-					direction="row"
-					spacing={4}
+				<div
+					className="flex flex-row items-baseline gap-8"
 					css={styles.agentData}
 				>
-					<Stack
-						direction="row"
-						alignItems="baseline"
-						spacing={1}
+					<div
+						className="flex flex-row items-baseline gap-2"
 						css={[
 							styles.noShrink,
 							styles.agentDataItem,
@@ -55,12 +48,10 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 					>
 						<span>Agent:</span>
 						<span css={styles.agentDataValue}>{agent.name}</span>
-					</Stack>
+					</div>
 
-					<Stack
-						direction="row"
-						alignItems="baseline"
-						spacing={1}
+					<div
+						className="flex flex-row items-baseline gap-2"
 						css={[
 							styles.noShrink,
 							styles.agentDataItem,
@@ -75,21 +66,14 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 						<span css={[styles.agentDataValue, styles.agentOS]}>
 							{agent.operating_system}
 						</span>
-					</Stack>
+					</div>
 
-					<Stack
-						direction="row"
-						alignItems="center"
-						spacing={1}
+					<div
+						className="flex flex-row items-center gap-2"
 						css={styles.agentDataItem}
 					>
 						<span>Apps:</span>
-						<Stack
-							direction="row"
-							alignItems="center"
-							spacing={0.5}
-							wrap="wrap"
-						>
+						<div className="flex flex-row items-center gap-1 flex-wrap">
 							{/* We display all modules returned in agent.apps */}
 							{agent.apps.map((app) => (
 								<AppPreview key={app.slug}>
@@ -130,11 +114,11 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							{agent.apps.length === 0 && agent.display_apps.length === 0 && (
 								<span css={styles.agentDataValue}>None</span>
 							)}
-						</Stack>
-					</Stack>
-				</Stack>
-			</Stack>
-		</Stack>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 };
 

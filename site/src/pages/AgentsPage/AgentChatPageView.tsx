@@ -15,6 +15,10 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
+	getPersistedSidebarTabId,
+	savePersistedSidebarTabId,
+} from "./AgentChatPage";
+import {
 	AgentChatInput,
 	type ChatMessageInputRef,
 } from "./components/AgentChatInput";
@@ -268,9 +272,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const effectiveScrollToBottomRef =
 		scrollToBottomRef ?? internalScrollToBottomRef;
 
-	// State for programmatically switching the sidebar tab (e.g. when
-	// the user clicks the inline desktop preview card).
-	const [sidebarTabId, setSidebarTabId] = useState<string | null>(null);
+	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
+		getPersistedSidebarTabId(agentId),
+	);
+
+	const setSidebarTabId = (tabId: string) => {
+		setSidebarTabIdState(tabId);
+		if (!isArchived) {
+			savePersistedSidebarTabId(agentId, tabId);
+		}
+	};
 
 	const handleOpenDesktop = () => {
 		onSetShowSidebarPanel(true);

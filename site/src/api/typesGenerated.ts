@@ -70,7 +70,7 @@ export interface AIBridgeConfig {
 	readonly allow_byok: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
-	 * provider rate limits (429, 503, 529 overloaded).
+	 * provider overload (503, 529).
 	 */
 	readonly circuit_breaker_enabled: boolean;
 	readonly circuit_breaker_failure_threshold: number;
@@ -144,6 +144,10 @@ export interface AIBridgeProviderConfig {
 	 * BaseURL is the base URL of the upstream provider API.
 	 */
 	readonly base_url: string;
+	/**
+	 * DumpDir is the directory path for dumping API requests and responses.
+	 */
+	readonly dump_dir?: string;
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
@@ -1857,6 +1861,15 @@ export interface ChatMessageUsage {
  */
 export interface ChatMessagesPaginationOptions {
 	readonly BeforeID: number;
+	/**
+	 * AfterID, when > 0, restricts results to messages with id strictly
+	 * greater than AfterID. When set without BeforeID, results come back
+	 * in ASCENDING id order so a polling caller can advance its cursor
+	 * to max(returned_ids) without gaps. When combined with BeforeID,
+	 * results come back in DESC order over the open range
+	 * (AfterID, BeforeID).
+	 */
+	readonly AfterID: number;
 	readonly Limit: number;
 }
 
@@ -3099,6 +3112,10 @@ export interface CreateUserRequestWithOrgs {
 	 * Service accounts are admin-managed accounts that cannot login.
 	 */
 	readonly service_account?: boolean;
+	/**
+	 * Roles is an optional list of site-level roles to assign at creation.
+	 */
+	readonly roles?: readonly string[];
 }
 
 // From codersdk/usersecrets.go
@@ -3608,6 +3625,7 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
+	readonly secret_requirements?: readonly SecretRequirementStatus[];
 }
 
 // From codersdk/chats.go
@@ -4155,6 +4173,7 @@ export type HealthCode =
 	| "EACS02"
 	| "EACS04"
 	| "EACS01"
+	| "EDERP03"
 	| "EDERP01"
 	| "EDERP02"
 	| "EDB01"
@@ -4184,6 +4203,7 @@ export const HealthCodes: HealthCode[] = [
 	"EACS02",
 	"EACS04",
 	"EACS01",
+	"EDERP03",
 	"EDERP01",
 	"EDERP02",
 	"EDB01",
@@ -6340,6 +6360,7 @@ export type ResourceType =
 	| "template"
 	| "template_version"
 	| "user"
+	| "user_secret"
 	| "workspace"
 	| "workspace_agent"
 	| "workspace_app"
@@ -6370,6 +6391,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template",
 	"template_version",
 	"user",
+	"user_secret",
 	"workspace",
 	"workspace_agent",
 	"workspace_app",
@@ -6592,6 +6614,14 @@ export interface STUNReport {
 	readonly Enabled: boolean;
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
+}
+
+// From codersdk/parameters.go
+export interface SecretRequirementStatus {
+	readonly env?: string;
+	readonly file?: string;
+	readonly help_message: string;
+	readonly satisfied: boolean;
 }
 
 // From serpent/serpent.go
@@ -9018,7 +9048,23 @@ export interface WorkspaceAgentScript {
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
 	readonly display_name: string;
+	readonly exit_code?: number;
+	readonly status?: WorkspaceAgentScriptStatus;
 }
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentScriptStatus =
+	| "exit_failure"
+	| "ok"
+	| "pipes_left_open"
+	| "timed_out";
+
+export const WorkspaceAgentScriptStatuses: WorkspaceAgentScriptStatus[] = [
+	"exit_failure",
+	"ok",
+	"pipes_left_open",
+	"timed_out",
+];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";

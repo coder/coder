@@ -3206,6 +3206,7 @@ const (
 	ResourceTypeTask                        ResourceType = "task"
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 	ResourceTypeChat                        ResourceType = "chat"
+	ResourceTypeUserSecret                  ResourceType = "user_secret"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3272,7 +3273,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
-		ResourceTypeChat:
+		ResourceTypeChat,
+		ResourceTypeUserSecret:
 		return true
 	}
 	return false
@@ -3308,6 +3310,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
+		ResourceTypeUserSecret,
 	}
 }
 

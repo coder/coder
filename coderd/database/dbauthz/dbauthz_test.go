@@ -4694,7 +4694,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentScript{}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), ids).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentLogSourcesByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -5667,7 +5667,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
 		dbm.EXPECT().ListUserSecretsWithValues(gomock.Any(), user.ID).Return([]database.UserSecret{secret}, nil).AnyTimes()
 		check.Args(user.ID).
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceUserSecret, policy.ActionRead).
 			Returns([]database.UserSecret{secret})
 	}))
 	s.Run("CreateUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -5690,11 +5690,20 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	}))
 	s.Run("DeleteUserSecretByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
+		deleted := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID, Name: "test"})
 		arg := database.DeleteUserSecretByUserIDAndNameParams{UserID: user.ID, Name: "test"}
-		dbm.EXPECT().DeleteUserSecretByUserIDAndName(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		dbm.EXPECT().DeleteUserSecretByUserIDAndName(gomock.Any(), arg).Return(deleted, nil).AnyTimes()
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionDelete).
-			Returns(int64(1))
+			Returns(deleted)
+	}))
+	s.Run("GetUserSecretByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		dbm.EXPECT().GetUserSecretByID(gomock.Any(), secret.ID).Return(secret, nil).AnyTimes()
+		check.Args(secret.ID).
+			Asserts(secret, policy.ActionRead).
+			Returns(secret)
 	}))
 }
 
@@ -6184,6 +6193,19 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, agent, result)
 	})
+}
+
+func TestAsAutostart(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.AsAutostart(context.Background())
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUserSecret.WithOwner(uuid.NewString()))
+	require.NoError(t, err, "user secret metadata read should be allowed")
 }
 
 func TestAsChatd(t *testing.T) {

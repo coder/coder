@@ -315,7 +315,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 					dbApps = append(dbApps, app)
 				}
 			}
-			dbScripts := make([]database.WorkspaceAgentScript, 0)
+			dbScripts := make([]database.GetWorkspaceAgentScriptsByAgentIDsRow, 0)
 			for _, script := range scripts {
 				if script.WorkspaceAgentID == agent.ID {
 					dbScripts = append(dbScripts, script)

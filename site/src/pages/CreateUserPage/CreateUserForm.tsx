@@ -28,6 +28,7 @@ import {
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
+import { RoleSelector } from "./RoleSelector";
 
 const loginTypeOptions = {
 	password: {
@@ -80,6 +81,7 @@ type CreateUserFormData = {
 	readonly login_type: TypesGen.LoginType;
 	readonly password: string;
 	readonly service_account: boolean;
+	readonly roles: string[];
 };
 
 interface CreateUserFormProps {
@@ -90,6 +92,9 @@ interface CreateUserFormProps {
 	authMethods?: TypesGen.AuthMethods;
 	showOrganizations: boolean;
 	serviceAccountsEnabled: boolean;
+	availableRoles?: TypesGen.AssignableRoles[];
+	rolesLoading?: boolean;
+	rolesError?: unknown;
 }
 
 // Stable reference for empty org options to avoid re-render loops
@@ -104,6 +109,9 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	showOrganizations,
 	authMethods,
 	serviceAccountsEnabled,
+	availableRoles,
+	rolesLoading,
+	rolesError,
 }) => {
 	const availableLoginTypes = [
 		authMethods?.password.enabled && "password",
@@ -125,6 +133,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 				: "00000000-0000-0000-0000-000000000000",
 			login_type: defaultLoginType,
 			service_account: defaultLoginType === "none",
+			roles: [],
 		},
 		validationSchema,
 		onSubmit,
@@ -172,44 +181,18 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	});
 
 	return (
-		<FullPageForm title="Create user">
+		<FullPageForm title="Create user" size="condensed">
 			{isApiError(error) && !hasApiFieldErrors(error) && (
 				<ErrorAlert error={error} className="mb-8" />
 			)}
-			<form onSubmit={form.handleSubmit} autoComplete="off">
+			<form
+				onSubmit={form.handleSubmit}
+				autoComplete="off"
+				className="border border-border border-solid rounded-md p-4"
+			>
 				<div className="flex flex-col gap-6">
-					<FormField
-						field={getFieldHelpers("username")}
-						label="Username"
-						id="username"
-						name="username"
-						value={form.values.username}
-						onChange={onChangeTrimmed(form)}
-						onBlur={form.handleBlur}
-						autoComplete="username"
-						autoFocus
-					/>
-
-					<FormField
-						field={getFieldHelpers("name")}
-						label={
-							<>
-								Full name{" "}
-								<span className="font-normal text-content-secondary">
-									(optional)
-								</span>
-							</>
-						}
-						id="name"
-						name="name"
-						value={form.values.name}
-						onChange={form.handleChange}
-						onBlur={form.handleBlur}
-						autoComplete="name"
-					/>
-
 					{showOrganizations && (
-						<div className="flex flex-col gap-2">
+						<div className="flex flex-col gap-2 max-w-sm">
 							<Label htmlFor="organization">Organization</Label>
 							<OrganizationAutocomplete
 								id="organization"
@@ -225,7 +208,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 					)}
 
 					{/* Login type — "none" is presented as "Service account" */}
-					<div className="flex flex-col gap-2">
+					<div className="flex flex-col gap-2 max-w-sm">
 						<Label htmlFor="login_type">Login type</Label>
 						<Select
 							value={form.values.login_type}
@@ -295,6 +278,37 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 						)}
 					</div>
 
+					<FormField
+						field={getFieldHelpers("username")}
+						label="Username"
+						id="username"
+						name="username"
+						value={form.values.username}
+						onChange={onChangeTrimmed(form)}
+						onBlur={form.handleBlur}
+						autoComplete="username"
+						autoFocus
+						className="max-w-sm"
+					/>
+
+					<FormField
+						field={getFieldHelpers("name")}
+						label={
+							<>
+								Full name{" "}
+								<span className="font-normal text-content-secondary">
+									(optional)
+								</span>
+							</>
+						}
+						id="name"
+						name="name"
+						value={form.values.name}
+						onChange={form.handleChange}
+						onBlur={form.handleBlur}
+						autoComplete="name"
+					/>
+
 					{!isServiceAccount && (
 						<FormField
 							field={getFieldHelpers("email")}
@@ -329,6 +343,31 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							type="password"
 							data-testid="password-input"
 						/>
+					)}
+
+					{rolesLoading ? (
+						<RoleSelector
+							loading
+							roles={[]}
+							selectedRoles={[]}
+							onChange={() => {}}
+						/>
+					) : rolesError ? (
+						<RoleSelector
+							error={rolesError}
+							roles={[]}
+							selectedRoles={[]}
+							onChange={() => {}}
+						/>
+					) : (
+						availableRoles &&
+						availableRoles.length > 0 && (
+							<RoleSelector
+								roles={availableRoles}
+								selectedRoles={form.values.roles}
+								onChange={(roles) => form.setFieldValue("roles", roles)}
+							/>
+						)
 					)}
 				</div>
 

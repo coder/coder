@@ -9,7 +9,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
@@ -61,13 +60,11 @@ export const EditFilesTool: React.FC<{
 			defaultExpanded
 			header={
 				<>
-					<span className={cn("text-sm", "text-content-secondary")}>
-						{label}
-					</span>
+					<span className="text-[13px]">{label}</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to edit files"}
@@ -75,7 +72,7 @@ export const EditFilesTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}

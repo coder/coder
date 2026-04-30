@@ -3,7 +3,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 import { Button } from "#/components/Button/Button";
-import { Stack } from "#/components/Stack/Stack";
 import { useClickable } from "#/hooks/useClickable";
 
 interface FileUploadProps {
@@ -35,16 +34,14 @@ export const FileUpload: FC<FileUploadProps> = ({
 
 	if (!isUploading && file) {
 		return (
-			<Stack
+			<div
 				css={styles.file}
-				direction="row"
-				justifyContent="space-between"
-				alignItems="center"
+				className="flex flex-row justify-between items-center gap-4"
 			>
-				<Stack direction="row" alignItems="center">
+				<div className="flex flex-row items-center gap-4">
 					<FolderIcon className="size-icon-sm" />
 					<span>{file.name}</span>
-				</Stack>
+				</div>
 
 				<Button
 					variant="subtle"
@@ -54,7 +51,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 				>
 					<TrashIcon className="size-icon-sm" />
 				</Button>
-			</Stack>
+			</div>
 		);
 	}
 
@@ -66,7 +63,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 				{...clickable}
 				{...fileDrop}
 			>
-				<Stack alignItems="center" spacing={1}>
+				<div className="flex flex-col items-center gap-2">
 					<div css={styles.iconWrapper}>
 						{isUploading ? (
 							<CircularProgress size={32} />
@@ -75,11 +72,11 @@ export const FileUpload: FC<FileUploadProps> = ({
 						)}
 					</div>
 
-					<Stack alignItems="center" spacing={0.5}>
+					<div className="flex flex-col items-center gap-1">
 						<span css={styles.title}>{title}</span>
 						<span css={styles.description}>{description}</span>
-					</Stack>
-				</Stack>
+					</div>
+				</div>
 			</div>
 
 			<input

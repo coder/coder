@@ -114,7 +114,7 @@ func TestGetManifest(t *testing.T) {
 				Hidden:               true,
 			},
 		}
-		scripts = []database.WorkspaceAgentScript{
+		scripts = []database.GetWorkspaceAgentScriptsByAgentIDsRow{
 			{
 				ID:               uuid.New(),
 				WorkspaceAgentID: agent.ID,
@@ -396,7 +396,7 @@ func TestGetManifest(t *testing.T) {
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
-		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.WorkspaceAgentScript{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: childAgent.ID,
 			Keys:             nil, // all
@@ -459,7 +459,7 @@ func TestGetManifest(t *testing.T) {
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
-		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.WorkspaceAgentScript{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: childAgent.ID,
 			Keys:             nil,

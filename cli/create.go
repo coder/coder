@@ -68,7 +68,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			workspaceOwner := codersdk.Me
 			if len(inv.Args) >= 1 {
-				workspaceOwner, workspaceName, err = splitNamedWorkspace(inv.Args[0])
+				workspaceOwner, workspaceName, err = codersdk.SplitWorkspaceIdentifier(inv.Args[0])
 				if err != nil {
 					return err
 				}
@@ -104,7 +104,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			var sourceWorkspace codersdk.Workspace
 			if copyParametersFrom != "" {
-				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParametersFrom)
+				sourceWorkspaceOwner, sourceWorkspaceName, err := codersdk.SplitWorkspaceIdentifier(copyParametersFrom)
 				if err != nil {
 					return err
 				}
