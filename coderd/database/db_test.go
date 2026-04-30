@@ -103,8 +103,10 @@ func TestInTx_CapturesRollbackError(t *testing.T) {
 		return callbackErr
 	}, nil)
 	require.EqualError(t, err, "defer (rollback failed): execute transaction: callback failed")
-	require.ErrorIs(t, err, callbackErr)
-	require.NotErrorIs(t, err, rollbackErr)
+	require.ErrorIs(t, err, callbackErr,
+		"returned error should still match the callback error when rollback fails")
+	require.NotErrorIs(t, err, rollbackErr,
+		"rollback failure should be reported in the message, not wrapped in the error chain")
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
