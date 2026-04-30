@@ -1230,7 +1230,8 @@ const selectKnownModel = async (
 	body: ReturnType<typeof within>,
 	modelIdentifier: string,
 ) => {
-	await openKnownModelPopover(body);
+	const input = await openKnownModelPopover(body);
+	await userEvent.clear(input);
 	const options = await body.findAllByRole("option");
 	await userEvent.click(findOptionByText(options, modelIdentifier));
 };
@@ -1284,18 +1285,6 @@ const expectPricingValue = async (
 	value: string,
 ) => {
 	await expect(await body.findByLabelText(label)).toHaveValue(value);
-};
-
-const selectModelFormProvider = async (
-	body: ReturnType<typeof within>,
-	providerLabel: string,
-) => {
-	await userEvent.click(await body.findByLabelText(/^Provider$/i));
-	await waitFor(async () => {
-		await userEvent.click(
-			body.getByRole("option", { name: new RegExp(providerLabel, "i") }),
-		);
-	});
 };
 
 export const OpenAIKnownModelHappyPath: Story = {
@@ -1528,7 +1517,13 @@ export const KnownModelProviderChangeResetsDefaultsFeedback: Story = {
 			knownModelDefaultsFeedback("GPT-5.5"),
 		);
 
-		await selectModelFormProvider(body, "Anthropic");
+		await userEvent.click(body.getByRole("button", { name: /^Cancel$/i }));
+		await waitFor(() => {
+			expect(
+				body.queryByLabelText(/Model Identifier/i),
+			).not.toBeInTheDocument();
+		});
+		await openAddModelForm(body, "Anthropic");
 		await selectKnownModel(body, "claude-haiku-4-5");
 
 		await expectModelIdentifierValue(body, "claude-haiku-4-5");
