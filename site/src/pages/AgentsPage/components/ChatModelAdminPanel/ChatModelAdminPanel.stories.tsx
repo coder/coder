@@ -1206,6 +1206,98 @@ const expectKnownModelOptionsInOrder = async (
 	return options;
 };
 
+const knownModelDefaultsFeedback = (displayName: string) =>
+	`Defaults applied from ${displayName}. Review and adjust before saving.`;
+
+const noMatchingKnownModelsText =
+	"No matching known models. You can still use this identifier.";
+
+const openKnownModelPopover = async (body: ReturnType<typeof within>) => {
+	await userEvent.click(await body.findByLabelText(/Model Identifier/i));
+	return await body.findByRole("combobox");
+};
+
+const closeKnownModelPopoverToContextLimit = async (
+	body: ReturnType<typeof within>,
+) => {
+	await userEvent.click(body.getByLabelText(/Context limit/i));
+	await waitFor(() => {
+		expect(body.queryByRole("combobox")).not.toBeInTheDocument();
+	});
+};
+
+const selectKnownModel = async (
+	body: ReturnType<typeof within>,
+	modelIdentifier: string,
+) => {
+	await openKnownModelPopover(body);
+	const options = await body.findAllByRole("option");
+	await userEvent.click(findOptionByText(options, modelIdentifier));
+};
+
+const clearAndTypeKnownModelSearch = async (
+	body: ReturnType<typeof within>,
+	value: string,
+) => {
+	const input = await body.findByRole("combobox");
+	await userEvent.clear(input);
+	await userEvent.type(input, value);
+	return input;
+};
+
+const expectModelIdentifierValue = async (
+	body: ReturnType<typeof within>,
+	value: string,
+) => {
+	await expect(
+		await body.findByLabelText(/Model Identifier/i),
+	).toHaveTextContent(value);
+};
+
+const getDefaultsFeedback = (
+	body: ReturnType<typeof within>,
+	message: string,
+) =>
+	body
+		.queryAllByRole("status")
+		.filter((el: HTMLElement) => el.textContent === message);
+
+const expectDefaultsFeedbackCount = (
+	body: ReturnType<typeof within>,
+	message: string,
+	count: number,
+) => {
+	expect(getDefaultsFeedback(body, message)).toHaveLength(count);
+};
+
+const ensureCostTrackingOpen = async (body: ReturnType<typeof within>) => {
+	if (body.queryByLabelText(/^Input$/i)) {
+		return;
+	}
+	await expandSection(body, "Cost Tracking");
+	await body.findByLabelText(/^Input$/i);
+};
+
+const expectPricingValue = async (
+	body: ReturnType<typeof within>,
+	label: RegExp,
+	value: string,
+) => {
+	await expect(await body.findByLabelText(label)).toHaveValue(value);
+};
+
+const selectModelFormProvider = async (
+	body: ReturnType<typeof within>,
+	providerLabel: string,
+) => {
+	await userEvent.click(await body.findByLabelText(/^Provider$/i));
+	await waitFor(async () => {
+		await userEvent.click(
+			body.getByRole("option", { name: new RegExp(providerLabel, "i") }),
+		);
+	});
+};
+
 export const OpenAIKnownModelHappyPath: Story = {
 	...providerFormSetup("openai", "OpenAI"),
 	play: async ({ canvasElement }) => {
@@ -1272,6 +1364,215 @@ export const AnthropicKnownModelHappyPath: Story = {
 				within(reasoningEffortGroup).getByRole("radio", { name: option }),
 			).toHaveAttribute("aria-checked", "false");
 		}
+	},
+};
+
+export const OpenAIKnownModelDoesNotPreFireRequiredError: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-3: open does not pre-fire required error",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await openKnownModelPopover(body);
+
+		expect(body.queryByText("Model ID is required.")).not.toBeInTheDocument();
+	},
+};
+
+export const OpenAIKnownModelEscapeCancelsSearch: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-5: Escape cancels and preserves committed value",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		await expectModelIdentifierValue(body, "gpt-5.5");
+
+		await openKnownModelPopover(body);
+		await clearAndTypeKnownModelSearch(body, "cod");
+		await userEvent.keyboard("{Escape}");
+
+		await waitFor(() => {
+			expect(body.queryByRole("combobox")).not.toBeInTheDocument();
+		});
+		await expectModelIdentifierValue(body, "gpt-5.5");
+		expect(body.queryByRole("status")).not.toBeInTheDocument();
+
+		const reopenedInput = await openKnownModelPopover(body);
+		await expect(reopenedInput).toHaveValue("gpt-5.5");
+		await userEvent.keyboard("{Escape}");
+	},
+};
+
+export const OpenAIKnownModelSequentialSelectionReplacesDefaults: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-4, DEREM-10: sequential selection replaces catalog defaults",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		await selectKnownModel(body, "gpt-5.4-mini");
+
+		await expectModelIdentifierValue(body, "gpt-5.4-mini");
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("400000");
+		await ensureCostTrackingOpen(body);
+		await expectPricingValue(body, /^Input$/i, "0.75");
+		await expectPricingValue(body, /^Output$/i, "4.5");
+	},
+};
+
+export const OpenAIKnownModelDoubleApplyGuard: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-10: double-apply guard keeps defaults stable",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const feedback = knownModelDefaultsFeedback("GPT-5.5");
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		await expect(await body.findByRole("status")).toHaveTextContent(feedback);
+		await ensureCostTrackingOpen(body);
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1050000");
+		await expectPricingValue(body, /^Input$/i, "5");
+		await expectPricingValue(body, /^Output$/i, "30");
+
+		await openKnownModelPopover(body);
+		await closeKnownModelPopoverToContextLimit(body);
+
+		expectDefaultsFeedbackCount(body, feedback, 1);
+		await expectModelIdentifierValue(body, "gpt-5.5");
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1050000");
+		await expectPricingValue(body, /^Input$/i, "5");
+		await expectPricingValue(body, /^Output$/i, "30");
+	},
+};
+
+export const OpenAIKnownModelExactCanonicalBlurAppliesDefaults: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-10: exact canonical blur applies defaults",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await openKnownModelPopover(body);
+		await clearAndTypeKnownModelSearch(body, "gpt-5.5-pro");
+		await closeKnownModelPopoverToContextLimit(body);
+
+		await expectModelIdentifierValue(body, "gpt-5.5-pro");
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1050000");
+		await ensureCostTrackingOpen(body);
+		await expectPricingValue(body, /^Input$/i, "30");
+		await expectPricingValue(body, /^Output$/i, "180");
+		await expect(await body.findByRole("status")).toHaveTextContent(
+			knownModelDefaultsFeedback("GPT-5.5 Pro"),
+		);
+	},
+};
+
+export const AnthropicKnownModelAliasTypedValueCancels: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	name: "Add mode / DEREM-10: alias typed value cancels",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+
+		await openKnownModelPopover(body);
+		await clearAndTypeKnownModelSearch(body, "custom-anthropic-model");
+		await closeKnownModelPopoverToContextLimit(body);
+		await expectModelIdentifierValue(body, "custom-anthropic-model");
+
+		await openKnownModelPopover(body);
+		await clearAndTypeKnownModelSearch(body, "claude-haiku-4-5-20251001");
+		const filteredOptions = await body.findAllByRole("option");
+		expect(
+			findOptionByText(filteredOptions, "Claude Haiku 4.5"),
+		).toHaveTextContent("claude-haiku-4-5");
+		await closeKnownModelPopoverToContextLimit(body);
+
+		await expectModelIdentifierValue(body, "custom-anthropic-model");
+		expect(body.queryByRole("status")).not.toBeInTheDocument();
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("");
+	},
+};
+
+export const KnownModelProviderChangeResetsDefaultsFeedback: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai-known-model-reset",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+			createProviderConfig({
+				id: "provider-anthropic-known-model-reset",
+				provider: "anthropic",
+				display_name: "Anthropic",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+	},
+	name: "Add mode / DEREM-10: provider change resets Known Model defaults",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await selectKnownModel(body, "gpt-5.5");
+		await expect(await body.findByRole("status")).toHaveTextContent(
+			knownModelDefaultsFeedback("GPT-5.5"),
+		);
+
+		await selectModelFormProvider(body, "Anthropic");
+		await selectKnownModel(body, "claude-haiku-4-5");
+
+		await expectModelIdentifierValue(body, "claude-haiku-4-5");
+		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("200000");
+		await ensureCostTrackingOpen(body);
+		await expectPricingValue(body, /^Input$/i, "1");
+		await expectPricingValue(body, /^Output$/i, "5");
+		await expect(await body.findByRole("status")).toHaveTextContent(
+			knownModelDefaultsFeedback("Claude Haiku 4.5 (latest)"),
+		);
+	},
+};
+
+export const OpenAIKnownModelTriggerAriaParity: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-1: aria parity on autocomplete trigger",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await openKnownModelPopover(body);
+		await closeKnownModelPopoverToContextLimit(body);
+
+		const trigger = await body.findByLabelText(/Model Identifier/i);
+		const error = await body.findByText("Model ID is required.");
+		expect(error.id).toBeTruthy();
+		await expect(trigger).toHaveAttribute("aria-invalid", "true");
+		await expect(trigger).toHaveAttribute("aria-describedby", error.id);
+	},
+};
+
+export const OpenAIKnownModelNoOptionsCopy: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-6: no-options copy explains free-form identifier",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await openKnownModelPopover(body);
+		await clearAndTypeKnownModelSearch(body, "zzzzzzz");
+
+		await expect(
+			await body.findByText(noMatchingKnownModelsText),
+		).toBeVisible();
 	},
 };
 
