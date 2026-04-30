@@ -195,8 +195,10 @@ type RunOptions struct {
 type ProviderTool struct {
 	Definition fantasy.Tool
 	Runner     fantasy.AgentTool
-	// ResultProviderMetadata returns provider-specific metadata for
-	// successful local runner results.
+	// ResultProviderMetadata extracts provider-specific metadata from successful
+	// local runner responses. The chat loop attaches returned metadata to the tool
+	// result sent back to the model. OpenAI computer-use uses this to request
+	// original screenshot detail for image results.
 	ResultProviderMetadata func(response fantasy.ToolResponse) fantasy.ProviderMetadata
 }
 

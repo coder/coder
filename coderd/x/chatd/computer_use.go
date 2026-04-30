@@ -155,6 +155,8 @@ func appendComputerUseProviderTool(
 		),
 	}
 	if opts.provider == chattool.ComputerUseProviderOpenAI {
+		// OpenAI computer-use image results need detail metadata so the model receives
+		// the screenshot at original detail when the chat loop sends the tool result.
 		providerTool.ResultProviderMetadata = openAIComputerUseResultProviderMetadata
 	}
 
