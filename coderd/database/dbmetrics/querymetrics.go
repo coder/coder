@@ -985,6 +985,38 @@ func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, a
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIProviderByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string) (database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderByName(ctx, name)
+	m.queryLatencies.WithLabelValues("GetAIProviderByName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderByNameIncludeDeleted(ctx, name)
+	m.queryLatencies.WithLabelValues("GetAIProviderByNameIncludeDeleted").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByNameIncludeDeleted").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviders(ctx context.Context) ([]database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviders(ctx)
+	m.queryLatencies.WithLabelValues("GetAIProviders").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviders").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAPIKeyByID(ctx, id)
@@ -1678,6 +1710,14 @@ func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx 
 	r0, r1 := m.s.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds)
 	m.queryLatencies.WithLabelValues("GetEligibleProvisionerDaemonsByProvisionerJobIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEligibleProvisionerDaemonsByProvisionerJobIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetEnabledAIProviders(ctx context.Context) ([]database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledAIProviders(ctx)
+	m.queryLatencies.WithLabelValues("GetEnabledAIProviders").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledAIProviders").Inc()
 	return r0, r1
 }
 
@@ -3545,6 +3585,14 @@ func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIProvider(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIProvider").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAPIKey(ctx, arg)
@@ -4401,6 +4449,14 @@ func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, n
 	return r0, r1
 }
 
+func (m queryMetricsStore) SoftDeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.SoftDeleteAIProviderByID(ctx, id)
+	m.queryLatencies.WithLabelValues("SoftDeleteAIProviderByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteAIProviderByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	start := time.Now()
 	r0 := m.s.SoftDeleteChatMessageByID(ctx, id)
@@ -4494,6 +4550,14 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	r0, r1 := m.s.UpdateAIBridgeInterceptionEnded(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEnded").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIBridgeInterceptionEnded").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AiProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIProvider(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIProvider").Inc()
 	return r0, r1
 }
 

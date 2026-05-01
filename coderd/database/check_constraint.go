@@ -10,6 +10,7 @@ const (
 	CheckAiModelPricesCacheWritePriceCheck           CheckConstraint = "ai_model_prices_cache_write_price_check"            // ai_model_prices
 	CheckAiModelPricesInputPriceCheck                CheckConstraint = "ai_model_prices_input_price_check"                  // ai_model_prices
 	CheckAiModelPricesOutputPriceCheck               CheckConstraint = "ai_model_prices_output_price_check"                 // ai_model_prices
+	CheckAiProvidersNameCheck                        CheckConstraint = "ai_providers_name_check"                            // ai_providers
 	CheckAPIKeysAllowListNotEmpty                    CheckConstraint = "api_keys_allow_list_not_empty"                      // api_keys
 	CheckChatModelConfigsCompressionThresholdCheck   CheckConstraint = "chat_model_configs_compression_threshold_check"     // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck           CheckConstraint = "chat_model_configs_context_limit_check"             // chat_model_configs

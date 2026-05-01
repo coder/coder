@@ -6187,6 +6187,63 @@ func (s *MethodTestSuite) TestAIBridge() {
 		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).Return(database.AiModelPrice{}, nil).AnyTimes()
 		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
+
+	s.Run("GetAIProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		dbm.EXPECT().GetAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
+		check.Args(provider.ID).Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns(provider)
+	}))
+	s.Run("GetAIProviderByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		dbm.EXPECT().GetAIProviderByName(gomock.Any(), provider.Name).Return(provider, nil).AnyTimes()
+		check.Args(provider.Name).Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns(provider)
+	}))
+	s.Run("GetAIProviderByNameIncludeDeleted", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		dbm.EXPECT().GetAIProviderByNameIncludeDeleted(gomock.Any(), provider.Name).Return(provider, nil).AnyTimes()
+		check.Args(provider.Name).Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns(provider)
+	}))
+	s.Run("GetAIProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		providerA := testutil.Fake(s.T(), faker, database.AiProvider{})
+		providerB := testutil.Fake(s.T(), faker, database.AiProvider{})
+		dbm.EXPECT().GetAIProviders(gomock.Any()).Return([]database.AiProvider{providerA, providerB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns([]database.AiProvider{providerA, providerB})
+	}))
+	s.Run("GetEnabledAIProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		providerA := testutil.Fake(s.T(), faker, database.AiProvider{})
+		providerB := testutil.Fake(s.T(), faker, database.AiProvider{})
+		dbm.EXPECT().GetEnabledAIProviders(gomock.Any()).Return([]database.AiProvider{providerA, providerB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns([]database.AiProvider{providerA, providerB})
+	}))
+	s.Run("InsertAIProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIProviderParams{
+			ID:      uuid.New(),
+			Type:    database.AiProviderTypeOpenai,
+			Name:    "test-provider",
+			Enabled: true,
+			BaseUrl: "https://api.example.com/",
+			APIKey:  "test-key",
+		}
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{ID: arg.ID, Name: arg.Name})
+		dbm.EXPECT().InsertAIProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeProvider, policy.ActionCreate).Returns(provider)
+	}))
+	s.Run("UpdateAIProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		arg := database.UpdateAIProviderParams{
+			ID:      provider.ID,
+			Enabled: true,
+			BaseUrl: "https://api.example.com/",
+			APIKey:  "test-key",
+		}
+		dbm.EXPECT().UpdateAIProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeProvider, policy.ActionUpdate).Returns(provider)
+	}))
+	s.Run("SoftDeleteAIProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		dbm.EXPECT().SoftDeleteAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
+		check.Args(provider.ID).Asserts(rbac.ResourceAibridgeProvider, policy.ActionDelete).Returns(provider)
+	}))
 }
 
 func (s *MethodTestSuite) TestTelemetry() {

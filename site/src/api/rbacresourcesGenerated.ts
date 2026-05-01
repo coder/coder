@@ -21,6 +21,12 @@ export const RBACResourceActions: Partial<
 		read: "read aibridge interceptions & related records",
 		update: "update aibridge interceptions & related records",
 	},
+	aibridge_provider: {
+		create: "create an AI Bridge provider",
+		delete: "delete an AI Bridge provider",
+		read: "read AI Bridge provider configuration",
+		update: "update an AI Bridge provider",
+	},
 	api_key: {
 		create: "create an api key",
 		delete: "delete an api key",

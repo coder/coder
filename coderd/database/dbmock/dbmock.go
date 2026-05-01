@@ -1698,6 +1698,66 @@ func (mr *MockStoreMockRecorder) GetAIModelPriceByProviderModel(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceByProviderModel", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceByProviderModel), ctx, arg)
 }
 
+// GetAIProviderByID mocks base method.
+func (m *MockStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderByID", ctx, id)
+	ret0, _ := ret[0].(database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderByID indicates an expected call of GetAIProviderByID.
+func (mr *MockStoreMockRecorder) GetAIProviderByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByID", reflect.TypeOf((*MockStore)(nil).GetAIProviderByID), ctx, id)
+}
+
+// GetAIProviderByName mocks base method.
+func (m *MockStore) GetAIProviderByName(ctx context.Context, name string) (database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderByName", ctx, name)
+	ret0, _ := ret[0].(database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderByName indicates an expected call of GetAIProviderByName.
+func (mr *MockStoreMockRecorder) GetAIProviderByName(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByName", reflect.TypeOf((*MockStore)(nil).GetAIProviderByName), ctx, name)
+}
+
+// GetAIProviderByNameIncludeDeleted mocks base method.
+func (m *MockStore) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderByNameIncludeDeleted", ctx, name)
+	ret0, _ := ret[0].(database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderByNameIncludeDeleted indicates an expected call of GetAIProviderByNameIncludeDeleted.
+func (mr *MockStoreMockRecorder) GetAIProviderByNameIncludeDeleted(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByNameIncludeDeleted", reflect.TypeOf((*MockStore)(nil).GetAIProviderByNameIncludeDeleted), ctx, name)
+}
+
+// GetAIProviders mocks base method.
+func (m *MockStore) GetAIProviders(ctx context.Context) ([]database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviders", ctx)
+	ret0, _ := ret[0].([]database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviders indicates an expected call of GetAIProviders.
+func (mr *MockStoreMockRecorder) GetAIProviders(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviders", reflect.TypeOf((*MockStore)(nil).GetAIProviders), ctx)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -3106,6 +3166,21 @@ func (m *MockStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context
 func (mr *MockStoreMockRecorder) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEligibleProvisionerDaemonsByProvisionerJobIDs", reflect.TypeOf((*MockStore)(nil).GetEligibleProvisionerDaemonsByProvisionerJobIDs), ctx, provisionerJobIds)
+}
+
+// GetEnabledAIProviders mocks base method.
+func (m *MockStore) GetEnabledAIProviders(ctx context.Context) ([]database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEnabledAIProviders", ctx)
+	ret0, _ := ret[0].([]database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEnabledAIProviders indicates an expected call of GetEnabledAIProviders.
+func (mr *MockStoreMockRecorder) GetEnabledAIProviders(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledAIProviders", reflect.TypeOf((*MockStore)(nil).GetEnabledAIProviders), ctx)
 }
 
 // GetEnabledChatModelConfigByID mocks base method.
@@ -6647,6 +6722,21 @@ func (mr *MockStoreMockRecorder) InsertAIBridgeUserPrompt(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeUserPrompt", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeUserPrompt), ctx, arg)
 }
 
+// InsertAIProvider mocks base method.
+func (m *MockStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIProvider", ctx, arg)
+	ret0, _ := ret[0].(database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIProvider indicates an expected call of InsertAIProvider.
+func (mr *MockStoreMockRecorder) InsertAIProvider(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIProvider", reflect.TypeOf((*MockStore)(nil).InsertAIProvider), ctx, arg)
+}
+
 // InsertAPIKey mocks base method.
 func (m *MockStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -8338,6 +8428,21 @@ func (mr *MockStoreMockRecorder) SelectUsageEventsForPublishing(ctx, now any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectUsageEventsForPublishing", reflect.TypeOf((*MockStore)(nil).SelectUsageEventsForPublishing), ctx, now)
 }
 
+// SoftDeleteAIProviderByID mocks base method.
+func (m *MockStore) SoftDeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SoftDeleteAIProviderByID", ctx, id)
+	ret0, _ := ret[0].(database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SoftDeleteAIProviderByID indicates an expected call of SoftDeleteAIProviderByID.
+func (mr *MockStoreMockRecorder) SoftDeleteAIProviderByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteAIProviderByID", reflect.TypeOf((*MockStore)(nil).SoftDeleteAIProviderByID), ctx, id)
+}
+
 // SoftDeleteChatMessageByID mocks base method.
 func (m *MockStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	m.ctrl.T.Helper()
@@ -8507,6 +8612,21 @@ func (m *MockStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateAIBridgeInterceptionEnded(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIBridgeInterceptionEnded", reflect.TypeOf((*MockStore)(nil).UpdateAIBridgeInterceptionEnded), ctx, arg)
+}
+
+// UpdateAIProvider mocks base method.
+func (m *MockStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIProvider", ctx, arg)
+	ret0, _ := ret[0].(database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIProvider indicates an expected call of UpdateAIProvider.
+func (mr *MockStoreMockRecorder) UpdateAIProvider(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProvider", reflect.TypeOf((*MockStore)(nil).UpdateAIProvider), ctx, arg)
 }
 
 // UpdateAPIKeyByID mocks base method.

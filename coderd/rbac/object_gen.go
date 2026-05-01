@@ -40,6 +40,16 @@ var (
 		Type: "aibridge_interception",
 	}
 
+	// ResourceAibridgeProvider
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI Bridge provider
+	//  - "ActionDelete" :: delete an AI Bridge provider
+	//  - "ActionRead" :: read AI Bridge provider configuration
+	//  - "ActionUpdate" :: update an AI Bridge provider
+	ResourceAibridgeProvider = Object{
+		Type: "aibridge_provider",
+	}
+
 	// ResourceApiKey
 	// Valid Actions
 	//  - "ActionCreate" :: create an api key
@@ -452,6 +462,7 @@ func AllResources() []Objecter {
 		ResourceAiModelPrice,
 		ResourceAiSeat,
 		ResourceAibridgeInterception,
+		ResourceAibridgeProvider,
 		ResourceApiKey,
 		ResourceAssignOrgRole,
 		ResourceAssignRole,

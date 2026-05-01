@@ -14,6 +14,10 @@ const (
 	ScopeAibridgeInterceptionCreate          ScopeName = "aibridge_interception:create"
 	ScopeAibridgeInterceptionRead            ScopeName = "aibridge_interception:read"
 	ScopeAibridgeInterceptionUpdate          ScopeName = "aibridge_interception:update"
+	ScopeAibridgeProviderCreate              ScopeName = "aibridge_provider:create"
+	ScopeAibridgeProviderDelete              ScopeName = "aibridge_provider:delete"
+	ScopeAibridgeProviderRead                ScopeName = "aibridge_provider:read"
+	ScopeAibridgeProviderUpdate              ScopeName = "aibridge_provider:update"
 	ScopeApiKeyCreate                        ScopeName = "api_key:create"
 	ScopeApiKeyDelete                        ScopeName = "api_key:delete"
 	ScopeApiKeyRead                          ScopeName = "api_key:read"
@@ -182,6 +186,10 @@ func (e ScopeName) Valid() bool {
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
+		ScopeAibridgeProviderCreate,
+		ScopeAibridgeProviderDelete,
+		ScopeAibridgeProviderRead,
+		ScopeAibridgeProviderUpdate,
 		ScopeApiKeyCreate,
 		ScopeApiKeyDelete,
 		ScopeApiKeyRead,
@@ -351,6 +359,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
+		ScopeAibridgeProviderCreate,
+		ScopeAibridgeProviderDelete,
+		ScopeAibridgeProviderRead,
+		ScopeAibridgeProviderUpdate,
 		ScopeApiKeyCreate,
 		ScopeApiKeyDelete,
 		ScopeApiKeyRead,

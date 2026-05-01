@@ -34,6 +34,7 @@ type Auditable interface {
 		idpsync.RoleSyncSettings |
 		database.TaskTable |
 		database.AiSeatState |
+		database.AiProvider |
 		database.Chat |
 		database.UserSecret
 }

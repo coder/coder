@@ -6399,6 +6399,7 @@ export type RBACResource =
 	| "ai_model_price"
 	| "ai_seat"
 	| "aibridge_interception"
+	| "aibridge_provider"
 	| "api_key"
 	| "assign_org_role"
 	| "assign_role"
@@ -6447,6 +6448,7 @@ export const RBACResources: RBACResource[] = [
 	"ai_model_price",
 	"ai_seat",
 	"aibridge_interception",
+	"aibridge_provider",
 	"api_key",
 	"assign_org_role",
 	"assign_role",
@@ -6603,6 +6605,7 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_provider"
 	| "ai_seat"
 	| "api_key"
 	| "chat"
@@ -6634,6 +6637,7 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_provider",
 	"ai_seat",
 	"api_key",
 	"chat",
