@@ -6,7 +6,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { Link, useOutletContext, useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
@@ -44,7 +44,6 @@ import {
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
@@ -57,6 +56,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -82,6 +82,7 @@ import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	hasConfiguredProviderConfigs,
 	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./utils/modelOptions";
@@ -102,57 +103,6 @@ export const draftInputStorageKeyPrefix = "agents.draft-input.";
 export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
-
-const agentSetupLinkClassName =
-	"underline transition-colors hover:text-content-primary";
-
-interface AgentSetupNoticeProps {
-	noProvidersConfigured: boolean;
-	noModelsConfigured: boolean;
-}
-
-export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
-	noProvidersConfigured,
-	noModelsConfigured,
-}) => {
-	if (!noProvidersConfigured && !noModelsConfigured) {
-		return null;
-	}
-
-	return (
-		<Alert severity="warning">
-			<div className="flex flex-col gap-2">
-				<div>
-					<div className="font-medium text-content-primary">
-						Finish setting up Coder agents
-					</div>
-					<div className="mt-1 text-content-secondary">
-						Configure a chat provider and a chat model before using Coder
-						agents.
-					</div>
-				</div>
-				<div className="flex flex-wrap gap-x-3 gap-y-1">
-					{noProvidersConfigured && (
-						<Link
-							to="/agents/settings/providers"
-							className={agentSetupLinkClassName}
-						>
-							Configure providers
-						</Link>
-					)}
-					{noModelsConfigured && (
-						<Link
-							to="/agents/settings/models"
-							className={agentSetupLinkClassName}
-						>
-							Configure models
-						</Link>
-					)}
-				</div>
-			</div>
-		</Alert>
-	);
-};
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 
@@ -786,7 +736,7 @@ const AgentChatPage: FC = () => {
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const noProvidersConfigured =
 		chatProviderConfigsQuery.isSuccess &&
-		chatProviderConfigsQuery.data.length === 0;
+		!hasConfiguredProviderConfigs(chatProviderConfigsQuery.data);
 	const noModelsConfigured =
 		chatModelConfigsQuery.isSuccess && chatModelConfigsQuery.data.length === 0;
 	const modelCatalog = chatModelsQuery.data;

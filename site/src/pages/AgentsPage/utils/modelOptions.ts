@@ -39,6 +39,16 @@ type ModelOptionConfigLike =
 			readonly context_limit?: unknown;
 	  });
 
+export const hasConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+): boolean => {
+	return (
+		providerConfigs?.some((providerConfig) => {
+			return providerConfig.source !== "supported";
+		}) ?? false
+	);
+};
+
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
 ): { readonly provider: string; readonly model: string } => {

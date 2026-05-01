@@ -6,6 +6,7 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	chatModelConfigs,
 	chatModels,
+	chatProviderConfigs,
 	createChat,
 	mcpServerConfigs,
 } from "#/api/queries/chats";
@@ -18,10 +19,14 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	getModelOptionsFromConfigs,
+	hasConfiguredProviderConfigs,
+} from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -34,6 +39,7 @@ const AgentCreatePage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery(chatProviderConfigs());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -44,6 +50,18 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
+	const noProvidersConfigured =
+		chatProviderConfigsQuery.isSuccess &&
+		!hasConfiguredProviderConfigs(chatProviderConfigsQuery.data);
+	const noModelsConfigured =
+		chatModelConfigsQuery.isSuccess && chatModelConfigsQuery.data.length === 0;
+	const agentSetupNotice =
+		noProvidersConfigured || noModelsConfigured ? (
+			<AgentSetupNotice
+				noProvidersConfigured={noProvidersConfigured}
+				noModelsConfigured={noModelsConfigured}
+			/>
+		) : undefined;
 
 	const handleCreateChat = async ({
 		message,
@@ -120,6 +138,7 @@ const AgentCreatePage: FC = () => {
 				canCreateChat={permissions.createChat}
 				modelCatalog={chatModelsQuery.data}
 				modelOptions={catalogModelOptions}
+				agentSetupNotice={agentSetupNotice}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}

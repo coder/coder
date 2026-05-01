@@ -17,6 +17,7 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
+import { AgentSetupNotice } from "./AgentSetupNotice";
 
 // Query key used by permittedOrganizations() in the form.
 const permittedOrgsKey = [
@@ -236,6 +237,32 @@ export const NoModelsConfigured: Story = {
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
+	},
+};
+
+export const MissingProviderAndModelSetup: Story = {
+	args: {
+		...defaultArgs,
+		agentSetupNotice: (
+			<AgentSetupNotice noProvidersConfigured noModelsConfigured />
+		),
+		modelCatalog: { providers: [] },
+		modelOptions: [],
+		isModelCatalogLoading: false,
+		isModelConfigsLoading: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Finish setting up Coder agents"),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: /configure providers/i }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(
+			canvas.getByRole("link", { name: /configure models/i }),
+		).toHaveAttribute("href", "/agents/settings/models");
 	},
 };
 
