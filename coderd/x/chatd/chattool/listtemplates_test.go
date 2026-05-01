@@ -281,15 +281,10 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("Disallowed", func(t *testing.T) {
-			var (
-				createCalled        = false
-				chatID              = uuid.New()
-				requestedTemplateID = uuid.New()
-				allowedTemplateID   = uuid.New()
-			)
-			tool := chattool.CreateWorkspace(db, chatID, requestedTemplateID, chattool.CreateWorkspaceOptions{
+			var createCalled bool
+			tool := chattool.CreateWorkspace(db, org.ID, uuid.New(), chattool.CreateWorkspaceOptions{
 				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{allowedTemplateID: true} },
+				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t2.ID: true} },
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 					createCalled = true
 					t.Fatal("CreateFn should not be called for blocked template")
