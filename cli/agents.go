@@ -81,8 +81,9 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 	)
 
 	return &serpent.Command{
-		Use:   "agents [chat-id]",
-		Short: "Interactive terminal UI for AI agents.",
+		Use:     "agents [chat-id]",
+		Short:   "Interactive terminal UI for AI agents.",
+		Aliases: []string{"agent"},
 		Options: serpent.OptionSet{
 			{
 				Name:        "workspace",

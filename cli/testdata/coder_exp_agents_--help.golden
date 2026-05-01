@@ -1,9 +1,11 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder agents [flags] [chat-id]
+  coder exp agents [flags] [chat-id]
 
   Interactive terminal UI for AI agents.
+
+  Aliases: agent
 
 OPTIONS:
       --model string
