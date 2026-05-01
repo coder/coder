@@ -2302,9 +2302,9 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 			err := inv.WithContext(ctx).Run()
 			assert.Error(t, err)
-			var exitErr *ssh.ExitError
+			var exitErr interface{ ExitCode() int }
 			assert.True(t, errors.As(err, &exitErr))
-			assert.Equal(t, 1, exitErr.ExitStatus())
+			assert.Equal(t, 1, exitErr.ExitCode())
 		})
 	})
 

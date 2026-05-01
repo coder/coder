@@ -708,9 +708,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 				if err != nil {
 					if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
 						// Preserve the remote command's exit status as the CLI
-						// exit code instead of falling back to the default of 1
-						// for any non-zero exit.
-						return ExitError(exitErr.ExitStatus(), err)
+						// exit code, but clear the error since it's not useful
+						// beyond reporting status.
+						return ExitError(exitErr.ExitStatus(), nil)
+					}
+					if errors.Is(err, &gossh.ExitMissingError{}) {
+						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 					}
 					return xerrors.Errorf("run command: %w", err)
 				}
