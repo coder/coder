@@ -192,7 +192,9 @@ export function Autocomplete<TOption>({
 
 		if (e.key === "ArrowDown" || e.key === "ArrowUp") {
 			e.preventDefault();
-			handleOpenChange(true);
+			if (!isOpen) {
+				handleOpenChange(true);
+			}
 
 			if (options.length === 0) {
 				updateHighlightedValue(null);
@@ -352,7 +354,6 @@ export function Autocomplete<TOption>({
 											return (
 												<CommandItem
 													role="option"
-													aria-selected={isSelected(option)}
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}
 													value={optionValue}
