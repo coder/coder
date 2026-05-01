@@ -76,7 +76,7 @@ export const UsersTable: React.FC<UsersTableProps> = (props) => {
 		<Table data-testid="users-table">
 			<TableHeader>
 				<TableRow>
-					<TableHead className="w-2/6">User</TableHead>
+					<TableHead className="w-max">User</TableHead>
 					<TableHead className="w-1/6">
 						<div className="flex flex-row gap-2 items-center">
 							<span>Roles</span>
@@ -102,7 +102,7 @@ export const UsersTable: React.FC<UsersTableProps> = (props) => {
 			</TableHeader>
 
 			<TableBody>
-				<UsersTableBody {...props} />
+				<UsersTableBody {...props} showAISeatColumn={showAISeatColumn} />
 			</TableBody>
 		</Table>
 	);
