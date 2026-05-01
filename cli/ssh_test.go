@@ -2368,6 +2368,48 @@ func TestSSH_CoderConnect(t *testing.T) {
 	})
 }
 
+func TestSSH_OneShotCommandMode(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("test and wc don't exist on Windows")
+	}
+
+	client, workspace, agentToken := setupWorkspaceForAgent(t)
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	t.Run("DoesNotRequestPTY", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "test -t 0 && echo tty || echo not-tty")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "not-tty", strings.TrimSpace(output.String()))
+	})
+
+	t.Run("ClosesStdinOnEOF", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "wc -l")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = strings.NewReader("a\nb\nc\n")
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "3", strings.TrimSpace(output.String()))
+	})
+}
+
 type fakeCoderConnectDialer struct{}
 
 func (*fakeCoderConnectDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {

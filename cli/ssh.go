@@ -633,9 +633,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			requestPTY := command == ""
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
-			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+			if requestPTY && validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
 				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
@@ -685,21 +686,21 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
-			if err != nil {
-				return xerrors.Errorf("request pty: %w", err)
-			}
-
 			sshSession.Stdin = inv.Stdin
 			sshSession.Stdout = inv.Stdout
 			sshSession.Stderr = inv.Stderr
 
-			if command != "" {
+			if !requestPTY {
 				err := sshSession.Run(command)
 				if err != nil {
 					return xerrors.Errorf("run command: %w", err)
 				}
 			} else {
+				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+				if err != nil {
+					return xerrors.Errorf("request pty: %w", err)
+				}
+
 				err = sshSession.Shell()
 				if err != nil {
 					return xerrors.Errorf("start shell: %w", err)
