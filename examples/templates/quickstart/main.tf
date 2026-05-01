@@ -293,9 +293,8 @@ module "git-clone" {
 # --- Presets ---
 
 data "coder_workspace_preset" "web_dev" {
-  name    = "Web Development"
-  icon    = "/icon/nodejs.svg"
-  default = true
+  name = "Web Development"
+  icon = "/icon/nodejs.svg"
   parameters = {
     languages = jsonencode(["python", "nodejs"])
     ides      = jsonencode(["code-server"])
