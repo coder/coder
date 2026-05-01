@@ -1440,13 +1440,6 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "query",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "File MIME type",
-                        "name": "Content-Type",
-                        "in": "header",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -1468,7 +1461,15 @@ const docTemplate = `{
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
-                    "application/octet-stream"
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
                 ],
                 "tags": [
                     "Chats"
@@ -1664,6 +1665,9 @@ const docTemplate = `{
         "/experimental/chats/{chat}/interrupt": {
             "post": {
                 "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Chats"
                 ],
@@ -1680,8 +1684,11 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
                     }
                 },
                 "security": [
@@ -1777,8 +1784,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
                         }
@@ -1871,10 +1878,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatStreamEvent"
-                            }
+                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
                         }
                     }
                 },
@@ -1887,7 +1891,7 @@ const docTemplate = `{
         },
         "/experimental/chats/{chat}/stream/desktop": {
             "get": {
-                "description": "Experimental: this endpoint is subject to change.",
+                "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
                 "produces": [
                     "application/octet-stream"
                 ],

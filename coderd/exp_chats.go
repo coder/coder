@@ -2061,6 +2061,7 @@ proxyLoop:
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 101
 // @Router /experimental/chats/{chat}/stream/desktop [get]
+// @Description Raw binary WebSocket stream of the chat workspace desktop.
 // @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -2560,7 +2561,7 @@ func (api *API) writeChildUnarchiveGuard(
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
-// @Success 201 {object} codersdk.CreateChatMessageResponse
+// @Success 200 {object} codersdk.CreateChatMessageResponse
 // @Router /experimental/chats/{chat}/messages [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
@@ -2983,7 +2984,7 @@ func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {array} codersdk.ChatStreamEvent
+// @Success 200 {object} codersdk.ChatStreamEvent
 // @Router /experimental/chats/{chat}/stream [get]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
@@ -3127,7 +3128,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 204
+// @Produce json
+// @Success 200 {object} codersdk.Chat
 // @Router /experimental/chats/{chat}/interrupt [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
@@ -4955,7 +4957,6 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
-// @Param Content-Type header string true "File MIME type"
 // @Success 201 {object} codersdk.UploadChatFileResponse
 // @Router /experimental/chats/files [post]
 // @Description Experimental: this endpoint is subject to change.
@@ -5091,7 +5092,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce application/octet-stream
+// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
 // @Router /experimental/chats/files/{file} [get]
