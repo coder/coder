@@ -1970,6 +1970,36 @@ export const KnownModelAutoHidePopoverWhenNoMatches: Story = {
 	},
 };
 
+export const KnownModelBlurAfterAutoHideCommitsOffCatalog: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	name: "Add mode / DEREM-45: blur after auto-hide commits off-catalog identifier",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+
+		const input = await body.findByRole("combobox", {
+			name: /Model Identifier/i,
+		});
+		await userEvent.click(input);
+		await userEvent.clear(input);
+		await userEvent.type(input, "claude-opus-4-5");
+
+		// Popover should auto-hide for the unmatched query.
+		await waitFor(() => {
+			expect(body.queryByRole("listbox")).not.toBeInTheDocument();
+		});
+		await expect(input).toHaveAttribute("aria-expanded", "false");
+
+		// Blur via Tab: focus moves to the next field, exercising the
+		// handleBlur auto-hide path that calls handleOpenChange(false).
+		await userEvent.tab();
+
+		await expectModelIdentifierValue(body, "claude-opus-4-5");
+		// No defaults feedback for off-catalog identifiers.
+		expect(body.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
 export const OpenAIKnownModelTriggerInputIsTypedField: Story = {
 	...providerFormSetup("openai", "OpenAI"),
 	name: "Add mode / DEREM-35: trigger input is the typed field",
