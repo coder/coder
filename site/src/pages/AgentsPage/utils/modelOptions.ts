@@ -42,10 +42,16 @@ type ModelOptionConfigLike =
 export const hasConfiguredProviderConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
 ): boolean => {
+	return countConfiguredProviderConfigs(providerConfigs) > 0;
+};
+
+export const countConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+): number => {
 	return (
-		providerConfigs?.some((providerConfig) => {
+		providerConfigs?.filter((providerConfig) => {
 			return providerConfig.source !== "supported";
-		}) ?? false
+		}).length ?? 0
 	);
 };
 

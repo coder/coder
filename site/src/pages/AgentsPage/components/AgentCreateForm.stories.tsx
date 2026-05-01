@@ -243,24 +243,32 @@ export const NoModelsConfigured: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	args: {
 		...defaultArgs,
-		agentSetupNotice: (
-			<AgentSetupNotice noProvidersConfigured noModelsConfigured />
-		),
+		agentSetupNotice: <AgentSetupNotice providerCount={0} modelCount={0} />,
 		modelCatalog: { providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = within(
+			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
+		);
 
-		await expect(canvas.getByText("Finish setting up agents")).toBeVisible();
+		await expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
 		expect(
-			canvas.getByRole("link", { name: /configure providers/i }),
+			dialog.getByText("Connect a chat provider (0 provider configured)"),
+		).toBeVisible();
+		expect(
+			dialog.getByText("Add a chat model (0 models configured)"),
+		).toBeVisible();
+		expect(
+			dialog.getByRole("link", { name: "Go to Providers" }),
 		).toHaveAttribute("href", "/agents/settings/providers");
-		expect(
-			canvas.getByRole("link", { name: /configure models/i }),
-		).toHaveAttribute("href", "/agents/settings/models");
+		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
 	},
 };
 

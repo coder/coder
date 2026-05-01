@@ -5,6 +5,7 @@ import type {
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
 import {
+	countConfiguredProviderConfigs,
 	formatProviderLabel,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
@@ -134,6 +135,18 @@ describe("hasConfiguredProviderConfigs", () => {
 				createProviderConfig({ provider: "openai", source: "env_preset" }),
 			]),
 		).toBe(true);
+	});
+});
+
+describe("countConfiguredProviderConfigs", () => {
+	it("counts database and env preset provider configs", () => {
+		expect(
+			countConfiguredProviderConfigs([
+				createProviderConfig({ provider: "openai", source: "database" }),
+				createProviderConfig({ provider: "anthropic", source: "env_preset" }),
+				createProviderConfig({ provider: "google", source: "supported" }),
+			]),
+		).toBe(2);
 	});
 });
 

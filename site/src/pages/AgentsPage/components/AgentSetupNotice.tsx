@@ -1,53 +1,126 @@
+import { CheckIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
-import { Alert } from "#/components/Alert/Alert";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 
 const agentSetupLinkClassName =
-	"underline transition-colors hover:text-content-primary";
+	"text-content-link transition-colors hover:text-content-link/80";
 
 interface AgentSetupNoticeProps {
-	noProvidersConfigured: boolean;
-	noModelsConfigured: boolean;
+	providerCount: number;
+	modelCount: number;
 }
 
 export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
-	noProvidersConfigured,
-	noModelsConfigured,
+	providerCount,
+	modelCount,
 }) => {
-	if (!noProvidersConfigured && !noModelsConfigured) {
+	const hasProvider = providerCount > 0;
+	const hasModel = modelCount > 0;
+
+	if (hasProvider && hasModel) {
 		return null;
 	}
 
 	return (
-		<Alert severity="warning">
-			<div className="flex flex-col gap-2">
-				<div>
-					<div className="font-medium text-content-primary">
-						Finish setting up agents
-					</div>
-					<div className="mt-1 text-content-secondary">
-						Configure a provider and a model before using agents.
-					</div>
+		<Dialog open>
+			<DialogContent
+				className="w-fit max-w-[calc(100vw-2rem)] gap-8"
+				onEscapeKeyDown={(event) => {
+					event.preventDefault();
+				}}
+				onPointerDownOutside={(event) => {
+					event.preventDefault();
+				}}
+			>
+				<DialogHeader className="space-y-5 text-left sm:text-left">
+					<DialogTitle className="text-xl">Welcome to Coder Agents</DialogTitle>
+					<DialogDescription className="text-base">
+						Coder Agents is almost ready. Complete 2 quick steps to get started.
+					</DialogDescription>
+				</DialogHeader>
+
+				<div className="flex flex-col gap-3 text-base text-content-secondary">
+					<AgentSetupStep
+						isComplete={hasProvider}
+						stepNumber={1}
+						label="Connect a chat provider"
+						countLabel={formatProviderCount(providerCount)}
+						linkTo="/agents/settings/providers"
+						linkText="Go to Providers"
+					/>
+					<AgentSetupStep
+						isComplete={hasModel}
+						stepNumber={2}
+						label="Add a chat model"
+						countLabel={formatModelCount(modelCount)}
+						linkTo="/agents/settings/models"
+						linkText="Go to Models"
+					/>
 				</div>
-				<div className="flex flex-wrap gap-x-3 gap-y-1">
-					{noProvidersConfigured && (
-						<Link
-							to="/agents/settings/providers"
-							className={agentSetupLinkClassName}
-						>
-							Configure providers
-						</Link>
-					)}
-					{noModelsConfigured && (
-						<Link
-							to="/agents/settings/models"
-							className={agentSetupLinkClassName}
-						>
-							Configure models
-						</Link>
-					)}
-				</div>
-			</div>
-		</Alert>
+			</DialogContent>
+		</Dialog>
 	);
+};
+
+interface AgentSetupStepProps {
+	isComplete: boolean;
+	stepNumber: number;
+	label: string;
+	countLabel: string;
+	linkTo: string;
+	linkText: string;
+}
+
+const AgentSetupStep: FC<AgentSetupStepProps> = ({
+	isComplete,
+	stepNumber,
+	label,
+	countLabel,
+	linkTo,
+	linkText,
+}) => {
+	return (
+		<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+			<span className="flex w-7 shrink-0 justify-end text-content-secondary">
+				{isComplete ? (
+					<CheckIcon
+						aria-label="Complete"
+						className="h-5 w-5 text-content-success"
+					/>
+				) : (
+					`${stepNumber}.`
+				)}
+			</span>
+			<span className="text-content-secondary">
+				{label} ({countLabel})
+			</span>
+			<Link to={linkTo} className={agentSetupLinkClassName}>
+				{linkText}
+			</Link>
+		</div>
+	);
+};
+
+const formatProviderCount = (providerCount: number): string => {
+	if (providerCount === 0) {
+		return "0 provider configured";
+	}
+	if (providerCount === 1) {
+		return "1 provider configured";
+	}
+	return `${providerCount} providers configured`;
+};
+
+const formatModelCount = (modelCount: number): string => {
+	if (modelCount === 1) {
+		return "1 model configured";
+	}
+	return `${modelCount} models configured`;
 };

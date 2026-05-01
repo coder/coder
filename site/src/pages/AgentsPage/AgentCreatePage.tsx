@@ -24,8 +24,8 @@ import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
+	countConfiguredProviderConfigs,
 	getModelOptionsFromConfigs,
-	hasConfiguredProviderConfigs,
 } from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
@@ -50,17 +50,17 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
-	const noProvidersConfigured =
-		chatProviderConfigsQuery.isSuccess &&
-		!hasConfiguredProviderConfigs(chatProviderConfigsQuery.data);
-	const noModelsConfigured =
-		chatModelConfigsQuery.isSuccess && chatModelConfigsQuery.data.length === 0;
+	const providerCount = chatProviderConfigsQuery.isSuccess
+		? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
+		: undefined;
+	const modelCount = chatModelConfigsQuery.isSuccess
+		? chatModelConfigsQuery.data.length
+		: undefined;
 	const agentSetupNotice =
-		noProvidersConfigured || noModelsConfigured ? (
-			<AgentSetupNotice
-				noProvidersConfigured={noProvidersConfigured}
-				noModelsConfigured={noModelsConfigured}
-			/>
+		providerCount !== undefined &&
+		modelCount !== undefined &&
+		(providerCount === 0 || modelCount === 0) ? (
+			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
 		) : undefined;
 
 	const handleCreateChat = async ({

@@ -79,10 +79,10 @@ import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
+	countConfiguredProviderConfigs,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
-	hasConfiguredProviderConfigs,
 	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./utils/modelOptions";
@@ -734,11 +734,12 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
-	const noProvidersConfigured =
-		chatProviderConfigsQuery.isSuccess &&
-		!hasConfiguredProviderConfigs(chatProviderConfigsQuery.data);
-	const noModelsConfigured =
-		chatModelConfigsQuery.isSuccess && chatModelConfigsQuery.data.length === 0;
+	const providerCount = chatProviderConfigsQuery.isSuccess
+		? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
+		: undefined;
+	const modelCount = chatModelConfigsQuery.isSuccess
+		? chatModelConfigsQuery.data.length
+		: undefined;
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 
@@ -1029,11 +1030,10 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const agentSetupNotice =
-		noProvidersConfigured || noModelsConfigured ? (
-			<AgentSetupNotice
-				noProvidersConfigured={noProvidersConfigured}
-				noModelsConfigured={noModelsConfigured}
-			/>
+		providerCount !== undefined &&
+		modelCount !== undefined &&
+		(providerCount === 0 || modelCount === 0) ? (
+			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
 		) : undefined;
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;

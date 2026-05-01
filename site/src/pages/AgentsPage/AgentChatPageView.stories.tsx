@@ -386,72 +386,91 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice noProvidersConfigured noModelsConfigured />
-			}
+			agentSetupNotice={<AgentSetupNotice providerCount={0} modelCount={0} />}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = within(
+			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
+		);
+
+		expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
 		expect(
-			canvas.getByText(/configure a provider and a model before using agents/i),
+			dialog.getByText("Connect a chat provider (0 provider configured)"),
 		).toBeVisible();
 		expect(
-			canvas.getByRole("link", { name: /configure providers/i }),
-		).toHaveAttribute("href", "/agents/settings/providers");
+			dialog.getByText("Add a chat model (0 models configured)"),
+		).toBeVisible();
 		expect(
-			canvas.getByRole("link", { name: /configure models/i }),
-		).toHaveAttribute("href", "/agents/settings/models");
+			dialog.getByRole("link", { name: "Go to Providers" }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
 	},
 };
 
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice noProvidersConfigured={false} noModelsConfigured />
-			}
+			agentSetupNotice={<AgentSetupNotice providerCount={1} modelCount={0} />}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = within(
+			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
+		);
+
 		expect(
-			canvas.getByText(/configure a provider and a model before using agents/i),
+			dialog.getByText("Connect a chat provider (1 provider configured)"),
 		).toBeVisible();
 		expect(
-			canvas.queryByRole("link", { name: /configure providers/i }),
-		).not.toBeInTheDocument();
+			dialog.getByText("Add a chat model (0 models configured)"),
+		).toBeVisible();
 		expect(
-			canvas.getByRole("link", { name: /configure models/i }),
-		).toHaveAttribute("href", "/agents/settings/models");
+			dialog.getByRole("link", { name: "Go to Providers" }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
 	},
 };
 
 export const MissingProviderSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice noProvidersConfigured noModelsConfigured={false} />
-			}
+			agentSetupNotice={<AgentSetupNotice providerCount={0} modelCount={1} />}
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = within(
+			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
+		);
+
 		expect(
-			canvas.getByText(/configure a provider and a model before using agents/i),
+			dialog.getByText("Connect a chat provider (0 provider configured)"),
 		).toBeVisible();
 		expect(
-			canvas.getByRole("link", { name: /configure providers/i }),
-		).toHaveAttribute("href", "/agents/settings/providers");
+			dialog.getByText("Add a chat model (1 model configured)"),
+		).toBeVisible();
 		expect(
-			canvas.queryByRole("link", { name: /configure models/i }),
-		).not.toBeInTheDocument();
+			dialog.getByRole("link", { name: "Go to Providers" }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
 	},
 };
 
