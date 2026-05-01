@@ -398,7 +398,9 @@ export const MissingProviderAndModelSetup: Story = {
 			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
 		);
 
-		expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+		await waitFor(() => {
+			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+		});
 		expect(
 			dialog.getByText("Connect a chat provider (0 provider configured)"),
 		).toBeVisible();
@@ -430,6 +432,9 @@ export const MissingModelSetup: Story = {
 			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
 		);
 
+		await waitFor(() => {
+			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+		});
 		expect(
 			dialog.getByText("Connect a chat provider (1 provider configured)"),
 		).toBeVisible();
@@ -458,6 +463,9 @@ export const MissingProviderSetup: Story = {
 			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
 		);
 
+		await waitFor(() => {
+			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+		});
 		expect(
 			dialog.getByText("Connect a chat provider (0 provider configured)"),
 		).toBeVisible();
