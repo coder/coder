@@ -235,6 +235,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = row
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, aiProviderKeyChanges{Added: keys})
+	publishAIProvidersChanged(ctx, api.Pubsub, api.Logger)
 
 	sdk, err := db2sdk.AIProvider(row, keys)
 	if err != nil {
@@ -400,6 +401,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
+	publishAIProvidersChanged(ctx, api.Pubsub, api.Logger)
 
 	sdk, err := db2sdk.AIProvider(updated, keys)
 	if err != nil {
@@ -452,6 +454,8 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 		writeAIProviderError(ctx, api.Logger, rw, err, "delete AI provider", "Internal error deleting AI provider.")
 		return
 	}
+
+	publishAIProvidersChanged(ctx, api.Pubsub, api.Logger)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
