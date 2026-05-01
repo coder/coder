@@ -1997,6 +1997,17 @@ export const KnownModelBlurAfterAutoHideCommitsOffCatalog: Story = {
 		await expectModelIdentifierValue(body, "claude-opus-4-5");
 		// No defaults feedback for off-catalog identifiers.
 		expect(body.queryByRole("status")).not.toBeInTheDocument();
+		// Critical: in the buggy variant where handleBlur skips the
+		// handleOpenChange(false) branch for the auto-hidden popover,
+		// the inline input still visually shows the typed search text
+		// (via the controlled inputValue prop), so any DOM-value
+		// assertion would pass vacuously. The committed form value is
+		// what diverges, surfaced here via the required-field error:
+		// markTouched() runs in the buggy path with form.values.model
+		// still empty, producing "Model ID is required." The fixed path
+		// commits the typed text via setFieldValue first, clearing the
+		// validation error.
+		expect(body.queryByText("Model ID is required.")).not.toBeInTheDocument();
 	},
 };
 
