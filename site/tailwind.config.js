@@ -155,7 +155,7 @@ module.exports = {
 					},
 				},
 				// Used by AgentStatus connecting/starting/stopping dots.
-				pulse: {
+				"pulse-status": {
 					"0%": { opacity: "1" },
 					"50%": { opacity: "0.4" },
 					"100%": { opacity: "1" },

@@ -67,7 +67,7 @@ export const Active: Story = {
 export const Muted: Story = {
 	args: {
 		children: "Muted",
-		type: "muted",
+		type: "muted" as const,
 	},
 };
 

@@ -1,5 +1,6 @@
 import TextField from "@mui/material/TextField";
 import { type FC, type FormEvent, useId, useState } from "react";
+import { Alert } from "#/components/Alert/Alert";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 interface DeleteDialogProps {
@@ -64,11 +65,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 						<p>
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
-						{Boolean(info) && (
-							<div className="rounded-md border border-solid border-border-warning bg-surface-orange px-4 py-2 text-content-primary">
-								{info}
-							</div>
-						)}
+						{Boolean(info) && <Alert severity="warning">{info}</Alert>}
 						<p>
 							Type <strong>{name}</strong> below to confirm.
 						</p>

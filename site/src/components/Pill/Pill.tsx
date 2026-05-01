@@ -6,9 +6,11 @@ import { type FC, type ReactNode, useMemo } from "react";
 import type { ThemeRole } from "#/theme/roles";
 import { cn } from "#/utils/cn";
 
+type PillType = ThemeRole | "muted";
+
 type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon?: ReactNode;
-	type?: ThemeRole;
+	type?: PillType;
 	size?: "md" | "lg";
 };
 
@@ -24,7 +26,10 @@ export const Pill: FC<PillProps> = ({
 	...divProps
 }) => {
 	const theme = useTheme();
-	const fillStyles = useMemo(() => {
+	const roleColors = useMemo(() => {
+		if (type === "muted") {
+			return undefined;
+		}
 		const palette = theme.roles[type];
 		return {
 			backgroundColor: palette.background,
@@ -39,13 +44,15 @@ export const Pill: FC<PillProps> = ({
 				"inline-flex items-center whitespace-nowrap rounded-full border border-solid",
 				"font-normal text-xs leading-none cursor-default",
 				"[&>svg]:size-[14px]",
+				type === "muted" &&
+					"bg-surface-tertiary border-border-secondary text-content-secondary",
 				size === "md" && "h-6 gap-[5px] px-3",
 				Boolean(icon) && size === "md" && "pl-[5px]",
 				size === "lg" && "h-[30px] gap-[10px] px-4",
 				Boolean(icon) && size === "lg" && "pl-[10px]",
 				className,
 			)}
-			style={{ ...fillStyles, ...style }}
+			style={{ ...roleColors, ...style }}
 			{...divProps}
 		>
 			{icon}

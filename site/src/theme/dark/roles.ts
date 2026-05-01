@@ -142,16 +142,6 @@ const roles: Roles = {
 			text: colors.white,
 		},
 	},
-	muted: {
-		background: colors.zinc[800],
-		outline: colors.zinc[700],
-		text: colors.zinc[200],
-		fill: {
-			solid: colors.zinc[500],
-			outline: colors.zinc[500],
-			text: colors.white,
-		},
-	},
 	preview: {
 		background: colors.violet[950],
 		outline: colors.violet[500],
