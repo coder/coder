@@ -3202,6 +3202,11 @@ func (api *API) chatCreateWorkspace(
 // chatStartWorkspace starts a stopped workspace by creating a new
 // build with the "start" transition. It mirrors chatCreateWorkspace
 // but for the start path.
+//
+// Aliased as ChatStartWorkspace in coderd/export_test.go so external
+// tests in the coderd_test package can drive the auto-update path
+// end-to-end. The proper fix is to extract the request building into
+// a pure function; tracked in CODAGT-292.
 func (api *API) chatStartWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,

@@ -423,5 +423,7 @@ func (m *testMetrics) Latencies() []float64 {
 }
 
 func (m *testMetrics) GetTotalBytes() int64 {
+	m.Lock()
+	defer m.Unlock()
 	return int64(m.total)
 }
