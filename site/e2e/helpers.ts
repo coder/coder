@@ -1337,7 +1337,7 @@ export async function createUser(
 	for (const role of roles) {
 		await page.getByRole("dialog").getByText(role, { exact: true }).click();
 	}
-	await page.mouse.click(10, 10); // close the popover by clicking outside of it
+	await page.getByText("Confirm").click();
 
 	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
 	return { name, username, email, password, roles };
