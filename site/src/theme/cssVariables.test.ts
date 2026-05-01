@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CONCRETE_THEMES } from "./colorblind";
+import { baseModeFor, CONCRETE_THEMES, type ConcreteThemeName } from ".";
 
 const REQUIRED_VARIABLES = [
 	"--content-primary",
@@ -18,9 +18,9 @@ const REQUIRED_VARIABLES = [
 	"--surface-git-added",
 	"--surface-git-deleted",
 	// Extended palette surface. These carry semantic color meaning in
-	// alerts, badges, chips, and syntax highlighting. A theme block that
-	// omits one would silently inherit the base value and break the
-	// colorblind intent on the affected surface.
+	// alerts, badges, chips, and syntax highlighting. A concrete theme
+	// must resolve every token after base mode and variant overrides are
+	// applied.
 	"--content-link",
 	"--surface-destructive",
 	"--surface-green",
@@ -55,32 +55,64 @@ const THEME_CLASSES = [
 	...CONCRETE_THEMES.map((themeName) => `.${themeName}`),
 ];
 
-const COLORBLIND_THEME_CLASSES = CONCRETE_THEMES.filter((themeName) =>
-	themeName.includes("-"),
-).map((themeName) => `.${themeName}`);
+const COLORBLIND_THEME_CLASSES = [
+	".dark-protan-deuter",
+	".light-protan-deuter",
+	".dark-tritan",
+	".light-tritan",
+];
 
-const TRITAN_THEME_CLASSES = CONCRETE_THEMES.filter((themeName) =>
-	themeName.endsWith("-tritan"),
-).map((themeName) => `.${themeName}`);
+const TRITAN_THEME_CLASSES = [".dark-tritan", ".light-tritan"];
 
 function extractBlock(css: string, selector: string): string | null {
-	const pattern = new RegExp(
-		`(?:^|[,\\s])${escapeRegex(selector)}(?:[,\\s][^{]*)?\\s*\\{([^}]*)\\}`,
-		"m",
-	);
-	const match = css.match(pattern);
-	return match ? match[1] : null;
-}
+	for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+		const selectorList = match[1];
+		const block = match[2];
+		if (selectorList === undefined || block === undefined) {
+			continue;
+		}
 
-function escapeRegex(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		const selectors = selectorList.split(",").map((value) => value.trim());
+		if (selectors.includes(selector)) {
+			return block;
+		}
+	}
+	return null;
 }
 
 function extractVariable(block: string, variable: string): string | null {
-	const match = block.match(
-		new RegExp(`${escapeRegex(variable)}\\s*:\\s*([^;]+);`),
-	);
-	return match ? match[1].trim() : null;
+	return extractVariables(block).get(variable) ?? null;
+}
+
+function extractVariables(block: string): Map<string, string> {
+	const variables = new Map<string, string>();
+	for (const match of block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+		const variable = match[1];
+		const value = match[2];
+		if (variable === undefined || value === undefined) {
+			continue;
+		}
+		variables.set(variable, value.trim());
+	}
+	return variables;
+}
+
+function extractEffectiveBlock(css: string, selector: string): string | null {
+	const block = extractBlock(css, selector);
+	if (block === null) {
+		return null;
+	}
+
+	if (!selector.startsWith(".") || !selector.includes("-")) {
+		return block;
+	}
+
+	const themeName = selector.slice(1) as ConcreteThemeName;
+	const baseBlock = extractBlock(css, `.${baseModeFor(themeName)}`);
+	if (baseBlock === null) {
+		return null;
+	}
+	return `${baseBlock}\n${block}`;
 }
 
 describe("theme CSS variables", () => {
@@ -90,17 +122,16 @@ describe("theme CSS variables", () => {
 	for (const selector of THEME_CLASSES) {
 		describe(selector, () => {
 			const block = extractBlock(css, selector);
+			const effectiveBlock = extractEffectiveBlock(css, selector);
 
 			it("has a rule block in index.css", () => {
 				expect(block).not.toBeNull();
 			});
 
-			if (block !== null) {
+			if (effectiveBlock !== null) {
 				for (const variable of REQUIRED_VARIABLES) {
-					it(`defines ${variable}`, () => {
-						expect(block).toMatch(
-							new RegExp(`\\s${escapeRegex(variable)}\\s*:`),
-						);
+					it(`resolves ${variable}`, () => {
+						expect(extractVariable(effectiveBlock, variable)).not.toBeNull();
 					});
 				}
 			}
@@ -109,7 +140,7 @@ describe("theme CSS variables", () => {
 
 	for (const selector of COLORBLIND_THEME_CLASSES) {
 		describe(`${selector} semantic separation`, () => {
-			const block = extractBlock(css, selector);
+			const block = extractEffectiveBlock(css, selector);
 
 			it("keeps warning distinct from destructive colors", () => {
 				expect(block).not.toBeNull();
@@ -132,7 +163,7 @@ describe("theme CSS variables", () => {
 
 	for (const selector of TRITAN_THEME_CLASSES) {
 		describe(`${selector} warning surface`, () => {
-			const block = extractBlock(css, selector);
+			const block = extractEffectiveBlock(css, selector);
 
 			it("keeps warning surfaces on the fuchsia surface token", () => {
 				expect(block).not.toBeNull();

@@ -1,10 +1,9 @@
-import themes from ".";
-import {
+import themes, {
 	baseModeFor,
 	CONCRETE_THEMES,
 	isConcreteThemeName,
 	resolveThemeName,
-} from "./colorblind";
+} from ".";
 
 describe("resolveThemeName", () => {
 	it("returns the stored preference as-is for concrete themes", () => {

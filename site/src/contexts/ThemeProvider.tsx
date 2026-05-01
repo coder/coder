@@ -22,12 +22,13 @@ import {
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, { DEFAULT_THEME, type Theme } from "#/theme";
-import {
+import themes, {
 	baseModeFor,
 	CONCRETE_THEMES,
+	DEFAULT_THEME,
 	resolveThemeName,
-} from "#/theme/colorblind";
+	type Theme,
+} from "#/theme";
 
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
