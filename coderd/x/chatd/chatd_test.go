@@ -5738,7 +5738,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				require.NoError(t, server.Close())
 			})
 
-			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			chat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
 				Status:            database.ChatStatusCompleted,
 				ClientType:        database.ChatClientTypeUi,
@@ -5746,7 +5746,6 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				Title:             "original title",
 				LastModelConfigID: model.ID,
 			})
-			require.NoError(t, err)
 			message := insertUserTextMessage(
 				t,
 				db,
@@ -8949,7 +8948,7 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 	// Seed the parent chat directly in the database so the test server
 	// never executes the root turn. That keeps this test focused on the
 	// child-chat gating path without depending on subagent wiring.
-	parent, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+	parent := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		Status:            database.ChatStatusWaiting,
@@ -8957,7 +8956,6 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 		LastModelConfigID: model.ID,
 		Title:             "advisor-root-parent",
 	})
-	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps)
 
