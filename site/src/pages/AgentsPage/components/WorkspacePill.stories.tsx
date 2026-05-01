@@ -5,14 +5,10 @@ import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
 	MockStoppedWorkspace,
-	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
-import {
-	withDashboardProvider,
-	withProxyProvider,
-} from "#/testHelpers/storybook";
+import { withProxyProvider } from "#/testHelpers/storybook";
 import { WorkspacePill } from "./WorkspacePill";
 
 // ---------------------------------------------------------------------------
@@ -108,12 +104,11 @@ const agentWithHiddenApp = {
 const meta: Meta<typeof WorkspacePill> = {
 	title: "pages/AgentsPage/WorkspacePill",
 	component: WorkspacePill,
-	// useAppLink, useProxy, and useDashboard are called inside sub-components,
-	// so we need both providers for all stories. A non-empty wildcard hostname
-	// is required so the Ports sub-trigger renders (it is hidden when
-	// port-forwarding is not configured).
+	// useAppLink and useProxy are called inside sub-components, so we need the
+	// proxy provider for all stories. A non-empty wildcard hostname is required
+	// so the Ports sub-trigger renders (it is hidden when port-forwarding is not
+	// configured).
 	decorators: [
-		withDashboardProvider,
 		withProxyProvider({
 			proxy: {
 				proxy: undefined,
@@ -325,10 +320,6 @@ export const WithListeningPorts: Story = {
 				key: ["sharedPorts", MockWorkspace.id],
 				data: { shares: [] },
 			},
-			{
-				key: ["template", MockTemplate.id],
-				data: MockTemplate,
-			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -351,11 +342,10 @@ export const WithListeningPorts: Story = {
 			expect(body.getByText("gogo")).toBeInTheDocument();
 			expect(body.getByText("30000")).toBeInTheDocument();
 			expect(body.getByText("webb")).toBeInTheDocument();
-			// Port items render as anchor links in PortForwardPopoverView.
+			expect(body.getByText("Manage sharing")).toBeInTheDocument();
+			// Port items render as anchor links.
 			const port8080Anchor = body.getByText("8080").closest("a");
 			expect(port8080Anchor).toHaveAttribute("href");
-			// Shared Ports section is rendered by PortForwardPopoverView.
-			expect(body.getByText("Shared Ports")).toBeInTheDocument();
 		});
 	},
 };
@@ -380,10 +370,6 @@ export const WithSharedPorts: Story = {
 				key: ["sharedPorts", MockWorkspace.id],
 				data: MockSharedPortsResponse,
 			},
-			{
-				key: ["template", MockTemplate.id],
-				data: MockTemplate,
-			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -403,6 +389,7 @@ export const WithSharedPorts: Story = {
 			expect(body.getByText("Shared Ports")).toBeInTheDocument();
 			// Shared ports from MockSharedPortsResponse for this agent.
 			expect(body.getByText("4000")).toBeInTheDocument();
+			expect(body.getByText("Manage sharing")).toBeInTheDocument();
 			// Port 8081 is both listening and shared; deduplication ensures it
 			// appears only in the Shared Ports section, not in Listening Ports.
 			expect(body.getAllByText("8081")).toHaveLength(1);
@@ -427,10 +414,6 @@ export const EmptyPorts: Story = {
 				key: ["sharedPorts", MockWorkspace.id],
 				data: { shares: [] },
 			},
-			{
-				key: ["template", MockTemplate.id],
-				data: MockTemplate,
-			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -446,10 +429,7 @@ export const EmptyPorts: Story = {
 		await userEvent.hover(body.getByText("Ports (0)"));
 
 		await waitFor(() => {
-			// PortForwardPopoverView uses "No open ports were detected."
-			expect(
-				body.getByText("No open ports were detected."),
-			).toBeInTheDocument();
+			expect(body.getByText("No open ports detected.")).toBeInTheDocument();
 		});
 	},
 };
