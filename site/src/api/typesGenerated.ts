@@ -3646,6 +3646,25 @@ export interface DERPServerConfig {
 	readonly relay_url: string;
 }
 
+// From codersdk/workspaceagents.go
+/**
+ * DLPPolicy is a data loss prevention policy applied to a workspace agent.
+ * Boolean fields denote whether the corresponding workspace traffic path is
+ * permitted. When a path is denied, coderd returns a structured 403 with the
+ * policy name in the response detail.
+ */
+export interface DLPPolicy {
+	readonly name: string;
+	readonly ssh_access: boolean;
+	readonly web_terminal_access: boolean;
+	readonly port_forwarding_access: boolean;
+	/**
+	 * AllowedApplications lists the `coder_app` slugs the workspace user is
+	 * permitted to access. Apps whose slugs are not in this list are blocked.
+	 */
+	readonly allowed_applications: readonly string[];
+}
+
 // From codersdk/deployment.go
 export interface DangerousConfig {
 	readonly allow_path_app_sharing: boolean;
@@ -9182,6 +9201,11 @@ export interface WorkspaceAgent {
 	 * @deprecated Remove in the future!
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
+	/**
+	 * DLPPolicy is the data loss prevention policy attached to this agent
+	 * via `coder_agent.dlp_policy`. Nil when no policy is configured.
+	 */
+	readonly dlp_policy?: DLPPolicy;
 }
 
 // From codersdk/workspaceagents.go

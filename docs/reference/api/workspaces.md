@@ -190,6 +190,15 @@ of the template will be used.
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -556,6 +565,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -889,6 +907,15 @@ of the template will be used.
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1183,6 +1210,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "display_apps": [
                   "vscode"
                 ],
+                "dlp_policy": {
+                  "allowed_applications": [
+                    "string"
+                  ],
+                  "name": "string",
+                  "port_forwarding_access": true,
+                  "ssh_access": true,
+                  "web_terminal_access": true
+                },
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"
@@ -1492,6 +1528,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -2061,6 +2106,15 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"

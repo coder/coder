@@ -851,6 +851,7 @@ func createWorkspace(
 	})
 
 	apiBuild, err := api.convertWorkspaceBuild(
+		ctx,
 		*workspaceBuild,
 		workspace,
 		database.GetProvisionerJobsByIDsWithQueuePositionRow{
@@ -2667,6 +2668,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
+		ctx,
 		builds,
 		workspaces,
 		data.jobs,

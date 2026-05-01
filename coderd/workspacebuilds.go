@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -78,6 +79,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
+		ctx,
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
@@ -197,6 +199,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
+		ctx,
 		workspaceBuilds,
 		[]database.Workspace{workspace},
 		data.jobs,
@@ -288,6 +291,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
+		ctx,
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
@@ -535,6 +539,7 @@ func (api *API) postWorkspaceBuildsInternal(
 	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
+		ctx,
 		*workspaceBuild,
 		workspace,
 		queuePos,
@@ -1122,6 +1127,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 }
 
 func (api *API) convertWorkspaceBuilds(
+	ctx context.Context,
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
 	jobs []database.GetProvisionerJobsByIDsWithQueuePositionRow,
@@ -1165,6 +1171,7 @@ func (api *API) convertWorkspaceBuilds(
 		}
 
 		apiBuild, err := api.convertWorkspaceBuild(
+			ctx,
 			build,
 			workspace,
 			job,
@@ -1189,6 +1196,7 @@ func (api *API) convertWorkspaceBuilds(
 }
 
 func (api *API) convertWorkspaceBuild(
+	ctx context.Context,
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
 	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
@@ -1261,9 +1269,14 @@ func (api *API) convertWorkspaceBuild(
 			scripts := scriptsByAgentID[agent.ID]
 			statuses := statusesByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
+			dlp, err := dlppolicy.ForAgent(ctx, api.Database, agent.ID)
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("loading agent dlp policy: %w", err)
+			}
 			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+				dlp,
 			)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)

@@ -42,6 +42,8 @@ import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 import { AgentLatency } from "./AgentLatency";
 import { DevcontainerStatus } from "./AgentStatus";
+import { DLPGate } from "./DLPGate";
+import { dlpDenialReason } from "./dlpBypass";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
@@ -257,21 +259,32 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
-						<AgentSSHButton
-							workspaceName={workspace.name}
-							agentName={subAgent.name}
-							workspaceOwnerUsername={workspace.owner_name}
-						/>
+						<DLPGate
+							reason={dlpDenialReason(subAgent.dlp_policy, "ssh_access")}
+						>
+							<AgentSSHButton
+								workspaceName={workspace.name}
+								agentName={subAgent.name}
+								workspaceOwnerUsername={workspace.owner_name}
+							/>
+						</DLPGate>
 					)}
 					{showDevcontainerControls &&
 						displayApps.includes("port_forwarding_helper") &&
 						proxy.preferredWildcardHostname !== "" && (
-							<PortForwardButton
-								host={proxy.preferredWildcardHostname}
-								workspace={workspace}
-								agent={subAgent}
-								template={template}
-							/>
+							<DLPGate
+								reason={dlpDenialReason(
+									subAgent.dlp_policy,
+									"port_forwarding_access",
+								)}
+							>
+								<PortForwardButton
+									host={proxy.preferredWildcardHostname}
+									workspace={workspace}
+									agent={subAgent}
+									template={template}
+								/>
+							</DLPGate>
 						)}
 
 					{showDevcontainerControls && (
@@ -307,16 +320,20 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					{showSubAgentApps && (
 						<section className={appsClasses}>
 							{showVSCode && (
-								<VSCodeDevContainerButton
-									userName={workspace.owner_name}
-									workspaceName={workspace.name}
-									devContainerName={devcontainer.container.name}
-									devContainerFolder={subAgent?.directory ?? ""}
-									localWorkspaceFolder={devcontainer.workspace_folder}
-									localConfigFile={devcontainer.config_path || ""}
-									displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
-									agentName={parentAgent.name}
-								/>
+								<DLPGate
+									reason={dlpDenialReason(subAgent?.dlp_policy, "ssh_access")}
+								>
+									<VSCodeDevContainerButton
+										userName={workspace.owner_name}
+										workspaceName={workspace.name}
+										devContainerName={devcontainer.container.name}
+										devContainerFolder={subAgent?.directory ?? ""}
+										localWorkspaceFolder={devcontainer.workspace_folder}
+										localConfigFile={devcontainer.config_path || ""}
+										displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
+										agentName={parentAgent.name}
+									/>
+								</DLPGate>
 							)}
 							{appSections.map((section, i) => (
 								<AgentApps
@@ -328,11 +345,18 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							))}
 
 							{displayApps.includes("web_terminal") && (
-								<TerminalLink
-									workspaceName={workspace.name}
-									agentName={subAgent.name}
-									userName={workspace.owner_name}
-								/>
+								<DLPGate
+									reason={dlpDenialReason(
+										subAgent.dlp_policy,
+										"web_terminal_access",
+									)}
+								>
+									<TerminalLink
+										workspaceName={workspace.name}
+										agentName={subAgent.name}
+										userName={workspace.owner_name}
+									/>
+								</DLPGate>
 							)}
 
 							{wildcardHostname !== "" &&
@@ -356,17 +380,25 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 											)
 										: "";
 									return (
-										<Tooltip key={portLabel}>
-											<TooltipTrigger asChild>
-												<AgentButton disabled={!hasHostBind} asChild>
-													<a href={linkDest}>
-														<ExternalLinkIcon />
-														{portLabel}
-													</a>
-												</AgentButton>
-											</TooltipTrigger>
-											<TooltipContent>{helperText}</TooltipContent>
-										</Tooltip>
+										<DLPGate
+											key={portLabel}
+											reason={dlpDenialReason(
+												subAgent.dlp_policy,
+												"port_forwarding_access",
+											)}
+										>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<AgentButton disabled={!hasHostBind} asChild>
+														<a href={linkDest}>
+															<ExternalLinkIcon />
+															{portLabel}
+														</a>
+													</AgentButton>
+												</TooltipTrigger>
+												<TooltipContent>{helperText}</TooltipContent>
+											</Tooltip>
+										</DLPGate>
 									);
 								})}
 						</section>

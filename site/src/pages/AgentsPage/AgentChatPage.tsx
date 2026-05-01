@@ -641,6 +641,7 @@ type _UncoveredAgentFields = Omit<
 	| "log_sources"
 	| "scripts"
 	| "startup_script_behavior"
+	| "dlp_policy"
 >;
 // If this errors, a new field was added to WorkspaceAgent.
 // Decide: does the UI read it? If yes, add it to the first

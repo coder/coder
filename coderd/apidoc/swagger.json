@@ -15978,6 +15978,30 @@
 				}
 			}
 		},
+		"codersdk.DLPPolicy": {
+			"type": "object",
+			"properties": {
+				"allowed_applications": {
+					"description": "AllowedApplications lists the `coder_app` slugs the workspace user is\npermitted to access. Apps whose slugs are not in this list are blocked.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"port_forwarding_access": {
+					"type": "boolean"
+				},
+				"ssh_access": {
+					"type": "boolean"
+				},
+				"web_terminal_access": {
+					"type": "boolean"
+				}
+			}
+		},
 		"codersdk.DangerousConfig": {
 			"type": "object",
 			"properties": {
@@ -22527,6 +22551,14 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.DisplayApp"
 					}
+				},
+				"dlp_policy": {
+					"description": "DLPPolicy is the data loss prevention policy attached to this agent\nvia `coder_agent.dlp_policy`. Nil when no policy is configured.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.DLPPolicy"
+						}
+					]
 				},
 				"environment_variables": {
 					"type": "object",

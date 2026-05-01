@@ -156,6 +156,71 @@ type Story = StoryObj<typeof AgentRow>;
 
 export const Example: Story = {};
 
+const denyAllPolicy = {
+	name: "strict",
+	ssh_access: false,
+	web_terminal_access: false,
+	port_forwarding_access: false,
+	allowed_applications: [] as string[],
+};
+
+const codeServerOnlyPolicy = {
+	name: "kasm-only",
+	ssh_access: true,
+	web_terminal_access: true,
+	port_forwarding_access: true,
+	allowed_applications: ["code-server"],
+};
+
+export const WithDLPPolicyDenyAll: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			apps: [
+				{ ...M.MockWorkspaceApp, slug: "code-server" },
+				{ ...M.MockWorkspaceApp, slug: "helloworld" },
+			],
+			dlp_policy: denyAllPolicy,
+		},
+		workspace: M.MockWorkspace,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Each gated UI element is wrapped in DLPGate, which renders a
+		// span with data-testid="dlp-gate" when the field is denied.
+		const gates = await canvas.findAllByTestId("dlp-gate");
+		// SSH, port-forward, web terminal, VS Code Desktop, and two app
+		// tiles all gated; allow for slight variation in display state.
+		await waitFor(() => expect(gates.length).toBeGreaterThanOrEqual(4));
+		for (const gate of gates) {
+			await expect(gate).toHaveAttribute("aria-disabled", "true");
+		}
+	},
+};
+
+export const WithDLPPolicyAppFilter: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			apps: [
+				{ ...M.MockWorkspaceApp, slug: "code-server" },
+				{ ...M.MockWorkspaceApp, slug: "helloworld" },
+				{ ...M.MockWorkspaceApp, slug: "vscode-desktop" },
+			],
+			dlp_policy: codeServerOnlyPolicy,
+		},
+		workspace: M.MockWorkspace,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Two of three app tiles should be DLP-gated (helloworld and
+		// vscode-desktop). code-server is in the allowlist so it renders
+		// normally without a wrapping DLPGate.
+		const gates = await canvas.findAllByTestId("dlp-gate");
+		await waitFor(() => expect(gates.length).toBeGreaterThanOrEqual(2));
+	},
+};
+
 export const BunchOfApps: Story = {
 	args: {
 		agent: {

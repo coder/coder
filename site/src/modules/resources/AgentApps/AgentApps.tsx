@@ -13,6 +13,8 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { AgentButton } from "../AgentButton";
 import { AppLink } from "../AppLink/AppLink";
+import { DLPGate } from "../DLPGate";
+import { dlpAppDenialReason } from "../dlpBypass";
 
 type AgentAppsProps = {
 	section: AgentAppSection;
@@ -36,14 +38,21 @@ export const AgentApps: FC<AgentAppsProps> = ({
 			<DropdownMenuContent align="start">
 				{section.apps.map((app) => (
 					<DropdownMenuItem key={app.slug}>
-						<AppLink grouped app={app} agent={agent} workspace={workspace} />
+						<DLPGate reason={dlpAppDenialReason(agent.dlp_policy, app.slug)}>
+							<AppLink grouped app={app} agent={agent} workspace={workspace} />
+						</DLPGate>
 					</DropdownMenuItem>
 				))}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	) : (
 		section.apps.map((app) => (
-			<AppLink key={app.slug} app={app} agent={agent} workspace={workspace} />
+			<DLPGate
+				key={app.slug}
+				reason={dlpAppDenialReason(agent.dlp_policy, app.slug)}
+			>
+				<AppLink app={app} agent={agent} workspace={workspace} />
+			</DLPGate>
 		))
 	);
 };
