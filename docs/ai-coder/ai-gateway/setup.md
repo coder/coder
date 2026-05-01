@@ -28,6 +28,21 @@ coder server --ai-gateway-enabled=true
 
 AI Gateway proxies requests to upstream LLM APIs. Configure at least one provider before exposing AI Gateway to end users.
 
+> [!IMPORTANT]
+> The legacy environment variables documented below
+> (`CODER_AIBRIDGE_OPENAI_*`, `CODER_AIBRIDGE_ANTHROPIC_*`,
+> `CODER_AIBRIDGE_BEDROCK_*`, and the indexed
+> `CODER_AIBRIDGE_PROVIDER_<N>_*` form) are **deprecated**. They
+> still work today and existing deployments need no changes, but the
+> recommended way to manage providers going forward is the
+> `/api/v2/aibridge/providers` API.
+>
+> On startup, environment-derived providers are reconciled into the
+> `ai_providers` database table; thereafter, `coderd` reads provider
+> configuration from the database and hot-reloads it across replicas
+> when changes are made via the API. The CLI (and an upcoming
+> Settings UI) builds on top of this API.
+
 <div class="tabs">
 
 ### OpenAI
@@ -127,7 +142,7 @@ For deployments when explicit credentials are preferred, provide an access key a
 
 GitHub Copilot offers three plans: Individual, Business, and Enterprise,
 each with its own API endpoint. Configure one or more `copilot` providers
-using the [indexed provider format](#multiple-instances-of-the-same-provider)
+using the [indexed provider format](#multiple-instances-of-the-same-provider-deprecated-env-var-form)
 depending on which plans your organization uses.
 Copilot providers use OAuth app installations for authentication rather than
 static API keys.
@@ -171,7 +186,82 @@ export CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://chatgpt.com/backend-api/code
 > [!NOTE]
 > See the [Supported APIs](./reference.md#supported-apis) section below for precise endpoint coverage and interception behavior.
 
-### Multiple instances of the same provider
+### Manage providers via the API
+
+The `/api/v2/aibridge/providers` API is the recommended way to manage providers. It supports:
+
+- `GET /api/v2/aibridge/providers`: list all providers (secrets are never returned).
+- `POST /api/v2/aibridge/providers`: create a provider (carries no API key).
+- `GET /api/v2/aibridge/providers/{idOrName}`: fetch one.
+- `PATCH /api/v2/aibridge/providers/{idOrName}`: partial update.
+- `DELETE /api/v2/aibridge/providers/{idOrName}`: soft-delete.
+
+API keys are managed as a sub-resource under each provider:
+
+- `GET /api/v2/aibridge/providers/{idOrName}/keys`: list the keys attached to a provider. Plaintext key values are never returned; clients must keep their own copy.
+- `POST /api/v2/aibridge/providers/{idOrName}/keys`: register a new API key against a provider. The plaintext value is sent only on this request and is encrypted at rest thereafter.
+- `DELETE /api/v2/aibridge/providers/{idOrName}/keys/{keyID}`: remove a single key.
+
+Each mutation, including key add and remove, publishes a `ai_providers_changed` event on the database pubsub, which every replica subscribes to. Replicas atomically swap their cached `RequestBridge` instances so subsequent requests use the new configuration. In-flight requests continue against their existing bridge until completion.
+
+#### Multi-key failover
+
+OpenAI and Anthropic providers may have one or more keys attached. The runtime currently uses the oldest active key (lowest `created_at`) and treats the rest as standby. Future releases will rotate through the set when an upstream returns 401 or quota errors. To rotate a key today, add the new key first and then delete the old one; deletes never leave the provider keyless during the swap because the runtime caches the previous selection until it next reloads.
+
+#### Bedrock authentication
+
+Bedrock-routed Anthropic providers carry zero `ai_provider_keys`. Their AWS credentials live in the provider's encrypted `settings.access_key` and `settings.access_key_secret` (under the discriminated `_type: "bedrock"` settings block) because Bedrock authenticates via AWS SigV4 rather than a bearer token. `POST /api/v2/aibridge/providers/{name}/keys` against a Bedrock provider returns `400 Bad Request`.
+
+`settings` is a discriminated, versioned JSON object. Each provider that needs custom configuration carries `_type` (e.g., `"bedrock"`) and `_version` (e.g., `1`) keys alongside its type-specific fields. Providers with no custom settings store SQL `NULL`.
+
+```sh
+# Example: create an OpenAI provider, then attach an API key.
+curl -X POST "$CODER_URL/api/v2/aibridge/providers" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "openai",
+    "name": "openai-team-a",
+    "base_url": "https://api.openai.com/v1",
+    "enabled": true
+  }'
+
+curl -X POST "$CODER_URL/api/v2/aibridge/providers/openai-team-a/keys" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"api_key": "sk-..."}'
+
+# Example: create a Bedrock-routed Anthropic provider. No /keys call is
+# required because Bedrock authenticates via the settings blob.
+curl -X POST "$CODER_URL/api/v2/aibridge/providers" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "anthropic",
+    "name": "bedrock-prod",
+    "base_url": "https://bedrock-runtime.us-east-1.amazonaws.com/",
+    "enabled": true,
+    "settings": {
+      "_type": "bedrock",
+      "_version": 1,
+      "region": "us-east-1",
+      "model": "anthropic.claude-3-5-sonnet",
+      "access_key": "AKIA...",
+      "access_key_secret": "..."
+    }
+  }'
+```
+
+Names are validated to match `^[a-z0-9]+(-[a-z0-9]+)*$` and must not collide with the reserved sub-paths `proxy`, `providers`, `interceptions`, `sessions`, `models`, or `clients`. Soft-deleted names remain reserved. Per-row provider settings (including the AWS Bedrock access key and secret) and API key values are encrypted at rest.
+
+### Multiple instances of the same provider (deprecated, env var form)
+
+> [!IMPORTANT]
+> The indexed `CODER_AIBRIDGE_PROVIDER_<N>_*` env var form is
+> retained for backward compatibility but is deprecated. Prefer the
+> [API](#manage-providers-via-the-api) for new providers; on
+> startup, indexed env vars are seeded into the database alongside
+> the legacy single-provider env vars.
 
 You can configure multiple instances of the same provider type, for example, to
 route different teams to separate API keys, use different base URLs per region, or
