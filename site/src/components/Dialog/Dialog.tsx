@@ -108,9 +108,6 @@ export const DialogFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	);
 };
 
-/**
- * @lintignore I'll be using this right away in another PR, just trying to break things up
- */
 export interface DialogActionsProps {
 	/** Text to display in the confirm button */
 	confirmText?: React.ReactNode;
@@ -131,7 +128,6 @@ export interface DialogActionsProps {
 
 /**
  * Quickly handles most modals actions, some combination of a cancel and confirm button
- * @lintignore I'll be using this right away in another PR, just trying to break things up
  */
 export const DialogActions: React.FC<DialogActionsProps> = ({
 	confirmText = "Confirm",

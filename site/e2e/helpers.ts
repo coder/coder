@@ -1332,9 +1332,10 @@ export async function createUser(
 	await expect(addedRow).toBeVisible();
 
 	// Give them a role
-	await addedRow.getByLabel("Edit user roles").click();
+	await addedRow.getByLabel("Open menu").click();
+	await page.getByText("Edit roles").click();
 	for (const role of roles) {
-		await page.getByRole("group").getByText(role, { exact: true }).click();
+		await page.getByRole("dialog").getByText(role, { exact: true }).click();
 	}
 	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 

@@ -3,12 +3,12 @@ import type { AssignableRoles, SlimRole } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import {
 	Dialog,
+	DialogActions,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { DialogActionButtons } from "#/components/Dialogs/Dialog";
 import { getRoleNames } from "./index";
 import { RoleSelector } from "./RoleSelector";
 
@@ -93,7 +93,7 @@ const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 					onChange={setSelectedRoles}
 				/>
 				<DialogFooter>
-					<DialogActionButtons
+					<DialogActions
 						onCancel={onCancel}
 						onConfirm={() => onUpdateRoles([...selectedRoles])}
 						confirmLoading={isUpdatingRoles}
