@@ -369,6 +369,11 @@ export type APIKeyScope =
 	| "aibridge_interception:create"
 	| "aibridge_interception:read"
 	| "aibridge_interception:update"
+	| "aibridge_provider:*"
+	| "aibridge_provider:create"
+	| "aibridge_provider:delete"
+	| "aibridge_provider:read"
+	| "aibridge_provider:update"
 	| "all"
 	| "api_key:*"
 	| "api_key:create"
@@ -584,6 +589,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"aibridge_interception:create",
 	"aibridge_interception:read",
 	"aibridge_interception:update",
+	"aibridge_provider:*",
+	"aibridge_provider:create",
+	"aibridge_provider:delete",
+	"aibridge_provider:read",
+	"aibridge_provider:update",
 	"all",
 	"api_key:*",
 	"api_key:create",
