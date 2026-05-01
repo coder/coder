@@ -639,6 +639,36 @@ type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
 }
 
+// AdvisorConfig is the deployment-wide runtime configuration for the
+// experimental chat advisor.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type AdvisorConfig struct {
+	// Enabled toggles the advisor runtime. When false, advisor is not
+	// attached to new chats.
+	Enabled bool `json:"enabled"`
+	// MaxUsesPerRun caps how many times the advisor can be invoked per
+	// chat run. 0 means unlimited.
+	MaxUsesPerRun int `json:"max_uses_per_run"`
+	// MaxOutputTokens caps the advisor model response tokens. 0 means
+	// use the runtime default.
+	MaxOutputTokens int64 `json:"max_output_tokens"`
+	// ModelConfigID selects a specific chat model config to power the
+	// advisor. uuid.Nil means reuse the outer chat model. The runtime
+	// must fall back to the outer chat model when this ID cannot be
+	// resolved (e.g. the referenced model config was soft-deleted or
+	// its provider was disabled after the admin saved this config).
+	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
+	// ReasoningEffort overlays provider reasoning effort on the advisor
+	// call config when supported. Allowed: "", "low", "medium", "high".
+	ReasoningEffort string `json:"reasoning_effort"`
+}
+
+// UpdateAdvisorConfigRequest is the request body for updating advisor
+// runtime configuration. It is a type alias for AdvisorConfig because
+// the request and response shapes are currently identical.
+type UpdateAdvisorConfigRequest = AdvisorConfig
+
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
 // that allows users to opt into chat debug logging.
 type ChatDebugLoggingAdminSettings struct {
@@ -2136,6 +2166,33 @@ func (c *ExperimentalClient) GetChatDesktopEnabled(ctx context.Context) (ChatDes
 // UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
 func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatAdvisorConfig returns the deployment-wide advisor configuration.
+func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
+	if err != nil {
+		return AdvisorConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AdvisorConfig{}, ReadBodyAsError(res)
+	}
+	var resp AdvisorConfig
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
+func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
 	if err != nil {
 		return err
 	}

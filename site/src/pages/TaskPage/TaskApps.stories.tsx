@@ -65,6 +65,19 @@ export const WithMixedApps: Story = {
 	},
 };
 
+export const WithHiddenApps: Story = {
+	args: {
+		task: mockTask,
+		workspace: mockWorkspaceWithApps([
+			mockEmbeddedApp("Visible App"),
+			{
+				...mockEmbeddedApp("Hidden App"),
+				hidden: true,
+			},
+		]),
+	},
+};
+
 export const WithWildcardWarning: Story = {
 	decorators: [
 		withAuthProvider,

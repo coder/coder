@@ -46,6 +46,12 @@ import {
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
 import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -606,18 +612,29 @@ export const AgentRow: FC<AgentRowProps> = ({
 										<div
 											className={cn(
 												"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
-												"border-solid border-0 border-b",
+												"border-solid border-0 border-b border-l",
 											)}
 										>
-											<Button
-												variant="subtle"
-												size="sm"
-												disabled={!hasSelectedLogs}
-												onClick={() => copyToClipboard(selectedLogsText)}
-											>
-												{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-												<span>Copy logs</span>
-											</Button>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess
+															? "Copied!"
+															: "Copy selected logs"}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
 											<DownloadSelectedAgentLogsButton
 												agentName={agent.name}
 												logSets={downloadableLogSets}

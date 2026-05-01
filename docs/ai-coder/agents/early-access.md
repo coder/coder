@@ -40,27 +40,11 @@ Functionality available during Early Access may be a subset of planned
 capabilities. Some features may be incomplete, experimental, or subject to
 redesign.
 
-## Enable Coder Agents
+## Set up Coder Agents
 
-Coder Agents is experimental and must not be deployed to production
-environments. It is gated behind the `agents` experiment flag. To enable it,
-pass the flag when starting the Coder server using an environment variable
-or CLI flag:
+Coder Agents is available by default. No experiment flags are required.
 
-```sh
-CODER_EXPERIMENTS="agents" coder server
-# or
-coder server --experiments=agents
-```
-
-If you are already using other experiments, add `agents` to the
-comma-separated list:
-
-```sh
-CODER_EXPERIMENTS="agents,oauth2,mcp-server-http" coder server
-```
-
-Once the server restarts with the experiment enabled:
+To get started:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Admin** settings and configure at least one LLM provider and model.

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -82,9 +81,8 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 	)
 
 	return &serpent.Command{
-		Use:     "agents [chat-id]",
-		Short:   "Interactive terminal UI for AI agents.",
-		Aliases: []string{"agent"},
+		Use:   "agents [chat-id]",
+		Short: "Interactive terminal UI for AI agents.",
 		Options: serpent.OptionSet{
 			{
 				Name:        "workspace",
@@ -152,7 +150,7 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 			)
 			renderer.SetHasDarkBackground(true)
 
-			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID, defaultOrgID)
+			model := newChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID, defaultOrgID)
 			model.setRenderer(renderer)
 			program := tea.NewProgram(
 				model,
@@ -171,8 +169,8 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 				return err
 			}
 
-			if _, ok := runModel.(expChatsTUIModel); !ok {
-				return xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", runModel, runModel))
+			if _, ok := runModel.(chatsTUIModel); !ok {
+				return xerrors.Errorf("unknown model found %T (%+v)", runModel, runModel)
 			}
 
 			return nil

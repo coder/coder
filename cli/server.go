@@ -2975,10 +2975,14 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		case "NAME":
 			provider.Name = v.Value
 		case "KEY", "KEYS":
-			if provider.Key != "" {
+			if len(provider.Keys) > 0 {
 				return nil, xerrors.Errorf("provider %d: KEY and KEYS are mutually exclusive, use one or the other", providerNum)
 			}
-			provider.Key = v.Value
+			if key == "KEYS" {
+				provider.Keys = strings.Split(v.Value, ",")
+			} else {
+				provider.Keys = []string{v.Value}
+			}
 		case "BASE_URL":
 			provider.BaseURL = v.Value
 		case "DUMP_DIR":
@@ -2988,15 +2992,23 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		case "BEDROCK_REGION":
 			provider.BedrockRegion = v.Value
 		case "BEDROCK_ACCESS_KEY", "BEDROCK_ACCESS_KEYS":
-			if provider.BedrockAccessKey != "" {
+			if len(provider.BedrockAccessKeys) > 0 {
 				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY and BEDROCK_ACCESS_KEYS are mutually exclusive, use one or the other", providerNum)
 			}
-			provider.BedrockAccessKey = v.Value
+			if key == "BEDROCK_ACCESS_KEYS" {
+				provider.BedrockAccessKeys = strings.Split(v.Value, ",")
+			} else {
+				provider.BedrockAccessKeys = []string{v.Value}
+			}
 		case "BEDROCK_ACCESS_KEY_SECRET", "BEDROCK_ACCESS_KEY_SECRETS":
-			if provider.BedrockAccessKeySecret != "" {
+			if len(provider.BedrockAccessKeySecrets) > 0 {
 				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY_SECRET and BEDROCK_ACCESS_KEY_SECRETS are mutually exclusive, use one or the other", providerNum)
 			}
-			provider.BedrockAccessKeySecret = v.Value
+			if key == "BEDROCK_ACCESS_KEY_SECRETS" {
+				provider.BedrockAccessKeySecrets = strings.Split(v.Value, ",")
+			} else {
+				provider.BedrockAccessKeySecrets = []string{v.Value}
+			}
 		case "BEDROCK_MODEL":
 			provider.BedrockModel = v.Value
 		case "BEDROCK_SMALL_FAST_MODEL":
@@ -3029,6 +3041,19 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 				i, p.Type, aibridge.ProviderAnthropic)
 		}
 
+		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
+				i, p.Type, aibridge.ProviderCopilot)
+		}
+
+		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
+			return nil, err
+		}
+
+		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
+			return nil, err
+		}
+
 		if p.Name == "" {
 			p.Name = p.Type
 		}
@@ -3043,8 +3068,57 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 
 func hasBedrockFields(p codersdk.AIBridgeProviderConfig) bool {
 	return p.BedrockBaseURL != "" || p.BedrockRegion != "" ||
-		p.BedrockAccessKey != "" || p.BedrockAccessKeySecret != "" ||
+		len(p.BedrockAccessKeys) > 0 || len(p.BedrockAccessKeySecrets) > 0 ||
 		p.BedrockModel != "" || p.BedrockSmallFastModel != ""
+}
+
+// maxKeysPerProvider is the maximum number of keys allowed per
+// provider. This bounds the failover pool size and keeps the
+// configuration manageable.
+const maxKeysPerProvider = 5
+
+// validateProviderCredentialList checks that a list of credentials
+// belonging to a provider is well-formed: no empty values, no
+// duplicates, and within the maximum count. Trims whitespace in
+// place.
+func validateProviderCredentialList(providerIndex int, providerType string, keys []string) error {
+	if len(keys) > maxKeysPerProvider {
+		return xerrors.Errorf("provider %d (%s): too many keys (%d), maximum is %d",
+			providerIndex, providerType, len(keys), maxKeysPerProvider)
+	}
+
+	seen := make(map[string]struct{}, len(keys))
+	for i, key := range keys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			return xerrors.Errorf("provider %d (%s): key at index %d is empty",
+				providerIndex, providerType, i)
+		}
+		keys[i] = trimmed
+		if _, exists := seen[trimmed]; exists {
+			return xerrors.Errorf("provider %d (%s): duplicate key at index %d",
+				providerIndex, providerType, i)
+		}
+		seen[trimmed] = struct{}{}
+	}
+
+	return nil
+}
+
+// validateBedrockCredentials checks that Bedrock access keys and
+// secrets are paired correctly (same count) and that each list is
+// well-formed.
+func validateBedrockCredentials(providerIndex int, providerType string, accessKeys, secrets []string) error {
+	if len(accessKeys) != len(secrets) {
+		return xerrors.Errorf("provider %d (%s): BEDROCK_ACCESS_KEYS count (%d) must match BEDROCK_ACCESS_KEY_SECRETS count (%d)",
+			providerIndex, providerType, len(accessKeys), len(secrets))
+	}
+
+	if err := validateProviderCredentialList(providerIndex, providerType, accessKeys); err != nil {
+		return err
+	}
+
+	return validateProviderCredentialList(providerIndex, providerType, secrets)
 }
 
 var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
