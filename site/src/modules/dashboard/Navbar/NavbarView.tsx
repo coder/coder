@@ -5,6 +5,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import {
 	Tooltip,
 	TooltipContent,
@@ -20,10 +21,8 @@ import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
-import { ProductLogo } from "#/components/Icons/ProductLogo";
 
 interface NavbarViewProps {
-	logo_url?: string;
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
@@ -46,7 +45,6 @@ const linkStyles = {
 
 export const NavbarView: FC<NavbarViewProps> = ({
 	user,
-	logo_url,
 	buildInfo,
 	supportLinks,
 	onSignOut,

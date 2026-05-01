@@ -23,7 +23,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -41,7 +41,6 @@ import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
 import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";
 import { UserCombobox } from "./UserCombobox";
-import { ProductLogo } from "#/components/Icons/ProductLogo";
 
 export const TasksSidebar: FC = () => {
 	const { user, permissions } = useAuthenticated();

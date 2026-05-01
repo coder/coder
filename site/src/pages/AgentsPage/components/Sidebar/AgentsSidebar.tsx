@@ -89,6 +89,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -108,7 +109,6 @@ import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
 import { RenameChatDialog } from "./RenameChatDialog";
-import { ProductLogo } from "#/components/Icons/ProductLogo";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -163,7 +163,6 @@ interface AgentsSidebarProps {
 	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly ChatModelConfig[];
-	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
@@ -821,7 +820,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatErrorReasons,
 		modelOptions,
 		modelConfigs,
-		logoUrl,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,

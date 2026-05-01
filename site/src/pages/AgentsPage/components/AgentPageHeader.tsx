@@ -28,9 +28,9 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentsOutletContext } from "../AgentsPageView";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
@@ -55,8 +55,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsOutletContext>();
-	const { appearance } = useDashboard();
-	const logoUrl = appearance.logo_url;
 	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
