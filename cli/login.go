@@ -149,6 +149,7 @@ func (r *RootCmd) login() *serpent.Command {
 		password           string
 		trial              bool
 		useTokenForSession bool
+		trialInfo          codersdk.CreateFirstUserTrialInfo
 	)
 	cmd := &serpent.Command{
 		Use:   "login [<url>]",
@@ -280,7 +281,6 @@ func (r *RootCmd) login() *serpent.Command {
 					trial = v == "yes" || v == "y"
 				}
 
-				var trialInfo codersdk.CreateFirstUserTrialInfo
 				if trial {
 					if trialInfo.FirstName == "" {
 						trialInfo.FirstName, err = promptTrialInfo(inv, "firstName")
@@ -474,6 +474,48 @@ func (r *RootCmd) login() *serpent.Command {
 			Env:         firstUserTrialEnv,
 			Description: "Specifies whether a trial license should be provisioned for the Coder deployment or not.",
 			Value:       serpent.BoolOf(&trial),
+		},
+		{
+			Flag:        "first-user-trial-first-name",
+			Env:         "CODER_FIRST_USER_TRIAL_FIRST_NAME",
+			Description: "Specifies the first name of the user for trial enrollment.",
+			Value:       serpent.StringOf(&trialInfo.FirstName),
+		},
+		{
+			Flag:        "first-user-trial-last-name",
+			Env:         "CODER_FIRST_USER_TRIAL_LAST_NAME",
+			Description: "Specifies the last name of the user for trial enrollment.",
+			Value:       serpent.StringOf(&trialInfo.LastName),
+		},
+		{
+			Flag:        "first-user-trial-phone-number",
+			Env:         "CODER_FIRST_USER_TRIAL_PHONE_NUMBER",
+			Description: "Specifies the phone number of the user for trial enrollment.",
+			Value:       serpent.StringOf(&trialInfo.PhoneNumber),
+		},
+		{
+			Flag:        "first-user-trial-job-title",
+			Env:         "CODER_FIRST_USER_TRIAL_JOB_TITLE",
+			Description: "Specifies the job title of the user for trial enrollment.",
+			Value:       serpent.StringOf(&trialInfo.JobTitle),
+		},
+		{
+			Flag:        "first-user-trial-company-name",
+			Env:         "CODER_FIRST_USER_TRIAL_COMPANY_NAME",
+			Description: "Specifies the company name of the user for trial enrollment.",
+			Value:       serpent.StringOf(&trialInfo.CompanyName),
+		},
+		{
+			Flag:        "first-user-trial-country",
+			Env:         "CODER_FIRST_USER_TRIAL_COUNTRY",
+			Description: "Specifies the country of the user for trial enrollment.",
+			Value:       serpent.StringOf(&trialInfo.Country),
+		},
+		{
+			Flag:        "first-user-trial-developers",
+			Env:         "CODER_FIRST_USER_TRIAL_DEVELOPERS",
+			Description: "Specifies the number of developers at the company for trial enrollment.",
+			Value:       serpent.StringOf(&trialInfo.Developers),
 		},
 		{
 			Flag:        "use-token-as-session",

@@ -570,6 +570,57 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, selected, first.OrganizationID.String())
 	})
+
+	t.Run("InitialUserNonInteractiveTrial", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-full-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+			"--first-user-trial-first-name", coderdtest.TrialUserParams.FirstName,
+			"--first-user-trial-last-name", coderdtest.TrialUserParams.LastName,
+			"--first-user-trial-phone-number", coderdtest.TrialUserParams.PhoneNumber,
+			"--first-user-trial-job-title", coderdtest.TrialUserParams.JobTitle,
+			"--first-user-trial-company-name", coderdtest.TrialUserParams.CompanyName,
+			"--first-user-trial-country", coderdtest.TrialUserParams.Country,
+			"--first-user-trial-developers", coderdtest.TrialUserParams.Developers,
+		)
+		err := inv.Run()
+		require.NoError(t, err)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+	})
+
+	t.Run("InitialUserNonInteractiveTrialMissingInfo", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		// Trial info flags are intentionally omitted. Without a TTY or the
+		// trial info flags, reading from stdin returns EOF and the command
+		// should fail rather than hang or silently succeed.
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+		)
+		err := inv.Run()
+		require.Error(t, err)
+	})
 }
 
 func TestLoginToken(t *testing.T) {
