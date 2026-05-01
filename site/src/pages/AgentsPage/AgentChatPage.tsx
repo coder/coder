@@ -740,12 +740,18 @@ const AgentChatPage: FC = () => {
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =
-		permissions.editDeploymentConfig && chatProviderConfigsQuery.isSuccess
-			? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
+		permissions.editDeploymentConfig &&
+		chatProviderConfigsQuery.isSuccess &&
+		chatModelsQuery.isSuccess
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					chatModelsQuery.data,
+				)
 			: undefined;
-	const modelCount = chatModelConfigsQuery.isSuccess
-		? chatModelConfigsQuery.data.length
-		: undefined;
+	const modelCount =
+		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+			? modelOptions.length
+			: undefined;
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 

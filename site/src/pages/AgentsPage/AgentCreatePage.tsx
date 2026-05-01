@@ -54,12 +54,18 @@ const AgentCreatePage: FC = () => {
 		chatModelsQuery.data,
 	);
 	const providerCount =
-		permissions.editDeploymentConfig && chatProviderConfigsQuery.isSuccess
-			? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
+		permissions.editDeploymentConfig &&
+		chatProviderConfigsQuery.isSuccess &&
+		chatModelsQuery.isSuccess
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					chatModelsQuery.data,
+				)
 			: undefined;
-	const modelCount = chatModelConfigsQuery.isSuccess
-		? chatModelConfigsQuery.data.length
-		: undefined;
+	const modelCount =
+		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+			? catalogModelOptions.length
+			: undefined;
 	const agentSetupNotice =
 		providerCount !== undefined &&
 		modelCount !== undefined &&

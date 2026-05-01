@@ -41,16 +41,26 @@ type ModelOptionConfigLike =
 
 export const hasConfiguredProviderConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): boolean => {
-	return countConfiguredProviderConfigs(providerConfigs) > 0;
+	return countConfiguredProviderConfigs(providerConfigs, catalog) > 0;
 };
 
 export const countConfiguredProviderConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): number => {
+	const availableProviders = getAvailableProviders(catalog);
 	return (
 		providerConfigs?.filter((providerConfig) => {
-			return providerConfig.source !== "supported";
+			if (
+				providerConfig.source === "supported" ||
+				providerConfig.enabled !== true
+			) {
+				return false;
+			}
+			const provider = asString(providerConfig.provider).trim().toLowerCase();
+			return provider !== "" && availableProviders.has(provider);
 		}).length ?? 0
 	);
 };
