@@ -14,6 +14,7 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
+    agents            Interactive terminal UI for AI agents.
     autoupdate        Toggle auto-update policy for a workspace
     completion        Install or update shell completion scripts for the
                       detected or chosen shell.

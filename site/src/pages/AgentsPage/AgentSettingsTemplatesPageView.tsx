@@ -6,7 +6,6 @@ import {
 	type Option,
 } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { AdminBadge } from "./components/AdminBadge";
 import { SectionHeader } from "./components/SectionHeader";
 
 interface MutationCallbacks {
@@ -84,7 +83,6 @@ export const AgentSettingsTemplatesPageView: FC<
 			<SectionHeader
 				label="Templates"
 				description="Restrict which templates agents can use to create workspaces. When no templates are selected, all templates are available."
-				badge={<AdminBadge />}
 			/>
 
 			{isLoading && (

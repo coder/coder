@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useState } from "react";
+import type { FC } from "react";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -191,7 +191,6 @@ interface ChatModelAdminPanelProps {
 	section?: ChatModelAdminSection;
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	// Data from queries.
 	providerConfigsData: TypesGen.ChatProviderConfig[] | undefined;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
@@ -232,7 +231,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	section = "providers",
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	providerConfigsData,
 	modelConfigsData,
 	modelCatalogData,
@@ -253,10 +251,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	isDeletingModel,
 	modelMutationError,
 }) => {
-	const [requestedProvider, setRequestedProvider] = useState<string | null>(
-		null,
-	);
-
 	// ── Sorted model configs ───────────────────────────────────
 	const modelConfigs = (modelConfigsData ?? []).slice().sort((a, b) => {
 		const cmp = a.provider.localeCompare(b.provider);
@@ -270,20 +264,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		modelCatalogData,
 	);
 
-	// Derive the effective selected provider from user intent + available
-	// providers. This avoids a useEffect + setState cycle that would cause
-	// an extra render with a stale value.
-	const selectedProvider =
-		requestedProvider &&
-		providerStates.some((ps) => ps.provider === requestedProvider)
-			? requestedProvider
-			: (providerStates[0]?.provider ?? null);
-
-	const selectedProviderState = selectedProvider
-		? (providerStates.find((ps) => ps.provider === selectedProvider) ?? null)
-		: null;
-
-	// ── Derived state ──────────────────────────────────────────
 	const providerConfigsUnavailable = providerConfigsData === null;
 	const modelConfigsUnavailable = modelConfigsData === null;
 
@@ -302,24 +282,18 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<ProvidersSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
 						isProviderMutationPending={isProviderMutationPending}
 						onCreateProvider={onCreateProvider}
 						onUpdateProvider={onUpdateProvider}
 						onDeleteProvider={onDeleteProvider}
-						onSelectedProviderChange={setRequestedProvider}
 					/>
 				) : (
 					<ModelsSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
-						selectedProvider={selectedProvider}
-						selectedProviderState={selectedProviderState}
-						onSelectedProviderChange={setRequestedProvider}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}
 						isCreating={isCreatingModel}

@@ -445,6 +445,18 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
 		}
 		return false
+	case database.ResourceTypeUserSecret:
+		_, err := api.Database.GetUserSecretByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// Only users have user_secret:read on their own secrets. If dbauthz returns
+		// ErrUnauthorized, it's not an error worth logging because we have enough
+		// information to know it's not deleted.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch user secret", slog.Error(err))
+		}
+		return false
 	default:
 		return false
 	}
@@ -536,6 +548,10 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// Chats are surfaced at /agents/{id}. They are owner-scoped but
 		// not username-scoped in the URL like workspaces or tasks.
 		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
+	case database.ResourceTypeUserSecret:
+		// TODO(PLAT-102): point at the user secrets management page once
+		// it ships. Until then, the audit row links nowhere.
+		return ""
 	default:
 		return ""
 	}

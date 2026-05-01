@@ -9,7 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FormField } from "#/components/FormField/FormField";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Label } from "#/components/Label/Label";
 import { PasswordField } from "#/components/PasswordField/PasswordField";
 import {
@@ -192,7 +192,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 		<div className="grow basis-0 min-h-screen flex justify-center items-center py-12">
 			<div className="flex flex-col w-full max-w-[500px] px-4">
 				<header className="mb-8">
-					<CoderIcon className="w-12 h-12 text-content-primary" />
+					<ProductLogo />
 					<h1 className="text-2xl font-normal mt-4 mb-0">
 						Welcome to <strong>Coder</strong>
 					</h1>

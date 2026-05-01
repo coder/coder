@@ -25,7 +25,7 @@ export const mockPaginationResultBase: ResultBase = {
 	onPageChange: () => {},
 };
 
-export const mockInitialRenderResult: PaginationResult = {
+export const mockInitialRenderResult = {
 	...mockPaginationResultBase,
 	isSuccess: false,
 	isPlaceholderData: false,
@@ -35,13 +35,13 @@ export const mockInitialRenderResult: PaginationResult = {
 	totalRecords: undefined,
 	totalPages: undefined,
 	countIsCapped: false,
-};
+} as const satisfies PaginationResult;
 
-export const mockSuccessResult: PaginationResult = {
+export const mockSuccessResult = {
 	...mockPaginationResultBase,
 	isSuccess: true,
 	isPlaceholderData: false,
 	currentOffsetStart: 1,
 	totalPages: 1,
 	totalRecords: 4,
-};
+} as const satisfies PaginationResult;

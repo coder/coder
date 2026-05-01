@@ -162,21 +162,18 @@ export const CreateServer: Story = {
 			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
-		// Fill in the display name via the inline header input.
+		// Fill in the Display name field.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		await userEvent.type(nameInput, "Sentry");
 
-		// Required fields (slug, server URL) are always visible. Optional
-		// sections start collapsed and the Enabled switch is edit-only.
-		// PencilIcon sits next to the editable name.
+		// Required fields (display name, slug, server URL) are always visible.
+		// Optional sections start collapsed and the Enabled switch is edit-only.
 		expect(body.getByLabelText(/^Slug/i)).toBeInTheDocument();
 		expect(body.getByLabelText(/Server URL/i)).toBeInTheDocument();
 		expect(body.queryByLabelText(/Description/i)).not.toBeInTheDocument();
 		expect(
 			body.queryByRole("switch", { name: /Enabled/i }),
 		).not.toBeInTheDocument();
-		const nameRow = nameInput.closest("div")?.parentElement;
-		expect(nameRow?.querySelector("svg.lucide-pencil")).toBeTruthy();
 
 		// Slug should auto-populate from the display name.
 		await expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");

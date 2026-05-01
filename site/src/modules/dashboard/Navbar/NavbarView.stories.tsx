@@ -20,7 +20,6 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: {
 		chromatic: chromaticWithTablet,
 		layout: "fullscreen",
-		experiments: ["agents"],
 		queries: [
 			{
 				key: ["tasks", tasksFilter],
@@ -104,12 +103,6 @@ export const ForMemberWithAgentsAccess: Story = {
 		canViewHealth: false,
 		canViewOrganizations: false,
 		canCreateChat: true,
-	},
-};
-
-export const CustomLogo: Story = {
-	args: {
-		logo_url: "/icon/github.svg",
 	},
 };
 

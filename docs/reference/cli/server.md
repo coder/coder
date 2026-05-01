@@ -1899,7 +1899,7 @@ Allow users to provide their own LLM API keys or subscriptions. When disabled, o
 | YAML        | <code>aibridge.circuit_breaker_enabled</code>        |
 | Default     | <code>false</code>                                   |
 
-Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).
+Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).
 
 ### --aibridge-proxy-enabled
 

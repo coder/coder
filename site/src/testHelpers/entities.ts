@@ -288,7 +288,7 @@ export const MockOwnerRole: TypesGen.Role = {
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
-	name: "user_admin",
+	name: "user-admin",
 	display_name: "User Admin",
 	site_permissions: [],
 	user_permissions: [],
@@ -298,7 +298,7 @@ export const MockUserAdminRole: TypesGen.Role = {
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
-	name: "template_admin",
+	name: "template-admin",
 	display_name: "Template Admin",
 	site_permissions: [],
 	user_permissions: [],
@@ -367,6 +367,16 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	display_name: "Organization Auditor",
 	assignable: true,
 	built_in: false,
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
+export const MockAgentsAccessRole: TypesGen.Role = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
 	site_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
@@ -561,8 +571,6 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 };
 
 export const MockTasksTabVisible: boolean = false;
-
-export const MockAgentsTabVisible: boolean = false;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -4794,6 +4802,20 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			kind: "system",
 			enabled_by_default: false,
 		},
+		{
+			id: "764031be-4863-4220-867b-6ce1a1b7a5f5",
+			name: "Chats Auto-Archived",
+			title_template:
+				"Chats auto-archived after {{.Data.auto_archive_days}} days of inactivity",
+			body_template:
+				'The following chats were automatically archived:\n\n{{range .Data.archived_chats}}* "{{.title}}" (last active {{.last_activity_humanized}})\n{{end}}',
+			actions:
+				'[{"label": "View chats", "url": "{{base_url}}/agents?archived=archived"}]',
+			group: "Chat Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
 	];
 
 export const MockCustomNotificationTemplates: TypesGen.NotificationTemplate[] =
@@ -5316,4 +5338,5 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		cache_write_input_tokens: 120,
 	},
 	last_prompt: "But *can* I really fix it?",
+	last_active_at: "2026-03-09T10:28:15.03152Z",
 };

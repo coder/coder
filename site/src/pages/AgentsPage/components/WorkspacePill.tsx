@@ -92,30 +92,36 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							type="button"
 							aria-label={`${workspace.name} workspace menu`}
 							className={cn(
-								"inline-flex min-w-[2.75rem] max-w-[200px] items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary overflow-hidden",
+								"inline-flex min-w-0 items-center gap-1 rounded-full bg-surface-secondary text-xs font-medium text-content-secondary overflow-hidden md:min-w-[2.75rem]",
 								"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+								"size-7 justify-center p-0 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
 							)}
 						>
-							<StatusIcon type={effectiveType} className="size-3 shrink-0" />
-							<span className="flex min-w-0 truncate">{workspace.name}</span>
-							{/* The menu opens upward (side="top"), so the chevron
-							   points away from the menu when closed (default) and
-							   toward it when open (rotate-180). */}
+							<StatusIcon
+								type={effectiveType}
+								className="size-icon-sm shrink-0 md:size-3"
+							/>
+							<span className="hidden min-w-0 truncate md:inline">
+								{workspace.name}
+							</span>
 							<ChevronDownIcon
 								className={cn(
-									"size-3 shrink-0 opacity-60 transition-transform",
+									"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
 									open && "rotate-180",
 								)}
 							/>
 						</button>
 					</DropdownMenuTrigger>
 				</TooltipTrigger>
-				<TooltipContent>{statusLabel}</TooltipContent>
+				<TooltipContent className="hidden md:block">
+					{statusLabel}
+				</TooltipContent>
 			</Tooltip>
+
 			<DropdownMenuContent
 				side="top"
 				align="start"
-				className="w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
 				{hasVSCode && (
 					<VSCodeMenuItem

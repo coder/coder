@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -300,36 +302,32 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 func TestAllowedExploreToolNames(t *testing.T) {
 	t.Parallel()
 
-	makeTools := func(names ...string) []fantasy.AgentTool {
-		tools := make([]fantasy.AgentTool, 0, len(names))
-		for _, name := range names {
-			tools = append(tools, newTestAgentTool(name))
-		}
-		return tools
-	}
-
-	got := allowedExploreToolNames(makeTools(
-		"read_file",
-		"write_file",
-		"edit_files",
-		"execute",
-		"process_output",
-		"process_list",
-		"process_signal",
-		"spawn_agent",
-		"wait_agent",
-		"read_skill",
-		"read_skill_file",
-		"ask_user_question",
-	))
+	externalConfigID := uuid.New()
+	got := allowedExploreToolNames([]fantasy.AgentTool{
+		newTestAgentTool("read_file"),
+		newTestAgentTool("write_file"),
+		newTestMCPAgentTool("external-mcp__echo", externalConfigID),
+		newTestAgentTool("workspace-mcp__echo"),
+		newTestAgentTool("execute"),
+		newTestAgentTool("process_output"),
+		newTestAgentTool("process_list"),
+		newTestAgentTool("process_signal"),
+		newTestAgentTool("spawn_agent"),
+		newTestAgentTool("wait_agent"),
+		newTestAgentTool("read_skill"),
+		newTestAgentTool("read_skill_file"),
+		newTestAgentTool("ask_user_question"),
+	})
 
 	require.Equal(t, []string{
 		"read_file",
+		"external-mcp__echo",
 		"execute",
 		"process_output",
 		"read_skill",
 		"read_skill_file",
 	}, got)
+	require.NotContains(t, got, "workspace-mcp__echo")
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {
@@ -2917,6 +2915,400 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	require.Equal(t, 1, got.contributingTrailingUserCount)
 }
 
+func TestResolveChainMode_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksWhenAssistantContentCannotParse(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeCorruptAssistantMessage(modelConfigID),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksWhenToolContentCannotParse(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeCorruptToolMessage(),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_AllowsProviderExecutedOnly(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-web-search",
+		"web_search",
+		json.RawMessage(`{"query":"coder docs"}`),
+	)
+	toolCall.ProviderExecuted = true
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksOnMixedProviderExecutedAndUnresolvedLocalCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	providerCall := codersdk.ChatMessageToolCall(
+		"call-web-search",
+		"web_search",
+		json.RawMessage(`{"query":"coder docs"}`),
+	)
+	providerCall.ProviderExecuted = true
+	localCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(
+			modelConfigID,
+			[]codersdk.ChatMessagePart{providerCall, localCall},
+		),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_AllowsResolvedLocalCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	// A follow-up assistant after the tool result confirms the
+	// result was sent back to the provider. Chain mode should
+	// activate from the follow-up assistant's response ID.
+	// Use a distinct response ID on the follow-up assistant
+	// so the assertion verifies resolveChainMode selects the
+	// follow-up (last assistant), not the original tool-caller.
+	followUp := chainModeAssistantMessage(modelConfigID, nil)
+	followUp.ProviderResponseID = sql.NullString{String: "resp-follow-up", Valid: true}
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		followUp,
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-follow-up", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	firstCall := codersdk.ChatMessageToolCall(
+		"call-first",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	secondCall := codersdk.ChatMessageToolCall(
+		"call-second",
+		"read_file",
+		json.RawMessage(`{"path":"README.md"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-first",
+		"read_file",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(
+			modelConfigID,
+			[]codersdk.ChatMessagePart{firstCall, secondCall},
+		),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+// Tests for providerMissingToolResults detection.
+// These cover the StopAfterTool + chain mode desync bug where local
+// tool results exist in the DB but were never sent back to the
+// provider, leaving an unresolved function_call in the stored chain.
+
+func TestResolveChainMode_BlocksWhenToolResultNeverSentToProvider(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"propose_plan",
+		json.RawMessage(`{"path":"plan.md"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-local",
+		"propose_plan",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("make a plan"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		// No follow-up assistant: StopAfterTool fired, tool result
+		// was persisted locally but never sent back to the provider.
+		chainModeUserMessage("implement the plan"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	// Local tool calls are resolved (result exists in DB).
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	// But the provider never received the result.
+	require.True(t, chainInfo.providerMissingToolResults)
+	// Chain mode must NOT activate.
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksProviderMissingWithMultipleToolCalls(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	call1 := codersdk.ChatMessageToolCall(
+		"call-1", "propose_plan",
+		json.RawMessage(`{"path":"plan.md"}`),
+	)
+	call2 := codersdk.ChatMessageToolCall(
+		"call-2", "write_file",
+		json.RawMessage(`{"path":"foo.go"}`),
+	)
+	result1 := codersdk.ChatMessageToolResult(
+		"call-1", "propose_plan",
+		json.RawMessage(`{"ok":true}`), false, false,
+	)
+	result2 := codersdk.ChatMessageToolResult(
+		"call-2", "write_file",
+		json.RawMessage(`{"ok":true}`), false, false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("do it"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{call1, call2}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{result1, result2}),
+		chainModeUserMessage("next"),
+	})
+
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.True(t, chainInfo.providerMissingToolResults)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(), chainInfo, modelConfigID, false,
+	))
+}
+
+func TestResolveChainMode_AllowsWhenNoToolCalls(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("hello"),
+		chainModeAssistantMessage(modelConfigID, nil),
+		chainModeUserMessage("thanks"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(), chainInfo, modelConfigID, false,
+	))
+}
+
+func chainModeProviderOptions() fantasy.ProviderOptions {
+	store := true
+	return fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
+			Store: &store,
+		},
+	}
+}
+
+func chainModeSystemMessage() database.ChatMessage {
+	return database.ChatMessage{Role: database.ChatMessageRoleSystem}
+}
+
+func chainModeUserMessage(text string) database.ChatMessage {
+	msg := chatMessageWithParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(text),
+	})
+	msg.Role = database.ChatMessageRoleUser
+	return msg
+}
+
+func chainModeAssistantMessage(
+	modelConfigID uuid.UUID,
+	parts []codersdk.ChatMessagePart,
+) database.ChatMessage {
+	msg := chatMessageWithParts(parts)
+	msg.Role = database.ChatMessageRoleAssistant
+	msg.ProviderResponseID = sql.NullString{String: "resp-123", Valid: true}
+	msg.ModelConfigID = uuid.NullUUID{UUID: modelConfigID, Valid: true}
+	return msg
+}
+
+func chainModeCorruptAssistantMessage(modelConfigID uuid.UUID) database.ChatMessage {
+	return database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Content: pqtype.NullRawMessage{
+			RawMessage: []byte("not json"),
+			Valid:      true,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
+func chainModeCorruptToolMessage() database.ChatMessage {
+	return database.ChatMessage{
+		Role: database.ChatMessageRoleTool,
+		Content: pqtype.NullRawMessage{
+			RawMessage: []byte("not json"),
+			Valid:      true,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
+func chainModeToolMessage(parts []codersdk.ChatMessagePart) database.ChatMessage {
+	msg := chatMessageWithParts(parts)
+	msg.Role = database.ChatMessageRoleTool
+	return msg
+}
+
 func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {
 	t.Parallel()
 
@@ -3132,9 +3524,9 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		clock:                 clock,
 		workerID:              workerID,
 		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
 		configCache:           newChatConfigCache(ctx, db, clock),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
-		metrics:               chatloop.NopMetrics(),
 	}
 
 	// Publish a stale "pending" notification on the control channel
@@ -3288,6 +3680,7 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 		clock:                 clock,
 		workerID:              workerID,
 		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
@@ -3368,6 +3761,7 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 		clock:                 clock,
 		workerID:              uuid.New(),
 		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
@@ -3709,34 +4103,239 @@ func TestSafeSweepIdleStreams_RecoversFromPanic(t *testing.T) {
 	}, "safeSweepIdleStreams must recover panics so the janitor loop keeps running")
 }
 
+func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
+	// Regression test: when a workspace is rebuilt, the chat's stored
+	// agent ID points to a disconnected agent from the old build. The
+	// cache-miss path must let dialWithLazyValidation discover the new
+	// agent instead of rejecting the old one immediately.
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	oldAgentID := uuid.New()
+	newAgentID := uuid.New()
+	buildID := uuid.New()
+
+	// Old agent: disconnected (from previous build).
+	oldAgent := database.WorkspaceAgent{
+		ID: oldAgentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		DisconnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-9 * time.Minute),
+			Valid: true,
+		},
+	}
+
+	// New agent: connected (from latest build).
+	newAgent := database.WorkspaceAgent{
+		ID:   newAgentID,
+		Name: "main",
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-1 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  oldAgentID,
+			Valid: true,
+		},
+	}
+
+	// ensureWorkspaceAgent fetches the stale agent.
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), oldAgentID).
+		Return(oldAgent, nil).Times(1)
+	// Lazy validation discovers the new agent.
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{newAgent}, nil).Times(1)
+	// Post-switch: persist the new binding.
+	db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{ID: buildID}, nil).Times(1)
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), newAgentID).
+		Return(newAgent, nil).Times(1)
+
+	updatedChat := chat
+	updatedChat.AgentID = uuid.NullUUID{UUID: newAgentID, Valid: true}
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
+	db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
+		ID:      chat.ID,
+		BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
+		AgentID: uuid.NullUUID{UUID: newAgentID, Valid: true},
+	}).Return(updatedChat, nil).Times(1)
+
+	newConn := agentconnmock.NewMockAgentConn(ctrl)
+	newConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		switch id {
+		case oldAgentID:
+			return nil, nil, xerrors.New("agent is not connected")
+		case newAgentID:
+			return newConn, func() {}, nil
+		default:
+			return nil, nil, xerrors.Errorf("unexpected agent ID: %s", id)
+		}
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
+			return database.Chat{}, nil
+		},
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err, "getWorkspaceConn should recover stale agent binding")
+	require.Same(t, newConn, gotConn, "should return the connection to the new agent")
+
+	// Verify the cache was updated to the new agent so subsequent
+	// cache-hit calls use the correct agent ID.
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.Equal(t, newAgentID, workspaceCtx.agent.ID, "cached agent should be the new agent")
+	require.True(t, workspaceCtx.agentLoaded)
+	require.Same(t, newConn, workspaceCtx.conn, "connection should be cached for subsequent calls")
+}
+
+func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
+	// When an agent crashes on the same build (disconnected, but still
+	// in the latest build), dialWithLazyValidation dials, fails fast,
+	// validation finds the same agent, and the retry also fails. The
+	// wrapped dial error propagates (not errChatAgentDisconnected).
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+
+	// Agent: disconnected (crashed on current build).
+	agent := database.WorkspaceAgent{
+		ID:   agentID,
+		Name: "main",
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		DisconnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-9 * time.Minute),
+			Valid: true,
+		},
+	}
+
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	// ensureWorkspaceAgent fetches the (crashed) agent.
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(agent, nil).Times(1)
+	// Validation finds the same agent in the latest build.
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{agent}, nil).Times(1)
+
+	dialErr := xerrors.New("agent is not connected")
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return nil, nil, dialErr
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
+			return database.Chat{}, nil
+		},
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.Error(t, err)
+	// The error should be a wrapped dial error, not the
+	// agent-disconnected sentinel.
+	require.NotErrorIs(t, err, errChatAgentDisconnected)
+	require.ErrorIs(t, err, dialErr)
+
+	// Cache should not have a connection, but the agent should
+	// still be loaded (ensureWorkspaceAgent cached it).
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.True(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
+}
+
 func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
+	// The cache-hit status check re-fetches the agent row for a fresh
+	// heartbeat timestamp. These tests verify that path detects
+	// disconnected or timed-out agents and that healthy or DB-error
+	// paths return the cached connection.
 	t.Parallel()
 
 	type testCase struct {
 		name              string
 		agent             database.WorkspaceAgent
-		cacheHit          bool
 		dbError           bool
 		wantErr           error
-		wantDialCalled    bool
 		wantReleaseCalled bool
 	}
 
 	tests := []testCase{
-		{
-			name: "DisconnectedAgentCacheMiss",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-10 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-10 * time.Minute),
-					Valid: true,
-				},
-			},
-			wantErr: errChatAgentDisconnected,
-		},
 		{
 			name: "DisconnectedAgentCacheHit",
 			agent: database.WorkspaceAgent{
@@ -3749,24 +4348,20 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 					Valid: true,
 				},
 			},
-			cacheHit:          true,
 			wantErr:           errChatAgentDisconnected,
 			wantReleaseCalled: true,
 		},
 		{
-			name: "TimedOutAgentCacheMiss",
+			// Agent never connected and the connection timeout
+			// has elapsed. This is the cache-hit timeout branch
+			// of isAgentUnreachable.
+			name: "TimedOutAgentCacheHit",
 			agent: database.WorkspaceAgent{
 				CreatedAt:                time.Now().Add(-10 * time.Minute),
 				ConnectionTimeoutSeconds: 60,
 			},
-			wantErr: errChatAgentDisconnected,
-		},
-		{
-			// A "connecting" agent (never connected, normal after
-			// fresh build) must NOT be blocked by the status check.
-			name:           "ConnectingAgentProceeds",
-			agent:          database.WorkspaceAgent{},
-			wantDialCalled: true,
+			wantErr:           errChatAgentDisconnected,
+			wantReleaseCalled: true,
 		},
 		{
 			name: "CacheHitHealthyAgent",
@@ -3780,7 +4375,6 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 					Valid: true,
 				},
 			},
-			cacheHit: true,
 		},
 		{
 			// When GetWorkspaceAgentByID returns an error on
@@ -3796,8 +4390,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 					Valid: true,
 				},
 			},
-			cacheHit: true,
-			dbError:  true,
+			dbError: true,
 		},
 	}
 
@@ -3838,16 +4431,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 					Times(1)
 			}
 
-			var dialCalled bool
 			var releaseCalled bool
-
-			// For ConnectingAgentProceeds the dial returns a real
-			// mock conn; for all others it should not be reached.
-			var dialConn *agentconnmock.MockAgentConn
-			if tc.wantDialCalled {
-				dialConn = agentconnmock.NewMockAgentConn(ctrl)
-				dialConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
-			}
 
 			server := &Server{
 				db:                             db,
@@ -3856,16 +4440,13 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    defaultDialTimeout,
 			}
-			server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-				dialCalled = true
-				if dialConn != nil {
-					return dialConn, func() {}, nil
-				}
+			server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, nil, xerrors.New("should not be called")
 			}
 
 			chatStateMu := &sync.Mutex{}
 			currentChat := chat
+			cachedConn := agentconnmock.NewMockAgentConn(ctrl)
 			workspaceCtx := turnWorkspaceContext{
 				server:      server,
 				chatStateMu: chatStateMu,
@@ -3873,51 +4454,29 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
 					return database.Chat{}, nil
 				},
+				agent:             agent,
+				agentLoaded:       true,
+				conn:              cachedConn,
+				releaseConn:       func() { releaseCalled = true },
+				cachedWorkspaceID: chat.WorkspaceID,
 			}
 			defer workspaceCtx.close()
-
-			// For cache-hit tests, pre-populate the cached
-			// connection state.
-			var cachedConn *agentconnmock.MockAgentConn
-			if tc.cacheHit {
-				cachedConn = agentconnmock.NewMockAgentConn(ctrl)
-				workspaceCtx.agent = agent
-				workspaceCtx.agentLoaded = true
-				workspaceCtx.conn = cachedConn
-				workspaceCtx.releaseConn = func() { releaseCalled = true }
-				workspaceCtx.cachedWorkspaceID = chat.WorkspaceID
-			}
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
 
-			switch {
-			case tc.wantErr != nil:
+			if tc.wantErr != nil {
 				require.Nil(t, gotConn)
 				require.ErrorIs(t, err, tc.wantErr)
-			case tc.cacheHit:
+			} else {
 				require.NoError(t, err)
 				require.Same(t, cachedConn, gotConn)
-			default:
-				// Cache-miss success (ConnectingAgentProceeds).
-				require.NoError(t, err)
-				require.Same(t, dialConn, gotConn)
 			}
 
-			require.Equal(t, tc.wantDialCalled, dialCalled, "dial called")
 			require.Equal(t, tc.wantReleaseCalled, releaseCalled, "release called")
 
-			// For error cases on cache-miss, the cache should be
-			// cleared.
-			if tc.wantErr != nil && !tc.cacheHit {
-				workspaceCtx.mu.Lock()
-				defer workspaceCtx.mu.Unlock()
-				require.False(t, workspaceCtx.agentLoaded)
-				require.Nil(t, workspaceCtx.conn)
-			}
-			// For cache-hit disconnect, the cache should also be
-			// cleared.
-			if tc.wantErr != nil && tc.cacheHit {
+			// For cache-hit disconnect, the cache should be cleared.
+			if tc.wantErr != nil {
 				workspaceCtx.mu.Lock()
 				defer workspaceCtx.mu.Unlock()
 				require.False(t, workspaceCtx.agentLoaded)
@@ -4159,4 +4718,218 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	require.NotErrorIs(t, err, errChatDialTimeout)
 	// The original dial error should propagate.
 	require.ErrorContains(t, err, "authentication failed")
+}
+
+// TestAutoPromote_InsertFailureRollsBackTransaction verifies that when
+// tryAutoPromoteQueuedMessage pops a queued message but the subsequent
+// insert fails, the error propagates to the InTx callback, causing the
+// transaction to roll back and preserving the queued message.
+func TestAutoPromote_InsertFailureRollsBackTransaction(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ps := dbpubsub.NewInMemory()
+	clock := quartz.NewReal()
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+	ownerID := uuid.New()
+	modelConfigID := uuid.New()
+
+	waitingChat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusWaiting,
+		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
+	}
+	queuedMsg := database.ChatQueuedMessage{
+		ID:      1,
+		ChatID:  chatID,
+		Content: []byte(`[{"type":"text","text":"queued"}]`),
+	}
+	insertErr := xerrors.New("insert failed")
+
+	server := &Server{
+		db:          db,
+		logger:      logger,
+		pubsub:      ps,
+		configCache: newChatConfigCache(ctx, db, clock),
+	}
+
+	// The caller runs tryAutoPromoteQueuedMessage inside InTx.
+	// Wire the mock to execute the callback against the TX mock.
+	var txErr error
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			txErr = fn(tx)
+			return txErr
+		},
+	)
+
+	// Inside the TX: lock chat, get queued messages, resolve model
+	// config, pop queued message, insert fails.
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(waitingChat, nil)
+	tx.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return([]database.ChatQueuedMessage{queuedMsg}, nil)
+	tx.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(database.ChatModelConfig{ID: modelConfigID}, nil)
+	tx.EXPECT().PopNextQueuedMessage(gomock.Any(), chatID).Return(queuedMsg, nil)
+	tx.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, insertErr)
+
+	// Invoke tryAutoPromoteQueuedMessage through the same InTx
+	// pattern the processChat defer uses. The test directly calls
+	// the production path to verify error propagation.
+	_ = db.InTx(func(txStore database.Store) error {
+		latestChat, err := txStore.GetChatByIDForUpdate(ctx, chatID)
+		if err != nil {
+			return err
+		}
+
+		_, _, _, promoteErr := server.tryAutoPromoteQueuedMessage(ctx, txStore, latestChat)
+		if promoteErr != nil {
+			return promoteErr
+		}
+
+		// This code path should not be reached when the insert
+		// fails, because promoteErr should be non-nil.
+		return nil
+	}, nil)
+
+	// The InTx callback must return a non-nil error so the
+	// transaction rolls back, preserving the queued message.
+	require.Error(t, txErr, "InTx callback should return error when insert fails")
+}
+
+// TestAutoPromote_WakesRunLoopAfterPromotion verifies that after the
+func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ps := dbpubsub.NewInMemory()
+	clock := quartz.NewReal()
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+	ownerID := uuid.New()
+	modelConfigID := uuid.New()
+
+	waitingChat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusWaiting,
+		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
+	}
+	queuedMsg := database.ChatQueuedMessage{
+		ID:      1,
+		ChatID:  chatID,
+		Content: []byte(`[{"type":"text","text":"queued"}]`),
+	}
+
+	wakeCh := make(chan struct{}, 1)
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		pubsub:                ps,
+		clock:                 clock,
+		workerID:              workerID,
+		wakeCh:                wakeCh,
+		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
+		configCache:           newChatConfigCache(ctx, db, clock),
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	// Block model resolution until the running status has been
+	// published. Returning ErrInterrupted makes processChat enter the
+	// waiting-state auto-promotion path deterministically.
+	modelBlocked := make(chan struct{})
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			<-modelBlocked
+			return database.ChatModelConfig{}, chatloop.ErrInterrupted
+		},
+	).AnyTimes()
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(
+		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
+	).AnyTimes()
+	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+
+	// The deferred cleanup transaction: InsertChatMessages fails,
+	// so UpdateChatStatus must NOT be called.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(waitingChat, nil)
+	tx.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return([]database.ChatQueuedMessage{queuedMsg}, nil)
+	tx.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(database.ChatModelConfig{ID: modelConfigID}, nil)
+	tx.EXPECT().PopNextQueuedMessage(gomock.Any(), chatID).Return(queuedMsg, nil)
+	tx.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(
+		nil, xerrors.New("insert failed"),
+	)
+	tx.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).Times(0)
+
+	// Subscribe BEFORE launching the goroutine.
+	runningCh := make(chan struct{}, 1)
+	unsubRunning, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatStreamNotifyChannel(chatID),
+		func(_ context.Context, msg []byte, err error) {
+			if err != nil {
+				return
+			}
+			var notify coderdpubsub.ChatStreamNotifyMessage
+			if json.Unmarshal(msg, &notify) != nil {
+				return
+			}
+			if notify.Status == string(database.ChatStatusRunning) {
+				select {
+				case runningCh <- struct{}{}:
+				default:
+				}
+			}
+		},
+	)
+	require.NoError(t, err)
+	defer unsubRunning()
+
+	chat := database.Chat{ID: chatID, OwnerID: ownerID, LastModelConfigID: modelConfigID}
+	processDone := make(chan struct{})
+	go func() {
+		defer close(processDone)
+		server.processChat(ctx, chat)
+	}()
+
+	select {
+	case <-runningCh:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for running status")
+	}
+
+	close(modelBlocked)
+
+	select {
+	case <-processDone:
+	case <-ctx.Done():
+		t.Fatal("processChat did not complete")
+	}
+
+	// The wake channel should NOT have a signal because the
+	// transaction failed before reaching UpdateChatStatus.
+	select {
+	case <-wakeCh:
+		t.Fatal("wake channel should not have a signal after insert failure")
+	default:
+		// No signal, as expected.
+	}
 }
