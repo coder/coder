@@ -1492,7 +1492,7 @@
 						{
 							"title": "Chats",
 							"path": "./reference/api/chats.md",
-							"state": ["experimental"]
+							"state": ["early access"]
 						},
 						{
 							"title": "Debug",
