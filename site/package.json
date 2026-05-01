@@ -128,7 +128,7 @@
 		"@chromatic-com/storybook": "5.0.1",
 		"@octokit/types": "12.6.0",
 		"@playwright/test": "1.50.1",
-		"@rolldown/plugin-babel": "0.2.2",
+		"@rolldown/plugin-babel": "0.2.3",
 		"@storybook/addon-a11y": "10.3.3",
 		"@storybook/addon-docs": "10.3.3",
 		"@storybook/addon-links": "10.3.3",
