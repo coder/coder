@@ -107,7 +107,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 			title="Download logs"
 			confirmLoading={isDownloading}
 			confirmText="Download"
-			confirmDisabled={
+			disabled={
 				isDownloading ||
 				// If a workspace isn't healthy, let the user download as many logs as
 				// they can. Otherwise, wait for everything to come in

@@ -103,7 +103,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 	confirmLoading,
 	confirmText,
 	description,
-	confirmDisabled = false,
+	disabled = false,
 	hideCancel,
 	onClose,
 	onConfirm,
@@ -134,7 +134,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 					cancelText={cancelText}
 					confirmLoading={confirmLoading}
 					confirmText={confirmText || defaults.confirmText}
-					confirmDisabled={confirmDisabled}
+					disabled={disabled}
 					onCancel={!hideCancel ? onClose : undefined}
 					onConfirm={onConfirm || onClose}
 					type={type}

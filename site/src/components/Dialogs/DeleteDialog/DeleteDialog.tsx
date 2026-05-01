@@ -57,7 +57,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 			onConfirm={onConfirm}
 			onClose={onCancel}
 			confirmLoading={confirmLoading}
-			confirmDisabled={!deletionConfirmed}
+			disabled={!deletionConfirmed}
 			confirmText={confirmText}
 			description={
 				<>
