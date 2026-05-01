@@ -12187,6 +12187,59 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 	})
 }
 
+// requireActiveVersionStore always returns RequireActiveVersion: true so
+// tests can exercise relevant code paths without an enterprise license.
+type requireActiveVersionStore struct{}
+
+func (requireActiveVersionStore) GetTemplateAccessControl(_ database.Template) dbauthz.TemplateAccessControl {
+	return dbauthz.TemplateAccessControl{RequireActiveVersion: true}
+}
+
+func (requireActiveVersionStore) SetTemplateAccessControl(_ context.Context, _ database.Store, _ uuid.UUID, _ dbauthz.TemplateAccessControl) error {
+	return nil
+}
+
+func TestChatStartWorkspace_RequireActiveVersion(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+	var store dbauthz.AccessControlStore = requireActiveVersionStore{}
+	api.AccessControlStore.Store(&store)
+	db := api.Database
+	user := coderdtest.CreateFirstUser(t, rawClient)
+
+	// Given: active template version v1 plus workspace stopped on v1.
+	wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        user.UserID,
+		OrganizationID: user.OrganizationID,
+	}).Seed(database.WorkspaceBuild{
+		Transition: database.WorkspaceTransitionStop,
+	}).Do()
+	tmplID := wsResp.Workspace.TemplateID
+	v1ID := wsResp.Build.TemplateVersionID
+
+	// Given: a new active version v2 is published.
+	v2Resp := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tmplID, Valid: true},
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+	}).Do()
+	v2 := v2Resp.TemplateVersion
+	require.NotEqual(t, v1ID, v2.ID, "v2 must differ from v1")
+
+	// When: we start the workspace through chatStartWorkspace.
+	build, err := coderd.ChatStartWorkspace(api, ctx, user.UserID, wsResp.Workspace.ID,
+		codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		})
+
+	// Then: the build is auto-updated to the active version.
+	require.NoError(t, err)
+	require.Equal(t, v2.ID, build.TemplateVersionID, "build must be on the active version")
+	require.Nil(t, build.TemplateVersionPresetID, "no preset must be applied")
+}
+
 func TestGetChatMessages_Pagination(t *testing.T) {
 	t.Parallel()
 
