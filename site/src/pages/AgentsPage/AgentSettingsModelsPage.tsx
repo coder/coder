@@ -21,7 +21,10 @@ const AgentSettingsModelsPage: FC = () => {
 	const queryClient = useQueryClient();
 
 	// Queries.
-	const providerConfigsQuery = useQuery(chatProviderConfigs());
+	const providerConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const modelCatalogQuery = useQuery(chatModels());
 

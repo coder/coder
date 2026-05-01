@@ -45,6 +45,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -648,6 +649,7 @@ const AgentChatPage: FC = () => {
 		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
+	const { permissions } = useAuthenticated();
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -700,7 +702,10 @@ const AgentChatPage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const chatProviderConfigsQuery = useQuery(chatProviderConfigs());
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
@@ -734,9 +739,10 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
-	const providerCount = chatProviderConfigsQuery.isSuccess
-		? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
-		: undefined;
+	const providerCount =
+		permissions.editDeploymentConfig && chatProviderConfigsQuery.isSuccess
+			? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
+			: undefined;
 	const modelCount = chatModelConfigsQuery.isSuccess
 		? chatModelConfigsQuery.data.length
 		: undefined;

@@ -39,7 +39,10 @@ const AgentCreatePage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const chatProviderConfigsQuery = useQuery(chatProviderConfigs());
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -50,9 +53,10 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
-	const providerCount = chatProviderConfigsQuery.isSuccess
-		? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
-		: undefined;
+	const providerCount =
+		permissions.editDeploymentConfig && chatProviderConfigsQuery.isSuccess
+			? countConfiguredProviderConfigs(chatProviderConfigsQuery.data)
+			: undefined;
 	const modelCount = chatModelConfigsQuery.isSuccess
 		? chatModelConfigsQuery.data.length
 		: undefined;
