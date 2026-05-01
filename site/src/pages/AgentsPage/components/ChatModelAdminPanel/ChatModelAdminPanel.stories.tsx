@@ -1502,14 +1502,7 @@ export const AnthropicKnownModelHappyPath: Story = {
 		await expect(
 			await body.findByLabelText(/Thinking Budget Tokens/i),
 		).toHaveValue("");
-		const reasoningEffortGroup = await body.findByRole("radiogroup", {
-			name: "Reasoning Effort",
-		});
-		for (const option of ["Low", "Medium", "High", "Xhigh", "Max"]) {
-			await expect(
-				within(reasoningEffortGroup).getByRole("radio", { name: option }),
-			).toHaveAttribute("aria-checked", "false");
-		}
+		await expectReasoningEffort(body, "medium");
 	},
 };
 
