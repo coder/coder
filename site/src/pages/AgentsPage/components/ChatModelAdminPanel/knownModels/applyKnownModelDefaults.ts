@@ -35,6 +35,11 @@ const pricingModelFieldByName = {
 	KnownModelCostField
 >;
 
+const reasoningEffortPathByProvider: Record<string, string> = {
+	openai: "config.openai.reasoningEffort",
+	anthropic: "config.anthropic.effort",
+};
+
 const maybeApplyDefault = ({
 	appliedFields,
 	initialValues,
@@ -99,17 +104,21 @@ export const applyKnownModelDefaults = ({
 		});
 	}
 
-	if (provider === "openai" && knownModel.reasoningEffort !== undefined) {
-		// OpenAI gates this field under provider-specific config. Other
-		// providers use different reasoning controls.
-		maybeApplyDefault({
-			appliedFields,
-			initialValues,
-			nextValues,
-			path: "config.openai.reasoningEffort",
-			value: knownModel.reasoningEffort,
-			values,
-		});
+	if (knownModel.reasoningEffort !== undefined) {
+		// The catalog uses a single `reasoningEffort` field, but each provider
+		// exposes it under a different form path: OpenAI as `reasoningEffort`,
+		// Anthropic as `effort`. Providers without a mapping skip this default.
+		const reasoningEffortPath = reasoningEffortPathByProvider[provider];
+		if (reasoningEffortPath !== undefined) {
+			maybeApplyDefault({
+				appliedFields,
+				initialValues,
+				nextValues,
+				path: reasoningEffortPath,
+				value: knownModel.reasoningEffort,
+				values,
+			});
+		}
 	}
 
 	for (const fieldName of pricingFieldNameList) {

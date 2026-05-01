@@ -289,7 +289,19 @@ describe("applyKnownModelDefaults", () => {
 		);
 	});
 
-	it("does not set Anthropic reasoning or thinking fields", () => {
+	it("sets Anthropic effort for extended-thinking catalog entries", () => {
+		const result = applyDefaults({
+			values: buildInitialModelFormValues(),
+			initialValues: buildInitialModelFormValues(),
+			provider: "anthropic",
+			knownModel: requireKnownModel("anthropic", "claude-opus-4-7"),
+		});
+
+		expect(getPath(result.values, "config.anthropic.effort")).toBe("medium");
+		expect(result.appliedFields).toContain("config.anthropic.effort");
+	});
+
+	it("does not set Anthropic sendReasoning or thinking budget fields", () => {
 		const result = applyDefaults({
 			values: buildInitialModelFormValues(),
 			initialValues: buildInitialModelFormValues(),
@@ -298,14 +310,12 @@ describe("applyKnownModelDefaults", () => {
 		});
 
 		expect(getPath(result.values, "config.anthropic.sendReasoning")).toBe("");
-		expect(getPath(result.values, "config.anthropic.effort")).toBe("");
 		expect(
 			getPath(result.values, "config.anthropic.thinking.budgetTokens"),
 		).toBe("");
 		expect(result.appliedFields).not.toContain(
 			"config.anthropic.sendReasoning",
 		);
-		expect(result.appliedFields).not.toContain("config.anthropic.effort");
 		expect(result.appliedFields).not.toContain(
 			"config.anthropic.thinking.budgetTokens",
 		);

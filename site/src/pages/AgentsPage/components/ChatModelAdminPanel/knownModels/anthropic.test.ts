@@ -17,6 +17,23 @@ describe("anthropicKnownModels", () => {
 		]);
 	});
 
+	it("declares medium reasoning effort for every extended-thinking model", () => {
+		const reasoningEffortByModel = Object.fromEntries(
+			anthropicKnownModels.map((knownModel) => [
+				knownModel.modelIdentifier,
+				knownModel.reasoningEffort,
+			]),
+		);
+
+		expect(reasoningEffortByModel).toEqual({
+			"claude-opus-4-7": "medium",
+			"claude-opus-4-6": "medium",
+			"claude-sonnet-4-6": "medium",
+			"claude-haiku-4-5": "medium",
+			"claude-sonnet-4-5": "medium",
+		});
+	});
+
 	it("has source metadata, provider equality, and declared order", () => {
 		expect(
 			anthropicKnownModels.map((knownModel) => knownModel.modelIdentifier),
