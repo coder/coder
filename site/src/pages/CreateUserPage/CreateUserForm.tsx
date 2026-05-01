@@ -345,15 +345,15 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							data-testid="password-input"
 						/>
 					)}
-				</div>
 
-				<RoleSelector
-					loading={rolesLoading}
-					error={rolesError}
-					availableRoles={availableRoles}
-					selectedRoles={form.values.roles}
-					onChange={(roles) => form.setFieldValue("roles", roles)}
-				/>
+					<RoleSelector
+						loading={rolesLoading}
+						error={rolesError}
+						availableRoles={availableRoles}
+						selectedRoles={form.values.roles}
+						onChange={(roles) => form.setFieldValue("roles", roles)}
+					/>
+				</div>
 
 				<FormFooter className="mt-8">
 					<Button onClick={onCancel} variant="outline">
