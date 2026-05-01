@@ -64,8 +64,13 @@ const COLORBLIND_THEME_CLASSES = [
 
 const TRITAN_THEME_CLASSES = [".dark-tritan", ".light-tritan"];
 
+function stripCssComments(css: string): string {
+	return css.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
 function extractBlock(css: string, selector: string): string | null {
-	for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+	const cssWithoutComments = stripCssComments(css);
+	for (const match of cssWithoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
 		const selectorList = match[1];
 		const block = match[2];
 		if (selectorList === undefined || block === undefined) {
