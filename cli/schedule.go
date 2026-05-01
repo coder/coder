@@ -109,7 +109,7 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 			if len(inv.Args) == 1 {
 				// If the argument contains a slash, we assume it's a full owner/name reference
 				if strings.Contains(inv.Args[0], "/") {
-					_, workspaceName, err := splitNamedWorkspace(inv.Args[0])
+					_, workspaceName, err := codersdk.SplitWorkspaceIdentifier(inv.Args[0])
 					if err != nil {
 						return err
 					}
@@ -161,7 +161,7 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -206,7 +206,7 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 				return err
 			}
 
-			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			updated, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -234,7 +234,7 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -261,7 +261,7 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 				return err
 			}
 
-			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			updated, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -293,7 +293,7 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 				return err
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
@@ -325,7 +325,7 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 				return err
 			}
 
-			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			updated, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}

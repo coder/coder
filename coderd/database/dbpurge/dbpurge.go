@@ -1,18 +1,29 @@
 package dbpurge
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"io"
+	"net/http"
+	"slices"
+	"strconv"
+	"sync/atomic"
 	"time"
 
+	"github.com/dustin/go-humanize"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pproflabel"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -34,18 +45,58 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Batch sizes for chat purging. Both use 1000, which is smaller
-	// than audit/connection log batches (10000), because chat_files
-	// rows contain bytea blob data that make large batches heavier.
+	// Chat batch sizes stay smaller than audit/connection log batches because
+	// chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
+	// chatAutoArchiveDigestMaxChats bounds how many chat titles a
+	// single digest body lists. Past the cap, surplus titles are
+	// summarized as "...and N more". 25 is a readable email-friendly
+	// length; the cap is unrelated to chatAutoArchiveBatchSize, which
+	// bounds work per tick.
+	chatAutoArchiveDigestMaxChats = 25
 )
 
+// defaultChatAutoArchiveBatchSize bounds how many root chats one
+// tick will archive by default.
+const defaultChatAutoArchiveBatchSize int32 = 1000
+
+type Option func(*instance)
+
+// WithClock overrides the clock used by the purger. Defaults to
+// quartz.NewReal().
+func WithClock(clk quartz.Clock) Option {
+	return func(i *instance) { i.clk = clk }
+}
+
+// WithChatAutoArchiveBatchSize overrides how many root chats a
+// single tick will auto-archive. Defaults to
+// defaultChatAutoArchiveBatchSize (1000).
+func WithChatAutoArchiveBatchSize(n int32) Option {
+	return func(i *instance) { i.chatAutoArchiveBatchSize = n }
+}
+
+// WithNotificationsEnqueuer sets the enqueuer used for digest
+// notifications. Defaults to notifications.NewNoopEnqueuer(). Panics
+// if e is nil: a nil enqueuer would NPE on the first dispatch tick,
+// and failing fast at option-apply time surfaces the misuse at
+// startup rather than minutes later.
+func WithNotificationsEnqueuer(e notifications.Enqueuer) Option {
+	if e == nil {
+		panic("developer error: WithNotificationsEnqueuer called with nil enqueuer")
+	}
+	return func(i *instance) { i.enqueuer = e }
+}
+
 // New creates a new periodically purging database instance.
-// It is the caller's responsibility to call Close on the returned instance.
+// Callers must Close the returned instance.
 //
-// This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer) io.Closer {
+// The auditor pointer is loaded on each dispatch tick so runtime
+// entitlement changes (e.g. toggling the audit-log feature) take
+// effect without restarting the process. Notifications enqueuer
+// defaults to no-op. Use WithNotificationsEnqueuer to pass a real
+// one.
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, auditor *atomic.Pointer[audit.Auditor], opts ...Option) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -69,18 +120,33 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
+	chatAutoArchiveRecords := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat_auto_archive",
+		Name:      "records_archived_total",
+		Help:      "Total number of chats archived by the auto-archive job (counting both roots and cascaded children).",
+	})
+	reg.MustRegister(chatAutoArchiveRecords)
+
 	inst := &instance{
-		cancel:            cancelFunc,
-		closed:            closed,
-		logger:            logger,
-		vals:              vals,
-		clk:               clk,
-		iterationDuration: iterationDuration,
-		recordsPurged:     recordsPurged,
+		cancel:                   cancelFunc,
+		closed:                   closed,
+		logger:                   logger,
+		vals:                     vals,
+		clk:                      quartz.NewReal(),
+		auditor:                  auditor,
+		enqueuer:                 notifications.NewNoopEnqueuer(),
+		iterationDuration:        iterationDuration,
+		recordsPurged:            recordsPurged,
+		chatAutoArchiveRecords:   chatAutoArchiveRecords,
+		chatAutoArchiveBatchSize: defaultChatAutoArchiveBatchSize,
+	}
+	for _, opt := range opts {
+		opt(inst)
 	}
 
 	// Start the ticker with the initial delay.
-	ticker := clk.NewTicker(delay)
+	ticker := inst.clk.NewTicker(delay)
 	doTick := func(ctx context.Context, start time.Time) {
 		defer ticker.Reset(delay)
 		err := inst.purgeTick(ctx, db, start)
@@ -88,7 +154,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 
 			// Record metrics for failed purge iteration.
-			duration := clk.Since(start)
+			duration := inst.clk.Since(start)
 			iterationDuration.WithLabelValues("false").Observe(duration.Seconds())
 		}
 	}
@@ -97,7 +163,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		defer close(closed)
 		defer ticker.Stop()
 		// Force an initial tick.
-		doTick(ctx, dbtime.Time(clk.Now()).UTC())
+		doTick(ctx, dbtime.Time(inst.clk.Now()).UTC())
 		for {
 			select {
 			case <-ctx.Done():
@@ -114,20 +180,29 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purgeTick performs a single purge iteration. It returns an error if the
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
-	// Read chat retention config outside the transaction to
-	// avoid poisoning the tx if the stored value is corrupt.
-	// A SQL-level cast error (e.g. non-numeric text) puts PG
-	// into error state, failing all subsequent queries in the
-	// same transaction.
-	chatRetentionDays, err := db.GetChatRetentionDays(ctx)
-	if err != nil {
-		i.logger.Warn(ctx, "failed to read chat retention config, skipping chat purge", slog.Error(err))
-		chatRetentionDays = 0
+	// Read chat configs outside the tx so a corrupt value can't
+	// poison subsequent queries. On error we log and stash, then
+	// run unrelated purges best-effort and skip only chat work;
+	// purgeTick returns chatConfigErr after the tx so the failed
+	// iteration is operator-visible via metric and logs.
+	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
+	if chatRetentionErr != nil {
+		i.logger.Error(ctx, "failed to read chat retention config: skipping chat purge and auto-archive this tick", slog.Error(chatRetentionErr))
 	}
+
+	chatAutoArchiveDays, chatAutoArchiveErr := db.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
+	if chatAutoArchiveErr != nil {
+		i.logger.Error(ctx, "failed to read chat auto-archive config: skipping chat purge and auto-archive this tick", slog.Error(chatAutoArchiveErr))
+	}
+
+	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
+
+	// Populated inside the tx; dispatched post-commit.
+	var archivedChats []database.AutoArchiveInactiveChatsRow
 
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
-	return db.InTx(func(tx database.Store) error {
+	err := db.InTx(func(tx database.Store) error {
 		// Acquire a lock to ensure that only one instance of the
 		// purge is running at a time.
 		ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
@@ -229,35 +304,14 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		// Chat retention is configured via site_configs. When
-		// enabled, old archived chats are deleted first, then
-		// orphaned chat files. Deleting a chat cascades to
-		// chat_file_links (removing references) but not to
-		// chat_files directly, so files from deleted chats
-		// become orphaned and are caught by DeleteOldChatFiles
-		// in the same tick.
-		var purgedChats int64
-		var purgedChatFiles int64
-		if chatRetentionDays > 0 {
-			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour
-			deleteChatsBefore := start.Add(-chatRetention)
-
-			purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
-				BeforeTime: deleteChatsBefore,
-				LimitCount: chatsBatchSize,
-			})
+		var purgedChats, purgedChatFiles int64
+		if chatConfigErr == nil {
+			purgedChats, purgedChatFiles, archivedChats, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays, chatAutoArchiveDays)
 			if err != nil {
-				return xerrors.Errorf("failed to delete old chats: %w", err)
-			}
-
-			purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
-				BeforeTime: deleteChatsBefore,
-				LimitCount: chatFilesBatchSize,
-			})
-			if err != nil {
-				return xerrors.Errorf("failed to delete old chat files: %w", err)
+				return xerrors.Errorf("failed to purge chats: %w", err)
 			}
 		}
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
@@ -266,6 +320,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("audit_logs", purgedAuditLogs),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
+			slog.F("auto_archived_chats", len(archivedChats)),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -285,20 +340,256 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 		return nil
 	}, database.DefaultTXOptions().WithID("db_purge"))
+	if err != nil {
+		return err
+	}
+
+	// Surface the deferred chat-config error so doTick records
+	// the failed iteration metric.
+	if chatConfigErr != nil {
+		return xerrors.Errorf("chat config read failed this tick: %w", chatConfigErr)
+	}
+
+	// Dispatch audits and digests post-commit. Detached context for audit
+	// so that ticker cancellation cannot truncate the audit trail.
+	// Notification enqueue uses the cancellable parent context to avoid
+	// stalling shutdown.
+	// Owners with more eligible chats than batch size will get a
+	// notification per tick until their backlog drains.
+	// If this is deemed too noisy, users can disable the
+	// "Chats Auto-Archived" template from their notification preferences.
+	if len(archivedChats) > 0 {
+		i.chatAutoArchiveRecords.Add(float64(len(archivedChats)))
+		auditCtx := context.WithoutCancel(ctx)
+		i.dispatchChatAutoArchive(auditCtx, ctx, start, chatAutoArchiveDays, chatRetentionDays, archivedChats)
+	}
+
+	return nil
 }
 
 type instance struct {
-	cancel            context.CancelFunc
-	closed            chan struct{}
-	logger            slog.Logger
-	vals              *codersdk.DeploymentValues
-	clk               quartz.Clock
-	iterationDuration *prometheus.HistogramVec
-	recordsPurged     *prometheus.CounterVec
+	cancel                   context.CancelFunc
+	closed                   chan struct{}
+	logger                   slog.Logger
+	vals                     *codersdk.DeploymentValues
+	clk                      quartz.Clock
+	auditor                  *atomic.Pointer[audit.Auditor]
+	enqueuer                 notifications.Enqueuer
+	iterationDuration        *prometheus.HistogramVec
+	recordsPurged            *prometheus.CounterVec
+	chatAutoArchiveRecords   prometheus.Counter
+	chatAutoArchiveBatchSize int32
 }
 
 func (i *instance) Close() error {
 	i.cancel()
 	<-i.closed
 	return nil
+}
+
+// chatFromAutoArchiveRow reshapes the query row into a database.Chat for
+// audit.Auditable[database.Chat].
+func chatFromAutoArchiveRow(logger slog.Logger, r database.AutoArchiveInactiveChatsRow) database.Chat {
+	var labels database.StringMap
+	// sqlc's StringMap override doesn't reach CTE-aliased columns, so Labels
+	// arrives as raw JSON bytes. StringMap.Scan handles []byte and nil.
+	if err := labels.Scan([]byte(r.Labels)); err != nil {
+		logger.Warn(context.Background(), "failed to parse chat labels from auto-archive row",
+			slog.F("chat_id", r.ID),
+			slog.F("raw_labels", string(r.Labels)),
+			slog.Error(err),
+		)
+	}
+	return database.Chat{
+		ID:                  r.ID,
+		OwnerID:             r.OwnerID,
+		OrganizationID:      r.OrganizationID,
+		WorkspaceID:         r.WorkspaceID,
+		BuildID:             r.BuildID,
+		AgentID:             r.AgentID,
+		Title:               r.Title,
+		Status:              r.Status,
+		WorkerID:            r.WorkerID,
+		StartedAt:           r.StartedAt,
+		HeartbeatAt:         r.HeartbeatAt,
+		CreatedAt:           r.CreatedAt,
+		UpdatedAt:           r.UpdatedAt,
+		ParentChatID:        r.ParentChatID,
+		RootChatID:          r.RootChatID,
+		LastModelConfigID:   r.LastModelConfigID,
+		Archived:            r.Archived,
+		LastError:           r.LastError,
+		Mode:                r.Mode,
+		MCPServerIDs:        r.MCPServerIDs,
+		Labels:              labels,
+		PinOrder:            r.PinOrder,
+		LastReadMessageID:   r.LastReadMessageID,
+		LastInjectedContext: r.LastInjectedContext,
+		DynamicTools:        r.DynamicTools,
+		PlanMode:            r.PlanMode,
+		ClientType:          r.ClientType,
+	}
+}
+
+// purgeChatsInTx MUST BE CALLED WITH A TRANSACTION
+func (i *instance) purgeChatsInTx(ctx context.Context, tx database.Store, start time.Time, chatRetentionDays, chatAutoArchiveDays int32) (purgedChats, purgedChatFiles int64, archivedChats []database.AutoArchiveInactiveChatsRow, err error) {
+	// Delete old archived chats first, then orphaned files
+	// (cascade clears chat_file_links but not chat_files).
+	if chatRetentionDays > 0 {
+		deleteChatsBefore := start.Add(-time.Duration(chatRetentionDays) * 24 * time.Hour)
+		purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+			BeforeTime: deleteChatsBefore,
+			LimitCount: chatsBatchSize,
+		})
+		if err != nil {
+			return 0, 0, nil, xerrors.Errorf("failed to delete old chats: %w", err)
+		}
+
+		purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+			BeforeTime: deleteChatsBefore,
+			LimitCount: chatFilesBatchSize,
+		})
+		if err != nil {
+			return 0, 0, nil, xerrors.Errorf("failed to delete old chat files: %w", err)
+		}
+	}
+
+	// Auto-archive runs after the delete pass so newly
+	// archived chats aren't eligible for deletion this tick.
+	if chatAutoArchiveDays > 0 {
+		archiveCutoff := start.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
+		archivedChats, err = tx.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
+			ArchiveCutoff: archiveCutoff,
+			LimitCount:    i.chatAutoArchiveBatchSize,
+		})
+		if err != nil {
+			return 0, 0, nil, xerrors.Errorf("failed to auto-archive inactive chats: %w", err)
+		}
+	}
+	return purgedChats, purgedChatFiles, archivedChats, nil
+}
+
+// dispatchChatAutoArchive audits every archived root chat and enqueues one
+// notification per owner covering the roots archived in this tick. Children
+// inherit their root's archival decision and are skipped for audit, matching
+// the manual archive path (patchChat audits the root only). Enqueue is
+// per-tick: owners whose backlog spans multiple ticks receive multiple
+// notifications; notification_messages dedupe does not collapse them because
+// each tick's payload differs.
+//
+// auditCtx is detached from the ticker so audits always complete. enqueueCtx
+// is the cancellable parent: on shutdown we abandon any remaining digests
+// rather than blocking Close.
+func (i *instance) dispatchChatAutoArchive(auditCtx, enqueueCtx context.Context, tickStart time.Time, autoArchiveDays, retentionDays int32, archived []database.AutoArchiveInactiveChatsRow) {
+	// Children inherit their root's archival decision and are skipped
+	// for both audit and digest. Partition once so the two loops
+	// cannot drift apart if the cascade shape ever changes.
+	roots := slice.Filter(archived, func(r database.AutoArchiveInactiveChatsRow) bool {
+		return !r.ParentChatID.Valid
+	})
+
+	auditor := *i.auditor.Load()
+	for _, row := range roots {
+		after := chatFromAutoArchiveRow(i.logger, row)
+		before := after
+		before.Archived = false
+		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.Chat]{
+			Audit:            auditor,
+			Log:              i.logger,
+			UserID:           row.OwnerID,
+			OrganizationID:   row.OrganizationID,
+			Action:           database.AuditActionWrite,
+			Old:              before,
+			New:              after,
+			Status:           http.StatusOK,
+			AdditionalFields: audit.BackgroundTaskFieldsBytes(auditCtx, i.logger, audit.BackgroundSubsystemChatAutoArchive),
+		})
+	}
+
+	// Group archived roots by owner. Inline because this is the
+	// only call site and the loop body is self-explanatory.
+	rootsByOwner := make(map[uuid.UUID][]database.AutoArchiveInactiveChatsRow, len(roots))
+	for _, row := range roots {
+		rootsByOwner[row.OwnerID] = append(rootsByOwner[row.OwnerID], row)
+	}
+
+	// Sort owner IDs so shutdown abandons a deterministic tail of the dispatch list.
+	ownerIDs := make([]uuid.UUID, 0, len(rootsByOwner))
+	for id := range rootsByOwner {
+		ownerIDs = append(ownerIDs, id)
+	}
+	slices.SortFunc(ownerIDs, func(a, b uuid.UUID) int {
+		return cmp.Compare(a.String(), b.String())
+	})
+
+	dispatched := 0
+	for _, ownerID := range ownerIDs {
+		// Check between iterations so shutdown unblocks promptly. A
+		// hung in-flight enqueue is unblocked by enqueueCtx propagating
+		// cancellation into the DB call. Skipped owners are not
+		// re-notified on the next tick because AutoArchiveInactiveChats
+		// only returns rows with archived = false; we accept that
+		// tradeoff over hanging shutdown.
+		if err := enqueueCtx.Err(); err != nil {
+			i.logger.Warn(enqueueCtx, "chat auto-archive digest dispatch canceled",
+				slog.F("remaining_owners", len(ownerIDs)-dispatched),
+				slog.Error(err))
+			return
+		}
+		dispatched++
+
+		ownerRoots := rootsByOwner[ownerID]
+		data := buildDigestData(ownerRoots, autoArchiveDays, retentionDays, tickStart)
+
+		// nolint:gocritic // Background digest runs as the notifier subject.
+		if _, err := i.enqueuer.EnqueueWithData(
+			dbauthz.AsNotifier(enqueueCtx),
+			ownerID,
+			notifications.TemplateChatAutoArchiveDigest,
+			map[string]string{},
+			data,
+			string(audit.BackgroundSubsystemChatAutoArchive),
+		); err != nil {
+			i.logger.Warn(enqueueCtx, "failed to enqueue chat auto-archive digest",
+				slog.F("owner_id", ownerID),
+				slog.Error(err))
+		}
+	}
+}
+
+// buildDigestData builds the notification payload; shape mirrors the
+// golden fixtures in coderd/notifications/testdata. Truncation keeps
+// the oldest archived roots (created_at ASC from the query) to
+// preserve index-driven ordering; revisit if the digest becomes the
+// primary surface for reviewing archived chats.
+func buildDigestData(rows []database.AutoArchiveInactiveChatsRow, autoArchiveDays, retentionDays int32, tickStart time.Time) map[string]any {
+	// Cap titles; overflow surfaces as "...and N more" via the template.
+	overflow := 0
+	if len(rows) > chatAutoArchiveDigestMaxChats {
+		overflow = len(rows) - chatAutoArchiveDigestMaxChats
+		rows = rows[:chatAutoArchiveDigestMaxChats]
+	}
+
+	chats := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		chats = append(chats, map[string]any{
+			"title":                   r.Title,
+			"last_activity_humanized": humanize.RelTime(r.LastActivityAt, tickStart, "ago", "from now"),
+		})
+	}
+
+	// Stringify the int32 config values: the template's
+	// {{if eq .Data.retention_days "0"}} branch requires both
+	// operands to share a type, and Go templates do not coerce
+	// numeric ↔ string. Storing a raw int here would silently
+	// take the deletion-warning branch on every notification.
+	data := map[string]any{
+		"auto_archive_days": strconv.Itoa(int(autoArchiveDays)),
+		"retention_days":    strconv.Itoa(int(retentionDays)),
+		"archived_chats":    chats,
+	}
+	if overflow > 0 {
+		data["additional_archived_count"] = strconv.Itoa(overflow)
+	}
+	return data
 }

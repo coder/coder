@@ -226,6 +226,9 @@ coderd_authz_prepare_authorize_duration_seconds 0
 # HELP coderd_build_info Describes the current build/version of the Coder server. Value is always 1.
 # TYPE coderd_build_info gauge
 coderd_build_info{version="",revision=""} 0
+# HELP coderd_chat_auto_archive_records_archived_total Total number of chats archived by the auto-archive job (counting both roots and cascaded children).
+# TYPE coderd_chat_auto_archive_records_archived_total counter
+coderd_chat_auto_archive_records_archived_total 0
 # HELP coderd_chatd_chats Number of chats being processed, by state.
 # TYPE coderd_chatd_chats gauge
 coderd_chatd_chats{state=""} 0

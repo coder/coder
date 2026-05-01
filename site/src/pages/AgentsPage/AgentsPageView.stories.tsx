@@ -156,7 +156,11 @@ const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
 	<AgentSettingsAgentsPageView
-		exploreModelOverrideData={{ has_malformed_override: false }}
+		exploreModelOverrideData={{
+			context: "explore",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
@@ -203,7 +207,6 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	chatList: [],
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
-	logoUrl: "",
 	handleNewAgent: fn(),
 	isCreating: false,
 	isArchiving: false,
@@ -373,6 +376,28 @@ export default meta;
 type Story = StoryObj<typeof AgentsPageView>;
 
 export const EmptyState: Story = {};
+
+export const ArchivedEmptyState: Story = {
+	args: {
+		archivedFilter: "archived",
+		chatList: [],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
+		await expect(await screen.findByText("No archived agents")).toBeVisible();
+		await expect(
+			screen.getByRole("button", { name: /back to active/i }),
+		).toBeVisible();
+	},
+};
 
 export const WithChatList: Story = {
 	args: {
@@ -671,10 +696,23 @@ export const WithErrorReasons: Story = {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	const link = await waitFor(() =>
-		canvas.getByRole("link", { name: "Settings" }),
+	const settingsLink = canvas.queryByRole("link", { name: "Settings" });
+	if (settingsLink) {
+		await userEvent.click(settingsLink);
+		return;
+	}
+
+	const mobileMoreOptionsButton = canvas
+		.getAllByRole("button", { name: "More options" })
+		.find((button) => button.getAttribute("aria-haspopup") === "menu");
+	if (!mobileMoreOptionsButton) {
+		throw new Error("Expected a mobile More options menu button.");
+	}
+	await userEvent.click(mobileMoreOptionsButton);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		await body.findByRole("menuitem", { name: "Settings" }),
 	);
-	await userEvent.click(link);
 };
 
 export const OpensAnalyticsForAdmins: Story = {

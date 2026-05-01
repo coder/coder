@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -2913,6 +2915,400 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	require.Equal(t, 1, got.contributingTrailingUserCount)
 }
 
+func TestResolveChainMode_BlocksOnUnresolvedLocalToolCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksWhenAssistantContentCannotParse(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeCorruptAssistantMessage(modelConfigID),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksWhenToolContentCannotParse(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeCorruptToolMessage(),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_AllowsProviderExecutedOnly(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-web-search",
+		"web_search",
+		json.RawMessage(`{"query":"coder docs"}`),
+	)
+	toolCall.ProviderExecuted = true
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksOnMixedProviderExecutedAndUnresolvedLocalCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	providerCall := codersdk.ChatMessageToolCall(
+		"call-web-search",
+		"web_search",
+		json.RawMessage(`{"query":"coder docs"}`),
+	)
+	providerCall.ProviderExecuted = true
+	localCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(
+			modelConfigID,
+			[]codersdk.ChatMessagePart{providerCall, localCall},
+		),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_AllowsResolvedLocalCall(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-local",
+		"read_file",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	// A follow-up assistant after the tool result confirms the
+	// result was sent back to the provider. Chain mode should
+	// activate from the follow-up assistant's response ID.
+	// Use a distinct response ID on the follow-up assistant
+	// so the assertion verifies resolveChainMode selects the
+	// follow-up (last assistant), not the original tool-caller.
+	followUp := chainModeAssistantMessage(modelConfigID, nil)
+	followUp.ProviderResponseID = sql.NullString{String: "resp-follow-up", Valid: true}
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		followUp,
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-follow-up", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksOnMixedResolvedAndUnresolved(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	firstCall := codersdk.ChatMessageToolCall(
+		"call-first",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	secondCall := codersdk.ChatMessageToolCall(
+		"call-second",
+		"read_file",
+		json.RawMessage(`{"path":"README.md"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-first",
+		"read_file",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("prior user message"),
+		chainModeAssistantMessage(
+			modelConfigID,
+			[]codersdk.ChatMessagePart{firstCall, secondCall},
+		),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		chainModeUserMessage("latest user message"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.True(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+// Tests for providerMissingToolResults detection.
+// These cover the StopAfterTool + chain mode desync bug where local
+// tool results exist in the DB but were never sent back to the
+// provider, leaving an unresolved function_call in the stored chain.
+
+func TestResolveChainMode_BlocksWhenToolResultNeverSentToProvider(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	toolCall := codersdk.ChatMessageToolCall(
+		"call-local",
+		"propose_plan",
+		json.RawMessage(`{"path":"plan.md"}`),
+	)
+	toolResult := codersdk.ChatMessageToolResult(
+		"call-local",
+		"propose_plan",
+		json.RawMessage(`{"ok":true}`),
+		false,
+		false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("make a plan"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{toolCall}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{toolResult}),
+		// No follow-up assistant: StopAfterTool fired, tool result
+		// was persisted locally but never sent back to the provider.
+		chainModeUserMessage("implement the plan"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	// Local tool calls are resolved (result exists in DB).
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	// But the provider never received the result.
+	require.True(t, chainInfo.providerMissingToolResults)
+	// Chain mode must NOT activate.
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
+func TestResolveChainMode_BlocksProviderMissingWithMultipleToolCalls(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	call1 := codersdk.ChatMessageToolCall(
+		"call-1", "propose_plan",
+		json.RawMessage(`{"path":"plan.md"}`),
+	)
+	call2 := codersdk.ChatMessageToolCall(
+		"call-2", "write_file",
+		json.RawMessage(`{"path":"foo.go"}`),
+	)
+	result1 := codersdk.ChatMessageToolResult(
+		"call-1", "propose_plan",
+		json.RawMessage(`{"ok":true}`), false, false,
+	)
+	result2 := codersdk.ChatMessageToolResult(
+		"call-2", "write_file",
+		json.RawMessage(`{"ok":true}`), false, false,
+	)
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("do it"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{call1, call2}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{result1, result2}),
+		chainModeUserMessage("next"),
+	})
+
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.True(t, chainInfo.providerMissingToolResults)
+	require.False(t, shouldActivateChainMode(
+		chainModeProviderOptions(), chainInfo, modelConfigID, false,
+	))
+}
+
+func TestResolveChainMode_AllowsWhenNoToolCalls(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+
+	chainInfo := resolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("hello"),
+		chainModeAssistantMessage(modelConfigID, nil),
+		chainModeUserMessage("thanks"),
+	})
+
+	require.Equal(t, "resp-123", chainInfo.previousResponseID)
+	require.False(t, chainInfo.hasUnresolvedLocalToolCalls)
+	require.False(t, chainInfo.providerMissingToolResults)
+	require.True(t, shouldActivateChainMode(
+		chainModeProviderOptions(), chainInfo, modelConfigID, false,
+	))
+}
+
+func chainModeProviderOptions() fantasy.ProviderOptions {
+	store := true
+	return fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
+			Store: &store,
+		},
+	}
+}
+
+func chainModeSystemMessage() database.ChatMessage {
+	return database.ChatMessage{Role: database.ChatMessageRoleSystem}
+}
+
+func chainModeUserMessage(text string) database.ChatMessage {
+	msg := chatMessageWithParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(text),
+	})
+	msg.Role = database.ChatMessageRoleUser
+	return msg
+}
+
+func chainModeAssistantMessage(
+	modelConfigID uuid.UUID,
+	parts []codersdk.ChatMessagePart,
+) database.ChatMessage {
+	msg := chatMessageWithParts(parts)
+	msg.Role = database.ChatMessageRoleAssistant
+	msg.ProviderResponseID = sql.NullString{String: "resp-123", Valid: true}
+	msg.ModelConfigID = uuid.NullUUID{UUID: modelConfigID, Valid: true}
+	return msg
+}
+
+func chainModeCorruptAssistantMessage(modelConfigID uuid.UUID) database.ChatMessage {
+	return database.ChatMessage{
+		Role:               database.ChatMessageRoleAssistant,
+		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Content: pqtype.NullRawMessage{
+			RawMessage: []byte("not json"),
+			Valid:      true,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
+func chainModeCorruptToolMessage() database.ChatMessage {
+	return database.ChatMessage{
+		Role: database.ChatMessageRoleTool,
+		Content: pqtype.NullRawMessage{
+			RawMessage: []byte("not json"),
+			Valid:      true,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
+func chainModeToolMessage(parts []codersdk.ChatMessagePart) database.ChatMessage {
+	msg := chatMessageWithParts(parts)
+	msg.Role = database.ChatMessageRoleTool
+	return msg
+}
+
 func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurns(t *testing.T) {
 	t.Parallel()
 
@@ -3128,9 +3524,9 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		clock:                 clock,
 		workerID:              workerID,
 		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
 		configCache:           newChatConfigCache(ctx, db, clock),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
-		metrics:               chatloop.NopMetrics(),
 	}
 
 	// Publish a stale "pending" notification on the control channel
@@ -3284,6 +3680,7 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 		clock:                 clock,
 		workerID:              workerID,
 		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
@@ -3364,6 +3761,7 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 		clock:                 clock,
 		workerID:              uuid.New(),
 		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
 		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
 	}
 
@@ -4320,4 +4718,218 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	require.NotErrorIs(t, err, errChatDialTimeout)
 	// The original dial error should propagate.
 	require.ErrorContains(t, err, "authentication failed")
+}
+
+// TestAutoPromote_InsertFailureRollsBackTransaction verifies that when
+// tryAutoPromoteQueuedMessage pops a queued message but the subsequent
+// insert fails, the error propagates to the InTx callback, causing the
+// transaction to roll back and preserving the queued message.
+func TestAutoPromote_InsertFailureRollsBackTransaction(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ps := dbpubsub.NewInMemory()
+	clock := quartz.NewReal()
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+	ownerID := uuid.New()
+	modelConfigID := uuid.New()
+
+	waitingChat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusWaiting,
+		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
+	}
+	queuedMsg := database.ChatQueuedMessage{
+		ID:      1,
+		ChatID:  chatID,
+		Content: []byte(`[{"type":"text","text":"queued"}]`),
+	}
+	insertErr := xerrors.New("insert failed")
+
+	server := &Server{
+		db:          db,
+		logger:      logger,
+		pubsub:      ps,
+		configCache: newChatConfigCache(ctx, db, clock),
+	}
+
+	// The caller runs tryAutoPromoteQueuedMessage inside InTx.
+	// Wire the mock to execute the callback against the TX mock.
+	var txErr error
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			txErr = fn(tx)
+			return txErr
+		},
+	)
+
+	// Inside the TX: lock chat, get queued messages, resolve model
+	// config, pop queued message, insert fails.
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(waitingChat, nil)
+	tx.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return([]database.ChatQueuedMessage{queuedMsg}, nil)
+	tx.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(database.ChatModelConfig{ID: modelConfigID}, nil)
+	tx.EXPECT().PopNextQueuedMessage(gomock.Any(), chatID).Return(queuedMsg, nil)
+	tx.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, insertErr)
+
+	// Invoke tryAutoPromoteQueuedMessage through the same InTx
+	// pattern the processChat defer uses. The test directly calls
+	// the production path to verify error propagation.
+	_ = db.InTx(func(txStore database.Store) error {
+		latestChat, err := txStore.GetChatByIDForUpdate(ctx, chatID)
+		if err != nil {
+			return err
+		}
+
+		_, _, _, promoteErr := server.tryAutoPromoteQueuedMessage(ctx, txStore, latestChat)
+		if promoteErr != nil {
+			return promoteErr
+		}
+
+		// This code path should not be reached when the insert
+		// fails, because promoteErr should be non-nil.
+		return nil
+	}, nil)
+
+	// The InTx callback must return a non-nil error so the
+	// transaction rolls back, preserving the queued message.
+	require.Error(t, txErr, "InTx callback should return error when insert fails")
+}
+
+// TestAutoPromote_WakesRunLoopAfterPromotion verifies that after the
+func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ps := dbpubsub.NewInMemory()
+	clock := quartz.NewReal()
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+	ownerID := uuid.New()
+	modelConfigID := uuid.New()
+
+	waitingChat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusWaiting,
+		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
+	}
+	queuedMsg := database.ChatQueuedMessage{
+		ID:      1,
+		ChatID:  chatID,
+		Content: []byte(`[{"type":"text","text":"queued"}]`),
+	}
+
+	wakeCh := make(chan struct{}, 1)
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		pubsub:                ps,
+		clock:                 clock,
+		workerID:              workerID,
+		wakeCh:                wakeCh,
+		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
+		configCache:           newChatConfigCache(ctx, db, clock),
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	// Block model resolution until the running status has been
+	// published. Returning ErrInterrupted makes processChat enter the
+	// waiting-state auto-promotion path deterministically.
+	modelBlocked := make(chan struct{})
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			<-modelBlocked
+			return database.ChatModelConfig{}, chatloop.ErrInterrupted
+		},
+	).AnyTimes()
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(
+		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
+	).AnyTimes()
+	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+
+	// The deferred cleanup transaction: InsertChatMessages fails,
+	// so UpdateChatStatus must NOT be called.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(waitingChat, nil)
+	tx.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return([]database.ChatQueuedMessage{queuedMsg}, nil)
+	tx.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(database.ChatModelConfig{ID: modelConfigID}, nil)
+	tx.EXPECT().PopNextQueuedMessage(gomock.Any(), chatID).Return(queuedMsg, nil)
+	tx.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(
+		nil, xerrors.New("insert failed"),
+	)
+	tx.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).Times(0)
+
+	// Subscribe BEFORE launching the goroutine.
+	runningCh := make(chan struct{}, 1)
+	unsubRunning, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatStreamNotifyChannel(chatID),
+		func(_ context.Context, msg []byte, err error) {
+			if err != nil {
+				return
+			}
+			var notify coderdpubsub.ChatStreamNotifyMessage
+			if json.Unmarshal(msg, &notify) != nil {
+				return
+			}
+			if notify.Status == string(database.ChatStatusRunning) {
+				select {
+				case runningCh <- struct{}{}:
+				default:
+				}
+			}
+		},
+	)
+	require.NoError(t, err)
+	defer unsubRunning()
+
+	chat := database.Chat{ID: chatID, OwnerID: ownerID, LastModelConfigID: modelConfigID}
+	processDone := make(chan struct{})
+	go func() {
+		defer close(processDone)
+		server.processChat(ctx, chat)
+	}()
+
+	select {
+	case <-runningCh:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for running status")
+	}
+
+	close(modelBlocked)
+
+	select {
+	case <-processDone:
+	case <-ctx.Done():
+		t.Fatal("processChat did not complete")
+	}
+
+	// The wake channel should NOT have a signal because the
+	// transaction failed before reaching UpdateChatStatus.
+	select {
+	case <-wakeCh:
+		t.Fatal("wake channel should not have a signal after insert failure")
+	default:
+		// No signal, as expected.
+	}
 }

@@ -1,10 +1,12 @@
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
@@ -90,11 +92,13 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
-				<MemoryRouter initialEntries={["/agents"]}>
-					<DashboardContext.Provider value={dashboardValue}>
-						{children}
-					</DashboardContext.Provider>
-				</MemoryRouter>
+				<TooltipProvider>
+					<MemoryRouter initialEntries={["/agents"]}>
+						<DashboardContext.Provider value={dashboardValue}>
+							{children}
+						</DashboardContext.Provider>
+					</MemoryRouter>
+				</TooltipProvider>
 			</ThemeOverride>
 		</QueryClientProvider>
 	);
@@ -118,6 +122,47 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 };
 
 // ---- Tests ----
+
+describe("AgentsSidebar archived filter", () => {
+	it("calls the filter change callback from the dropdown", async () => {
+		const user = userEvent.setup();
+		const onArchivedFilterChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					onArchivedFilterChange={onArchivedFilterChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("menuitem", { name: /archived/i }));
+
+		expect(onArchivedFilterChange).toHaveBeenCalledWith("archived");
+	});
+
+	it("calls the filter change callback from the empty-state link", async () => {
+		const user = userEvent.setup();
+		const onArchivedFilterChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[]}
+					archivedFilter="archived"
+					onArchivedFilterChange={onArchivedFilterChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /back to active/i }));
+
+		expect(onArchivedFilterChange).toHaveBeenCalledWith("active");
+	});
+});
 
 describe("AgentsSidebar load-more behavior", () => {
 	beforeEach(() => {

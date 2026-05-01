@@ -45,6 +45,14 @@ import (
 // nolint:gocritic // This is in a test package and does not end up in the build
 func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.Client, database.WorkspaceTable, string) {
 	t.Helper()
+	return setupWorkspaceForAgentWithName(t, opts, "myworkspace")
+}
+
+// setupWorkspaceForAgentWithName creates a workspace setup exactly like main
+// SSH tests, but with a caller-provided workspace name.
+// nolint:gocritic // This is in a test package and does not end up in the build
+func setupWorkspaceForAgentWithName(t *testing.T, opts *coderdtest.Options, workspaceName string) (*codersdk.Client, database.WorkspaceTable, string) {
+	t.Helper()
 
 	client, store := coderdtest.NewWithDatabase(t, opts)
 	client.SetLogger(testutil.Logger(t).Named("client"))
@@ -54,7 +62,7 @@ func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.C
 	})
 	// nolint:gocritic // This is in a test package and does not end up in the build
 	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-		Name:           "myworkspace",
+		Name:           workspaceName,
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent().Do()
@@ -239,6 +247,31 @@ func TestTools(t *testing.T) {
 				require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
 			})
 		}
+	})
+
+	t.Run("GetWorkspace_ByUUIDLikeName", func(t *testing.T) {
+		t.Parallel()
+
+		// Regression test: a workspace whose name is a valid dashless
+		// UUID should resolve correctly. Previously, the handler would
+		// parse the name as a UUID, get a 404 from the ID-based lookup,
+		// and never fall back to name-based lookup.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		uuidWorkspace := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			Name:           uuidLikeName,
+		}).Do()
+
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+			WorkspaceID: uuidLikeName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuidWorkspace.Workspace.ID, result.ID)
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
@@ -566,6 +599,24 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, result.ExitCode)
 		require.Equal(t, "owner format works", result.Output)
+
+		// Regression test: agent-backed tools should also work when the
+		// workspace name is a valid dashless UUID.
+		const uuidLikeName = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+		uuidClient, uuidWorkspace, uuidAgentToken := setupWorkspaceForAgentWithName(t, nil, uuidLikeName)
+		_ = agenttest.New(t, uuidClient.URL, uuidAgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, uuidClient, uuidWorkspace.ID).Wait()
+
+		uuidTB, err := toolsdk.NewDeps(uuidClient)
+		require.NoError(t, err)
+
+		result, err = testTool(t, toolsdk.WorkspaceBash, uuidTB, toolsdk.WorkspaceBashArgs{
+			Workspace: uuidWorkspace.Name,
+			Command:   "echo 'uuid-like name works'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "uuid-like name works", result.Output)
 	})
 
 	t.Run("WorkspaceLS", func(t *testing.T) {

@@ -88,8 +88,8 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -163,7 +163,6 @@ interface AgentsSidebarProps {
 	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly ChatModelConfig[];
-	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
@@ -466,6 +465,7 @@ interface ChatTreeNodeProps {
 }
 
 const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+	const location = useLocation();
 	const {
 		chatTree,
 		chatById,
@@ -645,7 +645,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 						</div>
 						<NavLink
-							to={`/agents/${chat.id}`}
+							to={{
+								pathname: `/agents/${chat.id}`,
+								search: location.search,
+							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
 							{({ isActive }) => (
@@ -817,7 +820,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatErrorReasons,
 		modelOptions,
 		modelConfigs,
-		logoUrl,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
@@ -1083,13 +1085,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			>
 				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
 					<div className="mb-2.5 flex items-center justify-between">
-						<NavLink to="/workspaces" className="inline-flex">
-							{logoUrl ? (
-								<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-							) : (
-								<CoderIcon className="h-6 w-6 fill-content-primary" />
-							)}
-						</NavLink>
+						<div className="flex items-center gap-2">
+							<NavLink to="/workspaces" className="inline-flex">
+								<ProductLogo className="size-6" />
+							</NavLink>
+							<FeatureStageBadge contentType="beta" size="sm" />
+						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
 								asChild
@@ -1101,7 +1102,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									isSettingsPanel && "text-content-primary",
 								)}
 							>
-								<Link to="/agents/settings" state={{ from: location.pathname }}>
+								<Link
+									to="/agents/settings"
+									state={{ from: location.pathname + location.search }}
+								>
 									<SettingsIcon />
 								</Link>
 							</Button>
@@ -1122,7 +1126,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						icon={SquarePenIcon}
 						label="New Agent"
 						active={!activeChatId && sidebarView.panel === "chats"}
-						to="/agents"
+						to={`/agents${location.search}`}
 						onClick={onBeforeNewAgent}
 						disabled={isCreating}
 					/>

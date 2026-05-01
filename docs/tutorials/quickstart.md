@@ -1,11 +1,11 @@
 # Quickstart
 
-Follow the steps in this guide to get your first Coder development environment
-running in under 10 minutes. This guide covers the essential concepts and walks
-you through creating your first workspace and running VS Code from it. You can
+Follow this guide to get your first Coder development environment
+running in under 10 minutes. This guide covers the essential concepts and shows
+you how to create your first workspace and run VS Code from it. You can
 also get Claude Code up and running in the background!
 
-## What You'll Build
+## What You'll Do
 
 In this quickstart, you'll:
 
@@ -13,12 +13,12 @@ In this quickstart, you'll:
 - ✅ Create a **template** (blueprint for dev environments)
 - ✅ Launch a **workspace** (your actual dev environment)
 - ✅ Connect from your favorite IDE
-- ✅ Optionally setup a **task** running Claude Code
+- ✅ Optionally set up a **task** running Claude Code
 
 ## Understanding Coder: 30-Second Overview
 
-Before diving in, here are the core concepts that power Coder explained through
-a cooking analogy:
+Before diving in, the following table breaks down the core concepts that power Coder,
+explained through a cooking analogy:
 
 | Component      | What It Is                                                                           | Real-World Analogy                          |
 |----------------|--------------------------------------------------------------------------------------|---------------------------------------------|
@@ -33,13 +33,14 @@ a cooking analogy:
 ## Prerequisites
 
 - A machine with 2+ CPU cores and 4GB+ RAM
+- Familiarity with running commands in the terminal
 - 10 minutes of your time
 
-## Step 1: Install Docker and Setup Permissions
+## Step 1: Install Docker and Set Up Permissions
 
 <div class="tabs">
 
-### Linux/macOS
+### Linux
 
 1. Install Docker:
 
@@ -47,9 +48,7 @@ a cooking analogy:
    curl -sSL https://get.docker.com | sh
    ```
 
-   For more details, visit:
-   - [Linux instructions](https://docs.docker.com/desktop/install/linux-install/)
-   - [Mac instructions](https://docs.docker.com/desktop/install/mac-install/)
+   For more details, visit [Docker's docs on installing Docker on Linux](https://docs.docker.com/desktop/install/linux-install/).
 
 1. Assign your user to the Docker group:
 
@@ -63,8 +62,26 @@ a cooking analogy:
    newgrp docker
    ```
 
-   You might need to log out and back in or restart the machine for changes to
-   take effect.
+   You might need to log out of and back into your machine or restart your
+   machine for changes to take effect.
+
+1. Launch the Docker daemon:
+
+   ```shell
+   sudo systemctl start docker
+   ```
+
+### macOS
+
+1. [Install Docker](https://docs.docker.com/desktop/setup/install/mac-install/).
+There is a Homebrew formula for the Docker command and a Homebrew cask of Docker
+Desktop if you prefer:
+
+   ```shell
+   brew install --cask docker-desktop
+   ```
+
+1. Open Docker Desktop.
 
 ### Windows
 
@@ -73,6 +90,8 @@ If you plan to use the built-in PostgreSQL database, ensure that the
 is installed.
 
 1. [Install Docker](https://docs.docker.com/desktop/install/windows-install/).
+
+1. Open Docker Desktop.
 
 </div>
 
@@ -135,14 +154,12 @@ lines of output, so you might have to scroll up to find it.
 
 ## Step 3: Initial Setup
 
-1. **Create your admin account:**
-   - Username: `yourname` (lowercase, no spaces)
+1. Create your admin account:
    - Email: `your.email@example.com`
-   - Password: Choose a strong password
+   - Password: Choose a strong password.
 
    You can also choose to **Continue with GitHub** instead of creating an admin
-   account. The first user that signs in is automatically granted admin
-   permissions.
+   account. Coder automatically grants admin permissions to the first user that signs in.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -155,7 +172,7 @@ Templates define what's in your development environment. Let's start simple:
 
 1. Click **"Templates"** → **"New Template"**
 
-1. **Choose a starter template:**
+1. Choose a starter template:
 
    | Starter                             | Best For                                                | Includes                                               |
    |-------------------------------------|---------------------------------------------------------|--------------------------------------------------------|
@@ -163,9 +180,9 @@ Templates define what's in your development environment. Let's start simple:
    | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
    | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
 
-1. Click **"Use template"** on **Docker Containers**. Note: running this template requires Docker to be running in the background, so make sure Docker is running!
+1. Click **"Use template"** on **Docker Containers**. **Note:** running this template requires Docker to be running in the background, so make sure Docker is running!
 
-1. **Name your template:**
+1. Name your template:
    - Name: `quickstart`
    - Display name: `quickstart doc template`
    - Description: `Provision Docker containers as Coder workspaces`
@@ -246,54 +263,69 @@ Claude Code within a given Workspace. Tasks become available when a Workspace Te
 In other words, any existing template can become a Task template by adding in that
 resource and parameter.
 
-Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template which has Anthropic's Claude Code agent built in with a sample application. Let's try using this template by pulling it from Coder's Registry of public templates, and pushing it to your local server:
+Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker) template, which has Anthropic's Claude Code agent built in with a sample application. Let's try using this template by pulling it from Coder's Registry of public templates, and pushing it to your local server:
 
-1. In the upper right hand corner, click **Use this template**
-1. Open a terminal on your machine
-1. Ensure your CLI is authenticated with your Coder deployment by [logging in](https://coder.com/docs/reference/cli/login)
-1. Create an [API Key with Anthropic](https://console.anthropic.com/)
-1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template
-1. Clone the Coder Registry repo to your local machine
+1. Open a terminal on your machine.
+1. If your Coder server is not running, restart it:
 
-   ```hcl
-   git clone https://github.com/coder/registry.git
+   ```shell
+   coder server
    ```
 
-1. Switch to the template directory
+1. In another terminal window, ensure your CLI is authenticated with your Coder deployment by [logging in to Coder](https://coder.com/docs/reference/cli/login):
 
-   ```hcl
+   ```shell
+   coder login
+   # A browser window will open where you can copy a session token
+   # Paste the session token when prompted
+   ```
+
+1. Create an [API Key with Anthropic](https://console.anthropic.com/).
+1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker) template.
+1. Clone the Coder Registry repo to your local machine:
+
+   ```shell
+   git clone https://github.com/coder/registry.git
+   # or
+   gh repo clone coder/registry
+   ```
+
+1. Switch to the template directory:
+
+   ```shell
    cd registry/registry/coder-labs/templates/tasks-docker
    ```
 
-1. Push the template to your Coder deployment. Note: this command differs from the registry since we're defining the Anthropic API Key as an environment variable
+1. Push the template to your Coder deployment. **Note:** this command differs from the registry since we're defining the Anthropic API Key as an environment variable:
 
-   ```hcl
+   ```shell
    coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
    ```
 
-1. **Create a Task**
-   1. In your Coder deployment, click **Tasks** in the navigation
-   1. In the "Prompt your AI agent to start a task" box, enter a prompt like "Make the background yellow"
-   1. Select the **tasks-docker** template from the dropdown and click the submit button
-1. **See Tasks in action**
-   1. Your task will appear in the table below. Click on it to open the task view where you can follow the initialization
+1. Create a Task:
+   1. In your Coder deployment, click **Tasks** in the navigation bar.
+   1. In the **Prompt your AI agent to start a task** box, enter a prompt like "Make the background yellow".
+   1. Select the **tasks-docker** template from the dropdown and click the **Submit** button.
+1. See Tasks in action:
+   1. Your task will appear in the following table. Click on it to open the task view, where you can follow the initialization.
    1. Once active, you'll see Claude Code on the left panel and can preview the sample application or interact with the code in code-server on the right. You might need to wait for Claude Code to finish changing the background color of the application.
-   1. Try typing in a new request to Claude Code: "make the background red"
-   1. Click the back arrow to return to the task overview (you can also see all your tasks in the sidebar)
-   1. You can start a new task from the prompt box at the top of the page
+   1. Try typing in a new request to Claude Code: "make the background red".
+   1. Click the back arrow to return to the task overview (you can also see all your tasks in the sidebar).
+   1. You can start a new task from the prompt box at the top of the page.
 
    ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
 
-Congratulation! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. Learn more specifics about Coder Tasks [here](https://coder.com/docs/ai-coder/tasks).
+Congratulations! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. To learn more, visit the [Coder Tasks](https://coder.com/docs/ai-coder/tasks) docs.
 
 ## Troubleshooting
 
-### Cannot connect to the Docker daemon
+### Cannot connect to the Docker daemon on Linux
 
-> Error: Error pinging Docker server: Cannot connect to the Docker daemon at
-> unix:///var/run/docker.sock. Is the docker daemon running?
+```text
+Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+```
 
-1. Install Docker for your system:
+1. Install Docker for your system, if you haven't already done so:
 
    ```shell
    curl -sSL https://get.docker.com | sh
@@ -337,10 +369,61 @@ Encountered an error running "coder server", see "coder server --help" for more 
 error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in use
 ```
 
+Another process is already listening on port 3000. Identify and stop it,
+then start the server again.
+
+#### Linux
+
 1. Stop the process:
 
    ```shell
    sudo systemctl stop coder
+   ```
+
+1. Start Coder:
+
+   ```shell
+   coder server
+   ```
+
+#### macOS
+
+1. Identify the process using port 3000:
+
+   ```shell
+   lsof -i :3000
+   ```
+
+1. Stop the process using the PID from the previous command:
+
+   ```shell
+   kill <PID>
+   ```
+
+   If the process does not exit, force-kill it:
+
+   ```shell
+   kill -9 <PID>
+   ```
+
+1. Start Coder:
+
+   ```shell
+   coder server
+   ```
+
+#### Windows
+
+1. Identify the process using port 3000 in PowerShell:
+
+   ```powershell
+   Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess
+   ```
+
+1. Stop the process using the PID from the previous command:
+
+   ```powershell
+   Stop-Process -Id <PID>
    ```
 
 1. Start Coder:

@@ -786,6 +786,19 @@ export const MultiStepRunWithRetries: Story = {
 			expect(canvas.getByText(/Attempt 2/)).toBeVisible();
 			expect(canvas.getByText(/Attempt 3/)).toBeVisible();
 		});
+
+		await user.click(canvas.getByRole("button", { name: /Attempt 1/i }));
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: /Copy raw request JSON/i }),
+			).toBeVisible();
+			expect(
+				canvas.getByRole("button", { name: /Copy raw response JSON/i }),
+			).toBeVisible();
+			expect(
+				canvas.getByRole("button", { name: /Copy raw attempt error/i }),
+			).toBeVisible();
+		});
 	},
 };
 

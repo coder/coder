@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -57,6 +58,18 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 	)
 	require.NoError(t, err)
 	return prompt
+}
+
+type testToolCallPart = fantasy.ToolCallPart
+
+type testToolResultPart = fantasy.ToolResultPart
+
+func asToolCallPartForTest(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	return fantasy.AsMessagePart[testToolCallPart](part)
+}
+
+func asToolResultPartForTest(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	return fantasy.AsMessagePart[testToolResultPart](part)
 }
 
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
@@ -503,12 +516,139 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 	// The tool message should have exactly one result (the local one).
 	var resultIDs []string
 	for _, part := range prompt[1].Content {
-		tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+		tr, ok := asToolResultPartForTest(part)
 		if ok {
 			resultIDs = append(resultIDs, tr.ToolCallID)
 		}
 	}
 	require.Equal(t, []string{"toolu_local"}, resultIDs)
+	sanitized, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(
+		fantasyanthropic.Name,
+		prompt,
+	)
+	require.Equal(t, 1, sanitizeStats.RemovedToolCalls)
+	require.Equal(t, 0, sanitizeStats.RemovedToolResults)
+	require.Len(t, sanitized, 2)
+	require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory(sanitized))
+	remainingToolCalls := chatprompt.ExtractToolCalls(sanitized[0].Content)
+	require.Len(t, remainingToolCalls, 1)
+	require.Equal(t, "toolu_local", remainingToolCalls[0].ToolCallID)
+}
+
+func TestInjectMissingToolResults_SkipsProviderExecutedAndInjectsLocal(t *testing.T) {
+	t.Parallel()
+
+	providerCall := codersdk.ChatMessageToolCall(
+		"srvtoolu_web_search",
+		"web_search",
+		json.RawMessage(`{"query":"coder"}`),
+	)
+	providerCall.ProviderExecuted = true
+	localCall := codersdk.ChatMessageToolCall(
+		"toolu_read",
+		"read_file",
+		json.RawMessage(`{"path":"main.go"}`),
+	)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		providerCall,
+		localCall,
+	})
+	require.NoError(t, err)
+
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{{
+		Role:           database.ChatMessageRoleAssistant,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		Content:        assistantContent,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}})
+
+	require.Len(t, prompt, 2, "expected assistant plus local synthetic tool result")
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+
+	toolCalls := chatprompt.ExtractToolCalls(prompt[0].Content)
+	require.Len(t, toolCalls, 2)
+	require.Equal(t, "srvtoolu_web_search", toolCalls[0].ToolCallID)
+	require.True(t, toolCalls[0].ProviderExecuted)
+	require.Equal(t, "toolu_read", toolCalls[1].ToolCallID)
+	require.False(t, toolCalls[1].ProviderExecuted)
+
+	require.Equal(t, []string{"toolu_read"}, extractToolResultIDs(t, prompt[1]))
+	require.Len(t, prompt[1].Content, 1)
+	toolResult, ok := asToolResultPartForTest(prompt[1].Content[0])
+	require.True(t, ok, "expected synthetic ToolResultPart")
+	require.Equal(t, "toolu_read", toolResult.ToolCallID)
+	require.False(t, toolResult.ProviderExecuted)
+	errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](toolResult.Output)
+	require.True(t, ok, "expected synthetic error output")
+	require.ErrorContains(t, errOutput.Error, "tool call was interrupted")
+}
+
+func TestInjectMissingToolResults_AdjacentAssistantsInjectLocalResults(t *testing.T) {
+	t.Parallel()
+
+	assistantAContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant a"),
+		codersdk.ChatMessageToolCall(
+			"toolu_a",
+			"read_file",
+			json.RawMessage(`{"path":"a.go"}`),
+		),
+	})
+	require.NoError(t, err)
+	assistantBContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant b"),
+		codersdk.ChatMessageToolCall(
+			"toolu_b",
+			"read_file",
+			json.RawMessage(`{"path":"b.go"}`),
+		),
+	})
+	require.NoError(t, err)
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("next user message"),
+	})
+	require.NoError(t, err)
+
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        assistantAContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        assistantBContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+		{
+			Role:           database.ChatMessageRoleUser,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        userContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+	})
+
+	require.Len(t, prompt, 5)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[3].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[4].Role)
+	require.Equal(t, []string{"toolu_a"}, extractToolResultIDs(t, prompt[1]))
+	require.Equal(t, []string{"toolu_b"}, extractToolResultIDs(t, prompt[3]))
+
+	assistantAText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "expected assistant A text")
+	require.Equal(t, "assistant a", assistantAText.Text)
+	assistantBText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[2].Content[0])
+	require.True(t, ok, "expected assistant B text")
+	require.Equal(t, "assistant b", assistantBText.Text)
+	userText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[4].Content[0])
+	require.True(t, ok, "expected user text")
+	require.Equal(t, "next user message", userText.Text)
 }
 
 // TestInjectMissingToolUses_DropsProviderExecutedOrphans verifies that
@@ -628,7 +768,7 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	for i, msg := range prompt {
 		if msg.Role == fantasy.MessageRoleAssistant {
 			for _, part := range msg.Content {
-				tc, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+				tc, ok := asToolCallPartForTest(part)
 				if ok && tc.Input == "{}" && tc.ToolCallID == "srvtoolu_C" {
 					t.Errorf("message[%d]: unexpected synthetic tool_use for srvtoolu_C", i)
 				}
@@ -695,7 +835,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 	t.Parallel()
 
 	// The assistant message contains a PE tool call, a PE tool result,
-	// and a text block — mimicking a web_search step where persistStep
+	// and a text block, mimicking a web_search step where persistStep
 	// keeps the PE result inline.
 	assistantContent := mustMarshalContent(t, []fantasy.Content{
 		fantasy.ToolCallContent{
@@ -728,12 +868,12 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 	// The assistant message must contain 3 parts: tool_call, tool_result, text.
 	var foundToolCall, foundToolResult, foundText bool
 	for _, part := range prompt[0].Content {
-		if tc, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok {
+		if tc, ok := asToolCallPartForTest(part); ok {
 			require.Equal(t, "srvtoolu_WS", tc.ToolCallID)
 			require.True(t, tc.ProviderExecuted, "ToolCallPart.ProviderExecuted must be true")
 			foundToolCall = true
 		}
-		if tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok {
+		if tr, ok := asToolResultPartForTest(part); ok {
 			require.Equal(t, "srvtoolu_WS", tr.ToolCallID)
 			require.True(t, tr.ProviderExecuted, "ToolResultPart.ProviderExecuted must be true")
 			foundToolResult = true
@@ -751,7 +891,7 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 // TestProviderExecutedResult_LegacyToolRow verifies backward
 // compatibility: PE tool results that were stored as separate
 // tool-role rows (legacy persistence) are still handled correctly
-// by the repair passes — orphaned PE results are dropped, and
+// by the repair passes, orphaned PE results are dropped, and
 // matching PE results in the same step work via the existing
 // injectMissingToolUses logic.
 func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
@@ -1480,7 +1620,7 @@ func TestMixedFormatConversation(t *testing.T) {
 	// 4. Old tool: result paired with call_1.
 	require.Equal(t, fantasy.MessageRoleTool, prompt[3].Role)
 	require.Len(t, prompt[3].Content, 1)
-	toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[3].Content[0])
+	toolResult, ok := asToolResultPartForTest(prompt[3].Content[0])
 	require.True(t, ok)
 	assert.Equal(t, "call_1", toolResult.ToolCallID)
 
@@ -1662,7 +1802,7 @@ func extractToolResultIDs(t *testing.T, msgs ...fantasy.Message) []string {
 	var ids []string
 	for _, msg := range msgs {
 		for _, part := range msg.Content {
-			tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			tr, ok := asToolResultPartForTest(part)
 			if ok {
 				ids = append(ids, tr.ToolCallID)
 			}
@@ -1903,10 +2043,10 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),                     // empty — filtered
-			codersdk.ChatMessageText("   \t\n "),             // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),                // empty — filtered
-			codersdk.ChatMessageReasoning("  \n"),            // whitespace — filtered
+			codersdk.ChatMessageText(""),                     // empty, filtered
+			codersdk.ChatMessageText("   \t\n "),             // whitespace, filtered
+			codersdk.ChatMessageReasoning(""),                // empty, filtered
+			codersdk.ChatMessageReasoning("  \n"),            // whitespace, filtered
 			codersdk.ChatMessageText("hello"),                // kept
 			codersdk.ChatMessageText("  hello  "),            // kept with original whitespace
 			codersdk.ChatMessageReasoning("thinking deeply"), // kept
@@ -1930,7 +2070,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		require.True(t, ok, "expected TextPart at index 0")
 		require.Equal(t, "hello", textPart.Text)
 
-		// Leading/trailing whitespace is preserved — only
+		// Leading/trailing whitespace is preserved, only
 		// all-whitespace parts are dropped.
 		paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[1])
 		require.True(t, ok, "expected TextPart at index 1")
@@ -1940,11 +2080,11 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		require.True(t, ok, "expected ReasoningPart at index 2")
 		require.Equal(t, "thinking deeply", reasoningPart.Text)
 
-		toolCallPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](resultParts[3])
+		toolCallPart, ok := asToolCallPartForTest(resultParts[3])
 		require.True(t, ok, "expected ToolCallPart at index 3")
 		require.Equal(t, "call-1", toolCallPart.ToolCallID)
 
-		toolResultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](resultParts[4])
+		toolResultPart, ok := asToolResultPartForTest(resultParts[4])
 		require.True(t, ok, "expected ToolResultPart at index 4")
 		require.Equal(t, "call-1", toolResultPart.ToolCallID)
 	})
@@ -1953,9 +2093,9 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		t.Parallel()
 
 		parts := []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(""),          // empty — filtered
-			codersdk.ChatMessageText(" "),         // whitespace — filtered
-			codersdk.ChatMessageReasoning(""),     // empty — filtered
+			codersdk.ChatMessageText(""),          // empty, filtered
+			codersdk.ChatMessageText(" "),         // whitespace, filtered
+			codersdk.ChatMessageReasoning(""),     // empty, filtered
 			codersdk.ChatMessageText("  reply  "), // kept with whitespace
 			codersdk.ChatMessageToolCall("tc-1", "read_file", json.RawMessage(`{"path":"x"}`)),
 		}
@@ -1978,7 +2118,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		require.True(t, ok, "expected TextPart")
 		require.Equal(t, "  reply  ", textPart.Text)
 
-		tcPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](resultParts[1])
+		tcPart, ok := asToolCallPartForTest(resultParts[1])
 		require.True(t, ok, "expected ToolCallPart")
 		require.Equal(t, "tc-1", tcPart.ToolCallID)
 	})
@@ -2375,7 +2515,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.Equal(t, fantasy.MessageRoleTool, toolMsg.Role)
 		require.Len(t, toolMsg.Content, 1)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](toolMsg.Content[0])
+		resultPart, ok := asToolResultPartForTest(toolMsg.Content[0])
 		require.True(t, ok, "expected ToolResultPart")
 		require.Equal(t, callID, resultPart.ToolCallID)
 		require.False(t, resultPart.ProviderExecuted)
@@ -2432,7 +2572,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok, "expected ToolResultPart")
 
 		mediaOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
@@ -2505,7 +2645,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 		require.False(t, resultPart.ProviderExecuted)
 
@@ -2531,7 +2671,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
@@ -2557,7 +2697,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
@@ -2579,7 +2719,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
@@ -2607,7 +2747,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		errOutput, isError := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](resultPart.Output)
@@ -2639,7 +2779,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
@@ -2668,7 +2808,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
@@ -2696,7 +2836,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
@@ -2727,7 +2867,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		prompt := loadPrompt(t, chat)
 		require.Len(t, prompt, 2)
 
-		resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[1].Content[0])
+		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
 		require.True(t, ok)
 
 		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)

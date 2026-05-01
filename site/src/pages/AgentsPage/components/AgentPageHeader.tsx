@@ -11,7 +11,13 @@ import {
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation, useOutletContext } from "react-router";
+import {
+	Link,
+	NavLink,
+	type To,
+	useLocation,
+	useOutletContext,
+} from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
@@ -21,11 +27,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentsOutletContext } from "../AgentsPageView";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
@@ -33,7 +38,7 @@ interface AgentPageHeaderProps {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the settings/analytics nav buttons. */
-	mobileBack?: { to: string; label: string };
+	mobileBack?: { to: To; label: string };
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
 	webPush?: ReturnType<typeof useWebpushNotifications>;
@@ -50,8 +55,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsOutletContext>();
-	const { appearance } = useDashboard();
-	const logoUrl = appearance.logo_url;
 	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
@@ -126,13 +129,12 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					</Link>
 				</Button>
 			) : (
-				<NavLink to="/workspaces" className="inline-flex shrink-0 sm:hidden">
-					{logoUrl ? (
-						<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-					) : (
-						<CoderIcon className="h-6 w-6 fill-content-primary" />
-					)}
-				</NavLink>
+				<div className="inline-flex shrink-0 items-center gap-2 sm:hidden">
+					<NavLink to="/workspaces" className="inline-flex">
+						<ProductLogo className="size-6" />
+					</NavLink>
+					<FeatureStageBadge contentType="beta" size="sm" />
+				</div>
 			)}
 			{isSidebarCollapsed && (
 				<Button
@@ -167,13 +169,18 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
 					>
 						<DropdownMenuItem asChild>
-							<Link to="/agents/settings" state={{ from: location.pathname }}>
+							<Link
+								to="/agents/settings"
+								state={{ from: location.pathname + location.search }}
+							>
 								<SettingsIcon className="size-icon-sm" />
 								Settings
 							</Link>
 						</DropdownMenuItem>
 						<DropdownMenuItem asChild>
-							<Link to="/agents/analytics">
+							<Link
+								to={{ pathname: "/agents/analytics", search: location.search }}
+							>
 								<BarChart3Icon className="size-icon-sm" />
 								Analytics
 							</Link>

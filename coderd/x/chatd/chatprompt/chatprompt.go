@@ -34,6 +34,30 @@ var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
+func safeAsToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	var zero fantasy.ToolCallPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolCallPart); ok && value == nil {
+		return zero, false
+	}
+	type toolCallPart = fantasy.ToolCallPart
+	return fantasy.AsMessagePart[toolCallPart](part)
+}
+
+func safeAsToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	var zero fantasy.ToolResultPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolResultPart); ok && value == nil {
+		return zero, false
+	}
+	type toolResultPart = fantasy.ToolResultPart
+	return fantasy.AsMessagePart[toolResultPart](part)
+}
+
 // FileData holds resolved file content for LLM prompt building.
 type FileData struct {
 	Name      string
@@ -575,7 +599,7 @@ func normalizeAssistantToolCallInputs(
 ) []fantasy.MessagePart {
 	normalized := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
-		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		toolCall, ok := safeAsToolCallPart(part)
 		if !ok {
 			normalized = append(normalized, part)
 			continue
@@ -608,7 +632,7 @@ func normalizeToolCallInput(input string) string {
 func ExtractToolCalls(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
 	toolCalls := make([]fantasy.ToolCallContent, 0, len(parts))
 	for _, part := range parts {
-		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		toolCall, ok := safeAsToolCallPart(part)
 		if !ok {
 			continue
 		}
@@ -959,7 +983,7 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 				break
 			}
 			for _, part := range prompt[j].Content {
-				tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+				tr, ok := safeAsToolResultPart(part)
 				if !ok {
 					continue
 				}
@@ -974,12 +998,11 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 		}
 
 		// Build synthetic results for any unanswered tool calls.
-		// Provider-executed tool calls (e.g. web_search) are
-		// handled server-side by the LLM provider. Their results
-		// may arrive in a later step and end up stored out of
-		// position, so we must not inject synthetic error results
-		// for them. The provider will re-execute the tool when it
-		// sees the server_tool_use without a matching result.
+		// Provider-executed tool calls are handled server-side by
+		// the LLM provider, and their result blocks contain
+		// provider-owned metadata. We cannot synthesize a valid
+		// provider result if one is missing, so provider-specific
+		// sanitization removes unpaired calls before replay.
 		var missing []fantasy.MessagePart
 		for _, tc := range toolCalls {
 			if tc.ProviderExecuted {
@@ -1017,7 +1040,7 @@ func injectMissingToolUses(
 
 		allToolResults := make([]fantasy.ToolResultPart, 0, len(msg.Content))
 		for _, part := range msg.Content {
-			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			toolResult, ok := safeAsToolResultPart(part)
 			if !ok {
 				continue
 			}
@@ -1028,13 +1051,12 @@ func injectMissingToolUses(
 			continue
 		}
 
-		// Provider-executed tool results (e.g. web_search) may be
-		// persisted in a later step than the assistant message that
-		// initiated the tool call. When that happens they appear as
-		// orphans after the wrong assistant message. Filter them
-		// out before matching — the provider will re-execute the
-		// tool, and the search results are already captured in the
-		// subsequent assistant message's sources/text.
+		// Provider-executed tool results may be persisted in a
+		// later step than the assistant message that initiated the
+		// tool call. When that happens they appear as orphans after
+		// the wrong assistant message. Filter them out before
+		// matching because they cannot be converted into local
+		// tool-use pairs safely.
 		toolResults := make([]fantasy.ToolResultPart, 0, len(allToolResults))
 		for _, tr := range allToolResults {
 			if !tr.ProviderExecuted {
@@ -1632,7 +1654,7 @@ func decodeNulInString(s string) string {
 				_, _ = b.WriteRune(0)
 				i++
 			default:
-				// Unpaired sentinel — preserve as-is.
+				// Unpaired sentinel, preserve as-is.
 				_, _ = b.WriteRune(runes[i])
 			}
 		} else {

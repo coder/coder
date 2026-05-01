@@ -223,6 +223,7 @@ const NotificationsPage: FC = () => {
 																		preferencesQuery.data
 																	) {
 																		updatePreferencesMutation.mutate({
+																			...preferencesQuery.data,
 																			task_notification_alert_dismissed: false,
 																		});
 																	}
@@ -277,6 +278,7 @@ function canSeeNotificationGroup(
 			return permissions.createUser;
 		case "Workspace Events":
 		case "Task Events":
+		case "Chat Events":
 		case "Custom Events":
 			return true;
 		default:

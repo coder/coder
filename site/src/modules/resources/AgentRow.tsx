@@ -2,6 +2,7 @@ import Collapse from "@mui/material/Collapse";
 import {
 	CopyIcon,
 	EllipsisIcon,
+	PackageIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
 	TriangleAlertIcon,
@@ -45,6 +46,12 @@ import {
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
 import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -280,6 +287,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		{
 			title: "All Logs",
 			value: "all",
+			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
 		},
 		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
@@ -535,11 +543,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 									onValueChange={setSelectedLogTab}
 								>
 									<div className="flex items-stretch">
-										<div
-											ref={logTabsListContainerRef}
-											className="min-w-0 flex-1 overflow-hidden"
-										>
-											<TabsList variant="insideBox" overflowKebabMenu>
+										<div className="min-w-0 flex-1 overflow-hidden">
+											<TabsList
+												variant="outsideBox"
+												overflowKebabMenu
+												ref={logTabsListContainerRef}
+												className="px-4"
+											>
 												{visibleLogTabs.map((tab) => (
 													<TabsTrigger
 														key={tab.value}
@@ -565,7 +575,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		: "inactive"
 																}
 																aria-label="More log tabs"
-																className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+																className={cn(
+																	"cursor-pointer -mb-px",
+																	"inline-flex items-center justify-center",
+																	"border-none py-3 bg-transparent text-inherit",
+																	"transition-colors duration-150 ease-linear",
+																)}
 															>
 																<EllipsisIcon className="size-icon-sm" />
 																<span className="sr-only">More log tabs</span>
@@ -597,18 +612,29 @@ export const AgentRow: FC<AgentRowProps> = ({
 										<div
 											className={cn(
 												"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
-												"border-solid border-0 border-b",
+												"border-solid border-0 border-b border-l",
 											)}
 										>
-											<Button
-												variant="subtle"
-												size="sm"
-												disabled={!hasSelectedLogs}
-												onClick={() => copyToClipboard(selectedLogsText)}
-											>
-												{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-												<span>Copy logs</span>
-											</Button>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess
+															? "Copied!"
+															: "Copy selected logs"}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
 											<DownloadSelectedAgentLogsButton
 												agentName={agent.name}
 												logSets={downloadableLogSets}

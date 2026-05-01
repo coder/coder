@@ -5,7 +5,6 @@ import {
 	ConversationItem,
 	Message,
 	MessageContent,
-	Response,
 	Shimmer,
 } from "../ChatElements";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
@@ -21,29 +20,23 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 
 /**
  * True when the block list contains at least one text or reasoning
- * block. Tool-call and other non-text blocks don't count because
- * they don't replace the "Thinking..." placeholder visually.
+ * block. Tool-call blocks don't count; the placeholder should
+ * remain visible between tool calls so the user knows the model
+ * is still working.
  */
 const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 	blocks.some((b) => b.type === "response" || b.type === "thinking");
 
 /**
- * Stateless "Thinking..." shimmer used during the streaming phase
- * when no text or reasoning blocks have arrived yet. Unlike the
- * `StartingPlaceholder` in `ChatStatusCallout`, this has no
- * delayed-startup timer — the streaming phase is transient and
- * will be replaced as soon as real content arrives.
+ * Placeholder shown during streaming before text or reasoning
+ * blocks arrive. Uses the same shimmer animation as the
+ * collapsible thinking disclosure label.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div className="relative">
-		<Response aria-hidden className="invisible select-none">
-			Thinking...
-		</Response>
-		<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-			<Shimmer as="div" className="text-[13px] leading-relaxed">
-				Thinking...
-			</Shimmer>
-		</div>
+	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
+		<Shimmer as="span" className="text-sm">
+			Thinking
+		</Shimmer>
 	</div>
 );
 
