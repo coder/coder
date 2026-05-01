@@ -29,7 +29,7 @@ const statusDotConnectedClassName =
 	"bg-content-success shadow-[0_0_12px_0] shadow-content-success";
 const statusDotDisconnectedClassName = "bg-content-secondary";
 const statusDotConnectingClassName =
-	"bg-content-link [animation:pulse-status_1.5s_0.5s_ease-in-out_infinite]";
+	"bg-content-link animate-pulse [animation-delay:0.5s]";
 
 // If we think in the agent status and lifecycle into a single enum/state I'd
 // say we would have: connecting, timeout, disconnected, connected:created,
