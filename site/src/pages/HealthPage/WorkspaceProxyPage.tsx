@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
@@ -9,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { pageTitle } from "#/utils/page";
 import {
@@ -26,7 +26,6 @@ const WorkspaceProxyPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { workspace_proxy } = healthStatus;
 	const { regions } = workspace_proxy.workspace_proxies;
-	const theme = useTheme();
 
 	return (
 		<>
@@ -66,15 +65,10 @@ const WorkspaceProxyPage: FC = () => {
 					return (
 						<div
 							key={region.id}
-							css={{
-								borderRadius: 8,
-								border: `1px solid ${
-									region.healthy
-										? theme.palette.divider
-										: theme.palette.warning.light
-								}`,
-								fontSize: 14,
-							}}
+							className={cn(
+								"rounded-lg border text-sm",
+								region.healthy ? "border-border" : "border-border-warning",
+							)}
 						>
 							<header className="p-6 flex items-center justify-between gap-6">
 								<div className="flex items-center gap-6">
@@ -87,7 +81,7 @@ const WorkspaceProxyPage: FC = () => {
 									</div>
 									<div className="leading-[160%]">
 										<h4 className="font-medium m-0">{region.display_name}</h4>
-										<span css={{ color: theme.palette.text.secondary }}>
+										<span className="text-content-secondary">
 											{region.version}
 										</span>
 									</div>
@@ -132,17 +126,7 @@ const WorkspaceProxyPage: FC = () => {
 								</div>
 							</header>
 
-							<div
-								css={{
-									borderTop: `1px solid ${theme.palette.divider}`,
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "space-between",
-									padding: "8px 24px",
-									fontSize: 12,
-									color: theme.palette.text.secondary,
-								}}
-							>
+							<div className="border-t border-border flex items-center justify-between py-2 px-6 text-xs text-content-secondary">
 								{region.status?.status === "unregistered" ? (
 									<span>Has not connected yet</span>
 								) : warnings.length === 0 && errors.length === 0 ? (

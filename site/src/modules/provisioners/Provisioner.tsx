@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { Building2Icon, UserIcon } from "lucide-react";
 import type { FC } from "react";
 import type { HealthMessage, ProvisionerDaemon } from "#/api/typesGenerated";
@@ -8,6 +7,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
 
@@ -20,7 +20,6 @@ export const Provisioner: FC<ProvisionerProps> = ({
 	provisioner,
 	warnings,
 }) => {
-	const theme = useTheme();
 	const daemonScope = provisioner.tags.scope || "organization";
 	const iconScope =
 		daemonScope === "organization" ? (
@@ -36,20 +35,16 @@ export const Provisioner: FC<ProvisionerProps> = ({
 	return (
 		<div
 			key={provisioner.name}
-			css={[
-				{
-					borderRadius: 8,
-					border: `1px solid ${theme.palette.divider}`,
-					fontSize: 14,
-				},
-				isWarning && { borderColor: theme.palette.warning.light },
-			]}
+			className={cn(
+				"rounded-lg border border-solid border-border text-sm",
+				isWarning && "border-border-warning",
+			)}
 		>
 			<header className="p-6 flex items-center justify-between gap-6">
 				<div className="flex items-center gap-6 object-fill">
 					<div className="leading-[160%]">
 						<h4 className="font-medium m-0">{provisioner.name}</h4>
-						<span css={{ color: theme.palette.text.secondary }}>
+						<span className="text-content-secondary">
 							<code>{provisioner.version}</code>
 						</span>
 					</div>
@@ -71,17 +66,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 				</div>
 			</header>
 
-			<div
-				css={{
-					borderTop: `1px solid ${theme.palette.divider}`,
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-					padding: "8px 24px",
-					fontSize: 12,
-					color: theme.palette.text.secondary,
-				}}
-			>
+			<div className="border-solid border-0 border-t border-border flex items-center justify-between py-2 px-6 text-xs text-content-secondary">
 				{warnings && warnings.length > 0 ? (
 					<div className="flex flex-col">
 						{warnings.map((warning) => (
@@ -92,7 +77,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 					<span>No warnings</span>
 				)}
 				{provisioner.last_seen_at && (
-					<span css={{ color: theme.roles.info.text }} data-chromatic="ignore">
+					<span className="text-content-primary" data-chromatic="ignore">
 						Last seen {createDayString(provisioner.last_seen_at)}
 					</span>
 				)}

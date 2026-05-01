@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -14,8 +13,8 @@ import {
 } from "react";
 import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
+import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
-import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;
 
@@ -44,11 +43,18 @@ interface HealthIconProps {
 }
 
 export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
-	const theme = useTheme();
-	const color = healthyColor(theme, severity);
 	const Icon = severity === "error" ? CircleAlertIcon : CircleCheckIcon;
 
-	return <Icon css={{ width: size, height: size, color }} />;
+	return (
+		<Icon
+			className={cn(
+				severity === "ok" && "text-content-success",
+				severity === "warning" && "text-content-warning",
+				severity === "error" && "text-content-destructive",
+			)}
+			style={{ width: size, height: size }}
+		/>
+	);
 };
 
 interface HealthyDotProps {
@@ -56,16 +62,14 @@ interface HealthyDotProps {
 }
 
 export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
-	const theme = useTheme();
-
 	return (
 		<div
-			css={{
-				width: 8,
-				height: 8,
-				borderRadius: 9999,
-				backgroundColor: healthyColor(theme, severity),
-			}}
+			className={cn(
+				"size-2 rounded-full",
+				severity === "ok" && "bg-content-success",
+				severity === "warning" && "bg-content-warning",
+				severity === "error" && "bg-content-destructive",
+			)}
 		/>
 	);
 };
@@ -93,30 +97,13 @@ export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 };
 
 export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
-	const theme = useTheme();
 	return (
-		<span
-			css={{
-				fontSize: 14,
-				fontWeight: 500,
-				color: theme.palette.text.secondary,
-			}}
-			{...props}
-		/>
+		<span className="text-sm font-medium text-content-secondary" {...props} />
 	);
 };
 
 export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
-	const theme = useTheme();
-	return (
-		<span
-			css={{
-				fontSize: 14,
-				color: theme.palette.text.primary,
-			}}
-			{...props}
-		/>
-	);
+	return <span className="text-sm text-content-primary" {...props} />;
 };
 
 export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
@@ -130,22 +117,9 @@ type PillProps = React.ComponentPropsWithRef<"div"> & {
 };
 
 export const Pill: React.FC<PillProps> = ({ icon, children, ...divProps }) => {
-	const theme = useTheme();
-
 	return (
 		<div
-			css={{
-				display: "inline-flex",
-				alignItems: "center",
-				height: 32,
-				borderRadius: 9999,
-				border: `1px solid ${theme.palette.divider}`,
-				fontSize: 12,
-				fontWeight: 500,
-				padding: 8,
-				gap: 8,
-				cursor: "default",
-			}}
+			className="inline-flex items-center h-8 rounded-full border border-border text-xs font-medium p-2 gap-2 cursor-default"
 			{...divProps}
 		>
 			{cloneElement(icon, { className: "size-[14px]" })}
@@ -178,16 +152,13 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 	children,
 	...divProps
 }) => {
-	const theme = useTheme();
-	const color = value ? theme.roles.success.outline : theme.roles.error.outline;
-
 	return (
 		<Pill
 			icon={
 				value ? (
-					<CircleCheckIcon css={{ color }} className="size-icon-sm" />
+					<CircleCheckIcon className="size-icon-sm text-content-success" />
 				) : (
-					<CircleMinusIcon css={{ color }} className="size-icon-sm" />
+					<CircleMinusIcon className="size-icon-sm text-content-destructive" />
 				)
 			}
 			{...divProps}
@@ -200,20 +171,9 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 type LogsProps = HTMLAttributes<HTMLDivElement> & { lines: readonly string[] };
 
 export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
-	const theme = useTheme();
-
 	return (
 		<div
-			css={{
-				fontFamily: "monospace",
-				fontSize: 13,
-				lineHeight: "160%",
-				padding: 24,
-				backgroundColor: theme.palette.background.paper,
-				overflowX: "auto",
-				whiteSpace: "pre-wrap",
-				wordBreak: "break-all",
-			}}
+			className="font-mono text-[13px] leading-[160%] p-6 bg-surface-secondary overflow-x-auto whitespace-pre-wrap break-all"
 			{...divProps}
 		>
 			{lines.map((line, index) => (
@@ -222,9 +182,7 @@ export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
 				</span>
 			))}
 			{lines.length === 0 && (
-				<span css={{ color: theme.palette.text.secondary }}>
-					No logs available
-				</span>
+				<span className="text-content-secondary">No logs available</span>
 			)}
 		</div>
 	);

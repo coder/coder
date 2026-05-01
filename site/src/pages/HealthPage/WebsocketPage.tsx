@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { CodeIcon } from "lucide-react";
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
@@ -8,7 +7,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { pageTitle } from "#/utils/page";
 import {
 	Header,
@@ -23,7 +21,6 @@ import { DismissWarningButton } from "./DismissWarningButton";
 const WebsocketPage = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { websocket } = healthStatus;
-	const theme = useTheme();
 
 	return (
 		<>
@@ -65,22 +62,11 @@ const WebsocketPage = () => {
 
 				<section>
 					<SectionLabel>Body</SectionLabel>
-					<div
-						css={{
-							backgroundColor: theme.palette.background.paper,
-							border: `1px solid ${theme.palette.divider}`,
-							borderRadius: 8,
-							fontSize: 14,
-							padding: 24,
-							fontFamily: MONOSPACE_FONT_FAMILY,
-						}}
-					>
+					<div className="bg-surface-secondary border border-border rounded-lg text-sm p-6 font-mono">
 						{websocket.body !== "" ? (
 							websocket.body
 						) : (
-							<span css={{ color: theme.palette.text.secondary }}>
-								No body message
-							</span>
+							<span className="text-content-secondary">No body message</span>
 						)}
 					</div>
 				</section>
