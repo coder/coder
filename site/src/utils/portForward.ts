@@ -38,14 +38,21 @@ export const portForwardURL = (
 	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
 
 	const baseUrl = `${location.protocol}//${host.replace(/\*/g, subdomain)}`;
-	const url = new URL(baseUrl);
-	if (pathname) {
-		url.pathname = pathname;
+	try {
+		const url = new URL(baseUrl);
+		if (pathname) {
+			url.pathname = pathname;
+		}
+		if (search) {
+			url.search = search;
+		}
+		return url.toString();
+	} catch {
+		// In dev mode, the wildcard hostname may not produce a valid
+		// URL. Fall back to a localhost URL so the UI still renders.
+		const proto = protocol === "https" ? "https" : "http";
+		return `${proto}://localhost:${port}`;
 	}
-	if (search) {
-		url.search = search;
-	}
-	return url.toString();
 };
 
 /**

@@ -58,7 +58,6 @@ import { cn } from "#/utils/cn";
 import {
 	getWorkspaceListeningPortsProtocol,
 	portForwardURL,
-	saveWorkspaceListeningPortsProtocol,
 } from "#/utils/portForward";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 
@@ -211,9 +210,7 @@ const PortsSubMenuItem: FC<{
 	const isConnected = agent.status === "connected";
 	const enabled = isOpen && isConnected;
 
-	const [protocol, setProtocol] = useState(
-		getWorkspaceListeningPortsProtocol(workspace.id),
-	);
+	const protocol = getWorkspaceListeningPortsProtocol(workspace.id);
 
 	const { data: listeningPorts } = useQuery({
 		queryKey: ["portForward", agent.id],
@@ -236,11 +233,6 @@ const PortsSubMenuItem: FC<{
 		(p) => !sharedPortNumbers.has(p.port),
 	);
 
-	const handleProtocolChange = (next: "http" | "https") => {
-		setProtocol(next);
-		saveWorkspaceListeningPortsProtocol(workspace.id, next);
-	};
-
 	const totalCount =
 		listeningPorts !== undefined ? listeningPorts.length : undefined;
 
@@ -252,36 +244,10 @@ const PortsSubMenuItem: FC<{
 			</DropdownMenuSubTrigger>
 			<DropdownMenuSubContent className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5">
 				{/* Listening Ports */}
-				<div className="flex items-center justify-between px-2 pb-1.5 pt-1">
+				<div className="px-2 pb-1.5 pt-1">
 					<span className="text-xs font-semibold text-content-secondary">
 						Listening Ports
 					</span>
-					<div className="flex overflow-hidden rounded border border-solid border-border text-[10px]">
-						<button
-							type="button"
-							className={cn(
-								"px-1.5 py-0.5 transition-colors",
-								protocol === "http"
-									? "bg-surface-secondary text-content-primary"
-									: "text-content-tertiary hover:bg-surface-secondary",
-							)}
-							onClick={() => handleProtocolChange("http")}
-						>
-							HTTP
-						</button>
-						<button
-							type="button"
-							className={cn(
-								"px-1.5 py-0.5 transition-colors",
-								protocol === "https"
-									? "bg-surface-secondary text-content-primary"
-									: "text-content-tertiary hover:bg-surface-secondary",
-							)}
-							onClick={() => handleProtocolChange("https")}
-						>
-							HTTPS
-						</button>
-					</div>
 				</div>
 
 				{privateListeningPorts.map((port) => (
