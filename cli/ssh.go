@@ -712,7 +712,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 						// beyond reporting status.
 						return ExitError(exitErr.ExitStatus(), nil)
 					}
-					if errors.Is(err, &gossh.ExitMissingError{}) {
+					if missingErr := (&gossh.ExitMissingError{}); errors.As(err, &missingErr) {
 						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 					}
 					return xerrors.Errorf("run command: %w", err)
@@ -746,7 +746,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					// If the connection drops unexpectedly, we get an
 					// ExitMissingError but no other error details, so try to at
 					// least give the user a better message
-					if errors.Is(err, &gossh.ExitMissingError{}) {
+					if missingErr := (&gossh.ExitMissingError{}); errors.As(err, &missingErr) {
 						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 					}
 					return xerrors.Errorf("session ended: %w", err)
