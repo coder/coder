@@ -207,7 +207,6 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	chatList: [],
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
-	logoUrl: "",
 	handleNewAgent: fn(),
 	isCreating: false,
 	isArchiving: false,

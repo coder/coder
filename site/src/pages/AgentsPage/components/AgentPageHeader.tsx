@@ -27,12 +27,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentsOutletContext } from "../AgentsPageView";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
@@ -57,8 +55,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsOutletContext>();
-	const { appearance } = useDashboard();
-	const logoUrl = appearance.logo_url;
 	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
@@ -135,11 +131,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 			) : (
 				<div className="inline-flex shrink-0 items-center gap-2 md:hidden">
 					<NavLink to="/workspaces" className="inline-flex">
-						{logoUrl ? (
-							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-						) : (
-							<CoderIcon className="h-6 w-6 fill-content-primary" />
-						)}
+						<ProductLogo className="size-6" />
 					</NavLink>
 					<FeatureStageBadge contentType="beta" size="sm" />
 				</div>

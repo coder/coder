@@ -40,7 +40,6 @@ interface AgentsPageViewProps {
 	chatList: TypesGen.Chat[];
 	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	logoUrl: string;
 	handleNewAgent: () => void;
 	isCreating: boolean;
 	isArchiving: boolean;
@@ -81,7 +80,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	chatList,
 	catalogModelOptions,
 	modelConfigs,
-	logoUrl,
 	handleNewAgent,
 	isCreating,
 	isArchiving,
@@ -174,7 +172,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
-					logoUrl={logoUrl}
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}

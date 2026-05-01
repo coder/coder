@@ -106,12 +106,6 @@ export const ForMemberWithAgentsAccess: Story = {
 	},
 };
 
-export const CustomLogo: Story = {
-	args: {
-		logo_url: "/icon/github.svg",
-	},
-};
-
 export const IdleTasks: Story = {
 	parameters: {
 		queries: [
