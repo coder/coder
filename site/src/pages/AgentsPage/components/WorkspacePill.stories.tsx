@@ -327,6 +327,9 @@ export const WithListeningPorts: Story = {
 			expect(body.getByText("30000")).toBeInTheDocument();
 			expect(body.getByText("webb")).toBeInTheDocument();
 			expect(body.getByText("Manage sharing")).toBeInTheDocument();
+			// Port items render as anchor links.
+			const port8080Anchor = body.getByText("8080").closest("a");
+			expect(port8080Anchor).toHaveAttribute("href");
 		});
 	},
 };
@@ -371,6 +374,9 @@ export const WithSharedPorts: Story = {
 			// Shared ports from MockSharedPortsResponse for this agent.
 			expect(body.getByText("4000")).toBeInTheDocument();
 			expect(body.getByText("Manage sharing")).toBeInTheDocument();
+			// Port 8081 is both listening and shared; deduplication ensures it
+			// appears only in the Shared Ports section, not in Listening Ports.
+			expect(body.getAllByText("8081")).toHaveLength(1);
 		});
 	},
 };

@@ -216,13 +216,15 @@ const PortsSubMenuItem: FC<{
 		queryKey: ["portForward", agent.id],
 		queryFn: () => API.getAgentListeningPorts(agent.id),
 		enabled,
-		refetchInterval: isOpen ? 5_000 : false,
+		refetchInterval: enabled ? 5_000 : false,
+		staleTime: 0,
 		select: (res) => res.ports,
 	});
 
 	const { data: sharedPorts } = useQuery({
 		...workspacePortShares(workspace.id),
 		enabled,
+		staleTime: 0,
 		select: (res) => res.shares.filter((s) => s.agent_name === agent.name),
 	});
 
@@ -243,12 +245,14 @@ const PortsSubMenuItem: FC<{
 				{totalCount !== undefined ? `Ports (${totalCount})` : "Ports"}
 			</DropdownMenuSubTrigger>
 			<DropdownMenuSubContent className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5">
-				{/* Listening Ports */}
-				<div className="px-2 pb-1.5 pt-1">
-					<span className="text-xs font-semibold text-content-secondary">
-						Listening Ports
-					</span>
-				</div>
+				{/* Listening Ports header: only render when there are ports to list. */}
+				{privateListeningPorts.length > 0 && (
+					<div className="px-2 pb-1.5 pt-1">
+						<span className="text-xs font-semibold text-content-secondary">
+							Listening Ports
+						</span>
+					</div>
+				)}
 
 				{privateListeningPorts.map((port) => (
 					<ListeningPortItem
@@ -263,8 +267,9 @@ const PortsSubMenuItem: FC<{
 				))}
 
 				{listeningPorts !== undefined &&
+					sharedPorts !== undefined &&
 					privateListeningPorts.length === 0 &&
-					(sharedPorts ?? []).length === 0 && (
+					sharedPorts.length === 0 && (
 						<p className="px-2 py-2 text-center text-xs text-content-tertiary">
 							No open ports detected.
 						</p>
@@ -330,7 +335,7 @@ const ListeningPortItem: FC<{
 						{port.process_name}
 					</span>
 				)}
-				<ExternalLinkIcon className="ml-auto size-3 shrink-0 opacity-50" />
+				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
 			</a>
 		</DropdownMenuItem>
 	);
@@ -365,7 +370,7 @@ const SharedPortItem: FC<{
 				<span className="truncate capitalize text-content-tertiary">
 					{share.share_level}
 				</span>
-				<ExternalLinkIcon className="ml-auto size-3 shrink-0 opacity-50" />
+				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
 			</a>
 		</DropdownMenuItem>
 	);

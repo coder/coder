@@ -48,10 +48,9 @@ export const portForwardURL = (
 		}
 		return url.toString();
 	} catch {
-		// In dev mode, the wildcard hostname may not produce a valid
-		// URL. Fall back to a localhost URL so the UI still renders.
-		const proto = protocol === "https" ? "https" : "http";
-		return `${proto}://localhost:${port}`;
+		// When the proxy host is empty or invalid, return a do-nothing anchor
+		// so the link renders without navigating anywhere.
+		return "#";
 	}
 };
 
