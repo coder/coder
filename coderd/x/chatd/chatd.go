@@ -6793,7 +6793,7 @@ func (p *Server) runChat(
 	// blocked for all Explore chats.
 	var providerTools []chatloop.ProviderTool
 	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
-		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
+		providerTools = buildProviderTools(callConfig.ProviderOptions)
 		if isExploreSubagent {
 			if !chat.ParentChatID.Valid {
 				providerTools = nil
@@ -7091,7 +7091,7 @@ func (p *Server) runChat(
 // buildProviderTools creates provider-native tool definitions
 // (like web search) based on the model configuration. These
 // tools are executed server-side by the LLM provider.
-func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []chatloop.ProviderTool {
+func buildProviderTools(options *codersdk.ChatModelProviderOptions) []chatloop.ProviderTool {
 	var tools []chatloop.ProviderTool
 
 	if options == nil {

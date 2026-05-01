@@ -2365,7 +2365,7 @@ func TestSkillsFromParts(t *testing.T) {
 	t.Run("NoSkillParts", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
 			}),
 		}
@@ -2376,7 +2376,7 @@ func TestSkillsFromParts(t *testing.T) {
 	t.Run("SingleSkill", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:             codersdk.ChatMessagePartTypeSkill,
 					SkillName:        "deep-review",
@@ -2395,14 +2395,14 @@ func TestSkillsFromParts(t *testing.T) {
 	t.Run("MultipleSkillsAcrossMessages", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:      codersdk.ChatMessagePartTypeSkill,
 					SkillName: "pull-requests",
 					SkillDir:  "/home/coder/.agents/skills/pull-requests",
 				},
 			}),
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:      codersdk.ChatMessagePartTypeSkill,
 					SkillName: "deep-review",
@@ -2419,7 +2419,7 @@ func TestSkillsFromParts(t *testing.T) {
 	t.Run("MixedPartTypes", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:            codersdk.ChatMessagePartTypeContextFile,
 					ContextFilePath: "/home/coder/.coder/AGENTS.md",
@@ -2431,7 +2431,7 @@ func TestSkillsFromParts(t *testing.T) {
 				},
 			}),
 			// A text-only message should be skipped entirely.
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeText, Text: "user turn"},
 			}),
 		}
@@ -2444,7 +2444,7 @@ func TestSkillsFromParts(t *testing.T) {
 	t.Run("OptionalDescriptionOmitted", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:      codersdk.ChatMessagePartTypeSkill,
 					SkillName: "refine-plan",
@@ -2492,7 +2492,7 @@ func TestSkillsFromParts(t *testing.T) {
 				ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
 			})
 		}
-		msgs := []database.ChatMessage{chatMessageWithParts(parts)}
+		msgs := []database.ChatMessage{chattest.ChatMessageWithParts(parts)}
 		got := skillsFromParts(msgs)
 		require.Len(t, got, len(want))
 		for i, w := range want {
@@ -2516,7 +2516,7 @@ func TestContextFileAgentID(t *testing.T) {
 	t.Run("NoContextFileParts", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
 			}),
 		}
@@ -2529,7 +2529,7 @@ func TestContextFileAgentID(t *testing.T) {
 		t.Parallel()
 		agentID := uuid.New()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:               codersdk.ChatMessagePartTypeContextFile,
 					ContextFilePath:    "/some/path",
@@ -2547,14 +2547,14 @@ func TestContextFileAgentID(t *testing.T) {
 		agentID1 := uuid.New()
 		agentID2 := uuid.New()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:               codersdk.ChatMessagePartTypeContextFile,
 					ContextFilePath:    "/first/path",
 					ContextFileAgentID: uuid.NullUUID{UUID: agentID1, Valid: true},
 				},
 			}),
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:               codersdk.ChatMessagePartTypeContextFile,
 					ContextFilePath:    "/second/path",
@@ -2572,12 +2572,12 @@ func TestContextFileAgentID(t *testing.T) {
 		instructionAgentID := uuid.New()
 		sentinelAgentID := uuid.New()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 				Type:               codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath:    "/workspace/AGENTS.md",
 				ContextFileAgentID: uuid.NullUUID{UUID: instructionAgentID, Valid: true},
 			}}),
-			chatMessageWithParts([]codersdk.ChatMessagePart{{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 				Type:            codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath: AgentChatContextSentinelPath,
 				ContextFileAgentID: uuid.NullUUID{
@@ -2594,7 +2594,7 @@ func TestContextFileAgentID(t *testing.T) {
 	t.Run("SentinelWithoutAgentID", func(t *testing.T) {
 		t.Parallel()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 				{
 					Type:               codersdk.ChatMessagePartTypeContextFile,
 					ContextFileAgentID: uuid.NullUUID{Valid: false},
@@ -2614,7 +2614,7 @@ func TestHasPersistedInstructionFiles(t *testing.T) {
 		t.Parallel()
 		agentID := uuid.New()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 				Type:            codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath: AgentChatContextSentinelPath,
 				ContextFileAgentID: uuid.NullUUID{
@@ -2630,7 +2630,7 @@ func TestHasPersistedInstructionFiles(t *testing.T) {
 		t.Parallel()
 		agentID := uuid.New()
 		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{{
+			chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 				Type:               codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath:    "/workspace/AGENTS.md",
 				ContextFileContent: "repo instructions",
@@ -2647,7 +2647,7 @@ func TestInstructionFromContextFilesUsesLatestContextAgent(t *testing.T) {
 	oldAgentID := uuid.New()
 	newAgentID := uuid.New()
 	msgs := []database.ChatMessage{
-		chatMessageWithParts([]codersdk.ChatMessagePart{{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 			Type:                 codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:      "/old/AGENTS.md",
 			ContextFileContent:   "old instructions",
@@ -2655,7 +2655,7 @@ func TestInstructionFromContextFilesUsesLatestContextAgent(t *testing.T) {
 			ContextFileDirectory: "/old",
 			ContextFileAgentID:   uuid.NullUUID{UUID: oldAgentID, Valid: true},
 		}}),
-		chatMessageWithParts([]codersdk.ChatMessagePart{{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 			Type:                 codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:      "/new/AGENTS.md",
 			ContextFileContent:   "new instructions",
@@ -2679,12 +2679,12 @@ func TestInstructionFromContextFilesKeepsLegacyUnstampedParts(t *testing.T) {
 	oldAgentID := uuid.New()
 	newAgentID := uuid.New()
 	msgs := []database.ChatMessage{
-		chatMessageWithParts([]codersdk.ChatMessagePart{{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 			Type:               codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:    "/legacy/AGENTS.md",
 			ContextFileContent: "legacy instructions",
 		}}),
-		chatMessageWithParts([]codersdk.ChatMessagePart{{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 			Type:                 codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:      "/old/AGENTS.md",
 			ContextFileContent:   "old instructions",
@@ -2692,7 +2692,7 @@ func TestInstructionFromContextFilesKeepsLegacyUnstampedParts(t *testing.T) {
 			ContextFileDirectory: "/old",
 			ContextFileAgentID:   uuid.NullUUID{UUID: oldAgentID, Valid: true},
 		}}),
-		chatMessageWithParts([]codersdk.ChatMessagePart{{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 			Type:                 codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:      "/new/AGENTS.md",
 			ContextFileContent:   "new instructions",
@@ -2717,12 +2717,12 @@ func TestSkillsFromPartsKeepsLegacyUnstampedParts(t *testing.T) {
 	oldAgentID := uuid.New()
 	newAgentID := uuid.New()
 	msgs := []database.ChatMessage{
-		chatMessageWithParts([]codersdk.ChatMessagePart{{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 			Type:      codersdk.ChatMessagePartTypeSkill,
 			SkillName: "repo-helper-legacy",
 			SkillDir:  "/skills/repo-helper-legacy",
 		}}),
-		chatMessageWithParts([]codersdk.ChatMessagePart{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 			{
 				Type:               codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath:    "/old/AGENTS.md",
@@ -2735,7 +2735,7 @@ func TestSkillsFromPartsKeepsLegacyUnstampedParts(t *testing.T) {
 				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
 			},
 		}),
-		chatMessageWithParts([]codersdk.ChatMessagePart{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 			{
 				Type:            codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath: AgentChatContextSentinelPath,
@@ -2766,7 +2766,7 @@ func TestSkillsFromPartsUsesLatestContextAgent(t *testing.T) {
 	oldAgentID := uuid.New()
 	newAgentID := uuid.New()
 	msgs := []database.ChatMessage{
-		chatMessageWithParts([]codersdk.ChatMessagePart{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 			{
 				Type:               codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath:    "/old/AGENTS.md",
@@ -2779,7 +2779,7 @@ func TestSkillsFromPartsUsesLatestContextAgent(t *testing.T) {
 				ContextFileAgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true},
 			},
 		}),
-		chatMessageWithParts([]codersdk.ChatMessagePart{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 			{
 				Type:            codersdk.ChatMessagePartTypeContextFile,
 				ContextFilePath: AgentChatContextSentinelPath,
@@ -2873,13 +2873,6 @@ func TestSelectSkillMetasForInstructionRefresh(t *testing.T) {
 		)
 		require.Equal(t, persisted, got)
 	})
-}
-
-func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
-	raw, _ := json.Marshal(parts)
-	return database.ChatMessage{
-		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
-	}
 }
 
 // TestProcessChat_IgnoresStaleControlNotification verifies that

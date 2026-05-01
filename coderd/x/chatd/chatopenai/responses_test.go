@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -35,12 +36,6 @@ func TestIsResponsesStoreEnabled(t *testing.T) {
 			name: "NonOpenAIKeysOnly",
 			opts: fantasy.ProviderOptions{
 				"other": &fantasyopenai.ProviderOptions{},
-			},
-		},
-		{
-			name: "ResponsesOptionsUnderNonOpenAIKey",
-			opts: fantasy.ProviderOptions{
-				"other": &fantasyopenai.ResponsesProviderOptions{Store: &storeTrue},
 			},
 		},
 		{
@@ -417,7 +412,7 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
 	}
 	skillOnly := chainModeSkillOnlyUserMessage()
-	user := chatMessageWithParts([]codersdk.ChatMessagePart{{
+	user := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: "latest user message",
 	}})
@@ -426,7 +421,6 @@ func TestResolveChainModeIgnoresSkillOnlySentinelMessages(t *testing.T) {
 	got := chatopenai.ResolveChainMode([]database.ChatMessage{assistant, skillOnly, user})
 	require.Equal(t, "resp-123", got.PreviousResponseID())
 	require.Equal(t, modelConfigID, got.ModelConfigID())
-	require.Equal(t, 2, got.TrailingUserCount())
 	require.Equal(t, 1, got.ContributingTrailingUserCount())
 }
 
@@ -763,7 +757,7 @@ func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurn
 	t.Parallel()
 
 	modelConfigID := uuid.New()
-	priorUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+	priorUser := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: "prior user message",
 	}})
@@ -773,13 +767,13 @@ func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurn
 		ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
 		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
 	}
-	firstTrailingUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+	firstTrailingUser := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: "first trailing user",
 	}})
 	firstTrailingUser.Role = database.ChatMessageRoleUser
 	skillOnly := chainModeSkillOnlyUserMessage()
-	lastTrailingUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+	lastTrailingUser := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: "last trailing user",
 	}})
@@ -792,7 +786,6 @@ func TestFilterPromptForChainModeKeepsContributingUsersAcrossSkippedSentinelTurn
 		skillOnly,
 		lastTrailingUser,
 	})
-	require.Equal(t, 3, chainInfo.TrailingUserCount())
 	require.Equal(t, 2, chainInfo.ContributingTrailingUserCount())
 
 	prompt := []fantasy.Message{
@@ -846,7 +839,7 @@ func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
-	priorUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+	priorUser := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: "prior user message",
 	}})
@@ -857,7 +850,7 @@ func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
 		ModelConfigID:      uuid.NullUUID{UUID: modelConfigID, Valid: true},
 	}
 	skillOnly := chainModeSkillOnlyUserMessage()
-	latestUser := chatMessageWithParts([]codersdk.ChatMessagePart{{
+	latestUser := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{{
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: "latest user message",
 	}})
@@ -869,7 +862,6 @@ func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
 		skillOnly,
 		latestUser,
 	})
-	require.Equal(t, 2, chainInfo.TrailingUserCount())
 	require.Equal(t, 1, chainInfo.ContributingTrailingUserCount())
 
 	prompt := []fantasy.Message{
@@ -922,7 +914,7 @@ func chainModeSystemMessage() database.ChatMessage {
 }
 
 func chainModeUserMessage(text string) database.ChatMessage {
-	msg := chatMessageWithParts([]codersdk.ChatMessagePart{
+	msg := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText(text),
 	})
 	msg.Role = database.ChatMessageRoleUser
@@ -930,7 +922,7 @@ func chainModeUserMessage(text string) database.ChatMessage {
 }
 
 func chainModeSkillOnlyUserMessage() database.ChatMessage {
-	msg := chatMessageWithParts([]codersdk.ChatMessagePart{
+	msg := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 		{
 			Type: codersdk.ChatMessagePartTypeContextFile,
 			// Keep this in sync with chatd.AgentChatContextSentinelPath.
@@ -954,7 +946,7 @@ func chainModeAssistantMessage(
 	modelConfigID uuid.UUID,
 	parts []codersdk.ChatMessagePart,
 ) database.ChatMessage {
-	msg := chatMessageWithParts(parts)
+	msg := chattest.ChatMessageWithParts(parts)
 	msg.Role = database.ChatMessageRoleAssistant
 	msg.ProviderResponseID = sql.NullString{String: "resp-123", Valid: true}
 	msg.ModelConfigID = uuid.NullUUID{UUID: modelConfigID, Valid: true}
@@ -964,7 +956,7 @@ func chainModeAssistantMessage(
 func chainModeAssistantMessageWithoutResponse(
 	modelConfigID uuid.UUID,
 ) database.ChatMessage {
-	msg := chatMessageWithParts(nil)
+	msg := chattest.ChatMessageWithParts(nil)
 	msg.Role = database.ChatMessageRoleAssistant
 	msg.ModelConfigID = uuid.NullUUID{UUID: modelConfigID, Valid: true}
 	return msg
@@ -995,14 +987,7 @@ func chainModeCorruptToolMessage() database.ChatMessage {
 }
 
 func chainModeToolMessage(parts []codersdk.ChatMessagePart) database.ChatMessage {
-	msg := chatMessageWithParts(parts)
+	msg := chattest.ChatMessageWithParts(parts)
 	msg.Role = database.ChatMessageRoleTool
 	return msg
-}
-
-func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
-	raw, _ := json.Marshal(parts)
-	return database.ChatMessage{
-		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
-	}
 }

@@ -24,9 +24,6 @@ type ChainModeInfo struct {
 	// modelConfigID is the model configuration used to produce the assistant
 	// message referenced by previousResponseID.
 	modelConfigID uuid.UUID
-	// trailingUserCount is the number of contiguous user messages at the end of
-	// the conversation that form the current turn.
-	trailingUserCount int
 	// contributingTrailingUserCount counts the trailing user messages that
 	// materially change the provider input.
 	contributingTrailingUserCount int
@@ -50,12 +47,6 @@ func (c ChainModeInfo) PreviousResponseID() string {
 // message referenced by PreviousResponseID.
 func (c ChainModeInfo) ModelConfigID() uuid.UUID {
 	return c.modelConfigID
-}
-
-// TrailingUserCount returns the number of contiguous user messages at the end
-// of the conversation that form the current turn.
-func (c ChainModeInfo) TrailingUserCount() int {
-	return c.trailingUserCount
 }
 
 // ContributingTrailingUserCount returns the number of trailing user messages
@@ -209,9 +200,9 @@ func ShouldActivateChainMode(
 		!info.providerMissingToolResults
 }
 
-// ResolveChainMode scans DB messages from the end to count trailing user
-// messages for the current turn and detect whether the immediately preceding
-// assistant/tool block can chain from a provider response ID.
+// ResolveChainMode scans DB messages from the end to inspect the current
+// trailing user turn and detect whether the immediately preceding assistant/tool
+// block can chain from a provider response ID.
 func ResolveChainMode(messages []database.ChatMessage) ChainModeInfo {
 	var info ChainModeInfo
 	i := len(messages) - 1
@@ -219,7 +210,6 @@ func ResolveChainMode(messages []database.ChatMessage) ChainModeInfo {
 		if messages[i].Role != database.ChatMessageRoleUser {
 			break
 		}
-		info.trailingUserCount++
 		if userMessageContributesToChainMode(messages[i]) {
 			info.contributingTrailingUserCount++
 		}
