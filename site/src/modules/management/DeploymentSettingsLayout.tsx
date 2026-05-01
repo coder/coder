@@ -50,7 +50,7 @@ const DeploymentSettingsLayout: FC = () => {
 						</BreadcrumbItem>
 					</BreadcrumbList>
 				</Breadcrumb>
-				<hr className="h-px border-none bg-border" />
+				<div className="h-px border-none bg-border" />
 				<section className="px-10 max-w-screen-2xl mx-auto">
 					<div className="flex flex-row gap-28 py-10">
 						<DeploymentSidebar />
