@@ -1526,6 +1526,25 @@ export const AnthropicKnownModelHappyPath: Story = {
 	},
 };
 
+export const AnthropicHaikuKnownModelUsesThinkingBudgetNotEffort: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	name: "Add mode / DEREM-43: Haiku 4.5 sets thinking budget instead of effort",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+		await selectKnownModel(body, "claude-haiku-4-5");
+
+		await expandSection(body, "Provider Configuration");
+
+		// Reasoning Effort should remain empty because Haiku 4.5 uses the
+		// thinking budget path instead of Anthropic adaptive thinking.
+		await expectReasoningEffort(body, "");
+		await expect(
+			await body.findByLabelText(/Thinking Budget Tokens/i),
+		).toHaveValue("8192");
+	},
+};
+
 export const OpenAIKnownModelDoesNotPreFireRequiredError: Story = {
 	...providerFormSetup("openai", "OpenAI"),
 	name: "Add mode / DEREM-3: open does not pre-fire required error",
@@ -1865,7 +1884,7 @@ export const KnownModelProviderChangeResetsDefaultsFeedback: Story = {
 		await expectPricingValue(body, /^Input$/i, "1");
 		await expectPricingValue(body, /^Output$/i, "5");
 		await expect(await body.findByRole("status")).toHaveTextContent(
-			knownModelDefaultsFeedback("Claude Haiku 4.5 (latest)"),
+			knownModelDefaultsFeedback("Claude Haiku 4.5"),
 		);
 	},
 };

@@ -301,6 +301,27 @@ describe("applyKnownModelDefaults", () => {
 		expect(result.appliedFields).toContain("config.anthropic.effort");
 	});
 
+	it.each([
+		"claude-haiku-4-5",
+		"claude-sonnet-4-5",
+	])("sets Anthropic thinking budget instead of effort for %s", (modelIdentifier) => {
+		const result = applyDefaults({
+			values: buildInitialModelFormValues(),
+			initialValues: buildInitialModelFormValues(),
+			provider: "anthropic",
+			knownModel: requireKnownModel("anthropic", modelIdentifier),
+		});
+
+		expect(
+			getPath(result.values, "config.anthropic.thinking.budgetTokens"),
+		).toBe("8192");
+		expect(result.appliedFields).toContain(
+			"config.anthropic.thinking.budgetTokens",
+		);
+		expect(getPath(result.values, "config.anthropic.effort")).toBe("");
+		expect(result.appliedFields).not.toContain("config.anthropic.effort");
+	});
+
 	it("does not set Anthropic sendReasoning or thinking budget fields", () => {
 		const result = applyDefaults({
 			values: buildInitialModelFormValues(),

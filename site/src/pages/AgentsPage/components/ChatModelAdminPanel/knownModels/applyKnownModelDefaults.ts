@@ -40,6 +40,10 @@ const reasoningEffortPathByProvider: Record<string, string> = {
 	anthropic: "config.anthropic.effort",
 };
 
+const thinkingBudgetTokensPathByProvider: Record<string, string> = {
+	anthropic: "config.anthropic.thinking.budgetTokens",
+};
+
 const maybeApplyDefault = ({
 	appliedFields,
 	initialValues,
@@ -116,6 +120,20 @@ export const applyKnownModelDefaults = ({
 				nextValues,
 				path: reasoningEffortPath,
 				value: knownModel.reasoningEffort,
+				values,
+			});
+		}
+	}
+
+	if (knownModel.thinkingBudgetTokens !== undefined) {
+		const path = thinkingBudgetTokensPathByProvider[provider];
+		if (path !== undefined) {
+			maybeApplyDefault({
+				appliedFields,
+				initialValues,
+				nextValues,
+				path,
+				value: String(knownModel.thinkingBudgetTokens),
 				values,
 			});
 		}
