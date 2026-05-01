@@ -31,6 +31,8 @@ interface UseGitWatcherResult {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
+	/** Whether the watcher has received repository state for this chat. */
+	hasReceivedChanges: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
 	refresh: () => boolean;
 }
@@ -43,6 +45,7 @@ export function useGitWatcher({
 		ReadonlyMap<string, WorkspaceAgentRepoChanges>
 	>(new Map());
 	const [isConnected, setIsConnected] = useState(false);
+	const [hasReceivedChanges, setHasReceivedChanges] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
 
@@ -87,6 +90,7 @@ export function useGitWatcher({
 					}
 
 					if (data.type === "changes" && data.repositories) {
+						setHasReceivedChanges(true);
 						setRepositories((prev) => {
 							let changed = false;
 							const next = new Map(prev);
@@ -125,6 +129,7 @@ export function useGitWatcher({
 
 			onDisconnect() {
 				setIsConnected(false);
+				setHasReceivedChanges(false);
 				socketRef.current = null;
 			},
 
@@ -138,10 +143,11 @@ export function useGitWatcher({
 			// explicitly.
 			dispose();
 			setIsConnected(false);
+			setHasReceivedChanges(false);
 			setRepositories(new Map());
 			socketRef.current = null;
 		};
 	}, [chatId, agentStatus]);
 
-	return { repositories, isConnected, refresh };
+	return { repositories, isConnected, hasReceivedChanges, refresh };
 }

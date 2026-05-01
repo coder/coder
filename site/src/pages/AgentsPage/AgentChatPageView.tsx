@@ -124,6 +124,7 @@ interface AgentChatPageViewProps {
 	diffStatusData: ChatDiffStatus | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+		hasReceivedChanges: boolean;
 		refresh: () => boolean;
 	};
 
@@ -471,6 +472,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 													: undefined
 											}
 											repositories={gitWatcher.repositories}
+											isGitStatusLoading={
+												workspaceAgent?.status === "connected" &&
+												!gitWatcher.hasReceivedChanges
+											}
 											onRefresh={handleRefresh}
 											onCommit={handleCommit}
 											isExpanded={visualExpanded}
