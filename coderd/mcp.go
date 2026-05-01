@@ -58,9 +58,15 @@ func newOIDCMCPTokenSource(db database.Store, config promoauth.OAuth2Config, log
 
 // OIDCAccessToken implements mcpclient.UserOIDCTokenSource. It
 // refreshes expired tokens and persists the refreshed token back
-// to user_links.
+// to user_links. The chatd dbauthz subject does not grant
+// ResourceSystem.Read or ResourceUser.UpdatePersonal, so DB calls
+// elevate to AsSystemRestricted; the per-user authorization is
+// already enforced by the API handler that owns ctx.
 func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error) {
-	link, err := s.db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+	//nolint:gocritic // user_links read needs system access; the
+	// caller's user identity is supplied via the userID parameter.
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+	link, err := s.db.GetUserLinkByUserIDLoginType(dbCtx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    userID,
 		LoginType: database.LoginTypeOIDC,
 	})
@@ -92,7 +98,12 @@ func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UU
 		link.OAuthRefreshToken = token.RefreshToken
 		link.OAuthExpiry = token.Expiry
 
-		link, err = s.db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+		// Persist on a detached context so a canceled chat request
+		// cannot drop a refresh-token rotation, see PR #24332.
+		persistCtx, persistCancel := context.WithTimeout(
+			context.WithoutCancel(dbCtx), 10*time.Second,
+		)
+		link, err = s.db.UpdateUserLink(persistCtx, database.UpdateUserLinkParams{
 			UserID:                 userID,
 			LoginType:              database.LoginTypeOIDC,
 			OAuthAccessToken:       link.OAuthAccessToken,
@@ -102,6 +113,7 @@ func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UU
 			OAuthExpiry:            link.OAuthExpiry,
 			Claims:                 link.Claims,
 		})
+		persistCancel()
 		if err != nil {
 			return "", xerrors.Errorf("update user link after oidc refresh: %w", err)
 		}

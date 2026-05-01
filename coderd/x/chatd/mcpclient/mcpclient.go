@@ -50,12 +50,13 @@ const connectTimeout = 10 * time.Second
 const toolCallTimeout = 60 * time.Second
 
 // UserOIDCTokenSource resolves the OIDC access token for the calling
-// user. Implementations MUST refresh tokens that are expired or close
-// to expiring and MUST return ("", nil) when the user has no OIDC
-// link or a refresh failed for non-fatal reasons. Returning a
+// user. Implementations attempt to refresh tokens that are expired
+// or close to expiring and MUST return ("", nil) when the user has
+// no OIDC link or a refresh attempt failed for any reason. A
 // non-nil error is reserved for unexpected infrastructure failures
-// (e.g. database errors) and prevents the auth header from being
-// added to the outbound request.
+// (e.g. database errors) and skips header construction entirely.
+// The empty-token-on-refresh-failure behavior matches
+// provisionerdserver.ObtainOIDCAccessToken.
 type UserOIDCTokenSource interface {
 	OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error)
 }
@@ -386,11 +387,12 @@ func buildAuthHeaders(
 			break
 		}
 		if token == "" {
-			// The user is not OIDC-linked or a non-fatal
-			// refresh failure occurred. Fall through with no
-			// header so the upstream MCP server can decide
-			// how to respond (typically 401).
-			logger.Warn(ctx,
+			// The user has no OIDC link, or a non-fatal refresh
+			// failure occurred. Fall through with no header and let
+			// the upstream MCP server decide how to respond
+			// (typically 401). Logged at debug so password and
+			// GitHub users don't generate noise for every chat turn.
+			logger.Debug(ctx,
 				"no user OIDC token available for MCP server",
 				slog.F("server_slug", cfg.Slug),
 			)
