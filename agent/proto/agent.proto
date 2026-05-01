@@ -503,7 +503,7 @@ message BoundaryLog {
 
 	// Monotonically increasing integer assigned by boundary, starting at 0
 	// per session. Primary ordering key when boundary is in use.
-	uint64 sequence_number = 4;
+	int32 sequence_number = 4;
 }
 
 // ReportBoundaryLogsRequest is a request to re-emit the given BoundaryLogs.
