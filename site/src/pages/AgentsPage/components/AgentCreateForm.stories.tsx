@@ -254,9 +254,7 @@ export const MissingProviderAndModelSetup: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(
-			canvas.getByText("Finish setting up Coder agents"),
-		).toBeVisible();
+		await expect(canvas.getByText("Finish setting up agents")).toBeVisible();
 		expect(
 			canvas.getByRole("link", { name: /configure providers/i }),
 		).toHaveAttribute("href", "/agents/settings/providers");

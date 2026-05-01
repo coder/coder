@@ -397,9 +397,7 @@ export const MissingProviderAndModelSetup: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(
-				/configure a chat provider and a chat model before using coder agents/i,
-			),
+			canvas.getByText(/configure a provider and a model before using agents/i),
 		).toBeVisible();
 		expect(
 			canvas.getByRole("link", { name: /configure providers/i }),
@@ -424,9 +422,7 @@ export const MissingModelSetup: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(
-				/configure a chat provider and a chat model before using coder agents/i,
-			),
+			canvas.getByText(/configure a provider and a model before using agents/i),
 		).toBeVisible();
 		expect(
 			canvas.queryByRole("link", { name: /configure providers/i }),
@@ -448,9 +444,7 @@ export const MissingProviderSetup: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(
-				/configure a chat provider and a chat model before using coder agents/i,
-			),
+			canvas.getByText(/configure a provider and a model before using agents/i),
 		).toBeVisible();
 		expect(
 			canvas.getByRole("link", { name: /configure providers/i }),
