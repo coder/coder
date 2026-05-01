@@ -25,7 +25,7 @@ import {
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
-import { useExpiredFileIds } from "./ExpiredFileIdsContext";
+import { useAttachmentFailure } from "./AttachmentFailureContext";
 import type { RenderBlock } from "./types";
 
 export type PreviewTextAttachment = {
@@ -289,19 +289,19 @@ const RemoteTextAttachmentButton: FC<{
 	onPreview,
 	showStatus = false,
 }) => {
-	const { hasExpired, markExpired } = useExpiredFileIds();
-	const isKnownExpired = hasExpired(fileId);
+	const { getFailure, markExpired } = useAttachmentFailure();
+	const knownFailure = getFailure(fileId);
 	const [content, setContent] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
-		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
+		() => knownFailure ?? { kind: "idle" },
 	);
-	const request = useLatestAbortController(isKnownExpired);
+	const request = useLatestAbortController(knownFailure !== undefined);
 
-	if (isKnownExpired) {
+	if (knownFailure) {
 		return (
 			<AttachmentFallbackTile
-				state={{ kind: "expired" }}
+				state={knownFailure}
 				labels={textAttachmentFailureLabels}
 				className="h-16 w-28"
 			/>
@@ -410,7 +410,7 @@ const RemoteImageBlock: FC<{
 	displayName: string;
 	onImageClick?: (src: string) => void;
 }> = ({ fileId, href, displayName, onImageClick }) => {
-	const { getFailure, probeFailure } = useExpiredFileIds();
+	const { getFailure, probeFailure } = useAttachmentFailure();
 	const knownFailure = fileId === undefined ? undefined : getFailure(fileId);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
 		() => knownFailure ?? { kind: "idle" },
@@ -473,9 +473,6 @@ const RemoteImageBlock: FC<{
 						})
 						.catch((error) => {
 							if (!probeRequest.clear(controller)) {
-								return;
-							}
-							if (isAbortError(error)) {
 								return;
 							}
 							setFailureState(attachmentFailureFromError(error));

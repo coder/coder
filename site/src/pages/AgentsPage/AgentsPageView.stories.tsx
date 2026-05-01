@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { type ComponentProps, useState } from "react";
-import { Navigate } from "react-router";
+import { Navigate, useOutletContext } from "react-router";
 import {
 	expect,
 	fn,
@@ -35,8 +35,9 @@ import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
 import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
-import { AgentsPageView } from "./AgentsPageView";
+import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { ChatTopBar } from "./components/ChatTopBar";
 
 const defaultModelConfigID = "model-config-1";
 
@@ -200,6 +201,32 @@ const agentsRouting = {
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const AgentTopBarRouteElement = () => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsOutletContext>();
+	return (
+		<ChatTopBar
+			chatTitle="Collapsed sidebar agent"
+			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
+			onArchiveAgent={fn()}
+			onArchiveAndDeleteWorkspace={fn()}
+			onRegenerateTitle={fn()}
+			onUnarchiveAgent={fn()}
+			isSidebarCollapsed={isSidebarCollapsed}
+			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+		/>
+	);
+};
+
+const agentsWithChatTopBarRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <AgentTopBarRouteElement /> }
+			: route,
+	),
 };
 
 const defaultArgs: ComponentProps<typeof AgentsPageView> = {
@@ -533,6 +560,36 @@ export const CollapsedSidebarZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
 		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
+	args: {
+		agentId: "chat-1",
+		isSidebarCollapsed: true,
+		chatList: [
+			buildChat({
+				id: "chat-1",
+				title: "Collapsed sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: agentsWithChatTopBarRouting,
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

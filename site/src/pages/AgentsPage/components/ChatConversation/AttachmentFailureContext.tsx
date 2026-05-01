@@ -11,52 +11,45 @@ import {
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
 
-type ExpiredFileIdsContextValue = {
+type AttachmentFailureContextValue = {
 	getFailure: (fileId: string) => AttachmentFailure | undefined;
-	hasExpired: (fileId: string) => boolean;
 	markExpired: (fileId: string) => void;
 	probeFailure: (fileId: string, href: string) => Promise<AttachmentFailure>;
 };
 
-const ExpiredFileIdsContext = createContext<ExpiredFileIdsContextValue>({
+type CachedAttachmentFailure = Extract<AttachmentFailure, { kind: "expired" }>;
+
+const AttachmentFailureContext = createContext<AttachmentFailureContextValue>({
 	getFailure: () => undefined,
-	hasExpired: () => false,
 	markExpired: () => {},
 	probeFailure: async (_fileId, href) => probeAttachmentFailure(href),
 });
 
-export const ExpiredFileIdsProvider: FC<PropsWithChildren> = ({ children }) => {
-	const [failures, setFailures] = useState<Map<string, AttachmentFailure>>(
-		() => new Map(),
-	);
+export const AttachmentFailureProvider: FC<PropsWithChildren> = ({
+	children,
+}) => {
+	const [failures, setFailures] = useState<
+		Map<string, CachedAttachmentFailure>
+	>(() => new Map());
 	const failuresRef = useRef(failures);
 	const inFlightProbes = useRef(new Map<string, Promise<AttachmentFailure>>());
 
-	const rememberFailure = (fileId: string, failure: AttachmentFailure) => {
-		const previousFailure = failuresRef.current.get(fileId);
-		if (previousFailure?.kind === "expired" && failure.kind === "expired") {
-			return;
-		}
-		if (
-			previousFailure?.kind === "failed" &&
-			failure.kind === "failed" &&
-			previousFailure.detail === failure.detail
-		) {
+	const markExpired = (fileId: string) => {
+		if (failuresRef.current.get(fileId)?.kind === "expired") {
 			return;
 		}
 
 		const next = new Map(failuresRef.current);
-		next.set(fileId, failure);
+		next.set(fileId, { kind: "expired" });
 		failuresRef.current = next;
 		setFailures(next);
 	};
 
 	return (
-		<ExpiredFileIdsContext.Provider
+		<AttachmentFailureContext.Provider
 			value={{
 				getFailure: (fileId) => failures.get(fileId),
-				hasExpired: (fileId) => failures.get(fileId)?.kind === "expired",
-				markExpired: (fileId) => rememberFailure(fileId, { kind: "expired" }),
+				markExpired,
 				probeFailure: (fileId, href) => {
 					const cachedFailure = failuresRef.current.get(fileId);
 					if (cachedFailure) {
@@ -70,7 +63,9 @@ export const ExpiredFileIdsProvider: FC<PropsWithChildren> = ({ children }) => {
 
 					const probe = probeAttachmentFailure(href)
 						.then((failure) => {
-							rememberFailure(fileId, failure);
+							if (failure.kind === "expired") {
+								markExpired(fileId);
+							}
 							return failure;
 						})
 						.finally(() => {
@@ -82,8 +77,8 @@ export const ExpiredFileIdsProvider: FC<PropsWithChildren> = ({ children }) => {
 			}}
 		>
 			{children}
-		</ExpiredFileIdsContext.Provider>
+		</AttachmentFailureContext.Provider>
 	);
 };
 
-export const useExpiredFileIds = () => useContext(ExpiredFileIdsContext);
+export const useAttachmentFailure = () => useContext(AttachmentFailureContext);

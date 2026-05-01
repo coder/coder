@@ -1141,7 +1141,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 px-2 py-3 sm:px-2">
+						<div className="flex flex-col gap-2 px-2 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
