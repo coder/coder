@@ -402,6 +402,8 @@ export const ModelIdentifierField = ({
 				onEscapeKeyDown={() => {
 					closeIntentRef.current = "escape";
 				}}
+				inlineSearch
+				onEnterEmpty={() => handleOpenChange(false)}
 				placeholder="e.g. gpt-5, claude-sonnet-4-5"
 				noOptionsText="No matching known models. You can still use this identifier."
 				className={cn(

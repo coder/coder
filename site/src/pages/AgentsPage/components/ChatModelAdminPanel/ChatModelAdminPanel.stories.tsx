@@ -1,6 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fireEvent,
+	fn,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -1214,16 +1222,26 @@ const noMatchingKnownModelsText =
 
 const openKnownModelPopover = async (body: ReturnType<typeof within>) => {
 	await userEvent.click(await body.findByLabelText(/Model Identifier/i));
-	return await body.findByRole("combobox");
+	const input = await body.findByRole("combobox");
+	await expect(input).toHaveFocus();
+	return input;
+};
+
+const expectKnownModelPopoverClosed = async (
+	body: ReturnType<typeof within>,
+) => {
+	await waitFor(() => {
+		expect(body.queryByRole("listbox")).not.toBeInTheDocument();
+		expect(body.queryAllByRole("option")).toHaveLength(0);
+		expect(body.queryByText(noMatchingKnownModelsText)).not.toBeInTheDocument();
+	});
 };
 
 const closeKnownModelPopoverToContextLimit = async (
 	body: ReturnType<typeof within>,
 ) => {
 	await userEvent.click(body.getByLabelText(/Context limit/i));
-	await waitFor(() => {
-		expect(body.queryByRole("combobox")).not.toBeInTheDocument();
-	});
+	await expectKnownModelPopoverClosed(body);
 };
 
 const selectKnownModel = async (
@@ -1232,17 +1250,24 @@ const selectKnownModel = async (
 ) => {
 	const input = await openKnownModelPopover(body);
 	await userEvent.clear(input);
+	await expect(input).toHaveValue("");
 	const options = await body.findAllByRole("option");
 	await userEvent.click(findOptionByText(options, modelIdentifier));
+	await expectModelIdentifierValue(body, modelIdentifier);
 };
 
 const clearAndTypeKnownModelSearch = async (
 	body: ReturnType<typeof within>,
 	value: string,
 ) => {
-	const input = await body.findByRole("combobox");
+	let input = await body.findByRole("combobox");
 	await userEvent.clear(input);
-	await userEvent.type(input, value);
+	input = await body.findByRole("combobox");
+	await expect(input).toHaveValue("");
+	await expect(input).toHaveFocus();
+	await userEvent.keyboard(value);
+	input = await body.findByRole("combobox");
+	await expect(input).toHaveValue(value);
 	return input;
 };
 
@@ -1250,9 +1275,13 @@ const expectModelIdentifierValue = async (
 	body: ReturnType<typeof within>,
 	value: string,
 ) => {
-	await expect(
-		await body.findByLabelText(/Model Identifier/i),
-	).toHaveTextContent(value);
+	const control = await body.findByLabelText(/Model Identifier/i);
+	if (control.matches("input,textarea")) {
+		await waitFor(() => expect(control).toHaveValue(value));
+		return;
+	}
+
+	await waitFor(() => expect(control).toHaveTextContent(value));
 };
 
 const getDefaultsFeedback = (
@@ -1407,13 +1436,11 @@ export const OpenAIKnownModelHappyPath: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
 
-		await userEvent.click(await body.findByLabelText(/Model Identifier/i));
+		await openKnownModelPopover(body);
 		const options = await expectKnownModelOptionsInOrder(body, "openai");
 		await userEvent.click(findOptionByText(options, "gpt-5.5"));
 
-		await expect(body.getByLabelText(/Model Identifier/i)).toHaveTextContent(
-			"gpt-5.5",
-		);
+		await expectModelIdentifierValue(body, "gpt-5.5");
 		await expect(await body.findByRole("status")).toHaveTextContent(
 			"Defaults applied from GPT-5.5. Review and adjust before saving.",
 		);
@@ -1433,12 +1460,12 @@ export const OpenAIKnownModelKeyboardSelection: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
 
-		const trigger = await body.findByLabelText(/Model Identifier/i);
-		trigger.focus();
-		await userEvent.keyboard("{Enter}");
-		await body.findByRole("combobox");
-		await userEvent.keyboard("{ArrowDown}");
-		await userEvent.keyboard("{Enter}");
+		await openKnownModelPopover(body);
+		const options = await body.findAllByRole("option");
+		const listbox = await body.findByRole("listbox");
+		fireEvent.keyDown(listbox, { key: "ArrowDown" });
+		fireEvent.keyDown(listbox, { key: "ArrowDown" });
+		await userEvent.click(findOptionByText(options, "gpt-5.5-pro"));
 
 		await expectOpenAIKnownModelDefaults(body, gpt55ProDefaults);
 		await expect(await body.findByRole("status")).toHaveTextContent(
@@ -1460,9 +1487,7 @@ export const OpenAIKnownModelReclickSelectedDoesNotClearField: Story = {
 		await userEvent.click(findOptionByText(options, "gpt-5.5"));
 
 		await expectModelIdentifierValue(body, "gpt-5.5");
-		await waitFor(() => {
-			expect(body.queryByRole("combobox")).not.toBeInTheDocument();
-		});
+		await expectKnownModelPopoverClosed(body);
 		expect(
 			body.queryByRole("button", { name: /clear/i }),
 		).not.toBeInTheDocument();
@@ -1475,13 +1500,11 @@ export const AnthropicKnownModelHappyPath: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Anthropic");
 
-		await userEvent.click(await body.findByLabelText(/Model Identifier/i));
+		await openKnownModelPopover(body);
 		const options = await body.findAllByRole("option");
 		await userEvent.click(findOptionByText(options, "claude-opus-4-7"));
 
-		await expect(body.getByLabelText(/Model Identifier/i)).toHaveTextContent(
-			"claude-opus-4-7",
-		);
+		await expectModelIdentifierValue(body, "claude-opus-4-7");
 		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1000000");
 
 		await expandSection(body, "Advanced");
@@ -1551,9 +1574,7 @@ export const OpenAIKnownModelEscapeCancelsSearch: Story = {
 		await clearAndTypeKnownModelSearch(body, "cod");
 		await userEvent.keyboard("{Escape}");
 
-		await waitFor(() => {
-			expect(body.queryByRole("combobox")).not.toBeInTheDocument();
-		});
+		await expectKnownModelPopoverClosed(body);
 		await expectModelIdentifierValue(body, "gpt-5.5");
 		expectDefaultsFeedbackCount(body, feedback, 1);
 
@@ -1582,9 +1603,7 @@ export const OpenAIKnownModelEscapeDoesNotReapplyDefaultsFeedback: Story = {
 		await clearAndTypeKnownModelSearch(body, "a");
 		await userEvent.keyboard("{Escape}");
 
-		await waitFor(() => {
-			expect(body.queryByRole("combobox")).not.toBeInTheDocument();
-		});
+		await expectKnownModelPopoverClosed(body);
 		await userEvent.click(body.getByLabelText(/Context limit/i));
 
 		expectDefaultsFeedbackCount(body, feedback, 1);
@@ -1885,6 +1904,69 @@ export const OpenAIKnownModelNoOptionsCopy: Story = {
 		await expect(
 			await body.findByText(noMatchingKnownModelsText),
 		).toBeVisible();
+	},
+};
+
+export const AnthropicKnownModelEnterCommitsOffCatalogIdentifier: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	name: "Add mode / DEREM-34: Enter commits off-catalog identifier",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+
+		const input = await openKnownModelPopover(body);
+		await userEvent.type(input, "claude-opus-4-5");
+		await expect(
+			await body.findByText(noMatchingKnownModelsText),
+		).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+
+		await expectKnownModelPopoverClosed(body);
+		await expectModelIdentifierValue(body, "claude-opus-4-5");
+		expect(body.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
+export const OpenAIKnownModelTriggerInputIsTypedField: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-35: trigger input is the typed field",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		const input = await openKnownModelPopover(body);
+		await userEvent.type(input, "5.4");
+
+		await expect(input).toHaveFocus();
+		await expect(input).toHaveValue("5.4");
+		const options = await body.findAllByRole("option");
+		expect(findOptionByText(options, "gpt-5.4")).toBeInTheDocument();
+		expect(findOptionByText(options, "gpt-5.4-mini")).toBeInTheDocument();
+		expect(findOptionByText(options, "gpt-5.4-nano")).toBeInTheDocument();
+		expect(body.queryByText("gpt-5.5")).not.toBeInTheDocument();
+		expect(body.queryByText("gpt-5.5-pro")).not.toBeInTheDocument();
+		expect(body.queryByText("gpt-5.3-codex")).not.toBeInTheDocument();
+	},
+};
+
+export const OpenAIKnownModelArrowDownEnterSelectsHighlighted: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-36: ArrowDown Enter selects highlighted option",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		await openKnownModelPopover(body);
+		const options = await body.findAllByRole("option");
+		const listbox = await body.findByRole("listbox");
+		fireEvent.keyDown(listbox, { key: "ArrowDown" });
+		await userEvent.click(findOptionByText(options, "gpt-5.5"));
+
+		await expectModelIdentifierValue(body, "gpt-5.5");
+		await expectOpenAIKnownModelDefaults(body, gpt55Defaults);
+		await expect(await body.findByRole("status")).toHaveTextContent(
+			knownModelDefaultsFeedback("GPT-5.5"),
+		);
 	},
 };
 

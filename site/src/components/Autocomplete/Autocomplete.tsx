@@ -2,7 +2,11 @@ import { CheckIcon, XIcon } from "lucide-react";
 import {
 	type KeyboardEvent,
 	type ReactNode,
+	type SyntheticEvent,
 	useCallback,
+	useEffect,
+	useId,
+	useRef,
 	useState,
 } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -16,6 +20,7 @@ import {
 } from "#/components/Command/Command";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
@@ -38,6 +43,8 @@ interface AutocompleteProps<TOption> {
 	inputValue?: string;
 	onInputChange?: (value: string) => void;
 	onEscapeKeyDown?: () => void;
+	onEnterEmpty?: () => void;
+	inlineSearch?: boolean;
 	clearable?: boolean;
 	disabled?: boolean;
 	startAdornment?: ReactNode;
@@ -64,6 +71,8 @@ export function Autocomplete<TOption>({
 	inputValue: controlledInputValue,
 	onInputChange,
 	onEscapeKeyDown,
+	onEnterEmpty,
+	inlineSearch = false,
 	clearable = true,
 	disabled = false,
 	startAdornment,
@@ -73,9 +82,18 @@ export function Autocomplete<TOption>({
 	id,
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
+	const inlineInputRef = useRef<HTMLInputElement>(null);
+	const highlightedValueRef = useRef<string | null>(null);
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
+	const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
+	const generatedListboxId = useId();
+	const listboxId = `${generatedListboxId}-listbox`;
 
+	const updateHighlightedValue = useCallback((newValue: string | null) => {
+		highlightedValueRef.current = newValue;
+		setHighlightedValue(newValue);
+	}, []);
 	const isOpen = controlledOpen ?? managedOpen;
 	const inputValue = controlledInputValue ?? managedInputValue;
 
@@ -83,11 +101,14 @@ export function Autocomplete<TOption>({
 		(newOpen: boolean) => {
 			setManagedOpen(newOpen);
 			onOpenChange?.(newOpen);
+			if (!newOpen) {
+				updateHighlightedValue(null);
+			}
 			if (!newOpen && controlledInputValue === undefined) {
 				setManagedInputValue("");
 			}
 		},
-		[onOpenChange, controlledInputValue],
+		[onOpenChange, controlledInputValue, updateHighlightedValue],
 	);
 
 	const handleInputChange = useCallback(
@@ -122,7 +143,7 @@ export function Autocomplete<TOption>({
 	);
 
 	const handleClear = useCallback(
-		(e: React.SyntheticEvent) => {
+		(e: SyntheticEvent) => {
 			e.stopPropagation();
 			onChange(null);
 			handleInputChange("");
@@ -145,8 +166,209 @@ export function Autocomplete<TOption>({
 		[handleOpenChange, onEscapeKeyDown],
 	);
 
+	useEffect(() => {
+		if (
+			highlightedValue !== null &&
+			!options.some((option) => getOptionValue(option) === highlightedValue)
+		) {
+			updateHighlightedValue(null);
+		}
+	}, [highlightedValue, options, getOptionValue, updateHighlightedValue]);
+
 	const displayValue = value ? getOptionLabel(value) : "";
 	const showClearButton = clearable && value && !disabled;
+	const highlightedIndex = options.findIndex(
+		(option) => getOptionValue(option) === highlightedValue,
+	);
+	const activeDescendant =
+		highlightedIndex >= 0
+			? `${listboxId}-option-${highlightedIndex}`
+			: undefined;
+
+	const handleInlineKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+		if (disabled) {
+			return;
+		}
+
+		if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+			e.preventDefault();
+			handleOpenChange(true);
+
+			if (options.length === 0) {
+				updateHighlightedValue(null);
+				return;
+			}
+
+			const currentIndex = options.findIndex(
+				(option) => getOptionValue(option) === highlightedValue,
+			);
+			const nextIndex =
+				e.key === "ArrowDown"
+					? (currentIndex + 1) % options.length
+					: (currentIndex <= 0 ? options.length : currentIndex) - 1;
+			const nextOption = options[nextIndex];
+			if (!nextOption) {
+				updateHighlightedValue(null);
+				return;
+			}
+			updateHighlightedValue(getOptionValue(nextOption));
+			return;
+		}
+
+		if (e.key === "Enter") {
+			if (!loading && options.length === 0) {
+				e.preventDefault();
+				e.stopPropagation();
+				onEnterEmpty?.();
+				return;
+			}
+
+			const highlightedOption = options.find(
+				(option) => getOptionValue(option) === highlightedValueRef.current,
+			);
+			if (highlightedOption) {
+				e.preventDefault();
+				e.stopPropagation();
+				handleSelect(highlightedOption);
+			}
+			return;
+		}
+
+		if (e.key === "Escape") {
+			e.preventDefault();
+			onEscapeKeyDown?.();
+			handleOpenChange(false);
+		}
+	};
+
+	const renderOptionContent = (option: TOption) => {
+		const optionLabel = getOptionLabel(option);
+		const selected = isSelected(option);
+
+		return renderOption ? (
+			renderOption(option, selected)
+		) : (
+			<>
+				<span className="flex-1">{optionLabel}</span>
+				{selected && <CheckIcon className="size-4 shrink-0" />}
+			</>
+		);
+	};
+
+	const isInlineInputTarget = (target: EventTarget | null) =>
+		target instanceof Node &&
+		inlineInputRef.current !== null &&
+		inlineInputRef.current.contains(target);
+
+	if (inlineSearch) {
+		const inlineInputValue = isOpen ? inputValue : displayValue;
+
+		return (
+			<Popover open={isOpen} onOpenChange={handleOpenChange}>
+				<PopoverAnchor asChild>
+					<input
+						ref={inlineInputRef}
+						type="text"
+						id={id}
+						data-testid={testId}
+						role="combobox"
+						aria-expanded={isOpen}
+						aria-controls={listboxId}
+						aria-activedescendant={activeDescendant}
+						aria-haspopup="listbox"
+						aria-invalid={triggerAriaInvalid}
+						aria-describedby={triggerAriaDescribedBy}
+						disabled={disabled}
+						placeholder={placeholder}
+						value={inlineInputValue}
+						onFocus={() => {
+							if (!disabled) {
+								handleOpenChange(true);
+							}
+						}}
+						onMouseDown={() => {
+							if (!disabled) {
+								handleOpenChange(true);
+							}
+						}}
+						onChange={(event) => {
+							if (disabled) {
+								return;
+							}
+							if (!isOpen) {
+								handleOpenChange(true);
+							}
+							handleInputChange(event.currentTarget.value);
+						}}
+						onKeyDownCapture={handleInlineKeyDown}
+						className={cn(
+							`flex h-10 w-full items-center rounded-md border border-border border-solid
+							bg-transparent px-3 py-2 text-sm shadow-sm transition-colors
+							placeholder:text-content-secondary text-content-primary
+							focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+							disabled:cursor-not-allowed disabled:opacity-50`,
+							className,
+						)}
+					/>
+				</PopoverAnchor>
+				<PopoverContent
+					className="w-[var(--radix-popover-trigger-width)] p-0"
+					align="start"
+					onKeyDownCapture={handleInlineKeyDown}
+					onOpenAutoFocus={(event) => event.preventDefault()}
+					onCloseAutoFocus={(event) => event.preventDefault()}
+					onInteractOutside={(event) => {
+						if (isInlineInputTarget(event.target)) {
+							event.preventDefault();
+							return;
+						}
+						handleOpenChange(false);
+					}}
+				>
+					<Command
+						shouldFilter={false}
+						value={highlightedValue ?? ""}
+						onValueChange={(newValue) => {
+							if (newValue) {
+								updateHighlightedValue(newValue);
+							}
+						}}
+					>
+						<CommandList id={listboxId} role="listbox">
+							{loading ? (
+								<div className="flex items-center justify-center py-6">
+									<Spinner size="sm" loading />
+								</div>
+							) : (
+								<>
+									<CommandEmpty>{noOptionsText}</CommandEmpty>
+									<CommandGroup>
+										{options.map((option, index) => {
+											const optionValue = getOptionValue(option);
+
+											return (
+												<CommandItem
+													role="option"
+													aria-selected={optionValue === highlightedValue}
+													id={`${listboxId}-option-${index}`}
+													key={optionValue}
+													value={optionValue}
+													onSelect={() => handleSelect(option)}
+													className="cursor-pointer"
+												>
+													{renderOptionContent(option)}
+												</CommandItem>
+											);
+										})}
+									</CommandGroup>
+								</>
+							)}
+						</CommandList>
+					</Command>
+				</PopoverContent>
+			</Popover>
+		);
+	}
 
 	return (
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
