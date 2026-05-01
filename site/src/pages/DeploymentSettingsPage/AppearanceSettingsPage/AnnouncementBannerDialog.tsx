@@ -133,9 +133,10 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 
 			<DialogActions>
 				<DialogActionButtons
+					cancelText="Cancel"
 					confirmLoading={bannerForm.isSubmitting}
 					confirmText="Update"
-					confirmDisabled={bannerForm.isSubmitting}
+					disabled={bannerForm.isSubmitting}
 					onCancel={onCancel}
 					onConfirm={bannerForm.handleSubmit}
 				/>
