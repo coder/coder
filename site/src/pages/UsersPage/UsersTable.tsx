@@ -102,7 +102,7 @@ export const UsersTable: React.FC<UsersTableProps> = (props) => {
 			</TableHeader>
 
 			<TableBody>
-				<UsersTableBody {...props} showAISeatColumn={showAISeatColumn} />
+				<UsersTableBody {...props} />
 			</TableBody>
 		</Table>
 	);
