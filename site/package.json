@@ -145,7 +145,7 @@
 		"@types/file-saver": "2.0.7",
 		"@types/humanize-duration": "3.27.4",
 		"@types/lodash": "4.17.21",
-		"@types/node": "20.19.25",
+		"@types/node": "20.19.39",
 		"@types/novnc__novnc": "1.5.0",
 		"@types/react": "19.2.7",
 		"@types/react-color": "3.0.13",
