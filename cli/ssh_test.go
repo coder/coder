@@ -2393,6 +2393,21 @@ func TestSSH_OneShotCommandMode(t *testing.T) {
 		require.Equal(t, "not-tty", strings.TrimSpace(output.String()))
 	})
 
+	t.Run("RequestsPTYWithFlag", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", "--tty", workspace.Name, "test -t 0 && echo tty || echo not-tty")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "tty", strings.TrimSpace(output.String()))
+	})
+
 	t.Run("ClosesStdinOnEOF", func(t *testing.T) {
 		t.Parallel()
 

@@ -116,6 +116,7 @@ func retryWithInterval(ctx context.Context, logger slog.Logger, interval time.Du
 func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
+		tty                 bool
 		hostPrefix          string
 		hostnameSuffix      string
 		forceNewTunnel      bool
@@ -633,7 +634,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			requestPTY := command == ""
+			requestPTY := command == "" || tty
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
 			if requestPTY && validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
@@ -690,17 +691,19 @@ func (r *RootCmd) ssh() *serpent.Command {
 			sshSession.Stdout = inv.Stdout
 			sshSession.Stderr = inv.Stderr
 
-			if !requestPTY {
+			if requestPTY {
+				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+				if err != nil {
+					return xerrors.Errorf("request pty: %w", err)
+				}
+			}
+
+			if command != "" {
 				err := sshSession.Run(command)
 				if err != nil {
 					return xerrors.Errorf("run command: %w", err)
 				}
 			} else {
-				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
-				if err != nil {
-					return xerrors.Errorf("request pty: %w", err)
-				}
-
 				err = sshSession.Shell()
 				if err != nil {
 					return xerrors.Errorf("start shell: %w", err)
@@ -751,6 +754,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:         "CODER_SSH_STDIO",
 			Description: "Specifies whether to emit SSH output over stdin/stdout.",
 			Value:       serpent.BoolOf(&stdio),
+		},
+		{
+			Flag:          "tty",
+			FlagShorthand: "t",
+			Env:           "CODER_SSH_TTY",
+			Description:   "Request a pseudo-terminal for the SSH session. Interactive shell sessions request one by default; command sessions do not unless this flag is set.",
+			Value:         serpent.BoolOf(&tty),
 		},
 		{
 			Flag:        "ssh-host-prefix",
