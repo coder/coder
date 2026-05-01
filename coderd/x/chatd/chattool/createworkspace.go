@@ -122,7 +122,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			}
 
 			// Check for an existing workspace on the chat.
-			check := options.checkExistingWorkspace(ctx, chatID, db)
+			check := options.checkExistingWorkspace(ctx, db, chatID)
 			if check.Err != nil {
 				if check.FailedBuildID != uuid.Nil {
 					return buildToolResponse(newBuildError(check.Err.Error(), check.FailedBuildID)), nil
@@ -314,7 +314,7 @@ type existingWorkspaceResult struct {
 	Err error
 }
 
-// checkExistingWorkspace checks whether the configured chat
+// checkExistingWorkspace checks whether the given chat
 // already has a usable workspace. Returns an
 // existingWorkspaceResult with Done set when the caller should
 // return early (workspace exists and is alive or building).
@@ -322,8 +322,8 @@ type existingWorkspaceResult struct {
 // (workspace is dead or missing).
 func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
-	chatID uuid.UUID,
 	db database.Store,
+	chatID uuid.UUID,
 ) existingWorkspaceResult {
 	agentConnFn := o.AgentConnFn
 	agentInactiveDisconnectTimeout := o.AgentInactiveDisconnectTimeout

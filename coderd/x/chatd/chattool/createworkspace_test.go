@@ -729,7 +729,7 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 	}
 
 	options := testCheckExistingWorkspaceOptions(connFn)
-	check := options.checkExistingWorkspace(context.Background(), chatID, db)
+	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
 	require.NoError(t, check.Err)
 	require.True(t, check.Done)
@@ -822,7 +822,7 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 		Return([]database.WorkspaceAgent{}, nil)
 
 	options := testCheckExistingWorkspaceOptions(nil)
-	check := options.checkExistingWorkspace(context.Background(), chatID, db)
+	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
 	require.NoError(t, check.Err)
 	require.True(t, check.Done)
@@ -905,7 +905,7 @@ func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.
 		}, nil)
 
 	options := testCheckExistingWorkspaceOptions(nil)
-	check := options.checkExistingWorkspace(context.Background(), chatID, db)
+	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
 	require.Error(t, check.Err)
 	require.Contains(t, check.Err.Error(), "existing workspace build failed")
@@ -953,7 +953,7 @@ func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 	}
 
 	options := testCheckExistingWorkspaceOptions(connFn)
-	check := options.checkExistingWorkspace(context.Background(), chatID, db)
+	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
 	require.NoError(t, check.Err)
 	require.True(t, check.Done)
@@ -1014,7 +1014,7 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 				Return([]database.WorkspaceAgent{tc.agent}, nil)
 
 			options := testCheckExistingWorkspaceOptions(nil)
-			check := options.checkExistingWorkspace(context.Background(), chatID, db)
+			check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
 			require.NoError(t, check.Err)
 			require.False(t, check.Done)
@@ -1137,7 +1137,7 @@ func TestCheckExistingWorkspace_StoppedWorkspace(t *testing.T) {
 	)
 
 	options := testCheckExistingWorkspaceOptions(nil)
-	check := options.checkExistingWorkspace(context.Background(), chatID, db)
+	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
 	require.True(t, check.Done)
 	require.NoError(t, check.Err)
@@ -1170,7 +1170,7 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 		}, nil)
 
 	options := testCheckExistingWorkspaceOptions(nil)
-	check := options.checkExistingWorkspace(context.Background(), chatID, db)
+	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
 	require.NoError(t, check.Err)
 	require.False(t, check.Done, "should allow creation for deleted workspace")
