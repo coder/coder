@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -152,6 +153,22 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 	}
 
 	return reqBridge, nil
+}
+
+// Reload swaps the providers used to construct future RequestBridge
+// instances and invalidates the existing cache. It is the entry
+// point that the CLI subscribes to ai_providers_changed pubsub
+// events on.
+//
+// Reload is safe to call concurrently with serving requests; existing
+// in-flight requests continue against their previously-cached
+// bridge until completion, while subsequent requests get a freshly-
+// built bridge using the new provider set.
+func (s *Server) Reload(providers []aibridge.Provider) {
+	if s.requestBridgePool == nil {
+		return
+	}
+	s.requestBridgePool.Reload(providers)
 }
 
 // isShutdown returns whether the Server is shutdown or not.

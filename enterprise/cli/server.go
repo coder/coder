@@ -169,7 +169,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
 			providers, err := agplcli.BuildProviders(options.DeploymentValues.AI.BridgeConfig)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("build AI providers: %w", err)
+				return nil, nil, xerrors.Errorf("load ai providers from db: %w", err)
 			}
 			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api, providers)
 			if err != nil {
@@ -210,3 +210,10 @@ func (m *multiCloser) Close() error {
 	}
 	return errors.Join(errs...)
 }
+
+// closerFunc adapts a func() error to io.Closer so we can register
+// teardown closures (e.g. pubsub unsubscribe functions) with the
+// shared multiCloser.
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }

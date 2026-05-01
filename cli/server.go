@@ -1034,9 +1034,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				providers, err := BuildProviders(vals.AI.BridgeConfig)
+				bridgeLogger := logger.Named("aibridge.reload")
+				providers, err := loadProvidersFromDB(ctx, options.Database, vals.AI.BridgeConfig, bridgeLogger)
 				if err != nil {
-					return xerrors.Errorf("build AI providers: %w", err)
+					return xerrors.Errorf("load ai providers from db: %w", err)
 				}
 				aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, providers)
 				if err != nil {
@@ -1047,6 +1048,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// daemon does not affect in-flight requests but is needed to
 				// release pool/recorder resources at shutdown.
 				defer aibridgeDaemon.Close()
+
+				// Subscribe to ai_providers_changed pubsub events and reload
+				// the daemon's pool atomically. The proxy daemon (enterprise)
+				// is intentionally not reloaded yet; that comes in a follow-up
+				// that gives the proxy a Pooler interface too.
+				unsub, err := options.Pubsub.Subscribe(coderd.AIProvidersChangedChannel, func(notifyCtx context.Context, _ []byte) {
+					newProviders, err := loadProvidersFromDB(notifyCtx, options.Database, vals.AI.BridgeConfig, bridgeLogger)
+					if err != nil {
+						bridgeLogger.Warn(notifyCtx, "failed to reload ai bridge providers from db; keeping existing pool", slog.Error(err))
+						return
+					}
+					aibridgeDaemon.Reload(newProviders)
+				})
+				if err != nil {
+					bridgeLogger.Warn(ctx, "failed to subscribe to ai_providers_changed; pool will not hot-reload", slog.Error(err))
+				} else {
+					defer unsub()
+				}
 			}
 
 			if vals.Prometheus.Enable {
