@@ -36,7 +36,7 @@ type listTemplatesArgs struct {
 // Results are ordered by number of active developers (most popular first)
 // and paginated at 10 per page.
 // db must not be nil.
-func ListTemplates(organizationID uuid.UUID, db database.Store, options ListTemplatesOptions) fantasy.AgentTool {
+func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemplatesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"list_templates",
 		"List available workspace templates. Optionally filter by a "+

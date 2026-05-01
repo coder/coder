@@ -5825,15 +5825,15 @@ func (p *Server) appendRootChatTools(
 	}
 
 	tools = append(tools,
-		chattool.ListTemplates(opts.chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
+		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID:            opts.chat.OwnerID,
 			AllowedTemplateIDs: p.chatTemplateAllowlist,
 		}),
-		chattool.ReadTemplate(opts.chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
+		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
 			OwnerID:            opts.chat.OwnerID,
 			AllowedTemplateIDs: p.chatTemplateAllowlist,
 		}),
-		chattool.CreateWorkspace(opts.chat.OrganizationID, p.db, opts.chat.ID, chattool.CreateWorkspaceOptions{
+		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
 			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),

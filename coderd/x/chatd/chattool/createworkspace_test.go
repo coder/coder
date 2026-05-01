@@ -194,7 +194,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	tool := CreateWorkspace(orgID, db, chatID, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
 		CreateFn:    createFn,
@@ -284,7 +284,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 			{ID: uuid.New(), Name: "beta-coderd-chat", DisplayOrder: 1},
 		}, nil)
 
-	tool := CreateWorkspace(orgID, db, chatID, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
 		CreateFn: func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
@@ -393,7 +393,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(orgID, db, chatID, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
 		CreateFn:    createFn,
@@ -452,7 +452,7 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 
-	tool := CreateWorkspace(orgID, db, chatID, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 			return codersdk.Workspace{}, httperror.NewResponseError(400, codersdk.Response{
@@ -596,7 +596,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 				}, nil
 			}
 
-			tool := CreateWorkspace(orgID, db, chatID, CreateWorkspaceOptions{
+			tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 				OwnerID: ownerID,
 
 				CreateFn:    createFn,
@@ -666,7 +666,7 @@ func TestCreateWorkspace_RejectsCrossOrgTemplate(t *testing.T) {
 		}, nil)
 
 	createCalled := false
-	tool := CreateWorkspace(chatOrgID, db, chatID, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, chatOrgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
 		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
@@ -1093,7 +1093,7 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(orgID, db, chatID, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
 		CreateFn:    createFn,
@@ -1290,7 +1290,6 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		}, nil)
 
 	// GetChatByID — called after waitForBuild for second OnChatUpdated.
-	// GetChatByID — called after waitForBuild for second OnChatUpdated.
 	db.EXPECT().
 		GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{
@@ -1318,7 +1317,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(uuid.Nil, db, chatID, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, uuid.Nil, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
 
 		CreateFn:    createFn,

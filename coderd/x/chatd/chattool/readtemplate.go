@@ -26,7 +26,7 @@ type readTemplateArgs struct {
 // template, including its configurable rich parameters. The agent
 // uses this after list_templates and before create_workspace.
 // db must not be nil.
-func ReadTemplate(organizationID uuid.UUID, db database.Store, options ReadTemplateOptions) fantasy.AgentTool {
+func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTemplateOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+

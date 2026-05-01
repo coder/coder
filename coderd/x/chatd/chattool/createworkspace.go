@@ -84,7 +84,7 @@ type createWorkspaceArgs struct {
 // workspace instead of creating a new one. A mutex prevents parallel
 // calls from creating duplicate workspaces.
 // db must not be nil and chatID must not be uuid.Nil.
-func CreateWorkspace(organizationID uuid.UUID, db database.Store, chatID uuid.UUID, options CreateWorkspaceOptions) fantasy.AgentTool {
+func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, options CreateWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"create_workspace",
 		"Create a new workspace from a template. Requires a "+
