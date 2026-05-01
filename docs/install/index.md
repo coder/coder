@@ -2,13 +2,16 @@
 
 A single CLI (`coder`) is used for both the Coder server and the client.
 
+> **New to Coder?** Follow the
+> [quickstart guide](../tutorials/quickstart.md) for a step-by-step walkthrough
+> that covers installation, creating your first template, and launching a
+> workspace.
+
 We support two release channels: mainline and stable - read the
 [Releases](./releases/index.md) page to learn more about which best suits your team.
 
-There are several ways to install Coder. Follow the steps on this page for a
-minimal installation of Coder, or for a step-by-step guide on how to install and
-configure your first Coder deployment, follow the
-[quickstart guide](../tutorials/quickstart.md).
+This page covers standalone installation methods. For a guided end-to-end
+setup, see the [quickstart guide](../tutorials/quickstart.md).
 
 ## Local/Individual Installs
 
