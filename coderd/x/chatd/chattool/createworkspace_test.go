@@ -1476,9 +1476,8 @@ func TestCreateWorkspace_WithPresetID(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	tool := CreateWorkspace(s.OrgID, s.DB, CreateWorkspaceOptions{
+	tool := CreateWorkspace(s.DB, s.OrgID, s.ChatID, CreateWorkspaceOptions{
 		OwnerID:     s.OwnerID,
-		ChatID:      s.ChatID,
 		CreateFn:    createFn,
 		AgentConnFn: agentConnFn,
 		WorkspaceMu: &sync.Mutex{},
@@ -1508,9 +1507,8 @@ func TestCreateWorkspace_InvalidPresetID(t *testing.T) {
 
 	s := setupCreateWorkspacePresetTest(t)
 
-	tool := CreateWorkspace(s.OrgID, s.DB, CreateWorkspaceOptions{
+	tool := CreateWorkspace(s.DB, s.OrgID, s.ChatID, CreateWorkspaceOptions{
 		OwnerID: s.OwnerID,
-		ChatID:  s.ChatID,
 		CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 			t.Fatal("CreateFn should not be called with invalid preset_id")
 			return codersdk.Workspace{}, nil
@@ -1559,9 +1557,8 @@ func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	tool := CreateWorkspace(s.OrgID, s.DB, CreateWorkspaceOptions{
+	tool := CreateWorkspace(s.DB, s.OrgID, s.ChatID, CreateWorkspaceOptions{
 		OwnerID:     s.OwnerID,
-		ChatID:      s.ChatID,
 		CreateFn:    createFn,
 		AgentConnFn: agentConnFn,
 		WorkspaceMu: &sync.Mutex{},

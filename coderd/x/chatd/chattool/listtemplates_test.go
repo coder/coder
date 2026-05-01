@@ -247,7 +247,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
 			// CreateWorkspace requires a real chat row so the existing
 			// workspace lookup can fall through to creation.
-			model := seedModelConfig(ctx, t, db, user.ID)
+			model := seedModelConfig(t, db)
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
