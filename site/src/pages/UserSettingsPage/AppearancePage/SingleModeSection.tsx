@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
-import type { ConcreteThemeName } from "#/theme/colorblind";
+import type { ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
 import { DARK_THEMES, LIGHT_THEMES, THEME_COPY } from "./themeCopy";

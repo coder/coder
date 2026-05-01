@@ -10,7 +10,6 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
-import { Stack } from "#/components/Stack/Stack";
 import { agentVersionStatus } from "../../utils/workspace";
 
 type AgentOutdatedTooltipProps = {
@@ -46,25 +45,25 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 				</span>
 			</HelpPopoverTrigger>
 			<HelpPopoverContent>
-				<Stack spacing={1}>
+				<div className="flex flex-col gap-2">
 					<div>
 						<HelpPopoverTitle>{title}</HelpPopoverTitle>
 						<HelpPopoverText>{text}</HelpPopoverText>
 					</div>
 
-					<Stack spacing={0.5}>
+					<div className="flex flex-col gap-1">
 						<span className="font-semibold text-content-primary">
 							Agent version
 						</span>
 						<span>{agent.version}</span>
-					</Stack>
+					</div>
 
-					<Stack spacing={0.5}>
+					<div className="flex flex-col gap-1">
 						<span className="font-semibold text-content-primary">
 							Server version
 						</span>
 						<span>{serverVersion}</span>
-					</Stack>
+					</div>
 
 					<HelpPopoverLinksGroup>
 						<HelpPopoverAction
@@ -78,7 +77,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 							Update workspace
 						</HelpPopoverAction>
 					</HelpPopoverLinksGroup>
-				</Stack>
+				</div>
 			</HelpPopoverContent>
 		</HelpPopover>
 	);

@@ -1,4 +1,4 @@
-import { CONCRETE_THEMES, type ConcreteThemeName } from "#/theme/colorblind";
+import { CONCRETE_THEMES, type ConcreteThemeName } from "#/theme";
 
 /**
  * Display copy for each concrete theme. The descriptions are surfaced

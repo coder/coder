@@ -1,5 +1,4 @@
-import { DEFAULT_THEME } from ".";
-import { CONCRETE_THEMES } from "./colorblind";
+import { CONCRETE_THEMES, DEFAULT_THEME } from ".";
 import {
 	draftFromState,
 	draftToUpdate,

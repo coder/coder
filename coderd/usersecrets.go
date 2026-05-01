@@ -7,7 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -26,8 +28,18 @@ import (
 // @Success 201 {object} codersdk.UserSecret
 // @Router /users/{user}/secrets [post]
 func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
 
 	var req codersdk.CreateUserSecretRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -92,6 +104,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = secret
 
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSecretFromFull(secret))
 }
@@ -165,9 +178,19 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Success 200 {object} codersdk.UserSecret
 // @Router /users/{user}/secrets/{name} [patch]
 func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
-	name := chi.URLParam(r, "name")
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		name              = chi.URLParam(r, "name")
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
 
 	var req codersdk.UpdateUserSecretRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -198,6 +221,15 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if req.Value != nil {
+		if err := codersdk.UserSecretValueValid(*req.Value); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid secret value.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
 
 	params := database.UpdateUserSecretByUserIDAndNameParams{
 		UserID:            user.ID,
@@ -213,13 +245,6 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		FilePath:          "",
 	}
 	if req.Value != nil {
-		if err := codersdk.UserSecretValueValid(*req.Value); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid secret value.",
-				Detail:  err.Error(),
-			})
-			return
-		}
 		params.Value = *req.Value
 	}
 	if req.Description != nil {
@@ -232,7 +257,33 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		params.FilePath = *req.FilePath
 	}
 
-	secret, err := api.Database.UpdateUserSecretByUserIDAndName(ctx, params)
+	// Pre-read the secret inside a transaction so the audit diff has both an
+	// "old" and "new" snapshot.
+	//
+	// Under read committed isolation, a concurrent writer between our SELECT
+	// and our UPDATE can cause the audit diff to attribute changes to us that
+	// we did not make. We accept this race to match other audit log diffs
+	// (templates, workspaces, chats, etc). In practice this should be unlikely
+	// to hit since a user can only modify their own secrets.
+	var secret database.UserSecret
+	err := api.Database.InTx(func(tx database.Store) error {
+		old, err := tx.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   name,
+		})
+		if err != nil {
+			return xerrors.Errorf("fetch user secret: %w", err)
+		}
+		aReq.Old = old
+
+		updated, err := tx.UpdateUserSecretByUserIDAndName(ctx, params)
+		if err != nil {
+			return xerrors.Errorf("update user secret: %w", err)
+		}
+		secret = updated
+		aReq.New = updated
+		return nil
+	}, nil)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.ResourceNotFound(rw)
@@ -264,25 +315,36 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /users/{user}/secrets/{name} [delete]
 func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
-	name := chi.URLParam(r, "name")
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		name              = chi.URLParam(r, "name")
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	defer commitAudit()
 
-	rowsAffected, err := api.Database.DeleteUserSecretByUserIDAndName(ctx, database.DeleteUserSecretByUserIDAndNameParams{
+	deleted, err := api.Database.DeleteUserSecretByUserIDAndName(ctx, database.DeleteUserSecretByUserIDAndNameParams{
 		UserID: user.ID,
 		Name:   name,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting secret.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	if rowsAffected == 0 {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	aReq.Old = deleted
 
 	rw.WriteHeader(http.StatusNoContent)
 }

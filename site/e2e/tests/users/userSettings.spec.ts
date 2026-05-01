@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { CONCRETE_THEMES } from "#/theme/colorblind";
+import { CONCRETE_THEMES } from "#/theme";
 import { users } from "../../constants";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
@@ -8,17 +8,17 @@ test.beforeEach(({ page }) => {
 	beforeCoderTest(page);
 });
 
-const NON_LIGHT_THEME_CLASSES = CONCRETE_THEMES.filter(
-	(themeClassName) => themeClassName !== "light",
-);
+const rootClassNames = async (page: Page) => {
+	return page.locator("html").evaluate((it) => Array.from(it.classList));
+};
 
-const expectPlainLightTheme = async (page: Page) => {
-	const classes = await page
-		.locator("html")
-		.evaluate((it) => Array.from(it.classList));
-
-	expect(classes).toContain("light");
-	for (const themeClassName of NON_LIGHT_THEME_CLASSES) {
+// Assert the light theme without rejecting unrelated root classes.
+const expectLightThemeClasses = (classes: string[]) => {
+	const className = "light";
+	expect(classes).toContain(className);
+	for (const themeClassName of CONCRETE_THEMES.filter(
+		(it) => it !== className,
+	)) {
 		expect(classes).not.toContain(themeClassName);
 	}
 };
@@ -37,17 +37,11 @@ test("adjust user theme preference", async ({ page }) => {
 	// matches the title string used by SingleModeSection.
 	await page.getByText("Light default", { exact: true }).click();
 
-	// Make sure the page is actually updated to use the plain light theme.
-	// ThemeProvider applies both the concrete theme class (e.g. `light`) and
-	// the base mode class (`light`). A colorblind variant like `light-tritan`
-	// would add `light-tritan` alongside `light`, so we assert on theme
-	// class-list tokens to distinguish the plain `light` theme from any
-	// colorblind variant without rejecting unrelated root classes.
-	await expectPlainLightTheme(page);
+	expectLightThemeClasses(await rootClassNames(page));
 
 	await page.goto("/", { waitUntil: "domcontentloaded" });
 
 	// Make sure the page is still using the light theme after reloading and
 	// navigating away from the settings page.
-	await expectPlainLightTheme(page);
+	expectLightThemeClasses(await rootClassNames(page));
 });

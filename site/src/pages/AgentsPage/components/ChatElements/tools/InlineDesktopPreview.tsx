@@ -86,7 +86,7 @@ export const InlineDesktopPreview: React.FC<{
 					aria-label="Open desktop tab"
 					className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center gap-1.5 border-0 bg-black/0 p-0 transition-colors group-hover/preview:bg-black/50"
 				>
-					<span className="text-sm font-medium text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100">
+					<span className="text-[13px] font-medium text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100">
 						View desktop
 					</span>
 					<PanelRightOpenIcon className="h-4 w-4 text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100" />

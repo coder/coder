@@ -7,6 +7,7 @@
 		"./test/**/*.ts",
 		"./e2e/**/*.ts"
 	],
+	"tags": ["-lintignore"],
 	"ignore": [
 		"**/*Generated.ts",
 		"src/api/chatModelOptions.ts",

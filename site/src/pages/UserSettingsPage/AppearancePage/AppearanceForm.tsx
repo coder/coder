@@ -16,7 +16,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import type { ConcreteThemeName } from "#/theme/colorblind";
+import type { ConcreteThemeName } from "#/theme";
 import {
 	DEFAULT_TERMINAL_FONT,
 	terminalFontLabels,

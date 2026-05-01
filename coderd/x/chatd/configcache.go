@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -14,13 +15,15 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
 const (
-	chatConfigProvidersTTL   = 10 * time.Second
-	chatConfigModelConfigTTL = 10 * time.Second
-	chatConfigUserPromptTTL  = 5 * time.Second
+	chatConfigProvidersTTL     = 10 * time.Second
+	chatConfigModelConfigTTL   = 10 * time.Second
+	chatConfigUserPromptTTL    = 5 * time.Second
+	chatConfigAdvisorConfigTTL = 10 * time.Second
 	// Bound user-prompt cache cardinality so one-shot users do not
 	// accumulate forever in long-lived chatd processes.
 	chatConfigUserPromptEntryLimit = 64 * 1024
@@ -28,6 +31,11 @@ const (
 
 type cachedProviders struct {
 	providers []database.ChatProvider
+	expiresAt time.Time
+}
+
+type cachedAdvisorConfig struct {
+	config    codersdk.AdvisorConfig
 	expiresAt time.Time
 }
 
@@ -82,6 +90,11 @@ type chatConfigCache struct {
 	userPromptEpoch   uint64
 	userPrompts       *tlru.Cache[uuid.UUID, string]
 	userPromptFetches singleflight.Group[string, string]
+
+	// Advisor configuration (singleton).
+	advisorConfig           *cachedAdvisorConfig
+	advisorConfigGeneration uint64
+	advisorConfigFetches    singleflight.Group[string, codersdk.AdvisorConfig]
 }
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
@@ -409,4 +422,98 @@ func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 	c.userPrompts.Delete(userID)
 	c.userPromptEpoch++
 	c.mu.Unlock()
+}
+
+// InvalidateAdvisorConfig drops the cached advisor configuration so the
+// next AdvisorConfig call re-fetches from the database. Called from the
+// ChatConfigEvent subscriber after an admin writes
+// PUT /api/experimental/chats/config/advisor; without this the cache
+// could serve stale enabled/model/limits for up to
+// chatConfigAdvisorConfigTTL. Bumping the generation counter also
+// discards any in-flight fill started before the invalidation, so a
+// stale DB read cannot re-cache the pre-update value.
+func (c *chatConfigCache) InvalidateAdvisorConfig() {
+	c.mu.Lock()
+	c.advisorConfig = nil
+	c.advisorConfigGeneration++
+	c.mu.Unlock()
+}
+
+// AdvisorConfig returns the deployment-wide advisor configuration. The
+// underlying site-config row changes on the order of hours or days, so
+// this cache saves a per-turn DB round trip on chats that reference the
+// advisor. Parse errors and lookup errors are surfaced to the caller;
+// callers that prefer silent fallback handle that at the call site.
+func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorConfig, error) {
+	if config, ok := c.cachedAdvisorConfig(); ok {
+		return config, nil
+	}
+
+	generation := c.advisorConfigGenerationSnapshot()
+	config, err := singleflightDoChan(
+		ctx,
+		&c.advisorConfigFetches,
+		fmt.Sprintf("%d:advisor", generation),
+		func() (codersdk.AdvisorConfig, error) {
+			if cached, ok := c.cachedAdvisorConfig(); ok {
+				return cached, nil
+			}
+
+			raw, err := c.db.GetChatAdvisorConfig(c.ctx)
+			if err != nil {
+				return codersdk.AdvisorConfig{}, err
+			}
+			var cfg codersdk.AdvisorConfig
+			if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+				return codersdk.AdvisorConfig{}, err
+			}
+			c.storeAdvisorConfig(generation, cfg)
+			return cfg, nil
+		},
+	)
+	if err != nil {
+		return codersdk.AdvisorConfig{}, err
+	}
+	return config, nil
+}
+
+func (c *chatConfigCache) cachedAdvisorConfig() (codersdk.AdvisorConfig, bool) {
+	c.mu.RLock()
+	entry := c.advisorConfig
+	c.mu.RUnlock()
+	if entry == nil {
+		return codersdk.AdvisorConfig{}, false
+	}
+	if c.clock.Now().Before(entry.expiresAt) {
+		return entry.config, true
+	}
+
+	c.mu.Lock()
+	if current := c.advisorConfig; current != nil && !c.clock.Now().Before(current.expiresAt) {
+		c.advisorConfig = nil
+	}
+	c.mu.Unlock()
+
+	return codersdk.AdvisorConfig{}, false
+}
+
+func (c *chatConfigCache) advisorConfigGenerationSnapshot() uint64 {
+	c.mu.RLock()
+	generation := c.advisorConfigGeneration
+	c.mu.RUnlock()
+	return generation
+}
+
+func (c *chatConfigCache) storeAdvisorConfig(generation uint64, config codersdk.AdvisorConfig) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.advisorConfigGeneration != generation {
+		return
+	}
+
+	c.advisorConfig = &cachedAdvisorConfig{
+		config:    config,
+		expiresAt: c.clock.Now().Add(chatConfigAdvisorConfigTTL),
+	}
 }

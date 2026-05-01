@@ -13,7 +13,7 @@ import {
 	CONCRETE_THEMES,
 	type ConcreteThemeName,
 	isConcreteThemeName,
-} from "#/theme/colorblind";
+} from "#/theme";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,

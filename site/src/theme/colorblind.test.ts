@@ -1,10 +1,42 @@
-import themes from ".";
-import {
+import themes, {
 	baseModeFor,
 	CONCRETE_THEMES,
 	isConcreteThemeName,
 	legacyAutoToSync,
-} from "./colorblind";
+	resolveThemeName,
+} from ".";
+
+describe("resolveThemeName", () => {
+	it("returns the stored preference as-is for concrete themes", () => {
+		expect(resolveThemeName("dark", "light")).toBe("dark");
+		expect(resolveThemeName("light", "dark")).toBe("light");
+		expect(resolveThemeName("dark-protan-deuter", "light")).toBe(
+			"dark-protan-deuter",
+		);
+		expect(resolveThemeName("light-protan-deuter", "dark")).toBe(
+			"light-protan-deuter",
+		);
+		expect(resolveThemeName("dark-tritan", "light")).toBe("dark-tritan");
+		expect(resolveThemeName("light-tritan", "dark")).toBe("light-tritan");
+	});
+
+	it("resolves auto to the OS preference", () => {
+		expect(resolveThemeName("auto", "dark")).toBe("dark");
+		expect(resolveThemeName("auto", "light")).toBe("light");
+	});
+
+	it("falls back to the OS scheme for unknown values", () => {
+		// Empty string is persisted when the user has never set a preference,
+		// so it must resolve to the OS scheme rather than erroring.
+		expect(resolveThemeName("", "dark")).toBe("dark");
+		expect(resolveThemeName("", "light")).toBe("light");
+		expect(resolveThemeName(undefined, "dark")).toBe("dark");
+		// Legacy value from an earlier cleanup migration (000260) must still
+		// resolve safely.
+		expect(resolveThemeName("darkBlue", "light")).toBe("light");
+		expect(resolveThemeName("garbage", "dark")).toBe("dark");
+	});
+});
 
 describe("theme registry", () => {
 	it("contains every concrete theme name", () => {
@@ -15,6 +47,21 @@ describe("theme registry", () => {
 
 	it("exports exactly the themes registered in CONCRETE_THEMES", () => {
 		expect(new Set(Object.keys(themes))).toEqual(new Set(CONCRETE_THEMES));
+	});
+
+	it("always resolves to a theme that exists in the registry", () => {
+		const preferences: (string | undefined)[] = [
+			undefined,
+			"",
+			"auto",
+			...CONCRETE_THEMES,
+		];
+		for (const pref of preferences) {
+			for (const scheme of ["dark", "light"] as const) {
+				const resolved = resolveThemeName(pref, scheme);
+				expect(themes[resolved]).toBeDefined();
+			}
+		}
 	});
 });
 

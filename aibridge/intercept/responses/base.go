@@ -55,9 +55,6 @@ type responsesInterceptionBase struct {
 
 func (i *responsesInterceptionBase) newResponsesService() responses.ResponseService {
 	opts := []option.RequestOption{option.WithBaseURL(i.cfg.BaseURL), option.WithAPIKey(i.cfg.Key)}
-	if i.cfg.MaxRetries != nil {
-		opts = append(opts, option.WithMaxRetries(*i.cfg.MaxRetries))
-	}
 
 	// Add extra headers if configured.
 	// Some providers require additional headers that are not added by the SDK.

@@ -5,7 +5,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { ConcreteThemeName } from "#/theme/colorblind";
+import type { ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 import { THEME_COPY } from "./themeCopy";
 

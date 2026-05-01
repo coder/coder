@@ -1,7 +1,7 @@
 import { MoonIcon, SunIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
-import type { ConcreteThemeName } from "#/theme/colorblind";
+import type { ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
 import { ThemeSwatch } from "./ThemeSwatch";

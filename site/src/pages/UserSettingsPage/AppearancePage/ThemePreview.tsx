@@ -1,5 +1,5 @@
 import type { CSSProperties, FC } from "react";
-import type { ConcreteThemeName } from "#/theme/colorblind";
+import type { ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 
 interface ThemePreviewProps {

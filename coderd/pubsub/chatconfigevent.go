@@ -9,8 +9,9 @@ import (
 )
 
 // ChatConfigEventChannel is the pubsub channel for chat config
-// changes (providers, model configs, user prompts). All replicas
-// subscribe to this channel to invalidate their local caches.
+// changes (providers, model configs, user prompts, advisor config).
+// All replicas subscribe to this channel to invalidate their local
+// caches.
 const ChatConfigEventChannel = "chat:config_change"
 
 // HandleChatConfigEvent wraps a typed callback for ChatConfigEvent
@@ -32,21 +33,24 @@ func HandleChatConfigEvent(cb func(ctx context.Context, payload ChatConfigEvent,
 }
 
 // ChatConfigEvent is published when chat configuration changes
-// (provider CRUD, model config CRUD, or user prompt updates).
-// Subscribers use this to invalidate their local caches.
+// (provider CRUD, model config CRUD, user prompt updates, or advisor
+// config updates). Subscribers use this to invalidate their local
+// caches.
 type ChatConfigEvent struct {
 	Kind ChatConfigEventKind `json:"kind"`
 	// EntityID carries context for the invalidation:
 	//   - For providers: uuid.Nil (all providers are invalidated).
 	//   - For model configs: the specific config ID.
 	//   - For user prompts: the user ID.
+	//   - For advisor config: uuid.Nil (singleton site-config row).
 	EntityID uuid.UUID `json:"entity_id"`
 }
 
 type ChatConfigEventKind string
 
 const (
-	ChatConfigEventProviders   ChatConfigEventKind = "providers"
-	ChatConfigEventModelConfig ChatConfigEventKind = "model_config"
-	ChatConfigEventUserPrompt  ChatConfigEventKind = "user_prompt"
+	ChatConfigEventProviders     ChatConfigEventKind = "providers"
+	ChatConfigEventModelConfig   ChatConfigEventKind = "model_config"
+	ChatConfigEventUserPrompt    ChatConfigEventKind = "user_prompt"
+	ChatConfigEventAdvisorConfig ChatConfigEventKind = "advisor_config"
 )

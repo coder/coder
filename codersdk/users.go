@@ -189,6 +189,8 @@ type CreateUserRequestWithOrgs struct {
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
 	// Service accounts are admin-managed accounts that cannot login.
 	ServiceAccount bool `json:"service_account,omitempty"`
+	// Roles is an optional list of site-level roles to assign at creation.
+	Roles []string `json:"roles,omitempty"`
 }
 
 // UnmarshalJSON implements the unmarshal for the legacy param "organization_id".

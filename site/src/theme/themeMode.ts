@@ -14,12 +14,12 @@
  */
 
 import type { TerminalFontName } from "#/api/typesGenerated";
-import { DEFAULT_THEME } from ".";
 import {
 	type ConcreteThemeName,
+	DEFAULT_THEME,
 	isConcreteThemeName,
 	legacyAutoToSync,
-} from "./colorblind";
+} from ".";
 
 type ThemeMode = "sync" | "single";
 

@@ -1702,6 +1702,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
 	beforeID := parser.PositiveInt64(queryParams, 0, "before_id")
+	afterID := parser.PositiveInt64(queryParams, 0, "after_id")
 	limit := parser.PositiveInt32(queryParams, 50, "limit")
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1716,12 +1717,36 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Fetch limit+1 rows to detect whether more pages exist.
-	messages, err := api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
-		ChatID:   chatID,
-		BeforeID: beforeID,
-		LimitVal: limit + 1,
-	})
+	// Reject transposed or equal cursors so an empty open range is loud,
+	// not silently indistinguishable from "no messages in this range."
+	if beforeID > 0 && afterID > 0 && afterID >= beforeID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "after_id must be less than before_id.",
+		})
+		return
+	}
+
+	// Polling with only after_id uses ASC so the cursor advances
+	// monotonically; a DESC limit would drop rows when a burst larger
+	// than `limit` lands between polls. Fetch limit+1 in both paths to
+	// detect whether more pages exist.
+	var messages []database.ChatMessage
+	var err error
+	switch {
+	case afterID > 0 && beforeID == 0:
+		messages, err = api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chatID,
+			AfterID:  afterID,
+			LimitVal: limit + 1,
+		})
+	default:
+		messages, err = api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chatID,
+			BeforeID: beforeID,
+			AfterID:  afterID,
+			LimitVal: limit + 1,
+		})
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat messages.",
@@ -1735,9 +1760,11 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		messages = messages[:limit]
 	}
 
-	// Only fetch queued messages on the first page (no cursor).
+	// Queued messages are only meaningful for the initial top-of-history
+	// load. Suppress them whenever any cursor is set so polling callers do
+	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
-	if beforeID == 0 {
+	if beforeID == 0 && afterID == 0 {
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -3175,6 +3202,11 @@ func (api *API) chatCreateWorkspace(
 // chatStartWorkspace starts a stopped workspace by creating a new
 // build with the "start" transition. It mirrors chatCreateWorkspace
 // but for the start path.
+//
+// Aliased as ChatStartWorkspace in coderd/export_test.go so external
+// tests in the coderd_test package can drive the auto-update path
+// end-to-end. The proper fix is to extract the request building into
+// a pure function; tracked in CODAGT-292.
 func (api *API) chatStartWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -4188,6 +4220,108 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var resp codersdk.AdvisorConfig
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored advisor configuration is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
+	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateAdvisorConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.MaxUsesPerRun < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("max_uses_per_run %d must be non-negative.", req.MaxUsesPerRun),
+		})
+		return
+	}
+	if req.MaxOutputTokens < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("max_output_tokens %d must be non-negative.", req.MaxOutputTokens),
+		})
+		return
+	}
+	switch req.ReasoningEffort {
+	case "", "low", "medium", "high":
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(`reasoning_effort %q is not valid; must be one of "", "low", "medium", or "high".`, req.ReasoningEffort),
+		})
+		return
+	}
+	if req.ModelConfigID != uuid.Nil {
+		// Use system context because GetChatModelConfigByID requires
+		// deployment-config read access, which can be broader than the
+		// handler's explicit update check. The lookup only validates that
+		// the referenced model exists before persisting deployment config.
+		//nolint:gocritic // This admin-authorized validation lookup intentionally bypasses read authz.
+		if _, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), req.ModelConfigID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("model_config_id %q does not match any existing model config.", req.ModelConfigID),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error validating advisor model config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	raw, err := json.Marshal(req)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error encoding advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err := api.Database.UpsertChatAdvisorConfig(ctx, string(raw)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating advisor configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventAdvisorConfig, uuid.Nil)
+
 	rw.WriteHeader(http.StatusNoContent)
 }
 

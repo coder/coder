@@ -202,6 +202,507 @@ const buildQueries = (
 };
 
 // ---------------------------------------------------------------------------
+// Every-tool showcase: a single completed assistant turn that exercises
+// every tool renderer registered in Tool.tsx, plus the SubagentRenderer
+// variants and the generic MCP fallback. Used by WithEveryTool
+// so the page demonstrates every tool card type at once.
+//
+// The generated `ChatToolCallPart`/`ChatToolResultPart` types declare
+// `args`/`result` as `Record<string, string>`, but the runtime accepts
+// arbitrary JSON. We cast through `unknown` here so the showcase can
+// use realistic numbers, booleans, arrays, and nested objects without
+// stringifying every field.
+// ---------------------------------------------------------------------------
+
+const EVERY_TOOL_ASSISTANT_TURN = {
+	id: 4,
+	chat_id: CHAT_ID,
+	created_at: "2026-02-18T00:00:04.000Z",
+	role: "assistant",
+	content: [
+		{
+			type: "text",
+			text: "Here is a recap of every tool I have at my disposal, exercised against this workspace so each card type renders.",
+		},
+
+		// execute -- shell command output
+		{
+			type: "tool-call",
+			tool_call_id: "every-execute",
+			tool_name: "execute",
+			args: { command: "go test ./coderd/httpmw/..." },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-execute",
+			tool_name: "execute",
+			result: {
+				output: [
+					"ok  \tgithub.com/coder/coder/coderd/httpmw\t1.842s",
+					"ok  \tgithub.com/coder/coder/coderd/httpmw/auth\t0.612s",
+				].join("\n"),
+				exit_code: 0,
+			},
+		},
+
+		// process_output -- background process output
+		{
+			type: "tool-call",
+			tool_call_id: "every-process-output",
+			tool_name: "process_output",
+			args: { process_id: "proc-42" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-process-output",
+			tool_name: "process_output",
+			result: {
+				output: [
+					"[server] listening on :3000",
+					"[server] handled GET / 200 in 4ms",
+					"[server] handled GET /api/v2/users 200 in 12ms",
+				].join("\n"),
+				exit_code: null,
+			},
+		},
+
+		// process_signal -- signal sent to a background process
+		{
+			type: "tool-call",
+			tool_call_id: "every-process-signal",
+			tool_name: "process_signal",
+			args: { process_id: "proc-42", signal: "terminate" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-process-signal",
+			tool_name: "process_signal",
+			result: { success: true, signal: "terminate" },
+		},
+
+		// read_file -- completed file read with content viewer
+		{
+			type: "tool-call",
+			tool_call_id: "every-read-file",
+			tool_name: "read_file",
+			args: { path: "coderd/httpmw/apikey.go" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-read-file",
+			tool_name: "read_file",
+			result: {
+				content: [
+					"package httpmw",
+					"",
+					"// ExtractAPIKeyMW will be split into a dedicated auth",
+					"// package with three layers: transport, validation, authz.",
+					"func ExtractAPIKeyMW(/* ... */) {}",
+				].join("\n"),
+			},
+		},
+
+		// write_file -- completed file write with diff viewer
+		{
+			type: "tool-call",
+			tool_call_id: "every-write-file",
+			tool_name: "write_file",
+			args: {
+				path: "coderd/httpmw/auth/transport.go",
+				content: [
+					"package auth",
+					"",
+					"// ExtractCredentials reads credentials from the request.",
+					"func ExtractCredentials(r *http.Request) (Credential, error) {",
+					"    return Credential{}, nil",
+					"}",
+				].join("\n"),
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-write-file",
+			tool_name: "write_file",
+			result: { content: "wrote 6 lines" },
+		},
+
+		// edit_files -- completed multi-file edit
+		{
+			type: "tool-call",
+			tool_call_id: "every-edit-files",
+			tool_name: "edit_files",
+			args: {
+				files: [
+					{
+						path: "coderd/coderd.go",
+						edits: [
+							{
+								search: "httpmw.ExtractAPIKeyMW(opts)",
+								replace: "auth.Middleware(opts)",
+							},
+						],
+					},
+				],
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-edit-files",
+			tool_name: "edit_files",
+			result: { applied: 1 },
+		},
+
+		// list_templates -- completed template listing
+		{
+			type: "tool-call",
+			tool_call_id: "every-list-templates",
+			tool_name: "list_templates",
+			args: {},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-list-templates",
+			tool_name: "list_templates",
+			result: {
+				templates: [
+					{
+						id: "tpl-go",
+						name: "go-template",
+						display_name: "Go Development",
+						description: "Workspace for Go services with VS Code.",
+					},
+					{
+						id: "tpl-py",
+						name: "python-template",
+						description: "Python development environment.",
+					},
+				],
+				count: 2,
+			},
+		},
+
+		// read_template -- completed single-template read
+		{
+			type: "tool-call",
+			tool_call_id: "every-read-template",
+			tool_name: "read_template",
+			args: { name: "go-template" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-read-template",
+			tool_name: "read_template",
+			result: {
+				template: { name: "go-template", display_name: "Go Development" },
+			},
+		},
+
+		// read_skill -- completed skill load
+		{
+			type: "tool-call",
+			tool_call_id: "every-read-skill",
+			tool_name: "read_skill",
+			args: { name: "deep-review" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-read-skill",
+			tool_name: "read_skill",
+			result: {
+				name: "deep-review",
+				body: [
+					"## Deep Review Skill",
+					"",
+					"Review the code changes thoroughly:",
+					"",
+					"1. Check for correctness",
+					"2. Verify tests cover the new branches",
+					"3. Ensure style consistency",
+				].join("\n"),
+				files: ["roles/security-reviewer.md"],
+			},
+		},
+
+		// read_skill_file -- completed skill file fetch
+		{
+			type: "tool-call",
+			tool_call_id: "every-read-skill-file",
+			tool_name: "read_skill_file",
+			args: { name: "deep-review", path: "roles/security-reviewer.md" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-read-skill-file",
+			tool_name: "read_skill_file",
+			result: {
+				content: [
+					"# Security Reviewer Role",
+					"",
+					"Focus on authentication, authorization, and input validation.",
+				].join("\n"),
+			},
+		},
+
+		// chat_summarized -- compaction summary card
+		{
+			type: "tool-call",
+			tool_call_id: "every-summarized",
+			tool_name: "chat_summarized",
+			args: {},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-summarized",
+			tool_name: "chat_summarized",
+			result: {
+				summary: [
+					"Summarized the previous turns to free up context: the agent",
+					"split the auth middleware into transport and validation layers",
+					"and is about to wire up the call sites.",
+				].join(" "),
+			},
+		},
+
+		// ask_user_question -- completed clarification
+		{
+			type: "tool-call",
+			tool_call_id: "every-ask-user",
+			tool_name: "ask_user_question",
+			args: {
+				questions: [
+					{
+						header: "Migration approach",
+						question:
+							"How should we structure the database migration for the auth split?",
+						options: [
+							{
+								label: "Single migration",
+								description: "One migration with all changes.",
+							},
+							{
+								label: "Incremental migrations",
+								description: "Multiple sequential migrations.",
+							},
+						],
+					},
+				],
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-ask-user",
+			tool_name: "ask_user_question",
+			result: { questions: [{ answer: "Incremental migrations" }] },
+		},
+
+		// propose_plan -- proposed plan with content
+		{
+			type: "tool-call",
+			tool_call_id: "every-propose-plan",
+			tool_name: "propose_plan",
+			args: { path: "/home/coder/.coder/plans/AUTH_SPLIT.md" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-propose-plan",
+			tool_name: "propose_plan",
+			result: {
+				file_id: "plan-file-1",
+				content: [
+					"# Auth Split Plan",
+					"",
+					"1. Carve transport, validation, and authz packages.",
+					"2. Update call sites in coderd and enterprise/coderd.",
+					"3. Add an incremental migration for session lookups.",
+					"4. Refresh the changelog and run the suite.",
+				].join("\n"),
+			},
+		},
+
+		// computer -- screenshot tool result with text fallback
+		{
+			type: "tool-call",
+			tool_call_id: "every-computer",
+			tool_name: "computer",
+			args: { action: "screenshot" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-computer",
+			tool_name: "computer",
+			result: {
+				data: "",
+				text: "Screen resolution: 1920x1080\nActive window: Terminal",
+				mime_type: "image/png",
+			},
+		},
+
+		// attach_file -- generic renderer with explicit attach label
+		{
+			type: "tool-call",
+			tool_call_id: "every-attach-file",
+			tool_name: "attach_file",
+			args: { path: "docs/runbooks/auth-split.md" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-attach-file",
+			tool_name: "attach_file",
+			result: {},
+		},
+
+		// generic / MCP fallback -- unknown tool name with no server
+		{
+			type: "tool-call",
+			tool_call_id: "every-generic",
+			tool_name: "web_search",
+			args: { query: "OAuth2 token rotation strategies" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-generic",
+			tool_name: "web_search",
+			result: {
+				results: [
+					{
+						title: "OAuth 2.0 RFC 6749",
+						url: "https://datatracker.ietf.org/doc/html/rfc6749",
+					},
+				],
+			},
+		},
+
+		// spawn_agent (general subagent variant)
+		{
+			type: "tool-call",
+			tool_call_id: "every-spawn-general",
+			tool_name: "spawn_agent",
+			args: {
+				type: "general",
+				title: "Workspace diagnostics",
+				prompt: "Collect logs and summarize why startup failed.",
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-spawn-general",
+			tool_name: "spawn_agent",
+			result: {
+				chat_id: "every-general-child",
+				type: "general",
+				title: "Workspace diagnostics",
+				status: "completed",
+				duration_ms: 3200,
+			},
+		},
+
+		// spawn_explore_agent (explore subagent variant)
+		{
+			type: "tool-call",
+			tool_call_id: "every-spawn-explore",
+			tool_name: "spawn_explore_agent",
+			args: {
+				prompt: "Read the repo and summarize the auth flow.",
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-spawn-explore",
+			tool_name: "spawn_explore_agent",
+			result: {
+				chat_id: "every-explore-child",
+				type: "explore",
+				status: "completed",
+				duration_ms: 4100,
+			},
+		},
+
+		// spawn_computer_use_agent (desktop subagent variant)
+		{
+			type: "tool-call",
+			tool_call_id: "every-spawn-desktop",
+			tool_name: "spawn_computer_use_agent",
+			args: {
+				title: "Visual regression check",
+				prompt: "Open the dashboard and look for visual regressions.",
+			},
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-spawn-desktop",
+			tool_name: "spawn_computer_use_agent",
+			result: {
+				chat_id: "every-desktop-child",
+				type: "computer_use",
+				title: "Visual regression check",
+				status: "completed",
+				duration_ms: 12400,
+			},
+		},
+
+		// message_agent -- send a follow-up to a subagent
+		{
+			type: "tool-call",
+			tool_call_id: "every-message-agent",
+			tool_name: "message_agent",
+			args: { chat_id: "every-general-child", message: "continue" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-message-agent",
+			tool_name: "message_agent",
+			result: {
+				chat_id: "every-general-child",
+				type: "general",
+				status: "running",
+			},
+		},
+
+		// wait_agent -- wait for a subagent to finish
+		{
+			type: "tool-call",
+			tool_call_id: "every-wait-agent",
+			tool_name: "wait_agent",
+			args: { chat_id: "every-general-child" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-wait-agent",
+			tool_name: "wait_agent",
+			result: {
+				chat_id: "every-general-child",
+				type: "general",
+				status: "completed",
+				report: "Diagnostics finished; logs were uploaded.",
+			},
+		},
+
+		// close_agent -- terminate a subagent
+		{
+			type: "tool-call",
+			tool_call_id: "every-close-agent",
+			tool_name: "close_agent",
+			args: { chat_id: "every-explore-child" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "every-close-agent",
+			tool_name: "close_agent",
+			result: {
+				chat_id: "every-explore-child",
+				type: "explore",
+				status: "completed",
+			},
+		},
+
+		{
+			type: "text",
+			text: "With every renderer exercised, I'll continue the auth split below. Note the streaming flurry of file tool calls in the next turn.",
+		},
+	],
+} as unknown as TypesGen.ChatMessage;
+
+// ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
 const meta: Meta<typeof AgentChatPageLayout> = {
@@ -1342,6 +1843,315 @@ export const StreamedReasoning: Story = {
 // setTimeout(0) which resolves before the chat store subscribes.
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
+
+/**
+ * Live agent turn with streaming reasoning and a back-to-back flurry of
+ * in-progress file tool calls. The persisted history establishes context
+ * (an earlier completed read+write pair); the WebSocket then streams an
+ * assistant turn with reasoning followed by read/write/edit/read/write
+ * tool calls that intentionally have no matching tool-result parts, so
+ * each card stays in the "running" state and shows its loading spinner.
+ */
+export const WithEveryTool: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Refactoring the auth module",
+				status: "running",
+			},
+			{
+				messages: [
+					// -- Turn 1: user kicks off the task --
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:01.000Z",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "Refactor the auth module: split httpmw/apikey.go into a transport, validation, and authorization layer. Update the imports and add a CHANGELOG entry while you are at it.",
+							},
+						],
+					},
+					// -- Turn 2: previous assistant turn (completed) --
+					//    Establishes that the agent already inspected and patched
+					//    a couple of files before the streaming turn begins.
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:02.000Z",
+						role: "assistant",
+						content: [
+							{
+								type: "reasoning",
+								text: "I'll start by reading the existing middleware to understand its responsibilities, then sketch out the three-layer split before touching anything else.",
+							},
+							{
+								type: "text",
+								text: "Reading the existing middleware first so I can plan the split.",
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "call-read-apikey",
+								tool_name: "read_file",
+								args: { path: "coderd/httpmw/apikey.go" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "call-read-apikey",
+								tool_name: "read_file",
+								result: {
+									content: [
+										"package httpmw",
+										"",
+										"// ExtractAPIKeyMW does too many things: it parses",
+										"// the token, validates the signature, looks up the",
+										"// session, and authorizes the user. We will split",
+										"// these into transport, validation, and authz.",
+										"func ExtractAPIKeyMW(/* ... */) {}",
+									].join("\n"),
+								},
+							},
+							{
+								type: "tool-call",
+								tool_call_id: "call-write-transport",
+								tool_name: "write_file",
+								args: {
+									path: "coderd/httpmw/auth/transport.go",
+									content: [
+										"package auth",
+										"",
+										"// ExtractCredentials pulls the credential out of the",
+										"// HTTP request without doing any validation.",
+										"func ExtractCredentials(r *http.Request) (Credential, error) {",
+										'    if h := r.Header.Get("Authorization"); h != "" {',
+										"        return Credential{Kind: KindBearer, Value: h}, nil",
+										"    }",
+										'    if c, err := r.Cookie("coder_session_token"); err == nil {',
+										"        return Credential{Kind: KindCookie, Value: c.Value}, nil",
+										"    }",
+										"    return Credential{}, ErrNoCredential",
+										"}",
+									].join("\n"),
+								},
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "call-write-transport",
+								tool_name: "write_file",
+								result: { content: "wrote 12 lines" },
+							},
+							{
+								type: "text",
+								text: "Transport layer is in place. Next I'll carve out validation and authorization, update the call sites, and bump the changelog.",
+							},
+						],
+					},
+					// -- Turn 3: user asks for a tool-by-tool tour --
+					{
+						id: 3,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:03.000Z",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "Before you keep going, can you take one quick pass and exercise every tool you have so I can confirm each one renders the way I expect?",
+							},
+						],
+					},
+					// -- Turn 4: assistant runs every tool exactly once --
+					EVERY_TOOL_ASSISTANT_TURN,
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+		// The streaming turn arrives over the WebSocket. None of the
+		// tool-call parts have a matching tool-result, so each card
+		// renders in the "running" state with its spinner.
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						// Streaming reasoning, delivered in two deltas so the
+						// thinking block grows as the turn unfolds.
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Now I'll pull in the validation file and start carving out the JWT and session checks. ",
+								},
+							},
+						},
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "After that I need to wire the new package into the existing call sites and refresh the changelog so reviewers can follow the split.",
+								},
+							},
+						},
+						// Some streaming response text before the tool calls.
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "text",
+									text: "Reading the validation helpers, then writing the new package, patching the consumers, and updating the changelog.",
+								},
+							},
+						},
+						// 1) read_file - in progress.
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "stream-read-validate",
+									tool_name: "read_file",
+									args_delta: JSON.stringify({
+										path: "coderd/httpmw/validate.go",
+									}),
+								},
+							},
+						},
+						// 2) write_file - in progress.
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "stream-write-validation",
+									tool_name: "write_file",
+									args_delta: JSON.stringify({
+										path: "coderd/httpmw/auth/validation.go",
+										content: [
+											"package auth",
+											"",
+											"// Validate verifies the supplied credential and",
+											"// returns the resolved subject. It does not make",
+											"// authorization decisions.",
+											"func Validate(ctx context.Context, c Credential) (Subject, error) {",
+											"    switch c.Kind {",
+											"    case KindBearer:",
+											"        return validateBearer(ctx, c.Value)",
+											"    case KindCookie:",
+											"        return validateSession(ctx, c.Value)",
+											"    default:",
+											"        return Subject{}, ErrUnsupportedCredential",
+											"    }",
+											"}",
+										].join("\n"),
+									}),
+								},
+							},
+						},
+						// 3) edit_files - in progress (multi-file).
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "stream-edit-callsites",
+									tool_name: "edit_files",
+									args_delta: JSON.stringify({
+										files: [
+											{
+												path: "coderd/coderd.go",
+												edits: [
+													{
+														search: "httpmw.ExtractAPIKeyMW(opts)",
+														replace: "auth.Middleware(opts)",
+													},
+												],
+											},
+											{
+												path: "enterprise/coderd/coderd.go",
+												edits: [
+													{
+														search: "httpmw.ExtractAPIKeyMW(opts)",
+														replace: "auth.Middleware(opts)",
+													},
+												],
+											},
+										],
+									}),
+								},
+							},
+						},
+						// 4) read_file - in progress.
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "stream-read-changelog",
+									tool_name: "read_file",
+									args_delta: JSON.stringify({
+										path: "CHANGELOG.md",
+									}),
+								},
+							},
+						},
+						// 5) write_file - in progress.
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "tool-call",
+									tool_call_id: "stream-write-changelog",
+									tool_name: "write_file",
+									args_delta: JSON.stringify({
+										path: "CHANGELOG.md",
+										content: [
+											"# Changelog",
+											"",
+											"## Unreleased",
+											"",
+											"- Split the auth middleware into transport, validation,",
+											"  and authorization layers under coderd/httpmw/auth.",
+										].join("\n"),
+									}),
+								},
+							},
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// All five streamed tool calls should appear simultaneously.
+		// read_file, write_file, and edit_files all switch to a
+		// progressive label ("Reading" / "Writing" / "Editing")
+		// while running; the spinner conveys progress.
+		await waitFor(() => {
+			expect(canvas.getByText(/Reading validate\.go/)).toBeInTheDocument();
+			expect(canvas.getByText(/Writing validation\.go/)).toBeInTheDocument();
+			expect(canvas.getByText(/Editing 2 files/)).toBeInTheDocument();
+			expect(canvas.getByText(/Reading CHANGELOG\.md/)).toBeInTheDocument();
+			expect(canvas.getByText(/Writing CHANGELOG\.md/)).toBeInTheDocument();
+		});
+	},
+};
 
 /** wait_agent for a computer-use subagent renders the VNC preview card
  *  (SubagentTool with computer-use variant) instead of the plain SubagentTool card. */

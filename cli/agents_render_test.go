@@ -16,7 +16,7 @@ import (
 
 var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-func TestExpAgentsRender(t *testing.T) {
+func TestAgentsRender(t *testing.T) {
 	t.Parallel()
 
 	styles := newTUIStyles()

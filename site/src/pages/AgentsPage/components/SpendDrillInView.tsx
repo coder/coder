@@ -102,7 +102,7 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 				{backButton}
 				{header}
 			</div>
-			<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
+			<div className="flex items-center justify-between rounded-lg bg-surface-secondary px-4 py-3">
 				<AvatarData
 					title={selectedUser.name || selectedUser.username}
 					subtitle={`@${selectedUser.username}`}

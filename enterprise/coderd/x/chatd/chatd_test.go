@@ -58,6 +58,7 @@ func newTestServer(
 		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{DialerFn: dialer, Clock: clock}),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
+	server.Start()
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -80,6 +81,7 @@ func newActiveWorkerServer(
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 	})
+	server.Start()
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -1308,6 +1310,7 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 		PendingChatAcquireInterval: time.Hour,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 	})
+	worker.Start()
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})
@@ -1467,6 +1470,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Clock:                      workerClock,
 	})
+	worker.Start()
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})
@@ -1662,6 +1666,7 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 		PendingChatAcquireInterval: time.Second,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 	})
+	worker.Start()
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})

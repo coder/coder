@@ -615,6 +615,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequestWithOrgs: req,
 		LoginType:                 loginType,
 		accountCreatorName:        accountCreator.Name,
+		RBACRoles:                 req.Roles,
 	})
 
 	if dbauthz.IsNotAuthorizedError(err) {

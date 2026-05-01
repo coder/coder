@@ -731,7 +731,14 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamState).toBeNull();
+			// Stream state is preserved after status=pending (the
+			// durable message event handles cleanup via
+			// needsStreamReset). Only new message_parts should be
+			// blocked by the shouldApplyMessagePart gate.
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "first" },
+			]);
 		});
 
 		act(() => {
@@ -749,7 +756,12 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamState).toBeNull();
+			// The late message_part should not be applied because
+			// shouldApplyMessagePart gates on pending/waiting.
+			// Stream state still shows the original "first".
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "first" },
+			]);
 		});
 	});
 
@@ -3034,6 +3046,181 @@ describe("useChatStore", () => {
 		// WS already delivered a status event for this chat.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
+		});
+	});
+
+	it("preserves stream state when status transitions to waiting", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-preserve-stream";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Build up stream state with a message_part.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "thinking..." },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "thinking..." },
+			]);
+		});
+
+		// Deliver a status=waiting event (interrupt). Stream state
+		// should be preserved so the user continues to see the
+		// partial response until the durable message arrives.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "waiting" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "thinking..." },
+			]);
+		});
+	});
+
+	it("clears stream state when durable message follows waiting status", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-durable-clears";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Build up stream state.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "partial response" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "partial response" },
+			]);
+		});
+
+		// Deliver status=waiting (interrupt). Stream state should be
+		// preserved so the user continues to see the partial response
+		// until the durable message arrives.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "waiting" },
+			});
+		});
+
+		// Stream state must still be present after the status change.
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "partial response" },
+			]);
+		});
+
+		// Now deliver the durable assistant message. This should
+		// clear stream state via the needsStreamReset path.
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: makeMessage(chatID, 2, "assistant", "partial response"),
+			});
+		});
+
+		// Stream state should now be null and the durable message
+		// should be in the message store.
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.orderedIDs).toContain(2);
 		});
 	});
 });

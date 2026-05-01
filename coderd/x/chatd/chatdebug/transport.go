@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 // attemptStatusCompleted is the status recorded when a response body
@@ -160,14 +162,22 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 	if req.GetBody != nil {
 		clone, err := req.GetBody()
 		if err == nil {
-			defer clone.Close()
-			limited, err := io.ReadAll(io.LimitReader(clone, maxRecordedRequestBodyBytes+1))
-			if err == nil {
-				if len(limited) > maxRecordedRequestBodyBytes {
-					return []byte("[TRUNCATED]"), nil
-				}
-				return RedactJSONSecrets(limited), nil
+			limited, readErr := io.ReadAll(io.LimitReader(clone, maxRecordedRequestBodyBytes+1))
+			_ = clone.Close()
+			// Some SDKs return the active body from GetBody instead of an
+			// independent reader. Restore the request body from GetBody so
+			// the upstream transport still receives the original bytes.
+			resetErr := resetRequestBody(req)
+			if resetErr != nil {
+				return nil, xerrors.Errorf("chatdebug: reset request body: %w", resetErr)
 			}
+			if readErr != nil {
+				return nil, nil
+			}
+			if len(limited) > maxRecordedRequestBodyBytes {
+				return []byte("[TRUNCATED]"), nil
+			}
+			return RedactJSONSecrets(limited), nil
 		}
 	}
 
@@ -176,6 +186,24 @@ func captureRequestBody(req *http.Request) ([]byte, error) {
 	// request is sent. Skip capture in that case to keep debug logging
 	// lightweight and non-invasive.
 	return nil, nil
+}
+
+// resetRequestBody replaces req.Body with a fresh reader from req.GetBody.
+// It closes the previous request body before installing the replacement.
+// Callers must ensure req.GetBody is non-nil.
+func resetRequestBody(req *http.Request) error {
+	body, err := req.GetBody()
+	if err != nil {
+		return err
+	}
+	if req.Body != nil {
+		if err := req.Body.Close(); err != nil {
+			_ = body.Close()
+			return err
+		}
+	}
+	req.Body = body
+	return nil
 }
 
 type recordingBody struct {

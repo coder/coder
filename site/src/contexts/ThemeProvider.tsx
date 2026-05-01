@@ -20,8 +20,7 @@ import {
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, { type Theme } from "#/theme";
-import { baseModeFor, CONCRETE_THEMES } from "#/theme/colorblind";
+import themes, { baseModeFor, CONCRETE_THEMES, type Theme } from "#/theme";
 import {
 	migrateLegacyPreference,
 	resolveActiveThemeName,

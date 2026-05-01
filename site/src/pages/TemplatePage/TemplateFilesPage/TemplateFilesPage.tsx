@@ -65,7 +65,7 @@ const TemplateFilesPage: FC = () => {
 					<div className="flex items-center gap-2 mt-4">
 						<Button asChild size="sm" variant="default">
 							<a
-								href="https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md"
+								href="https://registry.coder.com/skills/coder-templates"
 								target="_blank"
 								rel="noopener noreferrer"
 								className="flex items-center"
