@@ -701,6 +701,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			if command != "" {
 				err := sshSession.Run(command)
 				if err != nil {
+					if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+						// Preserve the remote command's exit status as the CLI
+						// exit code instead of falling back to the default of 1
+						// for any non-zero exit.
+						return ExitError(exitErr.ExitStatus(), err)
+					}
 					return xerrors.Errorf("run command: %w", err)
 				}
 			} else {

@@ -1275,6 +1275,12 @@ func (e *exitError) Unwrap() error {
 	return e.err
 }
 
+// ExitCode returns the OS exit code that the CLI will use when this error is
+// returned from a command handler.
+func (e *exitError) ExitCode() int {
+	return e.code
+}
+
 // ExitError returns an error that will cause the CLI to exit with the given
 // exit code. If err is non-nil, it will be wrapped by the returned error.
 func ExitError(code int, err error) error {

@@ -2423,6 +2423,24 @@ func TestSSH_OneShotCommandMode(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "3", strings.TrimSpace(output.String()))
 	})
+
+	t.Run("PropagatesExitCode", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a non-1 exit code so that we don't accidentally pass when the
+		// CLI falls back to the default exit code of 1 for any error.
+		inv, root := clitest.New(t, "ssh", workspace.Name, "exit 2")
+		clitest.SetupConfig(t, client, root)
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+
+		var cliExitErr interface{ ExitCode() int }
+		require.ErrorAs(t, err, &cliExitErr)
+		require.Equal(t, 2, cliExitErr.ExitCode())
+	})
 }
 
 type fakeCoderConnectDialer struct{}
