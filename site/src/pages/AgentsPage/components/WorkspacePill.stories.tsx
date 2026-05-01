@@ -64,7 +64,12 @@ const hiddenApp: WorkspaceApp = {
 
 const agentWithApps = {
 	...MockWorkspaceAgent,
-	display_apps: ["vscode", "vscode_insiders", "web_terminal"] as const,
+	display_apps: [
+		"vscode",
+		"vscode_insiders",
+		"web_terminal",
+		"port_forwarding_helper",
+	] as const,
 	apps: [externalApp, cursorApp],
 };
 
@@ -100,8 +105,19 @@ const meta: Meta<typeof WorkspacePill> = {
 	title: "pages/AgentsPage/WorkspacePill",
 	component: WorkspacePill,
 	// useAppLink and useProxy are called inside sub-components, so we need the
-	// proxy provider for all stories.
-	decorators: [withProxyProvider()],
+	// proxy provider for all stories. A non-empty wildcard hostname is required
+	// so the Ports sub-trigger renders (it is hidden when port-forwarding is not
+	// configured).
+	decorators: [
+		withProxyProvider({
+			proxy: {
+				proxy: undefined,
+				preferredPathAppURL: "",
+				preferredWildcardHostname: "*.coder.com",
+			},
+		}),
+	],
+
 	parameters: {
 		layout: "centered",
 		queries: [{ key: ["me", "apiKey"], data: { key: "mock-api-key" } }],

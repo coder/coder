@@ -86,13 +86,24 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const { mutate: generateKey, isPending: isGeneratingKey } = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
+	const { proxy } = useProxy();
+	const host = proxy.preferredWildcardHostname;
 
 	const builtinApps = new Set(agent.display_apps);
 	const hasVSCode = builtinApps.has("vscode");
 	const hasVSCodeInsiders = builtinApps.has("vscode_insiders");
 	const hasTerminal = builtinApps.has("web_terminal");
+	const portForwardingEnabled =
+		host !== "" && builtinApps.has("port_forwarding_helper");
 
 	const userApps = agent.apps.filter((app) => !app.hidden);
+
+	const hasItemsAboveSeparator =
+		hasVSCode ||
+		hasVSCodeInsiders ||
+		userApps.length > 0 ||
+		hasTerminal ||
+		portForwardingEnabled;
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -179,13 +190,17 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						isRunning={isRunning}
 					/>
 				)}
-				<PortsSubMenuItem
-					workspace={workspace}
-					agent={agent}
-					isOpen={open}
-					isRunning={isRunning}
-				/>
-				<DropdownMenuSeparator className="my-1" />
+				{portForwardingEnabled && (
+					<PortsSubMenuItem
+						workspace={workspace}
+						agent={agent}
+						host={host}
+						isOpen={open}
+						isRunning={isRunning}
+					/>
+				)}
+				{hasItemsAboveSeparator && <DropdownMenuSeparator className="my-1" />}
+
 				{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
 				<DropdownMenuItem asChild>
 					<Link to={route} target="_blank" rel="noreferrer">
@@ -201,11 +216,10 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 const PortsSubMenuItem: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
+	host: string;
 	isOpen: boolean;
 	isRunning: boolean;
-}> = ({ workspace, agent, isOpen, isRunning }) => {
-	const { proxy } = useProxy();
-	const host = proxy.preferredWildcardHostname;
+}> = ({ workspace, agent, host, isOpen, isRunning }) => {
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 	const isConnected = agent.status === "connected";
 	const enabled = isOpen && isConnected;
