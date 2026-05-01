@@ -12,7 +12,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -39,11 +38,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<div>
 					<SettingsHeader>
 						<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
@@ -61,7 +56,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 						</Link>
 					</Button>
 				)}
-			</Stack>
+			</div>
 
 			{error && <ErrorAlert error={error} />}
 

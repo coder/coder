@@ -392,6 +392,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create aibridge interceptions & related records",
 		},
 	},
+	"ai_seat": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "record AI seat usage",
+			ActionRead:   "read AI seat state",
+		},
+	},
 	"boundary_usage": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   "read boundary usage statistics",

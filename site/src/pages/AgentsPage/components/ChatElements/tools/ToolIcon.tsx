@@ -1,6 +1,7 @@
 import {
 	BookOpenIcon,
 	BotIcon,
+	BrainCircuitIcon,
 	ClipboardListIcon,
 	FileIcon,
 	FilePenIcon,
@@ -33,7 +34,7 @@ export const ToolIcon: React.FC<{
 	subagentIconKind?: SubagentIconKind;
 }> = ({ name, iconUrl, isRunning, serverName, subagentIconKind }) => {
 	const [imgError, setImgError] = useState(false);
-	const color = "text-content-secondary";
+	const color = "text-current";
 	const base = cn("h-4 w-4 shrink-0", color, isRunning && "grayscale");
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
@@ -105,6 +106,8 @@ export const ToolIcon: React.FC<{
 			return <BotIcon className={base} />;
 		case "propose_plan":
 			return <ClipboardListIcon className={base} />;
+		case "advisor":
+			return <BrainCircuitIcon className={base} />;
 		case "computer":
 			return <MonitorIcon className={base} />;
 		case "read_skill":

@@ -10,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
@@ -702,6 +703,55 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const AdvisorRenderer: FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const question = parsedArgs ? asString(parsedArgs.question) : "";
+	const rec = asRecord(result);
+	const rawResultType = rec ? asString(rec.type) : "";
+	const hasError = status === "error" || isError;
+	const advice = rec
+		? asString(rec.advice)
+		: typeof result === "string" && !hasError
+			? result
+			: undefined;
+	const adviceText = (advice ?? "").trim();
+	const resolvedResultType: AdvisorToolResultType | undefined =
+		rawResultType === "advice" ||
+		rawResultType === "limit_reached" ||
+		rawResultType === "error"
+			? rawResultType
+			: adviceText
+				? "advice"
+				: undefined;
+	const errorMessage =
+		(rec ? asString(rec.error || rec.message) : "") ||
+		(typeof result === "string" && (hasError || resolvedResultType === "error")
+			? result
+			: "");
+	const advisorModel = rec ? asString(rec.advisor_model) : "";
+	const remainingUses = rec
+		? asNumber(rec.remaining_uses, { parseString: true })
+		: undefined;
+
+	return (
+		<AdvisorTool
+			question={question}
+			status={status}
+			isError={hasError}
+			resultType={resolvedResultType}
+			advice={advice}
+			errorMessage={errorMessage || undefined}
+			advisorModel={advisorModel || undefined}
+			remainingUses={remainingUses}
+		/>
+	);
+};
+
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -813,7 +863,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 						serverName={mcpServer?.display_name}
 					/>
 					{modelIntent ? (
-						<span className="truncate text-sm text-content-secondary">
+						<span className="truncate text-[13px]">
 							{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
 						</span>
 					) : (
@@ -827,7 +877,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Tool call failed"}
@@ -835,7 +885,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}
@@ -950,6 +1000,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	chat_summarized: ChatSummarizedRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
+	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 };
 
@@ -988,12 +1039,19 @@ export const Tool = memo(
 		return (
 			<div
 				ref={ref}
+				data-tool-call=""
 				className={cn(
 					name === "execute" ||
 						name === "process_output" ||
-						name === "propose_plan"
+						name === "propose_plan" ||
+						name === "advisor"
 						? "w-full py-0.5"
 						: "py-0.5",
+					// Collapse padding between adjacent tool calls so they hug.
+					// Bottom padding is removed on a tool followed by a tool, and
+					// top padding is removed on a tool preceded by a tool.
+					"[&:has(+[data-tool-call])]:pb-0",
+					"[[data-tool-call]+&]:pt-0",
 					className,
 				)}
 				{...props}

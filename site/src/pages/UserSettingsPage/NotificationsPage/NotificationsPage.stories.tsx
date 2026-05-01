@@ -60,6 +60,7 @@ export const Default: Story = {
 
 		await Promise.all([
 			// System notification templates
+			canvas.findByRole("switch", { name: "Chat Events" }),
 			canvas.findByRole("switch", { name: "Task Events" }),
 			canvas.findByRole("switch", { name: "Template Events" }),
 			canvas.findByRole("switch", { name: "User Events" }),

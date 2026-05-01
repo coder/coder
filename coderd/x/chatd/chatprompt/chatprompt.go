@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -35,192 +34,28 @@ var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
-// AnthropicProviderToolSanitizationStats describes prompt changes made
-// while removing unpaired Anthropic provider-executed tool calls.
-type AnthropicProviderToolSanitizationStats struct {
-	RemovedToolCalls int
-	DroppedMessages  int
+func safeAsToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	var zero fantasy.ToolCallPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolCallPart); ok && value == nil {
+		return zero, false
+	}
+	type toolCallPart = fantasy.ToolCallPart
+	return fantasy.AsMessagePart[toolCallPart](part)
 }
 
-// LogAnthropicProviderToolSanitization logs prompt changes made while removing
-// unpaired Anthropic provider-executed tool calls.
-func LogAnthropicProviderToolSanitization(
-	ctx context.Context,
-	logger slog.Logger,
-	phase string,
-	provider string,
-	modelName string,
-	stats AnthropicProviderToolSanitizationStats,
-	extra ...slog.Field,
-) {
-	if stats.RemovedToolCalls == 0 {
-		return
+func safeAsToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	var zero fantasy.ToolResultPart
+	if part == nil {
+		return zero, false
 	}
-	fields := []slog.Field{
-		slog.F("phase", phase),
-		slog.F("tool_type", "provider_executed"),
-		slog.F("provider", provider),
-		slog.F("model", modelName),
-		slog.F("removed_tool_calls", stats.RemovedToolCalls),
-		slog.F("dropped_messages", stats.DroppedMessages),
+	if value, ok := part.(*fantasy.ToolResultPart); ok && value == nil {
+		return zero, false
 	}
-	fields = append(fields, extra...)
-	logger.Warn(ctx, "removed unpaired provider-executed tool calls", fields...)
-}
-
-// SanitizeAnthropicProviderToolCalls removes Anthropic provider-executed
-// calls that do not have a same-message provider result.
-func SanitizeAnthropicProviderToolCalls(
-	provider string,
-	messages []fantasy.Message,
-) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
-	var stats AnthropicProviderToolSanitizationStats
-	if provider != fantasyanthropic.Name || len(messages) == 0 {
-		return messages, stats
-	}
-
-	out := make([]fantasy.Message, 0, len(messages))
-	changed := false
-	for _, msg := range messages {
-		if msg.Role != fantasy.MessageRoleAssistant {
-			out = appendSanitizedMessage(out, msg)
-			continue
-		}
-
-		matchedResultIDs := make(map[string]struct{})
-		for _, part := range msg.Content {
-			result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
-			if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
-				continue
-			}
-			matchedResultIDs[result.ToolCallID] = struct{}{}
-		}
-
-		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
-		removedFromMessage := 0
-		for _, part := range msg.Content {
-			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
-			if ok && toolCall.ProviderExecuted {
-				if _, hasResult := matchedResultIDs[toolCall.ToolCallID]; !hasResult {
-					stats.RemovedToolCalls++
-					removedFromMessage++
-					changed = true
-					continue
-				}
-			}
-			parts = append(parts, part)
-		}
-
-		if removedFromMessage > 0 {
-			if len(parts) == 0 {
-				stats.DroppedMessages++
-				continue
-			}
-			msg.Content = parts
-		}
-		out = appendSanitizedMessage(out, msg)
-	}
-	if !changed {
-		return messages, stats
-	}
-	return out, stats
-}
-
-func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
-	if len(out) == 0 || out[len(out)-1].Role != msg.Role {
-		return append(out, msg)
-	}
-
-	last := &out[len(out)-1]
-	lastContent := applyMessageProviderOptionsToLastPart(last.Content, last.ProviderOptions)
-	msgContent := applyMessageProviderOptionsToLastPart(msg.Content, msg.ProviderOptions)
-	content := make([]fantasy.MessagePart, 0, len(lastContent)+len(msgContent))
-	content = append(content, lastContent...)
-	content = append(content, msgContent...)
-	last.Content = content
-	last.ProviderOptions = nil
-	return out
-}
-
-func applyMessageProviderOptionsToLastPart(
-	parts []fantasy.MessagePart,
-	options fantasy.ProviderOptions,
-) []fantasy.MessagePart {
-	if len(options) == 0 || len(parts) == 0 {
-		return parts
-	}
-
-	out := make([]fantasy.MessagePart, len(parts))
-	copy(out, parts)
-	lastIndex := len(out) - 1
-	switch part := out[lastIndex].(type) {
-	case fantasy.TextPart:
-		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
-		out[lastIndex] = part
-	case *fantasy.TextPart:
-		if part != nil {
-			clone := *part
-			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
-			out[lastIndex] = &clone
-		}
-	case fantasy.ReasoningPart:
-		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
-		out[lastIndex] = part
-	case *fantasy.ReasoningPart:
-		if part != nil {
-			clone := *part
-			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
-			out[lastIndex] = &clone
-		}
-	case fantasy.FilePart:
-		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
-		out[lastIndex] = part
-	case *fantasy.FilePart:
-		if part != nil {
-			clone := *part
-			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
-			out[lastIndex] = &clone
-		}
-	case fantasy.ToolCallPart:
-		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
-		out[lastIndex] = part
-	case *fantasy.ToolCallPart:
-		if part != nil {
-			clone := *part
-			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
-			out[lastIndex] = &clone
-		}
-	case fantasy.ToolResultPart:
-		part.ProviderOptions = mergeProviderOptions(part.ProviderOptions, options)
-		out[lastIndex] = part
-	case *fantasy.ToolResultPart:
-		if part != nil {
-			clone := *part
-			clone.ProviderOptions = mergeProviderOptions(clone.ProviderOptions, options)
-			out[lastIndex] = &clone
-		}
-	}
-	return out
-}
-
-func mergeProviderOptions(first, second fantasy.ProviderOptions) fantasy.ProviderOptions {
-	if len(first) == 0 {
-		return second
-	}
-	if len(second) == 0 {
-		return first
-	}
-
-	merged := make(fantasy.ProviderOptions, len(first)+len(second))
-	for provider, options := range first {
-		merged[provider] = options
-	}
-	for provider, options := range second {
-		if options != nil {
-			merged[provider] = options
-		}
-	}
-	return merged
+	type toolResultPart = fantasy.ToolResultPart
+	return fantasy.AsMessagePart[toolResultPart](part)
 }
 
 // FileData holds resolved file content for LLM prompt building.
@@ -764,7 +599,7 @@ func normalizeAssistantToolCallInputs(
 ) []fantasy.MessagePart {
 	normalized := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
-		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		toolCall, ok := safeAsToolCallPart(part)
 		if !ok {
 			normalized = append(normalized, part)
 			continue
@@ -797,7 +632,7 @@ func normalizeToolCallInput(input string) string {
 func ExtractToolCalls(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
 	toolCalls := make([]fantasy.ToolCallContent, 0, len(parts))
 	for _, part := range parts {
-		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		toolCall, ok := safeAsToolCallPart(part)
 		if !ok {
 			continue
 		}
@@ -1148,7 +983,7 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 				break
 			}
 			for _, part := range prompt[j].Content {
-				tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+				tr, ok := safeAsToolResultPart(part)
 				if !ok {
 					continue
 				}
@@ -1205,7 +1040,7 @@ func injectMissingToolUses(
 
 		allToolResults := make([]fantasy.ToolResultPart, 0, len(msg.Content))
 		for _, part := range msg.Content {
-			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			toolResult, ok := safeAsToolResultPart(part)
 			if !ok {
 				continue
 			}

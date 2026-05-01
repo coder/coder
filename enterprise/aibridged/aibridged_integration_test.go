@@ -438,13 +438,13 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	metrics := aibridge.NewMetrics(registry)
 
-	// Set up mock OpenAI server that always returns 429 Too Many Requests.
+	// Set up mock OpenAI server that always returns 503 Service Unavailable.
 	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// Disable SDK retries.
 		w.Header().Set("x-should-retry", "false")
-		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = w.Write([]byte(`{"error":{"type":"rate_limit_error","message":"rate limited","code":"rate_limit_exceeded"}}`))
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":{"message":"Service Unavailable.","type":"cf_service_unavailable","code":503}}`))
 	}))
 	t.Cleanup(mockOpenAI.Close)
 

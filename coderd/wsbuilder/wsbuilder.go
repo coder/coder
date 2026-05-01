@@ -17,6 +17,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -59,6 +60,7 @@ type Builder struct {
 	deploymentValues *codersdk.DeploymentValues
 	experiments      codersdk.Experiments
 	usageChecker     UsageChecker
+	logger           slog.Logger
 
 	richParameterValues     []codersdk.WorkspaceBuildParameter
 	initiator               uuid.UUID
@@ -192,6 +194,12 @@ func (b Builder) Experiments(exp codersdk.Experiments) Builder {
 	cpy := make(codersdk.Experiments, len(exp))
 	copy(cpy, exp)
 	b.experiments = cpy
+	return b
+}
+
+func (b Builder) Logger(log slog.Logger) Builder {
+	// nolint: revive
+	b.logger = log
 	return b
 }
 
@@ -759,6 +767,7 @@ func (b *Builder) getDynamicParameterRenderer() (dynamicparameters.Renderer, err
 		dynamicparameters.WithProvisionerJob(*job),
 		dynamicparameters.WithTerraformValues(*tfVals),
 		dynamicparameters.WithTemplateVariableValues(variableValues),
+		dynamicparameters.WithLogger(b.logger.Named("dynamicparameters")),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version renderer: %w", err)
@@ -884,10 +893,16 @@ func (b *Builder) getDynamicParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to check if first build", err}
 	}
 
+	// Don't let missing secrets block stop or delete.
+	var resolveOpts []dynamicparameters.ResolveOption
+	if b.trans != database.WorkspaceTransitionStart {
+		resolveOpts = append(resolveOpts, dynamicparameters.SkipSecretRequirements())
+	}
 	buildValues, err := dynamicparameters.ResolveParameters(b.ctx, b.workspace.OwnerID, render, firstBuild,
 		lastBuildParameters,
 		b.richParameterValues,
-		presetParameterValues)
+		presetParameterValues,
+		resolveOpts...)
 	if err != nil {
 		return nil, nil, BuildError{http.StatusBadRequest, "resolve parameters", err}
 	}
@@ -1123,13 +1138,13 @@ func (b *Builder) getDynamicProvisionerTags() (map[string]string, error) {
 		vals[name] = values[i]
 	}
 
-	output, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
-	tagErr := dynamicparameters.CheckTags(output, diags)
+	result, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
+	tagErr := dynamicparameters.CheckTags(result.Output, diags)
 	if tagErr != nil {
 		return nil, BuildError{http.StatusBadRequest, "workspace tags validation failed", tagErr}
 	}
 
-	for k, v := range output.WorkspaceTags.Tags() {
+	for k, v := range result.Output.WorkspaceTags.Tags() {
 		tags[k] = v
 	}
 

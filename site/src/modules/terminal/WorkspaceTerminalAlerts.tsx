@@ -195,7 +195,7 @@ const RefreshSessionButton: FC = () => {
 			size="sm"
 			onClick={() => {
 				setIsRefreshing(true);
-				window.location.reload();
+				location.reload();
 			}}
 		>
 			<RefreshCwIcon className={cn(isRefreshing && "animate-spin")} />

@@ -21,10 +21,6 @@ type Anthropic struct {
 	// with a access token. When set, the access token is used for upstream
 	// LLM requests instead of the API key.
 	BYOKBearerToken string
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 type AWSBedrock struct {
@@ -46,10 +42,6 @@ type OpenAI struct {
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
 	ExtraHeaders     map[string]string
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 type Copilot struct {
@@ -58,10 +50,6 @@ type Copilot struct {
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 // CircuitBreaker holds configuration for circuit breakers.

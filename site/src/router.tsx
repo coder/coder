@@ -662,7 +662,10 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
-						<Route index element={<Navigate to="request-logs" replace />} />
+						<Route
+							index
+							element={<Navigate to="/aibridge/sessions" replace />}
+						/>
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
 					</Route>
 
