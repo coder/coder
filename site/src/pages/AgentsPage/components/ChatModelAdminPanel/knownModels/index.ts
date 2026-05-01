@@ -1,10 +1,9 @@
 import { normalizeProvider } from "../helpers";
 import { anthropicKnownModels } from "./anthropic";
 import { openAIKnownModels } from "./openai";
+import type { KnownModel, KnownModelSourceMetadata } from "./types";
 
-export type { KnownModel, KnownModelSourceMetadata } from "./types";
-
-import type { KnownModel } from "./types";
+export type { KnownModel, KnownModelSourceMetadata };
 
 const knownModelsByProvider = {
 	anthropic: anthropicKnownModels,

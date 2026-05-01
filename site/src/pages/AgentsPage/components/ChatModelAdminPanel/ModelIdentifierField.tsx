@@ -103,10 +103,8 @@ export const ModelIdentifierField = ({
 	const hasError = Boolean(modelField.error);
 	const errorId = hasError ? `${modelField.id}-error` : undefined;
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Provider reset.
 	useEffect(() => {
-		// This reset is keyed to provider changes even though the reset logic
-		// does not need the provider value itself.
-		void normalizedProvider;
 		setFeedback(null);
 		lastAppliedProviderModelRef.current = null;
 		justSelectedRef.current = false;

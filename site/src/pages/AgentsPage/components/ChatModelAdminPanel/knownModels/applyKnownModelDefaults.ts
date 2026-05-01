@@ -1,4 +1,4 @@
-import { snakeToCamel, toFormFieldKey } from "#/api/chatModelOptions";
+import { toFormFieldKey } from "#/api/chatModelOptions";
 import {
 	deepGet,
 	deepSet,
@@ -7,10 +7,6 @@ import {
 import { pricingFieldNameList } from "../pricingFields";
 import type { KnownModel } from "./types";
 
-// This helper preserves any field that has drifted from the form's initial
-// value. It writes advisory Known Model defaults only when the current leaf
-// value still strictly equals that same leaf path in initialValues, because
-// this pure helper deliberately does not depend on Formik touched state.
 export type ApplyKnownModelDefaultsResult = {
 	values: ModelFormValues;
 	appliedFields: readonly string[];
@@ -63,6 +59,8 @@ const maybeApplyDefault = ({
 	appliedFields.push(path);
 };
 
+// Writes Known Model defaults only to fields still at their initial value;
+// never overrides user edits. Pure helper independent of Formik touched state.
 export const applyKnownModelDefaults = ({
 	values,
 	initialValues,
@@ -108,13 +106,6 @@ export const applyKnownModelDefaults = ({
 			continue;
 		}
 		const path = toFormFieldKey("config", fieldName);
-		const previousPath = `config.${fieldName
-			.split(".")
-			.map(snakeToCamel)
-			.join(".")}`;
-		if (path !== previousPath) {
-			throw new Error("pricing field form path must match legacy path");
-		}
 		maybeApplyDefault({
 			appliedFields,
 			initialValues,
