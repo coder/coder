@@ -4,6 +4,10 @@ import type { KnownModel } from "./types";
 // sync with the corresponding models.dev last_updated value for each model.
 // Coder currently persists flat pricing only. Tiered models.dev pricing,
 // such as context_over_200k, is intentionally omitted.
+//
+// The `reasoningEffort` value is editorial, not from models.dev. It reflects
+// the provider's documented default for reasoning-capable models in this
+// catalog and should be reviewed when the catalog is refreshed.
 export const anthropicKnownModels = [
 	{
 		provider: "anthropic",

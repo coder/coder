@@ -1300,10 +1300,32 @@ const expectPricingValue = async (
 	await expect(await body.findByLabelText(label)).toHaveValue(value);
 };
 
+const expectReasoningEffort = async (
+	body: ReturnType<typeof within>,
+	value: string,
+) => {
+	const reasoningEffortGroup = await body.findByRole("radiogroup", {
+		name: "Reasoning Effort",
+	});
+
+	if (value === "") {
+		for (const option of within(reasoningEffortGroup).getAllByRole("radio")) {
+			await expect(option).toHaveAttribute("aria-checked", "false");
+		}
+		return;
+	}
+
+	const label = value.charAt(0).toUpperCase() + value.slice(1);
+	await expect(
+		within(reasoningEffortGroup).getByRole("radio", { name: label }),
+	).toHaveAttribute("aria-checked", "true");
+};
+
 type OpenAIDefaultExpectations = {
 	modelIdentifier: string;
 	contextLimit: string;
 	maxCompletionTokens: string;
+	reasoningEffort: string;
 	inputCost: string;
 	outputCost: string;
 	cacheReadCost?: string;
@@ -1314,6 +1336,7 @@ const gpt55Defaults = {
 	modelIdentifier: "gpt-5.5",
 	contextLimit: "1050000",
 	maxCompletionTokens: "128000",
+	reasoningEffort: "medium",
 	inputCost: "5",
 	outputCost: "30",
 	cacheReadCost: "0.5",
@@ -1323,6 +1346,7 @@ const gpt55ProDefaults = {
 	modelIdentifier: "gpt-5.5-pro",
 	contextLimit: "1050000",
 	maxCompletionTokens: "128000",
+	reasoningEffort: "medium",
 	inputCost: "30",
 	outputCost: "180",
 } satisfies OpenAIDefaultExpectations;
@@ -1331,6 +1355,7 @@ const gpt54MiniDefaults = {
 	modelIdentifier: "gpt-5.4-mini",
 	contextLimit: "400000",
 	maxCompletionTokens: "128000",
+	reasoningEffort: "medium",
 	inputCost: "0.75",
 	outputCost: "4.5",
 	cacheReadCost: "0.075",
@@ -1359,6 +1384,7 @@ const expectOpenAIKnownModelDefaults = async (
 	await expect(
 		await body.findByLabelText(/Max Completion Tokens/i),
 	).toHaveValue(expectations.maxCompletionTokens);
+	await expectReasoningEffort(body, expectations.reasoningEffort);
 
 	await ensureCostTrackingOpen(body);
 	await expectPricingValue(body, /^Input$/i, expectations.inputCost);
@@ -1592,6 +1618,23 @@ export const OpenAIKnownModelSequentialSelectionReplacesDefaults: Story = {
 		await expectPricingValue(body, /^Output$/i, "4.5");
 	},
 };
+
+export const OpenAIKnownModelReasoningEffortClearsForNonReasoningModel: Story =
+	{
+		...providerFormSetup("openai", "OpenAI"),
+		name: "Add mode / DEREM-31: reasoningEffort clears when switching to non-reasoning model",
+		play: async ({ canvasElement }) => {
+			const body = within(canvasElement.ownerDocument.body);
+			await openAddModelForm(body, "OpenAI");
+
+			await selectKnownModel(body, "gpt-5.5");
+			await ensureProviderConfigurationOpen(body);
+			await expectReasoningEffort(body, "medium");
+
+			await selectKnownModel(body, "gpt-5.4");
+			await expectReasoningEffort(body, "");
+		},
+	};
 
 export const OpenAIKnownModelStaleCostFieldDoesNotPersist: Story = {
 	...providerFormSetup("openai", "OpenAI"),
