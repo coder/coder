@@ -6,7 +6,7 @@ import {
 	useRouteError,
 } from "react-router";
 import { Button } from "#/components/Button/Button";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Link } from "#/components/Link/Link";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 
@@ -37,7 +37,7 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 
 			<main className="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
 				<div className="flex gap-2 flex-col items-center">
-					<CoderIcon className="w-11 h-11" />
+					<ProductLogo />
 
 					<div className="text-content-primary flex flex-col gap-1">
 						<h1 className="text-2xl font-semibold m-0">{errorPageTitle}</h1>

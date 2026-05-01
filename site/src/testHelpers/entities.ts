@@ -1009,7 +1009,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	},
 	connection_timeout_seconds: 120,
 	troubleshooting_url: "https://coder.com/troubleshoot",
-	lifecycle_state: "starting",
+	lifecycle_state: "ready",
 	logs_length: 0,
 	logs_overflowed: false,
 	log_sources: [MockWorkspaceAgentLogSource],
@@ -1565,7 +1565,16 @@ export const MockFavoriteWorkspace: TypesGen.Workspace = {
 export const MockStoppedWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-stopped-workspace",
-	latest_build: { ...MockWorkspaceBuildStop, status: "stopped" },
+	latest_build: {
+		...MockWorkspaceBuildStop,
+		status: "stopped",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
+	},
 };
 export const MockStoppingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1574,6 +1583,12 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildStop,
 		job: MockRunningProvisionerJob,
 		status: "stopping",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 export const MockUnhealthyWorkspace: TypesGen.Workspace = {
@@ -1598,6 +1613,12 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
 		job: MockRunningProvisionerJob,
 		transition: "start",
 		status: "starting",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentStarting],
+			},
+		],
 	},
 };
 export const MockCancelingWorkspace: TypesGen.Workspace = {
@@ -1607,6 +1628,12 @@ export const MockCancelingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockCancelingProvisionerJob,
 		status: "canceling",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 export const MockCanceledWorkspace: TypesGen.Workspace = {
@@ -1616,6 +1643,12 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockCanceledProvisionerJob,
 		status: "canceled",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
 	},
 };
 export const MockFailedWorkspace: TypesGen.Workspace = {
@@ -1625,6 +1658,12 @@ export const MockFailedWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockFailedProvisionerJob,
 		status: "failed",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentStartError],
+			},
+		],
 	},
 };
 export const MockDeletingWorkspace: TypesGen.Workspace = {
@@ -1634,6 +1673,12 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildDelete,
 		job: MockRunningProvisionerJob,
 		status: "deleting",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 
@@ -1645,7 +1690,16 @@ const MockWorkspaceWithDeletion = {
 export const MockDeletedWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-deleted-workspace",
-	latest_build: { ...MockWorkspaceBuildDelete, status: "deleted" },
+	latest_build: {
+		...MockWorkspaceBuildDelete,
+		status: "deleted",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
+	},
 };
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = {
@@ -1717,6 +1771,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 		job: MockPendingProvisionerJob,
 		transition: "start",
 		status: "pending",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentConnecting],
+			},
+		],
 	},
 };
 

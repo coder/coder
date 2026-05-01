@@ -210,7 +210,6 @@ export default defineConfig({
 			"@mui/material/styles",
 			"@mui/system/createTheme",
 			"@mui/system/useTheme",
-			"@mui/x-tree-view",
 			// Discovered at runtime without this entry, triggering
 			// a mid-run dep re-optimization that breaks imports.
 			"@tanstack/react-query-devtools",

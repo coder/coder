@@ -1815,35 +1815,16 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
 
 	// Seed minimal dependencies for the DB round-trip path:
 	// user, provider, model config, chat.
 	user := dbgen.User(t, db, database.User{})
 
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "openai",
-		APIKey:               "test-key",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
+	dbgen.ChatProvider(t, db, database.ChatProvider{})
 
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		IsDefault: true,
 	})
-	require.NoError(t, err)
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -1851,15 +1832,12 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             "nul-roundtrip-test",
 	})
-	require.NoError(t, err)
 
 	textTests := []struct {
 		name   string
@@ -1945,31 +1923,17 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 			// Full DB round-trip: write to PostgreSQL jsonb, read
 			// back, and verify the value survives storage.
 			ctx := testutil.Context(t, testutil.WaitShort)
-			dbMsgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-				ChatID:              chat.ID,
-				CreatedBy:           []uuid.UUID{user.ID},
-				ModelConfigID:       []uuid.UUID{model.ID},
-				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-				Content:             []string{string(encoded.RawMessage)},
-				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-				InputTokens:         []int64{0},
-				OutputTokens:        []int64{0},
-				TotalTokens:         []int64{0},
-				ReasoningTokens:     []int64{0},
-				CacheCreationTokens: []int64{0},
-				CacheReadTokens:     []int64{0},
-				ContextLimit:        []int64{0},
-				Compressed:          []bool{false},
-				TotalCostMicros:     []int64{0},
-				RuntimeMs:           []int64{0},
+			dbMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:         chat.ID,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+				Role:           database.ChatMessageRoleAssistant,
+				Content:        encoded,
+				ContentVersion: chatprompt.CurrentContentVersion,
 			})
-			require.NoError(t, err)
-			require.Len(t, dbMsgs, 1)
 
-			readBack, err := db.GetChatMessageByID(ctx, dbMsgs[0].ID)
+			readBack, err := db.GetChatMessageByID(ctx, dbMsg.ID)
 			require.NoError(t, err)
-
 			dbDecoded, err := chatprompt.ParseContent(readBack)
 			require.NoError(t, err)
 			require.Len(t, dbDecoded, 1)
@@ -2392,29 +2356,16 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "anthropic",
-		DisplayName:          "anthropic",
-		APIKey:               "test-key",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "anthropic",
 	})
-	require.NoError(t, err)
 
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "anthropic",
-		Model:                "test-model",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         200000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "anthropic",
+		Model:        "test-model",
+		IsDefault:    true,
+		ContextLimit: 200000,
 	})
-	require.NoError(t, err)
 
 	// Small base64 payload standing in for a real screenshot.
 	const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
@@ -2429,15 +2380,12 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	) database.Chat {
 		t.Helper()
 
-		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           user.ID,
 			LastModelConfigID: model.ID,
 			Title:             "media-roundtrip-" + callID,
 		})
-		require.NoError(t, chatErr)
 
 		// Assistant message with the tool call.
 		callPart := codersdk.ChatMessageToolCall(callID, toolName, json.RawMessage(`{}`))
@@ -2448,26 +2396,22 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		resultEncoded, encErr := chatprompt.MarshalParts(resultParts)
 		require.NoError(t, encErr)
 
-		_, insertErr := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{user.ID, user.ID},
-			ModelConfigID:       []uuid.UUID{model.ID, model.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
-			Content:             []string{string(assistantEncoded.RawMessage), string(resultEncoded.RawMessage)},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{0, 0},
-			OutputTokens:        []int64{0, 0},
-			TotalTokens:         []int64{0, 0},
-			ReasoningTokens:     []int64{0, 0},
-			CacheCreationTokens: []int64{0, 0},
-			CacheReadTokens:     []int64{0, 0},
-			ContextLimit:        []int64{0, 0},
-			Compressed:          []bool{false, false},
-			TotalCostMicros:     []int64{0, 0},
-			RuntimeMs:           []int64{0, 0},
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:         chat.ID,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        assistantEncoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
 		})
-		require.NoError(t, insertErr)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:         chat.ID,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           database.ChatMessageRoleTool,
+			Content:        resultEncoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		})
 		return chat
 	}
 
