@@ -74,6 +74,8 @@ export const ModelIdentifierField = ({
 	const [open, setOpen] = useState(false);
 	const [searchValue, setSearchValue] = useState("");
 	const [feedback, setFeedback] = useState<string | null>(null);
+	// Mirror of `open` for synchronous reads from blur handlers; React state may not have committed when Radix shifts focus on open.
+	const openRef = useRef(false);
 	const searchValueRef = useRef("");
 	const searchDirtyRef = useRef(false);
 	const justSelectedRef = useRef(false);
@@ -274,6 +276,7 @@ export const ModelIdentifierField = ({
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (nextOpen) {
+			openRef.current = true;
 			setSearchSnapshot(currentModel);
 			searchDirtyRef.current = false;
 			closeIntentRef.current = null;
@@ -281,6 +284,7 @@ export const ModelIdentifierField = ({
 			return;
 		}
 
+		openRef.current = false;
 		setOpen(false);
 		markTouched();
 
@@ -320,7 +324,7 @@ export const ModelIdentifierField = ({
 	};
 
 	const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-		if (open) {
+		if (openRef.current) {
 			return;
 		}
 

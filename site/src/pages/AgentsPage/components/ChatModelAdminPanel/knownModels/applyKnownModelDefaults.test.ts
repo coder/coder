@@ -255,7 +255,23 @@ describe("applyKnownModelDefaults", () => {
 		expect(result.appliedFields).not.toContain("compressionThreshold");
 	});
 
-	it("does not set OpenAI reasoning fields", () => {
+	it("does not set OpenAI reasoning fields without catalog defaults", () => {
+		const result = applyDefaults({
+			values: buildInitialModelFormValues(),
+			initialValues: buildInitialModelFormValues(),
+			provider: "openai",
+			knownModel: requireKnownModel("openai", "gpt-5.4"),
+		});
+
+		expect(getPath(result.values, "config.openai.reasoningEffort")).toBe("");
+		expect(getPath(result.values, "config.openai.reasoningSummary")).toBe("");
+		expect(result.appliedFields).not.toContain("config.openai.reasoningEffort");
+		expect(result.appliedFields).not.toContain(
+			"config.openai.reasoningSummary",
+		);
+	});
+
+	it("sets OpenAI reasoning effort for reasoning-capable catalog entries", () => {
 		const result = applyDefaults({
 			values: buildInitialModelFormValues(),
 			initialValues: buildInitialModelFormValues(),
@@ -263,9 +279,11 @@ describe("applyKnownModelDefaults", () => {
 			knownModel: requireKnownModel("openai", "gpt-5.5"),
 		});
 
-		expect(getPath(result.values, "config.openai.reasoningEffort")).toBe("");
+		expect(getPath(result.values, "config.openai.reasoningEffort")).toBe(
+			"medium",
+		);
 		expect(getPath(result.values, "config.openai.reasoningSummary")).toBe("");
-		expect(result.appliedFields).not.toContain("config.openai.reasoningEffort");
+		expect(result.appliedFields).toContain("config.openai.reasoningEffort");
 		expect(result.appliedFields).not.toContain(
 			"config.openai.reasoningSummary",
 		);

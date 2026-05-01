@@ -11,6 +11,7 @@ export type KnownModel = {
 	aliases: readonly string[];
 	contextLimit?: number;
 	maxOutputTokens?: number;
+	reasoningEffort?: "low" | "medium" | "high";
 	/** USD per million tokens. Flat base rate from models.dev. */
 	inputCost?: number;
 	outputCost?: number;

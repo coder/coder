@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getKnownModelsForProvider } from "./index";
+import { getKnownModelsForProvider, type KnownModel } from "./index";
 import { openAIKnownModels } from "./openai";
 
 describe("openAIKnownModels", () => {
@@ -16,6 +16,25 @@ describe("openAIKnownModels", () => {
 			"gpt-5.4-nano",
 			"gpt-5.3-codex",
 		]);
+	});
+
+	it("declares reasoning effort only for reasoning-capable models", () => {
+		const knownModels: readonly KnownModel[] = openAIKnownModels;
+		const reasoningEffortByModel = Object.fromEntries(
+			knownModels.map((knownModel) => [
+				knownModel.modelIdentifier,
+				knownModel.reasoningEffort,
+			]),
+		);
+
+		expect(reasoningEffortByModel).toEqual({
+			"gpt-5.5": "medium",
+			"gpt-5.5-pro": "medium",
+			"gpt-5.4": undefined,
+			"gpt-5.4-mini": "medium",
+			"gpt-5.4-nano": undefined,
+			"gpt-5.3-codex": "medium",
+		});
 	});
 
 	it("has source metadata, provider equality, and declared order", () => {

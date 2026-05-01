@@ -1500,6 +1500,22 @@ export const OpenAIKnownModelDoesNotPreFireRequiredError: Story = {
 	},
 };
 
+export const OpenAIKnownModelOpenDoesNotFlashInvalidBorder: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	name: "Add mode / DEREM-31: open does not flash invalid border on trigger",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+
+		const trigger = await body.findByLabelText(/Model Identifier/i);
+		await openKnownModelPopover(body);
+
+		expect([null, "false"]).toContain(trigger.getAttribute("aria-invalid"));
+		expect(trigger).not.toHaveClass("border-content-destructive");
+		expect(body.queryByText("Model ID is required.")).not.toBeInTheDocument();
+	},
+};
+
 export const OpenAIKnownModelEscapeCancelsSearch: Story = {
 	...providerFormSetup("openai", "OpenAI"),
 	name: "Add mode / DEREM-5: Escape cancels and preserves committed value",

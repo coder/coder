@@ -99,6 +99,19 @@ export const applyKnownModelDefaults = ({
 		});
 	}
 
+	if (provider === "openai" && knownModel.reasoningEffort !== undefined) {
+		// OpenAI gates this field under provider-specific config. Other
+		// providers use different reasoning controls.
+		maybeApplyDefault({
+			appliedFields,
+			initialValues,
+			nextValues,
+			path: "config.openai.reasoningEffort",
+			value: knownModel.reasoningEffort,
+			values,
+		});
+	}
+
 	for (const fieldName of pricingFieldNameList) {
 		const knownModelField = pricingModelFieldByName[fieldName];
 		const cost = knownModel[knownModelField];
