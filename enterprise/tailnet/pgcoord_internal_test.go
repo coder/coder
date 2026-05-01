@@ -76,6 +76,8 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().Until("heartbeats", "resetExpiryTimerWithLock")
 	defer trap.Close()
@@ -83,12 +85,12 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 	uut := heartbeats{
 		ctx:          ctx,
 		logger:       logger,
+		store:        mStore,
 		clock:        mClock,
 		self:         uuid.UUID{1},
 		update:       make(chan hbUpdate, 4),
 		coordinators: make(map[uuid.UUID]time.Time),
 	}
-
 	coord2 := uuid.UUID{2}
 	coord3 := uuid.UUID{3}
 
@@ -397,7 +399,7 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore, mClock)
 	require.NoError(t, err)

@@ -1061,44 +1061,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	PERFORM pg_notify('tailnet_coordinator_heartbeat', NEW.id::text);
-	RETURN NULL;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_peer_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_peer_update', OLD.id::text);
-		RETURN NULL;
-	END IF;
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_peer_update', NEW.id::text);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_tunnel_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_tunnel_update', NEW.src_id || ',' || NEW.dst_id);
-		RETURN NULL;
-	ELSIF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_tunnel_update', OLD.src_id || ',' || OLD.dst_id);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
     first_used_at timestamp with time zone NOT NULL,
@@ -4100,12 +4062,6 @@ CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
-
-CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
-
-CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
-
-CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
