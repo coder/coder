@@ -62,8 +62,8 @@ export const TasksSidebar: FC = () => {
 			<div className="p-3 flex flex-col gap-6">
 				<div className="flex items-center place-content-between">
 					{!isCollapsed && (
-						<Link to="/tasks" className="block">
-							<ProductLogo className="size-6" />
+						<Link to="/tasks">
+							<ProductLogo className="block size-6" />
 							<span className="sr-only">Navigate to tasks</span>
 						</Link>
 					)}
