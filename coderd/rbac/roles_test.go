@@ -1105,6 +1105,14 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "AiSeat",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
+			Resource: rbac.ResourceAiSeat,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				false: {owner, setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
+			},
+		},
+		{
 			Name:     "ChatUsageCRU",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),

@@ -13138,7 +13138,7 @@ const docTemplate = `{
                     ]
                 },
                 "circuit_breaker_enabled": {
-                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
+                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
                     "type": "boolean"
                 },
                 "circuit_breaker_failure_threshold": {
@@ -13802,6 +13802,9 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_seat:*",
+                "ai_seat:create",
+                "ai_seat:read",
                 "aibridge_interception:*",
                 "aibridge_interception:create",
                 "aibridge_interception:read",
@@ -14011,6 +14014,9 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiSeatAll",
+                "APIKeyScopeAiSeatCreate",
+                "APIKeyScopeAiSeatRead",
                 "APIKeyScopeAibridgeInterceptionAll",
                 "APIKeyScopeAibridgeInterceptionCreate",
                 "APIKeyScopeAibridgeInterceptionRead",
@@ -16265,12 +16271,10 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "oauth2",
-                "agents",
                 "mcp-server-http",
                 "workspace-build-updates"
             ],
             "x-enum-comments": {
-                "ExperimentAgents": "Enables agent-powered chat functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -16285,7 +16289,6 @@ const docTemplate = `{
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
-                "Enables agent-powered chat functionality.",
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel."
             ],
@@ -16295,7 +16298,6 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentOAuth2",
-                "ExperimentAgents",
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates"
             ]
@@ -19483,6 +19485,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_seat",
                 "aibridge_interception",
                 "api_key",
                 "assign_org_role",
@@ -19529,6 +19532,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
                 "ResourceAssignOrgRole",

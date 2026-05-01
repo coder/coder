@@ -8,6 +8,10 @@ import type { RBACAction, RBACResource } from "./typesGenerated";
 export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
+	ai_seat: {
+		create: "record AI seat usage",
+		read: "read AI seat state",
+	},
 	aibridge_interception: {
 		create: "create aibridge interceptions & related records",
 		read: "read aibridge interceptions & related records",

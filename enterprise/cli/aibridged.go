@@ -110,12 +110,18 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 		if name == "" {
 			name = p.Type
 		}
+		// Currently, only the first key is used, if any.
+		// TODO(ssncferreira): pass a keypool.Pool instead.
+		var key string
+		if len(p.Keys) > 0 {
+			key = p.Keys[0]
+		}
 		switch p.Type {
 		case aibridge.ProviderOpenAI:
 			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              p.Key,
+				Key:              key,
 				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
@@ -124,7 +130,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 			providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              p.Key,
+				Key:              key,
 				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
@@ -148,14 +154,23 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 // AIBridgeProviderConfig into an aibridge AWSBedrockConfig.
 // Returns nil if no Bedrock fields are set.
 func bedrockConfigFromProvider(p codersdk.AIBridgeProviderConfig) *aibridge.AWSBedrockConfig {
-	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && p.BedrockAccessKey == "" && p.BedrockAccessKeySecret == "" {
+	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && len(p.BedrockAccessKeys) == 0 && len(p.BedrockAccessKeySecrets) == 0 {
 		return nil
+	}
+	// Currently, only the first key pair is used, if any.
+	// TODO(ssncferreira): pass a keypool.Pool instead.
+	var accessKey, accessKeySecret string
+	if len(p.BedrockAccessKeys) > 0 {
+		accessKey = p.BedrockAccessKeys[0]
+	}
+	if len(p.BedrockAccessKeySecrets) > 0 {
+		accessKeySecret = p.BedrockAccessKeySecrets[0]
 	}
 	return &aibridge.AWSBedrockConfig{
 		BaseURL:         p.BedrockBaseURL,
 		Region:          p.BedrockRegion,
-		AccessKey:       p.BedrockAccessKey,
-		AccessKeySecret: p.BedrockAccessKeySecret,
+		AccessKey:       accessKey,
+		AccessKeySecret: accessKeySecret,
 		Model:           p.BedrockModel,
 		SmallFastModel:  p.BedrockSmallFastModel,
 	}

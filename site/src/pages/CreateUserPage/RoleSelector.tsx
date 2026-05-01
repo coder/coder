@@ -5,6 +5,7 @@ import type { AssignableRoles } from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { cn } from "#/utils/cn";
 
 const roleDescriptions: Record<string, string> = {
 	owner:
@@ -33,9 +34,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	error,
 }) => {
 	const baseId = useId();
-	const selectableRoles = roles.filter(
-		(r) => r.assignable && r.name !== "member",
-	);
+	const selectableRoles = roles.filter((r) => r.name !== "member");
 
 	const handleToggle = (roleName: string) => {
 		if (selectedRoles.includes(roleName)) {
@@ -98,12 +97,18 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 								<label
 									key={role.name}
 									htmlFor={checkboxId}
-									className="flex items-start gap-2 cursor-pointer"
+									className={cn(
+										"flex items-start gap-2",
+										role.assignable
+											? "cursor-pointer"
+											: "cursor-not-allowed opacity-50",
+									)}
 								>
 									<Checkbox
 										id={checkboxId}
 										checked={selectedRoles.includes(role.name)}
 										onCheckedChange={() => handleToggle(role.name)}
+										disabled={!role.assignable}
 										className="mt-1 shrink-0"
 									/>
 									<div className="flex flex-col">

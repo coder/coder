@@ -1,8 +1,11 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
+	chatAdvisorConfig,
 	chatDebugLogging,
 	chatDesktopEnabled,
+	chatModelConfigs,
+	updateChatAdvisorConfig,
 	updateChatDebugLogging,
 	updateChatDesktopEnabled,
 } from "#/api/queries/chats";
@@ -21,11 +24,22 @@ const AgentSettingsExperimentsPage: FC = () => {
 		...chatDebugLogging(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const advisorConfigQuery = useQuery({
+		...chatAdvisorConfig(),
+		enabled: permissions.editDeploymentConfig,
+	});
+	const modelConfigsQuery = useQuery({
+		...chatModelConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const saveDesktopEnabledMutation = useMutation(
 		updateChatDesktopEnabled(queryClient),
 	);
 	const saveDebugLoggingMutation = useMutation(
 		updateChatDebugLogging(queryClient),
+	);
+	const saveAdvisorConfigMutation = useMutation(
+		updateChatAdvisorConfig(queryClient),
 	);
 
 	return (
@@ -39,6 +53,18 @@ const AgentSettingsExperimentsPage: FC = () => {
 				onSaveDebugLogging={saveDebugLoggingMutation.mutate}
 				isSavingDebugLogging={saveDebugLoggingMutation.isPending}
 				isSaveDebugLoggingError={saveDebugLoggingMutation.isError}
+				advisorConfigData={advisorConfigQuery.data}
+				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
+				isAdvisorConfigFetching={advisorConfigQuery.isFetching}
+				isAdvisorConfigLoadError={advisorConfigQuery.isError}
+				modelConfigsData={modelConfigsQuery.data ?? []}
+				modelConfigsError={modelConfigsQuery.error}
+				isLoadingModelConfigs={modelConfigsQuery.isLoading}
+				isFetchingModelConfigs={modelConfigsQuery.isFetching}
+				onSaveAdvisorConfig={saveAdvisorConfigMutation.mutate}
+				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
+				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
+				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
 			/>
 		</RequirePermission>
 	);
