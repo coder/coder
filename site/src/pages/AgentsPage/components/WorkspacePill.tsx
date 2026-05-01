@@ -1,14 +1,9 @@
 import {
-	BuildingIcon,
 	ChevronDownIcon,
 	CopyIcon,
-	ExternalLinkIcon,
 	LayoutGridIcon,
-	LockIcon,
-	LockOpenIcon,
 	MonitorIcon,
 	NetworkIcon,
-	RadioIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -18,12 +13,11 @@ import { Link } from "react-router";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
+import { template as templateQuery } from "#/api/queries/templates";
 import { workspacePortShares } from "#/api/queries/workspaceportsharing";
 import type {
 	Workspace,
 	WorkspaceAgent,
-	WorkspaceAgentListeningPort,
-	WorkspaceAgentPortShare,
 	WorkspaceApp,
 } from "#/api/typesGenerated";
 import {
@@ -54,11 +48,9 @@ import {
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { PortForwardPopoverView } from "#/modules/resources/PortForwardButton";
 import { cn } from "#/utils/cn";
-import {
-	getWorkspaceListeningPortsProtocol,
-	portForwardURL,
-} from "#/utils/portForward";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 
 interface WorkspacePillProps {
@@ -220,11 +212,9 @@ const PortsSubMenuItem: FC<{
 	isOpen: boolean;
 	isRunning: boolean;
 }> = ({ workspace, agent, host, isOpen, isRunning }) => {
-	const route = `/@${workspace.owner_name}/${workspace.name}`;
 	const isConnected = agent.status === "connected";
 	const enabled = isOpen && isConnected;
-
-	const protocol = getWorkspaceListeningPortsProtocol(workspace.id);
+	const { entitlements } = useDashboard();
 
 	const { data: listeningPorts } = useQuery({
 		queryKey: ["portForward", agent.id],
@@ -235,19 +225,16 @@ const PortsSubMenuItem: FC<{
 		select: (res) => res.ports,
 	});
 
-	const { data: sharedPorts } = useQuery({
+	const { data: sharedPorts, refetch: refetchSharedPorts } = useQuery({
 		...workspacePortShares(workspace.id),
 		enabled,
 		staleTime: 0,
-		select: (res) => res.shares.filter((s) => s.agent_name === agent.name),
+		select: (res) => res.shares,
 	});
 
-	// Listening ports that haven't been explicitly shared appear in their own
-	// section; shared ports bubble up to the "Shared" section.
-	const sharedPortNumbers = new Set((sharedPorts ?? []).map((s) => s.port));
-	const privateListeningPorts = (listeningPorts ?? []).filter(
-		(p) => !sharedPortNumbers.has(p.port),
-	);
+	// Fetch the template for port-sharing controls. This is not gated on
+	// `enabled` so it is cached before the submenu opens.
+	const { data: template } = useQuery(templateQuery(workspace.template_id));
 
 	const totalCount =
 		listeningPorts !== undefined ? listeningPorts.length : undefined;
@@ -258,135 +245,29 @@ const PortsSubMenuItem: FC<{
 				<NetworkIcon className="size-3.5" />
 				{totalCount !== undefined ? `Ports (${totalCount})` : "Ports"}
 			</DropdownMenuSubTrigger>
-			<DropdownMenuSubContent className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5">
-				{/* Listening Ports header: only render when there are ports to list. */}
-				{privateListeningPorts.length > 0 && (
-					<div className="px-2 pb-1.5 pt-1">
-						<span className="text-xs font-semibold text-content-secondary">
-							Listening Ports
-						</span>
-					</div>
-				)}
-
-				{privateListeningPorts.map((port) => (
-					<ListeningPortItem
-						key={port.port}
-						port={port}
+			<DropdownMenuSubContent className="w-[404px] p-0 text-content-secondary bg-surface-secondary border-surface-quaternary">
+				{template ? (
+					<PortForwardPopoverView
 						host={host}
-						agentName={agent.name}
-						workspaceName={workspace.name}
-						ownerName={workspace.owner_name}
-						protocol={protocol}
+						agent={agent}
+						workspace={workspace}
+						template={template}
+						sharedPorts={sharedPorts ?? []}
+						listeningPorts={listeningPorts ?? []}
+						portSharingControlsEnabled={
+							entitlements.features.control_shared_ports.enabled
+						}
+						refetchSharedPorts={() => {
+							void refetchSharedPorts();
+						}}
 					/>
-				))}
-
-				{listeningPorts !== undefined &&
-					sharedPorts !== undefined &&
-					privateListeningPorts.length === 0 &&
-					sharedPorts.length === 0 && (
-						<p className="px-2 py-2 text-center text-xs text-content-tertiary">
-							No open ports detected.
-						</p>
-					)}
-
-				{/* Shared Ports */}
-				{(sharedPorts ?? []).length > 0 && (
-					<>
-						<DropdownMenuSeparator className="my-1" />
-						<div className="px-2 pb-1.5 pt-1">
-							<span className="text-xs font-semibold text-content-secondary">
-								Shared Ports
-							</span>
-						</div>
-						{(sharedPorts ?? []).map((share) => (
-							<SharedPortItem
-								key={share.port}
-								share={share}
-								host={host}
-								agentName={agent.name}
-								workspaceName={workspace.name}
-								ownerName={workspace.owner_name}
-							/>
-						))}
-					</>
+				) : (
+					<p className="px-4 py-3 text-center text-xs text-content-tertiary">
+						Loading...
+					</p>
 				)}
-
-				<DropdownMenuSeparator className="my-1" />
-				<DropdownMenuItem asChild>
-					<Link to={route} target="_blank" rel="noreferrer">
-						<ExternalLinkIcon className="size-3.5" />
-						Manage sharing
-					</Link>
-				</DropdownMenuItem>
 			</DropdownMenuSubContent>
 		</DropdownMenuSub>
-	);
-};
-
-const ListeningPortItem: FC<{
-	port: WorkspaceAgentListeningPort;
-	host: string;
-	agentName: string;
-	workspaceName: string;
-	ownerName: string;
-	protocol: "http" | "https";
-}> = ({ port, host, agentName, workspaceName, ownerName, protocol }) => {
-	const url = portForwardURL(
-		host,
-		port.port,
-		agentName,
-		workspaceName,
-		ownerName,
-		protocol,
-	);
-	return (
-		<DropdownMenuItem asChild>
-			<a href={url} target="_blank" rel="noreferrer">
-				<RadioIcon className="size-3.5 shrink-0" />
-				<span className="font-mono tabular-nums">{port.port}</span>
-				{port.process_name !== "" && (
-					<span className="truncate text-content-tertiary">
-						{port.process_name}
-					</span>
-				)}
-				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
-			</a>
-		</DropdownMenuItem>
-	);
-};
-
-const SharedPortItem: FC<{
-	share: WorkspaceAgentPortShare;
-	host: string;
-	agentName: string;
-	workspaceName: string;
-	ownerName: string;
-}> = ({ share, host, agentName, workspaceName, ownerName }) => {
-	const url = portForwardURL(
-		host,
-		share.port,
-		agentName,
-		workspaceName,
-		ownerName,
-		share.protocol,
-	);
-	const ShareIcon =
-		share.share_level === "public"
-			? LockOpenIcon
-			: share.share_level === "organization"
-				? BuildingIcon
-				: LockIcon;
-	return (
-		<DropdownMenuItem asChild>
-			<a href={url} target="_blank" rel="noreferrer">
-				<ShareIcon className="size-3.5 shrink-0" />
-				<span className="font-mono tabular-nums">{share.port}</span>
-				<span className="truncate capitalize text-content-tertiary">
-					{share.share_level}
-				</span>
-				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
-			</a>
-		</DropdownMenuItem>
 	);
 };
 
