@@ -291,6 +291,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware, api.RequireFeatureMW(codersdk.FeatureAIBridge)))
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
 	})
 

@@ -1483,6 +1483,10 @@
 							"path": "./reference/api/aibridge.md"
 						},
 						{
+							"title": "AI Providers",
+							"path": "./reference/api/aiproviders.md"
+						},
+						{
 							"title": "Agents",
 							"path": "./reference/api/agents.md"
 						},
