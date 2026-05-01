@@ -7,7 +7,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -277,7 +277,14 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					{addableProviders.length > 0 && addButton}
 					{addableProviders.length === 0 && (
 						<p className="m-0 text-xs text-content-secondary">
-							Connect a provider first to add models.
+							Connect a{" "}
+							<Link
+								to="/agents/settings/providers"
+								className="underline transition-colors hover:text-content-primary"
+							>
+								provider
+							</Link>{" "}
+							first to add models.
 						</p>
 					)}
 				</div>
