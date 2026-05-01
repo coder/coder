@@ -95,7 +95,7 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			"Provide a preset_id (from read_template) to apply "+
 			"preset parameters and potentially claim a prebuilt "+
 			"workspace for faster startup. "+
-			"This tool is idempotent — if the chat already has a "+
+			"This tool is idempotent. If the chat already has a "+
 			"workspace that is building or running, the existing "+
 			"workspace is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {

@@ -992,6 +992,34 @@ func TestTools(t *testing.T) {
 			require.Equal(t, "us-west-2", params[0].Value,
 				"preset parameter value must override conflicting rich_parameters entry")
 		})
+
+		t.Run("RejectsInvalidTemplateID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:       "me",
+				Name:       testutil.GetRandomNameHyphenated(t),
+				TemplateID: "not-a-uuid",
+			})
+			require.ErrorContains(t, err, "template_id must be a valid UUID")
+		})
+
+		t.Run("RejectsInvalidTemplateVersionID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:              "me",
+				Name:              testutil.GetRandomNameHyphenated(t),
+				TemplateVersionID: "not-a-uuid",
+			})
+			require.ErrorContains(t, err, "template_version_id must be a valid UUID")
+		})
+
+		t.Run("RejectsInvalidTemplateVersionPresetID", func(t *testing.T) {
+			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				User:                    "me",
+				Name:                    testutil.GetRandomNameHyphenated(t),
+				TemplateVersionID:       uuid.NewString(),
+				TemplateVersionPresetID: "not-a-uuid",
+			})
+			require.ErrorContains(t, err, "template_version_preset_id must be a valid UUID")
+		})
 	})
 
 	t.Run("WorkspaceSSHExec", func(t *testing.T) {
