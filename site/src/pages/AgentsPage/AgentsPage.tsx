@@ -38,7 +38,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
@@ -67,7 +66,6 @@ const AgentsPage: FC = () => {
 	const location = useLocation();
 	const { agentId } = useParams();
 	const { permissions } = useAuthenticated();
-	const { appearance } = useDashboard();
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
@@ -621,7 +619,6 @@ const AgentsPage: FC = () => {
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
 				isCreating={false}
 				isArchiving={isArchiving}

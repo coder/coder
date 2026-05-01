@@ -121,6 +121,28 @@ func (rt *Runtime) RemainingUses() int {
 	return int(remaining)
 }
 
+// MaxOutputTokens reports the resolved output-token cap applied to each
+// advisor call. NewRuntime validates that this value is positive and that
+// it matches ModelConfig.MaxOutputTokens when both are set, so the
+// accessor always returns the value the runtime will actually send.
+func (rt *Runtime) MaxOutputTokens() int64 {
+	if rt == nil {
+		return 0
+	}
+	return rt.cfg.MaxOutputTokens
+}
+
+// ProviderOptions reports the resolved provider options applied to each
+// advisor call. NewRuntime clones the supplied options so the returned
+// map reflects what nested calls will actually receive; callers must not
+// mutate the map or its entries.
+func (rt *Runtime) ProviderOptions() fantasy.ProviderOptions {
+	if rt == nil {
+		return nil
+	}
+	return rt.cfg.ProviderOptions
+}
+
 func (rt *Runtime) tryAcquire() bool {
 	for {
 		used := rt.used.Load()

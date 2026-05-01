@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -23,7 +23,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -62,17 +62,10 @@ export const TasksSidebar: FC = () => {
 			<div className="p-3 flex flex-col gap-6">
 				<div className="flex items-center place-content-between">
 					{!isCollapsed && (
-						<Button
-							size="icon"
-							variant="subtle"
-							className={cn(["size-8 p-0 transition-[margin,opacity]"])}
-							asChild
-						>
-							<RouterLink to="/tasks">
-								<CoderIcon className="fill-content-primary !size-6 !p-0" />
-								<span className="sr-only">Navigate to tasks</span>
-							</RouterLink>
-						</Button>
+						<Link to="/tasks">
+							<ProductLogo className="block size-6 m-1" />
+							<span className="sr-only">Navigate to tasks</span>
+						</Link>
 					)}
 
 					<TooltipProvider>
@@ -106,10 +99,10 @@ export const TasksSidebar: FC = () => {
 								asChild
 								className={cn({ "[&_svg]:p-0": isCollapsed })}
 							>
-								<RouterLink to="/tasks">
+								<Link to="/tasks">
 									<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
 									<EditIcon />
-								</RouterLink>
+								</Link>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="right" align="center">
@@ -233,7 +226,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 					},
 				)}
 			>
-				<RouterLink
+				<Link
 					to={{
 						pathname: `/tasks/${task.owner_name}/${task.id}`,
 						search: location.search,
@@ -306,7 +299,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 							</DropdownMenuGroup>
 						</DropdownMenuContent>
 					</DropdownMenu>
-				</RouterLink>
+				</Link>
 			</Button>
 
 			<TaskDeleteDialog

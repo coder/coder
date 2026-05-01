@@ -200,6 +200,10 @@ export const ToolLabel: React.FC<{
 			const filename = path.split("/").pop() || "PLAN.md";
 			return <span className="truncate text-[13px]">{filename}</span>;
 		}
+		case "advisor":
+			return (
+				<span className="truncate text-sm text-content-secondary">Advisor</span>
+			);
 		case "read_skill": {
 			const skillName = parsed ? asString(parsed.name) : "";
 			return (

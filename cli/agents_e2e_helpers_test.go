@@ -16,15 +16,14 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func expAgentsPtr[T any](v T) *T {
+func agentsPtr[T any](v T) *T {
 	return &v
 }
 
-func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.ExperimentalClient, uuid.UUID) {
+func setupAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.ExperimentalClient, uuid.UUID) {
 	t.Helper()
 
 	values := coderdtest.DeploymentValues(t)
-	values.Experiments = []string{string(codersdk.ExperimentAgents)}
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: values,
@@ -43,8 +42,8 @@ func setupExpAgentsBackend(t *testing.T) (*codersdk.Client, *codersdk.Experiment
 	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "gpt-4o-mini",
-		ContextLimit: expAgentsPtr(int64(4096)),
-		IsDefault:    expAgentsPtr(true),
+		ContextLimit: agentsPtr(int64(4096)),
+		IsDefault:    agentsPtr(true),
 	})
 	require.NoError(t, err)
 
@@ -68,59 +67,59 @@ func seedChat(t *testing.T, ctx context.Context, expClient *codersdk.Experimenta
 	return chat
 }
 
-type expAgentsSession struct {
+type agentsSession struct {
 	t     *testing.T
 	pty   *ptytest.PTY
 	errCh <-chan error
 }
 
-func (s *expAgentsSession) expect(ctx context.Context, text string) {
+func (s *agentsSession) expect(ctx context.Context, text string) {
 	s.t.Helper()
 	s.pty.ExpectMatchContext(ctx, text)
 }
 
-func (s *expAgentsSession) wait(ctx context.Context) error {
+func (s *agentsSession) wait(ctx context.Context) error {
 	s.t.Helper()
 	return testutil.RequireReceive(ctx, s.t, s.errCh)
 }
 
 //nolint:unused // Kept as a small PTY helper for future multi-character input.
-func (s *expAgentsSession) write(text string) {
+func (s *agentsSession) write(text string) {
 	s.t.Helper()
 	s.pty.WriteLine(text)
 }
 
-func (s *expAgentsSession) writeRune(r rune) {
+func (s *agentsSession) writeRune(r rune) {
 	s.t.Helper()
 	_, err := s.pty.Input().Write([]byte(string(r)))
 	require.NoError(s.t, err)
 }
 
-func (s *expAgentsSession) enter() {
+func (s *agentsSession) enter() {
 	s.t.Helper()
 	_, err := s.pty.Input().Write([]byte("\r"))
 	require.NoError(s.t, err)
 }
 
-func (s *expAgentsSession) esc() {
+func (s *agentsSession) esc() {
 	s.t.Helper()
 	_, err := s.pty.Input().Write([]byte("\x1b"))
 	require.NoError(s.t, err)
 }
 
-func (s *expAgentsSession) ctrlC() {
+func (s *agentsSession) ctrlC() {
 	s.t.Helper()
 	_, err := s.pty.Input().Write([]byte{3})
 	require.NoError(s.t, err)
 }
 
-func (s *expAgentsSession) quit() {
+func (s *agentsSession) quit() {
 	s.t.Helper()
 	s.writeRune('q')
 }
 
 //nolint:revive // Test helper signature keeps t first for consistency with other helpers.
-func startExpAgentsSession(t *testing.T, ctx context.Context, client *codersdk.Client, args ...string) *expAgentsSession {
+func startAgentsSession(t *testing.T, ctx context.Context, client *codersdk.Client, args ...string) *agentsSession {
 	t.Helper()
 
 	// Reading to / writing from the PTY is flaky on non-linux systems.
@@ -128,7 +127,7 @@ func startExpAgentsSession(t *testing.T, ctx context.Context, client *codersdk.C
 		t.Skip("skipping on non-linux")
 	}
 
-	fullArgs := append([]string{"exp", "agents"}, args...)
+	fullArgs := append([]string{"agents"}, args...)
 	inv, root := clitest.New(t, fullArgs...)
 	clitest.SetupConfig(t, client, root)
 
@@ -148,5 +147,5 @@ func startExpAgentsSession(t *testing.T, ctx context.Context, client *codersdk.C
 		errCh <- inv.WithContext(ctx).Run()
 	})
 
-	return &expAgentsSession{t: t, pty: pty, errCh: errCh}
+	return &agentsSession{t: t, pty: pty, errCh: errCh}
 }

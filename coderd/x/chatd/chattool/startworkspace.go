@@ -175,6 +175,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 					codersdk.WorkspaceBuildParameter{Name: k, Value: v},
 				)
 			}
+
 			startBuild, err := options.StartFn(ownerCtx, options.OwnerID, ws.ID, startReq)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {

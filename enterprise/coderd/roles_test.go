@@ -453,7 +453,6 @@ func TestListRoles(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentAgents)}
 
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
