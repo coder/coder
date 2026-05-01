@@ -87,20 +87,19 @@ export const ModelIdentifierField = ({
 		mode === "add" && providerKnownModels.length > 0;
 	const currentModel = String(form.values.model ?? "");
 	const activeSearchQuery = open ? searchValue : currentModel;
-	const knownModelOptions = (
-		activeSearchQuery.trim() === ""
-			? providerKnownModels
-			: searchKnownModels(normalizedProvider, activeSearchQuery)
+	const knownModelOptions = searchKnownModels(
+		normalizedProvider,
+		activeSearchQuery,
 	).map(knownModelToOption);
 	const selectedKnownModel = findKnownModelByCanonicalId(
 		normalizedProvider,
 		currentModel,
 	);
-	const selectedOption = selectedKnownModel
-		? knownModelToOption(selectedKnownModel)
-		: currentModel
-			? { model: currentModel, displayName: currentModel }
-			: null;
+	const selectedOption: ModelIdentifierOption | null = (() => {
+		if (selectedKnownModel) return knownModelToOption(selectedKnownModel);
+		if (currentModel) return { model: currentModel, displayName: currentModel };
+		return null;
+	})();
 	const hasError = Boolean(modelField.error);
 	const errorId = hasError ? `${modelField.id}-error` : undefined;
 
@@ -396,7 +395,7 @@ export const ModelIdentifierField = ({
 				)}
 				open={open}
 				onOpenChange={handleOpenChange}
-				inputValue={open ? searchValue : currentModel}
+				inputValue={activeSearchQuery}
 				onInputChange={handleInputChange}
 				onEscapeKeyDown={() => {
 					closeIntentRef.current = "escape";

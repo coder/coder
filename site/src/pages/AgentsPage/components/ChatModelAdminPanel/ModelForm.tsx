@@ -135,7 +135,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const formDescription = isDuplicating
 		? "Review the copied settings, then save to create a new model."
 		: undefined;
-	const mode = isEditing ? "edit" : isDuplicating ? "duplicate" : "add";
+	const mode: "add" | "edit" | "duplicate" = (() => {
+		if (isEditing) return "edit";
+		if (isDuplicating) return "duplicate";
+		return "add";
+	})();
 
 	const form = useFormik<ModelFormValues>({
 		initialValues,

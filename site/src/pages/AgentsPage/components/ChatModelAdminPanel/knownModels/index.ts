@@ -83,11 +83,7 @@ const formatCompactNumber = (value: number): string => {
 };
 
 export const formatContextBadge = (contextLimit: number): string => {
-	if (
-		!Number.isFinite(contextLimit) ||
-		!Number.isInteger(contextLimit) ||
-		contextLimit <= 0
-	) {
+	if (!Number.isInteger(contextLimit) || contextLimit <= 0) {
 		throw new Error("contextLimit must be a positive finite integer");
 	}
 
