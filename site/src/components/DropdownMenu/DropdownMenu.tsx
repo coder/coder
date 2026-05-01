@@ -5,7 +5,7 @@
  * This component was updated to match the styles from the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
  */
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 import {
@@ -76,6 +76,37 @@ export const DropdownMenuRadioItem: React.FC<
 				</DropdownMenuPrimitive.ItemIndicator>
 			</span>
 		</DropdownMenuPrimitive.RadioItem>
+	);
+};
+
+export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
+
+export const DropdownMenuSubTrigger: React.FC<
+	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.SubTrigger> & {
+		inset?: boolean;
+	}
+> = ({ className, inset, children, ...props }) => {
+	return (
+		<DropdownMenuPrimitive.SubTrigger
+			className={cn(menuItemClass, inset && "pl-8", className)}
+			{...props}
+		>
+			{children}
+			<ChevronRightIcon className="ml-auto size-3.5" />
+		</DropdownMenuPrimitive.SubTrigger>
+	);
+};
+
+export const DropdownMenuSubContent: React.FC<
+	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.SubContent>
+> = ({ className, ...props }) => {
+	return (
+		<DropdownMenuPrimitive.Portal>
+			<DropdownMenuPrimitive.SubContent
+				className={cn(menuContentClass, className)}
+				{...props}
+			/>
+		</DropdownMenuPrimitive.Portal>
 	);
 };
 
