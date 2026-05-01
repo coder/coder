@@ -65,7 +65,11 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 						<p>
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
-						{Boolean(info) && <Alert severity="warning">{info}</Alert>}
+						{Boolean(info) && (
+							<Alert severity="warning" prominent>
+								{info}
+							</Alert>
+						)}
 						<p>
 							Type <strong>{name}</strong> below to confirm.
 						</p>
