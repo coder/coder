@@ -28,6 +28,10 @@ type Runner struct {
 	template codersdk.Template
 }
 
+// TemplatePrefix is the name prefix applied to all templates created by the
+// scaletest prebuilds runner.
+const TemplatePrefix = "scaletest-prebuilds-template-"
+
 var (
 	_ harness.Runnable  = &Runner{}
 	_ harness.Cleanable = &Runner{}
@@ -64,7 +68,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
-	templateName := "scaletest-prebuilds-template-" + id
+	templateName := TemplatePrefix + id
 
 	version, err := r.createTemplateVersion(ctx, uuid.Nil, r.cfg.NumPresets, r.cfg.NumPresetPrebuilds)
 	if err != nil {

@@ -29,9 +29,11 @@ import {
 } from "../utils/OneWayWebSocket";
 import { type FieldError, isApiError } from "./errors";
 import type {
+	AdvisorConfig,
 	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
+	UpdateAdvisorConfigRequest,
 	UsersRequest,
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
@@ -3344,6 +3346,19 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatDesktopEnabledRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
+	};
+
+	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
+		const response = await this.axios.get<AdvisorConfig>(
+			"/api/experimental/chats/config/advisor",
+		);
+		return response.data;
+	};
+
+	updateChatAdvisorConfig = async (
+		req: UpdateAdvisorConfigRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/advisor", req);
 	};
 
 	getChatWorkspaceTTL =

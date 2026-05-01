@@ -28,8 +28,8 @@ const (
 )
 
 type (
-	terminateTUIMsg  struct{}
-	expChatsTUIModel struct {
+	terminateTUIMsg struct{}
+	chatsTUIModel   struct {
 		ctx            context.Context
 		client         *codersdk.ExperimentalClient
 		styles         tuiStyles
@@ -49,14 +49,14 @@ type (
 	}
 )
 
-func newExpChatsTUIModel(
+func newChatsTUIModel(
 	ctx context.Context,
 	client *codersdk.ExperimentalClient,
 	initialChatID *uuid.UUID,
 	workspaceID *uuid.UUID,
 	modelOverride *string,
 	organizationID uuid.UUID,
-) expChatsTUIModel {
+) chatsTUIModel {
 	styles := newTUIStyles()
 	currentView := viewList
 	if initialChatID != nil {
@@ -72,7 +72,7 @@ func newExpChatsTUIModel(
 		chat.historyResolved = false
 		chatGeneration = 1
 	}
-	return expChatsTUIModel{
+	return chatsTUIModel{
 		ctx:            ctx,
 		client:         client,
 		styles:         styles,
@@ -92,7 +92,7 @@ func newExpChatsTUIModel(
 // window dimensions from the previous session, and advances
 // the monotonic generation counter so in-flight async messages
 // from the old session are ignored.
-func (m *expChatsTUIModel) resetChatSession() {
+func (m *chatsTUIModel) resetChatSession() {
 	old := m.chat
 	m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.organizationID, m.styles)
 	m.chat.width = old.width
@@ -104,7 +104,7 @@ func (m *expChatsTUIModel) resetChatSession() {
 	m.chat.chatGeneration = m.chatGeneration
 }
 
-func (m *expChatsTUIModel) setRenderer(renderer *lipgloss.Renderer) {
+func (m *chatsTUIModel) setRenderer(renderer *lipgloss.Renderer) {
 	styles := newTUIStyles(renderer)
 	m.styles = styles
 	m.list.styles = styles
@@ -113,7 +113,7 @@ func (m *expChatsTUIModel) setRenderer(renderer *lipgloss.Renderer) {
 	m.chat.spinner.Style = styles.dimmedText
 }
 
-func (m expChatsTUIModel) Init() tea.Cmd {
+func (m chatsTUIModel) Init() tea.Cmd {
 	if m.initialChatID != nil {
 		m.chat.activeChatID = *m.initialChatID
 		return tea.Batch(append([]tea.Cmd{m.chat.Init()}, m.loadChatCmd(*m.initialChatID, m.chat.chatGeneration)...)...)
@@ -121,17 +121,17 @@ func (m expChatsTUIModel) Init() tea.Cmd {
 	return tea.Batch(m.loadChatsCmd(), m.list.Init())
 }
 
-func (m expChatsTUIModel) loadChatsCmd() tea.Cmd {
+func (m chatsTUIModel) loadChatsCmd() tea.Cmd {
 	return apiCmd(func() ([]codersdk.Chat, error) { return m.client.ListChats(m.ctx, nil) }, func(chats []codersdk.Chat, err error) tea.Msg { return chatsListedMsg{chats: chats, err: err} })
 }
 
-func (m expChatsTUIModel) loadChatCmd(chatID uuid.UUID, generation uint64) []tea.Cmd {
+func (m chatsTUIModel) loadChatCmd(chatID uuid.UUID, generation uint64) []tea.Cmd {
 	return []tea.Cmd{apiCmd(func() (codersdk.Chat, error) { return m.client.GetChat(m.ctx, chatID) }, func(chat codersdk.Chat, err error) tea.Msg {
 		return chatOpenedMsg{generation: generation, chatID: chatID, chat: chat, err: err}
 	}), loadChatHistoryCmd(m.ctx, m.client, chatID, generation)}
 }
 
-func (m expChatsTUIModel) childWindowSizeMsg() tea.WindowSizeMsg {
+func (m chatsTUIModel) childWindowSizeMsg() tea.WindowSizeMsg {
 	h := m.height
 	if m.currentView == viewList {
 		h = max(0, h-1)
@@ -139,7 +139,7 @@ func (m expChatsTUIModel) childWindowSizeMsg() tea.WindowSizeMsg {
 	return tea.WindowSizeMsg{Width: m.width, Height: h}
 }
 
-func (m *expChatsTUIModel) toggleOverlay(overlay tuiOverlay) bool {
+func (m *chatsTUIModel) toggleOverlay(overlay tuiOverlay) bool {
 	if m.overlay == overlay {
 		m.overlay = overlayNone
 		return false
@@ -148,7 +148,7 @@ func (m *expChatsTUIModel) toggleOverlay(overlay tuiOverlay) bool {
 	return true
 }
 
-func (m *expChatsTUIModel) handleEsc(msg tea.KeyMsg) tea.Cmd {
+func (m *chatsTUIModel) handleEsc(msg tea.KeyMsg) tea.Cmd {
 	if m.currentView == viewList && m.list.searching {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
@@ -175,7 +175,7 @@ func isOverlayCloseKey(msg tea.KeyMsg) bool {
 	return key == "esc" || key == "ctrl+["
 }
 
-func (m *expChatsTUIModel) handleModelPickerKey(msg tea.KeyMsg) tea.Cmd {
+func (m *chatsTUIModel) handleModelPickerKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "up", "k":
 		if m.chat.modelPickerCursor > 0 {
@@ -198,7 +198,7 @@ func (m *expChatsTUIModel) handleModelPickerKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (m *expChatsTUIModel) handleAskUserQuestionKey(msg tea.KeyMsg) tea.Cmd {
+func (m *chatsTUIModel) handleAskUserQuestionKey(msg tea.KeyMsg) tea.Cmd {
 	state := m.chat.pendingAskUserQuestion
 	if state == nil || state.Submitting || len(state.Questions) == 0 {
 		return nil
@@ -269,7 +269,7 @@ func (m *expChatsTUIModel) handleAskUserQuestionKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (m *expChatsTUIModel) recordAskAnswer(answer, optionLabel string, freeform bool) tea.Cmd {
+func (m *chatsTUIModel) recordAskAnswer(answer, optionLabel string, freeform bool) tea.Cmd {
 	state := m.chat.pendingAskUserQuestion
 	if state == nil || len(state.Questions) == 0 {
 		return nil
@@ -305,7 +305,7 @@ func (m *expChatsTUIModel) recordAskAnswer(answer, optionLabel string, freeform 
 	return submitAskUserQuestionCmd(m.client.Client, m.chat.activeChatID, m.chat.chatGeneration, state)
 }
 
-func (m *expChatsTUIModel) openChatCmd(chatID *uuid.UUID) tea.Cmd {
+func (m *chatsTUIModel) openChatCmd(chatID *uuid.UUID) tea.Cmd {
 	m.currentView = viewChat
 	m.chat.stopStream()
 	m.resetChatSession()
@@ -322,7 +322,7 @@ func (m *expChatsTUIModel) openChatCmd(chatID *uuid.UUID) tea.Cmd {
 	return tea.Batch(append([]tea.Cmd{m.chat.Init()}, m.loadChatCmd(*chatID, m.chat.chatGeneration)...)...)
 }
 
-func (m *expChatsTUIModel) toggleModelPickerCmd() tea.Cmd {
+func (m *chatsTUIModel) toggleModelPickerCmd() tea.Cmd {
 	if !m.toggleOverlay(overlayModelPicker) {
 		return nil
 	}
@@ -337,7 +337,7 @@ func (m *expChatsTUIModel) toggleModelPickerCmd() tea.Cmd {
 	return nil
 }
 
-func (m *expChatsTUIModel) toggleDiffDrawerCmd() tea.Cmd {
+func (m *chatsTUIModel) toggleDiffDrawerCmd() tea.Cmd {
 	if m.chat.chat == nil {
 		return nil
 	}
@@ -355,7 +355,7 @@ func (m *expChatsTUIModel) toggleDiffDrawerCmd() tea.Cmd {
 	return nil
 }
 
-func (m expChatsTUIModel) updateChild(msg tea.Msg, view tuiView) (expChatsTUIModel, tea.Cmd) {
+func (m chatsTUIModel) updateChild(msg tea.Msg, view tuiView) (chatsTUIModel, tea.Cmd) {
 	var cmd tea.Cmd
 	if view == viewChat {
 		m.chat, cmd = m.chat.Update(msg)
@@ -365,11 +365,11 @@ func (m expChatsTUIModel) updateChild(msg tea.Msg, view tuiView) (expChatsTUIMod
 	return m, cmd
 }
 
-func (m expChatsTUIModel) renderOverlay(title, body string) string {
+func (m chatsTUIModel) renderOverlay(title, body string) string {
 	return renderOverlayFrame(m.styles, m.width, m.styles.title.Render(title), body, m.styles.helpText.Render("Esc to close"))
 }
 
-func (m expChatsTUIModel) diffOverlayView() string {
+func (m chatsTUIModel) diffOverlayView() string {
 	switch {
 	case m.chat.diffErr != nil:
 		return m.renderOverlay("Diff", m.styles.errorText.Render(wrapPreservingNewlines(m.chat.diffErr.Error(), contentWidth(m.width, 6))))
@@ -394,7 +394,7 @@ func padViewHeight(text string, height int) string {
 	return text + strings.Repeat("\n", height-lineCount)
 }
 
-func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m chatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -480,7 +480,7 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m.updateChild(msg, m.currentView)
 }
 
-func (m expChatsTUIModel) View() string {
+func (m chatsTUIModel) View() string {
 	if m.quitting {
 		return ""
 	}

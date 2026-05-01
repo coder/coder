@@ -105,6 +105,7 @@ replace github.com/openai/openai-go/v3 => github.com/kylecarbs/openai-go/v3 v3.0
 require (
 	cdr.dev/slog/v3 v3.0.0
 	cloud.google.com/go/compute/metadata v0.9.0
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
@@ -504,7 +505,7 @@ require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
-	github.com/coder/preview v1.0.8
+	github.com/coder/preview v1.0.9
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0

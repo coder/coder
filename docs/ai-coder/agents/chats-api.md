@@ -1,7 +1,7 @@
 # Chats API
 
 > [!NOTE]
-> The Chats API is experimental and gated behind the `agents` experiment flag.
+> The Chats API is in beta.
 > Endpoints live under `/api/experimental/chats` and may change without notice.
 
 The Chats API lets you create and interact with Coder Agents

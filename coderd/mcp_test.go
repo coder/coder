@@ -18,19 +18,15 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// mcpDeploymentValues returns deployment values with the agents
-// experiment enabled, which is required by the MCP server config
-// endpoints.
+// mcpDeploymentValues returns deployment values for tests of the MCP
+// server config endpoints.
 func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	t.Helper()
 
-	values := coderdtest.DeploymentValues(t)
-	values.Experiments = []string{string(codersdk.ExperimentAgents)}
-	return values
+	return coderdtest.DeploymentValues(t)
 }
 
-// newMCPClient creates a test server with the agents experiment
-// enabled and returns the admin client.
+// newMCPClient creates a test server and returns the admin client.
 func newMCPClient(t testing.TB) *codersdk.Client {
 	t.Helper()
 

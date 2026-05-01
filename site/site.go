@@ -266,10 +266,9 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
-	TasksTabVisible  string
-	AgentsTabVisible string
-	Permissions      string
-	Organizations    string
+	TasksTabVisible string
+	Permissions     string
+	Organizations   string
 }
 
 type csrfState struct {
@@ -523,16 +522,6 @@ func (h *Handler) populateHTMLState(
 		data, err := json.Marshal(!h.opts.HideAITasks)
 		if err == nil {
 			state.TasksTabVisible = html.EscapeString(string(data))
-		}
-	})
-	wg.Go(func() {
-		agentsTabVisible := false
-		if experiments != nil {
-			agentsTabVisible = experiments.Enabled(codersdk.ExperimentAgents)
-		}
-		data, err := json.Marshal(agentsTabVisible)
-		if err == nil {
-			state.AgentsTabVisible = html.EscapeString(string(data))
 		}
 	})
 	wg.Go(func() {
