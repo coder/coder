@@ -16,7 +16,10 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import { lastActiveSidebarTabStorageKeyPrefix } from "./AgentChatPage";
+import {
+	AgentSetupNotice,
+	lastActiveSidebarTabStorageKeyPrefix,
+} from "./AgentChatPage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -380,6 +383,84 @@ export const NoModelOptions: Story = {
 			isInputDisabled
 		/>
 	),
+};
+
+export const MissingProviderAndModelSetup: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice noProvidersConfigured noModelsConfigured />
+			}
+			hasModelOptions={false}
+			modelOptions={[]}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				/configure a chat provider and a chat model before using coder agents/i,
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: /configure providers/i }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(
+			canvas.getByRole("link", { name: /configure models/i }),
+		).toHaveAttribute("href", "/agents/settings/models");
+	},
+};
+
+export const MissingModelSetup: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice noProvidersConfigured={false} noModelsConfigured />
+			}
+			hasModelOptions={false}
+			modelOptions={[]}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				/configure a chat provider and a chat model before using coder agents/i,
+			),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /configure providers/i }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("link", { name: /configure models/i }),
+		).toHaveAttribute("href", "/agents/settings/models");
+	},
+};
+
+export const MissingProviderSetup: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice noProvidersConfigured noModelsConfigured={false} />
+			}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				/configure a chat provider and a chat model before using coder agents/i,
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: /configure providers/i }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(
+			canvas.queryByRole("link", { name: /configure models/i }),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const WithWorkspace: Story = {

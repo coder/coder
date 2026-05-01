@@ -6,7 +6,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useOutletContext, useParams } from "react-router";
+import { Link, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
@@ -23,6 +23,7 @@ import {
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
+	chatProviderConfigs,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -43,6 +44,7 @@ import {
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
@@ -100,6 +102,57 @@ export const draftInputStorageKeyPrefix = "agents.draft-input.";
 export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
+
+const agentSetupLinkClassName =
+	"underline transition-colors hover:text-content-primary";
+
+interface AgentSetupNoticeProps {
+	noProvidersConfigured: boolean;
+	noModelsConfigured: boolean;
+}
+
+export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
+	noProvidersConfigured,
+	noModelsConfigured,
+}) => {
+	if (!noProvidersConfigured && !noModelsConfigured) {
+		return null;
+	}
+
+	return (
+		<Alert severity="warning">
+			<div className="flex flex-col gap-2">
+				<div>
+					<div className="font-medium text-content-primary">
+						Finish setting up Coder agents
+					</div>
+					<div className="mt-1 text-content-secondary">
+						Configure a chat provider and a chat model before using Coder
+						agents.
+					</div>
+				</div>
+				<div className="flex flex-wrap gap-x-3 gap-y-1">
+					{noProvidersConfigured && (
+						<Link
+							to="/agents/settings/providers"
+							className={agentSetupLinkClassName}
+						>
+							Configure providers
+						</Link>
+					)}
+					{noModelsConfigured && (
+						<Link
+							to="/agents/settings/models"
+							className={agentSetupLinkClassName}
+						>
+							Configure models
+						</Link>
+					)}
+				</div>
+			</div>
+		</Alert>
+	);
+};
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 
@@ -697,6 +750,7 @@ const AgentChatPage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery(chatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
@@ -730,6 +784,11 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	const noProvidersConfigured =
+		chatProviderConfigsQuery.isSuccess &&
+		chatProviderConfigsQuery.data.length === 0;
+	const noModelsConfigured =
+		chatModelConfigsQuery.isSuccess && chatModelConfigsQuery.data.length === 0;
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 
@@ -1019,6 +1078,13 @@ const AgentChatPage: FC = () => {
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
+	const agentSetupNotice =
+		noProvidersConfigured || noModelsConfigured ? (
+			<AgentSetupNotice
+				noProvidersConfigured={noProvidersConfigured}
+				noModelsConfigured={noModelsConfigured}
+			/>
+		) : undefined;
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
@@ -1466,6 +1532,7 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			agentSetupNotice={agentSetupNotice}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}
