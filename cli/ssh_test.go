@@ -2371,7 +2371,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 func TestSSH_OneShotCommandMode(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
-		t.Skip("test and wc don't exist on Windows")
+		t.Skip("'test' shell command and wc are not available on Windows")
 	}
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t)

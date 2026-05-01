@@ -634,6 +634,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			// Command mode must not request a PTY by default. A PTY
+			// interposes line discipline on the remote stdin which would
+			// prevent EOF from propagating to commands that read until
+			// EOF (e.g. `cat`, `wc`, `tar`). Interactive shell sessions
+			// always need a PTY, and command mode can opt in via --tty.
 			requestPTY := command == "" || tty
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
