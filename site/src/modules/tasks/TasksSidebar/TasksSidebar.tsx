@@ -63,7 +63,7 @@ export const TasksSidebar: FC = () => {
 				<div className="flex items-center place-content-between">
 					{!isCollapsed && (
 						<Link to="/tasks">
-							<ProductLogo className="block size-6" />
+							<ProductLogo className="block size-6 m-1" />
 							<span className="sr-only">Navigate to tasks</span>
 						</Link>
 					)}
