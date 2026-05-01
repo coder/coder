@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -861,6 +862,27 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("read AI providers from env: %w", err)
 			}
 			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aiProviders...)
+
+			// Reconcile env-derived AI Bridge provider configuration
+			// with the ai_providers table. Runs unconditionally so
+			// operators can seed providers via env without enabling
+			// the bridge or proxy features. Concurrent server starts
+			// are serialized via a Postgres advisory lock; conflicts
+			// between env and DB fail startup with a clear error.
+			//
+			// options.Auditor is not yet populated this early in
+			// startup, so we pass a Nop auditor; seeded providers
+			// are still visible in the API and can be re-audited by
+			// operator actions later.
+			if err := coderd.SeedAIProvidersFromEnv(
+				ctx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				audit.NewNop(),
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
+			}
 
 			// Manage push notifications.
 			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
