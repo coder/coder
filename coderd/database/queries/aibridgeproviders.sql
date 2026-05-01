@@ -97,3 +97,32 @@ WHERE
     id = @id::uuid AND deleted = FALSE
 RETURNING
     *;
+
+-- name: GetAIProvidersForRotation :many
+-- Returns every AI provider row, including soft-deleted ones, so the
+-- dbcrypt key rotation utility can re-encrypt their secrets and clear
+-- references to retired keys.
+SELECT
+    *
+FROM
+    ai_providers
+ORDER BY
+    name ASC;
+
+-- name: UpdateAIProviderEncryptedColumns :one
+-- Updates only the encrypted columns (api_key, api_key_key_id,
+-- settings, settings_key_id) and the updated_at timestamp on a row,
+-- regardless of its deleted flag. Used by the dbcrypt key rotation
+-- utility to re-encrypt or decrypt rows in place.
+UPDATE
+    ai_providers
+SET
+    api_key = @api_key::text,
+    api_key_key_id = sqlc.narg('api_key_key_id')::text,
+    settings = @settings::text,
+    settings_key_id = sqlc.narg('settings_key_id')::text,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;

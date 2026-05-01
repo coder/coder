@@ -6244,6 +6244,22 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().SoftDeleteAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
 		check.Args(provider.ID).Asserts(rbac.ResourceAibridgeProvider, policy.ActionDelete).Returns(provider)
 	}))
+	s.Run("GetAIProvidersForRotation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		providerA := testutil.Fake(s.T(), faker, database.AiProvider{})
+		providerB := testutil.Fake(s.T(), faker, database.AiProvider{})
+		dbm.EXPECT().GetAIProvidersForRotation(gomock.Any()).Return([]database.AiProvider{providerA, providerB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns([]database.AiProvider{providerA, providerB})
+	}))
+	s.Run("UpdateAIProviderEncryptedColumns", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		arg := database.UpdateAIProviderEncryptedColumnsParams{
+			ID:       provider.ID,
+			APIKey:   "encrypted-api-key",
+			Settings: "encrypted-settings",
+		}
+		dbm.EXPECT().UpdateAIProviderEncryptedColumns(gomock.Any(), arg).Return(provider, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeProvider, policy.ActionUpdate).Returns(provider)
+	}))
 }
 
 func (s *MethodTestSuite) TestTelemetry() {

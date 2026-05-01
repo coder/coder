@@ -2516,6 +2516,16 @@ func (q *querier) GetAIProviders(ctx context.Context) ([]database.AiProvider, er
 	return q.db.GetAIProviders(ctx)
 }
 
+func (q *querier) GetAIProvidersForRotation(ctx context.Context) ([]database.AiProvider, error) {
+	// This query intentionally returns all rows including soft-deleted
+	// ones so that the dbcrypt key rotation utility can re-encrypt every
+	// row that holds a foreign-key reference to dbcrypt_keys.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIProvidersForRotation(ctx)
+}
+
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
@@ -6293,6 +6303,16 @@ func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIPro
 		return database.AiProvider{}, err
 	}
 	return q.db.UpdateAIProvider(ctx, arg)
+}
+
+func (q *querier) UpdateAIProviderEncryptedColumns(ctx context.Context, arg database.UpdateAIProviderEncryptedColumnsParams) (database.AiProvider, error) {
+	// Encrypted columns can be rewritten on any row, including soft-
+	// deleted ones, so the dbcrypt rotation can move every FK reference
+	// to a new key digest before old keys are revoked.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeProvider); err != nil {
+		return database.AiProvider{}, err
+	}
+	return q.db.UpdateAIProviderEncryptedColumns(ctx, arg)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {

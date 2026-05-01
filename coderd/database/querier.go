@@ -250,6 +250,10 @@ type sqlcQuerier interface {
 	GetAIProviderByName(ctx context.Context, name string) (AiProvider, error)
 	GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (AiProvider, error)
 	GetAIProviders(ctx context.Context) ([]AiProvider, error)
+	// Returns every AI provider row, including soft-deleted ones, so the
+	// dbcrypt key rotation utility can re-encrypt their secrets and clear
+	// references to retired keys.
+	GetAIProvidersForRotation(ctx context.Context) ([]AiProvider, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -1094,6 +1098,11 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AiProvider, error)
+	// Updates only the encrypted columns (api_key, api_key_key_id,
+	// settings, settings_key_id) and the updated_at timestamp on a row,
+	// regardless of its deleted flag. Used by the dbcrypt key rotation
+	// utility to re-encrypt or decrypt rows in place.
+	UpdateAIProviderEncryptedColumns(ctx context.Context, arg UpdateAIProviderEncryptedColumnsParams) (AiProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)

@@ -1758,6 +1758,21 @@ func (mr *MockStoreMockRecorder) GetAIProviders(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviders", reflect.TypeOf((*MockStore)(nil).GetAIProviders), ctx)
 }
 
+// GetAIProvidersForRotation mocks base method.
+func (m *MockStore) GetAIProvidersForRotation(ctx context.Context) ([]database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProvidersForRotation", ctx)
+	ret0, _ := ret[0].([]database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProvidersForRotation indicates an expected call of GetAIProvidersForRotation.
+func (mr *MockStoreMockRecorder) GetAIProvidersForRotation(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProvidersForRotation", reflect.TypeOf((*MockStore)(nil).GetAIProvidersForRotation), ctx)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -8627,6 +8642,21 @@ func (m *MockStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIP
 func (mr *MockStoreMockRecorder) UpdateAIProvider(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProvider", reflect.TypeOf((*MockStore)(nil).UpdateAIProvider), ctx, arg)
+}
+
+// UpdateAIProviderEncryptedColumns mocks base method.
+func (m *MockStore) UpdateAIProviderEncryptedColumns(ctx context.Context, arg database.UpdateAIProviderEncryptedColumnsParams) (database.AiProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIProviderEncryptedColumns", ctx, arg)
+	ret0, _ := ret[0].(database.AiProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIProviderEncryptedColumns indicates an expected call of UpdateAIProviderEncryptedColumns.
+func (mr *MockStoreMockRecorder) UpdateAIProviderEncryptedColumns(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProviderEncryptedColumns", reflect.TypeOf((*MockStore)(nil).UpdateAIProviderEncryptedColumns), ctx, arg)
 }
 
 // UpdateAPIKeyByID mocks base method.
