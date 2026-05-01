@@ -200,7 +200,7 @@ export function Autocomplete<TOption>({
 			}
 
 			const currentIndex = options.findIndex(
-				(option) => getOptionValue(option) === highlightedValue,
+				(option) => getOptionValue(option) === highlightedValueRef.current,
 			);
 			const nextIndex =
 				e.key === "ArrowDown"
@@ -216,9 +216,9 @@ export function Autocomplete<TOption>({
 		}
 
 		if (e.key === "Enter") {
+			e.preventDefault();
+			e.stopPropagation();
 			if (!loading && options.length === 0) {
-				e.preventDefault();
-				e.stopPropagation();
 				onEnterEmpty?.();
 				return;
 			}
@@ -227,8 +227,6 @@ export function Autocomplete<TOption>({
 				(option) => getOptionValue(option) === highlightedValueRef.current,
 			);
 			if (highlightedOption) {
-				e.preventDefault();
-				e.stopPropagation();
 				handleSelect(highlightedOption);
 			}
 			return;
@@ -236,7 +234,10 @@ export function Autocomplete<TOption>({
 
 		if (e.key === "Escape") {
 			e.preventDefault();
-			onEscapeKeyDown?.();
+			if (onEscapeKeyDown) {
+				e.stopPropagation();
+				onEscapeKeyDown();
+			}
 			handleOpenChange(false);
 		}
 	};
@@ -262,9 +263,11 @@ export function Autocomplete<TOption>({
 
 	if (inlineSearch) {
 		const inlineInputValue = isOpen ? inputValue : displayValue;
+		const hasResults = loading || options.length > 0;
+		const showPopover = isOpen && hasResults;
 
 		return (
-			<Popover open={isOpen} onOpenChange={handleOpenChange}>
+			<Popover open={showPopover} onOpenChange={handleOpenChange}>
 				<PopoverAnchor asChild>
 					<input
 						ref={inlineInputRef}
@@ -272,9 +275,9 @@ export function Autocomplete<TOption>({
 						id={id}
 						data-testid={testId}
 						role="combobox"
-						aria-expanded={isOpen}
-						aria-controls={listboxId}
-						aria-activedescendant={activeDescendant}
+						aria-expanded={showPopover}
+						aria-controls={showPopover ? listboxId : undefined}
+						aria-activedescendant={showPopover ? activeDescendant : undefined}
 						aria-haspopup="listbox"
 						aria-invalid={triggerAriaInvalid}
 						aria-describedby={triggerAriaDescribedBy}
@@ -282,12 +285,12 @@ export function Autocomplete<TOption>({
 						placeholder={placeholder}
 						value={inlineInputValue}
 						onFocus={() => {
-							if (!disabled) {
+							if (!disabled && !isOpen) {
 								handleOpenChange(true);
 							}
 						}}
 						onMouseDown={() => {
-							if (!disabled) {
+							if (!disabled && !isOpen) {
 								handleOpenChange(true);
 							}
 						}}
@@ -349,7 +352,7 @@ export function Autocomplete<TOption>({
 											return (
 												<CommandItem
 													role="option"
-													aria-selected={optionValue === highlightedValue}
+													aria-selected={isSelected(option)}
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}
 													value={optionValue}

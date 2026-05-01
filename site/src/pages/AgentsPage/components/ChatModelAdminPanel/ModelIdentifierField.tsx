@@ -304,7 +304,13 @@ export const ModelIdentifierField = ({
 			typed,
 		);
 		if (exactKnownModel) {
-			applyDefaultsForKnownModel(exactKnownModel);
+			const lastApplied = lastAppliedProviderModelRef.current;
+			const alreadyApplied =
+				lastApplied?.provider === normalizedProvider &&
+				lastApplied.modelIdentifier === exactKnownModel.modelIdentifier;
+			if (!alreadyApplied) {
+				applyDefaultsForKnownModel(exactKnownModel);
+			}
 			clearSearchSnapshot();
 			return;
 		}
@@ -324,15 +330,21 @@ export const ModelIdentifierField = ({
 	};
 
 	const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-		if (openRef.current) {
-			return;
-		}
-
 		const relatedTarget = event.relatedTarget;
 		if (
 			relatedTarget instanceof Node &&
 			event.currentTarget.contains(relatedTarget)
 		) {
+			return;
+		}
+		// Popover is rendered, so let Radix handle the close.
+		if (openRef.current && knownModelOptions.length > 0) {
+			return;
+		}
+		// Popover is auto-hidden with no matches, but isOpen is still true.
+		// Treat blur as close intent so close logic can commit or restore.
+		if (openRef.current) {
+			handleOpenChange(false);
 			return;
 		}
 		markTouched();
@@ -405,7 +417,6 @@ export const ModelIdentifierField = ({
 				inlineSearch
 				onEnterEmpty={() => handleOpenChange(false)}
 				placeholder="e.g. gpt-5, claude-sonnet-4-5"
-				noOptionsText="No matching known models. You can still use this identifier."
 				className={cn(
 					"h-9 text-[13px] placeholder:text-content-disabled",
 					hasError && "border-content-destructive",

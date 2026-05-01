@@ -1460,12 +1460,9 @@ export const OpenAIKnownModelKeyboardSelection: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
 
-		await openKnownModelPopover(body);
-		const options = await body.findAllByRole("option");
-		const listbox = await body.findByRole("listbox");
-		fireEvent.keyDown(listbox, { key: "ArrowDown" });
-		fireEvent.keyDown(listbox, { key: "ArrowDown" });
-		await userEvent.click(findOptionByText(options, "gpt-5.5-pro"));
+		const input = await openKnownModelPopover(body);
+		fireEvent.keyDown(input, { key: "ArrowDown" });
+		await userEvent.keyboard("{Enter}");
 
 		await expectOpenAIKnownModelDefaults(body, gpt55ProDefaults);
 		await expect(await body.findByRole("status")).toHaveTextContent(
@@ -1893,7 +1890,7 @@ export const OpenAIKnownModelTriggerAriaParity: Story = {
 
 export const OpenAIKnownModelNoOptionsCopy: Story = {
 	...providerFormSetup("openai", "OpenAI"),
-	name: "Add mode / DEREM-6: no-options copy explains free-form identifier",
+	name: "Add mode / DEREM-6: no-options auto-hides popover",
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
@@ -1901,9 +1898,8 @@ export const OpenAIKnownModelNoOptionsCopy: Story = {
 		await openKnownModelPopover(body);
 		await clearAndTypeKnownModelSearch(body, "zzzzzzz");
 
-		await expect(
-			await body.findByText(noMatchingKnownModelsText),
-		).toBeVisible();
+		await expectKnownModelPopoverClosed(body);
+		expect(body.queryByText(noMatchingKnownModelsText)).not.toBeInTheDocument();
 	},
 };
 
@@ -1916,14 +1912,42 @@ export const AnthropicKnownModelEnterCommitsOffCatalogIdentifier: Story = {
 
 		const input = await openKnownModelPopover(body);
 		await userEvent.type(input, "claude-opus-4-5");
-		await expect(
-			await body.findByText(noMatchingKnownModelsText),
-		).toBeVisible();
+		await expectKnownModelPopoverClosed(body);
+		await expect(input).toHaveAttribute("aria-expanded", "false");
 		await userEvent.keyboard("{Enter}");
 
 		await expectKnownModelPopoverClosed(body);
 		await expectModelIdentifierValue(body, "claude-opus-4-5");
 		expect(body.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
+export const KnownModelAutoHidePopoverWhenNoMatches: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	name: "Add mode / DEREM-42: popover auto-hides when search has no matches",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+
+		const input = await body.findByRole("combobox", {
+			name: /Model Identifier/i,
+		});
+		await userEvent.click(input);
+		await expect(await body.findByText("Claude Opus 4.7")).toBeInTheDocument();
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "claude-opus-4-5");
+
+		await waitFor(() => {
+			expect(body.queryByRole("listbox")).not.toBeInTheDocument();
+		});
+		expect(
+			body.queryByText(/No matching known models/i),
+		).not.toBeInTheDocument();
+		await expect(input).toHaveAttribute("aria-expanded", "false");
+
+		await userEvent.keyboard("{Enter}");
+		await expectModelIdentifierValue(body, "claude-opus-4-5");
 	},
 };
 
@@ -1956,16 +1980,14 @@ export const OpenAIKnownModelArrowDownEnterSelectsHighlighted: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
 
-		await openKnownModelPopover(body);
-		const options = await body.findAllByRole("option");
-		const listbox = await body.findByRole("listbox");
-		fireEvent.keyDown(listbox, { key: "ArrowDown" });
-		await userEvent.click(findOptionByText(options, "gpt-5.5"));
+		const input = await openKnownModelPopover(body);
+		fireEvent.keyDown(input, { key: "ArrowDown" });
+		await userEvent.keyboard("{Enter}");
 
-		await expectModelIdentifierValue(body, "gpt-5.5");
-		await expectOpenAIKnownModelDefaults(body, gpt55Defaults);
+		await expectModelIdentifierValue(body, "gpt-5.5-pro");
+		await expectOpenAIKnownModelDefaults(body, gpt55ProDefaults);
 		await expect(await body.findByRole("status")).toHaveTextContent(
-			knownModelDefaultsFeedback("GPT-5.5"),
+			knownModelDefaultsFeedback("GPT-5.5 Pro"),
 		);
 	},
 };
