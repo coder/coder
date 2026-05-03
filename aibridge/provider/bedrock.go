@@ -149,7 +149,7 @@ func (p *Bedrock) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
 
-	cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
+	cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, p.cfg.AccessKey)
 
 	interceptor := bedrockintercept.NewInterceptor(
 		id,
