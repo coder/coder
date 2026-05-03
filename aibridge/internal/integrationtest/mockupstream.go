@@ -273,13 +273,33 @@ func isBinaryEventStream(data []byte) bool {
 	return crc32.ChecksumIEEE(data[0:frameLen-4]) == messageCRC
 }
 
-// writeEventStream writes raw binary eventstream data as-is.
+// writeEventStream writes raw binary eventstream data, chunking it
+// into arbitrary fixed-size pieces and flushing after each. Real
+// upstreams have no obligation to align writes with EventStream frame
+// boundaries; sending sub-frame chunks better simulates actual network
+// behavior and exercises any frame-boundary handling in the bridge.
 func (ms *mockUpstream) writeEventStream(w http.ResponseWriter, data []byte) {
 	ms.t.Helper()
 	w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
 	w.WriteHeader(http.StatusOK)
-	_, err := w.Write(data)
-	require.NoError(ms.t, err)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	const chunkSize = 64
+	for i := 0; i < len(data); i += chunkSize {
+		end := min(i+chunkSize, len(data))
+		if _, err := w.Write(data[i:end]); err != nil {
+			if eventstream.IsConnError(err) {
+				return // client disconnected, stop writing
+			}
+			require.NoError(ms.t, err)
+		}
+		flusher.Flush()
+	}
 }
 
 // isRawHTTPResponse returns true if data starts with "HTTP/", indicating
