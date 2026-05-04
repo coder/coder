@@ -421,10 +421,10 @@ func (api *API) postWorkspaceBuildsInternal(
 				ID:        workspace.ID,
 				DormantAt: sql.NullTime{Valid: false},
 			}); err != nil {
-				return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				return httperror.NewResponseWithError(http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error unsetting workspace dormant status",
 					Detail:  err.Error(),
-				})
+				}, err)
 			}
 			dormancyUnset = true
 		}
@@ -432,10 +432,10 @@ func (api *API) postWorkspaceBuildsInternal(
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
-			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			return httperror.NewResponseWithError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching previous workspace build",
 				Detail:  err.Error(),
-			})
+			}, err)
 		}
 
 		if createBuild.TemplateVersionID != uuid.Nil {
