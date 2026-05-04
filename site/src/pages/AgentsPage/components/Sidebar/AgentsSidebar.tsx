@@ -506,7 +506,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		chat.status === "error"
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
-	const subtitle = errorReason || modelName;
+	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	const subtitle = errorReason || lastTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
