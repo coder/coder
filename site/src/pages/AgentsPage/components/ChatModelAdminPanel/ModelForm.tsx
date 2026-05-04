@@ -9,7 +9,6 @@ import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -40,6 +39,7 @@ import {
 	ModelConfigFields,
 	PricingModelConfigFields,
 } from "./ModelConfigFields";
+import { ModelIdentifierField } from "./ModelIdentifierField";
 import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
@@ -135,6 +135,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const formDescription = isDuplicating
 		? "Review the copied settings, then save to create a new model."
 		: undefined;
+	const mode: "add" | "edit" | "duplicate" = (() => {
+		if (isEditing) return "edit";
+		if (isDuplicating) return "duplicate";
+		return "add";
+	})();
 
 	const form = useFormik<ModelFormValues>({
 		initialValues,
@@ -385,50 +390,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
 							{" "}
-							<div className="grid gap-1.5">
-								<Label
-									htmlFor={modelField.id}
-									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
-								>
-									Model Identifier{" "}
-									<span className="text-xs font-bold text-content-destructive">
-										*
-									</span>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<InfoIcon className="h-3 w-3 text-content-secondary" />
-										</TooltipTrigger>
-										<TooltipContent side="top" className="max-w-[240px]">
-											The model identifier sent to the provider API.
-										</TooltipContent>
-									</Tooltip>
-								</Label>
-								<Input
-									id={modelField.id}
-									name={modelField.name}
-									className={cn(
-										"h-9 text-[13px] placeholder:text-content-disabled",
-										modelField.error && "border-content-destructive",
-									)}
-									placeholder="e.g. gpt-5, claude-sonnet-4-5"
-									value={modelField.value}
-									onChange={modelField.onChange}
-									onBlur={modelField.onBlur}
-									disabled={isSaving}
-									aria-invalid={modelField.error}
-									aria-describedby={
-										modelField.error ? `${modelField.id}-error` : undefined
-									}
-								/>
-								{modelField.error && (
-									<p
-										id={`${modelField.id}-error`}
-										className="m-0 text-xs text-content-destructive"
-									>
-										{modelField.helperText}
-									</p>
-								)}
-							</div>
+							<ModelIdentifierField
+								form={form}
+								modelField={modelField}
+								mode={mode}
+								selectedProvider={selectedProvider}
+								disabled={isSaving}
+							/>
 							<div className="grid gap-1.5">
 								<Label
 									htmlFor={contextLimitField.id}

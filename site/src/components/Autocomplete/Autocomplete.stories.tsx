@@ -221,6 +221,106 @@ export const SearchAndFilter: Story = {
 	},
 };
 
+export const InlineSearch: Story = {
+	args: {
+		onEnterEmpty: fn<() => void>(),
+	},
+	render: function InlineSearchStory(args) {
+		const [value, setValue] = useState<SimpleOption | null>(null);
+		const [open, setOpen] = useState(false);
+		const [inputValue, setInputValue] = useState("");
+		const filteredOptions = simpleOptions.filter((option) =>
+			option.name.toLowerCase().includes(inputValue.toLowerCase()),
+		);
+
+		const handleChange = (newValue: SimpleOption | null) => {
+			setValue(newValue);
+			setInputValue(newValue?.name ?? "");
+		};
+
+		return (
+			<div className="w-80 space-y-2">
+				<Autocomplete
+					value={value}
+					onChange={handleChange}
+					options={filteredOptions}
+					getOptionValue={(opt) => opt.id}
+					getOptionLabel={(opt) => opt.name}
+					placeholder="Search fruits"
+					open={open}
+					onOpenChange={setOpen}
+					inputValue={inputValue}
+					onInputChange={setInputValue}
+					onEnterEmpty={() => {
+						args.onEnterEmpty?.();
+						setValue({ id: `custom-${inputValue}`, name: inputValue });
+						setOpen(false);
+					}}
+					inlineSearch
+					clearable={false}
+					noOptionsText="No fruits found"
+				/>
+				<div>Selected: {value?.name ?? "None"}</div>
+			</div>
+		);
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("combobox");
+		const onEnterEmptySpy = args.onEnterEmpty as ReturnType<
+			typeof fn<() => void>
+		>;
+		onEnterEmptySpy.mockClear();
+
+		expect(canvas.queryByRole("button")).not.toBeInTheDocument();
+		await userEvent.click(input);
+		await expect(input).toHaveFocus();
+		await expect(input).toHaveAttribute("aria-expanded", "true");
+		await expect(
+			await screen.findByRole("option", { name: "Mango" }),
+		).toBeInTheDocument();
+
+		await userEvent.type(input, "an");
+		await waitFor(() => {
+			expect(screen.getByRole("option", { name: "Mango" })).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: "Banana" }),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("option", { name: "Pineapple" }),
+			).not.toBeInTheDocument();
+		});
+
+		await userEvent.keyboard("{ArrowDown}{ArrowUp}{ArrowDown}{Enter}");
+		await expect(input).toHaveFocus();
+		await expect(
+			await canvas.findByText("Selected: Banana"),
+		).toBeInTheDocument();
+
+		await userEvent.click(input);
+		await expect(input).toHaveAttribute("aria-expanded", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(input).toHaveAttribute("aria-expanded", "false"),
+		);
+
+		await userEvent.click(input);
+		await userEvent.clear(input);
+		await userEvent.type(input, "dragonfruit");
+		await waitFor(() => {
+			expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+			expect(screen.queryByText("No fruits found")).not.toBeInTheDocument();
+		});
+		await expect(input).toHaveAttribute("aria-expanded", "false");
+
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => expect(onEnterEmptySpy).toHaveBeenCalledTimes(1));
+		await expect(
+			await canvas.findByText("Selected: dragonfruit"),
+		).toBeInTheDocument();
+	},
+};
+
 export const ClearSelection: Story = {
 	args: {
 		onChange: fn<(value: unknown) => void>(),
