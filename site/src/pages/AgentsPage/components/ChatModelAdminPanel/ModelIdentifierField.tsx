@@ -286,7 +286,6 @@ export const ModelIdentifierField = ({
 
 		openRef.current = false;
 		setOpen(false);
-		markTouched();
 
 		const justSelected = justSelectedRef.current;
 		const closeIntent = closeIntentRef.current;
@@ -294,10 +293,25 @@ export const ModelIdentifierField = ({
 		closeIntentRef.current = null;
 		const typed = searchValueRef.current;
 
-		if (closeIntent === "escape" || justSelected || !searchDirtyRef.current) {
+		// A selection already wrote the canonical model via handleSelect; mark
+		// touched so validation reflects the committed value.
+		if (justSelected) {
+			markTouched();
 			clearSearchSnapshot();
 			return;
 		}
+
+		// Escape and open-then-close-without-typing must leave validation
+		// untouched. Marking touched here would surface "Model ID is required."
+		// for an admin who clicked the field, changed their mind, and clicked
+		// off without ever attempting to commit a value.
+		if (closeIntent === "escape" || !searchDirtyRef.current) {
+			clearSearchSnapshot();
+			return;
+		}
+
+		// All remaining paths commit a value, so mark touched to surface validation.
+		markTouched();
 
 		const exactKnownModel = findKnownModelByCanonicalId(
 			normalizedProvider,
@@ -347,7 +361,12 @@ export const ModelIdentifierField = ({
 			handleOpenChange(false);
 			return;
 		}
-		markTouched();
+		// Only mark touched once a value is in play. An empty currentModel
+		// here means the user left the wrapper without committing anything,
+		// so leave validation untouched (Formik flips touched on submit).
+		if (currentModel !== "") {
+			markTouched();
+		}
 		applyDefaultsOnExactCanonicalModel();
 	};
 

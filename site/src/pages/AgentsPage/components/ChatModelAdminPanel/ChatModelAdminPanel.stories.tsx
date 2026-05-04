@@ -1574,6 +1574,28 @@ export const OpenAIKnownModelOpenDoesNotFlashInvalidBorder: Story = {
 	},
 };
 
+export const KnownModelClickOffEmptyDoesNotFireRequired: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	name: "Add mode / DEREM-47: clicking off empty model does not fire required error",
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+
+		const trigger = await body.findByLabelText(/Model Identifier/i);
+		await openKnownModelPopover(body);
+
+		// Click another field to close the popover without typing or selecting.
+		// Mirrors the QA-reported flow: focus the field, change your mind, click
+		// elsewhere; the empty value should NOT surface "Model ID is required."
+		// before the user has actually attempted to commit anything.
+		await closeKnownModelPopoverToContextLimit(body);
+
+		expect(body.queryByText("Model ID is required.")).not.toBeInTheDocument();
+		expect([null, "false"]).toContain(trigger.getAttribute("aria-invalid"));
+		expect(trigger).not.toHaveClass("border-content-destructive");
+	},
+};
+
 export const OpenAIKnownModelEscapeCancelsSearch: Story = {
 	...providerFormSetup("openai", "OpenAI"),
 	name: "Add mode / DEREM-5: Escape cancels and preserves committed value",
@@ -1896,7 +1918,16 @@ export const OpenAIKnownModelTriggerAriaParity: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
 
+		// Surface the required-field error through a real user action:
+		// open the popover, type then clear the search, and click off. The
+		// off-catalog close path commits an empty string and marks the field
+		// touched, so Formik validation renders "Model ID is required." This
+		// verifies the inline-search trigger forwards aria-invalid +
+		// aria-describedby with the same parity as the plain <Input>
+		// fallback used in edit/duplicate modes.
 		await openKnownModelPopover(body);
+		const input = await clearAndTypeKnownModelSearch(body, "x");
+		await userEvent.clear(input);
 		await closeKnownModelPopoverToContextLimit(body);
 
 		const trigger = await body.findByLabelText(/Model Identifier/i);
