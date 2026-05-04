@@ -19,7 +19,7 @@ func TestTerminalErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	)
 	payload := chaterror.TerminalErrorPayload(classified)
 
-	require.Equal(t, &codersdk.ChatLastError{
+	require.Equal(t, &codersdk.ChatError{
 		Message:    "Azure OpenAI is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",

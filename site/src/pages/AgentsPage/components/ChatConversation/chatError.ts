@@ -1,10 +1,8 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 
-type StructuredChatError = TypesGen.ChatLastError | TypesGen.ChatStreamError;
-
 export const normalizeChatErrorPayload = (
-	error: StructuredChatError | undefined,
+	error: TypesGen.ChatError | undefined,
 ): ChatDetailError | undefined => {
 	const message = error?.message?.trim();
 	if (!message) {

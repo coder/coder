@@ -916,7 +916,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// field to codersdk.Chat, this test will fail until the
 	// converter is updated.
 	now := dbtime.Now()
-	lastErrorPayload := codersdk.ChatLastError{
+	lastErrorPayload := codersdk.ChatError{
 		Message:    "boom",
 		Detail:     "provider detail",
 		Kind:       "generic",
@@ -1074,12 +1074,12 @@ func TestChat_LastErrorFallback(t *testing.T) {
 	tests := []struct {
 		name          string
 		raw           json.RawMessage
-		expectPayload *codersdk.ChatLastError
+		expectPayload *codersdk.ChatError
 	}{
 		{
 			name: "MalformedJSON",
 			raw:  json.RawMessage(`{`),
-			expectPayload: &codersdk.ChatLastError{
+			expectPayload: &codersdk.ChatError{
 				Message:   fallbackMessage,
 				Kind:      "generic",
 				Retryable: false,
@@ -1088,7 +1088,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 		{
 			name: "MessageMissingPreservesMetadata",
 			raw:  json.RawMessage(`{"kind":"timeout","provider":"openai","status_code":504}`),
-			expectPayload: &codersdk.ChatLastError{
+			expectPayload: &codersdk.ChatError{
 				Message:    fallbackMessage,
 				Kind:       "timeout",
 				Provider:   "openai",
@@ -1099,7 +1099,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 		{
 			name: "WhitespaceMessageDefaultsKind",
 			raw:  json.RawMessage(`{"message":"  ","provider":"openai"}`),
-			expectPayload: &codersdk.ChatLastError{
+			expectPayload: &codersdk.ChatError{
 				Message:   fallbackMessage,
 				Kind:      "generic",
 				Provider:  "openai",
@@ -1109,7 +1109,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 		{
 			name: "KindMissingDefaultsGeneric",
 			raw:  json.RawMessage(`{"message":"OpenAI returned an unexpected error.","provider":"openai","status_code":502}`),
-			expectPayload: &codersdk.ChatLastError{
+			expectPayload: &codersdk.ChatError{
 				Message:    "OpenAI returned an unexpected error.",
 				Kind:       "generic",
 				Provider:   "openai",

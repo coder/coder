@@ -4364,7 +4364,7 @@ func (p *Server) Subscribe(
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeError,
 			ChatID: chatID,
-			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
 		})
 	} else {
 		for _, msg := range messages {
@@ -4387,7 +4387,7 @@ func (p *Server) Subscribe(
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeError,
 			ChatID: chatID,
-			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
 		})
 	} else if len(queued) > 0 {
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
@@ -4412,7 +4412,7 @@ func (p *Server) Subscribe(
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeError,
 			ChatID: chatID,
-			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
 		})
 	} else {
 		statusEvent := codersdk.ChatStreamEvent{
@@ -4490,7 +4490,7 @@ func (p *Server) Subscribe(
 				case mergedEvents <- codersdk.ChatStreamEvent{
 					Type:   codersdk.ChatStreamEventTypeError,
 					ChatID: chatID,
-					Error: &codersdk.ChatStreamError{
+					Error: &codersdk.ChatError{
 						Message: psErr.Error(),
 					},
 				}:
@@ -4593,7 +4593,7 @@ func (p *Server) Subscribe(
 					case mergedEvents <- codersdk.ChatStreamEvent{
 						Type:   codersdk.ChatStreamEventTypeError,
 						ChatID: chatID,
-						Error: &codersdk.ChatStreamError{
+						Error: &codersdk.ChatError{
 							Message: notify.Error,
 						},
 					}:
@@ -4882,7 +4882,7 @@ func processingFailure(err error) (chaterror.ClassifiedError, bool) {
 	return classified, true
 }
 
-func encodeChatLastErrorPayload(payload *codersdk.ChatLastError) (pqtype.NullRawMessage, error) {
+func encodeChatLastErrorPayload(payload *codersdk.ChatError) (pqtype.NullRawMessage, error) {
 	if payload == nil {
 		return pqtype.NullRawMessage{}, nil
 	}
@@ -5344,7 +5344,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// Determine the final status and last error payload to set when we're done.
 	status := database.ChatStatusWaiting
 	wasInterrupted := false
-	var lastErrorPayload *codersdk.ChatLastError
+	var lastErrorPayload *codersdk.ChatError
 	generatedTitle := &generatedChatTitle{}
 	runResult := runChatResult{}
 	remainingQueuedMessages := []database.ChatQueuedMessage{}

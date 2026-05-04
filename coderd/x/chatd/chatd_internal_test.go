@@ -2442,7 +2442,7 @@ func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
 	})
 
 	event := requireStreamErrorEvent(t, events)
-	require.Equal(t, &codersdk.ChatStreamError{Message: "legacy error only"}, event.Error)
+	require.Equal(t, &codersdk.ChatError{Message: "legacy error only"}, event.Error)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 

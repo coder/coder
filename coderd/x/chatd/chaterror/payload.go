@@ -6,11 +6,11 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TerminalErrorPayload(classified ClassifiedError) *codersdk.ChatLastError {
+func TerminalErrorPayload(classified ClassifiedError) *codersdk.ChatError {
 	if classified.Message == "" {
 		return nil
 	}
-	return &codersdk.ChatLastError{
+	return &codersdk.ChatError{
 		Message:    classified.Message,
 		Detail:     classified.Detail,
 		Kind:       classified.Kind,

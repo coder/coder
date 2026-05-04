@@ -70,7 +70,7 @@ func openAIToolName(tool chattest.OpenAITool) string {
 	return cmp.Or(tool.Function.Name, tool.Name, tool.Type)
 }
 
-func mustChatLastErrorRawMessage(t testing.TB, payload codersdk.ChatLastError) pqtype.NullRawMessage {
+func mustChatLastErrorRawMessage(t testing.TB, payload codersdk.ChatError) pqtype.NullRawMessage {
 	t.Helper()
 
 	encoded, err := json.Marshal(payload)
@@ -78,11 +78,11 @@ func mustChatLastErrorRawMessage(t testing.TB, payload codersdk.ChatLastError) p
 	return pqtype.NullRawMessage{RawMessage: encoded, Valid: true}
 }
 
-func requireChatLastErrorPayload(t testing.TB, raw pqtype.NullRawMessage) codersdk.ChatLastError {
+func requireChatLastErrorPayload(t testing.TB, raw pqtype.NullRawMessage) codersdk.ChatError {
 	t.Helper()
 	require.True(t, raw.Valid, "last error should be set")
 
-	var payload codersdk.ChatLastError
+	var payload codersdk.ChatError
 	require.NoError(t, json.Unmarshal(raw.RawMessage, &payload))
 	return payload
 }
@@ -92,7 +92,7 @@ func chatLastErrorMessage(raw pqtype.NullRawMessage) string {
 		return ""
 	}
 
-	var payload codersdk.ChatLastError
+	var payload codersdk.ChatError
 	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
 		return payload.Message
 	}
@@ -3687,7 +3687,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	persistedError := requireChatLastErrorPayload(t, chatResult.LastError)
-	require.Equal(t, codersdk.ChatLastError{
+	require.Equal(t, codersdk.ChatError{
 		Message: "Dynamic tool execution timed out",
 		Kind:    "generic",
 	}, persistedError)
@@ -3800,7 +3800,7 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	// Write a minimal structured last_error payload through the
 	// query layer, then verify it round-trips through storage.
 	errorMessage := "stream response: status 500: internal server error"
-	wantPayload := codersdk.ChatLastError{
+	wantPayload := codersdk.ChatError{
 		Message: errorMessage,
 		Kind:    "generic",
 	}

@@ -447,7 +447,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	reviewerCount := int32(2)
 	refreshedAt := now
 	staleAt := now.Add(time.Hour)
-	lastError := &codersdk.ChatLastError{
+	lastError := &codersdk.ChatError{
 		Message:    "boom",
 		Detail:     "provider detail",
 		Kind:       "generic",

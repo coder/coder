@@ -36,7 +36,7 @@ func chatLastErrorMessage(raw pqtype.NullRawMessage) string {
 		return ""
 	}
 
-	var payload codersdk.ChatLastError
+	var payload codersdk.ChatError
 	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
 		return payload.Message
 	}

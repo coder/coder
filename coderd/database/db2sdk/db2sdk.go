@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1609,16 +1610,16 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 
 const fallbackChatLastErrorMessage = "The chat request failed unexpectedly."
 
-func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatLastError {
+func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	if !raw.Valid {
 		return nil
 	}
 
-	var payload codersdk.ChatLastError
+	var payload codersdk.ChatError
 	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
-		return &codersdk.ChatLastError{
+		return &codersdk.ChatError{
 			Message: fallbackChatLastErrorMessage,
-			Kind:    "generic",
+			Kind:    chaterror.KindGeneric,
 		}
 	}
 
@@ -1627,7 +1628,7 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatLastError {
 	payload.Kind = strings.TrimSpace(payload.Kind)
 	payload.Provider = strings.TrimSpace(payload.Provider)
 	if payload.Kind == "" {
-		payload.Kind = "generic"
+		payload.Kind = chaterror.KindGeneric
 	}
 	if payload.Message == "" {
 		payload.Message = fallbackChatLastErrorMessage

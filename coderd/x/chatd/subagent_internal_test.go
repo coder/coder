@@ -2716,7 +2716,7 @@ func setChatStatus(
 		Status: status,
 	}
 	if lastError != "" {
-		encodedLastError, err := json.Marshal(codersdk.ChatLastError{
+		encodedLastError, err := json.Marshal(codersdk.ChatError{
 			Message: lastError,
 			Kind:    "generic",
 		})

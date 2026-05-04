@@ -1287,7 +1287,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 						chatID:     m.activeChatID,
 						event: codersdk.ChatStreamEvent{
 							Type: codersdk.ChatStreamEventTypeError,
-							Error: &codersdk.ChatStreamError{
+							Error: &codersdk.ChatError{
 								Message: fmt.Sprintf(
 									"failed to parse ask_user_question: %v",
 									err,
