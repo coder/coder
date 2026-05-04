@@ -42,6 +42,10 @@ func ResultProviderMetadata(response fantasy.ToolResponse) fantasy.ProviderMetad
 	}
 }
 
+// OpenAI scroll deltas are pixels, but Coder desktop scroll amounts are
+// wheel clicks.
+const computerUseScrollPixelsPerWheelClick int64 = 100
+
 // ComputerUseDesktopAction is a Coder desktop operation requested by an
 // OpenAI computer-use tool call.
 type DesktopAction struct {
@@ -198,7 +202,7 @@ func computerUseScrollActions(
 		scrollAction := desktopAction("scroll", declaredWidth, declaredHeight)
 		scrollAction.Coordinate = &coord
 		scrollAction.ScrollDirection = &direction
-		amount := absInt64ToInt(scrollY)
+		amount := scrollPixelsToWheelClicks(scrollY)
 		scrollAction.ScrollAmount = &amount
 		actions = append(actions, DesktopAction{Action: scrollAction})
 	}
@@ -211,7 +215,7 @@ func computerUseScrollActions(
 		scrollAction := desktopAction("scroll", declaredWidth, declaredHeight)
 		scrollAction.Coordinate = &coord
 		scrollAction.ScrollDirection = &direction
-		amount := absInt64ToInt(scrollX)
+		amount := scrollPixelsToWheelClicks(scrollX)
 		scrollAction.ScrollAmount = &amount
 		actions = append(actions, DesktopAction{Action: scrollAction})
 	}
@@ -244,11 +248,15 @@ func coordinateFromInt64(x, y int64) [2]int {
 	return [2]int{int(x), int(y)}
 }
 
-func absInt64ToInt(v int64) int {
-	if v < 0 {
-		return int(-v)
+func scrollPixelsToWheelClicks(pixels int64) int {
+	if pixels < 0 {
+		pixels = -pixels
 	}
-	return int(v)
+	if pixels == 0 {
+		return 0
+	}
+	return int((pixels + computerUseScrollPixelsPerWheelClick - 1) /
+		computerUseScrollPixelsPerWheelClick)
 }
 
 // ComputerUseClickAction maps an OpenAI computer-use click button to a Coder

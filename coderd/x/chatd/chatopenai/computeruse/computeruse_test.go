@@ -54,3 +54,29 @@ func TestComputerUseResultProviderMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestDesktopActionsConvertsScrollPixelsToWheelClicks(t *testing.T) {
+	t.Parallel()
+
+	input, err := computeruse.ParseInput(`{
+		"call_id":"call_scroll",
+		"actions":[{"type":"scroll","x":70,"y":80,"scroll_y":401,"scroll_x":-99}]
+	}`)
+	require.NoError(t, err)
+
+	actions, err := computeruse.DesktopActions(input, 1440, 900)
+	require.NoError(t, err)
+	require.Len(t, actions, 3)
+
+	vertical := actions[1].Action
+	require.NotNil(t, vertical.ScrollAmount)
+	require.NotNil(t, vertical.ScrollDirection)
+	require.Equal(t, "down", *vertical.ScrollDirection)
+	require.Equal(t, 5, *vertical.ScrollAmount)
+
+	horizontal := actions[2].Action
+	require.NotNil(t, horizontal.ScrollAmount)
+	require.NotNil(t, horizontal.ScrollDirection)
+	require.Equal(t, "left", *horizontal.ScrollDirection)
+	require.Equal(t, 1, *horizontal.ScrollAmount)
+}

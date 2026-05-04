@@ -561,7 +561,7 @@ func TestComputerUseTool_Run_OpenAI_BatchedActions(t *testing.T) {
 			{"type":"drag","path":[{"x":1,"y":2},{"x":3,"y":4},{"x":5,"y":6}]},
 			{"type":"keypress","keys":["ctrl","s"]},
 			{"type":"type","text":"hello"},
-			{"type":"scroll","x":70,"y":80,"scroll_y":5,"scroll_x":-2}
+			{"type":"scroll","x":70,"y":80,"scroll_y":500,"scroll_x":-200}
 		]
 	}`))
 	require.NoError(t, err)
