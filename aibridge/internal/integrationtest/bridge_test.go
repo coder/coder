@@ -2138,110 +2138,25 @@ func TestActorHeaders(t *testing.T) {
 // The provider acts as a SigV4-signing reverse proxy.
 func TestNativeBedrockSimple(t *testing.T) {
 	t.Parallel()
-
-	const bedrockModel = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-
-	cases := []struct {
-		name            string
-		streaming       bool
-		response        []byte
-		urlSuffix       string
-		wantContentType string
-	}{
-		{
-			name:            "streaming",
-			streaming:       true,
-			response:        fixtures.BedrockSimpleStreamingResp,
-			urlSuffix:       "/invoke-with-response-stream",
-			wantContentType: "application/vnd.amazon.eventstream",
-		},
-		{
-			name:            "blocking",
-			streaming:       false,
-			response:        fixtures.BedrockSimpleBlockingResp,
-			urlSuffix:       "/invoke",
-			wantContentType: "application/json",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			fix := fixtures.BedrockFixture{
-				Request:  fixtures.BedrockSimpleReq,
-				Response: tc.response,
-			}
-
-			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
-			upResp := upstreamResponse{}
-			if tc.streaming {
-				upResp.Streaming = fix.Response
-			} else {
-				upResp.Blocking = fix.Response
-			}
-			upstream := newMockUpstream(ctx, t, upResp)
-
-			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
-
-			path := "/bedrock/model/" + bedrockModel + tc.urlSuffix
-			clientHeaders := http.Header{
-				"Anthropic-Version": {"2023-06-01"},
-			}
-			resp, err := bridgeServer.makeRequest(t, http.MethodPost, path, fix.Request, clientHeaders)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-
-			// Verify the response body is an exact passthrough of what the upstream sent.
-			bodyBytes, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			if tc.streaming {
-				assert.Equal(t, fix.Response, bodyBytes, "response body should be an exact passthrough")
-			} else {
-				assert.JSONEq(t, string(fix.Response), string(bodyBytes), "response body should be an exact passthrough")
-			}
-
-			// Verify response content type was forwarded.
-			assert.Equal(t, tc.wantContentType, resp.Header.Get("Content-Type"))
-
-			// Verify the upstream received the request at the correct path with the original body.
-			received := upstream.receivedRequests()
-			require.Len(t, received, 1)
-			assert.Equal(t, "/model/"+bedrockModel+tc.urlSuffix, received[0].Path)
-			assert.JSONEq(t, string(fix.Request), string(received[0].Body), "request body should be forwarded as-is")
-
-			// Verify client headers were forwarded to upstream.
-			assert.Equal(t, "2023-06-01", received[0].Header.Get("Anthropic-Version"))
-
-			// Verify SigV4 headers were added.
-			assert.NotEmpty(t, received[0].Header.Get("Authorization"), "SigV4 Authorization header should be present")
-			assert.Contains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256", "should be SigV4 signature")
-			assert.NotEmpty(t, received[0].Header.Get("X-Amz-Date"), "SigV4 X-Amz-Date header should be present")
-
-			// For blocking responses, the bedrock interceptor uses io.Copy
-			// which lets Go's http server flush the body to the client
-			// before the bridge has dispatched RecordInterceptionEnded.
-			// Wait for the async record to land before verifying.
-			require.Eventually(t, func() bool {
-				for _, intc := range bridgeServer.Recorder.RecordedInterceptions() {
-					if bridgeServer.Recorder.RecordedInterceptionEnd(intc.ID) == nil {
-						return false
-					}
-				}
-				return true
-			}, testutil.WaitShort, testutil.IntervalFast)
-			bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
-		})
-	}
+	runNativeBedrockTest(t, fixtures.BedrockSimple)
 }
 
 func TestNativeBedrockSingleBuiltinTool(t *testing.T) {
 	t.Parallel()
+	runNativeBedrockTest(t, fixtures.BedrockSingleBuiltinTool)
+}
+
+// runNativeBedrockTest exercises the Bedrock provider's streaming and
+// blocking variants from a single fixture, asserting passthrough
+// behavior, content-type forwarding, request body forwarding,
+// SigV4 headers, and interception lifecycle for both transports.
+func runNativeBedrockTest(t *testing.T, fixtureBytes []byte) {
+	t.Helper()
 
 	const bedrockModel = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+	fix := fixtures.ParseBedrock(t, fixtureBytes)
+	streamingResp := fix.EncodeAsAWSEventStream()
 
 	cases := []struct {
 		name            string
@@ -2253,14 +2168,14 @@ func TestNativeBedrockSingleBuiltinTool(t *testing.T) {
 		{
 			name:            "streaming",
 			streaming:       true,
-			response:        fixtures.BedrockSingleBuiltinToolStreamingResp,
+			response:        streamingResp,
 			urlSuffix:       "/invoke-with-response-stream",
 			wantContentType: "application/vnd.amazon.eventstream",
 		},
 		{
-			name:            "blocking",
+			name:            "non-streaming",
 			streaming:       false,
-			response:        fixtures.BedrockSingleBuiltinToolBlockingResp,
+			response:        fix.NonStreamingResponse,
 			urlSuffix:       "/invoke",
 			wantContentType: "application/json",
 		},
@@ -2270,19 +2185,14 @@ func TestNativeBedrockSingleBuiltinTool(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			fix := fixtures.BedrockFixture{
-				Request:  fixtures.BedrockSingleBuiltinToolReq,
-				Response: tc.response,
-			}
-
 			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
 			t.Cleanup(cancel)
 
 			upResp := upstreamResponse{}
 			if tc.streaming {
-				upResp.Streaming = fix.Response
+				upResp.Streaming = tc.response
 			} else {
-				upResp.Blocking = fix.Response
+				upResp.Blocking = tc.response
 			}
 			upstream := newMockUpstream(ctx, t, upResp)
 
@@ -2302,15 +2212,15 @@ func TestNativeBedrockSingleBuiltinTool(t *testing.T) {
 			bodyBytes, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			if tc.streaming {
-				assert.Equal(t, fix.Response, bodyBytes, "response body should be an exact passthrough")
+				assert.Equal(t, tc.response, bodyBytes, "response body should be an exact passthrough")
 			} else {
-				assert.JSONEq(t, string(fix.Response), string(bodyBytes), "response body should be an exact passthrough")
+				assert.JSONEq(t, string(tc.response), string(bodyBytes), "response body should be an exact passthrough")
 			}
 
 			// Verify response content type was forwarded.
 			assert.Equal(t, tc.wantContentType, resp.Header.Get("Content-Type"))
 
-			// Verify the upstream received the request with the original body.
+			// Verify the upstream received the request at the correct path with the original body.
 			received := upstream.receivedRequests()
 			require.Len(t, received, 1)
 			assert.Equal(t, "/model/"+bedrockModel+tc.urlSuffix, received[0].Path)

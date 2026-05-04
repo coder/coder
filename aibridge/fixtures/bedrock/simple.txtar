@@ -1,0 +1,627 @@
+-- request --
+{
+  "anthropic_version": "bedrock-2023-05-31",
+  "max_tokens": 50,
+  "messages": [
+    {
+      "role": "user",
+      "content": "how many angels can dance on the head of a pin"
+    }
+  ]
+}
+
+-- streaming --
+[
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "message_start",
+      "message": {
+        "model": "claude-sonnet-4-5-20250929",
+        "id": "msg_bdrk_01V7qMAYt4GEtvfD9w8MJsGm",
+        "type": "message",
+        "role": "assistant",
+        "content": [],
+        "stop_reason": null,
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 18,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 1
+        }
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_start",
+      "index": 0,
+      "content_block": {
+        "type": "text",
+        "text": ""
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "This"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " famous"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " question"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " is often"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " used"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " to"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " mock"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " medieval"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " schol"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "astic philosophy"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " as"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " abs"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "urd"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "ly abstract"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " and"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " disconn"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "ected from reality."
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " However"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": ", it's"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " actually"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " a **"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "miscon"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "ception** —"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " there"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "'s"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " no evidence"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " medieval"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " philosophers"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " seriously"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " deb"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "ated this."
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": "\n\nThe question likely"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_delta",
+      "index": 0,
+      "delta": {
+        "type": "text_delta",
+        "text": " originated"
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "content_block_stop",
+      "index": 0
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "message_delta",
+      "delta": {
+        "stop_reason": "max_tokens",
+        "stop_sequence": null
+      },
+      "usage": {
+        "input_tokens": 18,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 50
+      }
+    }
+  },
+  {
+    "headers": {
+      ":content-type": "application/json",
+      ":event-type": "chunk",
+      ":message-type": "event"
+    },
+    "event": {
+      "type": "message_stop",
+      "amazon-bedrock-invocationMetrics": {
+        "inputTokenCount": 18,
+        "outputTokenCount": 50,
+        "invocationLatency": 3403,
+        "firstByteLatency": 1550
+      }
+    }
+  }
+]
+
+-- non-streaming --
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "id": "msg_bdrk_01EtwapSyH1pru19iBrwrDib",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "This famous question is often used to mock medieval scholars for supposedly engaging in pointless theological debates, but it's actually a myth—there's no evidence medieval philosophers actually debated this.\n\nThe question is sometimes attributed to Thomas Aquinas and other"
+    }
+  ],
+  "stop_reason": "max_tokens",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 18,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 50
+  }
+}

@@ -163,28 +163,16 @@ var (
 	OaiResponsesStreamingWrongResponseFormat []byte
 )
 
-// Bedrock fixtures are binary (eventstream) for streaming responses and
-// cannot use the txtar format. Streaming responses use .resp.bin; blocking
-// responses use .resp.json. Requests are .req.json and may be shared between
-// streaming and blocking variants when the body is identical.
+// Bedrock fixtures are stored as txtar archives. Each archive's
+// "streaming" section is a JSON array of decoded EventStream frames
+// (re-encoded into the AWS binary wire format on demand by
+// [BedrockFixture.EncodeAsAWSEventStream]).
 var (
-	//go:embed bedrock/simple.req.json
-	BedrockSimpleReq []byte
+	//go:embed bedrock/simple.txtar
+	BedrockSimple []byte
 
-	//go:embed bedrock/simple_streaming.resp.bin
-	BedrockSimpleStreamingResp []byte
-
-	//go:embed bedrock/simple_blocking.resp.json
-	BedrockSimpleBlockingResp []byte
-
-	//go:embed bedrock/single_builtin_tool.req.json
-	BedrockSingleBuiltinToolReq []byte
-
-	//go:embed bedrock/single_builtin_tool_streaming.resp.bin
-	BedrockSingleBuiltinToolStreamingResp []byte
-
-	//go:embed bedrock/single_builtin_tool_blocking.resp.json
-	BedrockSingleBuiltinToolBlockingResp []byte
+	//go:embed bedrock/single_builtin_tool.txtar
+	BedrockSingleBuiltinTool []byte
 )
 
 // Section name constants matching the file names used in txtar fixtures.
@@ -268,11 +256,4 @@ func Parse(t *testing.T, data []byte) Fixture {
 func Request(t *testing.T, fixture []byte) []byte {
 	t.Helper()
 	return Parse(t, fixture).Request()
-}
-
-// BedrockFixture holds a request/response pair for a Bedrock test case.
-// Bedrock fixtures use binary eventstream format and cannot use txtar.
-type BedrockFixture struct {
-	Request  []byte
-	Response []byte
 }
