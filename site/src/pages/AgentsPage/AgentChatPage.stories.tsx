@@ -1097,6 +1097,15 @@ export const WithMessageHistory: Story = {
 			{ diffUrl: undefined },
 		),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Markdown rendering showcase"),
+		).toBeVisible();
+		await waitFor(() =>
+			expect(canvas.queryByRole("alert")).not.toBeInTheDocument(),
+		);
+	},
 };
 
 /** Skeleton placeholder when no query data is available yet. */

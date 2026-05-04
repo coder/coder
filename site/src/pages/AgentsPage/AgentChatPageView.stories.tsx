@@ -247,6 +247,25 @@ export const AdminViewingOtherUserChat: Story = {
 	},
 };
 
+/** Shows the owner ID fallback while the owner profile is unavailable. */
+export const OtherUserChatOwnerFallback: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			isViewerNotOwner
+			chatOwnerId="other-user-id"
+			chatOwnerUsername={undefined}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("alert");
+		expect(banner).toBeVisible();
+		expect(banner).toHaveTextContent(
+			"This is not your chat. Prompting here will use owner other-user-id's identity.",
+		);
+	},
+};
+
 /** Archived chats stay read-only without the identity warning banner. */
 export const ArchivedOtherUserChat: Story = {
 	render: () => (

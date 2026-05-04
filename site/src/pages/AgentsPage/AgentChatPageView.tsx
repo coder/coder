@@ -412,6 +412,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const chatOwnerLabel = chatOwnerUsername
 		? `@${chatOwnerUsername}`
 		: `owner ${chatOwnerId}`;
+	const chatOwnerWarning = `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`;
 
 	const titleElement = (
 		<title>
@@ -469,8 +470,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
 								>
 									<TriangleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
-									This is not your chat. Prompting here will use{" "}
-									{chatOwnerLabel}'s identity.
+									{chatOwnerWarning}
 								</div>
 							)}
 							{isArchived && (
