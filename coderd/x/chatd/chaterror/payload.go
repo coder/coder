@@ -20,10 +20,6 @@ func TerminalErrorPayload(classified ClassifiedError) *codersdk.ChatLastError {
 	}
 }
 
-func StreamErrorPayload(classified ClassifiedError) *codersdk.ChatStreamError {
-	return TerminalErrorPayload(classified)
-}
-
 func StreamRetryPayload(
 	attempt int,
 	delay time.Duration,

@@ -2407,7 +2407,7 @@ func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
 	server.publishError(chatID, classified)
 
 	event := requireStreamErrorEvent(t, events)
-	require.Equal(t, chaterror.StreamErrorPayload(classified), event.Error)
+	require.Equal(t, chaterror.TerminalErrorPayload(classified), event.Error)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 

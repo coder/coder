@@ -1,4 +1,4 @@
--- Migration 474 retypes chats.last_error to jsonb and backfills legacy
+-- Migration 485 retypes chats.last_error to jsonb and backfills legacy
 -- text rows into the structured persisted payload shape.
 DO $$
 DECLARE

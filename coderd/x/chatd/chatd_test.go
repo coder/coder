@@ -3800,7 +3800,7 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	// Write a minimal structured last_error payload through the
 	// query layer, then verify it round-trips through storage.
 	errorMessage := "stream response: status 500: internal server error"
-	legacyPayload := codersdk.ChatLastError{
+	wantPayload := codersdk.ChatLastError{
 		Message: errorMessage,
 		Kind:    "generic",
 	}
@@ -3810,17 +3810,17 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   mustChatLastErrorRawMessage(t, legacyPayload),
+		LastError:   mustChatLastErrorRawMessage(t, wantPayload),
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusError, chat.Status)
-	require.Equal(t, legacyPayload, requireChatLastErrorPayload(t, chat.LastError))
+	require.Equal(t, wantPayload, requireChatLastErrorPayload(t, chat.LastError))
 
 	// Verify the error is persisted when re-read from the database.
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusError, fromDB.Status)
-	require.Equal(t, legacyPayload, requireChatLastErrorPayload(t, fromDB.LastError))
+	require.Equal(t, wantPayload, requireChatLastErrorPayload(t, fromDB.LastError))
 
 	// Verify the error is cleared when the chat transitions to a
 	// non-error status (e.g. pending after a retry).

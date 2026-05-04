@@ -514,9 +514,10 @@ export const useChatStore = (
 							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 								continue;
 							}
-							const reason = normalizeChatErrorPayload(streamEvent.error, {
-								fallbackMessage: "Chat processing failed.",
-							}) ?? { kind: "generic", message: "Chat processing failed." };
+							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
+								kind: "generic",
+								message: "Chat processing failed.",
+							};
 							store.setChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();

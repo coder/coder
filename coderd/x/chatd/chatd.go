@@ -4856,7 +4856,7 @@ func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetr
 }
 
 func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedError) {
-	payload := chaterror.StreamErrorPayload(classified)
+	payload := chaterror.TerminalErrorPayload(classified)
 	if payload == nil {
 		return
 	}

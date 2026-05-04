@@ -28,10 +28,10 @@ func TestTerminalErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	}, payload)
 }
 
-func TestStreamErrorPayloadIncludesProviderDetail(t *testing.T) {
+func TestTerminalErrorPayloadIncludesProviderDetail(t *testing.T) {
 	t.Parallel()
 
-	payload := chaterror.StreamErrorPayload(chaterror.Classify(testProviderError(
+	payload := chaterror.TerminalErrorPayload(chaterror.Classify(testProviderError(
 		"",
 		400,
 		nil,
@@ -45,7 +45,6 @@ func TestTerminalErrorPayloadNilForEmptyClassification(t *testing.T) {
 	t.Parallel()
 
 	require.Nil(t, chaterror.TerminalErrorPayload(chaterror.ClassifiedError{}))
-	require.Nil(t, chaterror.StreamErrorPayload(chaterror.ClassifiedError{}))
 }
 
 func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {

@@ -1,5 +1,5 @@
 -- Migration 424 adds chats.last_error as text. Seed one existing fixture
--- chat with a legacy plain-text error so migration 474 has a non-null row
+-- chat with a legacy plain-text error so migration 485 has a non-null row
 -- to backfill, and add a second chat that leaves last_error NULL so the
 -- migration fixture can assert both branches of the CASE expression.
 UPDATE chats

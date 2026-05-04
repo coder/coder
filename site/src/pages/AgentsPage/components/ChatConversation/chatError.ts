@@ -3,16 +3,10 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 
 type StructuredChatError = TypesGen.ChatLastError | TypesGen.ChatStreamError;
 
-interface NormalizeChatErrorOptions {
-	fallbackMessage?: string;
-}
-
 export const normalizeChatErrorPayload = (
 	error: StructuredChatError | undefined,
-	options?: NormalizeChatErrorOptions,
 ): ChatDetailError | undefined => {
-	const fallbackMessage = options?.fallbackMessage?.trim();
-	const message = error?.message?.trim() || fallbackMessage;
+	const message = error?.message?.trim();
 	if (!message) {
 		return undefined;
 	}
