@@ -1291,7 +1291,9 @@ const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
 						if (isCrossOrg) {
 							return (
 								<Tooltip key={workspace.id}>
-									<TooltipTrigger asChild>{item}</TooltipTrigger>
+									<TooltipTrigger asChild>
+										<div>{item}</div>
+									</TooltipTrigger>
 									<TooltipContent side="right">
 										Chat and workspace must be in the same organization
 									</TooltipContent>
