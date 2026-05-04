@@ -1294,7 +1294,7 @@ const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
 									<TooltipTrigger asChild>
 										<div>{item}</div>
 									</TooltipTrigger>
-									<TooltipContent side="right">
+									<TooltipContent side="top">
 										Chat and workspace must be in the same organization
 									</TooltipContent>
 								</Tooltip>
