@@ -158,8 +158,8 @@ importers:
         specifier: 3.10.1
         version: 3.10.1
       lexical:
-        specifier: 0.41.0
-        version: 0.41.0
+        specifier: 0.44.0
+        version: 0.44.0
       lodash:
         specifier: 4.18.1
         version: 4.18.1
@@ -4456,6 +4456,9 @@ packages:
 
   lexical@0.41.0:
     resolution: {integrity: sha512-pNIm5+n+hVnJHB9gYPDYsIO5Y59dNaDU9rJmPPsfqQhP2ojKFnUoPbcRnrI9FJLXB14sSumcY8LUw7Sq70TZqA==, tarball: https://registry.npmjs.org/lexical/-/lexical-0.41.0.tgz}
+
+  lexical@0.44.0:
+    resolution: {integrity: sha512-ReDUjRlFgkGoPWzvdjr7s16PUVpHATN+2NH2NiZs+PLlISTaIFFgKil2P467oP3Vg+XgmpDsUgmWZsFJTztYjg==, tarball: https://registry.npmjs.org/lexical/-/lexical-0.44.0.tgz}
 
   lib0@0.2.117:
     resolution: {integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==, tarball: https://registry.npmjs.org/lib0/-/lib0-0.2.117.tgz}
@@ -10673,6 +10676,8 @@ snapshots:
     optional: true
 
   lexical@0.41.0: {}
+
+  lexical@0.44.0: {}
 
   lib0@0.2.117:
     dependencies:
