@@ -1061,6 +1061,33 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE ai_model_prices (
+    id bigint NOT NULL,
+    provider text NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_model_prices_output_price_check CHECK ((output_price >= 0))
+);
+
+COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost. Seeded from upstream pricing data on startup. A missing row means the model has no pricing available and recorded interceptions for that model will have a NULL cost.';
+
+CREATE SEQUENCE ai_model_prices_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE ai_model_prices_id_seq OWNED BY ai_model_prices.id;
+
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
     first_used_at timestamp with time zone NOT NULL,
@@ -3336,6 +3363,8 @@ CREATE VIEW workspaces_expanded AS
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+ALTER TABLE ONLY ai_model_prices ALTER COLUMN id SET DEFAULT nextval('ai_model_prices_id_seq'::regclass);
+
 ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
 
 ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_queued_messages_id_seq'::regclass);
@@ -3356,6 +3385,12 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_model_prices
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_model_prices
+    ADD CONSTRAINT ai_model_prices_provider_model_key UNIQUE (provider, model);
 
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
