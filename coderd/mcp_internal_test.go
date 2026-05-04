@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -247,15 +248,52 @@ func TestMCPOAuth2StateRejectsTampered(t *testing.T) {
 	state, _, err := api.signMCPOAuth2State(uuid.New())
 	require.NoError(t, err)
 
-	// Flipping the last byte of the signature must fail HMAC
-	// verification.
-	tampered := state[:len(state)-1] + string(state[len(state)-1]^0x01)
+	// Flipping a byte inside the signature must fail HMAC
+	// verification. We pick the first character after the
+	// payload-signature delimiter so it is always a payload bit
+	// of the signature, never a base64 padding bit.
+	dotIdx := strings.Index(state, ".")
+	require.Greater(t, dotIdx, 0)
+	flipped := flipBase64URLChar(state[dotIdx+1])
+	tampered := state[:dotIdx+1] + string(flipped) + state[dotIdx+2:]
+	require.NotEqual(t, state, tampered, "tampered state must differ")
 	_, _, err = api.verifyMCPOAuth2State(tampered)
 	require.Error(t, err)
 
 	// Garbage in is rejected too.
 	_, _, err = api.verifyMCPOAuth2State("garbage")
 	require.Error(t, err)
+
+	// Empty input is rejected.
+	_, _, err = api.verifyMCPOAuth2State("")
+	require.Error(t, err)
+}
+
+// flipBase64URLChar returns a different valid base64url character
+// (deterministically, by mapping each character to the next one in
+// the alphabet). Used by tests to produce a tampered signature that
+// is still well-formed base64url but decodes to different bytes.
+func flipBase64URLChar(c byte) byte {
+	switch {
+	case c >= 'A' && c < 'Z':
+		return c + 1
+	case c == 'Z':
+		return 'a'
+	case c >= 'a' && c < 'z':
+		return c + 1
+	case c == 'z':
+		return '0'
+	case c >= '0' && c < '9':
+		return c + 1
+	case c == '9':
+		return '-'
+	case c == '-':
+		return '_'
+	case c == '_':
+		return 'A'
+	default:
+		return 'A'
+	}
 }
 
 func TestMCPOAuth2StateRejectsDifferentKey(t *testing.T) {
