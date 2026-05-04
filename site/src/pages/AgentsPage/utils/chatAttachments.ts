@@ -87,12 +87,13 @@ export const chatAttachmentAcceptAttribute = [
 
 /**
  * Returns true for files whose declared MIME type is on the server
- * allowlist. Files whose type is unknown (empty string) also pass, so
- * that dropped or pasted .md files still reach the server, which will
- * run its own content classifier before accepting the upload.
+ * allowlist. Files whose type is unknown, either as an empty string or
+ * as application/octet-stream, also pass so dropped or pasted files can
+ * still reach the server, which remains the authority on attachment
+ * bytes.
  */
 export const isChatAttachmentFile = (file: File): boolean => {
-	if (!file.type) {
+	if (!file.type || file.type === "application/octet-stream") {
 		return true;
 	}
 	return ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
