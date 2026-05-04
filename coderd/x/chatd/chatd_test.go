@@ -4080,7 +4080,7 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
 		Name:        "my_dynamic_tool",
@@ -6600,7 +6600,7 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps)
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -6718,7 +6718,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
