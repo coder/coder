@@ -6,7 +6,7 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-server \
+curl -X GET http://coder-server:8080/.well-known/oauth-authorization-server \
   -H 'Accept: application/json'
 ```
 
@@ -53,7 +53,7 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-protected-resource \
+curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
   -H 'Accept: application/json'
 ```
 
@@ -95,7 +95,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /appearance`
+`GET /api/v2/appearance`
 
 ### Example responses
 
@@ -149,7 +149,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /appearance`
+`PUT /api/v2/appearance`
 
 > Body parameter
 
@@ -220,7 +220,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /connectionlog`
+`GET /api/v2/connectionlog`
 
 ### Parameters
 
@@ -315,7 +315,7 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /entitlements`
+`GET /api/v2/entitlements`
 
 ### Example responses
 
@@ -379,7 +379,7 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /groups`
+`GET /api/v2/groups`
 
 ### Parameters
 
@@ -484,7 +484,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /groups/{group}`
+`GET /api/v2/groups/{group}`
 
 ### Parameters
 
@@ -547,7 +547,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /groups/{group}`
+`DELETE /api/v2/groups/{group}`
 
 ### Parameters
 
@@ -610,7 +610,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /groups/{group}`
+`PATCH /api/v2/groups/{group}`
 
 > Body parameter
 
@@ -690,7 +690,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /groups/{group}/members`
+`GET /api/v2/groups/{group}/members`
 
 ### Parameters
 
@@ -747,7 +747,7 @@ curl -X GET http://coder-server:8080/api/v2/licenses \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /licenses`
+`GET /api/v2/licenses`
 
 ### Example responses
 
@@ -796,7 +796,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /licenses`
+`POST /api/v2/licenses`
 
 > Body parameter
 
@@ -844,7 +844,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /licenses/refresh-entitlements`
+`POST /api/v2/licenses/refresh-entitlements`
 
 ### Example responses
 
@@ -881,7 +881,7 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /licenses/{id}`
+`DELETE /api/v2/licenses/{id}`
 
 ### Parameters
 
@@ -907,7 +907,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notificatio
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /notifications/templates/{notification_template}/method`
+`PUT /api/v2/notifications/templates/{notification_template}/method`
 
 ### Parameters
 
@@ -935,7 +935,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /oauth2-provider/apps`
+`GET /api/v2/oauth2-provider/apps`
 
 ### Parameters
 
@@ -1001,7 +1001,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /oauth2-provider/apps`
+`POST /api/v2/oauth2-provider/apps`
 
 > Body parameter
 
@@ -1057,7 +1057,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /oauth2-provider/apps/{app}`
+`GET /api/v2/oauth2-provider/apps/{app}`
 
 ### Parameters
 
@@ -1104,7 +1104,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /oauth2-provider/apps/{app}`
+`PUT /api/v2/oauth2-provider/apps/{app}`
 
 > Body parameter
 
@@ -1160,7 +1160,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /oauth2-provider/apps/{app}`
+`DELETE /api/v2/oauth2-provider/apps/{app}`
 
 ### Parameters
 
@@ -1187,7 +1187,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /oauth2-provider/apps/{app}/secrets`
+`GET /api/v2/oauth2-provider/apps/{app}/secrets`
 
 ### Parameters
 
@@ -1239,7 +1239,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /oauth2-provider/apps/{app}/secrets`
+`POST /api/v2/oauth2-provider/apps/{app}/secrets`
 
 ### Parameters
 
@@ -1288,7 +1288,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /oauth2-provider/apps/{app}/secrets/{secretID}`
+`DELETE /api/v2/oauth2-provider/apps/{app}/secrets/{secretID}`
 
 ### Parameters
 
@@ -1311,7 +1311,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1347,7 +1347,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&state=string&response_type=code \
+curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1383,7 +1383,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
+curl -X GET http://coder-server:8080/oauth2/clients/{client_id} \
   -H 'Accept: application/json'
 ```
 
@@ -1444,7 +1444,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
 
 ```shell
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
+curl -X PUT http://coder-server:8080/oauth2/clients/{client_id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json'
 ```
@@ -1538,7 +1538,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/oauth2/clients/{client_id}
+curl -X DELETE http://coder-server:8080/oauth2/clients/{client_id}
 
 ```
 
@@ -1562,7 +1562,7 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2/clients/{client_id}
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/oauth2/register \
+curl -X POST http://coder-server:8080/oauth2/register \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json'
 ```
@@ -1656,7 +1656,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/oauth2/revoke \
+curl -X POST http://coder-server:8080/oauth2/revoke \
 
 ```
 
@@ -1692,7 +1692,7 @@ token_type_hint: string
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/oauth2/tokens \
+curl -X POST http://coder-server:8080/oauth2/tokens \
   -H 'Accept: application/json'
 ```
 
@@ -1752,7 +1752,7 @@ grant_type: authorization_code
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/oauth2/tokens?client_id=string \
+curl -X DELETE http://coder-server:8080/oauth2/tokens?client_id=string \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1783,7 +1783,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/groups`
+`GET /api/v2/organizations/{organization}/groups`
 
 ### Parameters
 
@@ -1887,7 +1887,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/groups`
+`POST /api/v2/organizations/{organization}/groups`
 
 > Body parameter
 
@@ -1961,7 +1961,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/groups/{groupName}`
+`GET /api/v2/organizations/{organization}/groups/{groupName}`
 
 ### Parameters
 
@@ -2024,7 +2024,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/groups/{groupName}/members`
+`GET /api/v2/organizations/{organization}/groups/{groupName}/members`
 
 ### Parameters
 
@@ -2082,7 +2082,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members/{user}/workspace-quota`
+`GET /api/v2/organizations/{organization}/members/{user}/workspace-quota`
 
 ### Parameters
 
@@ -2120,7 +2120,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerdaemons/serve`
+`GET /api/v2/organizations/{organization}/provisionerdaemons/serve`
 
 ### Parameters
 
@@ -2147,7 +2147,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerkeys`
+`GET /api/v2/organizations/{organization}/provisionerkeys`
 
 ### Parameters
 
@@ -2207,7 +2207,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provis
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/provisionerkeys`
+`POST /api/v2/organizations/{organization}/provisionerkeys`
 
 ### Parameters
 
@@ -2244,7 +2244,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerkeys/daemons`
+`GET /api/v2/organizations/{organization}/provisionerkeys/daemons`
 
 ### Parameters
 
@@ -2368,7 +2368,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}/provisionerkeys/{provisionerkey}`
+`DELETE /api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}`
 
 ### Parameters
 
@@ -2396,7 +2396,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/settings/idpsync/available-fields`
+`GET /api/v2/organizations/{organization}/settings/idpsync/available-fields`
 
 ### Parameters
 
@@ -2435,7 +2435,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/settings/idpsync/field-values`
+`GET /api/v2/organizations/{organization}/settings/idpsync/field-values`
 
 ### Parameters
 
@@ -2475,7 +2475,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/settings/idpsync/groups`
+`GET /api/v2/organizations/{organization}/settings/idpsync/groups`
 
 ### Parameters
 
@@ -2527,7 +2527,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/settings/idpsync/groups`
+`PATCH /api/v2/organizations/{organization}/settings/idpsync/groups`
 
 > Body parameter
 
@@ -2602,7 +2602,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/settings/idpsync/groups/config`
+`PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/config`
 
 > Body parameter
 
@@ -2665,7 +2665,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/settings/idpsync/groups/mapping`
+`PATCH /api/v2/organizations/{organization}/settings/idpsync/groups/mapping`
 
 > Body parameter
 
@@ -2736,7 +2736,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/settings/idpsync/roles`
+`GET /api/v2/organizations/{organization}/settings/idpsync/roles`
 
 ### Parameters
 
@@ -2782,7 +2782,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/settings/idpsync/roles`
+`PATCH /api/v2/organizations/{organization}/settings/idpsync/roles`
 
 > Body parameter
 
@@ -2845,7 +2845,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/settings/idpsync/roles/config`
+`PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`
 
 > Body parameter
 
@@ -2900,7 +2900,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/settings/idpsync/roles/mapping`
+`PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/mapping`
 
 > Body parameter
 
@@ -2965,7 +2965,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/settings/workspace-sharing`
+`GET /api/v2/organizations/{organization}/settings/workspace-sharing`
 
 ### Parameters
 
@@ -3005,7 +3005,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/settings/workspace-sharing`
+`PATCH /api/v2/organizations/{organization}/settings/workspace-sharing`
 
 > Body parameter
 
@@ -3053,7 +3053,7 @@ curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
   -H 'Accept: application/json'
 ```
 
-`GET /provisionerkeys/{provisionerkey}`
+`GET /api/v2/provisionerkeys/{provisionerkey}`
 
 ### Parameters
 
@@ -3097,7 +3097,7 @@ curl -X GET http://coder-server:8080/api/v2/replicas \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /replicas`
+`GET /api/v2/replicas`
 
 ### Example responses
 
@@ -3146,7 +3146,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/scim/v2/ServiceProviderConfig
+curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 
 ```
 
@@ -3164,7 +3164,7 @@ curl -X GET http://coder-server:8080/api/v2/scim/v2/ServiceProviderConfig
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/scim/v2/Users \
+curl -X GET http://coder-server:8080/scim/v2/Users \
   -H 'Authorizaiton: API_KEY'
 ```
 
@@ -3184,7 +3184,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
+curl -X POST http://coder-server:8080/scim/v2/Users \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Authorizaiton: API_KEY'
@@ -3276,7 +3276,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Authorizaiton: API_KEY'
 ```
 
@@ -3302,7 +3302,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
   -H 'Authorizaiton: API_KEY'
@@ -3394,7 +3394,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/scim+json' \
   -H 'Authorizaiton: API_KEY'
@@ -3491,7 +3491,7 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /settings/idpsync/available-fields`
+`GET /api/v2/settings/idpsync/available-fields`
 
 ### Parameters
 
@@ -3530,7 +3530,7 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimF
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /settings/idpsync/field-values`
+`GET /api/v2/settings/idpsync/field-values`
 
 ### Parameters
 
@@ -3570,7 +3570,7 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/organization \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /settings/idpsync/organization`
+`GET /api/v2/settings/idpsync/organization`
 
 ### Example responses
 
@@ -3611,7 +3611,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /settings/idpsync/organization`
+`PATCH /api/v2/settings/idpsync/organization`
 
 > Body parameter
 
@@ -3675,7 +3675,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/conf
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /settings/idpsync/organization/config`
+`PATCH /api/v2/settings/idpsync/organization/config`
 
 > Body parameter
 
@@ -3731,7 +3731,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/mapp
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /settings/idpsync/organization/mapping`
+`PATCH /api/v2/settings/idpsync/organization/mapping`
 
 > Body parameter
 
@@ -3796,7 +3796,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/acl`
+`GET /api/v2/templates/{template}/acl`
 
 ### Parameters
 
@@ -3892,7 +3892,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templates/{template}/acl`
+`PATCH /api/v2/templates/{template}/acl`
 
 > Body parameter
 
@@ -3952,7 +3952,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/acl/available`
+`GET /api/v2/templates/{template}/acl/available`
 
 ### Parameters
 
@@ -4077,7 +4077,7 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templates/{template}/prebuilds/invalidate`
+`POST /api/v2/templates/{template}/prebuilds/invalidate`
 
 ### Parameters
 
@@ -4120,7 +4120,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/quiet-hours`
+`GET /api/v2/users/{user}/quiet-hours`
 
 ### Parameters
 
@@ -4179,7 +4179,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/quiet-hours`
+`PUT /api/v2/users/{user}/quiet-hours`
 
 > Body parameter
 
@@ -4246,7 +4246,7 @@ curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspace-quota/{user}`
+`GET /api/v2/workspace-quota/{user}`
 
 ### Parameters
 
@@ -4284,7 +4284,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceproxies`
+`GET /api/v2/workspaceproxies`
 
 ### Example responses
 
@@ -4380,7 +4380,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceproxies`
+`POST /api/v2/workspaceproxies`
 
 > Body parameter
 
@@ -4451,7 +4451,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceproxies/{workspaceproxy}`
+`GET /api/v2/workspaceproxies/{workspaceproxy}`
 
 ### Parameters
 
@@ -4512,7 +4512,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy}
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /workspaceproxies/{workspaceproxy}`
+`DELETE /api/v2/workspaceproxies/{workspaceproxy}`
 
 ### Parameters
 
@@ -4557,7 +4557,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /workspaceproxies/{workspaceproxy}`
+`PATCH /api/v2/workspaceproxies/{workspaceproxy}`
 
 > Body parameter
 
@@ -4631,7 +4631,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agen
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/external-agent/{agent}/credentials`
+`GET /api/v2/workspaces/{workspace}/external-agent/{agent}/credentials`
 
 ### Parameters
 

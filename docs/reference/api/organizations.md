@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations`
+`GET /api/v2/organizations`
 
 ### Example responses
 
@@ -68,7 +68,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations`
+`POST /api/v2/organizations`
 
 > Body parameter
 
@@ -123,7 +123,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}`
+`GET /api/v2/organizations/{organization}`
 
 ### Parameters
 
@@ -167,7 +167,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}`
+`DELETE /api/v2/organizations/{organization}`
 
 ### Parameters
 
@@ -212,7 +212,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}`
+`PATCH /api/v2/organizations/{organization}`
 
 > Body parameter
 
@@ -268,7 +268,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerjobs`
+`GET /api/v2/organizations/{organization}/provisionerjobs`
 
 ### Parameters
 
@@ -406,7 +406,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerjobs/{job}`
+`GET /api/v2/organizations/{organization}/provisionerjobs/{job}`
 
 ### Parameters
 

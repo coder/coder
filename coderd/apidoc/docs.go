@@ -24,7 +24,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/": {
+        "/api/v2/": {
             "get": {
                 "produces": [
                     "application/json"
@@ -84,7 +84,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/aibridge/clients": {
+        "/api/v2/aibridge/clients": {
             "get": {
                 "produces": [
                     "application/json"
@@ -112,7 +112,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/aibridge/interceptions": {
+        "/api/v2/aibridge/interceptions": {
             "get": {
                 "produces": [
                     "application/json"
@@ -164,7 +164,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/aibridge/models": {
+        "/api/v2/aibridge/models": {
             "get": {
                 "produces": [
                     "application/json"
@@ -192,7 +192,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/aibridge/sessions": {
+        "/api/v2/aibridge/sessions": {
             "get": {
                 "produces": [
                     "application/json"
@@ -243,7 +243,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/aibridge/sessions/{session_id}": {
+        "/api/v2/aibridge/sessions/{session_id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -295,7 +295,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/appearance": {
+        "/api/v2/appearance": {
             "get": {
                 "produces": [
                     "application/json"
@@ -357,7 +357,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/applications/auth-redirect": {
+        "/api/v2/applications/auth-redirect": {
             "get": {
                 "tags": [
                     "Applications"
@@ -384,7 +384,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/applications/host": {
+        "/api/v2/applications/host": {
             "get": {
                 "produces": [
                     "application/json"
@@ -410,7 +410,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/applications/reconnecting-pty-signed-token": {
+        "/api/v2/applications/reconnecting-pty-signed-token": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -452,7 +452,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/audit": {
+        "/api/v2/audit": {
             "get": {
                 "produces": [
                     "application/json"
@@ -498,7 +498,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/audit/testgenerate": {
+        "/api/v2/audit/testgenerate": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -534,7 +534,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/scopes": {
+        "/api/v2/auth/scopes": {
             "get": {
                 "produces": [
                     "application/json"
@@ -554,7 +554,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/authcheck": {
+        "/api/v2/authcheck": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -593,7 +593,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/buildinfo": {
+        "/api/v2/buildinfo": {
             "get": {
                 "produces": [
                     "application/json"
@@ -613,7 +613,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/insights/pull-requests": {
+        "/api/v2/chats/insights/pull-requests": {
             "get": {
                 "produces": [
                     "application/json"
@@ -657,7 +657,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/connectionlog": {
+        "/api/v2/connectionlog": {
             "get": {
                 "produces": [
                     "application/json"
@@ -703,7 +703,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/csp/reports": {
+        "/api/v2/csp/reports": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -736,7 +736,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/debug/coordinator": {
+        "/api/v2/debug/coordinator": {
             "get": {
                 "produces": [
                     "text/html"
@@ -758,7 +758,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/debug/derp/traffic": {
+        "/api/v2/debug/derp/traffic": {
             "get": {
                 "produces": [
                     "application/json"
@@ -789,7 +789,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/expvar": {
+        "/api/v2/debug/expvar": {
             "get": {
                 "produces": [
                     "application/json"
@@ -818,7 +818,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/health": {
+        "/api/v2/debug/health": {
             "get": {
                 "produces": [
                     "application/json"
@@ -851,7 +851,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/debug/health/settings": {
+        "/api/v2/debug/health/settings": {
             "get": {
                 "produces": [
                     "application/json"
@@ -913,7 +913,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/debug/metrics": {
+        "/api/v2/debug/metrics": {
             "get": {
                 "tags": [
                     "Debug"
@@ -935,7 +935,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/pprof": {
+        "/api/v2/debug/pprof": {
             "get": {
                 "tags": [
                     "Debug"
@@ -957,7 +957,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/pprof/cmdline": {
+        "/api/v2/debug/pprof/cmdline": {
             "get": {
                 "tags": [
                     "Debug"
@@ -979,7 +979,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/pprof/profile": {
+        "/api/v2/debug/pprof/profile": {
             "get": {
                 "tags": [
                     "Debug"
@@ -1001,7 +1001,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/pprof/symbol": {
+        "/api/v2/debug/pprof/symbol": {
             "get": {
                 "tags": [
                     "Debug"
@@ -1023,7 +1023,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/pprof/trace": {
+        "/api/v2/debug/pprof/trace": {
             "get": {
                 "tags": [
                     "Debug"
@@ -1045,7 +1045,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/profile": {
+        "/api/v2/debug/profile": {
             "post": {
                 "tags": [
                     "Debug"
@@ -1067,7 +1067,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/tailnet": {
+        "/api/v2/debug/tailnet": {
             "get": {
                 "produces": [
                     "text/html"
@@ -1089,7 +1089,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/debug/ws": {
+        "/api/v2/debug/ws": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1117,7 +1117,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/debug/{user}/debug-link": {
+        "/api/v2/debug/{user}/debug-link": {
             "get": {
                 "tags": [
                     "Agents"
@@ -1148,7 +1148,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/deployment/config": {
+        "/api/v2/deployment/config": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1173,7 +1173,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/deployment/ssh": {
+        "/api/v2/deployment/ssh": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1198,7 +1198,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/deployment/stats": {
+        "/api/v2/deployment/stats": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1223,7 +1223,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/derp-map": {
+        "/api/v2/derp-map": {
             "get": {
                 "tags": [
                     "Agents"
@@ -1242,7 +1242,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/entitlements": {
+        "/api/v2/entitlements": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1267,7 +1267,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/experimental/chats/config/retention-days": {
+        "/api/experimental/chats/config/retention-days": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1329,7 +1329,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/experimental/watch-all-workspacebuilds": {
+        "/api/experimental/watch-all-workspacebuilds": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1354,7 +1354,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/experiments": {
+        "/api/v2/experiments": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1382,7 +1382,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/experiments/available": {
+        "/api/v2/experiments/available": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1410,7 +1410,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/external-auth": {
+        "/api/v2/external-auth": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1435,7 +1435,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/external-auth/{externalauth}": {
+        "/api/v2/external-auth/{externalauth}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1503,7 +1503,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/external-auth/{externalauth}/device": {
+        "/api/v2/external-auth/{externalauth}/device": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1565,7 +1565,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/files": {
+        "/api/v2/files": {
             "post": {
                 "description": "Swagger notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
                 "consumes": [
@@ -1617,7 +1617,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/files/{fileID}": {
+        "/api/v2/files/{fileID}": {
             "get": {
                 "tags": [
                     "Files"
@@ -1646,7 +1646,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/groups": {
+        "/api/v2/groups": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1697,7 +1697,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/groups/{group}": {
+        "/api/v2/groups/{group}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1813,7 +1813,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/groups/{group}/members": {
+        "/api/v2/groups/{group}/members": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1872,7 +1872,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/init-script/{os}/{arch}": {
+        "/api/v2/init-script/{os}/{arch}": {
             "get": {
                 "produces": [
                     "text/plain"
@@ -1905,7 +1905,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/insights/daus": {
+        "/api/v2/insights/daus": {
             "get": {
                 "produces": [
                     "application/json"
@@ -1939,7 +1939,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/insights/templates": {
+        "/api/v2/insights/templates": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2003,7 +2003,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/insights/user-activity": {
+        "/api/v2/insights/user-activity": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2056,7 +2056,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/insights/user-latency": {
+        "/api/v2/insights/user-latency": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2109,7 +2109,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/insights/user-status-counts": {
+        "/api/v2/insights/user-status-counts": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2148,7 +2148,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/licenses": {
+        "/api/v2/licenses": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2213,7 +2213,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/licenses/refresh-entitlements": {
+        "/api/v2/licenses/refresh-entitlements": {
             "post": {
                 "produces": [
                     "application/json"
@@ -2238,7 +2238,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/licenses/{id}": {
+        "/api/v2/licenses/{id}": {
             "delete": {
                 "produces": [
                     "application/json"
@@ -2270,7 +2270,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/custom": {
+        "/api/v2/notifications/custom": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -2324,7 +2324,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/dispatch-methods": {
+        "/api/v2/notifications/dispatch-methods": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2352,7 +2352,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/inbox": {
+        "/api/v2/notifications/inbox": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2404,7 +2404,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/inbox/mark-all-as-read": {
+        "/api/v2/notifications/inbox/mark-all-as-read": {
             "put": {
                 "tags": [
                     "Notifications"
@@ -2423,7 +2423,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/inbox/watch": {
+        "/api/v2/notifications/inbox/watch": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2478,7 +2478,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/inbox/{id}/read-status": {
+        "/api/v2/notifications/inbox/{id}/read-status": {
             "put": {
                 "produces": [
                     "application/json"
@@ -2512,7 +2512,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/settings": {
+        "/api/v2/notifications/settings": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2577,7 +2577,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/templates/custom": {
+        "/api/v2/notifications/templates/custom": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2611,7 +2611,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/templates/system": {
+        "/api/v2/notifications/templates/system": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2645,7 +2645,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/templates/{notification_template}/method": {
+        "/api/v2/notifications/templates/{notification_template}/method": {
             "put": {
                 "produces": [
                     "application/json"
@@ -2679,7 +2679,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/notifications/test": {
+        "/api/v2/notifications/test": {
             "post": {
                 "tags": [
                     "Notifications"
@@ -2698,7 +2698,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/oauth2-provider/apps": {
+        "/api/v2/oauth2-provider/apps": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2771,7 +2771,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/oauth2-provider/apps/{app}": {
+        "/api/v2/oauth2-provider/apps/{app}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2875,7 +2875,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/oauth2-provider/apps/{app}/secrets": {
+        "/api/v2/oauth2-provider/apps/{app}/secrets": {
             "get": {
                 "produces": [
                     "application/json"
@@ -2947,7 +2947,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/oauth2-provider/apps/{app}/secrets/{secretID}": {
+        "/api/v2/oauth2-provider/apps/{app}/secrets/{secretID}": {
             "delete": {
                 "tags": [
                     "Enterprise"
@@ -3347,7 +3347,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations": {
+        "/api/v2/organizations": {
             "get": {
                 "produces": [
                     "application/json"
@@ -3412,7 +3412,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}": {
+        "/api/v2/organizations/{organization}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -3523,7 +3523,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/groups": {
+        "/api/v2/organizations/{organization}/groups": {
             "get": {
                 "produces": [
                     "application/json"
@@ -3605,7 +3605,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/groups/{groupName}": {
+        "/api/v2/organizations/{organization}/groups/{groupName}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -3647,7 +3647,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/groups/{groupName}/members": {
+        "/api/v2/organizations/{organization}/groups/{groupName}/members": {
             "get": {
                 "produces": [
                     "application/json"
@@ -3714,7 +3714,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members": {
+        "/api/v2/organizations/{organization}/members": {
             "get": {
                 "produces": [
                     "application/json"
@@ -3752,7 +3752,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members/roles": {
+        "/api/v2/organizations/{organization}/members/roles": {
             "get": {
                 "produces": [
                     "application/json"
@@ -3886,7 +3886,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members/roles/{roleName}": {
+        "/api/v2/organizations/{organization}/members/roles/{roleName}": {
             "delete": {
                 "produces": [
                     "application/json"
@@ -3931,7 +3931,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members/{user}": {
+        "/api/v2/organizations/{organization}/members/{user}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4044,7 +4044,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members/{user}/roles": {
+        "/api/v2/organizations/{organization}/members/{user}/roles": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -4097,7 +4097,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members/{user}/workspace-quota": {
+        "/api/v2/organizations/{organization}/members/{user}/workspace-quota": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4139,7 +4139,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members/{user}/workspaces": {
+        "/api/v2/organizations/{organization}/members/{user}/workspaces": {
             "post": {
                 "description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
                 "consumes": [
@@ -4195,7 +4195,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/members/{user}/workspaces/available-users": {
+        "/api/v2/organizations/{organization}/members/{user}/workspaces/available-users": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4258,7 +4258,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/paginated-members": {
+        "/api/v2/organizations/{organization}/paginated-members": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4320,7 +4320,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/provisionerdaemons": {
+        "/api/v2/organizations/{organization}/provisionerdaemons": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4402,7 +4402,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/provisionerdaemons/serve": {
+        "/api/v2/organizations/{organization}/provisionerdaemons/serve": {
             "get": {
                 "tags": [
                     "Enterprise"
@@ -4431,7 +4431,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/provisionerjobs": {
+        "/api/v2/organizations/{organization}/provisionerjobs": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4520,7 +4520,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/provisionerjobs/{job}": {
+        "/api/v2/organizations/{organization}/provisionerjobs/{job}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4563,7 +4563,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/provisionerkeys": {
+        "/api/v2/organizations/{organization}/provisionerkeys": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4632,7 +4632,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/provisionerkeys/daemons": {
+        "/api/v2/organizations/{organization}/provisionerkeys/daemons": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4669,7 +4669,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/provisionerkeys/{provisionerkey}": {
+        "/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}": {
             "delete": {
                 "tags": [
                     "Enterprise"
@@ -4704,7 +4704,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/available-fields": {
+        "/api/v2/organizations/{organization}/settings/idpsync/available-fields": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4742,7 +4742,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/field-values": {
+        "/api/v2/organizations/{organization}/settings/idpsync/field-values": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4788,7 +4788,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/groups": {
+        "/api/v2/organizations/{organization}/settings/idpsync/groups": {
             "get": {
                 "produces": [
                     "application/json"
@@ -4868,7 +4868,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/groups/config": {
+        "/api/v2/organizations/{organization}/settings/idpsync/groups/config": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -4915,7 +4915,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/groups/mapping": {
+        "/api/v2/organizations/{organization}/settings/idpsync/groups/mapping": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -4962,7 +4962,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/roles": {
+        "/api/v2/organizations/{organization}/settings/idpsync/roles": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5042,7 +5042,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/roles/config": {
+        "/api/v2/organizations/{organization}/settings/idpsync/roles/config": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -5089,7 +5089,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/idpsync/roles/mapping": {
+        "/api/v2/organizations/{organization}/settings/idpsync/roles/mapping": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -5136,7 +5136,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/settings/workspace-sharing": {
+        "/api/v2/organizations/{organization}/settings/workspace-sharing": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5216,7 +5216,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/templates": {
+        "/api/v2/organizations/{organization}/templates": {
             "get": {
                 "description": "Returns a list of templates for the specified organization.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
@@ -5299,7 +5299,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/templates/examples": {
+        "/api/v2/organizations/{organization}/templates/examples": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5338,7 +5338,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/templates/{templatename}": {
+        "/api/v2/organizations/{organization}/templates/{templatename}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5380,7 +5380,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
+        "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5429,7 +5429,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
+        "/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5481,7 +5481,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/organizations/{organization}/templateversions": {
+        "/api/v2/organizations/{organization}/templateversions": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -5528,7 +5528,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/prebuilds/settings": {
+        "/api/v2/prebuilds/settings": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5593,7 +5593,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/provisionerkeys/{provisionerkey}": {
+        "/api/v2/provisionerkeys/{provisionerkey}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5627,7 +5627,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/regions": {
+        "/api/v2/regions": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5652,7 +5652,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/replicas": {
+        "/api/v2/replicas": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5869,7 +5869,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/settings/idpsync/available-fields": {
+        "/api/v2/settings/idpsync/available-fields": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5907,7 +5907,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/settings/idpsync/field-values": {
+        "/api/v2/settings/idpsync/field-values": {
             "get": {
                 "produces": [
                     "application/json"
@@ -5953,7 +5953,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/settings/idpsync/organization": {
+        "/api/v2/settings/idpsync/organization": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6015,7 +6015,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/settings/idpsync/organization/config": {
+        "/api/v2/settings/idpsync/organization/config": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -6054,7 +6054,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/settings/idpsync/organization/mapping": {
+        "/api/v2/settings/idpsync/organization/mapping": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -6093,7 +6093,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tailnet": {
+        "/api/v2/tailnet": {
             "get": {
                 "tags": [
                     "Agents"
@@ -6112,7 +6112,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks": {
+        "/api/v2/tasks": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6145,7 +6145,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks/{user}": {
+        "/api/v2/tasks/{user}": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -6191,7 +6191,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks/{user}/{task}": {
+        "/api/v2/tasks/{user}/{task}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6265,7 +6265,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks/{user}/{task}/input": {
+        "/api/v2/tasks/{user}/{task}/input": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -6312,7 +6312,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks/{user}/{task}/logs": {
+        "/api/v2/tasks/{user}/{task}/logs": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6353,7 +6353,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks/{user}/{task}/pause": {
+        "/api/v2/tasks/{user}/{task}/pause": {
             "post": {
                 "produces": [
                     "application/json"
@@ -6395,7 +6395,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks/{user}/{task}/resume": {
+        "/api/v2/tasks/{user}/{task}/resume": {
             "post": {
                 "produces": [
                     "application/json"
@@ -6437,7 +6437,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/tasks/{user}/{task}/send": {
+        "/api/v2/tasks/{user}/{task}/send": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -6484,7 +6484,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates": {
+        "/api/v2/templates": {
             "get": {
                 "description": "Returns a list of templates.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
@@ -6513,7 +6513,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/examples": {
+        "/api/v2/templates/examples": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6541,7 +6541,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}": {
+        "/api/v2/templates/{template}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6654,7 +6654,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}/acl": {
+        "/api/v2/templates/{template}/acl": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6734,7 +6734,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}/acl/available": {
+        "/api/v2/templates/{template}/acl/available": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6772,7 +6772,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}/daus": {
+        "/api/v2/templates/{template}/daus": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6807,7 +6807,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}/prebuilds/invalidate": {
+        "/api/v2/templates/{template}/prebuilds/invalidate": {
             "post": {
                 "produces": [
                     "application/json"
@@ -6842,7 +6842,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}/versions": {
+        "/api/v2/templates/{template}/versions": {
             "get": {
                 "produces": [
                     "application/json"
@@ -6950,7 +6950,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}/versions/archive": {
+        "/api/v2/templates/{template}/versions/archive": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -6997,7 +6997,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templates/{template}/versions/{templateversionname}": {
+        "/api/v2/templates/{template}/versions/{templateversionname}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7042,7 +7042,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}": {
+        "/api/v2/templateversions/{templateversion}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7122,7 +7122,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/archive": {
+        "/api/v2/templateversions/{templateversion}/archive": {
             "post": {
                 "produces": [
                     "application/json"
@@ -7157,7 +7157,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/cancel": {
+        "/api/v2/templateversions/{templateversion}/cancel": {
             "patch": {
                 "produces": [
                     "application/json"
@@ -7192,7 +7192,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dry-run": {
+        "/api/v2/templateversions/{templateversion}/dry-run": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -7239,7 +7239,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobID}": {
+        "/api/v2/templateversions/{templateversion}/dry-run/{jobID}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7282,7 +7282,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
+        "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
             "patch": {
                 "produces": [
                     "application/json"
@@ -7325,7 +7325,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobID}/logs": {
+        "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7399,7 +7399,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
+        "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7442,7 +7442,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobID}/resources": {
+        "/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7488,7 +7488,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dynamic-parameters": {
+        "/api/v2/templateversions/{templateversion}/dynamic-parameters": {
             "get": {
                 "tags": [
                     "Templates"
@@ -7517,7 +7517,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/dynamic-parameters/evaluate": {
+        "/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -7564,7 +7564,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/external-auth": {
+        "/api/v2/templateversions/{templateversion}/external-auth": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7602,7 +7602,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/logs": {
+        "/api/v2/templateversions/{templateversion}/logs": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7668,7 +7668,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/parameters": {
+        "/api/v2/templateversions/{templateversion}/parameters": {
             "get": {
                 "tags": [
                     "Templates"
@@ -7697,7 +7697,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/presets": {
+        "/api/v2/templateversions/{templateversion}/presets": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7735,7 +7735,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/resources": {
+        "/api/v2/templateversions/{templateversion}/resources": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7773,7 +7773,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/rich-parameters": {
+        "/api/v2/templateversions/{templateversion}/rich-parameters": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7811,7 +7811,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/schema": {
+        "/api/v2/templateversions/{templateversion}/schema": {
             "get": {
                 "tags": [
                     "Templates"
@@ -7840,7 +7840,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/unarchive": {
+        "/api/v2/templateversions/{templateversion}/unarchive": {
             "post": {
                 "produces": [
                     "application/json"
@@ -7875,7 +7875,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/templateversions/{templateversion}/variables": {
+        "/api/v2/templateversions/{templateversion}/variables": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7913,7 +7913,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/updatecheck": {
+        "/api/v2/updatecheck": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7933,7 +7933,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users": {
+        "/api/v2/users": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8022,7 +8022,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/authmethods": {
+        "/api/v2/users/authmethods": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8047,7 +8047,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/first": {
+        "/api/v2/users/first": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8109,7 +8109,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/login": {
+        "/api/v2/users/login": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -8143,7 +8143,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/logout": {
+        "/api/v2/users/logout": {
             "post": {
                 "produces": [
                     "application/json"
@@ -8168,7 +8168,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/oauth2/github/callback": {
+        "/api/v2/users/oauth2/github/callback": {
             "get": {
                 "tags": [
                     "Users"
@@ -8187,7 +8187,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/oauth2/github/device": {
+        "/api/v2/users/oauth2/github/device": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8212,7 +8212,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/oidc-claims": {
+        "/api/v2/users/oidc-claims": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8237,7 +8237,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/oidc/callback": {
+        "/api/v2/users/oidc/callback": {
             "get": {
                 "tags": [
                     "Users"
@@ -8256,7 +8256,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/otp/change-password": {
+        "/api/v2/users/otp/change-password": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -8284,7 +8284,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/otp/request": {
+        "/api/v2/users/otp/request": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -8312,7 +8312,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/roles": {
+        "/api/v2/users/roles": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8340,7 +8340,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/validate-password": {
+        "/api/v2/users/validate-password": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -8379,7 +8379,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}": {
+        "/api/v2/users/{user}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8439,7 +8439,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/appearance": {
+        "/api/v2/users/{user}/appearance": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8517,7 +8517,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/autofill-parameters": {
+        "/api/v2/users/{user}/autofill-parameters": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8561,7 +8561,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/convert-login": {
+        "/api/v2/users/{user}/convert-login": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -8607,7 +8607,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/gitsshkey": {
+        "/api/v2/users/{user}/gitsshkey": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8673,7 +8673,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/keys": {
+        "/api/v2/users/{user}/keys": {
             "post": {
                 "produces": [
                     "application/json"
@@ -8707,7 +8707,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/keys/tokens": {
+        "/api/v2/users/{user}/keys/tokens": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8794,7 +8794,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/keys/tokens/tokenconfig": {
+        "/api/v2/users/{user}/keys/tokens/tokenconfig": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8828,7 +8828,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/keys/tokens/{keyname}": {
+        "/api/v2/users/{user}/keys/tokens/{keyname}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8870,7 +8870,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/keys/{keyid}": {
+        "/api/v2/users/{user}/keys/{keyid}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8946,7 +8946,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/keys/{keyid}/expire": {
+        "/api/v2/users/{user}/keys/{keyid}/expire": {
             "put": {
                 "tags": [
                     "Users"
@@ -8994,7 +8994,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/login-type": {
+        "/api/v2/users/{user}/login-type": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9028,7 +9028,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/notifications/preferences": {
+        "/api/v2/users/{user}/notifications/preferences": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9112,7 +9112,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/organizations": {
+        "/api/v2/users/{user}/organizations": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9149,7 +9149,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/organizations/{organizationname}": {
+        "/api/v2/users/{user}/organizations/{organizationname}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9190,7 +9190,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/password": {
+        "/api/v2/users/{user}/password": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -9230,7 +9230,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/preferences": {
+        "/api/v2/users/{user}/preferences": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9308,7 +9308,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/profile": {
+        "/api/v2/users/{user}/profile": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -9354,7 +9354,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/quiet-hours": {
+        "/api/v2/users/{user}/quiet-hours": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9440,7 +9440,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/roles": {
+        "/api/v2/users/{user}/roles": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9518,7 +9518,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/secrets": {
+        "/api/v2/users/{user}/secrets": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9599,7 +9599,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/secrets/{name}": {
+        "/api/v2/users/{user}/secrets/{name}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9724,7 +9724,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/status/activate": {
+        "/api/v2/users/{user}/status/activate": {
             "put": {
                 "produces": [
                     "application/json"
@@ -9758,7 +9758,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/status/suspend": {
+        "/api/v2/users/{user}/status/suspend": {
             "put": {
                 "produces": [
                     "application/json"
@@ -9792,7 +9792,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/webpush/subscription": {
+        "/api/v2/users/{user}/webpush/subscription": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -9876,7 +9876,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/{user}/webpush/test": {
+        "/api/v2/users/{user}/webpush/test": {
             "post": {
                 "tags": [
                     "Notifications"
@@ -9907,7 +9907,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/{user}/workspace/{workspacename}": {
+        "/api/v2/users/{user}/workspace/{workspacename}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -9954,7 +9954,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
+        "/api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10003,7 +10003,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/{user}/workspaces": {
+        "/api/v2/users/{user}/workspaces": {
             "post": {
                 "description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
                 "consumes": [
@@ -10050,7 +10050,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspace-quota/{user}": {
+        "/api/v2/workspace-quota/{user}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10085,7 +10085,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/aws-instance-identity": {
+        "/api/v2/workspaceagents/aws-instance-identity": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -10124,7 +10124,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/azure-instance-identity": {
+        "/api/v2/workspaceagents/azure-instance-identity": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -10163,7 +10163,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/connection": {
+        "/api/v2/workspaceagents/connection": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10191,7 +10191,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/google-instance-identity": {
+        "/api/v2/workspaceagents/google-instance-identity": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -10230,7 +10230,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/app-status": {
+        "/api/v2/workspaceagents/me/app-status": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -10270,7 +10270,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/external-auth": {
+        "/api/v2/workspaceagents/me/external-auth": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10317,7 +10317,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/gitauth": {
+        "/api/v2/workspaceagents/me/gitauth": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10364,7 +10364,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/gitsshkey": {
+        "/api/v2/workspaceagents/me/gitsshkey": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10389,7 +10389,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/log-source": {
+        "/api/v2/workspaceagents/me/log-source": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -10428,7 +10428,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/logs": {
+        "/api/v2/workspaceagents/me/logs": {
             "patch": {
                 "consumes": [
                     "application/json"
@@ -10467,7 +10467,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/reinit": {
+        "/api/v2/workspaceagents/me/reinit": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10506,7 +10506,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/me/rpc": {
+        "/api/v2/workspaceagents/me/rpc": {
             "get": {
                 "tags": [
                     "Agents"
@@ -10528,7 +10528,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/tasks/{task}/log-snapshot": {
+        "/api/v2/workspaceagents/me/tasks/{task}/log-snapshot": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -10579,7 +10579,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}": {
+        "/api/v2/workspaceagents/{workspaceagent}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10614,7 +10614,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/connection": {
+        "/api/v2/workspaceagents/{workspaceagent}/connection": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10649,7 +10649,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/containers": {
+        "/api/v2/workspaceagents/{workspaceagent}/containers": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10692,7 +10692,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
+        "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
             "delete": {
                 "tags": [
                     "Agents"
@@ -10728,7 +10728,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
+        "/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
                 "produces": [
                     "application/json"
@@ -10770,7 +10770,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/containers/watch": {
+        "/api/v2/workspaceagents/{workspaceagent}/containers/watch": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10805,7 +10805,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/coordinate": {
+        "/api/v2/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
                 "tags": [
                     "Agents"
@@ -10834,7 +10834,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/listening-ports": {
+        "/api/v2/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10869,7 +10869,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/logs": {
+        "/api/v2/workspaceagents/{workspaceagent}/logs": {
             "get": {
                 "produces": [
                     "application/json"
@@ -10941,7 +10941,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/pty": {
+        "/api/v2/workspaceagents/{workspaceagent}/pty": {
             "get": {
                 "tags": [
                     "Agents"
@@ -10970,7 +10970,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/startup-logs": {
+        "/api/v2/workspaceagents/{workspaceagent}/startup-logs": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11032,7 +11032,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceagents/{workspaceagent}/watch-metadata": {
+        "/api/v2/workspaceagents/{workspaceagent}/watch-metadata": {
             "get": {
                 "tags": [
                     "Agents"
@@ -11065,7 +11065,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/watch-metadata-ws": {
+        "/api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11103,7 +11103,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspacebuilds/{workspacebuild}": {
+        "/api/v2/workspacebuilds/{workspacebuild}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11137,7 +11137,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspacebuilds/{workspacebuild}/cancel": {
+        "/api/v2/workspacebuilds/{workspacebuild}/cancel": {
             "patch": {
                 "produces": [
                     "application/json"
@@ -11181,7 +11181,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspacebuilds/{workspacebuild}/logs": {
+        "/api/v2/workspacebuilds/{workspacebuild}/logs": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11246,7 +11246,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspacebuilds/{workspacebuild}/parameters": {
+        "/api/v2/workspacebuilds/{workspacebuild}/parameters": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11283,7 +11283,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspacebuilds/{workspacebuild}/resources": {
+        "/api/v2/workspacebuilds/{workspacebuild}/resources": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11321,7 +11321,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspacebuilds/{workspacebuild}/state": {
+        "/api/v2/workspacebuilds/{workspacebuild}/state": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11394,7 +11394,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspacebuilds/{workspacebuild}/timings": {
+        "/api/v2/workspacebuilds/{workspacebuild}/timings": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11429,7 +11429,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceproxies": {
+        "/api/v2/workspaceproxies": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11494,7 +11494,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaceproxies/me/app-stats": {
+        "/api/v2/workspaceproxies/me/app-stats": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -11530,7 +11530,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/me/coordinate": {
+        "/api/v2/workspaceproxies/me/coordinate": {
             "get": {
                 "tags": [
                     "Enterprise"
@@ -11552,7 +11552,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/me/crypto-keys": {
+        "/api/v2/workspaceproxies/me/crypto-keys": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11589,7 +11589,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/me/deregister": {
+        "/api/v2/workspaceproxies/me/deregister": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -11625,7 +11625,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/me/issue-signed-app-token": {
+        "/api/v2/workspaceproxies/me/issue-signed-app-token": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -11667,7 +11667,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/me/register": {
+        "/api/v2/workspaceproxies/me/register": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -11709,7 +11709,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/{workspaceproxy}": {
+        "/api/v2/workspaceproxies/{workspaceproxy}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11822,7 +11822,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces": {
+        "/api/v2/workspaces": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11867,7 +11867,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}": {
+        "/api/v2/workspaces/{workspace}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -11947,7 +11947,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/acl": {
+        "/api/v2/workspaces/{workspace}/acl": {
             "get": {
                 "produces": [
                     "application/json"
@@ -12051,7 +12051,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/autostart": {
+        "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -12092,7 +12092,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/autoupdates": {
+        "/api/v2/workspaces/{workspace}/autoupdates": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -12133,7 +12133,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/builds": {
+        "/api/v2/workspaces/{workspace}/builds": {
             "get": {
                 "produces": [
                     "application/json"
@@ -12242,7 +12242,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/dormant": {
+        "/api/v2/workspaces/{workspace}/dormant": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -12289,7 +12289,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/extend": {
+        "/api/v2/workspaces/{workspace}/extend": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -12336,7 +12336,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/external-agent/{agent}/credentials": {
+        "/api/v2/workspaces/{workspace}/external-agent/{agent}/credentials": {
             "get": {
                 "produces": [
                     "application/json"
@@ -12378,7 +12378,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/favorite": {
+        "/api/v2/workspaces/{workspace}/favorite": {
             "put": {
                 "tags": [
                     "Workspaces"
@@ -12434,7 +12434,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/port-share": {
+        "/api/v2/workspaces/{workspace}/port-share": {
             "get": {
                 "produces": [
                     "application/json"
@@ -12553,7 +12553,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/resolve-autostart": {
+        "/api/v2/workspaces/{workspace}/resolve-autostart": {
             "get": {
                 "produces": [
                     "application/json"
@@ -12588,7 +12588,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/timings": {
+        "/api/v2/workspaces/{workspace}/timings": {
             "get": {
                 "produces": [
                     "application/json"
@@ -12623,7 +12623,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/ttl": {
+        "/api/v2/workspaces/{workspace}/ttl": {
             "put": {
                 "consumes": [
                     "application/json"
@@ -12664,7 +12664,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/usage": {
+        "/api/v2/workspaces/{workspace}/usage": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -12704,7 +12704,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/watch": {
+        "/api/v2/workspaces/{workspace}/watch": {
             "get": {
                 "produces": [
                     "text/event-stream"
@@ -12740,7 +12740,7 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workspaces/{workspace}/watch-ws": {
+        "/api/v2/workspaces/{workspace}/watch-ws": {
             "get": {
                 "produces": [
                     "application/json"
@@ -25030,7 +25030,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "2.0",
 	Host:             "",
-	BasePath:         "/api/v2",
+	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Coder API",
 	Description:      "Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.",

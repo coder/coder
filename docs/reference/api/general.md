@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/ \
   -H 'Accept: application/json'
 ```
 
-`GET /`
+`GET /api/v2/`
 
 ### Example responses
 
@@ -45,7 +45,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   -H 'Accept: application/json'
 ```
 
-`GET /buildinfo`
+`GET /api/v2/buildinfo`
 
 ### Example responses
 
@@ -83,7 +83,7 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /csp/reports`
+`POST /api/v2/csp/reports`
 
 > Body parameter
 
@@ -118,7 +118,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/config`
+`GET /api/v2/deployment/config`
 
 ### Example responses
 
@@ -687,7 +687,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/ssh`
+`GET /api/v2/deployment/ssh`
 
 ### Example responses
 
@@ -723,7 +723,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/stats`
+`GET /api/v2/deployment/stats`
 
 ### Example responses
 
@@ -775,7 +775,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experiments`
+`GET /api/v2/experiments`
 
 ### Example responses
 
@@ -814,7 +814,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experiments/available`
+`GET /api/v2/experiments/available`
 
 ### Example responses
 
@@ -852,7 +852,7 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
   -H 'Accept: application/json'
 ```
 
-`GET /updatecheck`
+`GET /api/v2/updatecheck`
 
 ### Example responses
 
@@ -883,7 +883,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/tokens/tokenconfig`
+`GET /api/v2/users/{user}/keys/tokens/tokenconfig`
 
 ### Parameters
 
