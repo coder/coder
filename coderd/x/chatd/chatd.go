@@ -8381,14 +8381,22 @@ func (p *Server) updateLastTurnSummary(
 		LastTurnSummary:   lastTurnSummary,
 	})
 	if err != nil {
-		logger.Warn(ctx, "failed to update chat turn summary",
+		logger.Warn(updateCtx, "failed to update chat turn summary",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
 		return
 	}
 	if affected == 0 {
-		logger.Debug(ctx, "skipped stale chat turn summary update",
+		if summary != "" {
+			logger.Info(updateCtx, "skipped stale chat turn summary update with non-empty summary",
+				slog.F("chat_id", chat.ID),
+				slog.F("summary_length", len(summary)),
+				slog.F("expected_updated_at", expectedUpdatedAt),
+			)
+			return
+		}
+		logger.Debug(updateCtx, "skipped stale chat turn summary update",
 			slog.F("chat_id", chat.ID),
 			slog.F("expected_updated_at", expectedUpdatedAt),
 		)

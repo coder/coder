@@ -105,6 +105,7 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
@@ -239,14 +240,6 @@ const getPRIconConfig = (
 		};
 	}
 	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
-};
-
-const asNonEmptyString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
 };
 
 const getModelDisplayName = (
