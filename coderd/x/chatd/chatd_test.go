@@ -1787,6 +1787,7 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 	seededChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             "heartbeat-ownership",
 		LastModelConfigID: model.ID,
@@ -1834,11 +1835,12 @@ func TestUpdateChatHeartbeatsRejectsStaleEpoch(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	seededChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             "heartbeat-stale-epoch",
 		LastModelConfigID: model.ID,
@@ -1883,11 +1885,12 @@ func TestAcquireChatsIncrementsLeaseEpoch(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             "acquire-increments-lease-epoch",
 		LastModelConfigID: model.ID,
@@ -1945,7 +1948,7 @@ func TestAcquireChatsSkipAgentEligible(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(ctx, t, db)
+		user, org, model := seedChatDependencies(t, db)
 
 		return testSetup{
 			db:    db,
@@ -1986,6 +1989,7 @@ func TestAcquireChatsSkipAgentEligible(t *testing.T) {
 		chat, err := setup.db.InsertChat(setup.ctx, database.InsertChatParams{
 			OrganizationID:    setup.org.ID,
 			Status:            database.ChatStatusPending,
+			ClientType:        database.ChatClientTypeApi,
 			OwnerID:           setup.user.ID,
 			Title:             title,
 			LastModelConfigID: setup.model.ID,
@@ -2158,7 +2162,7 @@ func TestGetPendingChatsForAgentEligibility(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		user, org, model := seedChatDependencies(ctx, t, db)
+		user, org, model := seedChatDependencies(t, db)
 
 		return testSetup{
 			db:    db,
@@ -2191,6 +2195,7 @@ func TestGetPendingChatsForAgentEligibility(t *testing.T) {
 		chat, err := setup.db.InsertChat(setup.ctx, database.InsertChatParams{
 			OrganizationID:    setup.org.ID,
 			Status:            database.ChatStatusPending,
+			ClientType:        database.ChatClientTypeApi,
 			OwnerID:           setup.user.ID,
 			Title:             title,
 			LastModelConfigID: setup.model.ID,
@@ -2276,11 +2281,12 @@ func TestUpdateChatStatusRejectsStaleEpoch(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             "status-rejects-stale-epoch",
 		LastModelConfigID: model.ID,
@@ -4353,11 +4359,12 @@ func TestAcquireChats_SetsRunnerTypeCoderd(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name(),
 		LastModelConfigID: model.ID,
@@ -4386,7 +4393,7 @@ func TestAcquireChatForAgent_SetsRunnerTypeWorkspaceAgent(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
@@ -4404,6 +4411,7 @@ func TestAcquireChatForAgent_SetsRunnerTypeWorkspaceAgent(t *testing.T) {
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name(),
 		LastModelConfigID: model.ID,
@@ -4427,11 +4435,12 @@ func TestUpdateChatStatus_ClearsRunnerType(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name(),
 		LastModelConfigID: model.ID,
@@ -4470,7 +4479,7 @@ func TestRecoverStaleAgentChat_UsesShortThreshold(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	_, _, agent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
 
 	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
@@ -4492,6 +4501,7 @@ func TestRecoverStaleAgentChat_UsesShortThreshold(t *testing.T) {
 	agentChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name() + "-agent",
 		LastModelConfigID: model.ID,
@@ -4515,6 +4525,7 @@ func TestRecoverStaleAgentChat_UsesShortThreshold(t *testing.T) {
 	coderdChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name() + "-coderd",
 		LastModelConfigID: model.ID,
@@ -4577,7 +4588,7 @@ func TestRecoverStaleChat_NullRunnerType_UsesCoderdThreshold(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	const (
 		coderdStaleAfter = 2 * time.Second
@@ -4589,6 +4600,7 @@ func TestRecoverStaleChat_NullRunnerType_UsesCoderdThreshold(t *testing.T) {
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name(),
 		LastModelConfigID: model.ID,
@@ -4639,7 +4651,7 @@ func TestRecoverStaleAgentChat_ReacquiredAfterRecovery(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	_, _, agent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
 
 	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
@@ -4651,6 +4663,7 @@ func TestRecoverStaleAgentChat_ReacquiredAfterRecovery(t *testing.T) {
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name(),
 		LastModelConfigID: model.ID,
@@ -4724,7 +4737,7 @@ func TestRecoverStaleAgentChat_DisconnectedAgent_CoderdFallback(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	_, _, agent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
 
 	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
@@ -4736,6 +4749,7 @@ func TestRecoverStaleAgentChat_DisconnectedAgent_CoderdFallback(t *testing.T) {
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             t.Name(),
 		LastModelConfigID: model.ID,
@@ -5991,7 +6005,7 @@ func TestStartWorkspaceTool_HandoffToWorkspaceAgent(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, latestBuild, dbAgent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
 
 	now := time.Now().UTC()
@@ -6103,7 +6117,7 @@ func TestStartWorkspaceTool_ExperimentDisabledContinuesInCoderd(t *testing.T) {
 		)
 	})
 
-	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, _, dbAgent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
 
 	now := time.Now().UTC()
@@ -7209,7 +7223,6 @@ func insertUserTextMessage(
 		Content:       pqtype.NullRawMessage{RawMessage: content.RawMessage, Valid: true},
 		ContextLimit:  sql.NullInt64{Int64: contextLimitValue, Valid: contextLimitValue != 0},
 	})
-
 }
 
 func seedWorkspaceWithChatAgent(

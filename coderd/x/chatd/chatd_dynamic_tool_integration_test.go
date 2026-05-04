@@ -42,7 +42,7 @@ func TestAgentDynamicToolLoopIntegration(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	_, _, agent := seedWorkspaceWithChatAgent(t, db, user.ID, org.ID)
 
 	err := db.UpdateWorkspaceAgentChatRunnerStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentChatRunnerStatusParams{
@@ -71,6 +71,7 @@ func TestAgentDynamicToolLoopIntegration(t *testing.T) {
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OwnerID:           user.ID,
 		Title:             "agent-dynamic-tool-loop",
 		LastModelConfigID: model.ID,

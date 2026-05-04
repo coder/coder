@@ -26,6 +26,149 @@ func ConvertMessages(
 	return ConvertMessagesWithFiles(context.Background(), messages, nil, slog.Logger{})
 }
 
+// ConvertMessagesWithFiles converts persisted chat messages into LLM
+// prompt messages, resolving user file references via the provided
+// resolver. Missing-data placeholders are emitted only for replayed
+// user uploads; assistant-side and tool-side file metadata without
+// bytes is dropped from later model turns.
+func ConvertMessagesWithFiles(
+	ctx context.Context,
+	messages []database.ChatMessage,
+	resolver FileResolver,
+	logger slog.Logger,
+) ([]fantasy.Message, error) {
+	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
+	// and collect file_id references from user messages for batch
+	// resolution. Assistant-side file attachments remain persisted
+	// chat metadata and are intentionally not replayed to the model.
+	type parsedMessage struct {
+		role  codersdk.ChatMessageRole
+		parts []codersdk.ChatMessagePart
+	}
+	parsed := make([]parsedMessage, len(messages))
+	var allFileIDs []uuid.UUID
+	seenFileIDs := make(map[uuid.UUID]struct{})
+
+	for i, msg := range messages {
+		visibility := msg.Visibility
+		if visibility == "" {
+			visibility = database.ChatMessageVisibilityBoth
+		}
+		if visibility != database.ChatMessageVisibilityModel &&
+			visibility != database.ChatMessageVisibilityBoth {
+			continue
+		}
+
+		parts, err := ParseContent(msg)
+		if err != nil {
+			return nil, err
+		}
+		parsed[i] = parsedMessage{role: codersdk.ChatMessageRole(msg.Role), parts: parts}
+
+		// Collect file IDs from user messages for resolution.
+		if resolver != nil && msg.Role == database.ChatMessageRoleUser {
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
+					if _, seen := seenFileIDs[part.FileID.UUID]; !seen {
+						seenFileIDs[part.FileID.UUID] = struct{}{}
+						allFileIDs = append(allFileIDs, part.FileID.UUID)
+					}
+				}
+			}
+		}
+	}
+
+	// Phase 2: Batch resolve file data.
+	var resolved map[uuid.UUID]FileData
+	if len(allFileIDs) > 0 {
+		var err error
+		resolved, err = resolver(ctx, allFileIDs)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve chat files: %w", err)
+		}
+	}
+	userMissingFilePolicy := dropMissingFiles
+	if resolver != nil {
+		userMissingFilePolicy = placeholderMissingFiles
+	}
+
+	// Phase 3: Build fantasy messages from SDK parts via
+	// partsToMessageParts. Track tool names for injection.
+	prompt := make([]fantasy.Message, 0, len(messages))
+	toolNameByCallID := make(map[string]string)
+	for _, pm := range parsed {
+		if len(pm.parts) == 0 {
+			continue
+		}
+
+		switch pm.role {
+		case codersdk.ChatMessageRoleSystem:
+			// System parts are always a single text part.
+			prompt = append(prompt, fantasy.Message{
+				Role: fantasy.MessageRoleSystem,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: pm.parts[0].Text},
+				},
+			})
+		case codersdk.ChatMessageRoleUser:
+			userParts := partsToMessageParts(
+				ctx,
+				logger,
+				pm.parts,
+				resolved,
+				userMissingFilePolicy,
+			)
+			if len(userParts) == 0 {
+				continue
+			}
+			prompt = append(prompt, fantasy.Message{
+				Role:    fantasy.MessageRoleUser,
+				Content: userParts,
+			})
+		case codersdk.ChatMessageRoleAssistant:
+			fantasyParts := normalizeAssistantToolCallInputs(
+				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles),
+			)
+			for _, toolCall := range ExtractToolCalls(fantasyParts) {
+				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
+					continue
+				}
+				toolNameByCallID[sanitizeToolCallID(toolCall.ToolCallID)] = toolCall.ToolName
+			}
+			if len(fantasyParts) == 0 {
+				continue
+			}
+			prompt = append(prompt, fantasy.Message{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: fantasyParts,
+			})
+		case codersdk.ChatMessageRoleTool:
+			// Track tool names from SDK parts before conversion.
+			for _, part := range pm.parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult {
+					if part.ToolCallID != "" && part.ToolName != "" {
+						toolNameByCallID[sanitizeToolCallID(part.ToolCallID)] = part.ToolName
+					}
+				}
+			}
+			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles)
+			if len(toolParts) == 0 {
+				continue
+			}
+			prompt = append(prompt, fantasy.Message{
+				Role:    fantasy.MessageRoleTool,
+				Content: toolParts,
+			})
+		}
+	}
+	prompt = injectMissingToolResults(prompt)
+	prompt = injectMissingToolUses(
+		prompt,
+		toolNameByCallID,
+	)
+	return prompt, nil
+}
+
 // ParseContent decodes persisted chat message content blocks into
 // SDK parts. Dispatches on content version: version 0 (legacy) uses
 // a role-aware heuristic to distinguish fantasy envelope format

@@ -1451,6 +1451,7 @@ func createRunningAgentChatRunnerChatWithMCP(
 
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OrganizationID:    orgID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
@@ -1487,6 +1488,7 @@ func createRunningChildChatRunnerChat(
 
 	child, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeApi,
 		OrganizationID:    parentChat.OrganizationID,
 		OwnerID:           parentChat.OwnerID,
 		LastModelConfigID: parentChat.LastModelConfigID,

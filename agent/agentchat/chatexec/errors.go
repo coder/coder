@@ -1,3 +1,5 @@
+//go:build !slim
+
 package chatexec
 
 import "golang.org/x/xerrors"

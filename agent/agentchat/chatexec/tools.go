@@ -1,3 +1,5 @@
+//go:build !slim
+
 package chatexec
 
 import (
@@ -572,7 +574,7 @@ func (t *dynamicTool) Info() fantasy.ToolInfo {
 
 func (*dynamicTool) Run(_ context.Context, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	return fantasy.NewTextErrorResponse(
-		"dynamic tool called in chatloop — this is a bug; dynamic tools should be handled by the client",
+		"dynamic tool called in chatloop. This is a bug; dynamic tools should be handled by the client",
 	), nil
 }
 

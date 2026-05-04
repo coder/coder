@@ -126,7 +126,14 @@ func TestAgentConn_HTTPAPIURL(t *testing.T) {
 			require.Equal(t, "TERM", req.Signal)
 			require.NoError(t, json.NewEncoder(w).Encode(codersdk.Response{Message: "signaled"}))
 		case "/api/v0/read-file-lines":
-			require.Equal(t, "path=/tmp/file.txt&offset=0&limit=20&max_file_size=1048576&max_line_bytes=1024&max_response_lines=2000&max_response_bytes=32768", r.URL.RawQuery)
+			query := r.URL.Query()
+			require.Equal(t, "/tmp/file.txt", query.Get("path"))
+			require.Equal(t, "0", query.Get("offset"))
+			require.Equal(t, "20", query.Get("limit"))
+			require.Equal(t, "1048576", query.Get("max_file_size"))
+			require.Equal(t, "1024", query.Get("max_line_bytes"))
+			require.Equal(t, "2000", query.Get("max_response_lines"))
+			require.Equal(t, "32768", query.Get("max_response_bytes"))
 			require.NoError(t, json.NewEncoder(w).Encode(ReadFileLinesResponse{
 				Success:    true,
 				FileSize:   6,
@@ -135,7 +142,7 @@ func TestAgentConn_HTTPAPIURL(t *testing.T) {
 				Content:    "1\thello",
 			}))
 		case "/api/v0/write-file":
-			require.Equal(t, "path=/tmp/file.txt", r.URL.RawQuery)
+			require.Equal(t, "/tmp/file.txt", r.URL.Query().Get("path"))
 			require.Equal(t, "hello", string(body))
 			require.NoError(t, json.NewEncoder(w).Encode(codersdk.Response{Message: "written"}))
 		case "/api/v0/edit-files":
@@ -193,7 +200,7 @@ func TestAgentConn_HTTPAPIURL(t *testing.T) {
 
 	require.NoError(t, conn.WriteFile(ctx, "/tmp/file.txt", strings.NewReader("hello")))
 
-	require.NoError(t, conn.EditFiles(ctx, FileEditRequest{
+	editResp, err := conn.EditFiles(ctx, FileEditRequest{
 		Files: []FileEdits{{
 			Path: "/tmp/file.txt",
 			Edits: []FileEdit{{
@@ -201,7 +208,9 @@ func TestAgentConn_HTTPAPIURL(t *testing.T) {
 				Replace: "goodbye",
 			}},
 		}},
-	}))
+	})
+	require.NoError(t, err)
+	require.NotNil(t, editResp)
 
 	actionResp, err := conn.ExecuteDesktopAction(ctx, DesktopAction{Action: "click"})
 	require.NoError(t, err)

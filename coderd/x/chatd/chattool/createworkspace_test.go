@@ -525,8 +525,10 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 
-	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
-		OwnerID: ownerID,
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             db,
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
 		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 			return codersdk.Workspace{}, httperror.NewResponseError(400, codersdk.Response{
 				Message: "missing required parameter",
@@ -1334,7 +1336,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 		GetChatWorkspaceTTL(gomock.Any()).
 		Return("0s", nil)
 
-	// UpdateChatWorkspaceBinding — triggers first OnChatUpdated.
+	// UpdateChatWorkspaceBinding. triggers first OnChatUpdated.
 	db.EXPECT().
 		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
 		Return(database.Chat{
@@ -1358,8 +1360,8 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 			CompletedAt: validNullTime(time.Now()),
 		}, nil)
 
-	// GetChatByID — called after waitForBuild for second OnChatUpdated.
-	// GetChatByID — called after waitForBuild for second OnChatUpdated.
+	// GetChatByID. called after waitForBuild for second OnChatUpdated.
+	// GetChatByID. called after waitForBuild for second OnChatUpdated.
 	db.EXPECT().
 		GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{
@@ -1367,7 +1369,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
 
-	// Agent lookup after build completes — return empty so we skip
+	// Agent lookup after build completes. return empty so we skip
 	// agent selection and waitForAgentReady.
 	db.EXPECT().
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
@@ -1549,13 +1551,15 @@ func TestCreateWorkspace_WithPresetID(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	tool := CreateWorkspace(s.OrgID, s.DB, CreateWorkspaceOptions{
-		OwnerID:     s.OwnerID,
-		ChatID:      s.ChatID,
-		CreateFn:    createFn,
-		AgentConnFn: agentConnFn,
-		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             s.DB,
+		OrganizationID: s.OrgID,
+		OwnerID:        s.OwnerID,
+		ChatID:         s.ChatID,
+		CreateFn:       createFn,
+		AgentConnFn:    agentConnFn,
+		WorkspaceMu:    &sync.Mutex{},
+		Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	})
 
 	input := fmt.Sprintf(
@@ -1581,9 +1585,11 @@ func TestCreateWorkspace_InvalidPresetID(t *testing.T) {
 
 	s := setupCreateWorkspacePresetTest(t)
 
-	tool := CreateWorkspace(s.OrgID, s.DB, CreateWorkspaceOptions{
-		OwnerID: s.OwnerID,
-		ChatID:  s.ChatID,
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             s.DB,
+		OrganizationID: s.OrgID,
+		OwnerID:        s.OwnerID,
+		ChatID:         s.ChatID,
 		CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 			t.Fatal("CreateFn should not be called with invalid preset_id")
 			return codersdk.Workspace{}, nil
@@ -1632,13 +1638,15 @@ func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 		return nil, func() {}, nil
 	}
 
-	tool := CreateWorkspace(s.OrgID, s.DB, CreateWorkspaceOptions{
-		OwnerID:     s.OwnerID,
-		ChatID:      s.ChatID,
-		CreateFn:    createFn,
-		AgentConnFn: agentConnFn,
-		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:             s.DB,
+		OrganizationID: s.OrgID,
+		OwnerID:        s.OwnerID,
+		ChatID:         s.ChatID,
+		CreateFn:       createFn,
+		AgentConnFn:    agentConnFn,
+		WorkspaceMu:    &sync.Mutex{},
+		Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	})
 
 	input := fmt.Sprintf(

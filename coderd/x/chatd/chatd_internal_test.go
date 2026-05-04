@@ -2798,7 +2798,7 @@ func TestPublishRequiresAction_ReconstructsPendingCalls(t *testing.T) {
 		logger: logger,
 		pubsub: ps,
 	}
-	_, streamEvents, cancel := server.subscribeToStream(chatID)
+	_, _, streamEvents, cancel := server.subscribeToStream(chatID)
 	defer cancel()
 
 	err = server.PublishRequiresAction(ctx, chat)
