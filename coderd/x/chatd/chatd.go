@@ -5509,12 +5509,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			})
 			p.publishChatActionRequired(finishResult.updatedChat, runResult.PendingDynamicToolCalls)
 		}
-		if !wasInterrupted {
+		if wasInterrupted {
+			p.maybeClearLastTurnSummaryAsync(cleanupCtx, finishResult.updatedChat, logger)
+		} else {
 			lastErrorMessage := ""
 			if lastErrorPayload != nil {
 				lastErrorMessage = lastErrorPayload.Message
 			}
-			p.maybeSendPushNotification(cleanupCtx, finishResult.updatedChat, status, lastErrorMessage, runResult, logger)
+			p.maybeFinalizeTurnSummaryAndPush(
+				cleanupCtx,
+				finishResult.updatedChat,
+				status,
+				lastErrorMessage,
+				runResult,
+				logger,
+			)
 		}
 	}()
 
@@ -8251,12 +8260,9 @@ func parseDynamicToolNames(raw pqtype.NullRawMessage) (map[string]bool, error) {
 	return names, nil
 }
 
-// maybeSendPushNotification sends a web push notification when an
-// agent chat reaches a terminal state. For errors it dispatches
-// synchronously; for successful completions it spawns a goroutine
-// that generates a short LLM summary before dispatching. The caller
-// is responsible for skipping interrupted chats.
-func (p *Server) maybeSendPushNotification(
+// maybeFinalizeTurnSummaryAndPush updates the cached turn summary for
+// parent chats and optionally sends a web push notification.
+func (p *Server) maybeFinalizeTurnSummaryAndPush(
 	ctx context.Context,
 	chat database.Chat,
 	status database.ChatStatus,
@@ -8264,54 +8270,133 @@ func (p *Server) maybeSendPushNotification(
 	runResult runChatResult,
 	logger slog.Logger,
 ) {
-	if p.webpushDispatcher == nil || p.webpushDispatcher.PublicKey() == "" {
-		return
-	}
 	if chat.ParentChatID.Valid {
 		return
 	}
 
 	switch status {
-	case database.ChatStatusError:
-		pushBody := "Agent encountered an error."
-		if lastError != "" {
-			pushBody = lastError
-		}
-		p.dispatchPush(ctx, chat, pushBody, status, logger)
-
 	case database.ChatStatusWaiting:
-		// Generate a push notification summary asynchronously
-		// using a cheap LLM model. This avoids blocking the
-		// deferred cleanup path while still providing a
-		// meaningful notification body.
-		debugSvc := p.existingDebugService()
-		p.inflight.Add(1)
-		go func() {
-			defer p.inflight.Done()
-			pushCtx := context.WithoutCancel(ctx)
-			pushBody := "Agent has finished running."
-			assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-			if assistantText != "" && runResult.PushSummaryModel != nil {
-				if summary := generatePushSummary(
-					pushCtx,
-					chat,
-					assistantText,
-					runResult.FallbackProvider,
-					runResult.FallbackModel,
-					runResult.PushSummaryModel,
-					runResult.ProviderKeys,
-					logger,
-					debugSvc,
-					runResult.TriggerMessageID,
-					runResult.HistoryTipMessageID,
-				); summary != "" {
-					pushBody = summary
-				}
-			}
+		p.finalizeSuccessfulTurnSummaryAndPush(ctx, chat, runResult, logger)
 
-			p.dispatchPush(pushCtx, chat, pushBody, status, logger)
-		}()
+	case database.ChatStatusError:
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+		if p.webpushConfigured() {
+			pushBody := "Agent encountered an error."
+			if lastError != "" {
+				pushBody = lastError
+			}
+			p.dispatchPush(ctx, chat, pushBody, status, logger)
+		}
+
+	default:
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
 	}
+}
+
+func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+) {
+	debugSvc := p.existingDebugService()
+	p.inflight.Add(1)
+	go func() {
+		defer p.inflight.Done()
+
+		finalizeCtx := context.WithoutCancel(ctx)
+		summary := ""
+		assistantText := strings.TrimSpace(runResult.FinalAssistantText)
+		if assistantText != "" && runResult.PushSummaryModel != nil {
+			summary = strings.TrimSpace(generatePushSummary(
+				finalizeCtx,
+				chat,
+				assistantText,
+				runResult.FallbackProvider,
+				runResult.FallbackModel,
+				runResult.PushSummaryModel,
+				runResult.ProviderKeys,
+				logger,
+				debugSvc,
+				runResult.TriggerMessageID,
+				runResult.HistoryTipMessageID,
+			))
+		}
+
+		p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, summary, logger)
+
+		if !p.webpushConfigured() {
+			return
+		}
+		pushBody := "Agent has finished running."
+		if summary != "" {
+			pushBody = summary
+		}
+		p.dispatchPush(finalizeCtx, chat, pushBody, database.ChatStatusWaiting, logger)
+	}()
+}
+
+func (p *Server) maybeClearLastTurnSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+) {
+	if chat.ParentChatID.Valid {
+		return
+	}
+	p.clearLastTurnSummaryAsync(ctx, chat, logger)
+}
+
+func (p *Server) clearLastTurnSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+) {
+	p.inflight.Add(1)
+	go func() {
+		defer p.inflight.Done()
+		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.UpdatedAt, "", logger)
+	}()
+}
+
+func (p *Server) updateLastTurnSummary(
+	ctx context.Context,
+	chat database.Chat,
+	expectedUpdatedAt time.Time,
+	summary string,
+	logger slog.Logger,
+) {
+	summary = strings.TrimSpace(summary)
+	lastTurnSummary := sql.NullString{String: summary, Valid: summary != ""}
+
+	updateCtx := context.WithoutCancel(ctx)
+	//nolint:gocritic // Chatd owns best-effort turn-summary writes.
+	updateCtx = dbauthz.AsChatd(updateCtx)
+	updateCtx, cancel := context.WithTimeout(updateCtx, 5*time.Second)
+	defer cancel()
+
+	affected, err := p.db.UpdateChatLastTurnSummary(updateCtx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: expectedUpdatedAt,
+		LastTurnSummary:   lastTurnSummary,
+	})
+	if err != nil {
+		logger.Warn(ctx, "failed to update chat turn summary",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if affected == 0 {
+		logger.Debug(ctx, "skipped stale chat turn summary update",
+			slog.F("chat_id", chat.ID),
+			slog.F("expected_updated_at", expectedUpdatedAt),
+		)
+	}
+}
+
+func (p *Server) webpushConfigured() bool {
+	return p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != ""
 }
 
 func (p *Server) dispatchPush(

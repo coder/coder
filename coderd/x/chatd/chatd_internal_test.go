@@ -3450,6 +3450,8 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		nil,
 	)
 
+	db.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+
 	// resolveChatModel fails immediately — that's fine, we only
 	// need processChat to get past initialization without being
 	// interrupted by the stale notification.
@@ -3474,6 +3476,8 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	// runs more cleanup after UpdateChatStatus, so signaling completion from
 	// the status update itself races test teardown.
 	testutil.TryReceive(ctx, t, done)
+
+	WaitUntilIdleForTest(server)
 
 	// If the stale notification interrupted us, status would be
 	// "waiting" (the ErrInterrupted path). Since the gate blocked
