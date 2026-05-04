@@ -238,6 +238,14 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					tmpl                  database.Template
 					didAutoUpdate         bool
 				)
+				// This is a plain InTx rather than ReadModifyUpdate, so a 40001
+				// serialization failure in wsbuilder.Build's inner RMU is not
+				// retried here and the current tick fails for this workspace.
+				// That is acceptable: GetWorkspacesEligibleForTransition will
+				// return the workspace again on the next tick (default 1m via
+				// CODER_AUTOBUILD_POLL_INTERVAL) as long as the underlying
+				// eligibility condition still holds, so the system converges to
+				// the correct state without immediate retry. See #21939.
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
 

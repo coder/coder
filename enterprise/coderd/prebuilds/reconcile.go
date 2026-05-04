@@ -890,6 +890,14 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 	}
 
 	var provisionerJob *database.ProvisionerJob
+	// This is a plain InTx rather than ReadModifyUpdate, so a 40001
+	// serialization failure in wsbuilder.Build's inner RMU is not retried
+	// here and this create attempt fails for the current reconciliation
+	// cycle. That is acceptable: the next cycle (default 1m via
+	// CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL) recomputes the
+	// desired prebuild pool from current state and will re-issue a Create
+	// action for the missing prebuild, so the system converges to the
+	// correct state without immediate retry. See #21939.
 	err = c.store.InTx(func(db database.Store) error {
 		template, err := db.GetTemplateByID(ctx, templateID)
 		if err != nil {
@@ -1060,6 +1068,14 @@ func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltW
 	defer span.End()
 
 	var provisionerJob *database.ProvisionerJob
+	// This is a plain InTx rather than ReadModifyUpdate, so a 40001
+	// serialization failure in wsbuilder.Build's inner RMU is not retried
+	// here and this delete attempt fails for the current reconciliation
+	// cycle. That is acceptable: the next cycle (default 1m via
+	// CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL) recomputes the
+	// desired prebuild pool from current state and will re-issue a Delete
+	// action for the still-extra prebuild, so the system converges to the
+	// correct state without immediate retry. See #21939.
 	err := c.store.InTx(func(db database.Store) (err error) {
 		provisionerJob, err = c.provisionDelete(ctx, db, prebuiltWorkspaceID, templateID, presetID, DeprovisionModeNormal)
 		return err
