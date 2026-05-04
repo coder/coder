@@ -2045,6 +2045,23 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe("Updated summary");
 	});
 
+	it("applies summary_change even when event updated_at is older", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Fixed the issue",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBe("Fixed the issue");
+	});
+
 	it("clears last_turn_summary on summary updates with matching updated_at", () => {
 		const cachedChat = makeChat("chat-1", {
 			last_turn_summary: "Previous summary",
