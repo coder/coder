@@ -118,9 +118,13 @@ interface AgentChatInputProps {
 		id: string;
 		name: string;
 		owner_name: string;
+		organization_id: string;
 	}>;
 	selectedWorkspaceId?: string | null;
 	onWorkspaceChange?: (id: string | null) => void;
+	// Organization ID of the current chat. When set, workspaces from
+	// other organizations are shown as disabled in the picker.
+	chatOrganizationId?: string;
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -290,6 +294,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	workspaceOptions,
 	selectedWorkspaceId,
 	onWorkspaceChange,
+	chatOrganizationId,
 	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
@@ -865,35 +870,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											<span>Back</span>
 										</button>
 										<Separator className="my-1" />
-										<Command loop>
-											<CommandInput
-												placeholder="Search workspaces..."
-												className="text-xs"
-											/>
-											<CommandList>
-												<CommandEmpty className="text-xs">
-													No workspaces found
-												</CommandEmpty>
-												<CommandGroup>
-													{workspaceOptions?.map((workspace) => (
-														<CommandItem
-															className="text-xs font-normal"
-															key={workspace.id}
-															value={workspace.name}
-															onSelect={() => {
-																onWorkspaceChange?.(workspace.id);
-																setPlusMenuOpen(false);
-															}}
-														>
-															{workspace.name}
-															{selectedWorkspaceId === workspace.id && (
-																<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-															)}
-														</CommandItem>
-													))}
-												</CommandGroup>
-											</CommandList>
-										</Command>
+										<WorkspacePickerList
+											workspaceOptions={workspaceOptions}
+											selectedWorkspaceId={selectedWorkspaceId}
+											chatOrganizationId={chatOrganizationId}
+											onSelect={(id) => {
+												onWorkspaceChange?.(id);
+												setPlusMenuOpen(false);
+											}}
+										/>
 									</div>
 								) : (
 									<>
@@ -966,36 +951,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														sideOffset={8}
 														className="w-64 p-0"
 													>
-														<Command loop>
-															<CommandInput
-																placeholder="Search workspaces..."
-																className="text-xs"
-															/>
-															<CommandList>
-																<CommandEmpty className="text-xs">
-																	No workspaces found
-																</CommandEmpty>
-																<CommandGroup>
-																	{workspaceOptions.map((workspace) => (
-																		<CommandItem
-																			className="text-xs font-normal"
-																			key={workspace.id}
-																			value={workspace.name}
-																			onSelect={() => {
-																				onWorkspaceChange(workspace.id);
-																				setWorkspacePickerOpen(false);
-																				setPlusMenuOpen(false);
-																			}}
-																		>
-																			{workspace.name}
-																			{selectedWorkspaceId === workspace.id && (
-																				<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-																			)}
-																		</CommandItem>
-																	))}
-																</CommandGroup>
-															</CommandList>
-														</Command>
+														<WorkspacePickerList
+															workspaceOptions={workspaceOptions}
+															selectedWorkspaceId={selectedWorkspaceId}
+															chatOrganizationId={chatOrganizationId}
+															onSelect={(id) => {
+																onWorkspaceChange(id);
+																setWorkspacePickerOpen(false);
+																setPlusMenuOpen(false);
+															}}
+														/>
 													</PopoverContent>
 												</Popover>
 											))}
@@ -1262,5 +1227,82 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 		</>
+	);
+};
+
+/**
+ * Shared workspace picker used by both the mobile and desktop
+ * "Attach workspace" menus. Workspaces from a different organization
+ * than the chat are rendered as disabled items with a tooltip.
+ */
+interface WorkspacePickerListProps {
+	workspaceOptions:
+		| ReadonlyArray<{
+				id: string;
+				name: string;
+				organization_id: string;
+		  }>
+		| undefined;
+	selectedWorkspaceId?: string | null;
+	chatOrganizationId?: string;
+	onSelect: (id: string) => void;
+}
+
+const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
+	workspaceOptions,
+	selectedWorkspaceId,
+	chatOrganizationId,
+	onSelect,
+}) => {
+	return (
+		<Command loop>
+			<CommandInput placeholder="Search workspaces..." className="text-xs" />
+			<CommandList>
+				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>
+				<CommandGroup>
+					{workspaceOptions?.map((workspace) => {
+						const isCrossOrg =
+							!!chatOrganizationId &&
+							workspace.organization_id !== chatOrganizationId;
+
+						const item = (
+							<CommandItem
+								className={cn(
+									"text-xs font-normal",
+									isCrossOrg &&
+										"text-content-disabled cursor-not-allowed opacity-60",
+								)}
+								key={workspace.id}
+								value={workspace.name}
+								disabled={isCrossOrg}
+								onSelect={() => {
+									if (!isCrossOrg) {
+										onSelect(workspace.id);
+									}
+								}}
+							>
+								{workspace.name}
+								{selectedWorkspaceId === workspace.id && (
+									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+								)}
+							</CommandItem>
+						);
+
+						if (isCrossOrg) {
+							return (
+								<Tooltip key={workspace.id}>
+									<TooltipTrigger asChild>{item}</TooltipTrigger>
+									<TooltipContent side="right">
+										Chat and workspace must be in the same organization
+									</TooltipContent>
+								</Tooltip>
+							);
+						}
+
+						return item;
+					})}
+				</CommandGroup>
+			</CommandList>
+		</Command>
 	);
 };

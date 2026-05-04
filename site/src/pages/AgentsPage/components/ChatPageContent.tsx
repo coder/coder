@@ -200,6 +200,7 @@ interface ChatPageInputProps {
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 	workspaceOptions: readonly TypesGen.Workspace[];
+	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
 	onWorkspaceChange: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
@@ -250,6 +251,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPAuthComplete,
 	lastInjectedContext,
 	workspaceOptions,
+	chatOrganizationId,
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	isWorkspaceLoading,
@@ -477,6 +479,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
+			chatOrganizationId={chatOrganizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={isWorkspaceLoading}
