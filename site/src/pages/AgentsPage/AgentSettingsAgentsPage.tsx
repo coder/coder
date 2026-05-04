@@ -12,31 +12,30 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 
-const generalOverrideContext: TypesGen.ChatAgentModelOverrideContext =
-	"general";
-const exploreOverrideContext: TypesGen.ChatAgentModelOverrideContext =
-	"explore";
+const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
+const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
+const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
+	"title_generation";
 
-const chatAgentModelOverrideKey = (
-	context: TypesGen.ChatAgentModelOverrideContext,
-) => ["chat-agent-model-override", context] as const;
+const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
+	["chat-model-override", context] as const;
 
-const chatAgentModelOverrideQuery = (
-	context: TypesGen.ChatAgentModelOverrideContext,
+const chatModelOverrideQuery = (
+	context: TypesGen.ChatModelOverrideContext,
 ) => ({
-	queryKey: chatAgentModelOverrideKey(context),
-	queryFn: () => API.experimental.getChatAgentModelOverride(context),
+	queryKey: chatModelOverrideKey(context),
+	queryFn: () => API.experimental.getChatModelOverride(context),
 });
 
-const updateChatAgentModelOverrideMutation = (
+const updateChatModelOverrideMutation = (
 	queryClient: QueryClient,
-	context: TypesGen.ChatAgentModelOverrideContext,
+	context: TypesGen.ChatModelOverrideContext,
 ) => ({
-	mutationFn: (req: TypesGen.UpdateChatAgentModelOverrideRequest) =>
-		API.experimental.updateChatAgentModelOverride(context, req),
+	mutationFn: (req: TypesGen.UpdateChatModelOverrideRequest) =>
+		API.experimental.updateChatModelOverride(context, req),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
-			queryKey: chatAgentModelOverrideKey(context),
+			queryKey: chatModelOverrideKey(context),
 			exact: true,
 		});
 	},
@@ -48,25 +47,36 @@ const AgentSettingsAgentsPage: FC = () => {
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 
 	const generalModelOverrideQuery = useQuery({
-		...chatAgentModelOverrideQuery(generalOverrideContext),
+		...chatModelOverrideQuery(generalOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const exploreModelOverrideQuery = useQuery({
-		...chatAgentModelOverrideQuery(exploreOverrideContext),
+		...chatModelOverrideQuery(exploreOverrideContext),
+		enabled: canEditDeploymentConfig,
+	});
+	const titleGenerationModelQuery = useQuery({
+		...chatModelOverrideQuery(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const saveGeneralModelOverrideMutation = useMutation(
-		updateChatAgentModelOverrideMutation(queryClient, generalOverrideContext),
+		updateChatModelOverrideMutation(queryClient, generalOverrideContext),
+	);
+	const saveTitleGenerationModelMutation = useMutation(
+		updateChatModelOverrideMutation(
+			queryClient,
+			titleGenerationOverrideContext,
+		),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
-		updateChatAgentModelOverrideMutation(queryClient, exploreOverrideContext),
+		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
 	);
 
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
 			<AgentSettingsAgentsPageView
 				generalModelOverrideData={generalModelOverrideQuery.data}
+				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
 				modelConfigsError={modelConfigsQuery.error}
@@ -77,6 +87,13 @@ const AgentSettingsAgentsPage: FC = () => {
 				}
 				isSaveGeneralModelOverrideError={
 					saveGeneralModelOverrideMutation.isError
+				}
+				onSaveTitleGenerationModel={saveTitleGenerationModelMutation.mutate}
+				isSavingTitleGenerationModel={
+					saveTitleGenerationModelMutation.isPending
+				}
+				isSaveTitleGenerationModelError={
+					saveTitleGenerationModelMutation.isError
 				}
 				onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
 				isSavingExploreModelOverride={

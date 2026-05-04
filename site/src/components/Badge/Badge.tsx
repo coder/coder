@@ -30,9 +30,14 @@ const badgeVariants = cva(
 				info: "border-border-pending bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {
-				xs: "border-0 text-2xs font-normal h-[18px] [&_svg]:size-icon-xs rounded",
-				sm: "text-2xs font-normal h-5.5 py-1 [&_svg]:size-icon-xs",
-				md: "text-xs font-normal py-1 [&_svg]:size-icon-xs",
+				xs: "border-0 text-2xs font-normal h-[18px] rounded",
+				sm: "text-2xs font-normal h-5.5 py-1",
+				md: "text-xs font-normal py-1",
+			},
+			svgSize: {
+				xs: "[&_svg]:size-icon-xs",
+				sm: "[&_svg]:size-icon-sm",
+				lg: "[&_svg]:size-icon-lg",
 			},
 			hover: {
 				false: null,
@@ -54,6 +59,7 @@ const badgeVariants = cva(
 		defaultVariants: {
 			variant: "default",
 			size: "md",
+			svgSize: "xs",
 			hover: false,
 		},
 	},
@@ -68,6 +74,7 @@ export const Badge: React.FC<BadgeProps> = ({
 	className,
 	variant,
 	size,
+	svgSize = "xs",
 	hover,
 	asChild = false,
 	...props
@@ -77,7 +84,10 @@ export const Badge: React.FC<BadgeProps> = ({
 	return (
 		<Comp
 			{...props}
-			className={cn(badgeVariants({ variant, size, hover }), className)}
+			className={cn(
+				badgeVariants({ variant, size, svgSize, hover }),
+				className,
+			)}
 		/>
 	);
 };

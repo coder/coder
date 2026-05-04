@@ -400,12 +400,12 @@ func (m queryMetricsStore) DeleteAllChatQueuedMessages(ctx context.Context, chat
 	return r0
 }
 
-func (m queryMetricsStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
+func (m queryMetricsStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) ([]database.DeleteAllTailnetTunnelsRow, error) {
 	start := time.Now()
-	r0 := m.s.DeleteAllTailnetTunnels(ctx, arg)
+	r0, r1 := m.s.DeleteAllTailnetTunnels(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteAllTailnetTunnels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAllTailnetTunnels").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteAllWebpushSubscriptions(ctx context.Context) error {
@@ -768,7 +768,7 @@ func (m queryMetricsStore) DeleteUserChatProviderKey(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (int64, error) {
+func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUserSecretByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteUserSecretByUserIDAndName").Observe(time.Since(start).Seconds())
@@ -1120,6 +1120,14 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatAdvisorConfig(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAdvisorConfig(ctx)
+	m.queryLatencies.WithLabelValues("GetChatAdvisorConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAdvisorConfig").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
@@ -1445,6 +1453,14 @@ func (m queryMetricsStore) GetChatTemplateAllowlist(ctx context.Context) (string
 	r0, r1 := m.s.GetChatTemplateAllowlist(ctx)
 	m.queryLatencies.WithLabelValues("GetChatTemplateAllowlist").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTemplateAllowlist").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTitleGenerationModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatTitleGenerationModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTitleGenerationModelOverride").Inc()
 	return r0, r1
 }
 
@@ -2848,6 +2864,14 @@ func (m queryMetricsStore) GetUserNotificationPreferences(ctx context.Context, u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserSecretByID(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserSecretByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetUserSecretByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSecretByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSecretByUserIDAndName(ctx, arg)
@@ -3016,7 +3040,7 @@ func (m queryMetricsStore) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.C
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+func (m queryMetricsStore) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetWorkspaceAgentScriptsByAgentIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentScriptsByAgentIDs").Observe(time.Since(start).Seconds())
@@ -4768,12 +4792,12 @@ func (m queryMetricsStore) UpdateReplica(ctx context.Context, arg database.Updat
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+	r0, r1 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTailnetPeerStatusByCoordinator").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTailnetPeerStatusByCoordinator").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateTaskPrompt(ctx context.Context, arg database.UpdateTaskPromptParams) (database.TaskTable, error) {
@@ -5288,6 +5312,14 @@ func (m queryMetricsStore) UpsertBoundaryUsageStats(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatAdvisorConfig(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatAdvisorConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAdvisorConfig").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
@@ -5381,6 +5413,14 @@ func (m queryMetricsStore) UpsertChatTemplateAllowlist(ctx context.Context, temp
 	r0 := m.s.UpsertChatTemplateAllowlist(ctx, templateAllowlist)
 	m.queryLatencies.WithLabelValues("UpsertChatTemplateAllowlist").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatTemplateAllowlist").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatTitleGenerationModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatTitleGenerationModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatTitleGenerationModelOverride").Inc()
 	return r0
 }
 

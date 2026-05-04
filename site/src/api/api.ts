@@ -29,9 +29,11 @@ import {
 } from "../utils/OneWayWebSocket";
 import { type FieldError, isApiError } from "./errors";
 import type {
+	AdvisorConfig,
 	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
+	UpdateAdvisorConfigRequest,
 	UsersRequest,
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
@@ -3260,22 +3262,21 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatAgentModelOverride = async (
-		context: TypesGen.ChatAgentModelOverrideContext,
-	): Promise<TypesGen.ChatAgentModelOverrideResponse> => {
-		const response =
-			await this.axios.get<TypesGen.ChatAgentModelOverrideResponse>(
-				`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
-			);
+	getChatModelOverride = async (
+		context: TypesGen.ChatModelOverrideContext,
+	): Promise<TypesGen.ChatModelOverrideResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelOverrideResponse>(
+			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+		);
 		return response.data;
 	};
 
-	updateChatAgentModelOverride = async (
-		context: TypesGen.ChatAgentModelOverrideContext,
-		req: TypesGen.UpdateChatAgentModelOverrideRequest,
+	updateChatModelOverride = async (
+		context: TypesGen.ChatModelOverrideContext,
+		req: TypesGen.UpdateChatModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
+			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
 			req,
 		);
 	};
@@ -3344,6 +3345,19 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatDesktopEnabledRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
+	};
+
+	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
+		const response = await this.axios.get<AdvisorConfig>(
+			"/api/experimental/chats/config/advisor",
+		);
+		return response.data;
+	};
+
+	updateChatAdvisorConfig = async (
+		req: UpdateAdvisorConfigRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/advisor", req);
 	};
 
 	getChatWorkspaceTTL =

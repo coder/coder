@@ -562,45 +562,48 @@ type UpdateChatPlanModeInstructionsRequest struct {
 	PlanModeInstructions string `json:"plan_mode_instructions"`
 }
 
-// ChatAgentModelOverrideContext identifies which chat or subagent context
-// a deployment override applies to.
-type ChatAgentModelOverrideContext string
+// ChatModelOverrideContext identifies which chat model override context a
+// deployment override applies to.
+type ChatModelOverrideContext string
 
 const (
-	ChatAgentModelOverrideContextGeneral ChatAgentModelOverrideContext = "general"
-	ChatAgentModelOverrideContextExplore ChatAgentModelOverrideContext = "explore"
+	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
+	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
+	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 )
 
 // Valid reports whether the override context is one of the supported values.
-func (c ChatAgentModelOverrideContext) Valid() bool {
+func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
-	case ChatAgentModelOverrideContextGeneral,
-		ChatAgentModelOverrideContextExplore:
+	case ChatModelOverrideContextGeneral,
+		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextTitleGeneration:
 		return true
 	default:
 		return false
 	}
 }
 
-// AllChatAgentModelOverrideContexts returns all supported override contexts.
-func AllChatAgentModelOverrideContexts() []ChatAgentModelOverrideContext {
-	return []ChatAgentModelOverrideContext{
-		ChatAgentModelOverrideContextGeneral,
-		ChatAgentModelOverrideContextExplore,
+// AllChatModelOverrideContexts returns all supported override contexts.
+func AllChatModelOverrideContexts() []ChatModelOverrideContext {
+	return []ChatModelOverrideContext{
+		ChatModelOverrideContextGeneral,
+		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextTitleGeneration,
 	}
 }
 
-// ChatAgentModelOverrideResponse is the response body for the chat agent
-// model override configuration endpoint.
-type ChatAgentModelOverrideResponse struct {
-	Context       ChatAgentModelOverrideContext `json:"context"`
-	ModelConfigID string                        `json:"model_config_id"`
-	IsMalformed   bool                          `json:"is_malformed"`
+// ChatModelOverrideResponse is the response body for the chat model override
+// configuration endpoint.
+type ChatModelOverrideResponse struct {
+	Context       ChatModelOverrideContext `json:"context"`
+	ModelConfigID string                   `json:"model_config_id"`
+	IsMalformed   bool                     `json:"is_malformed"`
 }
 
-// UpdateChatAgentModelOverrideRequest is the request body for updating the
-// chat agent model override configuration endpoint.
-type UpdateChatAgentModelOverrideRequest struct {
+// UpdateChatModelOverrideRequest is the request body for updating the chat
+// model override configuration endpoint.
+type UpdateChatModelOverrideRequest struct {
 	ModelConfigID string `json:"model_config_id"`
 }
 
@@ -638,6 +641,36 @@ type ChatDesktopEnabledResponse struct {
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
 }
+
+// AdvisorConfig is the deployment-wide runtime configuration for the
+// experimental chat advisor.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type AdvisorConfig struct {
+	// Enabled toggles the advisor runtime. When false, advisor is not
+	// attached to new chats.
+	Enabled bool `json:"enabled"`
+	// MaxUsesPerRun caps how many times the advisor can be invoked per
+	// chat run. 0 means unlimited.
+	MaxUsesPerRun int `json:"max_uses_per_run"`
+	// MaxOutputTokens caps the advisor model response tokens. 0 means
+	// use the runtime default.
+	MaxOutputTokens int64 `json:"max_output_tokens"`
+	// ModelConfigID selects a specific chat model config to power the
+	// advisor. uuid.Nil means reuse the outer chat model. The runtime
+	// must fall back to the outer chat model when this ID cannot be
+	// resolved (e.g. the referenced model config was soft-deleted or
+	// its provider was disabled after the admin saved this config).
+	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
+	// ReasoningEffort overlays provider reasoning effort on the advisor
+	// call config when supported. Allowed: "", "low", "medium", "high".
+	ReasoningEffort string `json:"reasoning_effort"`
+}
+
+// UpdateAdvisorConfigRequest is the request body for updating advisor
+// runtime configuration. It is a type alias for AdvisorConfig because
+// the request and response shapes are currently identical.
+type UpdateAdvisorConfigRequest = AdvisorConfig
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
 // that allows users to opt into chat debug logging.
@@ -2068,30 +2101,30 @@ func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context,
 	return nil
 }
 
-// GetChatAgentModelOverride returns the deployment-wide chat agent model
-// override for the requested context.
-func (c *ExperimentalClient) GetChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext) (ChatAgentModelOverrideResponse, error) {
+// GetChatModelOverride returns the deployment-wide chat model override for
+// the requested context.
+func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override ChatModelOverrideContext) (ChatModelOverrideResponse, error) {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/agent-model-override/%s",
+		"/api/experimental/chats/config/model-override/%s",
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return ChatAgentModelOverrideResponse{}, err
+		return ChatModelOverrideResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatAgentModelOverrideResponse{}, ReadBodyAsError(res)
+		return ChatModelOverrideResponse{}, ReadBodyAsError(res)
 	}
-	var resp ChatAgentModelOverrideResponse
+	var resp ChatModelOverrideResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateChatAgentModelOverride updates the deployment-wide chat agent model
-// override for the requested context.
-func (c *ExperimentalClient) UpdateChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext, req UpdateChatAgentModelOverrideRequest) error {
+// UpdateChatModelOverride updates the deployment-wide chat model override for
+// the requested context.
+func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) error {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/agent-model-override/%s",
+		"/api/experimental/chats/config/model-override/%s",
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodPut, path, req)
@@ -2136,6 +2169,33 @@ func (c *ExperimentalClient) GetChatDesktopEnabled(ctx context.Context) (ChatDes
 // UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
 func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatAdvisorConfig returns the deployment-wide advisor configuration.
+func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
+	if err != nil {
+		return AdvisorConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AdvisorConfig{}, ReadBodyAsError(res)
+	}
+	var resp AdvisorConfig
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
+func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
 	if err != nil {
 		return err
 	}

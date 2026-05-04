@@ -1002,6 +1002,18 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+export const proposeChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
+
+	onSettled: (
+		_data: { title: string } | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
 type UpdateChatTitleVariables = {
 	chatId: string;
 	title: string;
@@ -1318,6 +1330,23 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 });
 
 export * from "./chatDebugLogging";
+export const chatAdvisorConfigKey = ["chat-advisor-config"] as const;
+
+export const chatAdvisorConfig = () => ({
+	queryKey: chatAdvisorConfigKey,
+	queryFn: (): Promise<TypesGen.AdvisorConfig> =>
+		API.experimental.getChatAdvisorConfig(),
+});
+
+export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateAdvisorConfigRequest) =>
+		API.experimental.updateChatAdvisorConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAdvisorConfigKey,
+		});
+	},
+});
 
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 

@@ -821,7 +821,7 @@ aibridge:
   # (default: true, type: bool)
   allow_byok: true
   # Enable the circuit breaker to protect against cascading failures from upstream
-  # AI provider rate limits (429, 503, 529 overloaded).
+  # AI provider overload (503, 529).
   # (default: false, type: bool)
   circuit_breaker_enabled: false
   # Number of consecutive failures that triggers the circuit breaker to open.

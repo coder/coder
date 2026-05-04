@@ -161,9 +161,17 @@ const AgentsRouteElement = () => (
 			model_config_id: "",
 			is_malformed: false,
 		}}
+		titleGenerationModelOverrideData={{
+			context: "title_generation",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		onSaveTitleGenerationModel={fn()}
+		isSavingTitleGenerationModel={false}
+		isSaveTitleGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
@@ -207,7 +215,6 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	chatList: [],
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
-	logoUrl: "",
 	handleNewAgent: fn(),
 	isCreating: false,
 	isArchiving: false,

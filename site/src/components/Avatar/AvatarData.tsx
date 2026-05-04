@@ -35,10 +35,10 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	}
 
 	return (
-		<div className="flex items-center w-full gap-3">
+		<div className="flex items-center gap-3">
 			{avatar}
 
-			<div className="flex flex-col w-full">
+			<div className="flex flex-col">
 				<span className="text-sm font-semibold text-content-primary">
 					{title}
 				</span>

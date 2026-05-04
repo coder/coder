@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -1559,60 +1560,39 @@ func TestChatsTelemetry(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	// Create chat providers (required FK for model configs).
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "anthropic",
-		DisplayName:          "Anthropic",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "anthropic",
+		DisplayName: "Anthropic",
 	})
-	require.NoError(t, err)
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
 	})
-	require.NoError(t, err)
 
 	// Create a model config.
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "anthropic",
-		Model:                "claude-sonnet-4-20250514",
-		DisplayName:          "Claude Sonnet",
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         200000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "anthropic",
+		Model:        "claude-sonnet-4-20250514",
+		DisplayName:  "Claude Sonnet",
+		IsDefault:    true,
+		ContextLimit: 200000,
 	})
-	require.NoError(t, err)
 
 	// Create a second model config to test full dump.
-	modelCfg2, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o",
-		DisplayName:          "GPT-4o",
-		Enabled:              true,
-		IsDefault:            false,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	modelCfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:    "openai",
+		Model:       "gpt-4o",
+		DisplayName: "GPT-4o",
 	})
-	require.NoError(t, err)
 
 	// Create a soft-deleted model config — should NOT appear in telemetry.
-	deletedCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "anthropic",
-		Model:                "claude-deleted",
-		DisplayName:          "Deleted Model",
-		Enabled:              true,
-		IsDefault:            false,
-		ContextLimit:         100000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	deletedCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "anthropic",
+		Model:        "claude-deleted",
+		DisplayName:  "Deleted Model",
+		ContextLimit: 100000,
 	})
-	require.NoError(t, err)
-	err = db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
+	err := db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
 	require.NoError(t, err)
 
 	// Create a root chat with a workspace.
@@ -1645,30 +1625,26 @@ func TestChatsTelemetry(t *testing.T) {
 		JobID:             job.ID,
 	})
 
-	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	rootChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "Root Chat",
 		Status:            database.ChatStatusRunning,
-		ClientType:        database.ChatClientTypeUi,
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
 	})
-	require.NoError(t, err)
 
 	// Create a child chat (has parent + root).
-	childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	childChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg2.ID,
 		Title:             "Child Chat",
 		Status:            database.ChatStatusCompleted,
-		ClientType:        database.ChatClientTypeUi,
 		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 	})
-	require.NoError(t, err)
 
 	// Associate a PR with the root chat so PullRequestState is populated.
 	rootChatNow := dbtime.Now()
@@ -1681,76 +1657,118 @@ func TestChatsTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert messages for root chat: 2 user, 2 assistant, 1 tool.
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              rootChat.ID,
-		CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, user.ID, uuid.Nil, uuid.Nil},
-		ModelConfigID:       []uuid.UUID{modelCfg.ID, modelCfg.ID, modelCfg.ID, modelCfg.ID, modelCfg.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
-		Content:             []string{`[{"type":"text","text":"hello"}]`, `[{"type":"text","text":"hi"}]`, `[{"type":"text","text":"help"}]`, `[{"type":"text","text":"sure"}]`, `[{"type":"text","text":"result"}]`},
-		ContentVersion:      []int16{1, 1, 1, 1, 1},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{100, 200, 150, 300, 0},
-		OutputTokens:        []int64{0, 50, 0, 100, 0},
-		TotalTokens:         []int64{100, 250, 150, 400, 0},
-		ReasoningTokens:     []int64{0, 10, 0, 20, 0},
-		CacheCreationTokens: []int64{50, 0, 30, 0, 0},
-		CacheReadTokens:     []int64{0, 25, 0, 40, 0},
-		ContextLimit:        []int64{200000, 200000, 200000, 200000, 200000},
-		Compressed:          []bool{false, false, false, false, false},
-		TotalCostMicros:     []int64{1000, 2000, 1500, 3000, 0},
-		RuntimeMs:           []int64{0, 500, 0, 800, 100},
-		ProviderResponseID:  []string{"", "resp-1", "", "resp-2", ""},
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:                database.ChatMessageRoleUser,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hello"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 100, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 100, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 50, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 1000, Valid: true},
 	})
-	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:             rootChat.ID,
+		ModelConfigID:      uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:               database.ChatMessageRoleAssistant,
+		Content:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hi"}]`), Valid: true},
+		InputTokens:        sql.NullInt64{Int64: 200, Valid: true},
+		OutputTokens:       sql.NullInt64{Int64: 50, Valid: true},
+		TotalTokens:        sql.NullInt64{Int64: 250, Valid: true},
+		ReasoningTokens:    sql.NullInt64{Int64: 10, Valid: true},
+		CacheReadTokens:    sql.NullInt64{Int64: 25, Valid: true},
+		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:    sql.NullInt64{Int64: 2000, Valid: true},
+		RuntimeMs:          sql.NullInt64{Int64: 500, Valid: true},
+		ProviderResponseID: sql.NullString{String: "resp-1", Valid: true},
+	})
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:              rootChat.ID,
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:                database.ChatMessageRoleUser,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"help"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 150, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 150, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 30, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 1500, Valid: true},
+	})
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:             rootChat.ID,
+		ModelConfigID:      uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:               database.ChatMessageRoleAssistant,
+		Content:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"sure"}]`), Valid: true},
+		InputTokens:        sql.NullInt64{Int64: 300, Valid: true},
+		OutputTokens:       sql.NullInt64{Int64: 100, Valid: true},
+		TotalTokens:        sql.NullInt64{Int64: 400, Valid: true},
+		ReasoningTokens:    sql.NullInt64{Int64: 20, Valid: true},
+		CacheReadTokens:    sql.NullInt64{Int64: 40, Valid: true},
+		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:    sql.NullInt64{Int64: 3000, Valid: true},
+		RuntimeMs:          sql.NullInt64{Int64: 800, Valid: true},
+		ProviderResponseID: sql.NullString{String: "resp-2", Valid: true},
+	})
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        rootChat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:          database.ChatMessageRoleTool,
+		Content:       pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"result"}]`), Valid: true},
+		ContextLimit:  sql.NullInt64{Int64: 200000, Valid: true},
+		RuntimeMs:     sql.NullInt64{Int64: 100, Valid: true},
+	})
 
 	// Insert messages for child chat: 1 user, 1 assistant (compressed).
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              childChat.ID,
-		CreatedBy:           []uuid.UUID{user.ID, uuid.Nil},
-		ModelConfigID:       []uuid.UUID{modelCfg2.ID, modelCfg2.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant},
-		Content:             []string{`[{"type":"text","text":"q"}]`, `[{"type":"text","text":"a"}]`},
-		ContentVersion:      []int16{1, 1},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{500, 600},
-		OutputTokens:        []int64{0, 200},
-		TotalTokens:         []int64{500, 800},
-		ReasoningTokens:     []int64{0, 50},
-		CacheCreationTokens: []int64{100, 0},
-		CacheReadTokens:     []int64{0, 75},
-		ContextLimit:        []int64{128000, 128000},
-		Compressed:          []bool{false, true},
-		TotalCostMicros:     []int64{5000, 8000},
-		RuntimeMs:           []int64{0, 1200},
-		ProviderResponseID:  []string{"", "resp-3"},
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg2.ID, Valid: true},
+		Role:                database.ChatMessageRoleUser,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"q"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 500, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 500, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 100, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 128000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 5000, Valid: true},
 	})
-	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:             childChat.ID,
+		ModelConfigID:      uuid.NullUUID{UUID: modelCfg2.ID, Valid: true},
+		Role:               database.ChatMessageRoleAssistant,
+		Content:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"a"}]`), Valid: true},
+		InputTokens:        sql.NullInt64{Int64: 600, Valid: true},
+		OutputTokens:       sql.NullInt64{Int64: 200, Valid: true},
+		TotalTokens:        sql.NullInt64{Int64: 800, Valid: true},
+		ReasoningTokens:    sql.NullInt64{Int64: 50, Valid: true},
+		CacheReadTokens:    sql.NullInt64{Int64: 75, Valid: true},
+		ContextLimit:       sql.NullInt64{Int64: 128000, Valid: true},
+		Compressed:         true,
+		TotalCostMicros:    sql.NullInt64{Int64: 8000, Valid: true},
+		RuntimeMs:          sql.NullInt64{Int64: 1200, Valid: true},
+		ProviderResponseID: sql.NullString{String: "resp-3", Valid: true},
+	})
 
 	// Insert a soft-deleted message on root chat with large token values.
 	// This acts as "poison" — if the deleted filter is missing, totals
 	// will be inflated and assertions below will fail.
-	poisonMsgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	poisonMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              rootChat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{modelCfg.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		Content:             []string{`[{"type":"text","text":"poison"}]`},
-		ContentVersion:      []int16{1},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{999999},
-		OutputTokens:        []int64{999999},
-		TotalTokens:         []int64{999999},
-		ReasoningTokens:     []int64{999999},
-		CacheCreationTokens: []int64{999999},
-		CacheReadTokens:     []int64{999999},
-		ContextLimit:        []int64{200000},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{999999},
-		RuntimeMs:           []int64{999999},
-		ProviderResponseID:  []string{""},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:                database.ChatMessageRoleAssistant,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"poison"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 999999, Valid: true},
+		OutputTokens:        sql.NullInt64{Int64: 999999, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 999999, Valid: true},
+		ReasoningTokens:     sql.NullInt64{Int64: 999999, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 999999, Valid: true},
+		CacheReadTokens:     sql.NullInt64{Int64: 999999, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 999999, Valid: true},
+		RuntimeMs:           sql.NullInt64{Int64: 999999, Valid: true},
 	})
-	require.NoError(t, err)
-	err = db.SoftDeleteChatMessageByID(ctx, poisonMsgs[0].ID)
+	err = db.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
 	require.NoError(t, err)
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)
@@ -1890,40 +1908,31 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
 
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "anthropic",
-		DisplayName:          "Anthropic",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "anthropic",
+		DisplayName: "Anthropic",
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "anthropic",
-		Model:                "claude-sonnet-4-20250514",
-		DisplayName:          "Claude Sonnet",
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         200000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "anthropic",
+		Model:        "claude-sonnet-4-20250514",
+		DisplayName:  "Claude Sonnet",
+		IsDefault:    true,
+		ContextLimit: 200000,
 	})
-	require.NoError(t, err)
 
 	// Helper to create a chat and upsert its diff status.
 	insertChatWithDiffStatus := func(prURL, state string) uuid.UUID {
 		t.Helper()
-		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "Chat " + state,
 			Status:            database.ChatStatusCompleted,
-			ClientType:        database.ChatClientTypeUi,
 		})
-		require.NoError(t, chatErr)
 		now := dbtime.Now()
-		_, chatErr = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		_, chatErr := db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 			ChatID:           chat.ID,
 			Url:              sql.NullString{String: prURL, Valid: prURL != ""},
 			PullRequestState: sql.NullString{String: state, Valid: true},
@@ -1945,15 +1954,13 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 
 	// Insert a chat with NULL pull_request_state (no PR yet).
 	// This should be excluded from all counts.
-	noPRChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	noPRChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "Chat no PR",
 		Status:            database.ChatStatusRunning,
-		ClientType:        database.ChatClientTypeUi,
 	})
-	require.NoError(t, err)
 	now := dbtime.Now()
 	_, err = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 		ChatID:      noPRChat.ID,

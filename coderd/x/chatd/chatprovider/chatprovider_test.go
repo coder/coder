@@ -11,6 +11,7 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
@@ -1390,4 +1391,213 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, []string{"foo"}, options.OpenRouter.Provider.Ignore)
 	require.Equal(t, []string{"int8"}, options.OpenRouter.Provider.Quantizations)
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
+}
+
+// TestApplyReasoningEffortToOptions covers every provider's mutation branch
+// plus the seeding path for missing provider entries. A typo or wrong type
+// assertion in any branch fails a unit test here rather than silently
+// dropping the admin-configured reasoning effort in chatd callers.
+func TestApplyReasoningEffortToOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilOptionsAndNilModelIsNoOp", func(t *testing.T) {
+		t.Parallel()
+		// Must not panic when options and model are both nil.
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, nil, "medium")
+		require.Nil(t, got)
+	})
+
+	t.Run("EmptyEffortReturnsInputUnchanged", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "   ")
+		require.Nil(t, got)
+	})
+
+	t.Run("EmptyEffortPreservesExistingOptions", func(t *testing.T) {
+		t.Parallel()
+		effort := fantasyopenai.ReasoningEffortLow
+		opts := &fantasyopenai.ProviderOptions{ReasoningEffort: &effort}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		got := chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortLow, *opts.ReasoningEffort)
+		// The input map must be returned untouched rather than allocated anew.
+		require.Len(t, got, 1)
+	})
+
+	t.Run("UnrecognizedEffortLeavesOptionsUntouched", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenai.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "not-a-real-effort")
+		require.Nil(t, opts.ReasoningEffort)
+	})
+
+	t.Run("OpenAIProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenai.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("OpenAIResponsesProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenai.ResponsesProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("OpenAICompatProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenaicompat.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenaicompat.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("AnthropicProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyanthropic.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyanthropic.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "high")
+		require.NotNil(t, opts.Effort)
+		require.Equal(t, fantasyanthropic.EffortHigh, *opts.Effort)
+	})
+
+	t.Run("OpenRouterAllocatesReasoningOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenrouter.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenrouter.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.Reasoning, "Reasoning container must be allocated")
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyopenrouter.ReasoningEffort("medium"), *opts.Reasoning.Effort)
+	})
+
+	t.Run("OpenRouterPreservesExistingReasoningContainer", func(t *testing.T) {
+		t.Parallel()
+		enabled := true
+		opts := &fantasyopenrouter.ProviderOptions{
+			Reasoning: &fantasyopenrouter.ReasoningOptions{Enabled: &enabled},
+		}
+		providerOptions := fantasy.ProviderOptions{fantasyopenrouter.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "high")
+		require.NotNil(t, opts.Reasoning.Enabled)
+		require.True(t, *opts.Reasoning.Enabled)
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyopenrouter.ReasoningEffort("high"), *opts.Reasoning.Effort)
+	})
+
+	t.Run("VercelAllocatesReasoningOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyvercel.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyvercel.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "minimal")
+		require.NotNil(t, opts.Reasoning)
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyvercel.ReasoningEffortMinimal, *opts.Reasoning.Effort)
+	})
+
+	t.Run("MultipleProvidersReceiveMutations", func(t *testing.T) {
+		t.Parallel()
+		openaiOpts := &fantasyopenai.ProviderOptions{}
+		anthropicOpts := &fantasyanthropic.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{
+			fantasyopenai.Name:    openaiOpts,
+			fantasyanthropic.Name: anthropicOpts,
+		}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "high")
+		require.NotNil(t, openaiOpts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *openaiOpts.ReasoningEffort)
+		require.NotNil(t, anthropicOpts.Effort)
+		require.Equal(t, fantasyanthropic.EffortHigh, *anthropicOpts.Effort)
+	})
+
+	t.Run("SeedsOpenAICompletionsWhenModelHasNoOptions", func(t *testing.T) {
+		t.Parallel()
+		// A model name absent from the Responses allowlist must seed
+		// the completions options struct so reasoning_effort lands.
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "not-a-real-openai-model"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "medium")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
+		require.True(t, ok, "expected *ProviderOptions for non-Responses model, got %T", got[fantasyopenai.Name])
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("SeedsOpenAIResponsesWhenModelIsResponsesModel", func(t *testing.T) {
+		t.Parallel()
+		// A model name in the Responses allowlist must seed the
+		// Responses-specific options struct so the provider routes to
+		// the Responses endpoint.
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "medium")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+		require.True(t, ok, "expected *ResponsesProviderOptions for Responses model, got %T", got[fantasyopenai.Name])
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("SeedsAnthropicWhenModelHasNoOptions", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-3-5"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "high")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, opts.Effort)
+		require.Equal(t, fantasyanthropic.EffortHigh, *opts.Effort)
+	})
+
+	t.Run("SeedsOpenRouterWhenModelHasNoOptions", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyopenrouter.Name, ModelName: "openrouter-x"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "low")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyopenrouter.Name].(*fantasyopenrouter.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, opts.Reasoning)
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyopenrouter.ReasoningEffort("low"), *opts.Reasoning.Effort)
+	})
+
+	t.Run("UnknownProviderReturnsInputUnchanged", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: "unknown", ModelName: "x"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "medium")
+		require.Nil(t, got)
+	})
+
+	t.Run("PreservesExistingProviderEntry", func(t *testing.T) {
+		t.Parallel()
+		existing := &fantasyopenai.ProviderOptions{}
+		existingEffort := fantasyopenai.ReasoningEffortLow
+		existing.ReasoningEffort = &existingEffort
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: existing}
+
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := chatprovider.ApplyReasoningEffortToOptions(providerOptions, model, "medium")
+		require.Same(t, existing, got[fantasyopenai.Name],
+			"existing provider entry must not be replaced")
+		// The reasoning effort on the existing entry is overwritten.
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *existing.ReasoningEffort)
+	})
 }

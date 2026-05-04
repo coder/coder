@@ -70,7 +70,7 @@ export interface AIBridgeConfig {
 	readonly allow_byok: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
-	 * provider rate limits (429, 503, 529 overloaded).
+	 * provider overload (503, 529).
 	 */
 	readonly circuit_breaker_enabled: boolean;
 	readonly circuit_breaker_failure_threshold: number;
@@ -144,6 +144,10 @@ export interface AIBridgeProviderConfig {
 	 * BaseURL is the base URL of the upstream provider API.
 	 */
 	readonly base_url: string;
+	/**
+	 * DumpDir is the directory path for dumping API requests and responses.
+	 */
+	readonly dump_dir?: string;
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
@@ -339,6 +343,9 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_seat:*"
+	| "ai_seat:create"
+	| "ai_seat:read"
 	| "aibridge_interception:*"
 	| "aibridge_interception:create"
 	| "aibridge_interception:read"
@@ -548,6 +555,9 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_seat:*",
+	"ai_seat:create",
+	"ai_seat:read",
 	"aibridge_interception:*",
 	"aibridge_interception:create",
 	"aibridge_interception:read",
@@ -786,6 +796,44 @@ export interface AddLicenseRequest {
 export type Addon = "ai_governance";
 
 export const Addons: Addon[] = ["ai_governance"];
+
+// From codersdk/chats.go
+/**
+ * AdvisorConfig is the deployment-wide runtime configuration for the
+ * experimental chat advisor.
+ *
+ * EXPERIMENTAL: this type is experimental and is subject to change.
+ */
+export interface AdvisorConfig {
+	/**
+	 * Enabled toggles the advisor runtime. When false, advisor is not
+	 * attached to new chats.
+	 */
+	readonly enabled: boolean;
+	/**
+	 * MaxUsesPerRun caps how many times the advisor can be invoked per
+	 * chat run. 0 means unlimited.
+	 */
+	readonly max_uses_per_run: number;
+	/**
+	 * MaxOutputTokens caps the advisor model response tokens. 0 means
+	 * use the runtime default.
+	 */
+	readonly max_output_tokens: number;
+	/**
+	 * ModelConfigID selects a specific chat model config to power the
+	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
+	 * must fall back to the outer chat model when this ID cannot be
+	 * resolved (e.g. the referenced model config was soft-deleted or
+	 * its provider was disabled after the admin saved this config).
+	 */
+	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overlays provider reasoning effort on the advisor
+	 * call config when supported. Allowed: "", "low", "medium", "high".
+	 */
+	readonly reasoning_effort: string;
+}
 
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
@@ -1270,25 +1318,6 @@ export interface Chat {
 	 * always empty for child chats.
 	 */
 	readonly children: readonly Chat[];
-}
-
-// From codersdk/chats.go
-export type ChatAgentModelOverrideContext = "explore" | "general";
-
-export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
-	"explore",
-	"general",
-];
-
-// From codersdk/chats.go
-/**
- * ChatAgentModelOverrideResponse is the response body for the chat agent
- * model override configuration endpoint.
- */
-export interface ChatAgentModelOverrideResponse {
-	readonly context: ChatAgentModelOverrideContext;
-	readonly model_config_id: string;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
@@ -2045,6 +2074,29 @@ export interface ChatModelOpenRouterProviderOptions {
 	readonly parallel_tool_calls?: boolean;
 	readonly user?: string;
 	readonly provider?: ChatModelOpenRouterProvider;
+}
+
+// From codersdk/chats.go
+export type ChatModelOverrideContext =
+	| "explore"
+	| "general"
+	| "title_generation";
+
+export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"explore",
+	"general",
+	"title_generation",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatModelOverrideResponse is the response body for the chat model override
+ * configuration endpoint.
+ */
+export interface ChatModelOverrideResponse {
+	readonly context: ChatModelOverrideContext;
+	readonly model_config_id: string;
+	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
@@ -3108,6 +3160,10 @@ export interface CreateUserRequestWithOrgs {
 	 * Service accounts are admin-managed accounts that cannot login.
 	 */
 	readonly service_account?: boolean;
+	/**
+	 * Roles is an optional list of site-level roles to assign at creation.
+	 */
+	readonly roles?: readonly string[];
 }
 
 // From codersdk/usersecrets.go
@@ -3617,6 +3673,7 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
+	readonly secret_requirements?: readonly SecretRequirementStatus[];
 }
 
 // From codersdk/chats.go
@@ -3725,7 +3782,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "agents"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -3735,7 +3791,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"agents",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -4528,7 +4583,7 @@ export interface MCPServerConfig {
 	readonly icon_url: string;
 	readonly transport: string; // "streamable_http" or "sse"
 	readonly url: string;
-	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers"
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 	/**
 	 * OAuth2 fields (only populated for admins).
 	 */
@@ -6131,6 +6186,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_seat"
 	| "aibridge_interception"
 	| "api_key"
 	| "assign_org_role"
@@ -6177,6 +6233,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_seat",
 	"aibridge_interception",
 	"api_key",
 	"assign_org_role",
@@ -6351,6 +6408,7 @@ export type ResourceType =
 	| "template"
 	| "template_version"
 	| "user"
+	| "user_secret"
 	| "workspace"
 	| "workspace_agent"
 	| "workspace_app"
@@ -6381,6 +6439,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template",
 	"template_version",
 	"user",
+	"user_secret",
 	"workspace",
 	"workspace_agent",
 	"workspace_app",
@@ -6603,6 +6662,14 @@ export interface STUNReport {
 	readonly Enabled: boolean;
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
+}
+
+// From codersdk/parameters.go
+export interface SecretRequirementStatus {
+	readonly env?: string;
+	readonly file?: string;
+	readonly help_message: string;
+	readonly satisfied: boolean;
 }
 
 // From serpent/serpent.go
@@ -7693,6 +7760,43 @@ export interface UpdateActiveTemplateVersion {
 	readonly id: string;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateAdvisorConfigRequest is the request body for updating advisor
+ * runtime configuration. It is a type alias for AdvisorConfig because
+ * the request and response shapes are currently identical.
+ */
+export interface UpdateAdvisorConfigRequest {
+	/**
+	 * Enabled toggles the advisor runtime. When false, advisor is not
+	 * attached to new chats.
+	 */
+	readonly enabled: boolean;
+	/**
+	 * MaxUsesPerRun caps how many times the advisor can be invoked per
+	 * chat run. 0 means unlimited.
+	 */
+	readonly max_uses_per_run: number;
+	/**
+	 * MaxOutputTokens caps the advisor model response tokens. 0 means
+	 * use the runtime default.
+	 */
+	readonly max_output_tokens: number;
+	/**
+	 * ModelConfigID selects a specific chat model config to power the
+	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
+	 * must fall back to the outer chat model when this ID cannot be
+	 * resolved (e.g. the referenced model config was soft-deleted or
+	 * its provider was disabled after the admin saved this config).
+	 */
+	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overlays provider reasoning effort on the advisor
+	 * call config when supported. Allowed: "", "low", "medium", "high".
+	 */
+	readonly reasoning_effort: string;
+}
+
 // From codersdk/deployment.go
 export interface UpdateAppearanceConfig {
 	readonly application_name: string;
@@ -7702,15 +7806,6 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatAgentModelOverrideRequest is the request body for updating the
- * chat agent model override configuration endpoint.
- */
-export interface UpdateChatAgentModelOverrideRequest {
-	readonly model_config_id: string;
 }
 
 // From codersdk/chats.go
@@ -7752,6 +7847,15 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelOverrideRequest is the request body for updating the chat
+ * model override configuration endpoint.
+ */
+export interface UpdateChatModelOverrideRequest {
+	readonly model_config_id: string;
 }
 
 // From codersdk/chats.go
@@ -9029,7 +9133,23 @@ export interface WorkspaceAgentScript {
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
 	readonly display_name: string;
+	readonly exit_code?: number;
+	readonly status?: WorkspaceAgentScriptStatus;
 }
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentScriptStatus =
+	| "exit_failure"
+	| "ok"
+	| "pipes_left_open"
+	| "timed_out";
+
+export const WorkspaceAgentScriptStatuses: WorkspaceAgentScriptStatus[] = [
+	"exit_failure",
+	"ok",
+	"pipes_left_open",
+	"timed_out",
+];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";

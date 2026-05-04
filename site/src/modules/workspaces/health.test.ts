@@ -4,7 +4,11 @@ import type {
 	WorkspaceAgentLifecycle,
 	WorkspaceAgentStatus,
 } from "#/api/typesGenerated";
-import { MockWorkspaceAgent } from "#/testHelpers/entities";
+import {
+	MockWorkspaceAgent,
+	MockWorkspaceAgentStartError,
+	MockWorkspaceAgentStartTimeout,
+} from "#/testHelpers/entities";
 import { getAgentHealthIssues } from "./health";
 
 interface AgentOverrides {
@@ -16,9 +20,7 @@ interface AgentOverrides {
 function buildAgent(overrides: AgentOverrides): WorkspaceAgent {
 	return {
 		...MockWorkspaceAgent,
-		status: overrides.status ?? "connected",
-		lifecycle_state: overrides.lifecycle_state ?? "ready",
-		parent_id: overrides.parent_id ?? null,
+		...overrides,
 	};
 }
 
@@ -74,21 +76,36 @@ describe("getAgentHealthIssues", () => {
 		);
 	});
 
-	it("returns startup script issues", () => {
-		expect(
-			getAgentHealthIssues(buildAgent({ lifecycle_state: "start_error" })),
-		).toContainEqual(
+	it("returns script issues", () => {
+		const issues = getAgentHealthIssues(
+			buildAgent(MockWorkspaceAgentStartError),
+		);
+		expect(issues).toContainEqual(
 			expect.objectContaining({
-				title: "Startup script failed",
+				title: `"Startup Script" failed`,
+				severity: "warning",
+				prominent: false,
+			}),
+		);
+		expect(issues).toContainEqual(
+			expect.objectContaining({
+				title: `"time" is taking longer than expected`,
+				severity: "warning",
+				prominent: false,
+			}),
+		);
+		expect(issues).toContainEqual(
+			expect.objectContaining({
+				title: `"pipe" left pipes open`,
 				severity: "warning",
 				prominent: false,
 			}),
 		);
 		expect(
-			getAgentHealthIssues(buildAgent({ lifecycle_state: "start_timeout" })),
+			getAgentHealthIssues(buildAgent(MockWorkspaceAgentStartTimeout)),
 		).toContainEqual(
 			expect.objectContaining({
-				title: "Startup script is taking longer than expected",
+				title: `"Startup Script" is taking longer than expected`,
 				severity: "warning",
 				prominent: false,
 			}),
@@ -119,13 +136,16 @@ describe("getAgentHealthIssues", () => {
 
 	it("returns multiple issues when multiple conditions match", () => {
 		const issues = getAgentHealthIssues(
-			buildAgent({ status: "disconnected", lifecycle_state: "start_error" }),
+			buildAgent({
+				...MockWorkspaceAgentStartError,
+				status: "disconnected",
+			}),
 		);
 		expect(issues).toContainEqual(
 			expect.objectContaining({ title: "Workspace agent has disconnected" }),
 		);
 		expect(issues).toContainEqual(
-			expect.objectContaining({ title: "Startup script failed" }),
+			expect.objectContaining({ title: `"Startup Script" failed` }),
 		);
 	});
 });
