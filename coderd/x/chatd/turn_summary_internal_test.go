@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -84,4 +86,84 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, sql.NullString{String: "fresh summary", Valid: true}, fetched.LastTurnSummary)
 	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
+}
+
+func TestMaybeFinalizeTurnSummaryFinalizesPendingStatus(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+	})
+
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "summary-pending-chat",
+	})
+	require.NoError(t, err)
+
+	const summary = "Finished the queued turn."
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		ModelName:    "test-model",
+		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: summary},
+				},
+			}, nil
+		},
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := &Server{db: db}
+	server.maybeFinalizeTurnSummaryAndPush(
+		context.WithoutCancel(ctx),
+		chat,
+		database.ChatStatusPending,
+		"",
+		runChatResult{
+			FinalAssistantText: "I finished the queued turn.",
+			PushSummaryModel:   model,
+			FallbackProvider:   model.Provider(),
+			FallbackModel:      model.Model(),
+		},
+		logger,
+	)
+	server.drainInflight()
+
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: summary, Valid: true}, fetched.LastTurnSummary)
 }

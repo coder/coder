@@ -3442,7 +3442,11 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	db.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.UpdateChatStatusParams) (database.Chat, error) {
 			finalStatus = params.Status
-			return database.Chat{ID: chatID, Status: params.Status}, nil
+			return database.Chat{
+				ID:              chatID,
+				Status:          params.Status,
+				LastTurnSummary: sql.NullString{String: "previous summary", Valid: true},
+			}, nil
 		},
 	)
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(

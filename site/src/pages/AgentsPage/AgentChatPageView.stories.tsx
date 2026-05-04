@@ -63,6 +63,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });

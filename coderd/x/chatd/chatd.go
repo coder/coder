@@ -67,6 +67,7 @@ const (
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	turnSummaryWriteTimeout      = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -8275,7 +8276,7 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 	}
 
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPending:
 		p.finalizeSuccessfulTurnSummaryAndPush(ctx, chat, runResult, logger)
 
 	case database.ChatStatusError:
@@ -8288,7 +8289,12 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 			p.dispatchPush(ctx, chat, pushBody, status, logger)
 		}
 
+	case database.ChatStatusRequiresAction:
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+
 	default:
+		// New statuses must be classified before they can safely
+		// preserve or finalize a cached turn summary.
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
 	}
 }
@@ -8300,10 +8306,10 @@ func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
 	logger slog.Logger,
 ) {
 	debugSvc := p.existingDebugService()
-	p.inflight.Add(1)
-	go func() {
-		defer p.inflight.Done()
-
+	// This helper runs during processChat cleanup, while processChat is
+	// still counted in p.inflight. Do not take inflightMu here because
+	// drainInflight holds it while waiting.
+	p.inflight.Go(func() {
 		finalizeCtx := context.WithoutCancel(ctx)
 		summary := ""
 		assistantText := strings.TrimSpace(runResult.FinalAssistantText)
@@ -8333,7 +8339,7 @@ func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
 			pushBody = summary
 		}
 		p.dispatchPush(finalizeCtx, chat, pushBody, database.ChatStatusWaiting, logger)
-	}()
+	})
 }
 
 func (p *Server) maybeClearLastTurnSummaryAsync(
@@ -8352,13 +8358,20 @@ func (p *Server) clearLastTurnSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	p.inflight.Add(1)
-	go func() {
-		defer p.inflight.Done()
+	if !chat.LastTurnSummary.Valid {
+		return
+	}
+	// This helper runs during processChat cleanup, while processChat is
+	// still counted in p.inflight. Do not take inflightMu here because
+	// drainInflight holds it while waiting.
+	p.inflight.Go(func() {
 		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.UpdatedAt, "", logger)
-	}()
+	})
 }
 
+// updateLastTurnSummary writes the cached sidebar summary for a chat.
+// Callers should pass a detached context because this method is used for
+// best-effort background cache writes.
 func (p *Server) updateLastTurnSummary(
 	ctx context.Context,
 	chat database.Chat,
@@ -8369,10 +8382,9 @@ func (p *Server) updateLastTurnSummary(
 	summary = strings.TrimSpace(summary)
 	lastTurnSummary := sql.NullString{String: summary, Valid: summary != ""}
 
-	updateCtx := context.WithoutCancel(ctx)
-	//nolint:gocritic // Chatd owns best-effort turn-summary writes.
-	updateCtx = dbauthz.AsChatd(updateCtx)
-	updateCtx, cancel := context.WithTimeout(updateCtx, 5*time.Second)
+	//nolint:gocritic // Narrow daemon access for best-effort summary cache writes.
+	updateCtx := dbauthz.AsChatd(ctx)
+	updateCtx, cancel := context.WithTimeout(updateCtx, turnSummaryWriteTimeout)
 	defer cancel()
 
 	affected, err := p.db.UpdateChatLastTurnSummary(updateCtx, database.UpdateChatLastTurnSummaryParams{
@@ -8400,7 +8412,14 @@ func (p *Server) updateLastTurnSummary(
 			slog.F("chat_id", chat.ID),
 			slog.F("expected_updated_at", expectedUpdatedAt),
 		)
+		return
 	}
+
+	updatedChat := chat
+	updatedChat.LastTurnSummary = lastTurnSummary
+	// Reuse status_change because chat watch has no summary-specific
+	// event kind, and this notifies clients that the chat row changed.
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 }
 
 func (p *Server) webpushConfigured() bool {

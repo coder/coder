@@ -110,7 +110,7 @@ type Chat struct {
 	Status            ChatStatus         `json:"status"`
 	PlanMode          ChatPlanMode       `json:"plan_mode,omitempty"`
 	LastError         *ChatError         `json:"last_error,omitempty"`
-	LastTurnSummary   *string            `json:"last_turn_summary,omitempty"`
+	LastTurnSummary   *string            `json:"last_turn_summary"`
 	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
 	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`

@@ -112,6 +112,7 @@ const makeChat = (
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -2025,6 +2026,23 @@ describe("mergeWatchedChatSummary", () => {
 				eventKind: "status_change",
 			}).last_model_config_id,
 		).toBe("22222222-2222-4222-8222-222222222222");
+	});
+
+	it("merges last_turn_summary when watched updated_at equals cached updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: "Previous summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Updated summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).last_turn_summary,
+		).toBe("Updated summary");
 	});
 
 	it("compares updated_at values as instants instead of strings", () => {

@@ -286,6 +286,9 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
+	const nextLastTurnSummary = isFreshEnough
+		? watchedChat.last_turn_summary
+		: cachedChat.last_turn_summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -303,6 +306,7 @@ export const mergeWatchedChatSummary = (
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
+		nextLastTurnSummary === cachedChat.last_turn_summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at
 	) {
@@ -317,6 +321,7 @@ export const mergeWatchedChatSummary = (
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
+		last_turn_summary: nextLastTurnSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 	};

@@ -6139,7 +6139,6 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		WebpushDispatcher:          mockPush,
 	})
-	server.Start()
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -6155,6 +6154,9 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
+	seedLastTurnSummary(ctx, t, db, chat, "previous summary")
+
+	server.Start()
 
 	// Wait for the chat to be picked up and start streaming.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -6658,8 +6660,8 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 		"errored chats should clear cached turn summaries")
 
 	msg := mockPush.getLastMessage()
-	require.NotEmpty(t, msg.Body,
-		"error push body should explain that the chat failed")
+	require.NotEqual(t, "Agent encountered an error.", msg.Body)
+	require.Contains(t, msg.Body, "OpenAI returned an unexpected error")
 }
 
 func TestComputerUseSubagentToolsAndModel(t *testing.T) {
