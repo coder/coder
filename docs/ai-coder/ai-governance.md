@@ -14,9 +14,6 @@ that help organizations safely roll out AI tooling at scale:
   MCP server management, and policy enforcement
 - [Agent Firewall](./agent-firewall/index.md): Process-level firewalls for
   agents, restricting which domains can be accessed by AI agents
-- [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured):
-  Additional allowance of Agent Workspace Builds for continued use of Coder
-  Tasks.
 
 ## Who should use the AI Governance Add-On
 
@@ -30,7 +27,6 @@ It's a good fit if you're:
 - Looking to centrally observe, audit, and govern AI activity in Coder
   Workspaces
 - Managing AI workflows against sensitive or regulated codebases
-- Expanding the use of Coder Tasks for AI-driven background work
 
 If you already use other AI Governance tools, such as third-party LLM gateways
 or vendor-managed policies, you can continue using them. Coder Workspaces can
