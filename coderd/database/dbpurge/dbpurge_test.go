@@ -279,6 +279,48 @@ func TestMetrics(t *testing.T) {
 		})
 		require.Nil(t, successHist, "should not have success=true metric on auto-archive read failure")
 	})
+
+	// Same contract as the other chat config reads, but debug retention
+	// read failures skip only debug purging.
+	t.Run("FailedChatDebugRetentionRead", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), xerrors.New("simulated chat debug retention read error")).
+			MinTimes(1)
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			Return(nil).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		hist := promhelp.HistogramValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.NotNil(t, hist)
+		require.Greater(t, hist.GetSampleCount(), uint64(0),
+			"failed chat debug retention read must record a failed iteration")
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "should not have success=true metric on chat debug retention read failure")
+	})
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
@@ -2002,7 +2044,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				testutil.TryReceive(ctx, t, done)
 
 				_, err := db.GetChatByID(ctx, oldArchivedChat.ID)
-				require.Error(t, err, "old archived chat should be deleted")
+				require.ErrorIs(t, err, sql.ErrNoRows, "old archived chat should be deleted")
 				_, err = db.GetChatDebugRunByID(ctx, run.ID)
 				require.ErrorIs(t, err, sql.ErrNoRows, "chat deletion should cascade to debug runs")
 				require.Zero(t, countDebugSteps(ctx, t, rawDB, run.ID), "chat deletion should cascade to debug steps")
@@ -2151,7 +2193,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				// Old archived chat should be gone.
 				_, err = db.GetChatByID(ctx, oldChat.ID)
-				require.Error(t, err, "old archived chat should be deleted")
+				require.ErrorIs(t, err, sql.ErrNoRows, "old archived chat should be deleted")
 
 				// Its messages should be gone too (CASCADE).
 				msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{

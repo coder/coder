@@ -182,11 +182,12 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
 	// Read chat configs outside the tx so a corrupt value can't
-	// poison subsequent queries. On retention or auto-archive errors,
-	// log and stash, then run unrelated purges best-effort and skip
-	// only chat work; purgeTick returns chatConfigErr after the tx so
-	// the failed iteration is operator-visible via metric and logs.
-	// Debug retention errors skip only debug purging for this tick.
+	// poison subsequent queries. On config read errors, log and stash
+	// the error, then run unrelated purges best-effort. Retention and
+	// auto-archive errors skip only the conversation purge and
+	// auto-archive work. Debug retention errors skip only the debug
+	// purge. purgeTick returns chatConfigErr after the tx so the failed
+	// iteration is operator-visible via metric and logs.
 	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
 	if chatRetentionErr != nil {
 		i.logger.Error(ctx, "failed to read chat retention config: skipping chat purge and auto-archive this tick", slog.Error(chatRetentionErr))
@@ -202,7 +203,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		i.logger.Error(ctx, "failed to read chat debug retention config: skipping chat debug purge this tick", slog.Error(chatDebugRetentionErr))
 	}
 
-	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
+	chatRetentionConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
+	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr, chatDebugRetentionErr)
 
 	// Populated inside the tx; dispatched post-commit.
 	var archivedChats []database.AutoArchiveInactiveChatsRow
@@ -312,7 +314,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		}
 
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
-		if chatConfigErr == nil {
+		if chatRetentionConfigErr == nil {
 			purgedChats, purgedChatFiles, archivedChats, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays, chatAutoArchiveDays)
 			if err != nil {
 				return xerrors.Errorf("failed to purge chats: %w", err)

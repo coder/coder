@@ -5267,7 +5267,8 @@ func (api *API) getChatDebugRetentionDays(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-// Keep in sync with frontend validation when chat debug retention is exposed.
+// Keep in sync with the validation schema in
+// site/src/pages/AgentsPage/components/DebugRetentionSettings.tsx.
 const chatDebugRetentionDaysMaximum = 3650 // ~10 years
 
 // putChatDebugRetentionDays updates the deployment-wide chat debug run

@@ -25,6 +25,11 @@ Navigate to the **Agents** page, open **Settings**, and select the
 Set the value to `0` to disable debug data retention entirely. The maximum value
 is `3650` days.
 
+On upgrade, deployments without an explicit chat debug retention value use the
+7-day default. The first purge can delete debug data older than 7 days before
+an admin changes the setting. Set the value to `0` before upgrading if you need
+to retain existing debug data.
+
 Use the experimental admin API to read or update the value:
 
 ```text

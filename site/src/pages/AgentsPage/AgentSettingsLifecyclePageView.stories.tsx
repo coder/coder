@@ -814,3 +814,23 @@ export const DebugRetentionSaveError: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+export const DebugRetentionLoadError: Story = {
+	args: {
+		debugRetentionDaysData: undefined,
+		isDebugRetentionDaysLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable chat debug data retention",
+		});
+		expect(toggle).toBeChecked();
+		expect(
+			await canvas.findByLabelText("Chat debug data retention period in days"),
+		).toHaveValue(7);
+		expect(
+			await canvas.findByText("Failed to load chat debug retention setting."),
+		).toBeInTheDocument();
+	},
+};
