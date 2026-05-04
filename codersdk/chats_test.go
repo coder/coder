@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -450,7 +451,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	lastError := &codersdk.ChatError{
 		Message:    "boom",
 		Detail:     "provider detail",
-		Kind:       "generic",
+		Kind:       chaterror.KindGeneric,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 503,

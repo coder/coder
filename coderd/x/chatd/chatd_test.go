@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -3689,7 +3690,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	persistedError := requireChatLastErrorPayload(t, chatResult.LastError)
 	require.Equal(t, codersdk.ChatError{
 		Message: "Dynamic tool execution timed out",
-		Kind:    "generic",
+		Kind:    chaterror.KindGeneric,
 	}, persistedError)
 	require.False(t, chatResult.WorkerID.Valid)
 }
@@ -3802,7 +3803,7 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	errorMessage := "stream response: status 500: internal server error"
 	wantPayload := codersdk.ChatError{
 		Message: errorMessage,
-		Kind:    "generic",
+		Kind:    chaterror.KindGeneric,
 	}
 	chat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
@@ -7076,7 +7077,7 @@ func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
 	persistedError := requireChatLastErrorPayload(t, chatResult.LastError)
 	require.NotEmpty(t, persistedError.Message)
 	require.NotContains(t, persistedError.Message, "panicked")
-	require.Equal(t, "generic", persistedError.Kind)
+	require.Equal(t, chaterror.KindGeneric, persistedError.Kind)
 	require.NotEqual(t, database.ChatStatusRunning, chatResult.Status)
 	require.Zero(t, llmCalls.Load(), "missing user key should fail before any LLM request")
 }
@@ -7141,7 +7142,7 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 	persistedError := requireChatLastErrorPayload(t, chatResult.LastError)
 	require.Contains(t, persistedError.Message, "chat processing panicked")
 	require.Contains(t, persistedError.Message, "intentional test panic")
-	require.Equal(t, "generic", persistedError.Kind)
+	require.Equal(t, chaterror.KindGeneric, persistedError.Kind)
 }
 
 // panicOnInTxDB wraps a database.Store and panics on the first InTx
