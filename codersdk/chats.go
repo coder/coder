@@ -262,6 +262,11 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
+	// ContextFileAppURL is the workspace app URL template with
+	// {port} as a placeholder for the port number. Internal
+	// only: included in the workspace-context block so the
+	// agent can construct preview URLs for forwarded ports.
+	ContextFileAppURL string `json:"context_file_app_url,omitempty" typescript:"-"`
 	// SkillName is the kebab-case name of a discovered skill
 	// from the workspace's .agents/skills/ directory.
 	SkillName string `json:"skill_name" variants:"skill"`
@@ -294,6 +299,7 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileContent = ""
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
+	p.ContextFileAppURL = ""
 	p.SkillDir = ""
 	p.ContextFileSkillMetaFile = ""
 }

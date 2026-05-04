@@ -1134,6 +1134,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		ctx,
 		chat,
 		uuid.New(),
+		"", "",
 		workspaceCtx.getWorkspaceAgent,
 		workspaceCtx.getWorkspaceConn,
 	)
@@ -1165,6 +1166,7 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 		ctx,
 		chat,
 		uuid.New(),
+		"", "",
 		func(context.Context) (database.WorkspaceAgent, error) {
 			return database.WorkspaceAgent{
 				ID:        uuid.New(),
@@ -1302,6 +1304,7 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 		ctx,
 		chat,
 		uuid.New(),
+		"", "",
 		workspaceCtx.getWorkspaceAgent,
 		workspaceCtx.getWorkspaceConn,
 	)
@@ -1390,6 +1393,7 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 		ctx,
 		chat,
 		uuid.New(),
+		"", "",
 		workspaceCtx.getWorkspaceAgent,
 		workspaceCtx.getWorkspaceConn,
 	)

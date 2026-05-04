@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
@@ -158,6 +160,8 @@ type Server struct {
 	agentInactiveDisconnectTimeout time.Duration
 	dialTimeout                    time.Duration
 	instructionLookupTimeout       time.Duration
+	accessURL                      *url.URL
+	appHostname                    string
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	pubsub                         pubsub.Pubsub
@@ -465,6 +469,8 @@ type turnWorkspaceContext struct {
 	conn              workspacesdk.AgentConn
 	releaseConn       func()
 	cachedWorkspaceID uuid.NullUUID
+	workspaceName     string
+	ownerUsername     string
 }
 
 func (c *turnWorkspaceContext) close() {
@@ -479,6 +485,8 @@ func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 	c.conn = nil
 	c.releaseConn = nil
 	c.cachedWorkspaceID = uuid.NullUUID{}
+	c.workspaceName = ""
+	c.ownerUsername = ""
 	c.mu.Unlock()
 
 	if releaseConn != nil {
@@ -507,6 +515,35 @@ func (c *turnWorkspaceContext) selectWorkspace(chat database.Chat) {
 func (c *turnWorkspaceContext) currentWorkspaceMatches(expected uuid.NullUUID) (database.Chat, bool) {
 	chatSnapshot := c.currentChatSnapshot()
 	return chatSnapshot, nullUUIDEqual(chatSnapshot.WorkspaceID, expected)
+}
+
+// resolveWorkspaceMetadataLocked looks up the workspace name and
+// owner username for the current chat. These are cached on the
+// turnWorkspaceContext and used to build port forwarding URL
+// templates. Caller must hold c.mu.
+func (c *turnWorkspaceContext) resolveWorkspaceMetadataLocked(
+	ctx context.Context,
+	chat database.Chat,
+) {
+	if !chat.WorkspaceID.Valid {
+		return
+	}
+	//nolint:gocritic // System-level lookup for prompt metadata.
+	ws, err := c.server.db.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), chat.WorkspaceID.UUID)
+	if err != nil {
+		c.server.logger.Debug(ctx, "failed to look up workspace name",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	//nolint:gocritic // Same as above; we need the owner username.
+	owner, err := c.server.db.GetUserByID(dbauthz.AsSystemRestricted(ctx), chat.OwnerID)
+	if err != nil {
+		c.server.logger.Debug(ctx, "failed to look up owner username",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	c.workspaceName = ws.Name
+	c.ownerUsername = owner.Username
 }
 
 func nullUUIDEqual(left, right uuid.NullUUID) bool {
@@ -594,6 +631,13 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 
 		if !chatSnapshot.WorkspaceID.Valid {
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
+		}
+
+		// Resolve workspace name and owner username for the
+		// app URL template. Best-effort; failures are not
+		// fatal since these are only used for prompt context.
+		if c.workspaceName == "" {
+			c.resolveWorkspaceMetadataLocked(ctx, chatSnapshot)
 		}
 
 		if chatSnapshot.AgentID.Valid {
@@ -3601,6 +3645,15 @@ type Config struct {
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	InstructionLookupTimeout       time.Duration
+
+	// AccessURL is the deployment's access URL, used to construct
+	// workspace app preview URLs in the workspace-context block.
+	AccessURL *url.URL
+	// AppHostname is the wildcard hostname pattern for subdomain
+	// apps, e.g. "*.apps.coder.com". When set alongside AccessURL,
+	// the workspace-context block includes a preview URL template
+	// so the agent knows how to link to forwarded ports.
+	AppHostname string
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	Pubsub                         pubsub.Pubsub
@@ -3669,6 +3722,8 @@ func New(cfg Config) *Server {
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
 		instructionLookupTimeout:       instructionLookupTimeout,
+		accessURL:                      cfg.AccessURL,
+		appHostname:                    cfg.AppHostname,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		pubsub:                         cfg.Pubsub,
@@ -5842,6 +5897,8 @@ func (p *Server) appendRootChatTools(
 				ctx,
 				updatedChat,
 				opts.modelConfigID,
+				opts.workspaceCtx.workspaceName,
+				opts.workspaceCtx.ownerUsername,
 				opts.workspaceCtx.getWorkspaceAgent,
 				opts.workspaceCtx.getWorkspaceConn,
 			)
@@ -6273,6 +6330,8 @@ func (p *Server) runChat(
 				ctx,
 				chat,
 				modelConfig.ID,
+				workspaceCtx.workspaceName,
+				workspaceCtx.ownerUsername,
 				workspaceCtx.getWorkspaceAgent,
 				func(instructionCtx context.Context) (workspacesdk.AgentConn, error) {
 					if _, _, err := workspaceCtx.workspaceAgentIDForConn(instructionCtx); err != nil {
@@ -7555,6 +7614,7 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 func (p *Server) fetchWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
+	workspaceName, ownerUsername string,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) (agent *database.WorkspaceAgent, agentParts []codersdk.ChatMessagePart, discoveredSkills []chattool.SkillMeta, workspaceConnOK bool) {
@@ -7607,6 +7667,10 @@ func (p *Server) fetchWorkspaceContext(
 	// directory — those are added here at the trust boundary.
 	agentID := uuid.NullUUID{UUID: loadedAgent.ID, Valid: true}
 
+	// Build the workspace app URL template so the agent can
+	// construct preview URLs for forwarded ports.
+	appURLTemplate := p.buildAppURLTemplate(loadedAgent.Name, workspaceName, ownerUsername)
+
 	for i := range agentParts {
 		agentParts[i].ContextFileAgentID = agentID
 		switch agentParts[i].Type {
@@ -7614,6 +7678,7 @@ func (p *Server) fetchWorkspaceContext(
 			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
 			agentParts[i].ContextFileOS = loadedAgent.OperatingSystem
 			agentParts[i].ContextFileDirectory = directory
+			agentParts[i].ContextFileAppURL = appURLTemplate
 		case codersdk.ChatMessagePartTypeSkill:
 			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
 				Name:        agentParts[i].SkillName,
@@ -7627,6 +7692,44 @@ func (p *Server) fetchWorkspaceContext(
 	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK
 }
 
+// buildAppURLTemplate constructs preview URL templates for
+// workspace app ports. The template uses {port} as a placeholder
+// so the agent can substitute actual port numbers. Returns an
+// empty string when the access URL is not configured or the
+// required metadata is missing.
+func (p *Server) buildAppURLTemplate(
+	agentName, workspaceName, ownerUsername string,
+) string {
+	if p.accessURL == nil || workspaceName == "" || ownerUsername == "" {
+		return ""
+	}
+
+	var lines []string
+
+	// Subdomain-based URL (when wildcard app hostname is configured).
+	if p.appHostname != "" {
+		appHost := appurl.SubdomainAppHost(p.appHostname, p.accessURL)
+		prefix := strings.Replace(
+			appHost,
+			"*",
+			fmt.Sprintf("{port}--%s--%s--%s", agentName, workspaceName, ownerUsername),
+			1,
+		)
+		lines = append(lines, fmt.Sprintf("%s://%s/", p.accessURL.Scheme, prefix))
+	} else {
+		// Path-based URL (fallback when no wildcard app hostname).
+		pathURL := fmt.Sprintf("%s/@%s/%s.%s/apps/{port}/",
+			p.accessURL.String(), ownerUsername, workspaceName, agentName)
+		lines = append(lines, pathURL)
+	}
+
+	// Coder Desktop URL.
+	lines = append(lines, fmt.Sprintf("http://%s.coder:{port}", workspaceName))
+
+	return strings.Join(lines, "\n")
+}
+
+
 // persistInstructionFiles fetches AGENTS.md instruction files and
 // skills from the workspace agent, persisting both as message
 // parts. This is called once when a workspace is first attached
@@ -7637,11 +7740,12 @@ func (p *Server) persistInstructionFiles(
 	ctx context.Context,
 	chat database.Chat,
 	modelConfigID uuid.UUID,
+	workspaceName, ownerUsername string,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) (instruction string, skills []chattool.SkillMeta, err error) {
 	agent, agentParts, discoveredSkills, workspaceConnOK := p.fetchWorkspaceContext(
-		ctx, chat, getWorkspaceAgent, getWorkspaceConn,
+		ctx, chat, workspaceName, ownerUsername, getWorkspaceAgent, getWorkspaceConn,
 	)
 	// Defensive guard: fetchWorkspaceContext returns nil when the
 	// chat has no valid workspace or the agent lookup fails. It's

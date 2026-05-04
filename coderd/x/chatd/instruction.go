@@ -42,6 +42,17 @@ func formatSystemInstructions(
 		_, _ = b.WriteString(directory)
 		_, _ = b.WriteString("\n")
 	}
+	// Extract the app URL template from the first context-file
+	// part. All parts carry the same value since it is stamped
+	// uniformly in fetchWorkspaceContext.
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeContextFile && part.ContextFileAppURL != "" {
+			_, _ = b.WriteString("\nPort forwarding URL templates (replace {port} with the port number):\n")
+			_, _ = b.WriteString(part.ContextFileAppURL)
+			_, _ = b.WriteString("\n")
+			break
+		}
+	}
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeContextFile || part.ContextFileContent == "" {
 			continue

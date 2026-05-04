@@ -1590,6 +1590,11 @@ func partsToMessageParts(
 				_, _ = sb.WriteString(part.ContextFileDirectory)
 				_, _ = sb.WriteString("\n")
 			}
+			if part.ContextFileAppURL != "" {
+				_, _ = sb.WriteString("\nPort forwarding URL templates (replace {port} with the port number):\n")
+				_, _ = sb.WriteString(part.ContextFileAppURL)
+				_, _ = sb.WriteString("\n")
+			}
 			source := part.ContextFilePath
 			if part.ContextFileTruncated {
 				source += " (truncated to 64KiB)"

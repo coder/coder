@@ -797,6 +797,8 @@ func New(options *Options) *API {
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
+			AccessURL:                      options.AccessURL,
+			AppHostname:                    options.AppHostname,
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
 			Pubsub:                         options.Pubsub,

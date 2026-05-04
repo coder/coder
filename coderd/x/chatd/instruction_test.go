@@ -234,6 +234,54 @@ func TestFormatSystemInstructions(t *testing.T) {
 		require.NotContains(t, got, "Source: /empty")
 		require.Contains(t, got, "Source: /real/AGENTS.md")
 	})
+
+	t.Run("PreviewURL", func(t *testing.T) {
+		t.Parallel()
+		got := formatSystemInstructions("linux", "/home/coder", []codersdk.ChatMessagePart{
+			{
+				Type:              codersdk.ChatMessagePartTypeContextFile,
+				ContextFileContent: "rules",
+				ContextFilePath:    "/home/coder/AGENTS.md",
+				ContextFileAppURL: "https://{port}--dev--my-ws--alice.apps.coder.com/\n" +
+					"http://my-ws.coder:{port}",
+			},
+		})
+		require.Contains(t, got, "Port forwarding URL templates")
+		require.Contains(t, got, "https://{port}--dev--my-ws--alice.apps.coder.com/")
+		require.Contains(t, got, "http://my-ws.coder:{port}")
+		// URL templates should appear before the Source lines.
+		urlIdx := strings.Index(got, "Port forwarding URL templates")
+		sourceIdx := strings.Index(got, "Source:")
+		require.Less(t, urlIdx, sourceIdx)
+	})
+
+	t.Run("PreviewURLPathBased", func(t *testing.T) {
+		t.Parallel()
+		got := formatSystemInstructions("linux", "/home/coder", []codersdk.ChatMessagePart{
+			{
+				Type:              codersdk.ChatMessagePartTypeContextFile,
+				ContextFileContent: "rules",
+				ContextFilePath:    "/home/coder/AGENTS.md",
+				ContextFileAppURL: "https://coder.example.com/@alice/my-ws.dev/apps/{port}/\n" +
+					"http://my-ws.coder:{port}",
+			},
+		})
+		require.Contains(t, got, "https://coder.example.com/@alice/my-ws.dev/apps/{port}/")
+		require.Contains(t, got, "http://my-ws.coder:{port}")
+		require.NotContains(t, got, "--dev--")
+	})
+
+	t.Run("PreviewURLOmittedWhenEmpty", func(t *testing.T) {
+		t.Parallel()
+		got := formatSystemInstructions("linux", "/home/coder", []codersdk.ChatMessagePart{
+			{
+				Type:              codersdk.ChatMessagePartTypeContextFile,
+				ContextFileContent: "rules",
+				ContextFilePath:    "/home/coder/AGENTS.md",
+			},
+		})
+		require.NotContains(t, got, "Port forwarding")
+	})
 }
 
 func TestInstructionFromContextFiles(t *testing.T) {
