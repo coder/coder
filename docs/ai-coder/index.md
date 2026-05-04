@@ -32,18 +32,25 @@ REST API.
 [Learn more about Coder Agents](./agents/index.md) for architecture details,
 supported LLM providers, and how to get started.
 
-## Secure Your Workflows with Agent Firewall
+## Govern AI activity with the AI Governance Add-On
 
-AI agents can be powerful teammates, but must be treated as untrusted and
-unpredictable interns as opposed to tools. Without the right controls, they can
-go rogue.
+AI coding tools are quickly becoming core to how engineering teams ship
+software. As adoption grows, platform teams want a clear picture of how AI is
+being used, consistent guardrails across teams, and predictable cost controls
+so they can confidently scale AI tooling to the whole organization.
 
-[Agent Firewall](./agent-firewall/index.md) is a new tool that offers
-process-level safeguards that detect and prevent destructive actions. Unlike
-traditional mitigation methods like firewalls, service meshes, and RBAC systems,
-Agent Firewall is an agent-aware, centralized control point that can either be
-embedded in the same secure Coder Workspaces that enterprises already trust, or
-used through an open source CLI.
+The [AI Governance Add-On](./ai-governance.md) is a per-user license that adds
+observability, management, and policy controls for AI tooling across your
+Coder deployment. It includes:
 
-To learn more about features, implementation details, and how to get started,
-check out the [Agent Firewall documentation](./agent-firewall/index.md).
+- [AI Gateway](./ai-gateway/index.md) for centralized authentication, audit
+  trails of prompts and tool invocations, and policy enforcement against
+  upstream LLM providers.
+- [Agent Firewall](./agent-firewall/index.md) for process-level network and
+  command policies that restrict what agents can reach and do inside a
+  workspace.
+- Expanded Agent Workspace Build allowances for teams running AI-driven
+  background work at scale.
+
+[Learn more about the AI Governance Add-On](./ai-governance.md) for use cases,
+entitlements, and how to enable it in your deployment.
