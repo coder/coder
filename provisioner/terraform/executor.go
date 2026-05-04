@@ -338,35 +338,37 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
-	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
-	// the point of prebuilding if the expensive resource is replaced once claimed!
-	var (
-		isPrebuildClaimAttempt = !destroy && metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
-		resReps                []*proto.ResourceReplacement
-	)
-	if repsFromPlan := findResourceReplacements(plan); len(repsFromPlan) > 0 {
-		if isPrebuildClaimAttempt {
-			// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
-			//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
-			//				 to diagnose this resource replacement issue, at least.
-			//				 Once prebuilds moves out of beta, consider deleting this condition.
+	if reps := findAllResourceReplacements(plan); len(reps) > 0 {
+		// Prebuild claims log the full Terraform output so template
+		// admins can diagnose why claiming an already-provisioned
+		// workspace would replace resources. Other builds use compact
+		// replacement-path logs to avoid overwhelming users with the
+		// full plan output.
+		isPrebuildClaimAttempt := !destroy &&
+			metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
 
+		if isPrebuildClaimAttempt {
 			// Lock held before calling (see top of method).
 			e.logDrift(ctx, killCtx, planfilePath, logr)
-		}
-
-		resReps = make([]*proto.ResourceReplacement, 0, len(repsFromPlan))
-		for n, p := range repsFromPlan {
-			resReps = append(resReps, &proto.ResourceReplacement{
-				Resource: n,
-				Paths:    p,
-			})
+		} else {
+			logResourceReplacements(reps, logr)
 		}
 	}
 
 	state, err := ConvertPlanState(plan)
 	if err != nil {
 		return nil, xerrors.Errorf("convert plan state: %w", err)
+	}
+
+	var resReps []*proto.ResourceReplacement
+	if reps := findResourceReplacementsWithPaths(plan); len(reps) > 0 {
+		resReps = make([]*proto.ResourceReplacement, 0, len(reps))
+		for n, p := range reps {
+			resReps = append(resReps, &proto.ResourceReplacement{
+				Resource: n,
+				Paths:    p,
+			})
+		}
 	}
 
 	msg := &proto.PlanComplete{
