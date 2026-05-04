@@ -1,11 +1,10 @@
 import type { FC } from "react";
-import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { ConcreteThemeName } from "#/theme";
+import { baseModeFor, type ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 import { THEME_COPY } from "./themeCopy";
 
@@ -66,11 +65,14 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 						aria-label={copy.title}
 						className="sr-only"
 					/>
-					{/* The `theme` class scopes the CSS variables so the swatch
-					    reads the palette of the theme it represents, not the
-					    currently applied one. */}
+					{/* Both classes scope the CSS variables so the swatch reads
+					    the palette of the theme it represents, not the
+					    currently applied one. The base mode class supplies
+					    `--surface-primary`; the colorblind variant only
+					    overrides palette-specific tokens. */}
 					<span
 						className={cn(
+							baseModeFor(theme),
 							theme,
 							"block size-full rounded-full overflow-hidden",
 							"bg-surface-primary relative",
@@ -100,14 +102,7 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 				sideOffset={8}
 				className="text-content-primary"
 			>
-				<div className="flex items-center gap-2">
-					{copy.title}
-					{copy.beta && (
-						<Badge variant="warning" size="sm">
-							Beta
-						</Badge>
-					)}
-				</div>
+				{copy.title}
 			</TooltipContent>
 		</Tooltip>
 	);

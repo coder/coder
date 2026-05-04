@@ -1,11 +1,14 @@
 import type { CSSProperties, FC } from "react";
-import type { ConcreteThemeName } from "#/theme";
+import { baseModeFor, type ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 
 interface ThemePreviewProps {
 	/**
 	 * The concrete theme name applied as a CSS class on the outermost
-	 * element so the preview reads that theme's CSS variables.
+	 * element so the preview reads that theme's CSS variables. The base
+	 * mode class (`light` or `dark`) is applied alongside it so the
+	 * preview self-contains all surface and content tokens regardless
+	 * of the ambient theme on `<html>`.
 	 */
 	theme: ConcreteThemeName;
 	/**
@@ -32,7 +35,7 @@ export const ThemePreview: FC<ThemePreviewProps> = ({
 	style,
 }) => {
 	return (
-		<div className={theme}>
+		<div className={cn(baseModeFor(theme), theme)}>
 			<div
 				className={cn(
 					"overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",
@@ -98,20 +101,20 @@ export const ThemePreview: FC<ThemePreviewProps> = ({
 					</div>
 					<div
 						className={cn(
-							"mx-auto flex gap-2",
+							"mx-auto",
 							size === "sm" ? "w-32 pb-2" : "w-full max-w-md px-4 pb-6",
 						)}
 					>
-						<div className="flex-1">
+						<div
+							className={cn(
+								"bg-content-primary rounded mb-1.5",
+								size === "sm" ? "h-2 w-11" : "h-3 w-24",
+							)}
+						/>
+						<div className="flex gap-2">
 							<div
 								className={cn(
-									"bg-content-primary rounded mb-1.5",
-									size === "sm" ? "h-2 w-11" : "h-3 w-24",
-								)}
-							/>
-							<div
-								className={cn(
-									"rounded-md",
+									"rounded-md flex-1",
 									size === "sm" ? "h-6" : "h-10",
 									// Surface-git-added gives the filled progress bar the
 									// same palette-aware fingerprint the accent swatches
@@ -126,13 +129,13 @@ export const ThemePreview: FC<ThemePreviewProps> = ({
 									)}
 								/>
 							</div>
+							<div
+								className={cn(
+									"rounded-md bg-surface-secondary",
+									size === "sm" ? "w-10 h-6" : "w-16 h-10",
+								)}
+							/>
 						</div>
-						<div
-							className={cn(
-								"rounded-md bg-surface-secondary",
-								size === "sm" ? "w-10 h-6 mt-5" : "w-16 h-10 mt-7",
-							)}
-						/>
 					</div>
 				</div>
 				{label && (

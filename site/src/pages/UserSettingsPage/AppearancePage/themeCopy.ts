@@ -9,7 +9,6 @@ import { CONCRETE_THEMES, type ConcreteThemeName } from "#/theme";
 type ThemeCopy = {
 	title: string;
 	description: string;
-	beta?: boolean;
 };
 
 export const THEME_COPY: Record<ConcreteThemeName, ThemeCopy> = {
@@ -22,13 +21,11 @@ export const THEME_COPY: Record<ConcreteThemeName, ThemeCopy> = {
 		title: "Light protanopia and deuteranopia",
 		description:
 			"For people who may find it difficult to distinguish between reds and greens.",
-		beta: true,
 	},
 	"light-tritan": {
 		title: "Light tritanopia",
 		description:
 			"For people who find it difficult to distinguish between blues and greens, as well as yellows and purples.",
-		beta: true,
 	},
 	dark: {
 		title: "Dark default",
@@ -39,13 +36,11 @@ export const THEME_COPY: Record<ConcreteThemeName, ThemeCopy> = {
 		title: "Dark protanopia and deuteranopia",
 		description:
 			"For people who may find it difficult to distinguish between reds and greens, with a dark background.",
-		beta: true,
 	},
 	"dark-tritan": {
 		title: "Dark tritanopia",
 		description:
 			"For people who find it difficult to distinguish between blues and greens, as well as yellows and purples, with a dark background.",
-		beta: true,
 	},
 };
 

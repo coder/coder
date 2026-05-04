@@ -86,6 +86,28 @@ describe("appearance page", () => {
 		});
 	});
 
+	it("keeps the dropdown on sync after a legacy server drops the new fields", async () => {
+		renderWithAuth(<AppearancePage />);
+
+		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValue({
+			theme_preference: "dark",
+			terminal_font: "geist-mono",
+		} as UserAppearanceSettings);
+
+		const dropdown = await screen.findByRole("combobox", {
+			name: /theme mode/i,
+		});
+		expect(dropdown).toHaveTextContent(/single theme/i);
+
+		await userEvent.click(dropdown);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /sync with system/i }),
+		);
+
+		await screen.findByRole("radiogroup", { name: /light theme options/i });
+		expect(dropdown).toHaveTextContent(/sync with system/i);
+	});
+
 	it("updates the terminal font", async () => {
 		renderWithAuth(<AppearancePage />);
 
@@ -107,19 +129,6 @@ describe("appearance page", () => {
 			theme_dark: "dark",
 			terminal_font: "fira-code",
 		});
-	});
-
-	it("shows beta badges for colorblind themes", () => {
-		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
-		renderAppearanceForm(
-			<AppearanceForm
-				activeScheme="dark"
-				initialValues={putResponse()}
-				onSubmit={onSubmit}
-			/>,
-		);
-
-		expect(screen.getAllByText("Beta")).toHaveLength(4);
 	});
 
 	it("renders every concrete theme in each sync mode slot", () => {

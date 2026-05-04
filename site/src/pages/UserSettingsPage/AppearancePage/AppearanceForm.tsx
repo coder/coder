@@ -224,11 +224,6 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 									<SelectItem value="single">Single theme</SelectItem>
 								</SelectContent>
 							</Select>
-							<span className="text-sm text-content-secondary">
-								{draft.mode === "sync"
-									? "Coder theme will match your system active settings"
-									: "Coder will use your selected theme"}
-							</span>
 						</div>
 					</div>
 

@@ -314,11 +314,19 @@ export const updateAppearanceSettings = (
 			}
 			queryClient.removeQueries({ queryKey: myAppearanceKey, exact: true });
 		},
-		onSuccess: (settings) => {
-			queryClient.setQueryData<UserAppearanceSettings>(
-				myAppearanceKey,
-				settings,
-			);
+		onSuccess: (settings, patch) => {
+			// Merge the submitted patch beneath the server response so
+			// any fields the server does not echo back, for example an
+			// older backend that predates theme_mode, theme_light, and
+			// theme_dark, keep the values the client just persisted.
+			// Without this, a partial response would clobber the
+			// optimistic cache from onMutate and AppearanceForm's
+			// resync effect would snap the dropdown back to its
+			// previous mode.
+			queryClient.setQueryData<UserAppearanceSettings>(myAppearanceKey, {
+				...patch,
+				...settings,
+			});
 		},
 	};
 };

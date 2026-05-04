@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { Badge } from "#/components/Badge/Badge";
 import type { ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
@@ -83,16 +82,9 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 					)}
 				</span>
 				<div className="flex flex-col gap-1">
-					<div className="flex items-center gap-2">
-						<span className="font-medium text-content-primary">
-							{copy.title}
-						</span>
-						{copy.beta && (
-							<Badge variant="warning" size="sm">
-								Beta
-							</Badge>
-						)}
-					</div>
+					<span className="font-medium text-content-primary">
+						{copy.title}
+					</span>
 					<span className="text-sm text-content-secondary">
 						{copy.description}
 					</span>
