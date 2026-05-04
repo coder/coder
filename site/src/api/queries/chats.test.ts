@@ -2040,9 +2040,26 @@ describe("mergeWatchedChatSummary", () => {
 
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "status_change",
+				eventKind: "summary_change",
 			}).last_turn_summary,
 		).toBe("Updated summary");
+	});
+
+	it("clears last_turn_summary on summary updates with matching updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: "Previous summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBeNull();
 	});
 
 	it("compares updated_at values as instants instead of strings", () => {
@@ -2232,6 +2249,25 @@ describe("mergeWatchedChatSummary", () => {
 				activeChatId: "chat-2",
 			}).has_unread,
 		).toBe(true);
+	});
+
+	it("preserves has_unread for summary changes on inactive chats", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Updated summary",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(false);
 	});
 
 	it("preserves has_unread for the active chat", () => {

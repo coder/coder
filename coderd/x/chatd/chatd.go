@@ -5547,6 +5547,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			logger.Info(ctx, "chat canceled during shutdown; returning to pending")
 			status = database.ChatStatusPending
 			lastErrorPayload = nil
+			wasInterrupted = true
 			return
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
@@ -5577,6 +5578,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		logger.Info(ctx, "chat completed during shutdown; returning to pending")
 		status = database.ChatStatusPending
 		lastErrorPayload = nil
+		wasInterrupted = true
 		return
 	}
 }
@@ -8329,7 +8331,10 @@ func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
 			))
 		}
 
-		p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, summary, logger)
+		shouldPersistSummary := summary != "" || chat.LastTurnSummary.Valid
+		if shouldPersistSummary {
+			p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, summary, logger)
+		}
 
 		if !p.webpushConfigured() {
 			return
@@ -8417,9 +8422,7 @@ func (p *Server) updateLastTurnSummary(
 
 	updatedChat := chat
 	updatedChat.LastTurnSummary = lastTurnSummary
-	// Reuse status_change because chat watch has no summary-specific
-	// event kind, and this notifies clients that the chat row changed.
-	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindSummaryChange, nil)
 }
 
 func (p *Server) webpushConfigured() bool {

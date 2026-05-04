@@ -2713,8 +2713,8 @@ export interface ChatUsageLimitStatus {
 // From codersdk/chats.go
 /**
  * ChatWatchEvent represents an event from the global chat watch stream.
- * It delivers lifecycle events (created, status change, title change)
- * for all of the authenticated user's chats. When Kind is
+ * It delivers lifecycle events (created, status change, summary change,
+ * title change) for all of the authenticated user's chats. When Kind is
  * ActionRequired, ToolCalls contains the pending dynamic tool
  * invocations the client must execute and submit back.
  */
@@ -2731,6 +2731,7 @@ export type ChatWatchEventKind =
 	| "deleted"
 	| "diff_status_change"
 	| "status_change"
+	| "summary_change"
 	| "title_change";
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
@@ -2739,6 +2740,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"deleted",
 	"diff_status_change",
 	"status_change",
+	"summary_change",
 	"title_change",
 ];
 

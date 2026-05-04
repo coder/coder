@@ -260,6 +260,7 @@ export const mergeWatchedChatSummary = (
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
+	const isSummaryEvent = eventKind === "summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
@@ -286,9 +287,10 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
-	const nextLastTurnSummary = isFreshEnough
-		? watchedChat.last_turn_summary
-		: cachedChat.last_turn_summary;
+	const nextLastTurnSummary =
+		isFreshEnough || isSummaryEvent
+			? watchedChat.last_turn_summary
+			: cachedChat.last_turn_summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true

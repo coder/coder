@@ -1595,6 +1595,7 @@ type ChatWatchEventKind string
 
 const (
 	ChatWatchEventKindStatusChange     ChatWatchEventKind = "status_change"
+	ChatWatchEventKindSummaryChange    ChatWatchEventKind = "summary_change"
 	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
 	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
@@ -1603,8 +1604,8 @@ const (
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.
-// It delivers lifecycle events (created, status change, title change)
-// for all of the authenticated user's chats. When Kind is
+// It delivers lifecycle events (created, status change, summary change,
+// title change) for all of the authenticated user's chats. When Kind is
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
