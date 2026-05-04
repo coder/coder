@@ -6,7 +6,7 @@ Coder is a self-hosted platform for running AI coding agents and cloud
 development environments on infrastructure you control. It works with any
 cloud, IDE, OS, Git provider, and IDP.
 
-![Screenshots of Coder workspaces and connections](./images/hero-image.png)_Screenshots of Coder workspaces and connections_
+![Coder platform showing templates and a running workspace](./images/hero-image.png)
 
 ## Coder Workspaces
 
@@ -43,6 +43,8 @@ API for programmatic and CI-driven workflows.
   spend limits, and audit logging.
 - **Open source and inspectable**: The full platform is available to audit
   and extend.
+
+![Coder Agents chat interface with git diff sidebar](./images/agents-hero-image.png)
 
 ## IDE support
 

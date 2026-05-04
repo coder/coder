@@ -45,7 +45,7 @@
   - Centralized model governance, cost tracking, and audit logging
 
 <p align="center">
-  <img src="./docs/images/hero-image.png" alt="Coder Hero Image">
+  <img src="./docs/images/hero-image.png" alt="Coder platform showing templates and a running workspace">
 </p>
 
 ## Quickstart
