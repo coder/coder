@@ -71,12 +71,12 @@ func TestDesktopActionsWrapsPointerActionsWithModifiers(t *testing.T) {
 	require.Equal(t, "key_down", actions[0].Action.Action)
 	require.NotNil(t, actions[0].Action.Text)
 	require.Equal(t, "ctrl", *actions[0].Action.Text)
-	require.Empty(t, actions[0].ReleaseKeysOnFailure)
+	require.Equal(t, []string{"ctrl"}, actions[0].ReleaseKeysOnFailure)
 
 	require.Equal(t, "key_down", actions[1].Action.Action)
 	require.NotNil(t, actions[1].Action.Text)
 	require.Equal(t, "shift", *actions[1].Action.Text)
-	require.Equal(t, []string{"ctrl"}, actions[1].ReleaseKeysOnFailure)
+	require.Equal(t, []string{"ctrl", "shift"}, actions[1].ReleaseKeysOnFailure)
 
 	require.Equal(t, "left_click", actions[2].Action.Action)
 	require.Equal(t, []string{"ctrl", "shift"}, actions[2].ReleaseKeysOnFailure)
@@ -102,6 +102,8 @@ func TestDesktopActionsMarksFinalDragReleaseForCleanup(t *testing.T) {
 	actions, err := computeruse.DesktopActions(input, 1440, 900)
 	require.NoError(t, err)
 	require.Len(t, actions, 4)
+	require.Equal(t, "left_mouse_down", actions[1].Action.Action)
+	require.True(t, actions[1].ReleaseMouseOnFailure)
 	require.Equal(t, "left_mouse_up", actions[3].Action.Action)
 	require.True(t, actions[3].ReleaseMouseOnFailure)
 }

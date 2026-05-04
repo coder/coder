@@ -140,6 +140,7 @@ func DesktopActions(
 						declaredWidth,
 						declaredHeight,
 					),
+					ReleaseMouseOnFailure: true,
 				},
 			}
 			for _, point := range action.Path[1:] {
@@ -223,13 +224,14 @@ func appendWithModifiers(
 
 	heldKeys := make([]string, 0, len(modifiers))
 	for _, modifier := range modifiers {
+		nextHeldKeys := append(slices.Clone(heldKeys), modifier)
 		desktopAction := desktopAction("key_down", 0, 0)
 		desktopAction.Text = &modifier
 		actions = append(actions, DesktopAction{
 			Action:               desktopAction,
-			ReleaseKeysOnFailure: slices.Clone(heldKeys),
+			ReleaseKeysOnFailure: nextHeldKeys,
 		})
-		heldKeys = append(heldKeys, modifier)
+		heldKeys = nextHeldKeys
 	}
 
 	for _, action := range actionSet {
