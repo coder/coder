@@ -668,6 +668,66 @@ func TestComputerUseTool_Run_OpenAI_FinalScreenshotStoreErrorFallsBackToImage(t 
 	assert.Empty(t, attachments)
 }
 
+func TestComputerUseTool_Run_OpenAI_DragReleaseFailureRetriesMouseUp(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+
+	gomock.InOrder(
+		mockConn.EXPECT().ExecuteDesktopAction(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+		).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+			assertDesktopAction(t, action, "mouse_move", [2]int{1, 2})
+			assertDesktopActionScaled(t, geometry, action)
+			return workspacesdk.DesktopActionResponse{Output: "mouse_move performed"}, nil
+		}),
+		mockConn.EXPECT().ExecuteDesktopAction(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+		).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+			assert.Equal(t, "left_mouse_down", action.Action)
+			assertDesktopActionScaled(t, geometry, action)
+			return workspacesdk.DesktopActionResponse{Output: "mouse_down performed"}, nil
+		}),
+		mockConn.EXPECT().ExecuteDesktopAction(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+		).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+			assertDesktopAction(t, action, "mouse_move", [2]int{3, 4})
+			assertDesktopActionScaled(t, geometry, action)
+			return workspacesdk.DesktopActionResponse{Output: "mouse_move performed"}, nil
+		}),
+		mockConn.EXPECT().ExecuteDesktopAction(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+		).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+			assert.Equal(t, "left_mouse_up", action.Action)
+			assertDesktopActionScaled(t, geometry, action)
+			return workspacesdk.DesktopActionResponse{}, xerrors.New("release failed")
+		}),
+		mockConn.EXPECT().ExecuteDesktopAction(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+		).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+			assert.Equal(t, "left_mouse_up", action.Action)
+			assertDesktopActionScaled(t, geometry, action)
+			return workspacesdk.DesktopActionResponse{Output: "mouse_up performed"}, nil
+		}),
+	)
+
+	tool := newOpenAIComputerUseTool(t, geometry, mockConn, nil, quartz.NewReal())
+	resp, err := tool.Run(context.Background(), openAIComputerUseCall(`{
+		"call_id":"call_release_failure",
+		"actions":[{"type":"drag","path":[{"x":1,"y":2},{"x":3,"y":4}]}]
+	}`))
+	require.NoError(t, err)
+	assert.True(t, resp.IsError)
+	assert.Contains(t, resp.Content, `action "left_mouse_up" failed`)
+}
+
 func TestComputerUseTool_Run_OpenAI_ActionFailureSkipsFinalScreenshot(t *testing.T) {
 	t.Parallel()
 

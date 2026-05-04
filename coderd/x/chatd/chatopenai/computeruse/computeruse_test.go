@@ -90,6 +90,22 @@ func TestDesktopActionsWrapsPointerActionsWithModifiers(t *testing.T) {
 	require.Equal(t, "ctrl", *actions[4].Action.Text)
 }
 
+func TestDesktopActionsMarksFinalDragReleaseForCleanup(t *testing.T) {
+	t.Parallel()
+
+	input, err := computeruse.ParseInput(`{
+		"call_id":"call_drag",
+		"actions":[{"type":"drag","path":[{"x":1,"y":2},{"x":3,"y":4}]}]
+	}`)
+	require.NoError(t, err)
+
+	actions, err := computeruse.DesktopActions(input, 1440, 900)
+	require.NoError(t, err)
+	require.Len(t, actions, 4)
+	require.Equal(t, "left_mouse_up", actions[3].Action.Action)
+	require.True(t, actions[3].ReleaseMouseOnFailure)
+}
+
 func TestDesktopActionsDefaultsEmptyClickButtonToLeft(t *testing.T) {
 	t.Parallel()
 

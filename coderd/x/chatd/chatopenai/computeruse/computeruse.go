@@ -160,6 +160,7 @@ func DesktopActions(
 					declaredWidth,
 					declaredHeight,
 				),
+				ReleaseMouseOnFailure: true,
 			})
 			actions, err = appendWithModifiers(actions, action.Keys, actionSet)
 			if err != nil {
