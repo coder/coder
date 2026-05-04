@@ -142,6 +142,9 @@ func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int)
 			nil,
 		).Definition(), nil
 	case ComputerUseProviderOpenAI:
+		// OpenAI's GA computer tool schema does not accept display
+		// dimensions. The declared geometry is applied through screenshot
+		// sizing and desktop action coordinate scaling.
 		return openaicomputeruse.Tool(), nil
 	default:
 		return nil, xerrors.Errorf("unsupported computer use provider %q, supported providers: %s", provider,
