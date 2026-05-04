@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	AgentSettingsExperimentsPageView,
@@ -71,7 +72,27 @@ const selectComputerUseProvider = async (
 	await userEvent.click(trigger);
 	const body = within(canvasElement.ownerDocument.body);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	await waitFor(() => expect(trigger).toHaveTextContent(optionName));
 };
+
+function InteractiveComputerUseProviderStory(
+	args: AgentSettingsExperimentsPageViewProps,
+) {
+	const [computerUseProviderData, setComputerUseProviderData] = useState(
+		args.computerUseProviderData,
+	);
+
+	return (
+		<AgentSettingsExperimentsPageView
+			{...args}
+			computerUseProviderData={computerUseProviderData}
+			onSaveComputerUseProvider={(request, options) => {
+				args.onSaveComputerUseProvider(request, options);
+				setComputerUseProviderData({ provider: request.provider });
+			}}
+		/>
+	);
+}
 
 export const AllowUsersOff: Story = {
 	play: async ({ canvasElement }) => {
@@ -198,6 +219,7 @@ export const SelectsOpenAIProvider: Story = {
 		desktopEnabledData: { enable_desktop: true },
 		onSaveComputerUseProvider: fn(),
 	},
+	render: InteractiveComputerUseProviderStory,
 	play: async ({ canvasElement, args }) => {
 		await selectComputerUseProvider(canvasElement, "Anthropic", "OpenAI");
 
@@ -215,6 +237,7 @@ export const SelectsAnthropicProvider: Story = {
 		computerUseProviderData: { provider: "openai" },
 		onSaveComputerUseProvider: fn(),
 	},
+	render: InteractiveComputerUseProviderStory,
 	play: async ({ canvasElement, args }) => {
 		await selectComputerUseProvider(canvasElement, "OpenAI", "Anthropic");
 
