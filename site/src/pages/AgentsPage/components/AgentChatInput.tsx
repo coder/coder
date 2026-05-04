@@ -1270,7 +1270,7 @@ const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
 								className={cn(
 									"text-xs font-normal",
 									isCrossOrg &&
-										"text-content-disabled cursor-not-allowed opacity-60",
+										"cursor-not-allowed opacity-50 data-[disabled=true]:pointer-events-auto",
 								)}
 								key={workspace.id}
 								value={workspace.name}
