@@ -806,6 +806,15 @@ const AgentChatPage: FC = () => {
 		...userQuery(chatRecord?.owner_id ?? ""),
 		enabled: isViewerNotOwner && !isArchived,
 	});
+	const chatOwner =
+		isViewerNotOwner && chatRecord !== undefined
+			? {
+					id: chatRecord.owner_id,
+					...(chatOwnerQuery.data?.username
+						? { username: chatOwnerQuery.data.username }
+						: {}),
+				}
+			: undefined;
 	const planModeEnabled = chatRecord?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -1465,9 +1474,7 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
-			isViewerNotOwner={isViewerNotOwner}
-			chatOwnerId={chatQuery.data.owner_id}
-			chatOwnerUsername={chatOwnerQuery.data?.username}
+			chatOwner={chatOwner}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}

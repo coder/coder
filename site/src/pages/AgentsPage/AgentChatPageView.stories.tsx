@@ -136,9 +136,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
-		isViewerNotOwner: false,
-		chatOwnerId: MockUserOwner.id,
-		chatOwnerUsername: MockUserOwner.username,
+		chatOwner: undefined as ComponentProps<
+			typeof AgentChatPageView
+		>["chatOwner"],
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -219,7 +219,9 @@ export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -232,37 +234,29 @@ export const Archived: Story = {
 export const AdminViewingOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			isViewerNotOwner
-			chatOwnerId="other-user-id"
-			chatOwnerUsername="OtherUser"
+			chatOwner={{ id: "other-user-id", username: "OtherUser" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const banner = canvas.getByRole("alert");
-		expect(banner).toBeVisible();
-		expect(banner).toHaveTextContent(
+		const banner = canvas.getByText(
 			"This is not your chat. Prompting here will use @OtherUser's identity.",
 		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
 	},
 };
 
 /** Shows the owner ID fallback while the owner profile is unavailable. */
 export const OtherUserChatOwnerFallback: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			isViewerNotOwner
-			chatOwnerId="other-user-id"
-			chatOwnerUsername={undefined}
-		/>
-	),
+	render: () => <StoryAgentChatPageView chatOwner={{ id: "other-user-id" }} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const banner = canvas.getByRole("alert");
-		expect(banner).toBeVisible();
-		expect(banner).toHaveTextContent(
+		const banner = canvas.getByText(
 			"This is not your chat. Prompting here will use owner other-user-id's identity.",
 		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
 	},
 };
 
@@ -271,15 +265,15 @@ export const ArchivedOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			isArchived
-			isViewerNotOwner
 			isInputDisabled
-			chatOwnerId="other-user-id"
-			chatOwnerUsername="OtherUser"
+			chatOwner={{ id: "other-user-id", username: "OtherUser" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
 		expect(
 			canvas.getByText("This agent has been archived and is read-only."),
 		).toBeVisible();

@@ -1103,7 +1103,9 @@ export const WithMessageHistory: Story = {
 			await canvas.findByText("Markdown rendering showcase"),
 		).toBeVisible();
 		await waitFor(() =>
-			expect(canvas.queryByRole("alert")).not.toBeInTheDocument(),
+			expect(
+				canvas.queryByText(/^This is not your chat/),
+			).not.toBeInTheDocument(),
 		);
 	},
 };
@@ -1152,13 +1154,37 @@ export const AdminViewingOtherUserChat: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const banner = await canvas.findByRole("alert");
-		expect(banner).toBeVisible();
-		await waitFor(() =>
-			expect(banner).toHaveTextContent(
-				"This is not your chat. Prompting here will use @OtherUser's identity.",
-			),
+		const banner = await canvas.findByText(
+			"This is not your chat. Prompting here will use @OtherUser's identity.",
 		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+	},
+};
+
+export const ArchivedOtherUserChat: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				archived: true,
+				owner_id: "other-user-id",
+				title: "Archived other user's chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+		expect(
+			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
 	},
 };
 
