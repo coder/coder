@@ -63,7 +63,7 @@ Some resources don't need to be exposed in the dashboard's UI. This helps keep
 the workspace view clean for developers. To hide a resource, use the `hide`
 attribute:
 
-```tf
+```hcl
 resource "coder_metadata" "hide_serviceaccount" {
   count = data.coder_workspace.me.start_count
   resource_id = kubernetes_service_account.user_data.id
