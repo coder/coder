@@ -954,6 +954,87 @@ export const MessageOrderIsStillCorrect: Story = {
 	},
 };
 
+const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
+
+/**
+ * Regression guard for the StickyUserMessage push-up logic.
+ *
+ * `react-infinite-scroll-component` renders two wrapper divs between the
+ * scroll container and the message tree. The library applies `overflow:
+ * auto` to its inner wrapper, which used to make `position: sticky` on a
+ * user message resolve against that wrapper instead of the actual scroller.
+ * The fix forces both wrappers to `display: contents` so the sticky
+ * container's nearest scrolling ancestor is once again the
+ * `.overflow-y-auto` element.
+ *
+ * This story scrolls past the most recent user message and asserts the
+ * message is pinned within a few pixels of the scroll container's top.
+ */
+export const StickyUserMessagePinsOnScroll: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={stickyPinningStore} />,
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(stickyPinningStore, 40);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Each sticky user message is the element immediately following its
+		// `data-user-sentinel` marker. The push-up logic depends on the
+		// sticky container resolving against the real scroll container,
+		// which is the regression this story guards against.
+		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
+		expect(sentinels.length).toBeGreaterThan(0);
+		for (const sentinel of sentinels) {
+			expect(sentinel.closest("[data-testid='scroll-container']")).toBe(
+				scrollContainer,
+			);
+			const container = sentinel.nextElementSibling;
+			expect(container).not.toBeNull();
+			expect(window.getComputedStyle(container as Element).position).toBe(
+				"sticky",
+			);
+		}
+
+		// At the default `scrollTop = 0`, the inverse layout shows the
+		// newest messages at the bottom of the viewport. Older user
+		// messages whose sentinels have already scrolled above the
+		// scroller's top edge should be pinned by `position: sticky`. Pick
+		// a sentinel that is comfortably above the top edge so a tiny
+		// scroll offset cannot flip it on or off the boundary.
+		const scrollerRect = scrollContainer.getBoundingClientRect();
+		// Walk the sentinels in reverse DOM order so we land on the
+		// most recent user message whose sentinel has scrolled above
+		// the scroll container's top edge. That is the message the
+		// push-up logic actively pins at the top; earlier pinned
+		// messages will have been pushed out of view by it.
+		const pinnedSentinel = Array.from(sentinels)
+			.reverse()
+			.find(
+				(sentinel) =>
+					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
+			) as HTMLElement | undefined;
+		expect(pinnedSentinel).toBeDefined();
+		if (!pinnedSentinel) {
+			return;
+		}
+		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
+
+		// `position: sticky` should pin the user message container near
+		// the scroll container's top edge while the assistant response
+		// below it is on screen. Before the fix, the sticky container
+		// resolved against the InfiniteScroll wrapper rather than the
+		// real scroll container, so it scrolled out with its sentinel
+		// and ended up far above the viewport.
+		const pinnedRect = pinnedContainer.getBoundingClientRect();
+		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
+		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);
+		expect(pinnedRect.top - scrollerRect.top).toBeLessThan(40);
+	},
+};
+
 /**
  * Selecting the Terminal tab in the sidebar must move keyboard focus into
  * the terminal so typing goes there, not the chat input.
