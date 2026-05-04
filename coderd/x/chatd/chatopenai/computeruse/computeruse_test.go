@@ -90,6 +90,39 @@ func TestDesktopActionsWrapsPointerActionsWithModifiers(t *testing.T) {
 	require.Equal(t, "ctrl", *actions[4].Action.Text)
 }
 
+func TestDesktopActionsMapsBackForwardClickButtons(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		button  string
+		wantKey string
+	}{
+		{name: "Back", button: "back", wantKey: "alt+Left"},
+		{name: "Forward", button: "forward", wantKey: "alt+Right"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input, err := computeruse.ParseInput(`{
+				"call_id":"call_side_button",
+				"actions":[{"type":"click","button":"` + tt.button + `","x":70,"y":80}]
+			}`)
+			require.NoError(t, err)
+
+			actions, err := computeruse.DesktopActions(input, 1440, 900)
+			require.NoError(t, err)
+			require.Len(t, actions, 2)
+			require.Equal(t, "mouse_move", actions[0].Action.Action)
+			require.Equal(t, "key", actions[1].Action.Action)
+			require.NotNil(t, actions[1].Action.Text)
+			require.Equal(t, tt.wantKey, *actions[1].Action.Text)
+		})
+	}
+}
+
 func TestDesktopActionsRejectsUnsupportedDoubleClickButton(t *testing.T) {
 	t.Parallel()
 

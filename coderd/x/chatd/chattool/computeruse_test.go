@@ -710,7 +710,7 @@ func TestComputerUseTool_Run_OpenAI_ActionFailureSkipsFinalScreenshot(t *testing
 func TestComputerUseTool_Run_OpenAI_UnsupportedClickButtons(t *testing.T) {
 	t.Parallel()
 
-	for _, button := range []string{"back", "forward"} {
+	for _, button := range []string{"extra"} {
 		t.Run(button, func(t *testing.T) {
 			t.Parallel()
 

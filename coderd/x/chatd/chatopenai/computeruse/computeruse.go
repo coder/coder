@@ -85,22 +85,16 @@ func DesktopActions(
 				),
 			})
 		case "click":
-			actionName, ok := ClickAction(action.Button)
-			if !ok {
-				return nil, xerrors.Errorf(
-					"unsupported OpenAI click button %q",
-					action.Button,
-				)
+			actionSet, err := clickActions(
+				action.Button,
+				declaredWidth,
+				declaredHeight,
+				action.X,
+				action.Y,
+			)
+			if err != nil {
+				return nil, err
 			}
-			actionSet := []DesktopAction{{
-				Action: desktopActionWithCoordinate(
-					actionName,
-					declaredWidth,
-					declaredHeight,
-					action.X,
-					action.Y,
-				),
-			}}
 			actions, err = appendWithModifiers(actions, action.Keys, actionSet)
 			if err != nil {
 				return nil, err
@@ -323,6 +317,50 @@ func scrollPixelsToWheelClicks(pixels int64) int {
 	}
 	return int((pixels + computerUseScrollPixelsPerWheelClick - 1) /
 		computerUseScrollPixelsPerWheelClick)
+}
+
+func clickActions(
+	button string,
+	declaredWidth, declaredHeight int,
+	x, y int64,
+) ([]DesktopAction, error) {
+	actionName, ok := ClickAction(button)
+	if ok {
+		return []DesktopAction{{
+			Action: desktopActionWithCoordinate(
+				actionName,
+				declaredWidth,
+				declaredHeight,
+				x,
+				y,
+			),
+		}}, nil
+	}
+
+	navigationKey := ""
+	switch button {
+	case "back":
+		navigationKey = "alt+Left"
+	case "forward":
+		navigationKey = "alt+Right"
+	default:
+		return nil, xerrors.Errorf("unsupported OpenAI click button %q", button)
+	}
+
+	keyAction := desktopAction("key", 0, 0)
+	keyAction.Text = &navigationKey
+	return []DesktopAction{
+		{
+			Action: desktopActionWithCoordinate(
+				"mouse_move",
+				declaredWidth,
+				declaredHeight,
+				x,
+				y,
+			),
+		},
+		{Action: keyAction},
+	}, nil
 }
 
 // DoubleClickAction maps an OpenAI computer-use double-click button to a Coder
