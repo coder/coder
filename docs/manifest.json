@@ -1044,6 +1044,12 @@
 									"state": ["beta"]
 								},
 								{
+									"title": "Debug Data Retention",
+									"description": "Automatic cleanup of old chat debug data",
+									"path": "./ai-coder/agents/platform-controls/chat-debug-retention.md",
+									"state": ["beta"]
+								},
+								{
 									"title": "Auto-Archive",
 									"description": "Automatic archiving of inactive conversations",
 									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",

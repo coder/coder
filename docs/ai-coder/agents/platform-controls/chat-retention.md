@@ -8,6 +8,9 @@ Conversations become eligible for purging only after they are archived. Old
 conversations can be archived manually, or automatically. See
 [Auto-Archive](./chat-auto-archive.md) for how the two controls interact.
 
+Debug run and step cleanup is controlled separately. See
+[Chat Debug Data Retention](./chat-debug-retention.md).
+
 ## How it works
 
 A background process runs approximately every 10 minutes to remove expired
