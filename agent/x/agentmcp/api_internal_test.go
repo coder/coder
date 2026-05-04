@@ -145,6 +145,49 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 	})
 }
 
+func TestHandleListTools_FailedServerSurfaced(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
+
+	// Write a config that references a server with a bad command
+	// so it will fail to connect.
+	badEntry := mcpServerEntry{
+		Command: "/nonexistent-binary-that-does-not-exist",
+	}
+	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{
+		"bad-server": badEntry,
+	})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	err := m.Reload(ctx, []string{configPath})
+	require.NoError(t, err)
+
+	api := NewAPI(logger, m, func() []string {
+		return []string{configPath}
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/tools", nil)
+	rec := httptest.NewRecorder()
+	api.Routes().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp workspacesdk.ListMCPToolsResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+
+	// No tools should be returned since the server failed.
+	require.Empty(t, resp.Tools)
+
+	// Failures should be surfaced in the response.
+	require.Len(t, resp.Failures, 1)
+	assert.Equal(t, "bad-server", resp.Failures[0].ServerName)
+	assert.NotEmpty(t, resp.Failures[0].Error)
+}
+
 func TestHandleListTools_RefreshParam(t *testing.T) {
 	t.Parallel()
 

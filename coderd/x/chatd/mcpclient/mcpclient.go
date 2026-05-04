@@ -61,12 +61,25 @@ type UserOIDCTokenSource interface {
 	OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error)
 }
 
+// ServerFailure describes an MCP server that was configured but
+// failed to connect. Returned alongside tools from ConnectAll so
+// callers can surface connection problems to the user.
+type ServerFailure struct {
+	// ServerSlug is the admin-configured identifier for the
+	// MCP server.
+	ServerSlug string
+	// Error is the redacted connection failure message.
+	Error string
+}
+
 // ConnectAll connects to all configured MCP servers, discovers
 // their tools, and returns them as fantasy.AgentTool values.
 // Tools are sorted by their prefixed name so callers
 // receive a deterministic order. It skips servers that fail to
 // connect and logs warnings. The returned cleanup function
-// must be called to close all connections.
+// must be called to close all connections. Failed server
+// connections are reported in the returned ServerFailure slice
+// so callers can surface them to the user.
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
@@ -74,7 +87,7 @@ func ConnectAll(
 	tokens []database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
-) ([]fantasy.AgentTool, func()) {
+) ([]fantasy.AgentTool, []ServerFailure, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
 	tokensByConfigID := make(
@@ -85,9 +98,10 @@ func ConnectAll(
 	}
 
 	var (
-		mu      sync.Mutex
-		clients []*client.Client
-		tools   []fantasy.AgentTool
+		mu       sync.Mutex
+		clients  []*client.Client
+		tools    []fantasy.AgentTool
+		failures []ServerFailure
 	)
 
 	// Build cleanup eagerly so it always closes any clients
@@ -118,7 +132,13 @@ func ConnectAll(
 					slog.F("server_url", RedactURL(cfg.Url)),
 					slog.F("error", redactErrorURL(connectErr)),
 				)
-				// Connection failures are not propagated — the
+				mu.Lock()
+				failures = append(failures, ServerFailure{
+					ServerSlug: cfg.Slug,
+					Error:      redactErrorURL(connectErr),
+				})
+				mu.Unlock()
+				// Connection failures are not propagated; the
 				// LLM simply won't have this server's tools.
 				return nil
 			}
@@ -162,7 +182,7 @@ func ConnectAll(
 		)
 	})
 
-	return tools, cleanup
+	return tools, failures, cleanup
 }
 
 // connectOne establishes a connection to a single MCP server,

@@ -88,8 +88,11 @@ func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 		tools = []workspacesdk.MCPToolInfo{}
 	}
 
+	failures := api.manager.Failures()
+
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ListMCPToolsResponse{
-		Tools: tools,
+		Tools:    tools,
+		Failures: failures,
 	})
 }
 

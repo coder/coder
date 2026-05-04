@@ -71,9 +71,17 @@ type Manager struct {
 	closed    bool
 	servers   map[string]*serverEntry
 	tools     []workspacesdk.MCPToolInfo
+	failures  []workspacesdk.MCPServerFailure
 	snapshot  map[string]fileSnapshot
 	serverGen uint64
 	sf        tailscalesingleflight.Group[string, struct{}]
+
+	// failedConfigs tracks server configs whose last connection
+	// attempt failed. The retry loop uses this to periodically
+	// re-attempt connections without requiring a config-file
+	// change.
+	failedConfigs []ServerConfig
+	retryCancel   context.CancelFunc
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -208,6 +216,13 @@ type connectedServer struct {
 	client *client.Client
 }
 
+// failedConnection records a server config whose connection
+// attempt failed, along with the error that caused it.
+type failedConnection struct {
+	config ServerConfig
+	err    error
+}
+
 // doReload reads MCP config files and performs a differential
 // reconnect. Unchanged servers keep their existing client; new or
 // changed servers get a fresh connection; removed servers are
@@ -225,9 +240,9 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 		return err
 	}
 
-	connected := m.connectAll(ctx, diff.toConnect)
+	connected, connectFailures := m.connectAll(ctx, diff.toConnect)
 
-	replaced, err := m.installServers(wanted, diff, connected, snap)
+	replaced, err := m.installServers(wanted, diff, connected, connectFailures, snap)
 	if err != nil {
 		return err
 	}
@@ -332,11 +347,12 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 }
 
 // connectAll runs connectServer in parallel for the given configs.
-// Failed connects are logged and skipped.
-func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
+// Failed connects are logged, recorded, and skipped.
+func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) ([]connectedServer, []failedConnection) {
 	var (
 		mu        sync.Mutex
 		connected []connectedServer
+		failed    []failedConnection
 	)
 	var eg errgroup.Group
 	for _, cfg := range toConnect {
@@ -348,6 +364,12 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []co
 					slog.F("transport", cfg.Transport),
 					slog.Error(err),
 				)
+				mu.Lock()
+				failed = append(failed, failedConnection{
+					config: cfg,
+					err:    err,
+				})
+				mu.Unlock()
 				return nil // Don't fail the group.
 			}
 			mu.Lock()
@@ -359,7 +381,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []co
 		})
 	}
 	_ = eg.Wait()
-	return connected
+	return connected, failed
 }
 
 // installServers builds the new server map from diff.keep and the
@@ -370,6 +392,7 @@ func (m *Manager) installServers(
 	wanted map[string]ServerConfig,
 	diff *serverDiff,
 	connected []connectedServer,
+	connectFailures []failedConnection,
 	snap map[string]fileSnapshot,
 ) ([]*serverEntry, error) {
 	m.mu.Lock()
@@ -411,9 +434,37 @@ func (m *Manager) installServers(
 		}
 	}
 
+	// Record connection failures so they can be surfaced via
+	// the tools API and retried in the background.
+	var failures []workspacesdk.MCPServerFailure
+	var failedCfgs []ServerConfig
+	for _, fc := range connectFailures {
+		failures = append(failures, workspacesdk.MCPServerFailure{
+			ServerName: fc.config.Name,
+			Error:      fc.err.Error(),
+		})
+		failedCfgs = append(failedCfgs, fc.config)
+	}
+	m.failures = failures
+	m.failedConfigs = failedCfgs
+
 	m.servers = newServers
 	m.serverGen++
 	m.snapshot = snap
+
+	// Start a background retry loop for failed servers if there
+	// are any. Cancel any existing loop first so we don't leak
+	// goroutines after config changes.
+	if m.retryCancel != nil {
+		m.retryCancel()
+		m.retryCancel = nil
+	}
+	if len(failedCfgs) > 0 {
+		retryCtx, cancel := context.WithCancel(m.ctx)
+		m.retryCancel = cancel
+		go m.retryFailedServers(retryCtx, failedCfgs)
+	}
+
 	return replaced, nil
 }
 
@@ -442,6 +493,15 @@ func (m *Manager) Tools() []workspacesdk.MCPToolInfo {
 	defer m.mu.RUnlock()
 
 	return slices.Clone(m.tools)
+}
+
+// Failures returns the list of MCP servers that failed to
+// connect during the last reload. Thread-safe.
+func (m *Manager) Failures() []workspacesdk.MCPServerFailure {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return slices.Clone(m.failures)
 }
 
 // CallTool proxies a tool call to the appropriate MCP server.
@@ -572,6 +632,92 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+// retryInterval is the base interval for retrying failed MCP
+// server connections. Each attempt doubles the interval up to
+// retryMaxInterval.
+const (
+	retryInterval    = 30 * time.Second
+	retryMaxInterval = 5 * time.Minute
+)
+
+// retryFailedServers periodically retries connecting to MCP
+// servers that failed during the initial connection. Servers
+// that connect successfully are installed into the server map
+// and their failures are cleared. The loop exits when all
+// servers connect or ctx is canceled.
+func (m *Manager) retryFailedServers(ctx context.Context, configs []ServerConfig) {
+	interval := retryInterval
+	remaining := slices.Clone(configs)
+
+	for len(remaining) > 0 {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+
+		m.mu.RLock()
+		closed := m.closed
+		m.mu.RUnlock()
+		if closed {
+			return
+		}
+
+		var stillFailed []ServerConfig
+		var newFailures []workspacesdk.MCPServerFailure
+		for _, cfg := range remaining {
+			c, err := m.connectServer(ctx, cfg)
+			if err != nil {
+				m.logger.Warn(ctx, "mcp server retry failed",
+					slog.F("server", cfg.Name),
+					slog.Error(err),
+				)
+				stillFailed = append(stillFailed, cfg)
+				newFailures = append(newFailures, workspacesdk.MCPServerFailure{
+					ServerName: cfg.Name,
+					Error:      err.Error(),
+				})
+				continue
+			}
+
+			m.logger.Info(ctx, "mcp server connected on retry",
+				slog.F("server", cfg.Name),
+			)
+
+			m.mu.Lock()
+			m.servers[cfg.Name] = &serverEntry{
+				config: cfg,
+				client: c,
+			}
+			m.serverGen++
+			m.mu.Unlock()
+		}
+
+		// Update the failure list under the lock.
+		m.mu.Lock()
+		m.failures = newFailures
+		m.failedConfigs = stillFailed
+		m.mu.Unlock()
+
+		remaining = stillFailed
+
+		// Refresh tools to pick up newly connected servers.
+		if err := m.RefreshTools(ctx); err != nil {
+			m.logger.Warn(ctx, "failed to refresh tools after retry",
+				slog.Error(err),
+			)
+		}
+
+		// Exponential backoff capped at retryMaxInterval.
+		interval *= 2
+		if interval > retryMaxInterval {
+			interval = retryMaxInterval
+		}
+	}
+
+	m.logger.Info(ctx, "all previously failed mcp servers connected")
+}
+
 // Close terminates all MCP server connections and child
 // processes.
 func (m *Manager) Close() error {
@@ -579,6 +725,13 @@ func (m *Manager) Close() error {
 	defer m.mu.Unlock()
 
 	m.closed = true
+
+	// Cancel the retry loop before closing servers.
+	if m.retryCancel != nil {
+		m.retryCancel()
+		m.retryCancel = nil
+	}
+
 	var errs []error
 	for _, entry := range m.servers {
 		if err := entry.client.Close(); err != nil {
@@ -593,6 +746,8 @@ func (m *Manager) Close() error {
 	}
 	m.servers = make(map[string]*serverEntry)
 	m.tools = nil
+	m.failures = nil
+	m.failedConfigs = nil
 	return errors.Join(errs...)
 }
 

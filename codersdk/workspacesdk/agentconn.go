@@ -1109,7 +1109,18 @@ type FileEditResult struct {
 // ListMCPToolsResponse is the response from the agent's
 // MCP tool discovery endpoint.
 type ListMCPToolsResponse struct {
-	Tools []MCPToolInfo `json:"tools"`
+	Tools    []MCPToolInfo      `json:"tools"`
+	Failures []MCPServerFailure `json:"failures,omitempty"`
+}
+
+// MCPServerFailure describes an MCP server that was configured
+// but failed to connect. Surfacing these lets callers distinguish
+// "no MCP servers configured" from "configured but failed."
+type MCPServerFailure struct {
+	// ServerName is the key from .mcp.json (e.g. "github").
+	ServerName string `json:"server_name"`
+	// Error is the human-readable connection failure message.
+	Error string `json:"error"`
 }
 
 // MCPToolInfo describes a single tool discovered from an MCP

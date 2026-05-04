@@ -6239,6 +6239,7 @@ func (p *Server) runChat(
 		resolvedUserPrompt string
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
+		mcpFailures        []mcpclient.ServerFailure
 		workspaceMCPTools  []fantasy.AgentTool
 		skills             []chattool.SkillMeta
 	)
@@ -6327,7 +6328,7 @@ func (p *Server) runChat(
 		g2.Go(func() error {
 			// Refresh expired OAuth2 tokens before connecting.
 			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
-			mcpTools, mcpCleanup = mcpclient.ConnectAll(
+			mcpTools, mcpFailures, mcpCleanup = mcpclient.ConnectAll(
 				ctx, logger, mcpConnectConfigs, mcpTokens, chat.OwnerID, p.oidcTokenSource,
 			)
 			return nil
@@ -6435,6 +6436,17 @@ func (p *Server) runChat(
 	}
 	if mcpCleanup != nil {
 		defer mcpCleanup()
+	}
+
+	// Log MCP server connection failures so they appear in
+	// turn-level diagnostics. The failures are already logged
+	// individually during ConnectAll, but surfacing a summary
+	// here keeps the context close to the chat turn.
+	for _, f := range mcpFailures {
+		logger.Warn(ctx, "mcp server unavailable for chat turn",
+			slog.F("server_slug", f.ServerSlug),
+			slog.F("error", f.Error),
+		)
 	}
 
 	// Build a lookup from tool name to MCP server config ID
