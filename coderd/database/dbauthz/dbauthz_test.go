@@ -742,6 +742,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatFileMetadataByChatID(gomock.Any(), file.ID).Return(rows, nil).AnyTimes()
 		check.Args(file.ID).Asserts(rbac.ResourceChat.WithOwner(file.OwnerID.String()).InOrg(file.OrganizationID).WithID(file.ID), policy.ActionRead).Returns(rows)
 	}))
+	s.Run("DeleteOldChatDebugRuns", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), database.DeleteOldChatDebugRunsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldChatDebugRunsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 	s.Run("DeleteOldChatFiles", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteOldChatFiles(gomock.Any(), database.DeleteOldChatFilesParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.DeleteOldChatFilesParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
@@ -761,6 +765,14 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetChatAutoArchiveDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatAutoArchiveDays(gomock.Any(), gomock.Any()).Return(int32(90), nil).AnyTimes()
 		check.Args(int32(90)).Asserts()
+	}))
+	s.Run("GetChatDebugRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatDebugRetentionDays(gomock.Any(), int32(7)).Return(int32(7), nil).AnyTimes()
+		check.Args(int32(7)).Asserts().Returns(int32(7))
+	}))
+	s.Run("UpsertChatDebugRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertChatDebugRetentionDays(gomock.Any(), int32(7)).Return(nil).AnyTimes()
+		check.Args(int32(7)).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatAutoArchiveDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatAutoArchiveDays(gomock.Any(), int32(90)).Return(nil).AnyTimes()
