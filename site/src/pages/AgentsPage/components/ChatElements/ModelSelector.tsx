@@ -59,15 +59,7 @@ const formatContextLimit = (tokens: number): string => {
 };
 
 const getOptionLabel = (option: ModelSelectorOption): string => {
-	const displayName = option.displayName.trim();
-	if (displayName) {
-		return displayName;
-	}
-	const model = option.model.trim();
-	if (model) {
-		return model;
-	}
-	return option.id;
+	return option.displayName;
 };
 
 export const ModelSelector: FC<ModelSelectorProps> = ({

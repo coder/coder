@@ -3281,6 +3281,24 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatPersonalModelOverridesAdminSettings =
+		async (): Promise<TypesGen.ChatPersonalModelOverridesAdminSettings> => {
+			const response =
+				await this.axios.get<TypesGen.ChatPersonalModelOverridesAdminSettings>(
+					"/api/experimental/chats/config/personal-model-overrides",
+				);
+			return response.data;
+		};
+
+	updateChatPersonalModelOverridesAdminSettings = async (
+		req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/personal-model-overrides",
+			req,
+		);
+	};
+
 	getChatDebugLogging =
 		async (): Promise<TypesGen.ChatDebugLoggingAdminSettings> => {
 			const response =
@@ -3310,6 +3328,25 @@ class ExperimentalApiMethods {
 	): Promise<void> => {
 		await this.axios.put(
 			"/api/experimental/chats/config/user-debug-logging",
+			req,
+		);
+	};
+
+	getUserChatPersonalModelOverrides =
+		async (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+					"/api/experimental/chats/config/user-personal-model-overrides",
+				);
+			return response.data;
+		};
+
+	updateUserChatPersonalModelOverride = async (
+		context: TypesGen.ChatPersonalModelOverrideContext,
+		req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
 	};

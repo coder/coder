@@ -1,5 +1,9 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	AdminPersonalModelOverridesSettings,
+	type SavePersonalModelOverridesAdminSetting,
+} from "./components/AdminPersonalModelOverridesSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import {
 	type MutationCallbacks,
@@ -12,6 +16,13 @@ type SaveModelOverride = (
 ) => void;
 
 export interface AgentSettingsAgentsPageViewProps {
+	adminOverridesData?: TypesGen.ChatPersonalModelOverridesAdminSettings;
+	adminOverridesError?: unknown;
+	onRetryAdminOverrides?: () => void;
+	isRetryingAdminOverrides?: boolean;
+	onSaveAdminOverrides: SavePersonalModelOverridesAdminSetting;
+	isSavingAdminOverrides: boolean;
+	isSaveAdminOverridesError: boolean;
 	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
@@ -32,6 +43,13 @@ export interface AgentSettingsAgentsPageViewProps {
 export const AgentSettingsAgentsPageView: FC<
 	AgentSettingsAgentsPageViewProps
 > = ({
+	adminOverridesData,
+	adminOverridesError,
+	onRetryAdminOverrides,
+	isRetryingAdminOverrides,
+	onSaveAdminOverrides,
+	isSavingAdminOverrides,
+	isSaveAdminOverridesError,
 	generalModelOverrideData,
 	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
@@ -62,6 +80,15 @@ export const AgentSettingsAgentsPageView: FC<
 			<SectionHeader
 				label="Agents"
 				description="Configure defaults for delegated agents and other agent-specific capabilities."
+			/>
+			<AdminPersonalModelOverridesSettings
+				adminSettings={adminOverridesData}
+				adminSettingsError={adminOverridesError}
+				onRetryAdminSettings={onRetryAdminOverrides}
+				isRetryingAdminSettings={isRetryingAdminOverrides}
+				onSaveAdminSetting={onSaveAdminOverrides}
+				isSavingAdminSetting={isSavingAdminOverrides}
+				isSaveAdminSettingError={isSaveAdminOverridesError}
 			/>
 			{showGeneralModelSection && onSaveGeneralModelOverride && (
 				<section aria-label="General model" className="flex flex-col gap-3">

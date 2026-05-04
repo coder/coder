@@ -109,6 +109,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		isCreating: false,
 		regeneratingTitleChatIds: [],
 		archivedFilter: "active" as const,
+		isPersonalModelOverridesEnabled: true,
 		onArchivedFilterChange: fn(),
 	},
 	parameters: {
@@ -274,7 +275,7 @@ export const RunningChatPreservesSpinner: Story = {
 		await expect(spinner).toBeInTheDocument();
 
 		// The toggle button should exist (the node has children) but
-		// must be invisible by default — it only appears on hover of
+		// must be invisible by default. It only appears on hover of
 		// the icon area itself, not the whole row.
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
 		await expect(toggle).toBeInTheDocument();
@@ -1382,7 +1383,7 @@ export const WithUnreadChats: Story = {
 			canvas.queryByTestId("unread-indicator-read-1"),
 		).not.toBeInTheDocument();
 		// Unread chat that IS the active chat should not show
-		// the indicator — the user is already viewing it.
+		// the indicator because the user is already viewing it.
 		expect(
 			canvas.queryByTestId("unread-indicator-unread-active"),
 		).not.toBeInTheDocument();
@@ -1648,6 +1649,126 @@ export const SettingsAPIKeysNonAdmin: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Secrets (API keys)" }),
 		).toBeInTheDocument();
+	},
+};
+export const SettingsUserAgentsNonAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/user-agents" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("aria-current", "page");
+		expect(
+			canvas.queryByRole("link", { name: "Manage Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SettingsUserAgentsFeatureDisabled: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+		isPersonalModelOverridesEnabled: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/general" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "General" })).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: "Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SettingsUserAgentsOverridesLoading: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+		isPersonalModelOverridesEnabled: undefined,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/general" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "General" })).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: "Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SettingsUserAgentsAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/user-agents" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("aria-current", "page");
+		expect(
+			canvas.getByRole("link", { name: "Manage Agents" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SettingsAdminAgentsEntryPreserved: Story = {
+	args: {
+		chats: [],
+		isAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/agents" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("aria-current", "page");
+		expect(canvas.getByText("Manage Agents")).toBeInTheDocument();
 	},
 };
 

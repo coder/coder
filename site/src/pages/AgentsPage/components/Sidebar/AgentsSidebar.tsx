@@ -185,6 +185,7 @@ interface AgentsSidebarProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
 }
 
@@ -842,6 +843,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		archivedFilter,
 		onArchivedFilterChange,
 		onCollapse,
+		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -869,6 +871,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
+	const showUserAgentsItem = isPersonalModelOverridesEnabled;
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
@@ -889,7 +892,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
-	// Local override for pinned order during drag — applied
+	// Local override for pinned order during drag. Applied
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
@@ -1012,8 +1015,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes — not on every parentById
-	// recalculation — so user-initiated collapse is preserved.
+	// Only runs when activeChatId changes, not on every parentById
+	// recalculation, so user-initiated collapse is preserved.
 	const parentByIdRef = useRef(chatTree.parentById);
 	useEffect(() => {
 		parentByIdRef.current = chatTree.parentById;
@@ -1386,6 +1389,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							to="/agents/settings/general"
 							state={location.state}
 						/>
+						{showUserAgentsItem && (
+							<SettingsNavItem
+								icon={BotIcon}
+								label="Agents"
+								active={settingsSection === "user-agents"}
+								to="/agents/settings/user-agents"
+								state={location.state}
+							/>
+						)}
 						<SettingsNavItem
 							icon={ShrinkIcon}
 							label="Compaction"
@@ -1604,7 +1616,7 @@ const LoadMoreSentinel: FC<{
 		// Don't observe while a fetch is in progress. When the
 		// fetch completes this effect re-runs, creating a fresh
 		// observer whose initial entry detects the sentinel if
-		// it's still visible — fixing the case where loaded items
+		// it's still visible, fixing the case where loaded items
 		// don't push the sentinel out of view and the previous
 		// observer never re-fires.
 		if (isFetchingNextPage) return;
