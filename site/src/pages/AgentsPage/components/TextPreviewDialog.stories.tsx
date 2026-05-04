@@ -118,7 +118,7 @@ export const MarkdownByExtension: Story = {
 			name: /the SDK types/i,
 		});
 		expect(link).toHaveAttribute("href", "https://example.com/sdk");
-		// The verbatim "# " heading prefix must not appear as text — that
+		// The verbatim "# " heading prefix must not appear as text. That
 		// would mean we fell back to the plain <pre> renderer.
 		expect(dialog.textContent ?? "").not.toContain("# Auth split runbook");
 	},
