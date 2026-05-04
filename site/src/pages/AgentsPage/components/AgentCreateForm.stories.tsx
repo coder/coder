@@ -252,11 +252,11 @@ export const MissingProviderAndModelSetup: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		const dialog = within(
-			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
+			body.getByRole("dialog", { name: "Finish setting up agents" }),
 		);
 
 		await waitFor(() => {
-			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+			expect(dialog.getByText("Finish setting up agents")).toBeVisible();
 		});
 		expect(
 			dialog.getByText("Connect a chat provider (0 provider configured)"),
