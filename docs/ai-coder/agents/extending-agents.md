@@ -79,16 +79,18 @@ directory.
 
 Workspace templates can expose custom
 [MCP](https://modelcontextprotocol.io/introduction) tools by placing a
-`.mcp.json` file in the workspace working directory. The agent discovers
-these tools automatically when it connects to a workspace and registers
-them alongside its built-in tools.
+`.mcp.json` file in the user's home directory or the workspace working
+directory. The agent discovers these tools automatically when it connects
+to a workspace and registers them alongside its built-in tools.
 
 ### Configuration
 
-Define MCP servers in `.mcp.json` at the workspace root. Each entry under
-`mcpServers` describes a server. The transport type is inferred from
-whether `command` or `url` is present, or you can set it explicitly with
-`type`:
+Define MCP servers in `~/.mcp.json` (home directory) or `.mcp.json`
+(workspace working directory). Both locations are checked by default —
+the home directory is checked first, then the working directory. Each
+entry under `mcpServers` describes a server. The transport type is inferred
+from whether `command` or `url` is present, or you can set it explicitly
+with `type`:
 
 ```json
 {

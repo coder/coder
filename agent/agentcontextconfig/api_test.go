@@ -160,16 +160,33 @@ func setupConfigTestEnv(t *testing.T, overrides map[string]string) string {
 func TestResolve(t *testing.T) {
 	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("Defaults", func(t *testing.T) {
-		setupConfigTestEnv(t, nil)
+		fakeHome := setupConfigTestEnv(t, nil)
 
 		workDir := platformAbsPath("work")
 		cfg, mcpFiles := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
 
 		// Parts is always non-nil.
 		require.NotNil(t, cfg.Parts)
-		// Default MCP config file is ".mcp.json" (relative),
-		// resolved against the working directory.
-		require.Equal(t, []string{filepath.Join(workDir, ".mcp.json")}, mcpFiles)
+		// Default MCP config includes both ~/.mcp.json (home) and
+		// .mcp.json (relative to working directory).
+		require.Equal(t, []string{
+			filepath.Join(fakeHome, ".mcp.json"),
+			filepath.Join(workDir, ".mcp.json"),
+		}, mcpFiles)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("DefaultsEmptyWorkDir", func(t *testing.T) {
+		fakeHome := setupConfigTestEnv(t, nil)
+
+		// When the working directory is empty (e.g. manifest.Directory
+		// unset), only the home-relative path resolves.
+		cfg, mcpFiles := agentcontextconfig.Resolve("", agentcontextconfig.ReadEnvConfig())
+
+		require.NotNil(t, cfg.Parts)
+		require.Equal(t, []string{
+			filepath.Join(fakeHome, ".mcp.json"),
+		}, mcpFiles)
 	})
 
 	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
@@ -464,6 +481,9 @@ func TestResolve(t *testing.T) {
 }
 
 func TestNewAPI_LazyDirectory(t *testing.T) {
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	t.Setenv("USERPROFILE", fakeHome)
 	t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
 	t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
 	t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
@@ -473,15 +493,17 @@ func TestNewAPI_LazyDirectory(t *testing.T) {
 	dir := ""
 	api := agentcontextconfig.NewAPI(func() string { return dir }, agentcontextconfig.ReadEnvConfig())
 
-	// Before directory is set, MCP paths resolve to nothing.
+	// Before directory is set, only the home-relative path resolves.
 	mcpFiles := api.MCPConfigFiles()
-	require.Empty(t, mcpFiles)
+	require.Equal(t, []string{filepath.Join(fakeHome, ".mcp.json")}, mcpFiles)
 
-	// After setting the directory, MCPConfigFiles() picks it up.
+	// After setting the directory, both home and workdir paths resolve.
 	dir = platformAbsPath("work")
 	mcpFiles = api.MCPConfigFiles()
-	require.NotEmpty(t, mcpFiles)
-	require.Equal(t, []string{filepath.Join(dir, ".mcp.json")}, mcpFiles)
+	require.Equal(t, []string{
+		filepath.Join(fakeHome, ".mcp.json"),
+		filepath.Join(dir, ".mcp.json"),
+	}, mcpFiles)
 }
 
 // TestClearEnvVars verifies that ClearEnvVars removes every

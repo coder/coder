@@ -65,7 +65,7 @@ const (
 	DefaultInstructionsFile = "AGENTS.md"
 	DefaultSkillsDir        = ".agents/skills"
 	DefaultSkillMetaFile    = "SKILL.md"
-	DefaultMCPConfigFile    = ".mcp.json"
+	DefaultMCPConfigFile    = "~/.mcp.json,.mcp.json"
 )
 
 // Config holds the agent's context configuration.
