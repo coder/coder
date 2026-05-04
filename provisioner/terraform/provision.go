@@ -269,6 +269,23 @@ func (s *server) Graph(
 		return provisionersdk.GraphError("convert state for graph: %s", err)
 	}
 
+	// Warn template authors if any agent sets dir to a non-$HOME
+	// value, because this breaks Coder Desktop file sync.
+	for _, resource := range state.Resources {
+		for _, agent := range resource.Agents {
+			if agent.Directory != "" && agent.Directory != "$HOME" && agent.Directory != "~" {
+				sess.ProvisionLog(
+					proto.LogLevel_WARN,
+					fmt.Sprintf(
+						"agent %q has 'dir' set to %q, which will break Coder Desktop file sync. "+
+							"Set 'dir' to a value that expands to the user's home directory or leave it unset.",
+						agent.Name, agent.Directory,
+					),
+				)
+			}
+		}
+	}
+
 	return &proto.GraphComplete{
 		Error:                 "",
 		Timings:               e.timings.aggregate(),
