@@ -448,13 +448,8 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	refreshedAt := now
 	staleAt := now.Add(time.Hour)
 	lastError := &codersdk.ChatError{
-		Message: "boom",
-		Detail:  "provider detail",
-		// Kind is the inline literal "generic" rather than
-		// chaterror.KindGeneric because codersdk (including its
-		// test imports) cannot reach packages that depend on
-		// modules replaced in go.mod, and chaterror imports
-		// charm.land/fantasy.
+		Message:    "boom",
+		Detail:     "provider detail",
 		Kind:       "generic",
 		Provider:   "openai",
 		Retryable:  true,
