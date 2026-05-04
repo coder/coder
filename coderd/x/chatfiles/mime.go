@@ -141,14 +141,16 @@ func PrepareRecordingArtifact(name, expectedMediaType string, data []byte) (stor
 
 // IsCompatibleUploadMediaType reports whether an upload request that declared
 // declaredMediaType may be stored as storedMediaType after byte
-// classification. Exact matches are always compatible; the compatibility
-// table only covers explicit refinements like text/plain uploads that safely
-// store as richer text subtypes.
+// classification. Exact matches are always compatible. Clients that declare
+// application/octet-stream are treated as "unknown", so the classified bytes
+// decide the stored type. The compatibility table also covers explicit
+// refinements like text/plain uploads that safely store as richer text
+// subtypes.
 func IsCompatibleUploadMediaType(declaredMediaType, storedMediaType string) bool {
 	declaredMediaType = BaseMediaType(declaredMediaType)
 	storedMediaType = BaseMediaType(storedMediaType)
 
-	if declaredMediaType == storedMediaType {
+	if declaredMediaType == storedMediaType || declaredMediaType == "application/octet-stream" {
 		return true
 	}
 	if declaredMediaType != "text/plain" {

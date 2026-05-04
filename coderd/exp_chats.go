@@ -4947,7 +4947,9 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
 		contentType = mediaType
 	}
-	if !chatfiles.IsAllowedStoredMediaType(contentType) {
+	// application/octet-stream means the client could not classify the file
+	// ahead of time, so we defer to byte classification below.
+	if contentType != "application/octet-stream" && !chatfiles.IsAllowedStoredMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
 			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
@@ -5005,12 +5007,12 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The compatibility check below is security-critical: it keeps exact
-	// media-type matching by default while allowing safe text/plain
-	// refinements such as JSON, CSV, and Markdown now that upload
-	// classification can return richer stored media types. Combined with
-	// the X-Content-Type-Options: nosniff header applied globally, this
-	// still prevents clients from smuggling binary or active content under
-	// a safer declared Content-Type.
+	// media-type matching by default while allowing application/
+	// octet-stream uploads to defer to byte classification, and letting
+	// text/plain refine to safe text subtypes such as JSON, CSV, and
+	// Markdown. Combined with the X-Content-Type-Options: nosniff header
+	// applied globally, this still prevents clients from smuggling binary
+	// or active content under a safer declared Content-Type.
 	if !chatfiles.IsCompatibleUploadMediaType(contentType, detected) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File content type does not match Content-Type header.",
