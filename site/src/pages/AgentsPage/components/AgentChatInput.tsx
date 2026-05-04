@@ -3,9 +3,9 @@ import {
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
-	ImageIcon,
 	MicIcon,
 	MonitorIcon,
+	PaperclipIcon,
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
@@ -54,6 +54,10 @@ import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import {
+	chatAttachmentAcceptAttribute,
+	isChatAttachmentFile,
+} from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
 import {
 	AttachmentPreview,
@@ -523,7 +527,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 	};
 
-	// Drag-and-drop support for image files.
+	// Drag-and-drop support for any chat-supported file type.
 	const [isDragging, setIsDragging] = useState(false);
 
 	const handleDragOver = (e: React.DragEvent) => {
@@ -543,11 +547,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const images = Array.from(e.dataTransfer.files).filter((f) =>
-			f.type.startsWith("image/"),
+		const attachable = Array.from(e.dataTransfer.files).filter(
+			isChatAttachmentFile,
 		);
-		if (images.length > 0) {
-			onAttach(images);
+		if (attachable.length > 0) {
+			onAttach(attachable);
 		}
 	};
 
@@ -814,13 +818,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
-				{/* Hidden file input for image attachment */}
+				{/* Hidden file input for attaching any server-accepted file type. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
 						multiple
-						accept="image/*"
+						accept={chatAttachmentAcceptAttribute}
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
@@ -906,8 +910,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												}}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 											>
-												<ImageIcon className="size-3.5 shrink-0" />
-												Attach image
+												<PaperclipIcon className="size-3.5 shrink-0" />
+												Attach file
 											</button>
 										)}
 										{onPlanModeToggle && (

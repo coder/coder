@@ -33,6 +33,40 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 // this limit than to lower it.
 const MaxChatFileIDs = 20
 
+// ChatAttachmentMediaType is a media type that is allowed for durable
+// chat file storage. The set is intentionally narrow; byte-level
+// classification and inline-render rules live alongside the enforcement
+// helpers in coderd/chatfiles.
+type ChatAttachmentMediaType string
+
+const (
+	ChatAttachmentMediaTypeApplicationJSON ChatAttachmentMediaType = "application/json"
+	ChatAttachmentMediaTypeApplicationPDF  ChatAttachmentMediaType = "application/pdf"
+	ChatAttachmentMediaTypeImageGIF        ChatAttachmentMediaType = "image/gif"
+	ChatAttachmentMediaTypeImageJPEG       ChatAttachmentMediaType = "image/jpeg"
+	ChatAttachmentMediaTypeImagePNG        ChatAttachmentMediaType = "image/png"
+	ChatAttachmentMediaTypeImageWEBP       ChatAttachmentMediaType = "image/webp"
+	ChatAttachmentMediaTypeTextCSV         ChatAttachmentMediaType = "text/csv"
+	ChatAttachmentMediaTypeTextMarkdown    ChatAttachmentMediaType = "text/markdown"
+	ChatAttachmentMediaTypeTextPlain       ChatAttachmentMediaType = "text/plain"
+)
+
+// AllChatAttachmentMediaTypes enumerates every durable chat attachment
+// media type in the same lexical order the guts-generated TypeScript
+// list uses, so the frontend file picker and the backend enforcement
+// map stay in lockstep. Add new values in sorted order.
+var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
+	ChatAttachmentMediaTypeApplicationJSON,
+	ChatAttachmentMediaTypeApplicationPDF,
+	ChatAttachmentMediaTypeImageGIF,
+	ChatAttachmentMediaTypeImageJPEG,
+	ChatAttachmentMediaTypeImagePNG,
+	ChatAttachmentMediaTypeImageWEBP,
+	ChatAttachmentMediaTypeTextCSV,
+	ChatAttachmentMediaTypeTextMarkdown,
+	ChatAttachmentMediaTypeTextPlain,
+}
+
 // CompactionThresholdKey returns the user-config key for a specific
 // model configuration's compaction threshold.
 func CompactionThresholdKey(modelConfigID uuid.UUID) string {

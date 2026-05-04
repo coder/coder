@@ -1321,6 +1321,49 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
+export type ChatAgentModelOverrideContext = "explore" | "general";
+
+export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
+	"explore",
+	"general",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatAgentModelOverrideResponse is the response body for the chat agent
+ * model override configuration endpoint.
+ */
+export interface ChatAgentModelOverrideResponse {
+	readonly context: ChatAgentModelOverrideContext;
+	readonly model_config_id: string;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatAttachmentMediaType =
+	| "application/json"
+	| "application/pdf"
+	| "image/gif"
+	| "image/jpeg"
+	| "image/png"
+	| "image/webp"
+	| "text/csv"
+	| "text/markdown"
+	| "text/plain";
+
+export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
+	"application/json",
+	"application/pdf",
+	"image/gif",
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+	"text/csv",
+	"text/markdown",
+	"text/plain",
+];
+
+// From codersdk/chats.go
 /**
  * ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
  */
