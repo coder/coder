@@ -1,3 +1,5 @@
+-- updated_at is the retention clock used by DeleteOldChatDebugRuns.
+-- Set it on every write to keep retention semantics correct.
 -- name: InsertChatDebugRun :one
 INSERT INTO chat_debug_runs (
     chat_id,
@@ -39,6 +41,7 @@ RETURNING *;
 -- write-once-finalize pattern where fields are set at creation
 -- or finalization and never cleared back to NULL. The @now
 -- parameter keeps updated_at under the caller's clock.
+-- updated_at is also the retention clock used by DeleteOldChatDebugRuns.
 --
 -- finished_at is enforced as write-once at the SQL level: once
 -- populated it cannot be overwritten by a later call. Callers
