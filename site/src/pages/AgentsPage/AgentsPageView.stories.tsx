@@ -145,7 +145,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	children: [],
 	...overrides,
 });
@@ -426,7 +425,11 @@ export const WithChatList: Story = {
 				id: "chat-3",
 				title: "Fix database migration issue",
 				status: "error",
-				last_error: "Connection timeout",
+				last_error: {
+					message: "Connection timeout",
+					kind: "generic",
+					retryable: false,
+				},
 				updated_at: todayTimestamp,
 			}),
 			buildChat({

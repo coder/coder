@@ -1286,16 +1286,7 @@ export interface Chat {
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
-	/**
-	 * LastError is a backward-compatible one-line headline derived from
-	 * LastErrorPayload.Message when a persisted chat error exists.
-	 */
-	readonly last_error: string | null;
-	/**
-	 * LastErrorPayload is the structured persisted error state used to
-	 * rehydrate failed chat callouts after refresh.
-	 */
-	readonly last_error_payload?: ChatLastError;
+	readonly last_error?: ChatStreamError;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -1823,9 +1814,8 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 // From codersdk/chats.go
 /**
  * ChatLastError represents a persisted terminal chat error.
- *
- * Keep this aligned with ChatStreamError so persisted and live failures
- * expose the same field set to clients.
+ * It is the same schema as ChatStreamError, surfaced from persisted chat
+ * state instead of the live stream.
  */
 export interface ChatLastError {
 	/**

@@ -447,9 +447,8 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	reviewerCount := int32(2)
 	refreshedAt := now
 	staleAt := now.Add(time.Hour)
-	lastError := "boom"
-	lastErrorPayload := &codersdk.ChatLastError{
-		Message:    lastError,
+	lastError := &codersdk.ChatLastError{
+		Message:    "boom",
 		Detail:     "provider detail",
 		Kind:       "generic",
 		Provider:   "openai",
@@ -474,8 +473,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 		LastModelConfigID: uuid.New(),
 		Title:             "round-trip-test",
 		Status:            codersdk.ChatStatusRunning,
-		LastError:         &lastError,
-		LastErrorPayload:  lastErrorPayload,
+		LastError:         lastError,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,
@@ -512,22 +510,6 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, original, decoded)
-}
-
-func TestChatLastErrorMatchesChatStreamError(t *testing.T) {
-	t.Parallel()
-
-	lastErrorType := reflect.TypeFor[codersdk.ChatLastError]()
-	streamErrorType := reflect.TypeFor[codersdk.ChatStreamError]()
-	require.Equal(t, streamErrorType.NumField(), lastErrorType.NumField())
-
-	for i := range lastErrorType.NumField() {
-		lastErrorField := lastErrorType.Field(i)
-		streamErrorField := streamErrorType.Field(i)
-		require.Equal(t, streamErrorField.Name, lastErrorField.Name)
-		require.Equal(t, streamErrorField.Type, lastErrorField.Type)
-		require.Equal(t, streamErrorField.Tag, lastErrorField.Tag)
-	}
 }
 
 func TestNewDynamicTool(t *testing.T) {

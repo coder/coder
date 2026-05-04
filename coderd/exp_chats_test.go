@@ -4765,9 +4765,7 @@ func TestPatchChat(t *testing.T) {
 					client := newChatClient(t)
 					firstUser := coderdtest.CreateFirstUser(t, client.Client)
 					_ = createChatModelConfig(t, client)
-
 					chat := createChat(ctx, t, client, firstUser.OrganizationID, "boundary baseline")
-
 					waitChatSettled(ctx, t, client, chat.ID)
 
 					err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{

@@ -17,4 +17,12 @@ BEGIN
 		RAISE EXCEPTION 'expected migrated last_error kind, got %',
 			payload ->> 'kind';
 	END IF;
+
+	PERFORM 1
+	FROM chats
+	WHERE id = '5a4ac6a3-9dc5-440f-ae6b-5805e477bc59'
+		AND last_error IS NULL;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'expected null last_error row to remain NULL after migration';
+	END IF;
 END $$;

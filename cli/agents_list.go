@@ -66,6 +66,13 @@ func (m chatListModel) searchQuery() string {
 	return strings.TrimSpace(strings.ToLower(m.search.Value()))
 }
 
+func chatLastErrorMessage(chat codersdk.Chat) string {
+	if chat.LastError == nil {
+		return ""
+	}
+	return chat.LastError.Message
+}
+
 func (m chatListModel) filteredChats() []codersdk.Chat {
 	query := m.searchQuery()
 	if query == "" {
@@ -78,7 +85,7 @@ func (m chatListModel) filteredChats() []codersdk.Chat {
 			filtered = append(filtered, chat)
 			continue
 		}
-		if chat.LastError != nil && strings.Contains(strings.ToLower(*chat.LastError), query) {
+		if lastError := chatLastErrorMessage(chat); strings.Contains(strings.ToLower(lastError), query) {
 			filtered = append(filtered, chat)
 		}
 	}
@@ -445,13 +452,13 @@ func (m chatListModel) View() string {
 		rowText := fmt.Sprintf("%s%s %s %s%s", rowPrefix, rowStyle.Render(title), status, m.styles.dimmedText.Render(timeAgo(row.chat.UpdatedAt)), extra)
 		lines = append(lines, rowText)
 
-		if row.chat.Status == codersdk.ChatStatusError && row.chat.LastError != nil {
+		if lastError := chatLastErrorMessage(row.chat); row.chat.Status == codersdk.ChatStatusError && lastError != "" {
 			errWidth := max(m.width-4, 20)
 			errPrefix := "    "
 			if row.depth > 0 {
 				errPrefix += strings.Repeat("  ", row.depth)
 			}
-			lines = append(lines, errPrefix+m.styles.dimmedText.Render(m.styles.truncate(sanitizeTerminalRenderableText(*row.chat.LastError), errWidth)))
+			lines = append(lines, errPrefix+m.styles.dimmedText.Render(m.styles.truncate(sanitizeTerminalRenderableText(lastError), errWidth)))
 		}
 	}
 

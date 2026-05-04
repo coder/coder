@@ -5364,7 +5364,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				Message: panicFailureReason(r),
 				Kind:    chaterror.KindGeneric,
 			}
-			lastErrorPayload = chaterror.LastErrorPayload(classified)
+			lastErrorPayload = chaterror.TerminalErrorPayload(classified)
 			p.publishError(chat.ID, classified)
 			status = database.ChatStatusError
 		}
@@ -5477,7 +5477,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
 		if classified, ok := processingFailure(err); ok {
-			lastErrorPayload = chaterror.LastErrorPayload(classified)
+			lastErrorPayload = chaterror.TerminalErrorPayload(classified)
 			p.publishError(chat.ID, classified)
 		}
 		status = database.ChatStatusError
@@ -8011,10 +8011,12 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 
 			lastError := pqtype.NullRawMessage{}
 			if locked.Status == database.ChatStatusRequiresAction {
-				lastErrorPayload, marshalErr := encodeChatLastErrorPayload(&codersdk.ChatLastError{
-					Message: "Dynamic tool execution timed out",
-					Kind:    chaterror.KindGeneric,
-				})
+				lastErrorPayload, marshalErr := encodeChatLastErrorPayload(
+					chaterror.TerminalErrorPayload(chaterror.ClassifiedError{
+						Message: "Dynamic tool execution timed out",
+						Kind:    chaterror.KindGeneric,
+					}),
+				)
 				if marshalErr != nil {
 					p.logger.Warn(ctx, "failed to marshal stale recovery last error payload",
 						slog.F("chat_id", chat.ID),

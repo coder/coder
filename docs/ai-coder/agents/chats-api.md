@@ -48,7 +48,6 @@ The response is the newly created `Chat` object:
   "last_model_config_id": "...",
   "title": "hello world",
   "status": "waiting",
-  "last_error": null,
   "diff_status": null,
   "created_at": "2025-07-17T00:00:00Z",
   "updated_at": "2025-07-17T00:00:00Z",

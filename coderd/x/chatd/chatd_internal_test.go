@@ -2447,15 +2447,18 @@ func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
 }
 
 func newTestRetryPayload() *codersdk.ChatStreamRetry {
-	return &codersdk.ChatStreamRetry{
-		Attempt:    1,
-		DelayMs:    (1500 * time.Millisecond).Milliseconds(),
-		Error:      "OpenAI is rate limiting requests.",
+	payload := chaterror.StreamRetryPayload(1, 1500*time.Millisecond, chaterror.ClassifiedError{
+		Message:    "OpenAI is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
+		Retryable:  true,
 		StatusCode: 429,
-		RetryingAt: time.Unix(1_700_000_000, 0).UTC(),
+	})
+	if payload == nil {
+		panic("expected retry payload")
 	}
+	payload.RetryingAt = time.Unix(1_700_000_000, 0).UTC()
+	return payload
 }
 
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {

@@ -917,8 +917,12 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// converter is updated.
 	now := dbtime.Now()
 	lastErrorPayload := codersdk.ChatLastError{
-		Message: "boom",
-		Kind:    "generic",
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       "generic",
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
 	}
 	lastErrorRaw, err := json.Marshal(lastErrorPayload)
 	require.NoError(t, err)
@@ -977,9 +981,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	got := db2sdk.Chat(input, diffStatus, fileRows)
 
-	require.NotNil(t, got.LastError)
-	require.Equal(t, lastErrorPayload.Message, *got.LastError)
-	require.Equal(t, &lastErrorPayload, got.LastErrorPayload)
+	require.Equal(t, &lastErrorPayload, got.LastError)
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
@@ -1064,20 +1066,56 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 	require.Empty(t, result.Files)
 }
 
-func TestChat_LastErrorPayloadFallback(t *testing.T) {
+func TestChat_LastErrorFallback(t *testing.T) {
 	t.Parallel()
 
+	const fallbackMessage = "The chat request failed unexpectedly."
+
 	tests := []struct {
-		name string
-		raw  json.RawMessage
+		name          string
+		raw           json.RawMessage
+		expectPayload *codersdk.ChatLastError
 	}{
-		{
-			name: "MessageMissing",
-			raw:  json.RawMessage(`{"kind":"generic"}`),
-		},
 		{
 			name: "MalformedJSON",
 			raw:  json.RawMessage(`{`),
+			expectPayload: &codersdk.ChatLastError{
+				Message:   fallbackMessage,
+				Kind:      "generic",
+				Retryable: false,
+			},
+		},
+		{
+			name: "MessageMissingPreservesMetadata",
+			raw:  json.RawMessage(`{"kind":"timeout","provider":"openai","status_code":504}`),
+			expectPayload: &codersdk.ChatLastError{
+				Message:    fallbackMessage,
+				Kind:       "timeout",
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 504,
+			},
+		},
+		{
+			name: "WhitespaceMessageDefaultsKind",
+			raw:  json.RawMessage(`{"message":"  ","provider":"openai"}`),
+			expectPayload: &codersdk.ChatLastError{
+				Message:   fallbackMessage,
+				Kind:      "generic",
+				Provider:  "openai",
+				Retryable: false,
+			},
+		},
+		{
+			name: "KindMissingDefaultsGeneric",
+			raw:  json.RawMessage(`{"message":"OpenAI returned an unexpected error.","provider":"openai","status_code":502}`),
+			expectPayload: &codersdk.ChatLastError{
+				Message:    "OpenAI returned an unexpected error.",
+				Kind:       "generic",
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 502,
+			},
 		},
 	}
 
@@ -1101,9 +1139,7 @@ func TestChat_LastErrorPayloadFallback(t *testing.T) {
 			}
 
 			result := db2sdk.Chat(chat, nil, nil)
-			require.NotNil(t, result.LastError)
-			require.Equal(t, "The chat request failed unexpectedly.", *result.LastError)
-			require.Nil(t, result.LastErrorPayload)
+			require.Equal(t, tc.expectPayload, result.LastError)
 		})
 	}
 }

@@ -896,7 +896,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 
 	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	requestsMu.Lock()
@@ -989,7 +989,7 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
 	require.NoError(t, err)
 	if storedChat.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", storedChat.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(storedChat.LastError))
 	}
 	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
 	require.ElementsMatch(t, []uuid.UUID{mcpConfig.ID}, storedChat.MCPServerIDs)
@@ -1073,7 +1073,7 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
 	require.NoError(t, err)
 	if storedChat.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", storedChat.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(storedChat.LastError))
 	}
 	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
 
@@ -1208,7 +1208,7 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	exploreChat, err = db.GetChatByID(ctx, exploreChat.ID)
@@ -1237,7 +1237,7 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	chatResult = waitForTerminalChat(ctx, t, db, exploreChat.ID)
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	recordedChildRequests := childRequests()
@@ -3797,8 +3797,8 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	// Simulate a migrated legacy row that now stores a minimal
-	// structured payload in last_error.
+	// Write a minimal structured last_error payload through the
+	// query layer, then verify it round-trips through storage.
 	errorMessage := "stream response: status 500: internal server error"
 	legacyPayload := codersdk.ChatLastError{
 		Message: errorMessage,
@@ -4880,7 +4880,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
 		if chatResult.LastError != nil {
-			lastError = *chatResult.LastError
+			lastError = chatResult.LastError.Message
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
@@ -5052,7 +5052,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
 		if chatResult.LastError != nil {
-			lastError = *chatResult.LastError
+			lastError = chatResult.LastError.Message
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
@@ -9325,7 +9325,7 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 	turn1Chat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, turn1Chat.Status,
-		"turn 1 must complete before turn 2 can be sent; last_error=%q", turn1Chat.LastError.String)
+		"turn 1 must complete before turn 2 can be sent; last_error=%q", chatLastErrorMessage(turn1Chat.LastError))
 
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:    chat.ID,

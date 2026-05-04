@@ -11,30 +11,13 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
+func TestTerminalErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	t.Parallel()
 
 	classified := chaterror.Classify(
 		xerrors.New("azure openai received status 429 from upstream"),
 	)
-	payload := chaterror.StreamErrorPayload(classified)
-
-	require.Equal(t, &codersdk.ChatStreamError{
-		Message:    "Azure OpenAI is rate limiting requests.",
-		Kind:       chaterror.KindRateLimit,
-		Provider:   "azure",
-		Retryable:  true,
-		StatusCode: 429,
-	}, payload)
-}
-
-func TestLastErrorPayloadUsesNormalizedClassification(t *testing.T) {
-	t.Parallel()
-
-	classified := chaterror.Classify(
-		xerrors.New("azure openai received status 429 from upstream"),
-	)
-	payload := chaterror.LastErrorPayload(classified)
+	payload := chaterror.TerminalErrorPayload(classified)
 
 	require.Equal(t, &codersdk.ChatLastError{
 		Message:    "Azure OpenAI is rate limiting requests.",
@@ -58,10 +41,10 @@ func TestStreamErrorPayloadIncludesProviderDetail(t *testing.T) {
 	require.Equal(t, "Image exceeds 5 MB maximum.", payload.Detail)
 }
 
-func TestStreamErrorPayloadNilForEmptyClassification(t *testing.T) {
+func TestTerminalErrorPayloadNilForEmptyClassification(t *testing.T) {
 	t.Parallel()
 
-	require.Nil(t, chaterror.LastErrorPayload(chaterror.ClassifiedError{}))
+	require.Nil(t, chaterror.TerminalErrorPayload(chaterror.ClassifiedError{}))
 	require.Nil(t, chaterror.StreamErrorPayload(chaterror.ClassifiedError{}))
 }
 

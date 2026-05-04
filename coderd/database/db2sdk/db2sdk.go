@@ -1609,27 +1609,30 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 
 const fallbackChatLastErrorMessage = "The chat request failed unexpectedly."
 
-func decodeChatLastError(raw pqtype.NullRawMessage) (*codersdk.ChatLastError, *string) {
+func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatLastError {
 	if !raw.Valid {
-		return nil, nil
+		return nil
 	}
 
 	var payload codersdk.ChatLastError
 	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
-		return nil, ptr.Ref(fallbackChatLastErrorMessage)
+		return &codersdk.ChatLastError{
+			Message: fallbackChatLastErrorMessage,
+			Kind:    "generic",
+		}
 	}
 
 	payload.Message = strings.TrimSpace(payload.Message)
 	payload.Detail = strings.TrimSpace(payload.Detail)
 	payload.Kind = strings.TrimSpace(payload.Kind)
 	payload.Provider = strings.TrimSpace(payload.Provider)
-	if payload.Message == "" {
-		return nil, ptr.Ref(fallbackChatLastErrorMessage)
-	}
 	if payload.Kind == "" {
 		payload.Kind = "generic"
 	}
-	return &payload, ptr.Ref(payload.Message)
+	if payload.Message == "" {
+		payload.Message = fallbackChatLastErrorMessage
+	}
+	return &payload
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
@@ -1647,7 +1650,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	lastErrorPayload, lastError := decodeChatLastError(c.LastError)
+	lastError := decodeChatLastError(c.LastError)
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
@@ -1663,7 +1666,6 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
-		LastErrorPayload:  lastErrorPayload,
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)

@@ -6,7 +6,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func LastErrorPayload(classified ClassifiedError) *codersdk.ChatLastError {
+func TerminalErrorPayload(classified ClassifiedError) *codersdk.ChatLastError {
 	if classified.Message == "" {
 		return nil
 	}
@@ -21,17 +21,7 @@ func LastErrorPayload(classified ClassifiedError) *codersdk.ChatLastError {
 }
 
 func StreamErrorPayload(classified ClassifiedError) *codersdk.ChatStreamError {
-	if classified.Message == "" {
-		return nil
-	}
-	return &codersdk.ChatStreamError{
-		Message:    classified.Message,
-		Detail:     classified.Detail,
-		Kind:       classified.Kind,
-		Provider:   classified.Provider,
-		Retryable:  classified.Retryable,
-		StatusCode: classified.StatusCode,
-	}
+	return TerminalErrorPayload(classified)
 }
 
 func StreamRetryPayload(

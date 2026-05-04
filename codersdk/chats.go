@@ -97,32 +97,27 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID    `json:"id" format:"uuid"`
-	OrganizationID    uuid.UUID    `json:"organization_id" format:"uuid"`
-	OwnerID           uuid.UUID    `json:"owner_id" format:"uuid"`
-	WorkspaceID       *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID           *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
-	AgentID           *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID    `json:"last_model_config_id" format:"uuid"`
-	Title             string       `json:"title"`
-	Status            ChatStatus   `json:"status"`
-	PlanMode          ChatPlanMode `json:"plan_mode,omitempty"`
-	// LastError is a backward-compatible one-line headline derived from
-	// LastErrorPayload.Message when a persisted chat error exists.
-	LastError *string `json:"last_error"`
-	// LastErrorPayload is the structured persisted error state used to
-	// rehydrate failed chat callouts after refresh.
-	LastErrorPayload *ChatLastError     `json:"last_error_payload,omitempty"`
-	DiffStatus       *ChatDiffStatus    `json:"diff_status,omitempty"`
-	CreatedAt        time.Time          `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time          `json:"updated_at" format:"date-time"`
-	Archived         bool               `json:"archived"`
-	PinOrder         int32              `json:"pin_order"`
-	MCPServerIDs     []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
-	Labels           map[string]string  `json:"labels"`
-	Files            []ChatFileMetadata `json:"files,omitempty"`
+	ID                uuid.UUID          `json:"id" format:"uuid"`
+	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
+	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
+	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID         `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID         `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID          `json:"last_model_config_id" format:"uuid"`
+	Title             string             `json:"title"`
+	Status            ChatStatus         `json:"status"`
+	PlanMode          ChatPlanMode       `json:"plan_mode,omitempty"`
+	LastError         *ChatLastError     `json:"last_error,omitempty"`
+	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
+	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
+	Archived          bool               `json:"archived"`
+	PinOrder          int32              `json:"pin_order"`
+	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
+	Labels            map[string]string  `json:"labels"`
+	Files             []ChatFileMetadata `json:"files,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
@@ -1430,26 +1425,6 @@ type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
 }
 
-// ChatLastError represents a persisted terminal chat error.
-//
-// Keep this aligned with ChatStreamError so persisted and live failures
-// expose the same field set to clients.
-type ChatLastError struct {
-	// Message is the normalized, user-facing error message.
-	Message string `json:"message"`
-	// Detail is optional provider-specific context shown alongside the
-	// normalized error message when available.
-	Detail string `json:"detail,omitempty"`
-	// Kind classifies the error for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
-	// Provider identifies the upstream model provider when known.
-	Provider string `json:"provider,omitempty"`
-	// Retryable reports whether the underlying error is transient.
-	Retryable bool `json:"retryable"`
-	// StatusCode is the best-effort upstream HTTP status code.
-	StatusCode int `json:"status_code,omitempty"`
-}
-
 // ChatStreamError represents an error event in the stream.
 type ChatStreamError struct {
 	// Message is the normalized, user-facing error message.
@@ -1466,6 +1441,11 @@ type ChatStreamError struct {
 	// StatusCode is the best-effort upstream HTTP status code.
 	StatusCode int `json:"status_code,omitempty"`
 }
+
+// ChatLastError represents a persisted terminal chat error.
+// It is the same schema as ChatStreamError, surfaced from persisted chat
+// state instead of the live stream.
+type ChatLastError = ChatStreamError
 
 // ChatStreamRetry represents an auto-retry status event in the stream.
 // Published when the server automatically retries a failed LLM call.
