@@ -108,7 +108,7 @@ func TestDefaultOpenAIComputerUseDesktopGeometry(t *testing.T) {
 
 	assert.Equal(t, 1920, geometry.NativeWidth)
 	assert.Equal(t, 1080, geometry.NativeHeight)
-	assert.Equal(t, 1440, geometry.DeclaredWidth)
+	assert.Equal(t, 1600, geometry.DeclaredWidth)
 	assert.Equal(t, 900, geometry.DeclaredHeight)
 }
 

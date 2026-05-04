@@ -13,8 +13,9 @@ const (
 	desktopDeclaredMaxLongEdge    = 1568
 	desktopDeclaredMaxTotalPixels = 1_150_000
 
-	// OpenAI recommends 1440x900 or 1600x900 for computer-use; see https://developers.openai.com/api/docs/guides/tools-computer-use.
-	desktopOpenAIComputerUseDeclaredWidth  = 1440
+	// OpenAI recommends 1440x900 or 1600x900 for computer use.
+	// Use 1600x900 so screenshots keep the native 16:9 aspect ratio.
+	desktopOpenAIComputerUseDeclaredWidth  = 1600
 	desktopOpenAIComputerUseDeclaredHeight = 900
 )
 

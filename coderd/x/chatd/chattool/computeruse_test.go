@@ -98,7 +98,7 @@ func TestDefaultComputerUseDesktopGeometry(t *testing.T) {
 		{
 			name:           "OpenAI",
 			provider:       chattool.ComputerUseProviderOpenAI,
-			declaredWidth:  1440,
+			declaredWidth:  1600,
 			declaredHeight: 900,
 		},
 	}
