@@ -43,6 +43,7 @@ var skipMethods = map[string]string{
 	"Wrappers":       "Not relevant",
 	"AcquireLock":    "Not relevant",
 	"TryAcquireLock": "Not relevant",
+	"InTransaction":  "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.

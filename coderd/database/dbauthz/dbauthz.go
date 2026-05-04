@@ -1119,6 +1119,10 @@ func (q *querier) Ping(ctx context.Context) (time.Duration, error) {
 	return q.db.Ping(ctx)
 }
 
+func (q *querier) InTransaction() bool {
+	return q.db.InTransaction()
+}
+
 func (q *querier) PGLocks(ctx context.Context) (database.PGLocks, error) {
 	return q.db.PGLocks(ctx)
 }

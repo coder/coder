@@ -6437,6 +6437,20 @@ func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
 }
 
+// InTransaction mocks base method.
+func (m *MockStore) InTransaction() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InTransaction")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// InTransaction indicates an expected call of InTransaction.
+func (mr *MockStoreMockRecorder) InTransaction() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InTransaction", reflect.TypeOf((*MockStore)(nil).InTransaction))
+}
+
 // InTx mocks base method.
 func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *database.TxOptions) error {
 	m.ctrl.T.Helper()

@@ -31,6 +31,12 @@ type Store interface {
 	Ping(ctx context.Context) (time.Duration, error)
 	PGLocks(ctx context.Context) (PGLocks, error)
 	InTx(func(Store) error, *TxOptions) error
+
+	// InTransaction reports whether this Store is already wrapped in an open
+	// database transaction. Callers can use this to detect nesting and avoid
+	// duplicating retry loops that would re-execute against an aborted parent
+	// transaction.
+	InTransaction() bool
 }
 
 type wrapper interface {
@@ -135,6 +141,14 @@ type sqlQuerier struct {
 
 func (*sqlQuerier) Wrappers() []string {
 	return []string{}
+}
+
+// InTransaction reports whether this Store is wrapped in an open database
+// transaction. Returns true on the inner Store passed into an InTx closure,
+// false on a top-level Store.
+func (q *sqlQuerier) InTransaction() bool {
+	_, ok := q.db.(*sqlx.Tx)
+	return ok
 }
 
 // Ping returns the time it takes to ping the database.
