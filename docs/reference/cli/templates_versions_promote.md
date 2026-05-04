@@ -35,6 +35,14 @@ Specify the template name.
 
 Specify the template version name to promote.
 
+### --invalidate-prebuilds
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Invalidate prebuilds for the promoted template version.
+
 ### -O, --org
 
 |             |                                  |

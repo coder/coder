@@ -13,6 +13,9 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
+      --invalidate-prebuilds bool
+          Invalidate prebuilds for the promoted template version.
+
   -t, --template string, $CODER_TEMPLATE_NAME
           Specify the template name.
 

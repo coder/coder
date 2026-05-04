@@ -186,6 +186,7 @@ func (r *RootCmd) templateVersionsPromote() *serpent.Command {
 	var (
 		templateName        string
 		templateVersionName string
+		invalidatePrebuilds bool
 		orgContext          = NewOrganizationContext()
 	)
 	cmd := &serpent.Command{
@@ -219,6 +220,14 @@ func (r *RootCmd) templateVersionsPromote() *serpent.Command {
 				return xerrors.Errorf("update active template version: %w", err)
 			}
 
+			if invalidatePrebuilds {
+				invalidated, err := client.InvalidateTemplatePresets(inv.Context(), template.ID)
+				if err != nil {
+					return xerrors.Errorf("invalidate prebuilds: %w", err)
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "Invalidated %d prebuild preset(s).\n", len(invalidated.Invalidated))
+			}
+
 			_, _ = fmt.Fprintf(inv.Stdout, "Successfully promoted version %q to active for template %q\n", templateVersionName, templateName)
 			return nil
 		},
@@ -239,6 +248,11 @@ func (r *RootCmd) templateVersionsPromote() *serpent.Command {
 			Env:         "CODER_TEMPLATE_VERSION_NAME",
 			Required:    true,
 			Value:       serpent.StringOf(&templateVersionName),
+		},
+		{
+			Flag:        "invalidate-prebuilds",
+			Description: "Invalidate prebuilds for the promoted template version.",
+			Value:       serpent.BoolOf(&invalidatePrebuilds),
 		},
 	}
 	orgContext.AttachOptions(cmd)
