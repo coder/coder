@@ -329,6 +329,7 @@ Experimental: this endpoint is subject to change.
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [

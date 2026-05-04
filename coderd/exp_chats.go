@@ -977,11 +977,54 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Resolve the chat owner. Defaults to the authenticated caller. A
+	// caller with site-level chat:create (e.g. the Owner role) may set
+	// req.OwnerID to act on behalf of another user; the target user
+	// must be a member of the chat's organization. The RBAC check
+	// below enforces the create permission against the resolved
+	// owner, so org members without site-level access cannot create
+	// chats for other users.
+	ownerID := apiKey.UserID
+	if req.OwnerID != nil && *req.OwnerID != uuid.Nil && *req.OwnerID != apiKey.UserID {
+		ownerID = *req.OwnerID
+		// Validate the target user is a member of the organization.
+		// Use AsSystemRestricted because the caller may not have read
+		// access to other users' organization memberships, but is being
+		// authorized below via the chat:create RBAC check on the
+		// resolved owner.
+		//nolint:gocritic // See comment above.
+		members, mErr := api.Database.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
+			OrganizationID: req.OrganizationID,
+			UserID:         ownerID,
+			IncludeSystem:  false,
+			GithubUserID:   0,
+		})
+		if mErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to look up target user's organization membership.",
+				Detail:  mErr.Error(),
+			})
+			return
+		}
+		if len(members) == 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Target owner_id is not a member of the specified organization.",
+			})
+			return
+		}
+	}
+
 	// NOTE: This authorize check is intentionally placed after request
 	// parsing because we need req.OrganizationID to scope the RBAC check
 	// to the correct org. The request body is bounded by MaxBytesReader
 	// above, limiting the cost of parsing before rejection.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
+	//
+	// The chat is checked against the resolved owner so that callers
+	// without site-level chat:create permission (e.g. the agents-access
+	// org role, which is owner-scoped) cannot create chats on behalf
+	// of other users.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -1135,7 +1178,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     req.OrganizationID,
-		OwnerID:            apiKey.UserID,
+		OwnerID:            ownerID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,

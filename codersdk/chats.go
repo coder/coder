@@ -445,13 +445,19 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
-	Content        []ChatInputPart   `json:"content"`
-	SystemPrompt   string            `json:"system_prompt,omitempty"`
-	WorkspaceID    *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels         map[string]string `json:"labels,omitempty"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// OwnerID is the user that should own the new chat. When unset
+	// the chat is owned by the authenticated caller. Setting this
+	// to another user requires site-level chat create permission
+	// (e.g. the Owner role); the target user must also be a member
+	// of the specified organization.
+	OwnerID       *uuid.UUID        `json:"owner_id,omitempty" format:"uuid"`
+	Content       []ChatInputPart   `json:"content"`
+	SystemPrompt  string            `json:"system_prompt,omitempty"`
+	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels        map[string]string `json:"labels,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.

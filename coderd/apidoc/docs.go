@@ -16662,6 +16662,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner_id": {
+                    "description": "OwnerID is the user that should own the new chat. When unset\nthe chat is owned by the authenticated caller. Setting this\nto another user requires site-level chat create permission\n(e.g. the Owner role); the target user must also be a member\nof the specified organization.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },

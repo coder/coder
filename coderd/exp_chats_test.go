@@ -778,6 +778,125 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+func TestPostChats_OwnerID(t *testing.T) {
+	t.Parallel()
+
+	// Site Owner can create a chat on behalf of another org member.
+	t.Run("OwnerCreatesForOtherUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mAudit := audit.NewMock()
+		owner := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+		})
+		firstUser := coderdtest.CreateFirstUser(t, owner.Client)
+		_ = createChatModelConfig(t, owner)
+
+		// The target user just needs to be a member of the org. The
+		// site Owner role grants chat:create at the site level, which
+		// authorizes the cross-user create.
+		_, target := coderdtest.CreateAnotherUser(t, owner.Client, firstUser.OrganizationID)
+
+		chat, err := owner.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &target.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello on behalf of another user",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, target.ID, chat.OwnerID)
+
+		// The audit log records the acting caller (site owner), not the
+		// target owner, so we just verify the chat was audited.
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:       database.AuditActionCreate,
+			ResourceType: database.ResourceTypeChat,
+			ResourceID:   chat.ID,
+		}))
+	})
+
+	// Setting OwnerID to the caller's own ID is equivalent to omitting
+	// it: the agents-access role is sufficient to create a chat the
+	// caller themselves owns.
+	t.Run("OwnerIDEqualToCallerIsAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &member.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello me",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+	})
+
+	// An agents-access org member cannot create a chat for another
+	// user. The role is owner-scoped at the org member level, so the
+	// chat:create check on the resolved owner fails.
+	t.Run("MemberForbiddenForOtherUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, otherUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &otherUser.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "should be forbidden",
+			}},
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	// The target owner_id must be a member of the chat's
+	// organization. Provide a real user that is not a member.
+	t.Run("TargetUserNotInOrg", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// A user that exists but is not a member of firstUser's org.
+		nonMember := dbgen.User(t, db, database.User{})
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        &nonMember.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "non-member target",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Target owner_id is not a member of the specified organization.", sdkErr.Message)
+	})
+}
+
 func TestPostChats_ClientType(t *testing.T) {
 	t.Parallel()
 

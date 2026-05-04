@@ -2970,6 +2970,14 @@ export interface CreateChatProviderConfigRequest {
  */
 export interface CreateChatRequest {
 	readonly organization_id: string;
+	/**
+	 * OwnerID is the user that should own the new chat. When unset
+	 * the chat is owned by the authenticated caller. Setting this
+	 * to another user requires site-level chat create permission
+	 * (e.g. the Owner role); the target user must also be a member
+	 * of the specified organization.
+	 */
+	readonly owner_id?: string;
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
