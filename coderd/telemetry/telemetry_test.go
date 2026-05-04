@@ -2116,7 +2116,7 @@ func TestUserSecretsTelemetry(t *testing.T) {
 		}, snap.UserSecretsSummary)
 	})
 
-	t.Run("FilterSkipsDeletedAndSystemUsers", func(t *testing.T) {
+	t.Run("FilterSkipsInactiveUsers", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		db, _ := dbtestutil.NewDB(t)
@@ -2150,6 +2150,26 @@ func TestUserSecretsTelemetry(t *testing.T) {
 		}, func(p *database.CreateUserSecretParams) {
 			p.EnvName = "DELETED_ENV"
 			p.FilePath = ""
+		})
+
+		// User secret owned by a dormant user should be excluded.
+		dormant := dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: dormant.ID,
+			Name:   "dormant-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "DORMANT_ENV"
+			p.FilePath = ""
+		})
+
+		// User secret owned by a suspended user should be excluded.
+		suspended := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: suspended.ID,
+			Name:   "suspended-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/suspended.file"
 		})
 
 		// System user. Only its UUID is needed. Tying a secret to it

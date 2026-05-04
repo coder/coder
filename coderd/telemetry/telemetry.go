@@ -968,9 +968,9 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 // secrets configuration. Returns nil if another replica has already
 // collected for this period.
 //
-// The user_secrets_summary entity in BigQuery has no natural per-row
-// UUID for the telemetry server to dedupe on, so we elect a single
-// replica per snapshot period via the telemetry_locks table.
+// The summary has no natural per-row UUID for the telemetry server to
+// de-duplicate on, so we elect a single replica per snapshot period
+// via the telemetry_locks table.
 func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSecretsSummary, error) {
 	// Claim the telemetry lock for this period. Use snapshot frequency so
 	// each telemetry snapshot period gets exactly one collection across
@@ -2467,8 +2467,11 @@ type ChatDiffStatusSummary struct {
 
 // UserSecretsSummary contains deployment-wide aggregates about user
 // secrets. All counts are scoped to active non-system users so that
-// soft-deleted accounts and internal subjects (e.g. the prebuilds user)
-// do not skew the results.
+// soft-deleted accounts, dormant or suspended users, and internal
+// subjects (e.g. the prebuilds user) do not skew the results. Status
+// transitions move users in and out of this denominator, so a
+// snapshot's UsersWithSecrets can drop without any secret being
+// deleted.
 //
 // UsersWithSecrets is the count of active non-system users that have
 // at least one secret. TotalSecrets is the count of secrets owned by

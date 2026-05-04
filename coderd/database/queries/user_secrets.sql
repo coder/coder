@@ -70,11 +70,21 @@ RETURNING *;
 -- Returns deployment-wide aggregates for the telemetry snapshot.
 --
 -- The denominator for both user-level counts and the per-user
--- distribution is active non-system users. Soft-deleted users are
--- excluded because Coder soft-deletes by flipping users.deleted
--- rather than removing rows, so their secrets persist in user_secrets
--- but are no longer reachable. System users (is_system = true) cover
--- internal subjects like the prebuilds user that never use secrets.
+-- distribution is active non-system users. Specifically:
+--
+--   * deleted = false: Coder soft-deletes by flipping users.deleted
+--     rather than removing rows, so secrets persist after delete but
+--     are unreachable.
+--   * status = 'active': dormant users (no recent activity) and
+--     suspended users (explicitly disabled) cannot use secrets, so
+--     they shouldn't dilute the percentile distribution as
+--     zero-secret entries.
+--   * is_system = false: internal subjects like the prebuilds user
+--     never use secrets in the normal flow.
+--
+-- Status transitions move users in and out of this denominator, so a
+-- snapshot's UsersWithSecrets can drop without any secret being
+-- deleted.
 --
 -- The percentile distribution is computed across all active non-system
 -- users, including those with zero secrets, so the percentiles reflect
@@ -84,7 +94,9 @@ RETURNING *;
 WITH active_users AS (
     SELECT id AS user_id
     FROM users
-    WHERE deleted = false AND is_system = false
+    WHERE deleted = false
+      AND is_system = false
+      AND status = 'active'::user_status
 ),
 per_user AS (
     SELECT au.user_id, COUNT(us.id)::bigint AS n
