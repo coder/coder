@@ -45,10 +45,12 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Chat batch sizes stay smaller than audit/connection log batches because
-	// chat_files rows carry bytea blobs.
-	chatsBatchSize         = 1000
-	chatFilesBatchSize     = 1000
+	// Chat and chat file batch sizes stay smaller than audit/connection
+	// log batches because chat_files rows carry bytea blobs.
+	chatsBatchSize     = 1000
+	chatFilesBatchSize = 1000
+	// Chat debug run deletions can cascade into steps with large JSONB
+	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
 	// chatAutoArchiveDigestMaxChats bounds how many chat titles a
 	// single digest body lists. Past the cap, surplus titles are
@@ -204,7 +206,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	}
 
 	chatRetentionConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
-	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr, chatDebugRetentionErr)
+	chatConfigErr := errors.Join(chatRetentionConfigErr, chatDebugRetentionErr)
 
 	// Populated inside the tx; dispatched post-commit.
 	var archivedChats []database.AutoArchiveInactiveChatsRow

@@ -26,9 +26,15 @@ Set the value to `0` to disable debug data retention entirely. The maximum value
 is `3650` days.
 
 On upgrade, deployments without an explicit chat debug retention value use the
-7-day default. The first purge can delete debug data older than 7 days before
-an admin changes the setting. Set the value to `0` before upgrading if you need
-to retain existing debug data.
+7-day default. The first purge runs when the upgraded server starts, before an
+admin can change the setting through the API. To retain existing debug data,
+insert an explicit disabled value before starting the upgraded server:
+
+```sql
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_debug_retention_days', '0')
+ON CONFLICT (key) DO NOTHING;
+```
 
 Use the experimental admin API to read or update the value:
 
