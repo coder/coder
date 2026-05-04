@@ -87,7 +87,11 @@ function InteractiveComputerUseProviderStory(
 			{...args}
 			computerUseProviderData={computerUseProviderData}
 			onSaveComputerUseProvider={(request, options) => {
-				args.onSaveComputerUseProvider(request, options);
+				if (options) {
+					args.onSaveComputerUseProvider(request, options);
+				} else {
+					args.onSaveComputerUseProvider(request);
+				}
 				setComputerUseProviderData({ provider: request.provider });
 			}}
 		/>
