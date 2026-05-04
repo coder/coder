@@ -1833,8 +1833,9 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	type chatDebugDeps struct {
-		user database.User
-		org  database.Organization
+		user        database.User
+		org         database.Organization
+		modelConfig database.ChatModelConfig
 	}
 	setupDeps := func(t *testing.T, db database.Store) chatDebugDeps {
 		t.Helper()
@@ -1844,14 +1845,24 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		return chatDebugDeps{user: user, org: org}
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+		})
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:     "openai",
+			Model:        "test-model",
+			ContextLimit: 8192,
+		})
+		return chatDebugDeps{user: user, org: org, modelConfig: modelConfig}
 	}
 	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, deps chatDebugDeps, archived bool, updatedAt time.Time) database.Chat {
 		t.Helper()
 		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID: deps.org.ID,
-			OwnerID:        deps.user.ID,
-			Title:          "debug-retention-test-chat",
+			OrganizationID:    deps.org.ID,
+			OwnerID:           deps.user.ID,
+			LastModelConfigID: deps.modelConfig.ID,
+			Title:             "debug-retention-test-chat",
 		})
 		if archived {
 			_, err := db.ArchiveChatByID(ctx, chat.ID)
