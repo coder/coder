@@ -136,7 +136,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
-		isViewingNonOwnedChat: false,
+		isViewerNotOwner: false,
+		chatOwnerId: MockUserOwner.id,
+		chatOwnerUsername: MockUserOwner.username,
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -215,6 +217,10 @@ type Story = StoryObj<typeof AgentChatPageView>;
 /** Basic conversation view with a chat title, workspace, and no archive. */
 export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+	},
 };
 
 /** Archived agent displays the read-only banner below the top bar. */
@@ -222,16 +228,42 @@ export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
 };
 
-/** Admin viewing another user's chat sees identity warning copy. */
+/** Shows an identity warning banner when viewing a chat owned by another user. */
 export const AdminViewingOtherUserChat: Story = {
-	render: () => <StoryAgentChatPageView isViewingNonOwnedChat />,
+	render: () => (
+		<StoryAgentChatPageView
+			isViewerNotOwner
+			chatOwnerId="other-user-id"
+			chatOwnerUsername="OtherUser"
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByRole("alert");
 		expect(banner).toBeVisible();
 		expect(banner).toHaveTextContent(
-			"This is not your chat. Prompting here will use the chat owner's identity.",
+			"This is not your chat. Prompting here will use @OtherUser's identity.",
 		);
+	},
+};
+
+/** Archived chats stay read-only without the identity warning banner. */
+export const ArchivedOtherUserChat: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			isArchived
+			isViewerNotOwner
+			isInputDisabled
+			chatOwnerId="other-user-id"
+			chatOwnerUsername="OtherUser"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		expect(
+			canvas.getByText("This agent has been archived and is read-only."),
+		).toBeVisible();
 	},
 };
 

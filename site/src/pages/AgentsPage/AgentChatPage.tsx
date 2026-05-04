@@ -36,6 +36,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { user as userQuery } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -646,7 +647,7 @@ const AgentChatPage: FC = () => {
 		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
-	const { user } = useAuthenticated();
+	const { user: currentUser } = useAuthenticated();
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -798,9 +799,13 @@ const AgentChatPage: FC = () => {
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
-	const isViewingNonOwnedChat = Boolean(
-		chatRecord?.owner_id && user.id !== chatRecord.owner_id,
-	);
+	const isArchived = chatRecord?.archived ?? false;
+	const isViewerNotOwner =
+		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
+	const chatOwnerQuery = useQuery({
+		...userQuery(chatRecord?.owner_id ?? ""),
+		enabled: isViewerNotOwner && !isArchived,
+	});
 	const planModeEnabled = chatRecord?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -854,7 +859,6 @@ const AgentChatPage: FC = () => {
 					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
 				}
 			: undefined;
-	const isArchived = chatRecord?.archived ?? false;
 	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
@@ -1461,7 +1465,9 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
-			isViewingNonOwnedChat={isViewingNonOwnedChat}
+			isViewerNotOwner={isViewerNotOwner}
+			chatOwnerId={chatQuery.data.owner_id}
+			chatOwnerUsername={chatOwnerQuery.data?.username}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}

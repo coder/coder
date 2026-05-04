@@ -19,7 +19,11 @@ import {
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockUserMember,
+	MockUserOwner,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -1115,24 +1119,36 @@ export const Loading: Story = {
 
 export const AdminViewingOtherUserChat: Story = {
 	parameters: {
-		queries: buildQueries(
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					owner_id: "other-user-id",
+					title: "Other user's chat",
+					status: "completed",
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{ diffUrl: undefined },
+			),
 			{
-				id: CHAT_ID,
-				...baseChatFields,
-				owner_id: "other-user-id",
-				title: "Other user's chat",
-				status: "completed",
+				key: ["user", "other-user-id"],
+				data: {
+					...MockUserMember,
+					id: "other-user-id",
+					username: "OtherUser",
+				},
 			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = await canvas.findByRole("alert");
 		expect(banner).toBeVisible();
-		expect(banner).toHaveTextContent(
-			"This is not your chat. Prompting here will use the chat owner's identity.",
+		await waitFor(() =>
+			expect(banner).toHaveTextContent(
+				"This is not your chat. Prompting here will use @OtherUser's identity.",
+			),
 		);
 	},
 };

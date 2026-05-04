@@ -87,7 +87,9 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
-	isViewingNonOwnedChat: boolean;
+	isViewerNotOwner: boolean;
+	chatOwnerId: string;
+	chatOwnerUsername?: string;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
@@ -189,7 +191,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
-	isViewingNonOwnedChat,
+	isViewerNotOwner,
+	chatOwnerId,
+	chatOwnerUsername,
 	workspaceAgent,
 	workspace,
 	chatBuildId,
@@ -405,6 +409,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		editing.editingMessageId !== null ||
 		editing.editingQueuedMessageID !== null;
 
+	const chatOwnerLabel = chatOwnerUsername
+		? `@${chatOwnerUsername}`
+		: `owner ${chatOwnerId}`;
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -455,14 +463,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 							/>
-							{isViewingNonOwnedChat && (
+							{isViewerNotOwner && !isArchived && (
 								<div
 									role="alert"
 									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
 								>
 									<TriangleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
-									This is not your chat. Prompting here will use the chat
-									owner's identity.
+									This is not your chat. Prompting here will use{" "}
+									{chatOwnerLabel}'s identity.
 								</div>
 							)}
 							{isArchived && (
