@@ -1375,7 +1375,7 @@ const gpt55ProDefaults = {
 	modelIdentifier: "gpt-5.5-pro",
 	contextLimit: "1050000",
 	maxCompletionTokens: "128000",
-	reasoningEffort: "medium",
+	reasoningEffort: "high",
 	inputCost: "30",
 	outputCost: "180",
 } satisfies OpenAIDefaultExpectations;
@@ -1522,7 +1522,7 @@ export const AnthropicKnownModelHappyPath: Story = {
 		await expect(
 			await body.findByLabelText(/Thinking Budget Tokens/i),
 		).toHaveValue("");
-		await expectReasoningEffort(body, "medium");
+		await expectReasoningEffort(body, "high");
 	},
 };
 

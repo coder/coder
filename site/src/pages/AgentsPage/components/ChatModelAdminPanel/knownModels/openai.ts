@@ -33,7 +33,7 @@ export const openAIKnownModels = [
 		aliases: [],
 		contextLimit: 1_050_000,
 		maxOutputTokens: 128_000,
-		reasoningEffort: "medium",
+		reasoningEffort: "high",
 		inputCost: 30,
 		outputCost: 180,
 		sourceMetadata: {

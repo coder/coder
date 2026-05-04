@@ -29,7 +29,7 @@ describe("openAIKnownModels", () => {
 
 		expect(reasoningEffortByModel).toEqual({
 			"gpt-5.5": "medium",
-			"gpt-5.5-pro": "medium",
+			"gpt-5.5-pro": "high",
 			"gpt-5.4": undefined,
 			"gpt-5.4-mini": "medium",
 			"gpt-5.4-nano": undefined,

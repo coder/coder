@@ -297,7 +297,7 @@ describe("applyKnownModelDefaults", () => {
 			knownModel: requireKnownModel("anthropic", "claude-opus-4-7"),
 		});
 
-		expect(getPath(result.values, "config.anthropic.effort")).toBe("medium");
+		expect(getPath(result.values, "config.anthropic.effort")).toBe("high");
 		expect(result.appliedFields).toContain("config.anthropic.effort");
 	});
 

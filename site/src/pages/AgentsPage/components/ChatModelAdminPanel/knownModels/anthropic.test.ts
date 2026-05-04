@@ -31,16 +31,16 @@ describe("anthropicKnownModels", () => {
 	});
 
 	it("declares Anthropic reasoning defaults by API support", () => {
-		for (const modelIdentifier of [
-			"claude-opus-4-7",
-			"claude-opus-4-6",
-			"claude-sonnet-4-6",
-		]) {
+		for (const modelIdentifier of ["claude-opus-4-7", "claude-opus-4-6"]) {
 			const knownModel = requireAnthropicKnownModel(modelIdentifier);
 
-			expect(knownModel.reasoningEffort).toBe("medium");
+			expect(knownModel.reasoningEffort).toBe("high");
 			expect(knownModel.thinkingBudgetTokens).toBeUndefined();
 		}
+
+		const sonnet46 = requireAnthropicKnownModel("claude-sonnet-4-6");
+		expect(sonnet46.reasoningEffort).toBe("medium");
+		expect(sonnet46.thinkingBudgetTokens).toBeUndefined();
 
 		for (const modelIdentifier of ["claude-haiku-4-5", "claude-sonnet-4-5"]) {
 			const knownModel = requireAnthropicKnownModel(modelIdentifier);
