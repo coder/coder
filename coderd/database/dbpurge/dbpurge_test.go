@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -299,8 +298,19 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
 			Return(int32(0), xerrors.New("simulated chat debug retention read error")).
 			MinTimes(1)
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceAgentStats(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
-			Return(nil).MinTimes(1)
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
@@ -1917,7 +1927,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 	}
 	createDebugRunWithStep := func(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, updatedAt time.Time, finished bool) database.ChatDebugRun {
 		t.Helper()
-		run, err := db.InsertChatDebugRun(dbauthz.AsSystemRestricted(ctx), database.InsertChatDebugRunParams{
+		run, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
 			ChatID:    chatID,
 			Kind:      string(codersdk.ChatDebugRunKindChatTurn),
 			Status:    string(codersdk.ChatDebugStatusInProgress),
@@ -1927,7 +1937,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 			UpdatedAt: sql.NullTime{Time: updatedAt, Valid: true},
 		})
 		require.NoError(t, err)
-		_, err = db.InsertChatDebugStep(dbauthz.AsSystemRestricted(ctx), database.InsertChatDebugStepParams{
+		_, err = db.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
 			RunID:      run.ID,
 			ChatID:     run.ChatID,
 			StepNumber: 1,
@@ -1939,7 +1949,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 		})
 		require.NoError(t, err)
 		if finished {
-			run, err = db.UpdateChatDebugRun(dbauthz.AsSystemRestricted(ctx), database.UpdateChatDebugRunParams{
+			run, err = db.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
 				Status:     sql.NullString{String: string(codersdk.ChatDebugStatusCompleted), Valid: true},
 				FinishedAt: sql.NullTime{Time: updatedAt, Valid: true},
 				Now:        updatedAt,

@@ -349,10 +349,6 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("duration", i.clk.Since(start)),
 		)
 
-		if i.iterationDuration != nil {
-			duration := i.clk.Since(start)
-			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
-		}
 		if i.recordsPurged != nil {
 			i.recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
 			i.recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
@@ -374,6 +370,11 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	// the failed iteration metric.
 	if chatConfigErr != nil {
 		return xerrors.Errorf("chat config read failed this tick: %w", chatConfigErr)
+	}
+
+	if i.iterationDuration != nil {
+		duration := i.clk.Since(start)
+		i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
 	}
 
 	// Dispatch audits and digests post-commit. Detached context for audit
