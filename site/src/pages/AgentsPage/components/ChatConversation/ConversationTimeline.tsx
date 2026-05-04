@@ -639,6 +639,7 @@ const ChatMessageItem = memo<{
 					<TextPreviewDialog
 						content={previewText.content}
 						fileName={previewText.fileName}
+						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
