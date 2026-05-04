@@ -6146,6 +6146,22 @@ func (p *Server) runChat(
 	// Detect computer-use subagent via the mode column.
 	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 
+	var (
+		computerUseProvider      string
+		computerUseModelProvider string
+		computerUseModelName     string
+	)
+	if isComputerUse {
+		var err error
+		computerUseProvider, computerUseModelProvider, computerUseModelName, err = p.computerUseProviderAndModelFromConfig(ctx)
+		if err != nil {
+			return result, xerrors.Errorf(
+				"resolve computer use provider and model: %w",
+				err,
+			)
+		}
+	}
+
 	// NOTE: Buffering was already started in processChat before
 	// the running status was published, so message_part events
 	// are captured from the moment subscribers can see
@@ -6717,24 +6733,16 @@ func (p *Server) runChat(
 
 	if isComputerUse {
 		// Override model for computer use subagent.
-		resolvedProvider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(
-			chattool.ComputerUseModelName,
-			chattool.ComputerUseModelProvider,
-		)
-		if resolveErr != nil {
-			return result, xerrors.Errorf("resolve computer use model metadata: %w", resolveErr)
-		}
-		cuModel, cuDebugEnabled, cuErr := p.newDebugAwareModelFromConfig(
+		cuModel, cuDebugEnabled, resolvedProvider, resolvedModel, cuErr := p.resolveComputerUseModel(
 			ctx,
 			chat,
-			chattool.ComputerUseModelProvider,
-			chattool.ComputerUseModelName,
 			providerKeys,
-			chatprovider.UserAgent(),
-			chatprovider.CoderHeaders(chat),
+			computerUseProvider,
+			computerUseModelProvider,
+			computerUseModelName,
 		)
 		if cuErr != nil {
-			return result, xerrors.Errorf("resolve computer use model: %w", cuErr)
+			return result, cuErr
 		}
 		model = cuModel
 		debugEnabled = cuDebugEnabled
@@ -6900,22 +6908,24 @@ func (p *Server) runChat(
 		}
 	}
 
-	if !isPlanModeTurn && !isExploreSubagent && isComputerUse {
-		desktopGeometry := workspacesdk.DefaultDesktopGeometry()
-		providerTools = append(providerTools, chatloop.ProviderTool{
-			Definition: chattool.ComputerUseProviderTool(
-				desktopGeometry.DeclaredWidth,
-				desktopGeometry.DeclaredHeight,
-			),
-			Runner: chattool.NewComputerUseTool(
-				desktopGeometry.DeclaredWidth,
-				desktopGeometry.DeclaredHeight,
-				workspaceCtx.getWorkspaceConn,
-				storeChatAttachment,
-				quartz.NewReal(),
-				p.logger.Named("computer_use"),
-			),
-		})
+	providerTools, err = appendComputerUseProviderTool(
+		providerTools,
+		computerUseProviderToolOptions{
+			provider:         computerUseProvider,
+			isPlanModeTurn:   isPlanModeTurn,
+			isComputerUse:    isComputerUse,
+			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			storeFile:        storeChatAttachment,
+			clock:            p.clock,
+			logger:           p.logger.Named("computer_use"),
+		},
+	)
+	if err != nil {
+		return result, xerrors.Errorf(
+			"register computer use provider tool for provider %q: %w",
+			computerUseProvider,
+			err,
+		)
 	}
 
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(

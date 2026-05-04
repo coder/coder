@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/workspace/{workspacename}/builds/{buildnumber}`
+`GET /api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}`
 
 ### Parameters
 
@@ -256,7 +256,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspacebuilds/{workspacebuild}`
+`GET /api/v2/workspacebuilds/{workspacebuild}`
 
 ### Parameters
 
@@ -499,7 +499,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /workspacebuilds/{workspacebuild}/cancel`
+`PATCH /api/v2/workspacebuilds/{workspacebuild}/cancel`
 
 ### Parameters
 
@@ -550,7 +550,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspacebuilds/{workspacebuild}/logs`
+`GET /api/v2/workspacebuilds/{workspacebuild}/logs`
 
 ### Parameters
 
@@ -625,7 +625,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspacebuilds/{workspacebuild}/parameters`
+`GET /api/v2/workspacebuilds/{workspacebuild}/parameters`
 
 ### Parameters
 
@@ -675,7 +675,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspacebuilds/{workspacebuild}/resources`
+`GET /api/v2/workspacebuilds/{workspacebuild}/resources`
 
 ### Parameters
 
@@ -971,7 +971,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspacebuilds/{workspacebuild}/state`
+`GET /api/v2/workspacebuilds/{workspacebuild}/state`
 
 ### Parameters
 
@@ -1214,7 +1214,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspacebuilds/{workspacebuild}/state`
+`PUT /api/v2/workspacebuilds/{workspacebuild}/state`
 
 > Body parameter
 
@@ -1252,7 +1252,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/tim
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspacebuilds/{workspacebuild}/timings`
+`GET /api/v2/workspacebuilds/{workspacebuild}/timings`
 
 ### Parameters
 
@@ -1320,7 +1320,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/builds`
+`GET /api/v2/workspaces/{workspace}/builds`
 
 ### Parameters
 
@@ -1759,7 +1759,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaces/{workspace}/builds`
+`POST /api/v2/workspaces/{workspace}/builds`
 
 > Body parameter
 

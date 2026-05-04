@@ -203,7 +203,9 @@ func TestRefreshToken(t *testing.T) {
 		}
 
 		// Try again with a bad refresh token error. This will invalidate the
-		// refresh token, and not retry again. Expect DB call to remove the refresh token
+		// refresh token, and not retry again. Expect DB calls to check for
+		// concurrent refresh (GetExternalAuthLink) and then remove the refresh token.
+		mDB.EXPECT().GetExternalAuthLink(gomock.Any(), gomock.Any()).Return(link, nil).Times(1)
 		mDB.EXPECT().UpdateExternalAuthLinkRefreshToken(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 		refreshErr = &oauth2.RetrieveError{ // github error
 			Response: &http.Response{
@@ -223,6 +225,57 @@ func TestRefreshToken(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Equal(t, refreshCount, totalRefreshes)
+	})
+
+	// ConcurrentRefreshRace tests that when multiple concurrent requests
+	// race to refresh the same token, the loser does not poison the
+	// database with a cached "bad_refresh_token" failure. This
+	// reproduces the issue described in coder/coder#17069 where
+	// providers with single-use refresh tokens (e.g., GitHub Apps)
+	// reject the second refresh attempt, and the resulting error was
+	// incorrectly cached.
+	t.Run("ConcurrentRefreshRace", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return &oauth2.RetrieveError{
+						Response: &http.Response{
+							StatusCode: http.StatusOK,
+						},
+						ErrorCode: "bad_refresh_token",
+					}
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {},
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		link.OAuthExpiry = time.Now().Add(time.Hour * -1)
+
+		// Simulate a concurrent winner: when the loser re-reads the
+		// DB, the refresh token has changed (the winner stored a new
+		// one). The loser should return the updated link instead of
+		// caching the failure.
+		winnerLink := link
+		winnerLink.OAuthRefreshToken = "winner-refresh-token"
+		winnerLink.OAuthAccessToken = "winner-access-token"
+		mDB.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		}).Return(winnerLink, nil).Times(1)
+
+		// UpdateExternalAuthLinkRefreshToken should NOT be called
+		// because the re-read detected the concurrent refresh.
+
+		result, err := config.RefreshToken(ctx, mDB, link)
+		require.NoError(t, err, "loser should succeed using the winner's token")
+		require.Equal(t, "winner-access-token", result.OAuthAccessToken)
+		require.Equal(t, "winner-refresh-token", result.OAuthRefreshToken)
 	})
 
 	// ValidateFailure tests if the token is no longer valid with a 401 response.

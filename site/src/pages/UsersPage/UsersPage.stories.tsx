@@ -72,9 +72,6 @@ const meta: Meta<typeof UsersPage> = {
 	component: UsersPage,
 	parameters,
 	decorators: [withToaster, withAuthProvider, withDashboardProvider],
-	args: {
-		defaultNewPassword: "edWbqYiaVpEiEWwI",
-	},
 };
 
 export default meta;
@@ -377,8 +374,10 @@ export const UpdateUserRoleSuccess: Story = {
 			count: 60,
 		});
 
-		await user.click(within(userRow).getByLabelText("Edit user roles"));
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		await user.click(screen.getByText("Edit roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
+		await user.click(screen.getByText("Confirm"));
 		await screen.findByText(/roles updated successfully/);
 	},
 };
@@ -393,8 +392,10 @@ export const UpdateUserRoleError: Story = {
 		}
 		spyOn(API, "updateUserRoles").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("Edit user roles"));
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		await user.click(screen.getByText("Edit roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
+		await user.click(screen.getByText("Confirm"));
 		await screen.findByText(/Error updating user roles/);
 	},
 };

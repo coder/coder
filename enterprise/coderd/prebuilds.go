@@ -21,7 +21,7 @@ import (
 // @Produce json
 // @Tags Prebuilds
 // @Success 200 {object} codersdk.PrebuildsSettings
-// @Router /prebuilds/settings [get]
+// @Router /api/v2/prebuilds/settings [get]
 func (api *API) prebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 	settingsJSON, err := api.Database.GetPrebuildsSettings(r.Context())
 	if err != nil {
@@ -55,7 +55,7 @@ func (api *API) prebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.PrebuildsSettings true "Prebuilds settings request"
 // @Success 200 {object} codersdk.PrebuildsSettings
 // @Success 304
-// @Router /prebuilds/settings [put]
+// @Router /api/v2/prebuilds/settings [put]
 func (api *API) putPrebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

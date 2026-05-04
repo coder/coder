@@ -149,7 +149,11 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
+	onTextPreview?: (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
@@ -326,6 +330,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
 		null,
 	);
+	const [previewTextMediaType, setPreviewTextMediaType] = useState<
+		string | null
+	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
 		"main",
@@ -514,12 +521,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		onRemoveAttachment?.(file);
 	};
 
-	const handleTextPreview = (content: string, fileName: string) => {
+	const handleTextPreview = (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => {
 		if (onTextPreview) {
-			onTextPreview(content, fileName);
+			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
+			setPreviewTextMediaType(mediaType ?? null);
 		}
 	};
 
@@ -783,7 +795,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
 					aria-label="Chat message"
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
@@ -1255,9 +1267,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<TextPreviewDialog
 					content={previewText}
 					fileName={previewTextFileName ?? undefined}
+					mediaType={previewTextMediaType ?? undefined}
 					onClose={() => {
 						setPreviewText(null);
 						setPreviewTextFileName(null);
+						setPreviewTextMediaType(null);
 					}}
 				/>
 			)}

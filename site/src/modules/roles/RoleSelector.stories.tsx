@@ -11,11 +11,11 @@ import {
 import { RoleSelector } from "./RoleSelector";
 
 const meta: Meta<typeof RoleSelector> = {
-	title: "pages/CreateUserPage/RoleSelector",
+	title: "modules/roles/RoleSelector",
 	component: RoleSelector,
 	args: {
 		onChange: action("change"),
-		selectedRoles: [],
+		selectedRoles: new Set(),
 	},
 };
 
@@ -38,33 +38,33 @@ const someNonAssignable = [
 
 export const Default: Story = {
 	args: {
-		roles: allAssignable,
+		availableRoles: allAssignable,
 	},
 };
 
 export const WithSelections: Story = {
 	args: {
-		roles: allAssignable,
-		selectedRoles: [MockUserAdminRole.name, MockAuditorRole.name],
+		availableRoles: allAssignable,
+		selectedRoles: new Set([MockUserAdminRole.name, MockAuditorRole.name]),
 	},
 };
 
 export const WithNonAssignableRoles: Story = {
 	args: {
-		roles: someNonAssignable,
+		availableRoles: someNonAssignable,
 	},
 };
 
 export const Loading: Story = {
 	args: {
-		roles: [],
+		availableRoles: [],
 		loading: true,
 	},
 };
 
 export const WithError: Story = {
 	args: {
-		roles: [],
+		availableRoles: [],
 		error: mockApiError({ message: "Failed to fetch assignable roles." }),
 	},
 };

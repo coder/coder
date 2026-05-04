@@ -74,7 +74,9 @@ const ScrollToBottomButton: FC<{
 	};
 
 	return (
-		<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+		// Floating overlay above the scroll container. The button has its own
+		// fixed-size box so the wrapper does not need overflow handling.
+		<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center py-2">
 			<Button
 				variant="outline"
 				size="icon"
@@ -139,7 +141,15 @@ const ChatScrollContainer: FC<{
 				ref={setScrollContainer}
 				data-testid="scroll-container"
 				aria-busy={isFetchingMoreMessages || undefined}
-				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				// `react-infinite-scroll-component` renders two wrapper divs
+				// between this scroller and the rendered messages. Force both
+				// out of the layout tree with `display: contents` so that
+				// (a) `position: sticky` on a user message resolves against
+				// this scroller rather than the inner wrapper (which has
+				// `overflow: auto` baked in by the library), and (b) the
+				// column-reverse inverse layout places the library's
+				// load-more sentinel at the visual top of the content stack.
+				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [&>[class$=outerdiv]]:contents [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div aria-hidden className="flex-1 basis-0" />
 				<InfiniteScroll
@@ -152,7 +162,12 @@ const ChatScrollContainer: FC<{
 					hasChildren={messageCount > 0}
 					loader={isFetchingMoreMessages ? <div aria-hidden /> : null}
 					endMessage={null}
-					style={{ display: "flex", flexDirection: "column-reverse" }}
+					// `display: contents` removes this wrapper's box from the
+					// layout tree. Combined with the `outerdiv:contents`
+					// selector on the scroller above, the children render as
+					// direct flex items of the scroller so sticky messages
+					// can pin to its top edge.
+					style={{ display: "contents" }}
 				>
 					{children}
 				</InfiniteScroll>

@@ -195,6 +195,11 @@ type RunOptions struct {
 type ProviderTool struct {
 	Definition fantasy.Tool
 	Runner     fantasy.AgentTool
+	// ResultProviderMetadata extracts provider-specific metadata from successful
+	// local runner responses. The chat loop attaches returned metadata to the tool
+	// result sent back to the model. OpenAI computer-use uses this to request
+	// original screenshot detail for image results.
+	ResultProviderMetadata func(response fantasy.ToolResponse) fantasy.ProviderMetadata
 }
 
 // stepResult holds the accumulated output of a single streaming
@@ -1020,13 +1025,22 @@ func executeTools(
 		toolMap[t.Info().Name] = t
 	}
 	providerRunnerNames := make(map[string]struct{}, len(providerTools))
+	resultProviderMetadata := make(
+		map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
+		len(providerTools),
+	)
 	// Include runners from provider tools so locally-executed
 	// provider tools (e.g. computer use) can be dispatched.
 	for _, pt := range providerTools {
-		if pt.Runner != nil {
-			name := pt.Runner.Info().Name
-			toolMap[name] = pt.Runner
-			providerRunnerNames[name] = struct{}{}
+		if pt.Runner == nil {
+			continue
+		}
+
+		name := pt.Runner.Info().Name
+		toolMap[name] = pt.Runner
+		providerRunnerNames[name] = struct{}{}
+		if pt.ResultProviderMetadata != nil {
+			resultProviderMetadata[name] = pt.ResultProviderMetadata
 		}
 	}
 
@@ -1052,7 +1066,19 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, logger, provider, model, builtinToolNames, activeTools, providerRunnerNames)
+			results[i] = executeSingleTool(
+				ctx,
+				toolMap,
+				tc,
+				metrics,
+				logger,
+				provider,
+				model,
+				builtinToolNames,
+				activeTools,
+				providerRunnerNames,
+				resultProviderMetadata,
+			)
 		}()
 	}
 	wg.Wait()
@@ -1349,6 +1375,7 @@ func executeSingleTool(
 	builtinToolNames map[string]bool,
 	activeTools []string,
 	providerRunnerNames map[string]struct{},
+	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1428,6 +1455,18 @@ func executeSingleTool(
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
 			Text: strings.ToValidUTF8(resp.Content, "\uFFFD"),
+		}
+	}
+
+	if _, isError := result.Result.(fantasy.ToolResultOutputContentError); isError {
+		return result
+	}
+	if len(result.ProviderMetadata) == 0 {
+		if callback := resultProviderMetadata[tc.ToolName]; callback != nil {
+			metadata := callback(resp)
+			if len(metadata) > 0 {
+				result.ProviderMetadata = metadata
+			}
 		}
 	}
 	return result

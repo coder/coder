@@ -30,7 +30,7 @@ import (
 // @Param request body codersdk.CustomRoleRequest true "Insert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles [post]
+// @Router /api/v2/organizations/{organization}/members/roles [post]
 func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -97,7 +97,7 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.CustomRoleRequest true "Update role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles [put]
+// @Router /api/v2/organizations/{organization}/members/roles [put]
 func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -187,7 +187,7 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param roleName path string true "Role name"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles/{roleName} [delete]
+// @Router /api/v2/organizations/{organization}/members/roles/{roleName} [delete]
 func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

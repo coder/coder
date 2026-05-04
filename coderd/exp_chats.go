@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -4650,6 +4651,58 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	provider, err := api.Database.GetChatComputerUseProvider(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching computer use provider.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
+		Provider: chattool.DefaultComputerUseProvider(provider),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatComputerUseProviderRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if !chattool.IsSupportedComputerUseProvider(req.Provider) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid computer use provider.",
+			Detail: fmt.Sprintf(
+				"Expected one of: %s. Got %q.",
+				strings.Join(chattool.SupportedComputerUseProviders(), ", "),
+				req.Provider,
+			),
+		})
+		return
+	}
+
+	if err := api.Database.UpsertChatComputerUseProvider(ctx, req.Provider); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating computer use provider.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 func (api *API) deploymentChatDebugLoggingEnabled() bool {
 	return api.DeploymentValues != nil && api.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value()
 }
@@ -4977,7 +5030,7 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Produce json
 // @Success 200 {object} codersdk.ChatRetentionDaysResponse
-// @Router /experimental/chats/config/retention-days [get]
+// @Router /api/experimental/chats/config/retention-days [get]
 // @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -5007,7 +5060,7 @@ const retentionDaysMaximum = 3650 // ~10 years
 // @Accept json
 // @Param request body codersdk.UpdateChatRetentionDaysRequest true "Request body"
 // @Success 204
-// @Router /experimental/chats/config/retention-days [put]
+// @Router /api/experimental/chats/config/retention-days [put]
 // @x-apidocgen {"skip": true}
 func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -7432,7 +7485,7 @@ func (api *API) hasEffectiveCentralProviderAPIKey(
 // @Param start_date query string true "Start date (RFC3339)"
 // @Param end_date query string true "End date (RFC3339)"
 // @Success 200 {object} codersdk.PRInsightsResponse
-// @Router /chats/insights/pull-requests [get]
+// @Router /api/experimental/chats/insights/pull-requests [get]
 // @x-apidocgen {"skip": true}
 func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

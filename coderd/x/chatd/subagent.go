@@ -77,22 +77,28 @@ type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
 }
 
-// isAnthropicConfigured reports whether an Anthropic API key is
-// available, either from static provider keys or from the database.
-func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
-	if p.providerAPIKeys.APIKey("anthropic") != "" {
-		return true
+// providerConfigured reports whether a provider has an API key from
+// static configuration or from the database provider configuration.
+func (p *Server) providerConfigured(ctx context.Context, provider string) (bool, error) {
+	normalizedProvider := chatprovider.NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return false, nil
 	}
+	if p.providerAPIKeys.APIKey(normalizedProvider) != "" {
+		return true, nil
+	}
+
 	dbProviders, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
-		return false
+		return false, xerrors.Errorf("list enabled chat providers: %w", err)
 	}
 	for _, prov := range dbProviders {
-		if chatprovider.NormalizeProvider(prov.Provider) == "anthropic" && strings.TrimSpace(prov.APIKey) != "" {
-			return true
+		if chatprovider.NormalizeProvider(prov.Provider) == normalizedProvider &&
+			strings.TrimSpace(prov.APIKey) != "" {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {
