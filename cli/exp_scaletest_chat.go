@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/chat"
+	"github.com/coder/coder/v2/scaletest/chatcontrol"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
@@ -34,6 +35,9 @@ type chatCommandConfig struct {
 	Template           string
 	Prompt             string
 	Turns              int64
+	ToolCallsPerChat   int64
+	ToolCallSeed       int64
+	ToolCallCommand    string
 	FollowUpPrompt     string
 	FollowUpStartDelay time.Duration
 	LLMMockURL         string
@@ -45,6 +49,9 @@ func (c chatCommandConfig) Validate() error {
 	}
 	if c.FollowUpStartDelay > 0 && c.Turns < 2 {
 		return xerrors.Errorf("--follow-up-start-delay requires --turns to be at least 2")
+	}
+	if err := validateChatToolCallConfig(c.LLMMockURL, c.Turns, c.ToolCallsPerChat); err != nil {
+		return err
 	}
 
 	switch {
@@ -64,6 +71,23 @@ func (c chatCommandConfig) Validate() error {
 	}
 	if c.WorkspaceCount != 0 {
 		return xerrors.Errorf("--workspace-count may only be used with --template")
+	}
+	return nil
+}
+
+func validateChatToolCallConfig(llmMockURL string, turns int64, toolCallsPerChat int64) error {
+	if toolCallsPerChat < 0 {
+		return xerrors.Errorf("--tool-calls-per-chat must not be negative")
+	}
+	if toolCallsPerChat == 0 {
+		return nil
+	}
+	if llmMockURL == "" {
+		return xerrors.Errorf("--tool-calls-per-chat requires --llm-mock-url")
+	}
+	maxToolCalls := turns * chat.MaxToolCallStepsPerTurn
+	if toolCallsPerChat > maxToolCalls {
+		return xerrors.Errorf("--tool-calls-per-chat must be at most %d for %d turns", maxToolCalls, turns)
 	}
 	return nil
 }
@@ -169,12 +193,17 @@ func buildChatHarness(client *codersdk.Client, tracer trace.Tracer, timeoutStrat
 
 func addChatRunner(chatHarness *harness.TestHarness, client *codersdk.Client, tracer trace.Tracer, workspaceIndex int, chatIndex int64, targetWorkspaceID uuid.UUID, commandConfig chatCommandConfig, runID string, modelConfigID *uuid.UUID, metrics *chat.Metrics, metricLabels []string, barriers *chatRunnerBarriers) error {
 	barriers.addRunner()
+	chatSeed := chatcontrol.DeriveChatSeed(commandConfig.ToolCallSeed, runID, fmt.Sprintf("workspace-%d", workspaceIndex), fmt.Sprintf("chat-%d", chatIndex))
 	cfg := chat.Config{
 		RunID:                  runID,
 		WorkspaceID:            targetWorkspaceID,
 		Prompt:                 commandConfig.Prompt,
 		ModelConfigID:          modelConfigID,
 		Turns:                  int(commandConfig.Turns),
+		ToolCallsPerChat:       int(commandConfig.ToolCallsPerChat),
+		ToolCallSeed:           chatSeed,
+		ToolCallTool:           chatcontrol.DefaultToolName,
+		ToolCallCommand:        commandConfig.ToolCallCommand,
 		FollowUpPrompt:         commandConfig.FollowUpPrompt,
 		FollowUpStartDelay:     commandConfig.FollowUpStartDelay,
 		ReadyWaitGroup:         barriers.readyWaitGroup,
@@ -291,6 +320,9 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		template           string
 		prompt             string
 		turns              int64
+		toolCallsPerChat   int64
+		toolCallSeed       int64
+		toolCallCommand    string
 		followUpPrompt     string
 		followUpStartDelay time.Duration
 		llmMockURL         string
@@ -314,6 +346,9 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				Template:           template,
 				Prompt:             prompt,
 				Turns:              turns,
+				ToolCallsPerChat:   toolCallsPerChat,
+				ToolCallSeed:       toolCallSeed,
+				ToolCallCommand:    toolCallCommand,
 				FollowUpPrompt:     followUpPrompt,
 				FollowUpStartDelay: followUpStartDelay,
 				LLMMockURL:         llmMockURL,
@@ -354,6 +389,24 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Description: "Number of user→assistant exchanges per chat conversation.",
 			Default:     "10",
 			Value:       serpent.Int64Of(&turns),
+		},
+		{
+			Flag:        "tool-calls-per-chat",
+			Description: "Total number of mock tool-call rounds to distribute across each chat. --turns already controls the number of assistant messages.",
+			Default:     "0",
+			Value:       serpent.Int64Of(&toolCallsPerChat),
+		},
+		{
+			Flag:        "tool-call-seed",
+			Description: "Optional deterministic seed for distributing tool calls across turns. Defaults to 0, which derives per-chat seeds from the run id.",
+			Default:     "0",
+			Value:       serpent.Int64Of(&toolCallSeed),
+		},
+		{
+			Flag:        "tool-call-command",
+			Description: "Harmless execute command used when the mock emits a tool call.",
+			Default:     chatcontrol.DefaultToolCommand,
+			Value:       serpent.StringOf(&toolCallCommand),
 		},
 		{
 			Flag:        "follow-up-prompt",

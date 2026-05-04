@@ -409,6 +409,9 @@ func (r *Runner) GetMetrics() map[string]any {
 		"event_count":              result.eventCount,
 		"turns_requested":          r.cfg.Turns,
 		"turns_completed":          result.turnsCompleted,
+		"tool_calls_per_chat":      r.cfg.ToolCallsPerChat,
+		"tool_call_seed":           r.cfg.ToolCallSeed,
+		"tool_call_command":        r.cfg.ToolCallCommand,
 	}
 }
 
