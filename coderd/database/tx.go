@@ -29,8 +29,20 @@ const maxRetries = 5
 // fail.  Let's say the transaction that sets A=2 succeeds.  Then the first B=2
 // transaction fails, but here we retry.  The second attempt we read A=2, B=1,
 // then write A=2, B=2 as desired, and this succeeds.
+//
+// When called inside an existing transaction, ReadModifyUpdate runs the
+// closure once at RepeatableRead isolation without its own retry loop and
+// lets the outermost ReadModifyUpdate handle retries. A nested retry loop
+// would re-execute against an aborted parent transaction; PostgreSQL would
+// turn the next statement into SQLSTATE 25P02 (in_failed_sql_transaction),
+// which would mask the original 40001 from the outermost retry loop.
 func ReadModifyUpdate(db Store, f func(tx Store) error,
 ) error {
+	if db.InTransaction() {
+		return db.InTx(f, &TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+		})
+	}
 	var err error
 	for retries := 0; retries < maxRetries; retries++ {
 		err = db.InTx(f, &TxOptions{

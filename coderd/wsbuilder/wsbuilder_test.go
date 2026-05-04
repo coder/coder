@@ -1242,6 +1242,12 @@ func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
 	mDB := dbmock.NewMockStore(ctrl)
 	mTx := dbmock.NewMockStore(ctrl)
 
+	// ReadModifyUpdate queries InTransaction once on the top-level Store
+	// to decide whether to run its retry loop, and once on the inner
+	// Store to take the no-retry fast path when nested.
+	mDB.EXPECT().InTransaction().Return(false).AnyTimes()
+	mTx.EXPECT().InTransaction().Return(true).AnyTimes()
+
 	// we expect to be run in a transaction; we use mTx to record the
 	// "in transaction" calls.
 	mDB.EXPECT().InTx(

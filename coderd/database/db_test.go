@@ -127,7 +127,7 @@ func TestNestedInTxStricterIsolationDefaultParent(t *testing.T) {
 
 	// Outer uses default isolation, inner requests RepeatableRead.
 	// After normalization default becomes ReadCommitted, so the
-	// inner level is stricter and a Warn log should fire.
+	// inner level is stricter and a Critical log should fire.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
 			return nil
@@ -167,7 +167,7 @@ func TestNestedInTxStricterIsolationBothExplicit(t *testing.T) {
 	db := database.New(sqlDB, logger)
 
 	// Outer uses RepeatableRead, inner requests Serializable.
-	// Both are explicit and the inner is stricter, so a Warn
+	// Both are explicit and the inner is stricter, so a Critical
 	// log should fire.
 	err := db.InTx(func(outer database.Store) error {
 		return outer.InTx(func(_ database.Store) error {
@@ -275,6 +275,38 @@ func TestNestedInTxDefaultVsReadCommittedNoLog(t *testing.T) {
 		return e.Level == slog.LevelCritical
 	})
 	require.Empty(t, entries, "should not log when default and ReadCommitted are equivalent after normalization")
+}
+
+func TestInTransaction_TopLevel(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB, slog.Logger{})
+	require.False(t, db.InTransaction(),
+		"top-level Store should not report itself in a transaction")
+}
+
+func TestInTransaction_Nested(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB, slog.Logger{})
+
+	require.False(t, db.InTransaction())
+	var innerVal bool
+	err := db.InTx(func(tx database.Store) error {
+		innerVal = tx.InTransaction()
+		return nil
+	}, nil)
+	require.NoError(t, err)
+	require.True(t, innerVal,
+		"Store passed into InTx closure should report itself in a transaction")
 }
 
 func testSQLDB(t testing.TB) *sql.DB {
