@@ -65,6 +65,9 @@ const SSHKeysPage = lazy(
 const TokensPage = lazy(
 	() => import("./pages/UserSettingsPage/TokensPage/TokensPage"),
 );
+const SecretsPage = lazy(
+	() => import("./pages/UserSettingsPage/SecretsPage/SecretsPage"),
+);
 const WorkspaceProxyPage = lazy(
 	() =>
 		import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
@@ -639,6 +642,7 @@ export const router = createBrowserRouter(
 							<Route index element={<TokensPage />} />
 							<Route path="new" element={<CreateTokenPage />} />
 						</Route>
+						<Route path="secrets" element={<SecretsPage />} />
 						<Route path="notifications" element={<UserNotificationsPage />} />
 					</Route>
 

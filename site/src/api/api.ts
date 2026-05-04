@@ -1760,6 +1760,54 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUserSecrets = async (userId: string): Promise<TypesGen.UserSecret[]> => {
+		const response = await this.axios.get<TypesGen.UserSecret[]>(
+			`/api/v2/users/${userId}/secrets`,
+		);
+
+		return response.data;
+	};
+
+	getUserSecret = async (
+		userId: string,
+		name: string,
+	): Promise<TypesGen.UserSecret> => {
+		const response = await this.axios.get<TypesGen.UserSecret>(
+			`/api/v2/users/${userId}/secrets/${name}`,
+		);
+
+		return response.data;
+	};
+
+	createUserSecret = async (
+		userId: string,
+		request: TypesGen.CreateUserSecretRequest,
+	): Promise<TypesGen.UserSecret> => {
+		const response = await this.axios.post<TypesGen.UserSecret>(
+			`/api/v2/users/${userId}/secrets`,
+			request,
+		);
+
+		return response.data;
+	};
+
+	updateUserSecret = async (
+		userId: string,
+		name: string,
+		request: TypesGen.UpdateUserSecretRequest,
+	): Promise<TypesGen.UserSecret> => {
+		const response = await this.axios.patch<TypesGen.UserSecret>(
+			`/api/v2/users/${userId}/secrets/${name}`,
+			request,
+		);
+
+		return response.data;
+	};
+
+	deleteUserSecret = async (userId: string, name: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/users/${userId}/secrets/${name}`);
+	};
+
 	getWorkspaceBuilds = async (
 		workspaceId: string,
 		req?: TypesGen.WorkspaceBuildsRequest,

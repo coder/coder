@@ -5,12 +5,14 @@ import {
 	FingerprintIcon,
 	KeyIcon,
 	LockIcon,
+	LockKeyholeIcon,
 	ShieldIcon,
 	UserIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import type { User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { GitIcon } from "#/components/Icons/GitIcon";
 import {
 	Sidebar as BaseSidebar,
@@ -64,6 +66,16 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			</SidebarNavItem>
 			<SidebarNavItem href="tokens" icon={KeyIcon}>
 				Tokens
+			</SidebarNavItem>
+			<SidebarNavItem href="secrets" icon={LockKeyholeIcon}>
+				<span className="flex min-w-0 items-center gap-2">
+					<span>Secrets</span>
+					<FeatureStageBadge
+						aria-hidden="true"
+						contentType="early_access"
+						size="sm"
+					/>
+				</span>
 			</SidebarNavItem>
 			<SidebarNavItem href="notifications" icon={BellIcon}>
 				Notifications

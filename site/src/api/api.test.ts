@@ -326,4 +326,99 @@ describe("api.ts", () => {
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
 		});
 	});
+
+	describe("user secrets endpoints", () => {
+		const userId = "me";
+		const secretName = "EXAMPLE_TOKEN";
+		const userSecret: TypesGen.UserSecret = {
+			id: "00000000-0000-0000-0000-000000000001",
+			name: secretName,
+			description: "Example token for tests",
+			env_name: secretName,
+			file_path: "",
+			created_at: "2026-05-04T00:00:00Z",
+			updated_at: "2026-05-04T00:00:00Z",
+		};
+
+		it("lists user secrets with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: [userSecret],
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecrets(userId);
+
+			expect(axiosMockGet).toHaveBeenCalledWith("/api/v2/users/me/secrets");
+			expect(result).toStrictEqual([userSecret]);
+		});
+
+		it("gets a user secret with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecret(userId, secretName);
+
+			expect(axiosMockGet).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/EXAMPLE_TOKEN",
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("creates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.CreateUserSecretRequest = {
+				name: secretName,
+				value: "",
+				description: "Example token for tests",
+				env_name: secretName,
+			};
+			const axiosMockPost = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.post = axiosMockPost;
+
+			const result = await API.createUserSecret(userId, request);
+
+			expect(axiosMockPost).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets",
+				request,
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("updates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.UpdateUserSecretRequest = {
+				description: "Updated example token for tests",
+			};
+			const updatedSecret: TypesGen.UserSecret = {
+				...userSecret,
+				description: "Updated example token for tests",
+				updated_at: "2026-05-04T00:01:00Z",
+			};
+			const axiosMockPatch = vi.fn().mockResolvedValueOnce({
+				data: updatedSecret,
+			});
+			axiosInstance.patch = axiosMockPatch;
+
+			const result = await API.updateUserSecret(userId, secretName, request);
+
+			expect(axiosMockPatch).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/EXAMPLE_TOKEN",
+				request,
+			);
+			expect(result).toStrictEqual(updatedSecret);
+		});
+
+		it("deletes a user secret with the correct method and URL", async () => {
+			const axiosMockDelete = vi.fn().mockResolvedValueOnce(undefined);
+			axiosInstance.delete = axiosMockDelete;
+
+			await API.deleteUserSecret(userId, secretName);
+
+			expect(axiosMockDelete).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/EXAMPLE_TOKEN",
+			);
+		});
+	});
 });
