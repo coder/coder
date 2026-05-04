@@ -515,7 +515,7 @@ message ReportBoundaryLogsRequest {
 	string session_id = 2;
 	// confined_process is the name of the process that boundary is
 	// confining (e.g. "claude-code", "codex", "copilot").
-	string confined_process = 3;
+	string confined_process_name = 3;
 }
 
 message ReportBoundaryLogsResponse {}
