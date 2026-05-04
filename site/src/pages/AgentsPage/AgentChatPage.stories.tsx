@@ -122,7 +122,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 
 const baseChatFields = {
 	organization_id: "test-org-id",
-	owner_id: "owner-id",
+	owner_id: MockUserOwner.id,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
@@ -1110,6 +1110,30 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+export const AdminViewingOtherUserChat: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				owner_id: "other-user-id",
+				title: "Other user's chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = await canvas.findByRole("alert");
+		expect(banner).toBeVisible();
+		expect(banner).toHaveTextContent(
+			"This is not your chat. Prompting here will use the chat owner's identity.",
+		);
 	},
 };
 

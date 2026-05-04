@@ -136,6 +136,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
+		isViewingNonOwnedChat: false,
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -219,6 +220,19 @@ export const Default: Story = {
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
+};
+
+/** Admin viewing another user's chat sees identity warning copy. */
+export const AdminViewingOtherUserChat: Story = {
+	render: () => <StoryAgentChatPageView isViewingNonOwnedChat />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("alert");
+		expect(banner).toBeVisible();
+		expect(banner).toHaveTextContent(
+			"This is not your chat. Prompting here will use the chat owner's identity.",
+		);
+	},
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
