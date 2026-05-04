@@ -1480,7 +1480,7 @@ func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) 
 	))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
-	user, org, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(t, db)
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-computer-use",
 	)
@@ -1508,10 +1508,8 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 	model := insertInternalChatModelConfigForProvider(
-		ctx,
 		t,
 		db,
-		user.ID,
 		chattool.ComputerUseProviderOpenAI,
 		"gpt-4o-mini",
 		true,
@@ -1557,7 +1555,7 @@ func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 	})
 
 	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(t, db)
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-desktop-disabled",
 	)

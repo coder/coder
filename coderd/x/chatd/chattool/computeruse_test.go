@@ -9,7 +9,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -138,7 +138,7 @@ func TestComputerUseProviderTool(t *testing.T) {
 		geometry.DeclaredHeight,
 	)
 	require.NoError(t, err)
-	assert.True(t, fantasyopenai.IsComputerUseTool(openAITool))
+	assert.True(t, openaicomputeruse.IsTool(openAITool))
 
 	_, err = chattool.ComputerUseProviderTool(
 		"unsupported",

@@ -24,6 +24,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -174,7 +175,7 @@ func TestAppendComputerUseProviderTool(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, providerTools, 1)
-	require.True(t, fantasyopenai.IsComputerUseTool(providerTools[0].Definition))
+	require.True(t, openaicomputeruse.IsTool(providerTools[0].Definition))
 	require.Equal(t, "computer", providerTools[0].Definition.GetName())
 	require.Equal(t, "computer", providerTools[0].Runner.Info().Name)
 	require.NotNil(t, providerTools[0].ResultProviderMetadata)
@@ -182,9 +183,7 @@ func TestAppendComputerUseProviderTool(t *testing.T) {
 	metadata := providerTools[0].ResultProviderMetadata(
 		fantasy.NewImageResponse([]byte("png"), "image/png"),
 	)
-	outputOptions, ok := metadata[fantasyopenai.Name].(*fantasyopenai.ComputerCallOutputOptions)
-	require.True(t, ok)
-	require.Equal(t, "original", outputOptions.Detail)
+	require.NotNil(t, metadata)
 }
 
 func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
@@ -242,40 +241,6 @@ func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T
 	require.Len(t, providerTools, 1)
 	require.Equal(t, "computer", providerTools[0].Definition.GetName())
 	require.Nil(t, providerTools[0].ResultProviderMetadata)
-}
-
-func TestOpenAIComputerUseResultProviderMetadata(t *testing.T) {
-	t.Parallel()
-
-	t.Run("SuccessfulImage", func(t *testing.T) {
-		t.Parallel()
-
-		metadata := openAIComputerUseResultProviderMetadata(
-			fantasy.NewImageResponse([]byte("png"), "image/png"),
-		)
-		outputOptions, ok := metadata[fantasyopenai.Name].(*fantasyopenai.ComputerCallOutputOptions)
-		require.True(t, ok)
-		require.Equal(t, "original", outputOptions.Detail)
-	})
-
-	tests := []struct {
-		name     string
-		response fantasy.ToolResponse
-	}{
-		{name: "Error", response: fantasy.NewTextErrorResponse("failed")},
-		{name: "Text", response: fantasy.NewTextResponse("ok")},
-		{name: "EmptyImage", response: fantasy.NewImageResponse(nil, "image/png")},
-		{name: "NonImageMediaType", response: fantasy.NewImageResponse([]byte("png"), "application/octet-stream")},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			metadata := openAIComputerUseResultProviderMetadata(tt.response)
-			require.Nil(t, metadata)
-		})
-	}
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {

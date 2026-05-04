@@ -5,13 +5,13 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -160,23 +160,8 @@ func appendComputerUseProviderTool(
 	if opts.provider == chattool.ComputerUseProviderOpenAI {
 		// OpenAI computer-use image results need detail metadata so the model receives
 		// the screenshot at original detail when the chat loop sends the tool result.
-		providerTool.ResultProviderMetadata = openAIComputerUseResultProviderMetadata
+		providerTool.ResultProviderMetadata = openaicomputeruse.ResultProviderMetadata
 	}
 
 	return append(providerTools, providerTool), nil
-}
-
-func openAIComputerUseResultProviderMetadata(
-	response fantasy.ToolResponse,
-) fantasy.ProviderMetadata {
-	if response.IsError || response.Type != "image" || len(response.Data) == 0 ||
-		!strings.HasPrefix(response.MediaType, "image/") {
-		return nil
-	}
-
-	return fantasy.ProviderMetadata{
-		fantasyopenai.Name: &fantasyopenai.ComputerCallOutputOptions{
-			Detail: "original",
-		},
-	}
 }

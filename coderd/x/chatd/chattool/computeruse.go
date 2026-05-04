@@ -5,17 +5,15 @@ import (
 	"encoding/base64"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -144,7 +142,7 @@ func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int)
 			nil,
 		).Definition(), nil
 	case ComputerUseProviderOpenAI:
-		return fantasyopenai.NewComputerUseTool(nil).Definition(), nil
+		return openaicomputeruse.Tool(), nil
 	default:
 		return nil, xerrors.Errorf("unsupported computer use provider %q, supported providers: %s", provider,
 			strings.Join(SupportedComputerUseProviders(), ", "))
@@ -242,7 +240,7 @@ func (t *computerUseTool) runOpenAIComputerUse(
 	ctx context.Context,
 	call fantasy.ToolCall,
 ) (fantasy.ToolResponse, error) {
-	input, err := fantasyopenai.ParseComputerUseInput(call.Input)
+	input, err := openaicomputeruse.ParseInput(call.Input)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(
 			fmt.Sprintf("invalid computer use input: %v", err),
@@ -256,165 +254,35 @@ func (t *computerUseTool) runOpenAIComputerUse(
 	}
 
 	declaredWidth, declaredHeight := t.declaredActionDimensions()
-	for _, action := range input.Actions {
-		switch action.Type {
-		case "screenshot":
-			// OpenAI returns one screenshot per response; individual screenshot
-			// actions in the batch are fulfilled by the batch-final
-			// captureSharedScreenshot below.
+	actions, err := openaicomputeruse.DesktopActions(
+		input,
+		declaredWidth,
+		declaredHeight,
+	)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error()), nil
+	}
+	for _, action := range actions {
+		if action.WaitDurationMillis > 0 {
+			t.wait(ctx, action.WaitDurationMillis)
 			continue
-		case "move":
-			coord := coordinateFromInt64(action.X, action.Y)
-			desktopAction := t.desktopAction("mouse_move", declaredWidth, declaredHeight)
-			desktopAction.Coordinate = &coord
-			if resp, done := t.executeDesktopAction(ctx, conn, desktopAction); done {
-				return resp, nil
-			}
-		case "click":
-			actionName, ok := openAIClickAction(action.Button)
-			if !ok {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf(
-					"unsupported OpenAI click button %q",
-					action.Button,
-				)), nil
-			}
-			coord := coordinateFromInt64(action.X, action.Y)
-			desktopAction := t.desktopAction(actionName, declaredWidth, declaredHeight)
-			desktopAction.Coordinate = &coord
-			if resp, done := t.executeDesktopAction(ctx, conn, desktopAction); done {
-				return resp, nil
-			}
-		case "double_click":
-			coord := coordinateFromInt64(action.X, action.Y)
-			desktopAction := t.desktopAction("double_click", declaredWidth, declaredHeight)
-			desktopAction.Coordinate = &coord
-			if resp, done := t.executeDesktopAction(ctx, conn, desktopAction); done {
-				return resp, nil
-			}
-		case "drag":
-			if len(action.Path) < 2 {
-				return fantasy.NewTextErrorResponse("OpenAI drag action requires at least two path points"), nil
-			}
-
-			coord := coordinateFromInt64(action.Path[0].X, action.Path[0].Y)
-			moveAction := t.desktopAction("mouse_move", declaredWidth, declaredHeight)
-			moveAction.Coordinate = &coord
-			if resp, done := t.executeDesktopAction(ctx, conn, moveAction); done {
-				return resp, nil
-			}
-
-			mouseDownAction := t.desktopAction("left_mouse_down", declaredWidth, declaredHeight)
-			if resp, done := t.executeDesktopAction(ctx, conn, mouseDownAction); done {
-				return resp, nil
-			}
-
-			for _, point := range action.Path[1:] {
-				coord := coordinateFromInt64(point.X, point.Y)
-				moveAction := t.desktopAction("mouse_move", declaredWidth, declaredHeight)
-				moveAction.Coordinate = &coord
-				if resp, done := t.executeDesktopAction(ctx, conn, moveAction); done {
-					_, err := conn.ExecuteDesktopAction(
-						ctx,
-						t.desktopAction("left_mouse_up", declaredWidth, declaredHeight),
+		}
+		if resp, done := t.executeDesktopAction(ctx, conn, action.Action); done {
+			if action.ReleaseMouseOnFailure {
+				_, err := conn.ExecuteDesktopAction(
+					ctx,
+					t.desktopAction("left_mouse_up", declaredWidth, declaredHeight),
+				)
+				if err != nil {
+					t.logger.Warn(ctx, "failed to release mouse after OpenAI drag error",
+						slog.Error(err),
 					)
-					if err != nil {
-						t.logger.Warn(ctx, "failed to release mouse after OpenAI drag error",
-							slog.Error(err),
-						)
-					}
-					return resp, nil
 				}
 			}
-
-			mouseUpAction := t.desktopAction("left_mouse_up", declaredWidth, declaredHeight)
-			if resp, done := t.executeDesktopAction(ctx, conn, mouseUpAction); done {
-				return resp, nil
-			}
-		case "keypress":
-			text, err := normalizeOpenAIKeys(action.Keys)
-			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
-			}
-			desktopAction := t.desktopAction("key", declaredWidth, declaredHeight)
-			desktopAction.Text = &text
-			if resp, done := t.executeDesktopAction(ctx, conn, desktopAction); done {
-				return resp, nil
-			}
-		case "type":
-			desktopAction := t.desktopAction("type", declaredWidth, declaredHeight)
-			desktopAction.Text = &action.Text
-			if resp, done := t.executeDesktopAction(ctx, conn, desktopAction); done {
-				return resp, nil
-			}
-		case "scroll":
-			if resp, done := t.runOpenAIScrollAction(
-				ctx,
-				conn,
-				declaredWidth,
-				declaredHeight,
-				action.X,
-				action.Y,
-				action.ScrollX,
-				action.ScrollY,
-			); done {
-				return resp, nil
-			}
-		case "wait":
-			t.wait(ctx, 1000)
-		default:
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"unsupported OpenAI computer action type %q",
-				action.Type,
-			)), nil
+			return resp, nil
 		}
 	}
 	return t.captureSharedScreenshot(ctx, conn, declaredWidth, declaredHeight)
-}
-
-func (t *computerUseTool) runOpenAIScrollAction(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	declaredWidth, declaredHeight int,
-	x, y, scrollX, scrollY int64,
-) (fantasy.ToolResponse, bool) {
-	coord := coordinateFromInt64(x, y)
-	moveAction := t.desktopAction("mouse_move", declaredWidth, declaredHeight)
-	moveAction.Coordinate = &coord
-	if resp, done := t.executeDesktopAction(ctx, conn, moveAction); done {
-		return resp, true
-	}
-
-	if scrollY != 0 {
-		direction := "down"
-		if scrollY < 0 {
-			direction = "up"
-		}
-		scrollAction := t.desktopAction("scroll", declaredWidth, declaredHeight)
-		scrollAction.Coordinate = &coord
-		scrollAction.ScrollDirection = &direction
-		amount := absInt64ToInt(scrollY)
-		scrollAction.ScrollAmount = &amount
-		if resp, done := t.executeDesktopAction(ctx, conn, scrollAction); done {
-			return resp, true
-		}
-	}
-
-	if scrollX != 0 {
-		direction := "right"
-		if scrollX < 0 {
-			direction = "left"
-		}
-		scrollAction := t.desktopAction("scroll", declaredWidth, declaredHeight)
-		scrollAction.Coordinate = &coord
-		scrollAction.ScrollDirection = &direction
-		amount := absInt64ToInt(scrollX)
-		scrollAction.ScrollAmount = &amount
-		if resp, done := t.executeDesktopAction(ctx, conn, scrollAction); done {
-			return resp, true
-		}
-	}
-
-	return fantasy.ToolResponse{}, false
 }
 
 func (*computerUseTool) executeDesktopAction(
@@ -455,111 +323,8 @@ func (t *computerUseTool) wait(ctx context.Context, durationMillis int64) {
 	}
 }
 
-func openAIClickAction(button string) (string, bool) {
-	switch button {
-	case "left":
-		return "left_click", true
-	case "right":
-		return "right_click", true
-	case "middle", "wheel":
-		return "middle_click", true
-	default:
-		return "", false
-	}
-}
-
 func coordinateFromInt64(x, y int64) [2]int {
 	return [2]int{int(x), int(y)}
-}
-
-func absInt64ToInt(v int64) int {
-	if v < 0 {
-		return int(-v)
-	}
-	return int(v)
-}
-
-func normalizeOpenAIKeys(keys []string) (string, error) {
-	if len(keys) == 0 {
-		return "", xerrors.New("OpenAI keypress action requires at least one key")
-	}
-	normalized := make([]string, 0, len(keys))
-	for _, key := range keys {
-		normalizedKey, err := normalizeOpenAIKey(key)
-		if err != nil {
-			return "", err
-		}
-		normalized = append(normalized, normalizedKey)
-	}
-	return strings.Join(normalized, "+"), nil
-}
-
-func normalizeOpenAIKey(key string) (string, error) {
-	trimmed := strings.TrimSpace(key)
-	if trimmed == "" {
-		return "", xerrors.New("OpenAI keypress action contains an empty key")
-	}
-
-	lower := strings.ToLower(trimmed)
-	switch lower {
-	case "ctrl", "control":
-		return "ctrl", nil
-	case "cmd", "command", "meta", "super":
-		return "meta", nil
-	case "shift":
-		return "shift", nil
-	case "alt", "option":
-		return "alt", nil
-	case "enter", "return":
-		return "Return", nil
-	case "escape", "esc":
-		return "Escape", nil
-	case "tab":
-		return "Tab", nil
-	case "space":
-		return "space", nil
-	case "backspace":
-		return "BackSpace", nil
-	case "delete", "del":
-		return "Delete", nil
-	case "arrowup", "up":
-		return "Up", nil
-	case "arrowdown", "down":
-		return "Down", nil
-	case "arrowleft", "left":
-		return "Left", nil
-	case "arrowright", "right":
-		return "Right", nil
-	}
-
-	if isFunctionKey(lower) {
-		return "F" + lower[1:], nil
-	}
-
-	runes := []rune(trimmed)
-	if len(runes) == 1 {
-		r := runes[0]
-		if unicode.IsLetter(r) {
-			return strings.ToLower(trimmed), nil
-		}
-		if unicode.IsDigit(r) {
-			return trimmed, nil
-		}
-		if unicode.IsPunct(r) || unicode.IsSymbol(r) {
-			return trimmed, nil
-		}
-		return "", xerrors.Errorf("unsupported OpenAI keypress %q", trimmed)
-	}
-
-	return "", xerrors.Errorf("unsupported OpenAI keypress %q", trimmed)
-}
-
-func isFunctionKey(key string) bool {
-	if len(key) < 2 || key[0] != 'f' {
-		return false
-	}
-	n, err := strconv.Atoi(key[1:])
-	return err == nil && n >= 1 && n <= 35
 }
 
 func (t *computerUseTool) captureScreenshot(
