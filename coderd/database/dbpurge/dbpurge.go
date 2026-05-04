@@ -208,6 +208,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	chatRetentionConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
 	chatConfigErr := errors.Join(chatRetentionConfigErr, chatDebugRetentionErr)
 
+	var lockAcquired bool
+
 	// Populated inside the tx; dispatched post-commit.
 	var archivedChats []database.AutoArchiveInactiveChatsRow
 
@@ -225,6 +227,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return nil
 		}
 
+		lockAcquired = true
 		var purgedWorkspaceAgentLogs int64
 		workspaceAgentLogsRetention := i.vals.Retention.WorkspaceAgentLogs.Value()
 		if workspaceAgentLogsRetention > 0 {
@@ -372,7 +375,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		return xerrors.Errorf("chat config read failed this tick: %w", chatConfigErr)
 	}
 
-	if i.iterationDuration != nil {
+	if i.iterationDuration != nil && lockAcquired {
 		duration := i.clk.Since(start)
 		i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
 	}

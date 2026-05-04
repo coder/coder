@@ -151,6 +151,46 @@ func TestMetrics(t *testing.T) {
 		require.GreaterOrEqual(t, chatFiles, 0)
 	})
 
+	t.Run("LockNotAcquiredSkipsIterationMetric", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(false, nil).AnyTimes()
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "lock contention should not record a successful purge iteration")
+
+		failedHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.Nil(t, failedHist, "lock contention should not record a failed purge iteration")
+	})
+
 	t.Run("FailedIteration", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
