@@ -432,7 +432,7 @@ func TestProcessKeyPoolError(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := processKeyPoolError(tc.err)
+			got := ProcessKeyPoolError(tc.err)
 			if tc.expectedNil {
 				require.Nil(t, got)
 				return
@@ -512,7 +512,7 @@ func TestWriteUpstreamError(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		respErr      *responseError
+		respErr      *ResponseError
 		expectStatus int
 		// Empty string means the header should be absent.
 		expectRetryAfter string

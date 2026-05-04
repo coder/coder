@@ -135,7 +135,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			var currentKey *keypool.Key
 			if walker != nil {
 				key, err := walker.Next()
-				if respErr := processKeyPoolError(err); respErr != nil {
+				if respErr := ProcessKeyPoolError(err); respErr != nil {
 					// Pool exhausted: write the error directly. In
 					// agentic mode the inner loop buffers events
 					// instead of streaming them downstream, so the

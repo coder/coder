@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
@@ -215,6 +217,25 @@ func (p *OpenAI) InjectAuthHeader(headers *http.Header) {
 	}
 	if key, err := p.cfg.KeyPool.Walker().Next(); err == nil {
 		headers.Set(p.AuthHeader(), "Bearer "+key.Value())
+	}
+}
+
+func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
+	name := p.Name()
+	return keypool.KeyFailoverConfig{
+		Pool: p.cfg.KeyPool,
+		IsBYOK: func(r *http.Request) bool {
+			return r.Header.Get("Authorization") != ""
+		},
+		InjectAuthKey: func(h *http.Header, key string) {
+			h.Set("Authorization", "Bearer "+key)
+		},
+		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
+			return keypool.MarkKeyOnStatus(ctx, key, resp.StatusCode, resp, logger, name)
+		},
+		BuildExhaustedResponse: func(err error) *http.Response {
+			return chatcompletions.MapExhaustionError(err).ToResponse()
+		},
 	}
 }
 

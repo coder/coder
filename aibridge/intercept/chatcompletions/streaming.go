@@ -144,7 +144,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		var currentKey *keypool.Key
 		if walker != nil {
 			key, err := walker.Next()
-			if respErr := processKeyPoolError(err); respErr != nil {
+			if respErr := ProcessKeyPoolError(err); respErr != nil {
 				// Pool exhausted in this iteration. Relay the
 				// error to the client: as an SSE event if events
 				// have already been sent, or by direct write
@@ -474,7 +474,7 @@ func (i *StreamingInterception) newStream(ctx context.Context, svc openai.ChatCo
 // processing error into a relayable responseError. Returns nil
 // when the error is unrecoverable, in which case nothing can be
 // relayed back.
-func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *responseError {
+func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *ResponseError {
 	if streamErr != nil {
 		if eventstream.IsUnrecoverableError(streamErr) {
 			logger.Debug(ctx, "stream terminated", slog.Error(streamErr))
