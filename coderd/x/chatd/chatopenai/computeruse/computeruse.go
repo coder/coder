@@ -379,7 +379,7 @@ func DoubleClickAction(button string) (string, bool) {
 // desktop action name.
 func ClickAction(button string) (string, bool) {
 	switch button {
-	case "left":
+	case "", "left":
 		return "left_click", true
 	case "right":
 		return "right_click", true

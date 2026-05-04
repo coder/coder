@@ -90,6 +90,21 @@ func TestDesktopActionsWrapsPointerActionsWithModifiers(t *testing.T) {
 	require.Equal(t, "ctrl", *actions[4].Action.Text)
 }
 
+func TestDesktopActionsDefaultsEmptyClickButtonToLeft(t *testing.T) {
+	t.Parallel()
+
+	input, err := computeruse.ParseInput(`{
+		"call_id":"call_empty_button",
+		"actions":[{"type":"click","x":70,"y":80}]
+	}`)
+	require.NoError(t, err)
+
+	actions, err := computeruse.DesktopActions(input, 1440, 900)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	require.Equal(t, "left_click", actions[0].Action.Action)
+}
+
 func TestDesktopActionsMapsBackForwardClickButtons(t *testing.T) {
 	t.Parallel()
 
