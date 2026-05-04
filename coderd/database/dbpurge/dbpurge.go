@@ -47,8 +47,9 @@ const (
 	maxTelemetryHeartbeatAge = 24 * time.Hour
 	// Chat batch sizes stay smaller than audit/connection log batches because
 	// chat_files rows carry bytea blobs.
-	chatsBatchSize     = 1000
-	chatFilesBatchSize = 1000
+	chatsBatchSize         = 1000
+	chatFilesBatchSize     = 1000
+	chatDebugRunsBatchSize = 1000
 	// chatAutoArchiveDigestMaxChats bounds how many chat titles a
 	// single digest body lists. Past the cap, surplus titles are
 	// summarized as "...and N more". 25 is a readable email-friendly
@@ -181,10 +182,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
 	// Read chat configs outside the tx so a corrupt value can't
-	// poison subsequent queries. On error we log and stash, then
-	// run unrelated purges best-effort and skip only chat work;
-	// purgeTick returns chatConfigErr after the tx so the failed
-	// iteration is operator-visible via metric and logs.
+	// poison subsequent queries. On retention or auto-archive errors,
+	// log and stash, then run unrelated purges best-effort and skip
+	// only chat work; purgeTick returns chatConfigErr after the tx so
+	// the failed iteration is operator-visible via metric and logs.
+	// Debug retention errors skip only debug purging for this tick.
 	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
 	if chatRetentionErr != nil {
 		i.logger.Error(ctx, "failed to read chat retention config: skipping chat purge and auto-archive this tick", slog.Error(chatRetentionErr))
@@ -193,6 +195,11 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	chatAutoArchiveDays, chatAutoArchiveErr := db.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
 	if chatAutoArchiveErr != nil {
 		i.logger.Error(ctx, "failed to read chat auto-archive config: skipping chat purge and auto-archive this tick", slog.Error(chatAutoArchiveErr))
+	}
+
+	chatDebugRetentionDays, chatDebugRetentionErr := db.GetChatDebugRetentionDays(ctx, codersdk.DefaultChatDebugRetentionDays)
+	if chatDebugRetentionErr != nil {
+		i.logger.Error(ctx, "failed to read chat debug retention config: skipping chat debug purge this tick", slog.Error(chatDebugRetentionErr))
 	}
 
 	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
@@ -304,11 +311,21 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		var purgedChats, purgedChatFiles int64
+		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if chatConfigErr == nil {
 			purgedChats, purgedChatFiles, archivedChats, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays, chatAutoArchiveDays)
 			if err != nil {
 				return xerrors.Errorf("failed to purge chats: %w", err)
+			}
+		}
+		if chatDebugRetentionErr == nil && chatDebugRetentionDays > 0 {
+			deleteChatDebugRunsBefore := start.Add(-time.Duration(chatDebugRetentionDays) * 24 * time.Hour)
+			purgedChatDebugRuns, err = tx.DeleteOldChatDebugRuns(ctx, database.DeleteOldChatDebugRunsParams{
+				BeforeTime: deleteChatDebugRunsBefore,
+				LimitCount: chatDebugRunsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old chat debug runs: %w", err)
 			}
 		}
 
@@ -320,6 +337,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("audit_logs", purgedAuditLogs),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
+			slog.F("chat_debug_runs", purgedChatDebugRuns),
 			slog.F("auto_archived_chats", len(archivedChats)),
 			slog.F("duration", i.clk.Since(start)),
 		)
@@ -335,6 +353,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
+			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
 		}
 

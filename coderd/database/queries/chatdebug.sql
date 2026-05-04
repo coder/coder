@@ -246,6 +246,19 @@ DELETE FROM chat_debug_runs
 WHERE chat_id = @chat_id::uuid
     AND id IN (SELECT id FROM affected_runs);
 
+-- name: DeleteOldChatDebugRuns :execrows
+WITH deletable AS (
+    SELECT id, chat_id
+    FROM chat_debug_runs
+    WHERE updated_at < @before_time::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT @limit_count::int
+)
+DELETE FROM chat_debug_runs
+USING deletable
+WHERE chat_debug_runs.id = deletable.id
+    AND chat_debug_runs.chat_id = deletable.chat_id;
+
 -- name: FinalizeStaleChatDebugRows :one
 -- Marks orphaned in-progress rows as interrupted so they do not stay
 -- in a non-terminal state forever. The NOT IN list must match the

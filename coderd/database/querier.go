@@ -146,6 +146,7 @@ type sqlcQuerier interface {
 	// connection events (connect, disconnect, open, close) which are handled
 	// separately by DeleteOldAuditLogConnectionEvents.
 	DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error)
+	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
 	// TODO(cian): Add indexes on chats(archived, updated_at) and
 	// chat_files(created_at) for purge query performance.
 	// See: https://github.com/coder/internal/issues/1438
@@ -300,6 +301,8 @@ type sqlcQuerier interface {
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.
 	GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error)
+	// Chat debug run retention window in days. 0 disables.
+	GetChatDebugRetentionDays(ctx context.Context, defaultDebugRetentionDays int32) (int32, error)
 	GetChatDebugRunByID(ctx context.Context, id uuid.UUID) (ChatDebugRun, error)
 	// Returns the most recent debug runs for a chat, ordered newest-first.
 	// Callers must supply an explicit limit to avoid unbounded result sets.
@@ -1229,6 +1232,7 @@ type sqlcQuerier interface {
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error
+	UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)

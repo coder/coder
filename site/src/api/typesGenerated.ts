@@ -1522,6 +1522,15 @@ export interface ChatDebugLoggingAdminSettings {
 
 // From codersdk/chats.go
 /**
+ * ChatDebugRetentionDaysResponse contains the current chat debug run
+ * retention setting.
+ */
+export interface ChatDebugRetentionDaysResponse {
+	readonly debug_retention_days: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatDebugRun is the detailed run response returned by the run-detail
  * endpoint. It includes the same summary fields as ChatDebugRunSummary
  * along with the full step history for the run.
@@ -3567,6 +3576,13 @@ export interface DebugProfileOptions {
  * auto-archival.
  */
 export const DefaultChatAutoArchiveDays = 0;
+
+// From codersdk/chats.go
+/**
+ * DefaultChatDebugRetentionDays is the default chat debug run retention
+ * window, in days, applied when no site config row exists.
+ */
+export const DefaultChatDebugRetentionDays = 7;
 
 // From codersdk/chats.go
 /**
@@ -7916,6 +7932,15 @@ export interface UpdateChatComputerUseProviderRequest {
  */
 export interface UpdateChatDebugLoggingAllowUsersRequest {
 	readonly allow_users: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatDebugRetentionDaysRequest is a request to update the chat
+ * debug run retention period.
+ */
+export interface UpdateChatDebugRetentionDaysRequest {
+	readonly debug_retention_days: number;
 }
 
 // From codersdk/chats.go
