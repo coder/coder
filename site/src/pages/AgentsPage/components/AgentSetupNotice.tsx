@@ -41,7 +41,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 			>
 				<DialogHeader className="space-y-5 text-left sm:text-left">
 					<DialogTitle className="text-xl">
-						Finish setting up agents
+						Welcome to Coder Agents
 					</DialogTitle>
 					<DialogDescription className="text-base">
 						Complete 2 quick steps to get started.
@@ -53,7 +53,6 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 						isComplete={hasProvider}
 						stepNumber={1}
 						label="Connect a chat provider"
-						countLabel={formatProviderCount(providerCount)}
 						linkTo="/agents/settings/providers"
 						linkText="Go to Providers"
 					/>
@@ -61,7 +60,6 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 						isComplete={hasModel}
 						stepNumber={2}
 						label="Add a chat model"
-						countLabel={formatModelCount(modelCount)}
 						linkTo="/agents/settings/models"
 						linkText="Go to Models"
 					/>
@@ -75,7 +73,6 @@ interface AgentSetupStepProps {
 	isComplete: boolean;
 	stepNumber: number;
 	label: string;
-	countLabel: string;
 	linkTo: string;
 	linkText: string;
 }
@@ -84,7 +81,6 @@ const AgentSetupStep: FC<AgentSetupStepProps> = ({
 	isComplete,
 	stepNumber,
 	label,
-	countLabel,
 	linkTo,
 	linkText,
 }) => {
@@ -100,29 +96,10 @@ const AgentSetupStep: FC<AgentSetupStepProps> = ({
 					`${stepNumber}.`
 				)}
 			</span>
-			<span className="text-content-secondary">
-				{label} ({countLabel})
-			</span>
+			<span className="text-content-secondary">{label}</span>
 			<Link to={linkTo} className={agentSetupLinkClassName}>
 				{linkText}
 			</Link>
 		</div>
 	);
-};
-
-const formatProviderCount = (providerCount: number): string => {
-	if (providerCount === 0) {
-		return "0 provider configured";
-	}
-	if (providerCount === 1) {
-		return "1 provider configured";
-	}
-	return `${providerCount} providers configured`;
-};
-
-const formatModelCount = (modelCount: number): string => {
-	if (modelCount === 1) {
-		return "1 model configured";
-	}
-	return `${modelCount} models configured`;
 };
