@@ -14,22 +14,23 @@ for agents such as GitHub Copilot and Roo Code.
 These agents work well inside existing Coder workspaces as they can simply be
 enabled via an extension or are built-into the editor.
 
-## Agents with Coder Tasks
+## Coder Agents
 
-In cases where the IDE is secondary, such as prototyping or long-running
-background jobs, agents like Claude Code or Aider are better for the job and new
-SaaS interfaces like [Devin](https://devin.ai) and
-[ChatGPT Codex](https://openai.com/index/introducing-codex/) are emerging.
+In cases where the IDE is secondary, such as prototyping, research, or
+long-running background jobs, [Coder Agents](./agents/index.md) is the
+recommended way to delegate development work to coding agents in your Coder
+deployment.
 
-[Coder Tasks](./tasks.md) is an interface inside Coder to run and manage coding
-agents with a chat-based UI. Unlike SaaS-based products, Coder Tasks is
-self-hosted (included in your Coder deployment) and allows you to run any
-terminal-based agent such as Claude Code or Codex's Open Source CLI.
+Coder Agents is a native AI coding agent built into Coder. The agent loop runs
+in the Coder control plane on your infrastructure rather than inside the
+workspace, so workspaces can be completely network isolated. Developers
+interact with agents through the web UI, the CLI (`coder agents`), or the
+REST API.
 
-![Coder Tasks UI](../images/guides/ai-agents/tasks-ui.png)
+![Coder Agents chat interface with git diff sidebar](../images/agents-hero-image.png)
 
-[Learn more about Coder Tasks](./tasks.md) for best practices and how to get
-started.
+[Learn more about Coder Agents](./agents/index.md) for architecture details,
+supported LLM providers, and how to get started.
 
 ## Secure Your Workflows with Agent Firewall
 
