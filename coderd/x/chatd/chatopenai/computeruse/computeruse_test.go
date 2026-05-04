@@ -55,6 +55,55 @@ func TestComputerUseResultProviderMetadata(t *testing.T) {
 	}
 }
 
+func TestDesktopActionsWrapsPointerActionsWithModifiers(t *testing.T) {
+	t.Parallel()
+
+	input, err := computeruse.ParseInput(`{
+		"call_id":"call_click_modifier",
+		"actions":[{"type":"click","button":"left","x":70,"y":80,"keys":["ctrl","shift"]}]
+	}`)
+	require.NoError(t, err)
+
+	actions, err := computeruse.DesktopActions(input, 1440, 900)
+	require.NoError(t, err)
+	require.Len(t, actions, 5)
+
+	require.Equal(t, "key_down", actions[0].Action.Action)
+	require.NotNil(t, actions[0].Action.Text)
+	require.Equal(t, "ctrl", *actions[0].Action.Text)
+	require.Empty(t, actions[0].ReleaseKeysOnFailure)
+
+	require.Equal(t, "key_down", actions[1].Action.Action)
+	require.NotNil(t, actions[1].Action.Text)
+	require.Equal(t, "shift", *actions[1].Action.Text)
+	require.Equal(t, []string{"ctrl"}, actions[1].ReleaseKeysOnFailure)
+
+	require.Equal(t, "left_click", actions[2].Action.Action)
+	require.Equal(t, []string{"ctrl", "shift"}, actions[2].ReleaseKeysOnFailure)
+
+	require.Equal(t, "key_up", actions[3].Action.Action)
+	require.NotNil(t, actions[3].Action.Text)
+	require.Equal(t, "shift", *actions[3].Action.Text)
+
+	require.Equal(t, "key_up", actions[4].Action.Action)
+	require.NotNil(t, actions[4].Action.Text)
+	require.Equal(t, "ctrl", *actions[4].Action.Text)
+}
+
+func TestDesktopActionsRejectsUnsupportedDoubleClickButton(t *testing.T) {
+	t.Parallel()
+
+	input, err := computeruse.ParseInput(`{
+		"call_id":"call_double_click",
+		"actions":[{"type":"double_click","button":"right","x":70,"y":80}]
+	}`)
+	require.NoError(t, err)
+
+	_, err = computeruse.DesktopActions(input, 1440, 900)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `unsupported OpenAI double-click button "right"`)
+}
+
 func TestDesktopActionsConvertsScrollPixelsToWheelClicks(t *testing.T) {
 	t.Parallel()
 

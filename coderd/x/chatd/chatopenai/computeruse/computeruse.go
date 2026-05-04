@@ -1,6 +1,7 @@
 package computeruse
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 
@@ -52,6 +53,7 @@ type DesktopAction struct {
 	Action                workspacesdk.DesktopAction
 	WaitDurationMillis    int64
 	ReleaseMouseOnFailure bool
+	ReleaseKeysOnFailure  []string
 }
 
 // ComputerUseDesktopActions converts an OpenAI computer-use tool call into
@@ -64,6 +66,7 @@ func DesktopActions(
 	if parsed == nil {
 		return nil, xerrors.New("OpenAI computer use input is nil")
 	}
+	var err error
 	actions := make([]DesktopAction, 0, len(parsed.Actions))
 	for _, action := range parsed.Actions {
 		switch action.Type {
@@ -89,7 +92,7 @@ func DesktopActions(
 					action.Button,
 				)
 			}
-			actions = append(actions, DesktopAction{
+			actionSet := []DesktopAction{{
 				Action: desktopActionWithCoordinate(
 					actionName,
 					declaredWidth,
@@ -97,23 +100,38 @@ func DesktopActions(
 					action.X,
 					action.Y,
 				),
-			})
+			}}
+			actions, err = appendWithModifiers(actions, action.Keys, actionSet)
+			if err != nil {
+				return nil, err
+			}
 		case "double_click":
-			actions = append(actions, DesktopAction{
+			actionName, ok := DoubleClickAction(action.Button)
+			if !ok {
+				return nil, xerrors.Errorf(
+					"unsupported OpenAI double-click button %q",
+					action.Button,
+				)
+			}
+			actionSet := []DesktopAction{{
 				Action: desktopActionWithCoordinate(
-					"double_click",
+					actionName,
 					declaredWidth,
 					declaredHeight,
 					action.X,
 					action.Y,
 				),
-			})
+			}}
+			actions, err = appendWithModifiers(actions, action.Keys, actionSet)
+			if err != nil {
+				return nil, err
+			}
 		case "drag":
 			if len(action.Path) < 2 {
 				return nil, xerrors.New("OpenAI drag action requires at least two path points")
 			}
-			actions = append(actions,
-				DesktopAction{
+			actionSet := []DesktopAction{
+				{
 					Action: desktopActionWithCoordinate(
 						"mouse_move",
 						declaredWidth,
@@ -122,16 +140,16 @@ func DesktopActions(
 						action.Path[0].Y,
 					),
 				},
-				DesktopAction{
+				{
 					Action: desktopAction(
 						"left_mouse_down",
 						declaredWidth,
 						declaredHeight,
 					),
 				},
-			)
+			}
 			for _, point := range action.Path[1:] {
-				actions = append(actions, DesktopAction{
+				actionSet = append(actionSet, DesktopAction{
 					Action: desktopActionWithCoordinate(
 						"mouse_move",
 						declaredWidth,
@@ -142,13 +160,17 @@ func DesktopActions(
 					ReleaseMouseOnFailure: true,
 				})
 			}
-			actions = append(actions, DesktopAction{
+			actionSet = append(actionSet, DesktopAction{
 				Action: desktopAction(
 					"left_mouse_up",
 					declaredWidth,
 					declaredHeight,
 				),
 			})
+			actions, err = appendWithModifiers(actions, action.Keys, actionSet)
+			if err != nil {
+				return nil, err
+			}
 		case "keypress":
 			text, err := NormalizeKeys(action.Keys)
 			if err != nil {
@@ -162,17 +184,18 @@ func DesktopActions(
 			desktopAction.Text = &action.Text
 			actions = append(actions, DesktopAction{Action: desktopAction})
 		case "scroll":
-			actions = append(
-				actions,
-				computerUseScrollActions(
-					declaredWidth,
-					declaredHeight,
-					action.X,
-					action.Y,
-					action.ScrollX,
-					action.ScrollY,
-				)...,
+			actionSet := computerUseScrollActions(
+				declaredWidth,
+				declaredHeight,
+				action.X,
+				action.Y,
+				action.ScrollX,
+				action.ScrollY,
 			)
+			actions, err = appendWithModifiers(actions, action.Keys, actionSet)
+			if err != nil {
+				return nil, err
+			}
 		case "wait":
 			actions = append(actions, DesktopAction{WaitDurationMillis: 1000})
 		default:
@@ -181,6 +204,49 @@ func DesktopActions(
 				action.Type,
 			)
 		}
+	}
+	return actions, nil
+}
+
+func appendWithModifiers(
+	actions []DesktopAction,
+	keys []string,
+	actionSet []DesktopAction,
+) ([]DesktopAction, error) {
+	if len(keys) == 0 {
+		return append(actions, actionSet...), nil
+	}
+
+	modifiers := make([]string, 0, len(keys))
+	for _, key := range keys {
+		modifier, err := normalizeComputerUseKey(key)
+		if err != nil {
+			return nil, err
+		}
+		modifiers = append(modifiers, modifier)
+	}
+
+	heldKeys := make([]string, 0, len(modifiers))
+	for _, modifier := range modifiers {
+		desktopAction := desktopAction("key_down", 0, 0)
+		desktopAction.Text = &modifier
+		actions = append(actions, DesktopAction{
+			Action:               desktopAction,
+			ReleaseKeysOnFailure: slices.Clone(heldKeys),
+		})
+		heldKeys = append(heldKeys, modifier)
+	}
+
+	for _, action := range actionSet {
+		action.ReleaseKeysOnFailure = slices.Clone(heldKeys)
+		actions = append(actions, action)
+	}
+
+	for i := len(heldKeys) - 1; i >= 0; i-- {
+		key := heldKeys[i]
+		desktopAction := desktopAction("key_up", 0, 0)
+		desktopAction.Text = &key
+		actions = append(actions, DesktopAction{Action: desktopAction})
 	}
 	return actions, nil
 }
@@ -257,6 +323,18 @@ func scrollPixelsToWheelClicks(pixels int64) int {
 	}
 	return int((pixels + computerUseScrollPixelsPerWheelClick - 1) /
 		computerUseScrollPixelsPerWheelClick)
+}
+
+// DoubleClickAction maps an OpenAI computer-use double-click button to a Coder
+// desktop action name. The desktop API currently supports only left-button
+// double-clicks.
+func DoubleClickAction(button string) (string, bool) {
+	switch button {
+	case "", "left":
+		return "double_click", true
+	default:
+		return "", false
+	}
 }
 
 // ComputerUseClickAction maps an OpenAI computer-use click button to a Coder

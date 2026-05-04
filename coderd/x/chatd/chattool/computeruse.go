@@ -279,10 +279,29 @@ func (t *computerUseTool) runOpenAIComputerUse(
 					)
 				}
 			}
+			t.releaseOpenAIModifierKeys(ctx, conn, action.ReleaseKeysOnFailure)
 			return resp, nil
 		}
 	}
 	return t.captureSharedScreenshot(ctx, conn, declaredWidth, declaredHeight)
+}
+
+func (t *computerUseTool) releaseOpenAIModifierKeys(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	keys []string,
+) {
+	for i := len(keys) - 1; i >= 0; i-- {
+		key := keys[i]
+		action := t.desktopAction("key_up", 0, 0)
+		action.Text = &key
+		if _, err := conn.ExecuteDesktopAction(ctx, action); err != nil {
+			t.logger.Warn(ctx, "failed to release OpenAI modifier key",
+				slog.F("key", key),
+				slog.Error(err),
+			)
+		}
+	}
 }
 
 func (*computerUseTool) executeDesktopAction(
