@@ -1667,6 +1667,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
 	}
+	if c.LastTurnSummary.Valid {
+		chat.LastTurnSummary = &c.LastTurnSummary.String
+	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}

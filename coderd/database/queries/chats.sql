@@ -632,6 +632,22 @@ WHERE
     id = @id::uuid
 RETURNING *;
 
+-- name: UpdateChatLastTurnSummary :execrows
+-- Updates the cached last completed turn summary for sidebar display.
+-- Empty or whitespace-only summaries are stored as NULL here so direct
+-- query callers cannot accidentally persist blank sidebar text.
+-- The expected_updated_at guard rejects summaries generated from an older
+-- chat version while preserving updated_at to avoid reordering the list.
+-- Two summary workers using the same freshness marker are last-write-wins.
+UPDATE chats
+SET
+    last_turn_summary = NULLIF(REGEXP_REPLACE(
+        sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
+    ), '')
+WHERE
+    id = @id::uuid
+    AND updated_at = @expected_updated_at::timestamptz;
+
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
     chats
