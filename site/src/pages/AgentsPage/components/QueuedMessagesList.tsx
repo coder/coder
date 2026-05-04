@@ -170,7 +170,15 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	const isBusy = busyItem !== null;
 
 	return (
-		<div className={cn("flex w-full flex-col", className)}>
+		// Cap the queue at ~40% of the small viewport so a long queue
+		// does not push the chat history's scroll container down to
+		// zero height (CODAGT-313). The list scrolls inside its own pane.
+		<div
+			className={cn(
+				"flex w-full flex-col max-h-[40svh] overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]",
+				className,
+			)}
+		>
 			{visibleItems.map((item, index) => {
 				const isEditing = item.id === editingMessageID;
 				const isFirst = index === 0;
