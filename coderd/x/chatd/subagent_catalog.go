@@ -2,13 +2,13 @@ package chatd
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -109,10 +109,11 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
-					return fmt.Sprintf(
-						`type "computer_use" is unavailable because %s`,
-						err.Error(),
+					p.logger.Warn(ctx, "computer-use provider config is unavailable",
+						slog.F("chat_id", currentChat.ID),
+						slog.Error(err),
 					)
+					return `type "computer_use" is unavailable because its provider configuration could not be loaded`
 				}
 				return ""
 			},

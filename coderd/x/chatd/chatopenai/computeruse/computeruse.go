@@ -243,7 +243,10 @@ func appendWithModifiers(
 		key := heldKeys[i]
 		desktopAction := desktopAction("key_up", 0, 0)
 		desktopAction.Text = &key
-		actions = append(actions, DesktopAction{Action: desktopAction})
+		actions = append(actions, DesktopAction{
+			Action:               desktopAction,
+			ReleaseKeysOnFailure: slices.Clone(heldKeys[:i+1]),
+		})
 	}
 	return actions, nil
 }

@@ -1546,6 +1546,36 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 	require.Len(t, afterChats, len(beforeChats))
 }
 
+func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
+	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, "bogus"))
+	logSink := &subagentTestLogSink{}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	server := newInternalTestServerWithLogger(t, db, ps, chatprovider.ProviderAPIKeys{}, logger)
+
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-invalid-computer-use-provider",
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, `type "computer_use" is unavailable because its provider configuration could not be loaded`)
+	require.NotContains(t, resp.Content, "bogus")
+	require.NotContains(t, resp.Content, "agents_computer_use_provider")
+	require.NotEmpty(t, logSink.entriesAtLevelWithMessage(
+		slog.LevelWarn,
+		"computer-use provider config is unavailable",
+	))
+}
+
 func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 	t.Parallel()
 
