@@ -100,22 +100,45 @@ export function getAgentHealthIssues(
 		});
 	}
 
-	if (agent.lifecycle_state === "start_error") {
-		issues.push({
-			title: agentScriptMessages.start_error.title,
-			detail: agentScriptMessages.start_error.detail,
-			severity: "warning",
-			prominent: false,
-		});
-	}
-
-	if (agent.lifecycle_state === "start_timeout") {
-		issues.push({
-			title: agentScriptMessages.start_timeout.title,
-			detail: agentScriptMessages.start_timeout.detail,
-			severity: "warning",
-			prominent: false,
-		});
+	// Ignore `start_error` and `start_timeout`, as these will eventually be
+	// removed from agent health.  Instead, figure out if a script failed to start
+	// by looking directly at the scripts.
+	for (const script of agent.scripts) {
+		switch (script.status) {
+			case "timed_out":
+				issues.push({
+					title: `"${script.display_name}" is taking longer than expected`,
+					detail: `"${script.display_name}" has exceeded the expected time. Check the agent logs for details.`,
+					severity: "warning",
+					prominent: false,
+				});
+				break;
+			case "exit_failure":
+				if (script.exit_code) {
+					issues.push({
+						title: `"${script.display_name}" failed`,
+						detail: `"${script.display_name}" exited with ${script.exit_code}. Check the agent logs for details.`,
+						severity: "warning",
+						prominent: false,
+					});
+				} else {
+					issues.push({
+						title: `"${script.display_name}" failed`,
+						detail: `"${script.display_name}" has exited with an error. Check the agent logs for details.`,
+						severity: "warning",
+						prominent: false,
+					});
+				}
+				break;
+			case "pipes_left_open":
+				issues.push({
+					title: `"${script.display_name}" left pipes open`,
+					detail: "Check the agent logs for details.",
+					severity: "warning",
+					prominent: false,
+				});
+				break;
+		}
 	}
 
 	if (agent.status === "connecting") {

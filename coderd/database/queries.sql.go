@@ -20731,6 +20731,18 @@ func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, erro
 	return template_allowlist, err
 }
 
+const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
 SELECT
     COALESCE(
@@ -21085,6 +21097,16 @@ func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAl
 	return err
 }
 
+const upsertChatTitleGenerationModelOverride = `-- name: UpsertChatTitleGenerationModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverride, value)
+	return err
+}
+
 const upsertChatWorkspaceTTL = `-- name: UpsertChatWorkspaceTTL :exec
 INSERT INTO site_configs (key, value)
 VALUES ('agents_workspace_ttl', $1::text)
@@ -21263,10 +21285,11 @@ func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
 	return err
 }
 
-const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :exec
+const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :many
 DELETE
 FROM tailnet_tunnels
 WHERE coordinator_id = $1 and src_id = $2
+RETURNING src_id, dst_id
 `
 
 type DeleteAllTailnetTunnelsParams struct {
@@ -21274,9 +21297,32 @@ type DeleteAllTailnetTunnelsParams struct {
 	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
 }
 
-func (q *sqlQuerier) DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteAllTailnetTunnels, arg.CoordinatorID, arg.SrcID)
-	return err
+type DeleteAllTailnetTunnelsRow struct {
+	SrcID uuid.UUID `db:"src_id" json:"src_id"`
+	DstID uuid.UUID `db:"dst_id" json:"dst_id"`
+}
+
+func (q *sqlQuerier) DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) ([]DeleteAllTailnetTunnelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, deleteAllTailnetTunnels, arg.CoordinatorID, arg.SrcID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DeleteAllTailnetTunnelsRow
+	for rows.Next() {
+		var i DeleteAllTailnetTunnelsRow
+		if err := rows.Scan(&i.SrcID, &i.DstID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteTailnetPeer = `-- name: DeleteTailnetPeer :one
@@ -21551,13 +21597,14 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uui
 	return items, nil
 }
 
-const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
+const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :many
 UPDATE
 	tailnet_peers
 SET
 	status = $2
 WHERE
 	coordinator_id = $1
+RETURNING id
 `
 
 type UpdateTailnetPeerStatusByCoordinatorParams struct {
@@ -21565,9 +21612,27 @@ type UpdateTailnetPeerStatusByCoordinatorParams struct {
 	Status        TailnetStatus `db:"status" json:"status"`
 }
 
-func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error {
-	_, err := q.db.ExecContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
-	return err
+func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertTailnetCoordinator = `-- name: UpsertTailnetCoordinator :one

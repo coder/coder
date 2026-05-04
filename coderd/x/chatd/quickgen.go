@@ -106,9 +106,10 @@ type generatedTitle struct {
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
 // current title is either empty or still the fallback truncation).
-// It tries cheap, fast models first and falls back to the user's
-// chat model. It is a best-effort operation that logs and swallows
-// errors.
+// It uses the configured title generation model override when set.
+// Otherwise, it tries cheap, fast models first and falls back to the
+// user's chat model. It is a best-effort operation that logs and
+// swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
@@ -130,28 +131,58 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Build candidate list: preferred lightweight models first,
-	// then the user's chat model as last resort.
-	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
-	for _, c := range preferredTitleModels {
-		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys, chatprovider.UserAgent(),
-			chatprovider.CoderHeaders(chat),
-			nil,
-		)
-		if err == nil {
-			candidates = append(candidates, shortTextCandidate{
-				provider: c.provider,
-				model:    c.model,
-				lm:       m,
-			})
+	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+		titleCtx,
+		chat,
+		keys,
+	)
+	if overrideErr != nil {
+		if overrideSet {
+			logger.Warn(ctx, "title generation model override unavailable, skipping title generation",
+				slog.F("chat_id", chat.ID),
+				slog.F("override_context", titleGenerationOverrideContext),
+				slog.Error(overrideErr),
+			)
+			return
 		}
+		logger.Debug(ctx, "failed to resolve title generation model override",
+			slog.F("chat_id", chat.ID),
+			slog.F("override_context", titleGenerationOverrideContext),
+			slog.Error(overrideErr),
+		)
 	}
-	candidates = append(candidates, shortTextCandidate{
-		provider: fallbackProvider,
-		model:    fallbackModelName,
-		lm:       fallbackModel,
-	})
+
+	var candidates []shortTextCandidate
+	if overrideSet {
+		candidates = []shortTextCandidate{{
+			provider: overrideConfig.Provider,
+			model:    overrideConfig.Model,
+			lm:       overrideModel,
+		}}
+	} else {
+		// Build candidate list: preferred lightweight models first,
+		// then the user's chat model as last resort.
+		candidates = make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
+		for _, c := range preferredTitleModels {
+			m, err := chatprovider.ModelFromConfig(
+				c.provider, c.model, keys, chatprovider.UserAgent(),
+				chatprovider.CoderHeaders(chat),
+				nil,
+			)
+			if err == nil {
+				candidates = append(candidates, shortTextCandidate{
+					provider: c.provider,
+					model:    c.model,
+					lm:       m,
+				})
+			}
+		}
+		candidates = append(candidates, shortTextCandidate{
+			provider: fallbackProvider,
+			model:    fallbackModelName,
+			lm:       fallbackModel,
+		})
+	}
 
 	var historyTipMessageID int64
 	if len(messages) > 0 {
@@ -197,10 +228,20 @@ func (p *Server) maybeGenerateChatTitle(
 		finishDebugRun(err)
 		if err != nil {
 			lastErr = err
-			logger.Debug(ctx, "title model candidate failed",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
+			if overrideSet {
+				logger.Warn(ctx, "title model candidate failed",
+					slog.F("chat_id", chat.ID),
+					slog.F("override_context", titleGenerationOverrideContext),
+					slog.F("provider", candidate.provider),
+					slog.F("model", candidate.model),
+					slog.Error(err),
+				)
+			} else {
+				logger.Debug(ctx, "title model candidate failed",
+					slog.F("chat_id", chat.ID),
+					slog.Error(err),
+				)
+			}
 			continue
 		}
 		if title == "" || title == chat.Title {
@@ -225,10 +266,18 @@ func (p *Server) maybeGenerateChatTitle(
 	}
 
 	if lastErr != nil {
-		logger.Debug(ctx, "all title model candidates failed",
-			slog.F("chat_id", chat.ID),
-			slog.Error(lastErr),
-		)
+		if overrideSet {
+			logger.Warn(ctx, "all title model candidates failed",
+				slog.F("chat_id", chat.ID),
+				slog.F("override_context", titleGenerationOverrideContext),
+				slog.Error(lastErr),
+			)
+		} else {
+			logger.Debug(ctx, "all title model candidates failed",
+				slog.F("chat_id", chat.ID),
+				slog.Error(lastErr),
+			)
+		}
 	}
 }
 

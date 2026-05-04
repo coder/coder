@@ -22,7 +22,7 @@ interface UpdateModelOverrideRequest {
 
 interface SubagentModelOverrideSettingsProps {
 	title: string;
-	description: ReactNode;
+	description?: ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
 	enabledModelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsError: unknown;
@@ -34,6 +34,8 @@ interface SubagentModelOverrideSettingsProps {
 	isSaving: boolean;
 	isSaveError: boolean;
 	saveErrorMessage: string;
+	unsetPlaceholder?: string;
+	unavailableModelWarning?: string;
 	showHeader?: boolean;
 	disabled?: boolean;
 }
@@ -61,6 +63,8 @@ export const SubagentModelOverrideSettings: FC<
 	isSaving,
 	isSaveError,
 	saveErrorMessage,
+	unsetPlaceholder = "Use chat default",
+	unavailableModelWarning = "The saved model is no longer enabled and will be ignored until you choose a new override.",
 	showHeader = true,
 	disabled = false,
 }) => {
@@ -104,9 +108,11 @@ export const SubagentModelOverrideSettings: FC<
 					<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 						{title}
 					</h3>
-					<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-						{description}
-					</p>
+					{description && (
+						<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+							{description}
+						</p>
+					)}
 				</>
 			)}
 			<ModelSelector
@@ -115,7 +121,7 @@ export const SubagentModelOverrideSettings: FC<
 				onValueChange={(value) => form.setFieldValue("model_config_id", value)}
 				disabled={isModelOverrideDisabled}
 				placeholder={
-					isUnavailableSavedModel ? "Unavailable model" : "Use chat default"
+					isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
 				}
 				emptyMessage={
 					isLoading ? "Loading models..." : "No enabled models found."
@@ -125,10 +131,7 @@ export const SubagentModelOverrideSettings: FC<
 			/>
 			{isUnavailableSavedModel && (
 				<Alert severity="warning">
-					<AlertDescription>
-						The saved model is no longer enabled and will be ignored until you
-						choose a new override.
-					</AlertDescription>
+					<AlertDescription>{unavailableModelWarning}</AlertDescription>
 				</Alert>
 			)}
 			{isMalformedOverride && (

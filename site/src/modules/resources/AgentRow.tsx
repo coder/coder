@@ -2,6 +2,7 @@ import Collapse from "@mui/material/Collapse";
 import {
 	CopyIcon,
 	EllipsisIcon,
+	InfoIcon,
 	PackageIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
@@ -39,6 +40,7 @@ import {
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tabs,
 	TabsContent,
@@ -55,14 +57,8 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import {
-	agentScriptMessages,
-	getAgentHealthIssues,
-} from "#/modules/workspaces/health";
-import {
-	AgentAlert,
-	StartScriptFailureDetail,
-} from "#/pages/WorkspacePage/AgentAlert";
+import { getAgentHealthIssues } from "#/modules/workspaces/health";
+import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -139,7 +135,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	template,
 	onUpdateAgent,
 	initialMetadata,
-	agentScriptTimings,
 }) => {
 	const { browser_only, workspace_external_agent } = useFeatureVisibility();
 	const appSections = organizeAgentApps(agent.apps);
@@ -157,12 +152,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const healthIssues = getAgentHealthIssues(agent);
 	const hasAgentIssues = healthIssues.length > 0;
-	const failedStartTimings = agentScriptTimings?.filter(
-		(t) =>
-			t.workspace_agent_id === agent.id &&
-			t.stage === "start" &&
-			t.exit_code !== 0,
-	);
+	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
@@ -250,7 +240,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const [selectedLogTab, setSelectedLogTab] = useState(
 		failedStartupScriptSource?.id ?? "all",
 	);
-	const sourceLogTabs = agent.log_sources
+	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
 			return agentLogs.some(
@@ -258,38 +248,57 @@ export const AgentRow: FC<AgentRowProps> = ({
 					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
 			);
 		})
-		.map((logSource) => ({
-			// Show the icon for the log source if it has one.
-			// In the startup script case, we show a bespoke play icon.
-			startIcon: logSource.icon ? (
-				<ExternalImage
-					src={logSource.icon}
-					alt=""
-					className="size-icon-xs shrink-0"
-				/>
-			) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
-				<PlayIcon className="size-icon-xs shrink-0" />
-			) : null,
-			title: logSource.display_name,
-			value: logSource.id,
-		}));
-	const startupScriptLogTab = sourceLogTabs.find(
-		(tab) => tab.title === STARTUP_SCRIPT_DISPLAY_NAME,
-	);
-	const sortedSourceLogTabs = sourceLogTabs
-		.filter((tab) => tab !== startupScriptLogTab)
-		.sort((a, b) => a.title.localeCompare(b.title));
+		.map((logSource) => {
+			const script = agent.scripts.find(
+				(s) => s.log_source_id === logSource.id,
+			);
+			return {
+				// Show the icon for the log source if it has one.
+				// In the startup script case, we show a bespoke play icon.
+				startIcon: logSource.icon ? (
+					<ExternalImage
+						src={logSource.icon}
+						alt=""
+						className="size-icon-xs shrink-0"
+					/>
+				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+					<PlayIcon className="size-icon-xs shrink-0" />
+				) : null,
+				title: logSource.display_name,
+				value: logSource.id,
+				error: Boolean(
+					script?.exit_code || (script?.status && script.status !== "ok"),
+				),
+			};
+		})
+		.sort((a, b) => {
+			// Errored scripts first, then startup script, then the rest.
+			if (a.error && !b.error) {
+				return -1;
+			}
+			if (b.error && !a.error) {
+				return 1;
+			}
+			if (a.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return -1;
+			}
+			if (b.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return 1;
+			}
+			return a.title.localeCompare(b.title);
+		});
 	const logTabs: {
 		startIcon?: ReactNode;
 		title: string;
 		value: string;
+		error: boolean;
 	}[] = [
 		{
 			title: "All Logs",
 			value: "all",
 			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
+			error: false,
 		},
-		...(startupScriptLogTab ? [startupScriptLogTab] : []),
 		...sortedSourceLogTabs,
 	];
 	const hasAnyLogs = agentLogs.length > 0;
@@ -500,9 +509,34 @@ export const AgentRow: FC<AgentRowProps> = ({
 					>
 						<ChevronDownIcon open={showLogs} />
 						<span>Logs</span>
+						{agent.lifecycle_state === "starting" &&
+							agent.log_sources.length > 0 &&
+							healthIssues.length === 0 && (
+								<Badge
+									variant="default"
+									size="xs"
+									className="ml-1.5"
+									svgSize="sm"
+								>
+									<Spinner
+										size="lg"
+										loading={true}
+										className="text-content-secondary -ml-1"
+									/>
+									<span>{agent.log_sources.length}</span>
+								</Badge>
+							)}
 						{healthIssues.length > 0 && (
-							<Badge variant="warning" size="xs" className="ml-1.5">
-								<TriangleAlertIcon />
+							<Badge
+								variant={hasWarningIssues ? "warning" : "info"}
+								size="xs"
+								className="ml-1.5"
+							>
+								{hasWarningIssues ? (
+									<TriangleAlertIcon className="-ml-0.5" />
+								) : (
+									<InfoIcon className="-ml-0.5" />
+								)}
 								<span>{healthIssues.length}</span>
 							</Badge>
 						)}
@@ -512,27 +546,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
 						{healthIssues.length > 0 && (
 							<div className="mb-4 flex flex-col gap-3">
-								{healthIssues.map((issue) => {
-									const isStartError =
-										issue.title === agentScriptMessages.start_error.title;
-									const detail =
-										isStartError && failedStartTimings?.length ? (
-											<StartScriptFailureDetail
-												baseDetail={issue.detail}
-												timings={failedStartTimings}
-											/>
-										) : (
-											issue.detail
-										);
-									return (
-										<AgentAlert
-											key={`${issue.title}-${issue.detail}`}
-											{...issue}
-											detail={detail}
-											troubleshootingURL={agent.troubleshooting_url}
-										/>
-									);
-								})}
+								{healthIssues.map((issue) => (
+									<AgentAlert
+										key={`${issue.title}-${issue.detail}`}
+										{...issue}
+										troubleshootingURL={agent.troubleshooting_url}
+									/>
+								))}
 							</div>
 						)}
 						{hasStartupFeatures && hasAnyLogs && (
@@ -560,6 +580,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<span className="whitespace-nowrap">
 															{tab.title}
 														</span>
+														{tab.error && (
+															<Badge
+																variant="warning"
+																size="xs"
+																className="ml-1.5"
+															>
+																<TriangleAlertIcon />
+															</Badge>
+														)}
 													</TabsTrigger>
 												))}
 												{overflowLogTabs.length > 0 && (
@@ -601,6 +630,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		<span className="whitespace-nowrap">
 																			{tab.title}
 																		</span>
+																		{tab.error && (
+																			<Badge
+																				variant="warning"
+																				size="xs"
+																				className="ml-1.5"
+																			>
+																				<TriangleAlertIcon />
+																			</Badge>
+																		)}
 																	</DropdownMenuRadioItem>
 																))}
 															</DropdownMenuRadioGroup>

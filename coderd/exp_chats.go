@@ -532,62 +532,72 @@ func (api *API) getChatModelOverrideConfig(
 	return id, false, nil
 }
 
-func parseChatAgentModelOverrideContext(raw string) (codersdk.ChatAgentModelOverrideContext, error) {
-	overrideContext := codersdk.ChatAgentModelOverrideContext(raw)
+func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
+	overrideContext := codersdk.ChatModelOverrideContext(raw)
 	if overrideContext.Valid() {
 		return overrideContext, nil
 	}
-	return "", xerrors.Errorf("unknown chat agent model override context %q", raw)
+	return "", xerrors.Errorf("unknown chat model override context %q", raw)
 }
 
-type chatAgentModelOverrideSiteConfig struct {
+type chatModelOverrideSiteConfig struct {
+	label  string
 	getter func(context.Context) (string, error)
 	upsert func(context.Context, string) error
 }
 
-func (api *API) chatAgentModelOverrideSiteConfig(
-	overrideContext codersdk.ChatAgentModelOverrideContext,
-) (chatAgentModelOverrideSiteConfig, error) {
+func (api *API) chatModelOverrideSiteConfig(
+	overrideContext codersdk.ChatModelOverrideContext,
+) (chatModelOverrideSiteConfig, error) {
 	switch overrideContext {
-	case codersdk.ChatAgentModelOverrideContextGeneral:
-		return chatAgentModelOverrideSiteConfig{
+	case codersdk.ChatModelOverrideContextGeneral:
+		return chatModelOverrideSiteConfig{
+			label:  "general",
 			getter: api.Database.GetChatGeneralModelOverride,
 			upsert: api.Database.UpsertChatGeneralModelOverride,
 		}, nil
-	case codersdk.ChatAgentModelOverrideContextExplore:
-		return chatAgentModelOverrideSiteConfig{
+	case codersdk.ChatModelOverrideContextExplore:
+		return chatModelOverrideSiteConfig{
+			label:  "explore",
 			getter: api.Database.GetChatExploreModelOverride,
 			upsert: api.Database.UpsertChatExploreModelOverride,
 		}, nil
+	case codersdk.ChatModelOverrideContextTitleGeneration:
+		return chatModelOverrideSiteConfig{
+			label:  "title generation",
+			getter: api.Database.GetChatTitleGenerationModelOverride,
+			upsert: api.Database.UpsertChatTitleGenerationModelOverride,
+		}, nil
 	default:
-		return chatAgentModelOverrideSiteConfig{}, xerrors.Errorf(
-			"unknown chat agent model override context %q",
+		return chatModelOverrideSiteConfig{}, xerrors.Errorf(
+			"unknown chat model override context %q",
 			overrideContext,
 		)
 	}
 }
 
-func (api *API) getChatAgentModelOverrideConfig(
+func (api *API) readChatModelOverrideConfig(
 	ctx context.Context,
-	overrideContext codersdk.ChatAgentModelOverrideContext,
-) (*uuid.UUID, bool, error) {
-	siteConfig, err := api.chatAgentModelOverrideSiteConfig(overrideContext)
+	overrideContext codersdk.ChatModelOverrideContext,
+) (*uuid.UUID, bool, string, error) {
+	siteConfig, err := api.chatModelOverrideSiteConfig(overrideContext)
 	if err != nil {
-		return nil, false, err
+		return nil, false, "", err
 	}
-	return api.getChatModelOverrideConfig(ctx, string(overrideContext), siteConfig.getter)
+	id, isMalformed, err := api.getChatModelOverrideConfig(ctx, siteConfig.label, siteConfig.getter)
+	return id, isMalformed, siteConfig.label, err
 }
 
-func (api *API) upsertChatAgentModelOverrideConfig(
+func (api *API) upsertChatModelOverrideConfig(
 	ctx context.Context,
-	overrideContext codersdk.ChatAgentModelOverrideContext,
+	overrideContext codersdk.ChatModelOverrideContext,
 	modelConfigID *uuid.UUID,
-) error {
-	siteConfig, err := api.chatAgentModelOverrideSiteConfig(overrideContext)
+) (string, error) {
+	siteConfig, err := api.chatModelOverrideSiteConfig(overrideContext)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID))
+	return siteConfig.label, siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3941,27 +3951,27 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func readChatAgentModelOverrideContext(
+func readChatModelOverrideContext(
 	rw http.ResponseWriter,
 	r *http.Request,
-) (codersdk.ChatAgentModelOverrideContext, bool) {
+) (codersdk.ChatModelOverrideContext, bool) {
 	ctx := r.Context()
 	rawContext := chi.URLParam(r, "context")
-	overrideContext, err := parseChatAgentModelOverrideContext(rawContext)
+	overrideContext, err := parseChatModelOverrideContext(rawContext)
 	if err == nil {
 		return overrideContext, true
 	}
 	validContextValues := make(
 		[]string,
 		0,
-		len(codersdk.AllChatAgentModelOverrideContexts()),
+		len(codersdk.AllChatModelOverrideContexts()),
 	)
-	for _, overrideContext := range codersdk.AllChatAgentModelOverrideContexts() {
+	for _, overrideContext := range codersdk.AllChatModelOverrideContexts() {
 		validContextValues = append(validContextValues, string(overrideContext))
 	}
 	validContexts := strings.Join(validContextValues, ", ")
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message: "Invalid chat agent model override context.",
+		Message: "Invalid chat model override context.",
 		Detail: fmt.Sprintf(
 			"Expected one of %s. Got %q.",
 			validContexts,
@@ -3974,27 +3984,30 @@ func readChatAgentModelOverrideContext(
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatAgentModelOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) getChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	overrideContext, ok := readChatAgentModelOverrideContext(rw, r)
+	overrideContext, ok := readChatModelOverrideContext(rw, r)
 	if !ok {
 		return
 	}
 
-	modelConfigID, isMalformed, err := api.getChatAgentModelOverrideConfig(ctx, overrideContext)
+	modelConfigID, isMalformed, label, err := api.readChatModelOverrideConfig(ctx, overrideContext)
 	if err != nil {
+		if label == "" {
+			label = string(overrideContext)
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Internal error fetching %s model override.", overrideContext),
+			Message: fmt.Sprintf("Internal error fetching %s model override.", label),
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	resp := codersdk.ChatAgentModelOverrideResponse{
+	resp := codersdk.ChatModelOverrideResponse{
 		Context:       overrideContext,
 		ModelConfigID: formatChatModelOverride(modelConfigID),
 		IsMalformed:   isMalformed,
@@ -4004,18 +4017,18 @@ func (api *API) getChatAgentModelOverride(rw http.ResponseWriter, r *http.Reques
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatAgentModelOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) putChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-	overrideContext, ok := readChatAgentModelOverrideContext(rw, r)
+	overrideContext, ok := readChatModelOverrideContext(rw, r)
 	if !ok {
 		return
 	}
 
-	var req codersdk.UpdateChatAgentModelOverrideRequest
+	var req codersdk.UpdateChatModelOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -4035,9 +4048,13 @@ func (api *API) putChatAgentModelOverride(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := api.upsertChatAgentModelOverrideConfig(ctx, overrideContext, modelConfigID); err != nil {
+	label, err := api.upsertChatModelOverrideConfig(ctx, overrideContext, modelConfigID)
+	if err != nil {
+		if label == "" {
+			label = string(overrideContext)
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Internal error updating %s model override.", overrideContext),
+			Message: fmt.Sprintf("Internal error updating %s model override.", label),
 			Detail:  err.Error(),
 		})
 		return

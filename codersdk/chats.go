@@ -562,45 +562,48 @@ type UpdateChatPlanModeInstructionsRequest struct {
 	PlanModeInstructions string `json:"plan_mode_instructions"`
 }
 
-// ChatAgentModelOverrideContext identifies which chat or subagent context
-// a deployment override applies to.
-type ChatAgentModelOverrideContext string
+// ChatModelOverrideContext identifies which chat model override context a
+// deployment override applies to.
+type ChatModelOverrideContext string
 
 const (
-	ChatAgentModelOverrideContextGeneral ChatAgentModelOverrideContext = "general"
-	ChatAgentModelOverrideContextExplore ChatAgentModelOverrideContext = "explore"
+	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
+	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
+	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 )
 
 // Valid reports whether the override context is one of the supported values.
-func (c ChatAgentModelOverrideContext) Valid() bool {
+func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
-	case ChatAgentModelOverrideContextGeneral,
-		ChatAgentModelOverrideContextExplore:
+	case ChatModelOverrideContextGeneral,
+		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextTitleGeneration:
 		return true
 	default:
 		return false
 	}
 }
 
-// AllChatAgentModelOverrideContexts returns all supported override contexts.
-func AllChatAgentModelOverrideContexts() []ChatAgentModelOverrideContext {
-	return []ChatAgentModelOverrideContext{
-		ChatAgentModelOverrideContextGeneral,
-		ChatAgentModelOverrideContextExplore,
+// AllChatModelOverrideContexts returns all supported override contexts.
+func AllChatModelOverrideContexts() []ChatModelOverrideContext {
+	return []ChatModelOverrideContext{
+		ChatModelOverrideContextGeneral,
+		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextTitleGeneration,
 	}
 }
 
-// ChatAgentModelOverrideResponse is the response body for the chat agent
-// model override configuration endpoint.
-type ChatAgentModelOverrideResponse struct {
-	Context       ChatAgentModelOverrideContext `json:"context"`
-	ModelConfigID string                        `json:"model_config_id"`
-	IsMalformed   bool                          `json:"is_malformed"`
+// ChatModelOverrideResponse is the response body for the chat model override
+// configuration endpoint.
+type ChatModelOverrideResponse struct {
+	Context       ChatModelOverrideContext `json:"context"`
+	ModelConfigID string                   `json:"model_config_id"`
+	IsMalformed   bool                     `json:"is_malformed"`
 }
 
-// UpdateChatAgentModelOverrideRequest is the request body for updating the
-// chat agent model override configuration endpoint.
-type UpdateChatAgentModelOverrideRequest struct {
+// UpdateChatModelOverrideRequest is the request body for updating the chat
+// model override configuration endpoint.
+type UpdateChatModelOverrideRequest struct {
 	ModelConfigID string `json:"model_config_id"`
 }
 
@@ -2098,30 +2101,30 @@ func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context,
 	return nil
 }
 
-// GetChatAgentModelOverride returns the deployment-wide chat agent model
-// override for the requested context.
-func (c *ExperimentalClient) GetChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext) (ChatAgentModelOverrideResponse, error) {
+// GetChatModelOverride returns the deployment-wide chat model override for
+// the requested context.
+func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override ChatModelOverrideContext) (ChatModelOverrideResponse, error) {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/agent-model-override/%s",
+		"/api/experimental/chats/config/model-override/%s",
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return ChatAgentModelOverrideResponse{}, err
+		return ChatModelOverrideResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatAgentModelOverrideResponse{}, ReadBodyAsError(res)
+		return ChatModelOverrideResponse{}, ReadBodyAsError(res)
 	}
-	var resp ChatAgentModelOverrideResponse
+	var resp ChatModelOverrideResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateChatAgentModelOverride updates the deployment-wide chat agent model
-// override for the requested context.
-func (c *ExperimentalClient) UpdateChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext, req UpdateChatAgentModelOverrideRequest) error {
+// UpdateChatModelOverride updates the deployment-wide chat model override for
+// the requested context.
+func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) error {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/agent-model-override/%s",
+		"/api/experimental/chats/config/model-override/%s",
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodPut, path, req)

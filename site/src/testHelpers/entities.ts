@@ -987,7 +987,7 @@ const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	script: "echo 'hello world'",
 	start_blocks_login: false,
 	timeout: 0,
-	display_name: "Say Hello",
+	display_name: "Startup Script",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -1012,7 +1012,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	},
 	connection_timeout_seconds: 120,
 	troubleshooting_url: "https://coder.com/troubleshoot",
-	lifecycle_state: "starting",
+	lifecycle_state: "ready",
 	logs_length: 0,
 	logs_overflowed: false,
 	log_sources: [MockWorkspaceAgentLogSource],
@@ -1178,6 +1178,14 @@ export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
 	id: "test-workspace-agent-start-timeout",
 	name: "a-workspace-agent-timed-out-while-running-startup-script",
 	lifecycle_state: "start_timeout",
+	scripts: [
+		{
+			...MockWorkspaceAgentScript,
+			status: "timed_out",
+		},
+	],
+	logs_length: 1,
+	log_sources: [MockWorkspaceAgentLogSource],
 };
 
 export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
@@ -1189,6 +1197,67 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 		healthy: false,
 		reason: "agent startup script failed",
 	},
+	scripts: [
+		{
+			...MockWorkspaceAgentScript,
+			exit_code: 1,
+			status: "exit_failure",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "18eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "a2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "ok",
+			display_name: "coder",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "28eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "b2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			status: "timed_out",
+			display_name: "time",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "38eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "c2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			status: "pipes_left_open",
+			display_name: "pipe",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "48eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "running",
+		},
+	],
+	logs_length: 4,
+	log_sources: [
+		MockWorkspaceAgentLogSource,
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "a2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "coder",
+			icon: "/icon/coder.svg",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "b2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "time",
+			icon: "/icon/folder.svg",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "c2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "pipe",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "running",
+		},
+	],
 };
 
 export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
@@ -1499,7 +1568,16 @@ export const MockFavoriteWorkspace: TypesGen.Workspace = {
 export const MockStoppedWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-stopped-workspace",
-	latest_build: { ...MockWorkspaceBuildStop, status: "stopped" },
+	latest_build: {
+		...MockWorkspaceBuildStop,
+		status: "stopped",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
+	},
 };
 export const MockStoppingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1508,6 +1586,12 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildStop,
 		job: MockRunningProvisionerJob,
 		status: "stopping",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 export const MockUnhealthyWorkspace: TypesGen.Workspace = {
@@ -1532,6 +1616,12 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
 		job: MockRunningProvisionerJob,
 		transition: "start",
 		status: "starting",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentStarting],
+			},
+		],
 	},
 };
 export const MockCancelingWorkspace: TypesGen.Workspace = {
@@ -1541,6 +1631,12 @@ export const MockCancelingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockCancelingProvisionerJob,
 		status: "canceling",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 export const MockCanceledWorkspace: TypesGen.Workspace = {
@@ -1550,6 +1646,12 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockCanceledProvisionerJob,
 		status: "canceled",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
 	},
 };
 export const MockFailedWorkspace: TypesGen.Workspace = {
@@ -1559,6 +1661,12 @@ export const MockFailedWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockFailedProvisionerJob,
 		status: "failed",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentStartError],
+			},
+		],
 	},
 };
 export const MockDeletingWorkspace: TypesGen.Workspace = {
@@ -1568,6 +1676,12 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildDelete,
 		job: MockRunningProvisionerJob,
 		status: "deleting",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 
@@ -1579,7 +1693,16 @@ const MockWorkspaceWithDeletion = {
 export const MockDeletedWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-deleted-workspace",
-	latest_build: { ...MockWorkspaceBuildDelete, status: "deleted" },
+	latest_build: {
+		...MockWorkspaceBuildDelete,
+		status: "deleted",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
+	},
 };
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = {
@@ -1651,6 +1774,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 		job: MockPendingProvisionerJob,
 		transition: "start",
 		status: "pending",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentConnecting],
+			},
+		],
 	},
 };
 
