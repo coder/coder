@@ -2021,6 +2021,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				reg := prometheus.NewRegistry()
 				deps := setupChatDebugDeps(t, db)
 				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(7)))
 
@@ -2030,9 +2031,14 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				unfinishedOldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-9*24*time.Hour), false)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
+
+				chatDebugRuns := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+					"record_type": "chat_debug_runs",
+				})
+				require.Greater(t, chatDebugRuns, 0, "chat debug purge counter should record deleted runs")
 
 				_, err := db.GetChatDebugRunByID(ctx, oldRun.ID)
 				require.ErrorIs(t, err, sql.ErrNoRows, "old finished run should be deleted")
