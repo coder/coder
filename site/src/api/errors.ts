@@ -10,6 +10,7 @@ type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;
 export interface ApiErrorResponse {
 	message: string;
 	detail?: string;
+	command?: string;
 	validations?: FieldError[];
 }
 
@@ -35,6 +36,9 @@ export const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
 		(!("detail" in err) ||
 			err.detail === undefined ||
 			typeof err.detail === "string") &&
+		(!("command" in err) ||
+			err.command === undefined ||
+			typeof err.command === "string") &&
 		(!("validations" in err) ||
 			err.validations === undefined ||
 			Array.isArray(err.validations))

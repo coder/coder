@@ -249,6 +249,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) ChatHasQueuedMessages(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.ChatHasQueuedMessages(ctx, chatID)
+	m.queryLatencies.WithLabelValues("ChatHasQueuedMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ChatHasQueuedMessages").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -1262,6 +1270,14 @@ func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (stri
 	r0, r1 := m.s.GetChatComputerUseProvider(ctx)
 	m.queryLatencies.WithLabelValues("GetChatComputerUseProvider").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatComputerUseProvider").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatContextBoundariesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatContextBoundariesByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatContextBoundariesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatContextBoundariesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatContextBoundariesByChatID").Inc()
 	return r0, r1
 }
 

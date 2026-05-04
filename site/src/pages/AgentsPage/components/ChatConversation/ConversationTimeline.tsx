@@ -3,6 +3,7 @@ import {
 	type FC,
 	Fragment,
 	memo,
+	type ReactNode,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -13,7 +14,6 @@ import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -22,7 +22,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-
 import {
 	ConversationItem,
 	Message,
@@ -40,6 +39,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
+import { compareBoundaryPosition } from "./chatHelpers";
 import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
@@ -1033,7 +1033,19 @@ function computeLastInChainFlags(
 	return flags;
 }
 
+const ContextBoundaryDivider: FC = () => (
+	<div
+		data-testid="context-boundary-divider"
+		className="flex items-center gap-3 py-2 text-xs font-medium text-content-secondary"
+	>
+		<div className="h-px flex-1 bg-border" />
+		<span>Context boundary</span>
+		<div className="h-px flex-1 bg-border" />
+	</div>
+);
+
 interface ConversationTimelineProps {
+	boundaries?: readonly TypesGen.ChatContextBoundary[];
 	parsedMessages: readonly ParsedMessageEntry[];
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
@@ -1055,6 +1067,7 @@ interface ConversationTimelineProps {
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
+		boundaries = [],
 		parsedMessages,
 		subagentTitles,
 		subagentVariants,
@@ -1086,7 +1099,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
-		if (parsedMessages.length === 0) {
+		if (parsedMessages.length === 0 && boundaries.length === 0) {
 			return null;
 		}
 
@@ -1170,70 +1183,124 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		const renderMessageEntry = (
+			{ message, parsed }: ParsedMessageEntry,
+			msgIdx: number,
+		): ReactNode => {
+			if (message.role === "user") {
+				const { shouldHide } = deriveMessageDisplayState({
+					message,
+					parsed,
+					hideActions: false,
+					hasActiveStream: false,
+					isAwaitingFirstStreamChunk: false,
+				});
+				if (shouldHide) {
+					return null;
+				}
+				return (
+					<StickyUserMessage
+						key={message.id}
+						message={message}
+						parsed={parsed}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+						prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
+						nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
+						onJumpToUserMessage={jumpToUserMessage}
+						registerSentinel={registerSentinel}
+					/>
+				);
+			}
+			// Hide actions on assistant messages that are not the
+			// last in a consecutive assistant chain. Flags are
+			// precomputed in a single reverse pass above.
+			const isLastInChain = lastInChainFlags[msgIdx];
+			return (
+				<ChatMessageItem
+					key={message.id}
+					message={message}
+					parsed={parsed}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
+					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+					askUserQuestionResponseTextByToolId={
+						historicalAskUserQuestionResponseTextByToolId
+					}
+					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
+					urlTransform={urlTransform}
+					isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+					hideActions={!isLastInChain}
+					hasActiveStream={Boolean(hasActiveStream)}
+					isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+					mcpServers={mcpServers}
+					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
+					showDesktopPreviews={showDesktopPreviews}
+				/>
+			);
+		};
+
+		// Boundary placement uses the same order as paginated boundary sorting.
+		const timelineNodes: ReactNode[] = [];
+		let boundaryIndex = 0;
+		const firstMessage = parsedMessages[0]?.message;
+		if (firstMessage) {
+			for (const boundary of boundaries.slice(boundaryIndex)) {
+				if (compareBoundaryPosition(boundary, firstMessage) >= 0) {
+					break;
+				}
+				timelineNodes.push(
+					<ContextBoundaryDivider key={`context-boundary-${boundary.id}`} />,
+				);
+				boundaryIndex += 1;
+			}
+		}
+		for (
+			let messageIndex = 0;
+			messageIndex < parsedMessages.length;
+			messageIndex += 1
+		) {
+			const entry = parsedMessages[messageIndex];
+			if (!entry) {
+				continue;
+			}
+			const currentMessage = entry.message;
+			const nextMessage = parsedMessages[messageIndex + 1]?.message;
+			timelineNodes.push(renderMessageEntry(entry, messageIndex));
+			for (const boundary of boundaries.slice(boundaryIndex)) {
+				if (compareBoundaryPosition(boundary, currentMessage) <= 0) {
+					boundaryIndex += 1;
+					continue;
+				}
+				if (
+					nextMessage &&
+					compareBoundaryPosition(boundary, nextMessage) >= 0
+				) {
+					break;
+				}
+				timelineNodes.push(
+					<ContextBoundaryDivider key={`context-boundary-${boundary.id}`} />,
+				);
+				boundaryIndex += 1;
+			}
+		}
+		// Drain boundaries when no loaded message consumed them.
+		for (const boundary of boundaries.slice(boundaryIndex)) {
+			timelineNodes.push(
+				<ContextBoundaryDivider key={`context-boundary-${boundary.id}`} />,
+			);
+		}
+
 		return (
 			<FileProbeProvider>
 				<div
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
 				>
-					{parsedMessages.map(({ message, parsed }, msgIdx) => {
-						if (message.role === "user") {
-							const { shouldHide } = deriveMessageDisplayState({
-								message,
-								parsed,
-								hideActions: false,
-								hasActiveStream: false,
-								isAwaitingFirstStreamChunk: false,
-							});
-							if (shouldHide) {
-								return null;
-							}
-							return (
-								<StickyUserMessage
-									key={message.id}
-									message={message}
-									parsed={parsed}
-									onEditUserMessage={onEditUserMessage}
-									editingMessageId={editingMessageId}
-									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
-									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
-									onJumpToUserMessage={jumpToUserMessage}
-									registerSentinel={registerSentinel}
-								/>
-							);
-						}
-						// Hide actions on assistant messages that are not the
-						// last in a consecutive assistant chain. Flags are
-						// precomputed in a single reverse pass above.
-						const isLastInChain = lastInChainFlags[msgIdx];
-						return (
-							<ChatMessageItem
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onImplementPlan={onImplementPlan}
-								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-								isChatCompleted={isChatCompleted}
-								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-								askUserQuestionResponseTextByToolId={
-									historicalAskUserQuestionResponseTextByToolId
-								}
-								hasUserResponseAfterAskQuestion={
-									hasUserResponseAfterAskQuestion
-								}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								hideActions={!isLastInChain}
-								hasActiveStream={Boolean(hasActiveStream)}
-								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
-								mcpServers={mcpServers}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
-							/>
-						);
-					})}
+					{timelineNodes}
 				</div>
 			</FileProbeProvider>
 		);

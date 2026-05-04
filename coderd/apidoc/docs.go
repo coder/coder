@@ -16409,6 +16409,20 @@ const docTemplate = `{
                 "ChatClientTypeAPI"
             ]
         },
+        "codersdk.ChatCommandResult": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ChatConfig": {
             "type": "object",
             "properties": {
@@ -16417,6 +16431,22 @@ const docTemplate = `{
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatContextBoundary": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
                 }
             }
         },
@@ -16967,6 +16997,12 @@ const docTemplate = `{
         "codersdk.ChatMessagesResponse": {
             "type": "object",
             "properties": {
+                "boundaries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatContextBoundary"
+                    }
+                },
                 "has_more": {
                     "type": "boolean"
                 },
@@ -17594,6 +17630,14 @@ const docTemplate = `{
         "codersdk.CreateChatMessageResponse": {
             "type": "object",
             "properties": {
+                "command_result": {
+                    "description": "CommandResult is set when the request ran a command.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatCommandResult"
+                        }
+                    ]
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },

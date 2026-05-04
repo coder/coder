@@ -37,6 +37,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
+	selectContextBoundaries,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
@@ -287,6 +288,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -368,6 +370,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -443,6 +446,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -537,6 +541,7 @@ describe("useChatStore", () => {
 				chatMessagesData: {
 					messages: [existingMessage],
 					queued_messages: [],
+					boundaries: [],
 					has_more: false,
 				},
 				chatQueuedMessages: [],
@@ -611,6 +616,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -686,6 +692,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -786,6 +793,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [queuedMessage],
@@ -830,6 +838,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [queuedMessage],
@@ -864,6 +873,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [queuedMessage],
@@ -899,6 +909,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [],
@@ -931,6 +942,7 @@ describe("useChatStore", () => {
 		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
 			messages: [existingMessage],
 			queued_messages: [queuedMessage],
+			boundaries: [],
 			has_more: false,
 		};
 		// The cache is InfiniteData<ChatMessagesResponse> after the
@@ -1005,6 +1017,7 @@ describe("useChatStore", () => {
 		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
 			messages: [existingMessage],
 			queued_messages: [],
+			boundaries: [],
 			has_more: false,
 		};
 		queryClient.setQueryData(chatMessagesKey(chatID), {
@@ -1124,6 +1137,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
@@ -1173,6 +1187,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg2],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 		});
@@ -1211,6 +1226,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [queuedMessage],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [queuedMessage],
@@ -1267,6 +1283,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -1369,6 +1386,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -1465,6 +1483,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
@@ -1514,6 +1533,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg2],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 		});
@@ -1556,6 +1576,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [queuedMsg],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [queuedMsg],
@@ -1592,6 +1613,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [],
@@ -1628,6 +1650,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -1698,6 +1721,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -1777,6 +1801,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -1833,6 +1858,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -1899,6 +1925,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -1982,6 +2009,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2069,6 +2097,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2132,6 +2161,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2213,6 +2243,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2290,6 +2321,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2367,6 +2399,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2416,6 +2449,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2469,6 +2503,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [msg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2534,6 +2569,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2659,6 +2695,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -2718,6 +2755,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: noQueued,
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: noQueued,
@@ -2748,6 +2786,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 		});
@@ -2789,6 +2828,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: [queuedMsg],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [queuedMsg],
@@ -2861,6 +2901,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [...initialMessages],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [],
@@ -2898,6 +2939,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: [queuedMsg],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [queuedMsg],
@@ -2999,6 +3041,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3071,6 +3114,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3149,6 +3193,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3249,6 +3294,7 @@ describe("thinking indicator event ordering", () => {
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3334,6 +3380,7 @@ describe("thinking indicator event ordering", () => {
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3414,6 +3461,7 @@ describe("thinking indicator event ordering", () => {
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3503,6 +3551,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3567,6 +3616,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3640,6 +3690,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3706,6 +3757,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3779,6 +3831,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3850,6 +3903,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3916,6 +3970,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -3970,6 +4025,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -4057,6 +4113,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -4145,6 +4202,7 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -4253,6 +4311,7 @@ describe("store/cache desync protection", () => {
 				{
 					messages: [msg2, msg1],
 					queued_messages: [],
+					boundaries: [],
 					has_more: false,
 				},
 			],
@@ -4270,6 +4329,7 @@ describe("store/cache desync protection", () => {
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
@@ -4315,6 +4375,7 @@ describe("store/cache desync protection", () => {
 			chatMessagesData: {
 				messages: [msg1New, msg2New],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 		});
@@ -4344,6 +4405,7 @@ describe("store/cache desync protection", () => {
 				{
 					messages: [msg3, msg2, msg1],
 					queued_messages: [],
+					boundaries: [],
 					has_more: false,
 				},
 			],
@@ -4360,6 +4422,7 @@ describe("store/cache desync protection", () => {
 			chatMessagesData: {
 				messages: [msg1, msg2, msg3],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
@@ -4393,6 +4456,7 @@ describe("store/cache desync protection", () => {
 			chatMessagesData: {
 				messages: [msg1New],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 		});
@@ -4432,6 +4496,7 @@ describe("store/cache desync protection", () => {
 			chatMessagesData: {
 				messages: [msg1, msg2, msg3],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
@@ -4465,6 +4530,7 @@ describe("store/cache desync protection", () => {
 			chatMessagesData: {
 				messages: [msg1, msg2, optimisticReplacement],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 		});
@@ -4482,6 +4548,7 @@ describe("store/cache desync protection", () => {
 			chatMessagesData: {
 				messages: [msg1, msg2, authoritativeReplacement],
 				queued_messages: [],
+				boundaries: [],
 				has_more: false,
 			},
 		});
@@ -4520,6 +4587,7 @@ describe("parse errors", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -4575,6 +4643,7 @@ describe("parse errors", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -4651,6 +4720,7 @@ describe("parse errors", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						boundaries: [],
 						has_more: false,
 					},
 					chatQueuedMessages: [],
@@ -4704,6 +4774,216 @@ describe("parse errors", () => {
 		expect(result.current.streamError).toEqual({
 			kind: "generic",
 			message: "Failed to parse chat stream update.",
+		});
+	});
+});
+
+describe("context boundaries", () => {
+	it("hydrates non-empty boundaries from chatMessagesData", async () => {
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const boundary: TypesGen.ChatContextBoundary = {
+			id: 2,
+			chat_id: chatID,
+			created_at: "2025-01-01T00:00:01.000Z",
+		};
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						boundaries: [boundary],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					boundaries: useChatSelector(store, selectContextBoundaries),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.boundaries).toEqual([boundary]);
+		});
+	});
+
+	it("keeps the same array reference when boundaries are equal by id", async () => {
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const boundary: TypesGen.ChatContextBoundary = {
+			id: 2,
+			chat_id: chatID,
+			created_at: "2025-01-01T00:00:01.000Z",
+		};
+		// Same id, different created_at: chatContextBoundariesEqualByID
+		// compares by id only, so the store should keep its prior array.
+		const boundaryEqualByID: TypesGen.ChatContextBoundary = {
+			id: 2,
+			chat_id: chatID,
+			created_at: "2025-01-01T00:00:02.000Z",
+		};
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const initialOptions = {
+			chatID,
+			chatMessages: [existingMessage],
+			chatRecord: makeChat(chatID),
+			chatMessagesData: {
+				messages: [existingMessage],
+				queued_messages: [],
+				boundaries: [boundary],
+				has_more: false,
+			},
+			chatQueuedMessages: [],
+			setChatErrorReason,
+			clearChatErrorReason,
+		} satisfies Parameters<typeof useChatStore>[0];
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					boundaries: useChatSelector(store, selectContextBoundaries),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.boundaries).toEqual([boundary]);
+		});
+		const firstReference = result.current.boundaries;
+
+		rerender({
+			...initialOptions,
+			chatMessagesData: {
+				messages: [existingMessage],
+				queued_messages: [],
+				boundaries: [boundaryEqualByID],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.boundaries).toBe(firstReference);
+		});
+	});
+
+	it("resets boundaries to [] when chatID changes", async () => {
+		immediateAnimationFrame();
+
+		const chatID1 = "chat-1";
+		const chatID2 = "chat-2";
+		const msg1 = makeMessage(chatID1, 1, "user", "hello");
+		const msg2 = makeMessage(chatID2, 10, "user", "world");
+		const boundary1: TypesGen.ChatContextBoundary = {
+			id: 2,
+			chat_id: chatID1,
+			created_at: "2025-01-01T00:00:01.000Z",
+		};
+
+		const mockSocket1 = createMockSocket();
+		const mockSocket2 = createMockSocket();
+		mockWatchChatReturn(mockSocket2);
+		vi.mocked(watchChat)
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const initialOptions: Parameters<typeof useChatStore>[0] = {
+			chatID: chatID1,
+			chatMessages: [msg1],
+			chatRecord: makeChat(chatID1),
+			chatMessagesData: {
+				messages: [msg1],
+				queued_messages: [],
+				boundaries: [boundary1],
+				has_more: false,
+			},
+			chatQueuedMessages: [],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					boundaries: useChatSelector(store, selectContextBoundaries),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.boundaries).toEqual([boundary1]);
+		});
+
+		// Switch chats with chatMessagesData=undefined so the hydration
+		// effect skips early and we observe the chatID-reset effect in
+		// isolation. If the reset is removed, boundaries stay at
+		// [boundary1] and this assertion fails.
+		rerender({
+			...initialOptions,
+			chatID: chatID2,
+			chatRecord: makeChat(chatID2),
+			chatMessagesData: undefined,
+		});
+
+		await waitFor(() => {
+			expect(result.current.boundaries).toEqual([]);
+		});
+
+		// Now supply chat-2's data. The store should remain empty,
+		// since the new payload also has no boundaries.
+		rerender({
+			...initialOptions,
+			chatID: chatID2,
+			chatMessages: [msg2],
+			chatRecord: makeChat(chatID2),
+			chatMessagesData: {
+				messages: [msg2],
+				queued_messages: [],
+				boundaries: [],
+				has_more: false,
+			},
+		});
+
+		await waitFor(() => {
+			expect(result.current.boundaries).toEqual([]);
 		});
 	});
 });

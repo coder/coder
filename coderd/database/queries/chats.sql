@@ -403,6 +403,9 @@ LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
 -- name: GetChatMessagesForPromptByChatID :many
+-- The latest compressed model-visible message, whether inserted by
+-- automatic compaction or a manual /clear marker, acts as the cutoff
+-- for prompt assembly. Older non-system model-visible messages are excluded.
 WITH latest_compressed_summary AS (
     SELECT
         id
@@ -456,6 +459,22 @@ WHERE
                 latest_compressed_summary
         )
     )
+ORDER BY
+    created_at ASC,
+    id ASC;
+
+-- name: GetChatContextBoundariesByChatID :many
+SELECT
+    id,
+    chat_id,
+    created_at
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND compressed = TRUE
+    AND deleted = FALSE
+    AND visibility = 'model'
 ORDER BY
     created_at ASC,
     id ASC;
@@ -1667,6 +1686,13 @@ RETURNING *;
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
 ORDER BY created_at ASC, id ASC;
+
+-- name: ChatHasQueuedMessages :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_queued_messages
+    WHERE chat_id = @chat_id
+);
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;

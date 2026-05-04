@@ -1689,6 +1689,13 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
+  "boundaries": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0
+    }
+  ],
   "has_more": true,
   "messages": [
     {
@@ -1909,6 +1916,11 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
+  "command_result": {
+    "command": "string",
+    "message": "string",
+    "success": true
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [

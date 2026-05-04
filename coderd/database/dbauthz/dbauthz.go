@@ -1693,6 +1693,14 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
+func (q *querier) ChatHasQueuedMessages(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return false, err
+	}
+	return q.db.ChatHasQueuedMessages(ctx, chatID)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -2739,6 +2747,15 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 		return "", ErrNoActor
 	}
 	return q.db.GetChatComputerUseProvider(ctx)
+}
+
+func (q *querier) GetChatContextBoundariesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatContextBoundariesByChatIDRow, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatContextBoundariesByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {

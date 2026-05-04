@@ -1577,6 +1577,17 @@ export const ChatClientTypes: ChatClientType[] = ["api", "ui"];
 
 // From codersdk/chats.go
 /**
+ * ChatCommandResult is returned when a chat message request is consumed as
+ * a slash command instead of creating a message.
+ */
+export interface ChatCommandResult {
+	readonly command: string;
+	readonly success: boolean;
+	readonly message?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
  * threshold settings.
  */
@@ -1596,6 +1607,16 @@ export interface ChatComputerUseProviderResponse {
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatContextBoundary marks where prior chat context was compressed or cleared.
+ */
+export interface ChatContextBoundary {
+	readonly id: number;
+	readonly chat_id: string;
+	readonly created_at: string;
 }
 
 // From codersdk/chats.go
@@ -2215,11 +2236,13 @@ export interface ChatMessagesPaginationOptions {
 
 // From codersdk/chats.go
 /**
- * ChatMessagesResponse contains the messages and queued messages for a chat.
+ * ChatMessagesResponse contains the messages, queued messages, and
+ * context boundaries for a chat.
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
 	readonly queued_messages: readonly ChatQueuedMessage[];
+	readonly boundaries: readonly ChatContextBoundary[];
 	readonly has_more: boolean;
 }
 
@@ -3244,6 +3267,10 @@ export interface CreateChatMessageResponse {
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 	readonly warnings?: readonly string[];
+	/**
+	 * CommandResult is set when the request ran a command.
+	 */
+	readonly command_result?: ChatCommandResult;
 }
 
 // From codersdk/chats.go

@@ -122,3 +122,16 @@ export const getWorkspaceAgent = (
 	}
 	return agents.find((agent) => agent.id === workspaceAgentId) ?? agents[0];
 };
+
+// compareBoundaryPosition orders boundaries and messages by created_at, then id.
+export const compareBoundaryPosition = (
+	a: { id: number; created_at: string },
+	b: { id: number; created_at: string },
+): number => {
+	const aTime = new Date(a.created_at).getTime();
+	const bTime = new Date(b.created_at).getTime();
+	if (aTime !== bTime) {
+		return aTime - bTime;
+	}
+	return a.id - b.id;
+};

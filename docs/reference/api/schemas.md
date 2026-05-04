@@ -2609,6 +2609,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------|
 | `api`, `ui` |
 
+## codersdk.ChatCommandResult
+
+```json
+{
+  "command": "string",
+  "message": "string",
+  "success": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `command` | string  | false    |              |             |
+| `message` | string  | false    |              |             |
+| `success` | boolean | false    |              |             |
+
 ## codersdk.ChatConfig
 
 ```json
@@ -2624,6 +2642,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer | false    |              |             |
 | `debug_logging_enabled` | boolean | false    |              |             |
+
+## codersdk.ChatContextBoundary
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+|--------------|---------|----------|--------------|-------------|
+| `chat_id`    | string  | false    |              |             |
+| `created_at` | string  | false    |              |             |
+| `id`         | integer | false    |              |             |
 
 ## codersdk.ChatDiffContents
 
@@ -3126,6 +3162,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "boundaries": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0
+    }
+  ],
   "has_more": true,
   "messages": [
     {
@@ -3287,11 +3330,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description |
-|-------------------|-------------------------------------------------------------------|----------|--------------|-------------|
-| `has_more`        | boolean                                                           | false    |              |             |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+| Name              | Type                                                                  | Required | Restrictions | Description |
+|-------------------|-----------------------------------------------------------------------|----------|--------------|-------------|
+| `boundaries`      | array of [codersdk.ChatContextBoundary](#codersdkchatcontextboundary) | false    |              |             |
+| `has_more`        | boolean                                                               | false    |              |             |
+| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)                 | false    |              |             |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)     | false    |              |             |
 
 ## codersdk.ChatModel
 
@@ -4530,6 +4574,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "command_result": {
+    "command": "string",
+    "message": "string",
+    "success": true
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -4690,12 +4739,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                     | Required | Restrictions | Description |
-|------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued`         | boolean                                                  | false    |              |             |
-| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
-| `warnings`       | array of string                                          | false    |              |             |
+| Name             | Type                                                     | Required | Restrictions | Description                                           |
+|------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------|
+| `command_result` | [codersdk.ChatCommandResult](#codersdkchatcommandresult) | false    |              | Command result is set when the request ran a command. |
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                       |
+| `queued`         | boolean                                                  | false    |              |                                                       |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                       |
+| `warnings`       | array of string                                          | false    |              |                                                       |
 
 ## codersdk.CreateChatRequest
 
