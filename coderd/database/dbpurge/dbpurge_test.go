@@ -229,9 +229,9 @@ func TestMetrics(t *testing.T) {
 		require.Nil(t, successHist, "should not have success=true metric on failure")
 	})
 
-	// A failed retention read must not block unrelated purges,
-	// but must skip the chat passes and surface as a failed
-	// iteration via the metric.
+	// A failed retention read must not block unrelated or chat debug
+	// purges, but must skip the conversation purge and auto-archive
+	// passes and surface as a failed iteration via the metric.
 	t.Run("FailedChatRetentionRead", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
@@ -246,14 +246,24 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).
 			Return(int32(0), xerrors.New("simulated retention read error")).
 			MinTimes(1)
-		// Both reads happen before the bail; InTx still runs
-		// so unrelated purges commit best-effort.
+		// All reads happen before the bail; InTx still runs so unrelated
+		// purges and chat debug purge commit best-effort.
 		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
 			Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
-			Return(int32(0), nil).AnyTimes()
+			Return(int32(7), nil).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceAgentStats(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
-			Return(nil).MinTimes(1)
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
