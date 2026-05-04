@@ -643,7 +643,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgAdmin, owner, templateAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, userAdmin, memberMe, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, userAdmin, memberMe, agentsAccessUser, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
