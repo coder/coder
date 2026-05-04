@@ -21,6 +21,12 @@ const getPreferredColorScheme = (): PreferredColorScheme => {
 	return query.matches ? "light" : "dark";
 };
 
+const getServerPreferredColorScheme = (): PreferredColorScheme => {
+	// React calls the server snapshot during client hydration, so this must
+	// stay independent of browser state such as matchMedia.
+	return defaultPreferredColorScheme;
+};
+
 const subscribePreferredColorScheme = (onStoreChange: () => void) => {
 	const query = getColorSchemeQuery();
 	if (!query) {
@@ -38,6 +44,6 @@ export const usePreferredColorScheme = (): PreferredColorScheme => {
 	return useSyncExternalStore(
 		subscribePreferredColorScheme,
 		getPreferredColorScheme,
-		getPreferredColorScheme,
+		getServerPreferredColorScheme,
 	);
 };
