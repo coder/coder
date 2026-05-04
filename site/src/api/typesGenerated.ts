@@ -1321,25 +1321,6 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
-export type ChatAgentModelOverrideContext = "explore" | "general";
-
-export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
-	"explore",
-	"general",
-];
-
-// From codersdk/chats.go
-/**
- * ChatAgentModelOverrideResponse is the response body for the chat agent
- * model override configuration endpoint.
- */
-export interface ChatAgentModelOverrideResponse {
-	readonly context: ChatAgentModelOverrideContext;
-	readonly model_config_id: string;
-	readonly is_malformed: boolean;
-}
-
-// From codersdk/chats.go
 export type ChatAttachmentMediaType =
 	| "application/json"
 	| "application/pdf"
