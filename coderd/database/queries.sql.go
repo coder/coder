@@ -3012,6 +3012,10 @@ type DeleteOldChatDebugRunsParams struct {
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
 }
 
+// updated_at is the retention clock, so the window starts after the run
+// stops being written to.
+// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
+// older than the cutoff are also purged.
 func (q *sqlQuerier) DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChatDebugRuns, arg.BeforeTime, arg.LimitCount)
 	if err != nil {

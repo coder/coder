@@ -246,6 +246,10 @@ DELETE FROM chat_debug_runs
 WHERE chat_id = @chat_id::uuid
     AND id IN (SELECT id FROM affected_runs);
 
+-- updated_at is the retention clock, so the window starts after the run
+-- stops being written to.
+-- Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
+-- older than the cutoff are also purged.
 -- name: DeleteOldChatDebugRuns :execrows
 WITH deletable AS (
     SELECT id, chat_id

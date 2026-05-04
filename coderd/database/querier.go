@@ -146,6 +146,10 @@ type sqlcQuerier interface {
 	// connection events (connect, disconnect, open, close) which are handled
 	// separately by DeleteOldAuditLogConnectionEvents.
 	DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error)
+	// updated_at is the retention clock, so the window starts after the run
+	// stops being written to.
+	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
+	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
 	// TODO(cian): Add indexes on chats(archived, updated_at) and
 	// chat_files(created_at) for purge query performance.

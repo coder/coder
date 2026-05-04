@@ -320,6 +320,9 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		}
 		if chatDebugRetentionErr == nil && chatDebugRetentionDays > 0 {
 			deleteChatDebugRunsBefore := start.Add(-time.Duration(chatDebugRetentionDays) * 24 * time.Hour)
+			// updated_at is the retention clock, so the window starts after
+			// the run stops being written to. There is intentionally no
+			// finished_at guard, so abandoned in-flight rows can be purged.
 			purgedChatDebugRuns, err = tx.DeleteOldChatDebugRuns(ctx, database.DeleteOldChatDebugRunsParams{
 				BeforeTime: deleteChatDebugRunsBefore,
 				LimitCount: chatDebugRunsBatchSize,

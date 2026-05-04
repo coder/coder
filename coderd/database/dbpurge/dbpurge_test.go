@@ -1837,7 +1837,8 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 		org         database.Organization
 		modelConfig database.ChatModelConfig
 	}
-	setupDeps := func(t *testing.T, db database.Store) chatDebugDeps {
+	// setupChatDebugDeps creates the user, organization, and chat model config dependencies needed for the chat debug retention test.
+	setupChatDebugDeps := func(t *testing.T, db database.Store) chatDebugDeps {
 		t.Helper()
 		user := dbgen.User(t, db, database.User{})
 		org := dbgen.Organization(t, db, database.Organization{})
@@ -1928,7 +1929,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := setupDeps(t, db)
+				deps := setupChatDebugDeps(t, db)
 				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(7)))
 
 				chat := createChat(ctx, t, db, rawDB, deps, false, now)
@@ -1963,7 +1964,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := setupDeps(t, db)
+				deps := setupChatDebugDeps(t, db)
 				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
 
 				chat := createChat(ctx, t, db, rawDB, deps, false, now)
@@ -1988,7 +1989,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := setupDeps(t, db)
+				deps := setupChatDebugDeps(t, db)
 				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
 				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
 
