@@ -214,3 +214,59 @@ func TestOIDCMCPTokenSource(t *testing.T) {
 		require.Empty(t, tok)
 	})
 }
+
+func newMCPOAuth2TestAPI(keyByte byte) *API {
+	api := &API{Options: &Options{}}
+	for i := range api.OAuthSigningKey {
+		api.OAuthSigningKey[i] = keyByte + byte(i)
+	}
+	return api
+}
+
+func TestMCPOAuth2StateRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	api := newMCPOAuth2TestAPI(1)
+	original := uuid.New()
+
+	state, nonce, err := api.signMCPOAuth2State(original)
+	require.NoError(t, err)
+	require.NotEmpty(t, state)
+	require.NotEmpty(t, nonce)
+
+	got, gotNonce, err := api.verifyMCPOAuth2State(state)
+	require.NoError(t, err)
+	require.Equal(t, original, got)
+	require.Equal(t, nonce, gotNonce)
+}
+
+func TestMCPOAuth2StateRejectsTampered(t *testing.T) {
+	t.Parallel()
+
+	api := newMCPOAuth2TestAPI(1)
+	state, _, err := api.signMCPOAuth2State(uuid.New())
+	require.NoError(t, err)
+
+	// Flipping the last byte of the signature must fail HMAC
+	// verification.
+	tampered := state[:len(state)-1] + string(state[len(state)-1]^0x01)
+	_, _, err = api.verifyMCPOAuth2State(tampered)
+	require.Error(t, err)
+
+	// Garbage in is rejected too.
+	_, _, err = api.verifyMCPOAuth2State("garbage")
+	require.Error(t, err)
+}
+
+func TestMCPOAuth2StateRejectsDifferentKey(t *testing.T) {
+	t.Parallel()
+
+	signer := newMCPOAuth2TestAPI(1)
+	verifier := newMCPOAuth2TestAPI(2)
+
+	state, _, err := signer.signMCPOAuth2State(uuid.New())
+	require.NoError(t, err)
+
+	_, _, err = verifier.verifyMCPOAuth2State(state)
+	require.Error(t, err, "signature must not validate under a different key")
+}

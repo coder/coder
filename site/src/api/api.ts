@@ -412,6 +412,7 @@ const chatModelConfigsPath = "/api/experimental/chats/model-configs";
 const userChatProviderConfigsPath =
 	"/api/experimental/chats/user-provider-configs";
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
+const mcpOAuth2CallbackInfoPath = "/api/experimental/mcp/oauth2/callback-url";
 
 type ChatCostDateParams = {
 	start_date?: string;
@@ -3595,6 +3596,14 @@ class ExperimentalApiMethods {
 			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
 		);
 	};
+
+	getMCPOAuth2CallbackInfo =
+		async (): Promise<TypesGen.MCPOAuth2CallbackInfo> => {
+			const response = await this.axios.get<TypesGen.MCPOAuth2CallbackInfo>(
+				mcpOAuth2CallbackInfoPath,
+			);
+			return response.data;
+		};
 
 	getChatCostSummary = async (
 		user = "me",

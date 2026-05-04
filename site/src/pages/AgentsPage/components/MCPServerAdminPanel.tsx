@@ -9,8 +9,10 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, lazy, Suspense, useId, useState } from "react";
+import { useQuery } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
+import { mcpOAuth2CallbackInfo } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -21,6 +23,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Input } from "#/components/Input/Input";
 import {
@@ -462,6 +465,15 @@ const ServerForm: FC<ServerFormProps> = ({
 		},
 	});
 
+	// Fetch the deployment-wide OAuth2 callback URL so admins can
+	// register it with the upstream provider before saving the form.
+	// The query is enabled only when OAuth2 is selected so non-OAuth2
+	// configs do not pay the network cost.
+	const callbackInfoQuery = useQuery({
+		...mcpOAuth2CallbackInfo(),
+		enabled: form.values.authType === "oauth2",
+	});
+
 	const isDisabled = isSaving || isDeleting;
 	const canSubmit =
 		form.values.displayName.trim() !== "" &&
@@ -680,11 +692,34 @@ const ServerForm: FC<ServerFormProps> = ({
 								</Field>
 								{form.values.authType === "oauth2" && (
 									<div className="space-y-4 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4">
-										<p className="m-0 text-xs text-content-secondary">
-											Register a client with the external MCP server's OAuth2
-											provider and enter the credentials below. Coder will
-											handle the per-user authorization flow.
-										</p>
+										<Field
+											label="Redirect URI"
+											htmlFor={`${formId}-oauth-redirect-uri`}
+										>
+											<div className="flex items-center gap-2">
+												<Input
+													id={`${formId}-oauth-redirect-uri`}
+													className="h-9 font-mono text-[13px]"
+													value={callbackInfoQuery.data?.callback_url ?? ""}
+													readOnly
+													placeholder={
+														callbackInfoQuery.isLoading ? "Loading..." : ""
+													}
+												/>
+												<CopyButton
+													text={callbackInfoQuery.data?.callback_url ?? ""}
+													label="Copy redirect URI"
+													disabled={!callbackInfoQuery.data?.callback_url}
+												/>
+											</div>
+											<p className="m-0 mt-1 text-xs text-content-secondary">
+												Register this redirect URI with your upstream OAuth2
+												provider, then paste the resulting client credentials
+												below. The same URI works for every MCP server you
+												connect to this Coder deployment.
+											</p>
+										</Field>
+
 										<div className="grid items-start gap-4 sm:grid-cols-2">
 											<Field label="Client ID" htmlFor={`${formId}-oauth-id`}>
 												<Input

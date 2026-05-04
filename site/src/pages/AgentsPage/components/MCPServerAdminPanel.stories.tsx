@@ -233,6 +233,12 @@ export const CreateServerOAuth2: Story = {
 		expect(body.getByLabelText(/Token URL/i)).toBeInTheDocument();
 		expect(body.getByLabelText(/^Scopes/i)).toBeInTheDocument();
 
+		// The redirect URI display is rendered (read-only) so admins
+		// can register it with the upstream provider before saving.
+		const redirectUri = body.getByLabelText(/Redirect URI/i);
+		expect(redirectUri).toBeInTheDocument();
+		expect(redirectUri).toHaveAttribute("readonly");
+
 		// Fill OAuth2 fields.
 		await userEvent.type(body.getByLabelText(/Client ID/i), "my-client-id");
 		await userEvent.type(body.getByLabelText(/Client Secret/i), "my-secret");

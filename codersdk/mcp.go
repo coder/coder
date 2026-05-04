@@ -195,3 +195,26 @@ func (c *Client) DeleteMCPServerConfig(ctx context.Context, id uuid.UUID) error 
 	}
 	return nil
 }
+
+// MCPOAuth2CallbackInfo describes the deployment-wide MCP OAuth2
+// redirect URI an admin should register with an upstream provider.
+type MCPOAuth2CallbackInfo struct {
+	CallbackURL string `json:"callback_url"`
+}
+
+// MCPOAuth2CallbackInfo returns the deployment-wide MCP OAuth2
+// callback URL. The frontend admin form shows this so the operator
+// can register one redirect URI per upstream provider before saving
+// the MCP server config.
+func (c *Client) MCPOAuth2CallbackInfo(ctx context.Context) (MCPOAuth2CallbackInfo, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/mcp/oauth2/callback-url", nil)
+	if err != nil {
+		return MCPOAuth2CallbackInfo{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPOAuth2CallbackInfo{}, ReadBodyAsError(res)
+	}
+	var info MCPOAuth2CallbackInfo
+	return info, json.NewDecoder(res.Body).Decode(&info)
+}

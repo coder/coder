@@ -4573,6 +4573,15 @@ export interface LoginWithPasswordResponse {
 
 // From codersdk/mcp.go
 /**
+ * MCPOAuth2CallbackInfo describes the deployment-wide MCP OAuth2
+ * redirect URI an admin should register with an upstream provider.
+ */
+export interface MCPOAuth2CallbackInfo {
+	readonly callback_url: string;
+}
+
+// From codersdk/mcp.go
+/**
  * MCPServerConfig represents an admin-configured MCP server.
  */
 export interface MCPServerConfig {

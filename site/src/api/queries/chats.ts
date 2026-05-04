@@ -1777,3 +1777,13 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 		await invalidateMCPServerConfigQueries(queryClient);
 	},
 });
+
+// The deployment-wide redirect URI an admin should register with the
+// upstream OAuth2 provider when configuring an MCP server. Cached for
+// the session because it never changes for a given deployment.
+export const mcpOAuth2CallbackInfo = () => ({
+	queryKey: ["mcp-oauth2-callback-info"] as const,
+	queryFn: (): Promise<TypesGen.MCPOAuth2CallbackInfo> =>
+		API.experimental.getMCPOAuth2CallbackInfo(),
+	staleTime: Number.POSITIVE_INFINITY,
+});
