@@ -703,7 +703,6 @@ const AgentChatPage: FC = () => {
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
-	const chatOrganizationId = chatQuery.data?.organization_id;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
@@ -1473,7 +1472,6 @@ const AgentChatPage: FC = () => {
 			isSubmissionPending={isSubmissionPending}
 			isInterruptPending={isInterruptPending}
 			workspaceOptions={workspaceOptions}
-			chatOrganizationId={chatOrganizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={handleWorkspaceChange}
 			isWorkspaceLoading={isWorkspaceLoading}
