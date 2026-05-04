@@ -8,10 +8,15 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/usersecretspubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -151,31 +156,94 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 		api.Logger,
 	)
 
+	sendRender := func(id int, ownerID uuid.UUID, inputs map[string]string) bool {
+		result, diagnostics := render.Render(ctx, ownerID, inputs, dynamicparameters.IncludeSecretRequirements())
+		response := codersdk.DynamicParametersResponse{
+			ID:          id,
+			Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
+		}
+		if result.Output != nil {
+			response.Parameters = slice.List(result.Output.Parameters, db2sdk.PreviewParameter)
+		}
+		response.SecretRequirements = result.SecretRequirements
+		if err := stream.Send(response); err != nil {
+			stream.Drop()
+			return false
+		}
+		return true
+	}
+
+	secretEvents := make(chan struct{}, 1)
+	var (
+		cancelSecretEvents func()
+		subscribedOwnerID  uuid.UUID
+	)
+	subscribeSecretEvents := func(ownerID uuid.UUID) {
+		if ownerID == subscribedOwnerID {
+			return
+		}
+		if cancelSecretEvents != nil {
+			cancelSecretEvents()
+			cancelSecretEvents = nil
+			// A canceled callback may have already queued one event.
+			select {
+			case <-secretEvents:
+			default:
+			}
+		}
+		// Websocket authorization uses the actor snapshot from connection
+		// creation, matching the rest of the websocket handlers.
+		if !api.canSubscribeUserSecretEvents(ctx, ownerID) {
+			subscribedOwnerID = ownerID
+			return
+		}
+		subscribedOwnerID = ownerID
+		cancel, err := api.Pubsub.Subscribe(usersecretspubsub.Channel(ownerID), func(context.Context, []byte) {
+			select {
+			case secretEvents <- struct{}{}:
+			default:
+			}
+		})
+		if err != nil {
+			// Leave the owner unset so transient pubsub failures can be
+			// retried on the next update for this owner.
+			subscribedOwnerID = uuid.Nil
+			api.Logger.Warn(ctx, "failed to subscribe to user secret events",
+				slog.F("user_id", ownerID),
+				slog.Error(err),
+			)
+			return
+		}
+		cancelSecretEvents = cancel
+	}
+	subscribeSecretEvents(initial.OwnerID)
+	defer func() {
+		if cancelSecretEvents != nil {
+			cancelSecretEvents()
+		}
+	}()
+
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := render.Render(ctx, initial.OwnerID, initial.Inputs, dynamicparameters.IncludeSecretRequirements())
-	response := codersdk.DynamicParametersResponse{
-		ID:          -1, // Always start with -1.
-		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
-	}
-	if result.Output != nil {
-		response.Parameters = slice.List(result.Output.Parameters, db2sdk.PreviewParameter)
-	}
-	response.SecretRequirements = result.SecretRequirements
-	err = stream.Send(response)
-	if err != nil {
-		stream.Drop()
+	if !sendRender(-1, initial.OwnerID, initial.Inputs) {
 		return
 	}
 
-	// As the user types into the form, reprocess the state using their input,
-	// and respond with updates.
+	// As the user types into the form or updates secrets in another client,
+	// reprocess the state using their input and respond with updates.
 	updates := stream.Chan()
 	ownerID := initial.OwnerID
+	inputs := initial.Inputs
+	lastResponseID := -1
 	for {
 		select {
 		case <-ctx.Done():
 			stream.Close(websocket.StatusGoingAway)
 			return
+		case <-secretEvents:
+			lastResponseID = nextDynamicParametersResponseID(lastResponseID, lastResponseID+1)
+			if !sendRender(lastResponseID, ownerID, inputs) {
+				return
+			}
 		case update, ok := <-updates:
 			if !ok {
 				// The connection has been closed, so there is no one to write to
@@ -189,21 +257,34 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 			}
 
 			ownerID = update.OwnerID
-
-			result, diagnostics := render.Render(ctx, update.OwnerID, update.Inputs, dynamicparameters.IncludeSecretRequirements())
-			response := codersdk.DynamicParametersResponse{
-				ID:          update.ID,
-				Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
-			}
-			if result.Output != nil {
-				response.Parameters = slice.List(result.Output.Parameters, db2sdk.PreviewParameter)
-			}
-			response.SecretRequirements = result.SecretRequirements
-			err = stream.Send(response)
-			if err != nil {
-				stream.Drop()
+			inputs = update.Inputs
+			subscribeSecretEvents(ownerID)
+			responseID := nextDynamicParametersResponseID(lastResponseID, update.ID)
+			lastResponseID = responseID
+			if !sendRender(responseID, ownerID, inputs) {
 				return
 			}
 		}
 	}
+}
+
+func nextDynamicParametersResponseID(lastResponseID int, requestID int) int {
+	if requestID <= lastResponseID {
+		return lastResponseID + 1
+	}
+	return requestID
+}
+
+func (api *API) canSubscribeUserSecretEvents(ctx context.Context, ownerID uuid.UUID) bool {
+	roles, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		api.Logger.Error(ctx, "no authorization actor for user secret event subscription")
+		return false
+	}
+	return api.HTTPAuth.Authorizer.Authorize(
+		ctx,
+		roles,
+		policy.ActionRead,
+		rbac.ResourceUserSecret.WithOwner(ownerID.String()),
+	) == nil
 }
