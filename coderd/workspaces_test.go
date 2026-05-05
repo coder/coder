@@ -6247,3 +6247,79 @@ func mustSchedule(t *testing.T, s string) *cron.Schedule {
 	require.NoError(t, err)
 	return sched
 }
+
+func TestRestartWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Verify the workspace is running.
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+
+		// Call the restart endpoint.
+		stopBuild, err := client.RestartWorkspace(ctx, workspace.ID, codersdk.RestartWorkspaceRequest{})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, stopBuild.Transition)
+
+		// Wait for the stop build to complete.
+		stopBuild = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+		require.Equal(t, codersdk.ProvisionerJobSucceeded, stopBuild.Job.Status)
+
+		// The background goroutine should have created a start build.
+		// Wait for the workspace to come back to running.
+		require.Eventually(t, func() bool {
+			workspace, err = client.Workspace(ctx, workspace.ID)
+			if err != nil {
+				return false
+			}
+			// The latest build should be a start transition with a terminal
+			// status.
+			if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
+				return false
+			}
+			return workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded
+		}, testutil.WaitLong, testutil.IntervalMedium)
+
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+	})
+
+	t.Run("DeletedWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Delete the workspace first.
+		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionDelete)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+		// Attempt restart should fail with Conflict.
+		_, err := client.RestartWorkspace(ctx, workspace.ID, codersdk.RestartWorkspaceRequest{})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+}

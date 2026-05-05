@@ -8538,6 +8538,35 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `message`     | string                                                        | false    |              | Message is an actionable message that depicts actions the request took. These messages should be fully formed sentences with proper punctuation. Examples: - "A user has been created." - "Failed to create a user."               |
 | `validations` | array of [codersdk.ValidationError](#codersdkvalidationerror) | false    |              | Validations are form field-specific friendly error messages. They will be shown on a form field in the UI. These can also be used to add additional context if there is a set of errors in the primary 'Message'.                  |
 
+## codersdk.RestartWorkspaceRequest
+
+```json
+{
+  "log_level": "debug",
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                         |
+|-------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `log_level`             | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                    |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional parameter values applied to both the stop and start builds.                                                                      |
+| `template_version_id`   | string                                                                        | false    |              | Template version ID is the target template version for the start build. If omitted, the workspace will be started with the same template version as the last build. |
+
+#### Enumerated Values
+
+| Property    | Value(s) |
+|-------------|----------|
+| `log_level` | `debug`  |
+
 ## codersdk.ResumeTaskResponse
 
 ```json

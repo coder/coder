@@ -398,6 +398,39 @@ func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// RestartWorkspaceRequest is a request to restart a workspace.
+// The server handles the full stop->start sequence so the client
+// does not need to wait for the stop to complete before issuing
+// the start.
+type RestartWorkspaceRequest struct {
+	// TemplateVersionID is the target template version for the start build.
+	// If omitted, the workspace will be started with the same template
+	// version as the last build.
+	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" format:"uuid"`
+	// RichParameterValues are optional parameter values applied to both
+	// the stop and start builds.
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	// LogLevel changes the default logging verbosity of a provider
+	// ("info" if empty).
+	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
+}
+
+// RestartWorkspace creates a stop build and then automatically creates a
+// start build once the stop completes. The returned build is the initial
+// stop build.
+func (c *Client) RestartWorkspace(ctx context.Context, id uuid.UUID, req RestartWorkspaceRequest) (WorkspaceBuild, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/restart", id), req)
+	if err != nil {
+		return WorkspaceBuild{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return WorkspaceBuild{}, ReadBodyAsError(res)
+	}
+	var build WorkspaceBuild
+	return build, json.NewDecoder(res.Body).Decode(&build)
+}
+
 // UpdateWorkspaceUsageWithBodyContext periodically posts workspace usage for the workspace
 // with the given id and app name in the background.
 // The caller is responsible for calling the returned function to stop the background

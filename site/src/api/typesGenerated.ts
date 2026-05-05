@@ -6559,6 +6559,32 @@ export interface Response {
 	readonly validations?: readonly ValidationError[];
 }
 
+// From codersdk/workspaces.go
+/**
+ * RestartWorkspaceRequest is a request to restart a workspace.
+ * The server handles the full stop->start sequence so the client
+ * does not need to wait for the stop to complete before issuing
+ * the start.
+ */
+export interface RestartWorkspaceRequest {
+	/**
+	 * TemplateVersionID is the target template version for the start build.
+	 * If omitted, the workspace will be started with the same template
+	 * version as the last build.
+	 */
+	readonly template_version_id?: string;
+	/**
+	 * RichParameterValues are optional parameter values applied to both
+	 * the stop and start builds.
+	 */
+	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
+	/**
+	 * LogLevel changes the default logging verbosity of a provider
+	 * ("info" if empty).
+	 */
+	readonly log_level?: ProvisionerLogLevel;
+}
+
 // From codersdk/aitasks.go
 /**
  * ResumeTaskResponse represents the response from resuming a task.

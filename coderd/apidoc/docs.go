@@ -12034,6 +12034,52 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaces/{workspace}/restart": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Restart workspace",
+                "operationId": "restart-workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Restart workspace request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RestartWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/workspaces/{workspace}/timings": {
             "get": {
                 "produces": [
@@ -19839,6 +19885,34 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ValidationError"
                     }
+                }
+            }
+        },
+        "codersdk.RestartWorkspaceRequest": {
+            "type": "object",
+            "properties": {
+                "log_level": {
+                    "description": "LogLevel changes the default logging verbosity of a provider\n(\"info\" if empty).",
+                    "enum": [
+                        "debug"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerLogLevel"
+                        }
+                    ]
+                },
+                "rich_parameter_values": {
+                    "description": "RichParameterValues are optional parameter values applied to both\nthe stop and start builds.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "template_version_id": {
+                    "description": "TemplateVersionID is the target template version for the start build.\nIf omitted, the workspace will be started with the same template\nversion as the last build.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

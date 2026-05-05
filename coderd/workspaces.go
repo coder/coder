@@ -2285,6 +2285,192 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, timings)
 }
 
+// @Summary Restart workspace
+// @ID restart-workspace
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.RestartWorkspaceRequest false "Restart workspace request"
+// @Success 201 {object} codersdk.WorkspaceBuild
+// @Router /api/v2/workspaces/{workspace}/restart [post]
+func (api *API) restartWorkspace(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		apiKey    = httpmw.APIKey(r)
+		workspace = httpmw.WorkspaceParam(r)
+	)
+
+	var req codersdk.RestartWorkspaceRequest
+	if r.ContentLength > 0 {
+		if !httpapi.Read(ctx, rw, r, &req) {
+			return
+		}
+	}
+
+	// Disallow restart of deleted workspaces.
+	if workspace.Deleted {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot restart a deleted workspace.",
+			Detail:  "This workspace has been deleted and cannot be modified.",
+		})
+		return
+	}
+
+	authorize := func(action policy.Action, object rbac.Objecter) bool {
+		return api.Authorize(r, action, object)
+	}
+	baggage := audit.WorkspaceBuildBaggageFromRequest(r)
+
+	// Create the stop build.
+	stopBuildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition:          codersdk.WorkspaceTransitionStop,
+		RichParameterValues: req.RichParameterValues,
+		LogLevel:            req.LogLevel,
+	}
+	stopBuild, err := api.postWorkspaceBuildsInternal(ctx, apiKey, workspace, stopBuildReq, authorize, baggage)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+
+	// Prepare the start build request. The background goroutine will
+	// issue it once the stop build completes.
+	startBuildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition:          codersdk.WorkspaceTransitionStart,
+		TemplateVersionID:   req.TemplateVersionID,
+		RichParameterValues: req.RichParameterValues,
+		LogLevel:            req.LogLevel,
+	}
+
+	go api.completeWorkspaceRestart(workspace, apiKey, stopBuild.ID, startBuildReq, baggage)
+
+	httpapi.Write(ctx, rw, http.StatusCreated, stopBuild)
+}
+
+// completeWorkspaceRestart waits for a stop build to finish and then
+// creates a start build. It is meant to run in a background goroutine
+// so that clients do not need to stick around to complete the restart.
+func (api *API) completeWorkspaceRestart(
+	workspace database.Workspace,
+	apiKey database.APIKey,
+	stopBuildID uuid.UUID,
+	startReq codersdk.CreateWorkspaceBuildRequest,
+	baggage audit.WorkspaceBuildBaggage,
+) {
+	// Use the server lifecycle context with a generous timeout to prevent
+	// leaked goroutines.
+	ctx, cancel := context.WithTimeout(api.ctx, 30*time.Minute)
+	defer cancel()
+
+	log := api.Logger.With(
+		slog.F("workspace_id", workspace.ID),
+		slog.F("stop_build_id", stopBuildID),
+		slog.F("initiator_id", apiKey.UserID),
+	)
+
+	// Subscribe to workspace events so we are notified when the build
+	// state changes. Subscribe before checking the current state to
+	// avoid a race where the build completes between our check and
+	// the subscription.
+	events := make(chan struct{}, 1)
+	sub, err := api.Pubsub.SubscribeWithErr(
+		wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+		wspubsub.HandleWorkspaceEvent(
+			func(_ context.Context, event wspubsub.WorkspaceEvent, err error) {
+				if err != nil {
+					return
+				}
+				if event.WorkspaceID != workspace.ID {
+					return
+				}
+				if event.Kind != wspubsub.WorkspaceEventKindStateChange {
+					return
+				}
+				select {
+				case events <- struct{}{}:
+				default:
+				}
+			},
+		),
+	)
+	if err != nil {
+		log.Error(ctx, "restart: failed to subscribe to workspace events", slog.Error(err))
+		return
+	}
+	defer sub()
+
+	// Poll-and-wait loop until the stop build reaches a terminal state.
+	for {
+		// nolint:gocritic // The restart background task needs to read
+		// build/job state regardless of the original user's permissions.
+		// Authorization was already verified when the stop build was created.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		build, err := api.Database.GetWorkspaceBuildByID(sysCtx, stopBuildID)
+		if err != nil {
+			log.Error(ctx, "restart: failed to get stop build", slog.Error(err))
+			return
+		}
+
+		job, err := api.Database.GetProvisionerJobByID(sysCtx, build.JobID)
+		if err != nil {
+			log.Error(ctx, "restart: failed to get provisioner job", slog.Error(err))
+			return
+		}
+
+		switch job.JobStatus {
+		case database.ProvisionerJobStatusSucceeded:
+			// Stop completed, proceed to start.
+		case database.ProvisionerJobStatusFailed:
+			log.Warn(ctx, "restart: stop build failed, aborting restart")
+			return
+		case database.ProvisionerJobStatusCanceled:
+			log.Warn(ctx, "restart: stop build was canceled, aborting restart")
+			return
+		default:
+			// Still in progress; wait for the next event.
+			select {
+			case <-ctx.Done():
+				log.Warn(ctx, "restart: timed out waiting for stop build to complete")
+				return
+			case <-events:
+				continue
+			}
+		}
+
+		// The stop build succeeded. Create the start build.
+		log.Info(ctx, "restart: stop build completed, creating start build")
+
+		// Re-fetch the workspace because its state changed after the
+		// stop build.
+		updatedWorkspace, err := api.Database.GetWorkspaceByID(sysCtx, workspace.ID)
+		if err != nil {
+			log.Error(ctx, "restart: failed to re-fetch workspace", slog.Error(err))
+			return
+		}
+
+		_, err = api.postWorkspaceBuildsInternal(
+			sysCtx,
+			apiKey,
+			updatedWorkspace,
+			startReq,
+			// Authorization was already checked when the stop build was
+			// created. Allow the start unconditionally.
+			func(_ policy.Action, _ rbac.Objecter) bool { return true },
+			baggage,
+		)
+		if err != nil {
+			log.Error(ctx, "restart: failed to create start build", slog.Error(err))
+			return
+		}
+
+		log.Info(ctx, "restart: start build created successfully")
+		return
+	}
+}
+
 // @Summary Get workspace ACLs
 // @ID get-workspace-acls
 // @Security CoderSessionToken

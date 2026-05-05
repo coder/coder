@@ -1763,6 +1763,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
 				r.Get("/timings", api.workspaceTimings)
+				r.Post("/restart", api.restartWorkspace)
 				r.Route("/acl", func(r chi.Router) {
 					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
