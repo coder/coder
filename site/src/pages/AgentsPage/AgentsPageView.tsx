@@ -9,6 +9,7 @@ import {
 	isSettingsView,
 	sidebarViewFromPath,
 } from "./components/Sidebar/AgentsSidebar";
+import { ResizableAgentsSidebarFrame } from "./components/Sidebar/ResizableAgentsSidebarFrame";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -156,9 +157,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
-			<div
+			<ResizableAgentsSidebarFrame
 				className={cn(
-					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
+					"md:h-full md:min-h-0 md:border-b-0",
 					agentId
 						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
 						: isSettingsDetail || isAnalytics
@@ -196,7 +197,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onCollapse={onCollapseSidebar}
 					isAdmin={isAgentsAdmin}
 				/>
-			</div>
+			</ResizableAgentsSidebarFrame>
 			<div
 				className={cn(
 					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
