@@ -221,7 +221,7 @@ describe("appearance page", () => {
 		});
 	});
 
-	it("ignores repeated submits while an update is in flight", async () => {
+	it("queues the latest submit while an update is in flight", async () => {
 		const submitResolvers: Array<(value: UserAppearanceSettings) => void> = [];
 		const onSubmit = vi.fn(
 			() =>
@@ -242,13 +242,58 @@ describe("appearance page", () => {
 		fireEvent.click(screen.getByRole("radio", { name: /dark default/i }));
 
 		expect(onSubmit).toHaveBeenCalledTimes(1);
-		submitResolvers[0]?.(putResponse());
-		await Promise.resolve();
+		await act(async () => {
+			submitResolvers[0]?.(putResponse());
+			await Promise.resolve();
+		});
 
-		fireEvent.click(screen.getByRole("radio", { name: /dark default/i }));
 		expect(onSubmit).toHaveBeenCalledTimes(2);
 		submitResolvers[1]?.(putResponse());
 		await Promise.resolve();
+	});
+
+	it("keeps the latest terminal font on queued theme submits", async () => {
+		const submitResolvers: Array<(value: UserAppearanceSettings) => void> = [];
+		const onSubmit = vi.fn(
+			() =>
+				new Promise<UserAppearanceSettings>((resolve) => {
+					submitResolvers.push(resolve);
+				}),
+		);
+
+		renderAppearanceForm(
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={putResponse()}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		fireEvent.click(screen.getByText("Fira Code"));
+		fireEvent.click(screen.getByRole("radio", { name: /light default/i }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenLastCalledWith({
+			theme_preference: "dark",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "fira-code",
+		});
+
+		await act(async () => {
+			submitResolvers[0]?.(putResponse({ terminal_font: "fira-code" }));
+			await Promise.resolve();
+		});
+
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+		expect(onSubmit).toHaveBeenLastCalledWith({
+			theme_preference: "light",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "fira-code",
+		});
 	});
 
 	it("rolls back local draft and releases submit guard on failure", async () => {

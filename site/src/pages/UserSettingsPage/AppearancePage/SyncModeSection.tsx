@@ -73,7 +73,7 @@ const SyncCard: FC<SyncCardProps> = ({
 		<div
 			className={cn(
 				"flex flex-col gap-4 rounded-md border border-solid border-border p-4",
-				active && "border-content-link",
+				active && "ring-2 ring-content-link",
 			)}
 		>
 			<div className="flex items-center justify-between">
