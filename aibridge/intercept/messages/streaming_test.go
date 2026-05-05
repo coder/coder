@@ -209,7 +209,8 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 		},
 		{
 			// Given: BYOK with a single key returning 429.
-			// Then: 1 request, 429 response, no failover.
+			// Then: 1 request, 429 response, no failover, upstream
+			// Retry-After propagated to the client.
 			name:    "byok_no_failover",
 			byokKey: "user-byok",
 			responses: map[string]upstreamResponse{
@@ -227,6 +228,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			},
 			expectedRequestCount: 1,
 			expectedStatusCode:   http.StatusTooManyRequests,
+			expectedRetryAfter:   "5",
 		},
 	}
 

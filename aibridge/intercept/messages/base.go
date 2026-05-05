@@ -581,7 +581,7 @@ func getErrorResponse(err error) *responseError {
 		errType = string(detail.Type)
 	}
 
-	return newErrorResponse(msg, errType, apierr.StatusCode, 0)
+	return newErrorResponse(msg, errType, apierr.StatusCode, keypool.ParseRetryAfter(apierr.Response))
 }
 
 var _ error = &responseError{}
