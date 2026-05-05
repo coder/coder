@@ -248,108 +248,39 @@ contact an administrator.
 
 ## Model overrides
 
-Coder Agents resolves the model used for each chat in three layers:
+Beyond the chat-level model picker, Coder Agents supports two override
+layers:
 
-1. **Personal model overrides** (per user, opt-in by admin): Override the
-   model used for a specific user's chats and delegated subagents.
-1. **Subagent model overrides** (deployment-wide, admin only): Pin specific
-   contexts (general subagents, explore subagents, automatic title
-   generation) to a specific model.
-1. **Deployment default**: The model the user (or pre-selection logic) picks
-   from the model selector when they start a chat.
+- **Subagent overrides** (admin, deployment-wide): Pin specific subagent
+  contexts to a particular model. Configure them at **Agents** >
+  **Settings** > **Manage Agents** > **Agents**.
+- **Personal overrides** (per user, opt-in by admin): Let users override
+  the model for their own root chats and delegated subagents. Admins
+  enable the toggle on the same admin page; once on, each user sees an
+  **Agents** tab in their personal **Agents** > **Settings**.
 
-The two override layers are independent. Personal overrides take precedence
-when a user has set them; otherwise the subagent override applies; otherwise
-the chat falls back to the deployment default.
+The configurable contexts:
 
-> [!NOTE]
-> Both override layers are experimental and subject to change.
+| Context              | Layer        | Applies to                                                                     |
+|----------------------|--------------|--------------------------------------------------------------------------------|
+| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`). |
+| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                       |
+| **Title generation** | Admin only   | Automatic title generation for new chats.                                      |
+| **Root**             | User only    | The user's own root chats.                                                     |
 
-### Subagent model overrides (admin)
+Resolution order, evaluated per chat or subagent:
 
-> [!IMPORTANT]
-> Subagent model overrides require the **Owner** role. The PUT endpoints
-> require `update` permission on the deployment configuration resource.
-
-Administrators can pin specific agent contexts to a specific model from
-**Agents** > **Settings** > **Manage Agents** > **Agents**. Three contexts
-are configurable:
-
-| Context              | Applies to                                                                                                                                          | When unset                                                                                                                                            |
-|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **General**          | Subagents with write capabilities, such as editing files or running commands. Spawned via `spawn_agent` with `type=general` or `type=computer_use`. | The subagent uses the parent chat's model.                                                                                                            |
-| **Explore**          | Read-only subagents used for code exploration and analysis. Spawned via `spawn_agent` with `type=explore`.                                          | The subagent uses the parent chat's model.                                                                                                            |
-| **Title generation** | Automatic title generation for new chats.                                                                                                           | Coder uses the built-in fast title algorithm (Claude Haiku, GPT-4o Mini, or Gemini Flash for the active provider) and falls back to the chat's model. |
-
-Each override holds a single model config UUID. Save with **Clear** to remove
-the override.
-
-The same values are exposed over the experimental chat configuration API:
-
-- `GET /api/experimental/chats/config/model-override/{context}`
-- `PUT /api/experimental/chats/config/model-override/{context}`
-
-`{context}` must be `general`, `explore`, or `title_generation`. The PUT
-endpoint accepts `{ "model_config_id": "<uuid>" }` and returns
-`204 No Content`. Pass an empty string to clear the override.
-
-### Personal model overrides (user)
-
-Administrators can let users override the model for their own chats and
-their own delegated subagents. The toggle is at **Agents** > **Settings** >
-**Manage Agents** > **Agents** under *Enable users to define their personal
-overrides*. When the toggle is off, any saved user values remain stored but
-are ignored at runtime.
-
-The same admin gate is exposed at:
-
-- `GET /api/experimental/chats/config/personal-model-overrides`
-- `PUT /api/experimental/chats/config/personal-model-overrides`
-
-When the gate is on, users see an additional **Agents** tab under their
-own **Agents** > **Settings**. Three contexts are configurable per user:
-
-| Context     | Applies to                                    | Modes available                               |
-|-------------|-----------------------------------------------|-----------------------------------------------|
-| **Root**    | The user's own root chats.                    | `chat_default`, `model`                       |
-| **General** | The user's general (write-capable) subagents. | `chat_default`, `deployment_default`, `model` |
-| **Explore** | The user's explore (read-only) subagents.     | `chat_default`, `deployment_default`, `model` |
-
-The modes resolve as follows:
-
-- `chat_default`: Use the parent chat's model (the model picked in the
-  chat's model selector, after the deployment default).
-- `deployment_default`: Use the admin's subagent override for that context,
-  if one is set; otherwise fall back to `chat_default`. Not supported for
-  the `root` context.
-- `model`: Use a specific model the user has access to. Requires the
-  `model_config_id` of an enabled chat model.
-
-The user-facing endpoints are:
-
-- `GET /api/experimental/chats/config/user-personal-model-overrides`
-- `PUT /api/experimental/chats/config/user-personal-model-overrides/{context}`
-
-`{context}` must be `root`, `general`, or `explore`. The PUT body is
-`{ "mode": "<mode>", "model_config_id": "<uuid or empty>" }`. The endpoint
-returns `403 Forbidden` if the admin gate is off, and `400 Bad Request` for
-invalid combinations (for example, `deployment_default` for `root`, or a
-non-empty `model_config_id` when the mode is not `model`).
-
-### Resolution order
-
-For each chat or subagent, Coder picks the model in the following order:
-
-1. **Personal override** for the matching context, if set and the admin gate
-   is on, and the resolved mode produces a valid model.
-1. **Admin subagent override** for the matching context, when the personal
-   override resolves to `deployment_default` or is unset (only applies to
-   `general`, `explore`, and `title_generation`).
-1. **Chat default** (the model selected for the parent chat, or the
-   deployment default for new root chats).
+1. Personal override (when the admin gate is on and a model is set).
+1. Admin subagent override.
+1. The chat's selected model (or the deployment default for new chats).
 
 If a referenced model is later disabled or deleted, that layer is skipped
-and resolution falls through to the next layer.
+and resolution falls through to the next.
+
+> [!NOTE]
+> Both override layers are experimental and may change between releases.
+> The same values are available through the experimental chat
+> configuration API under `/api/experimental/chats/config/`.
 
 ## User API keys (BYOK)
 
