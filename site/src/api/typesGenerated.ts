@@ -3580,9 +3580,10 @@ export const DefaultChatAutoArchiveDays = 0;
 // From codersdk/chats.go
 /**
  * DefaultChatDebugRetentionDays is the default chat debug run retention
- * window, in days, applied when no site config row exists.
+ * window, in days, applied when no site config row exists. Set the
+ * config value to zero to disable the purge.
  */
-export const DefaultChatDebugRetentionDays = 7;
+export const DefaultChatDebugRetentionDays = 30;
 
 // From codersdk/chats.go
 /**

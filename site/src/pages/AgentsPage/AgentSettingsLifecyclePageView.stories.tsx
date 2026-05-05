@@ -18,7 +18,7 @@ const baseArgs: AgentSettingsLifecyclePageViewProps = {
 	onSaveRetentionDays: fn(),
 	isSavingRetentionDays: false,
 	isSaveRetentionDaysError: false,
-	debugRetentionDaysData: { debug_retention_days: 7 },
+	debugRetentionDaysData: { debug_retention_days: 30 },
 	isDebugRetentionDaysLoading: false,
 	isDebugRetentionDaysLoadError: false,
 	onSaveDebugRetentionDays: fn(),
@@ -646,13 +646,13 @@ export const DebugRetentionLoadedDefault: Story = {
 		const input = await canvas.findByLabelText(
 			"Chat debug data retention period in days",
 		);
-		expect(input).toHaveValue(7);
+		expect(input).toHaveValue(30);
 	},
 };
 
 export const DebugRetentionToggleOffSavesDisabled: Story = {
 	args: {
-		debugRetentionDaysData: { debug_retention_days: 7 },
+		debugRetentionDaysData: { debug_retention_days: 30 },
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -692,7 +692,7 @@ export const DebugRetentionToggleOnSavesDefault: Story = {
 		await waitFor(() => {
 			expect(args.onSaveDebugRetentionDays).toHaveBeenNthCalledWith(
 				1,
-				{ debug_retention_days: 7 },
+				{ debug_retention_days: 30 },
 				expect.anything(),
 			);
 		});
@@ -700,13 +700,13 @@ export const DebugRetentionToggleOnSavesDefault: Story = {
 		const input = await within(debugRetentionForm).findByLabelText(
 			"Chat debug data retention period in days",
 		);
-		expect(input).toHaveValue(7);
+		expect(input).toHaveValue(30);
 	},
 };
 
 export const DebugRetentionEditDaysAndSave: Story = {
 	args: {
-		debugRetentionDaysData: { debug_retention_days: 7 },
+		debugRetentionDaysData: { debug_retention_days: 30 },
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -740,7 +740,7 @@ export const DebugRetentionEditDaysAndSave: Story = {
 
 export const DebugRetentionExceedsMax: Story = {
 	args: {
-		debugRetentionDaysData: { debug_retention_days: 7 },
+		debugRetentionDaysData: { debug_retention_days: 30 },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -773,7 +773,7 @@ export const DebugRetentionExceedsMax: Story = {
 
 export const DebugRetentionBelowMin: Story = {
 	args: {
-		debugRetentionDaysData: { debug_retention_days: 7 },
+		debugRetentionDaysData: { debug_retention_days: 30 },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -804,7 +804,7 @@ export const DebugRetentionBelowMin: Story = {
 
 export const DebugRetentionSaveError: Story = {
 	args: {
-		debugRetentionDaysData: { debug_retention_days: 7 },
+		debugRetentionDaysData: { debug_retention_days: 30 },
 		isSaveDebugRetentionDaysError: true,
 	},
 	play: async ({ canvasElement }) => {
@@ -828,7 +828,7 @@ export const DebugRetentionLoadError: Story = {
 		expect(toggle).toBeChecked();
 		expect(
 			await canvas.findByLabelText("Chat debug data retention period in days"),
-		).toHaveValue(7);
+		).toHaveValue(30);
 		expect(
 			await canvas.findByText("Failed to load chat debug retention setting."),
 		).toBeInTheDocument();

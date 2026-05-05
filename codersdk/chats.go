@@ -946,8 +946,9 @@ const DefaultChatWorkspaceTTL = 0
 const DefaultChatAutoArchiveDays int32 = 0
 
 // DefaultChatDebugRetentionDays is the default chat debug run retention
-// window, in days, applied when no site config row exists.
-const DefaultChatDebugRetentionDays int32 = 7
+// window, in days, applied when no site config row exists. Set the
+// config value to zero to disable the purge.
+const DefaultChatDebugRetentionDays int32 = 30
 
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
