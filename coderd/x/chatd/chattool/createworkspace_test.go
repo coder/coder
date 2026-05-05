@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -415,6 +414,10 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	require.Contains(t, result["error"], "workspace build failed")
 	require.Equal(t, buildID.String(), result["build_id"])
+	require.NotContains(t, result, "error_code",
+		"generic build failures must not surface a quota error_code")
+	require.NotContains(t, result, "quota",
+		"generic build failures must not surface quota details")
 	require.False(t, resp.IsError,
 		"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
 }
@@ -1443,7 +1446,7 @@ func (m ownerContextMatcher) Matches(v any) bool {
 	return ok && actor.ID == m.ownerID.String()
 }
 
-func (m ownerContextMatcher) String() string {
+func (ownerContextMatcher) String() string {
 	return "context with owner actor"
 }
 
