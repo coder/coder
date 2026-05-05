@@ -736,8 +736,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			<div
 				ref={setComposerElement}
+				data-testid="chat-composer"
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -1096,7 +1097,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							/>
 						)}
 						{planModeEnabled && (
-							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary md:inline-flex">
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
 								<PencilIcon className="size-3" />
 								Planning
 								{onPlanModeToggle && (
@@ -1115,7 +1116,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
 						{workspace && workspaceAgent && chatId && (
-							<span className="ml-1 md:ml-0">
+							<span className="ml-1 sm:ml-0">
 								<WorkspacePill
 									workspace={workspace}
 									agent={workspaceAgent}

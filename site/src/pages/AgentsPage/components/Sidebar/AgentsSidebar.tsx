@@ -1079,13 +1079,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
+					"absolute inset-0 flex flex-col sm:transition-transform sm:duration-200 sm:ease-in-out",
 					isSettingsPanel && "-translate-x-full",
 				)}
 				aria-hidden={isSettingsPanel}
 				inert={isSettingsPanel ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
+				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
 					<div className="mb-2.5 flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<NavLink to="/workspaces" className="inline-flex">
@@ -1140,10 +1140,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						viewportClassName={cn(
 							"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 							"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
-							"md:[mask-image:none] md:[-webkit-mask-image:none]",
+							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+						<div className="flex flex-col gap-2 px-2 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
@@ -1284,7 +1284,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</div>
 					</ScrollArea>
 				</div>
-				<div className="hidden border-0 border-t border-solid md:block">
+				<div className="hidden border-0 border-t border-solid sm:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -1325,14 +1325,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 2: Sub-navigation (Settings) ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
+					"absolute inset-0 flex flex-col sm:transition-transform sm:duration-200 sm:ease-in-out",
 					!isSettingsPanel && "translate-x-full",
 				)}
 				aria-hidden={!isSettingsPanel}
 				inert={!isSettingsPanel ? true : undefined}
 			>
 				{/* Back header */}
-				<div className="border-b border-border-default px-2 pb-2 pt-3 md:py-2">
+				<div className="border-b border-border-default px-2 pb-2 pt-3 sm:py-2">
 					<div className="relative flex items-center">
 						<span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-content-primary">
 							{subNavTitle}
@@ -1371,7 +1371,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								size="icon"
 								onClick={onCollapse}
 								aria-label="Collapse sidebar"
-								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary md:inline-flex"
+								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
 							>
 								<PanelLeftCloseIcon />
 							</Button>

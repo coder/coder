@@ -1208,79 +1208,73 @@
 					"title": "Coder Agents",
 					"description": "Self-hosted agent by Coder",
 					"path": "./ai-coder/agents/index.md",
-					"state": ["early access"],
+					"state": ["beta"],
 					"children": [
 						{
 							"title": "Getting Started",
 							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
 							"path": "./ai-coder/agents/getting-started.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Early Access",
-							"description": "About the Coder Agents Early Access program",
-							"path": "./ai-coder/agents/early-access.md",
-							"state": ["early access"]
+							"state": ["beta"]
 						},
 						{
 							"title": "Architecture",
 							"description": "How the agent in the control plane communicates with workspaces",
 							"path": "./ai-coder/agents/architecture.md",
-							"state": ["early access"]
+							"state": ["beta"]
 						},
 						{
 							"title": "Models",
 							"description": "Configure LLM providers and models for Coder Agents",
 							"path": "./ai-coder/agents/models.md",
-							"state": ["early access"]
+							"state": ["beta"]
 						},
 						{
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
 							"path": "./ai-coder/agents/platform-controls/index.md",
-							"state": ["early access"],
+							"state": ["beta"],
 							"children": [
 								{
 									"title": "Template Optimization",
 									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "MCP Servers",
 									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
 									"path": "./ai-coder/agents/platform-controls/mcp-servers.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Spend Management",
 									"description": "Spend limits and cost tracking for Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Git Providers",
 									"description": "Git provider configuration for the diff viewer and PR Insights",
 									"path": "./ai-coder/agents/platform-controls/git-providers.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "PR Insights",
 									"description": "Pull request analytics for Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/pr-insights.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Data Retention",
 									"description": "Automatic cleanup of old conversation data",
 									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Auto-Archive",
 									"description": "Automatic archiving of inactive conversations",
 									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								}
 							]
 						},
@@ -1288,13 +1282,13 @@
 							"title": "Extending Agents",
 							"description": "Add custom skills and MCP tools to agent workspaces",
 							"path": "./ai-coder/agents/extending-agents.md",
-							"state": ["early access"]
+							"state": ["beta"]
 						},
 						{
 							"title": "Chats API",
 							"description": "Programmatic access to Coder Agents via the Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
-							"state": ["early access"]
+							"state": ["beta"]
 						}
 					]
 				}

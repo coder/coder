@@ -29,11 +29,11 @@ function getRightPanelState(): { open: boolean; width: number } {
  * immediately instead of a fullscreen spinner.
  */
 export const AgentsPageSkeleton: FC = () => (
-	<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
-		<div className="order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0 md:h-full md:w-[320px] md:min-h-0 md:border-b-0">
+	<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row">
+		<div className="order-2 sm:order-none flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-[320px] sm:min-h-0 sm:border-b-0">
 			<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
 				<div className="absolute inset-0 flex flex-col">
-					<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
+					<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
 						<div className="mb-2.5 flex items-center justify-between">
 							<Skeleton className="h-6 w-6 rounded" />
 							<div className="flex items-center gap-0.5 -mr-1.5">
@@ -67,7 +67,7 @@ export const AgentsPageSkeleton: FC = () => (
 				</div>
 			</div>
 		</div>
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 md:order-none" />
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 sm:order-none" />
 	</div>
 );
 

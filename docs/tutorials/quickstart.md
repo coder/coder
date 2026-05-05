@@ -2,8 +2,7 @@
 
 Follow this guide to get your first Coder development environment
 running in under 10 minutes. This guide covers the essential concepts and shows
-you how to create your first workspace and run VS Code from it. You can
-also get Claude Code up and running in the background!
+you how to create your first workspace and run VS Code from it.
 
 ## What You'll Do
 
@@ -13,22 +12,20 @@ In this quickstart, you'll:
 - ✅ Create a **template** (blueprint for dev environments)
 - ✅ Launch a **workspace** (your actual dev environment)
 - ✅ Connect from your favorite IDE
-- ✅ Optionally set up a **task** running Claude Code
 
 ## Understanding Coder: 30-Second Overview
 
 Before diving in, the following table breaks down the core concepts that power Coder,
 explained through a cooking analogy:
 
-| Component      | What It Is                                                                           | Real-World Analogy                          |
-|----------------|--------------------------------------------------------------------------------------|---------------------------------------------|
-| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal              |
-| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal                           |
-| **Workspaces** | The actual running environment created from the template                             | The cooked meal                             |
-| **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Smart kitchen appliance that helps you cook |
-| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal                  |
+| Component      | What It Is                                                                           | Real-World Analogy             |
+|----------------|--------------------------------------------------------------------------------------|--------------------------------|
+| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal |
+| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal              |
+| **Workspaces** | The actual running environment created from the template                             | The cooked meal                |
+| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal     |
 
-**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals. Inside those Workspaces, developers can also run Tasks, the smart kitchen appliance, to help speed up day-to-day work.
+**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals.
 
 ## Prerequisites
 
@@ -250,72 +247,13 @@ You now have:
 Now that you have your own workspace running, you can start exploring more
 advanced capabilities that Coder offers.
 
-- [Learn more about running Coder Tasks and our recommended Best Practices](https://coder.com/docs/ai-coder/best-practices)
+- [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
+  interface and API for delegating development work to coding agents in your
+  Coder deployment.
 
-- [Read about managing Workspaces for your team](https://coder.com/docs/user-guides/workspace-management)
+- [Read about managing Workspaces for your team](../user-guides/workspace-management.md)
 
-- [Read about implementing monitoring tools for your Coder Deployment](https://coder.com/docs/admin/monitoring)
-
-### Get Coder Tasks Running
-
-Coder Tasks is an interface that allows you to run and manage coding agents like
-Claude Code within a given Workspace. Tasks become available when a Workspace Template has the `coder_ai_task` resource defined in its source code.
-In other words, any existing template can become a Task template by adding in that
-resource and parameter.
-
-Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker) template, which has Anthropic's Claude Code agent built in with a sample application. Let's try using this template by pulling it from Coder's Registry of public templates, and pushing it to your local server:
-
-1. Open a terminal on your machine.
-1. If your Coder server is not running, restart it:
-
-   ```shell
-   coder server
-   ```
-
-1. In another terminal window, ensure your CLI is authenticated with your Coder deployment by [logging in to Coder](https://coder.com/docs/reference/cli/login):
-
-   ```shell
-   coder login
-   # A browser window will open where you can copy a session token
-   # Paste the session token when prompted
-   ```
-
-1. Create an [API Key with Anthropic](https://console.anthropic.com/).
-1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker) template.
-1. Clone the Coder Registry repo to your local machine:
-
-   ```shell
-   git clone https://github.com/coder/registry.git
-   # or
-   gh repo clone coder/registry
-   ```
-
-1. Switch to the template directory:
-
-   ```shell
-   cd registry/registry/coder-labs/templates/tasks-docker
-   ```
-
-1. Push the template to your Coder deployment. **Note:** this command differs from the registry since we're defining the Anthropic API Key as an environment variable:
-
-   ```shell
-   coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
-   ```
-
-1. Create a Task:
-   1. In your Coder deployment, click **Tasks** in the navigation bar.
-   1. In the **Prompt your AI agent to start a task** box, enter a prompt like "Make the background yellow".
-   1. Select the **tasks-docker** template from the dropdown and click the **Submit** button.
-1. See Tasks in action:
-   1. Your task will appear in the following table. Click on it to open the task view, where you can follow the initialization.
-   1. Once active, you'll see Claude Code on the left panel and can preview the sample application or interact with the code in code-server on the right. You might need to wait for Claude Code to finish changing the background color of the application.
-   1. Try typing in a new request to Claude Code: "make the background red".
-   1. Click the back arrow to return to the task overview (you can also see all your tasks in the sidebar).
-   1. You can start a new task from the prompt box at the top of the page.
-
-   ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
-
-Congratulations! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. To learn more, visit the [Coder Tasks](https://coder.com/docs/ai-coder/tasks) docs.
+- [Read about implementing monitoring tools for your Coder Deployment](../admin/monitoring/index.md)
 
 ## Troubleshooting
 

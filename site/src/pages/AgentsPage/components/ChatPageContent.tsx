@@ -161,6 +161,7 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	agentSetupNotice?: ReactNode;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -228,6 +229,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	agentSetupNotice,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -393,6 +395,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
+	const [chatFullWidth] = useChatFullWidth();
+
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
@@ -493,12 +497,19 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		/>
 	);
 
-	if (!modelSelectorHelp) {
+	if (!agentSetupNotice && !modelSelectorHelp) {
 		return inputElement;
 	}
 
 	return (
 		<div>
+			{agentSetupNotice && (
+				<div
+					className={cn("mx-auto w-full pb-2", chatWidthClass(chatFullWidth))}
+				>
+					{agentSetupNotice}
+				</div>
+			)}
 			{inputElement}
 			{modelSelectorHelp && (
 				<div className="px-3 pt-1 text-2xs text-content-secondary">

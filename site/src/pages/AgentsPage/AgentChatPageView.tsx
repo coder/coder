@@ -104,6 +104,7 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	agentSetupNotice?: ReactNode;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
@@ -200,6 +201,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	agentSetupNotice,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	planModeEnabled,
@@ -534,6 +536,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelOptions={modelOptions}
 								modelSelectorPlaceholder={modelSelectorPlaceholder}
 								modelSelectorHelp={modelSelectorHelp}
+								agentSetupNotice={agentSetupNotice}
 								planModeEnabled={planModeEnabled}
 								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}

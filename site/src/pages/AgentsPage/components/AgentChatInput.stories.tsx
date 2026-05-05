@@ -652,6 +652,10 @@ export const PlanningIndicator: Story = {
 		planModeEnabled: true,
 		onPlanModeToggle: fn(),
 	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Planning")).toBeVisible();

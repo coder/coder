@@ -1,4 +1,11 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -122,6 +129,7 @@ interface AgentCreateFormProps {
 	canCreateChat: boolean;
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
+	agentSetupNotice?: ReactNode;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
@@ -142,6 +150,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	modelCatalog,
 	modelOptions,
+	agentSetupNotice,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
@@ -448,8 +457,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	return (
 		<>
-			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto p-4 pb-4 md:order-none md:h-full md:flex-1 md:items-center md:pt-12">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:items-center">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
 					{isForbidden ? (
 						<ChatAccessDeniedAlert />
 					) : createError ? (
@@ -493,6 +502,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							}}
 						/>
 					)}
+					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
@@ -534,7 +544,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
-					<p className="mt-1 text-center text-xs text-content-secondary/50">
+					<p className="text-center text-xs text-content-secondary/50">
 						<a
 							href={docs("/ai-coder/agents")}
 							target="_blank"

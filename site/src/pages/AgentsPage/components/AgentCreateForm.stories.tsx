@@ -18,6 +18,7 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
+import { AgentSetupNotice } from "./AgentSetupNotice";
 
 // Query key used by permittedOrganizations() in the form.
 const permittedOrgsKey = [
@@ -466,6 +467,37 @@ export const NoModelsConfigured: Story = {
 	},
 };
 
+export const MissingProviderAndModelSetup: Story = {
+	args: {
+		...defaultArgs,
+		agentSetupNotice: <AgentSetupNotice providerCount={0} modelCount={0} />,
+		modelCatalog: { providers: [] },
+		modelOptions: [],
+		isModelCatalogLoading: false,
+		isModelConfigsLoading: false,
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = within(
+			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
+		);
+
+		await waitFor(() => {
+			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+		});
+		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
+		expect(dialog.getByText("Add a chat model")).toBeVisible();
+		expect(dialog.queryByLabelText("Complete")).not.toBeInTheDocument();
+		expect(
+			dialog.getByRole("link", { name: "Go to Providers" }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
+	},
+};
+
 export const PreservesAttachmentsOnFailedSend: Story = {
 	args: {
 		...defaultArgs,
@@ -592,6 +624,30 @@ export const WithOrganizationPicker: Story = {
 		await userEvent.keyboard("hello world");
 		// The org picker should still be present after typing.
 		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+	},
+};
+
+export const OrgPickerTightSpacing: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const orgTrigger = await canvas.findByTestId("compact-org-selector");
+		const composer = await canvas.findByTestId("chat-composer");
+
+		const orgRect = orgTrigger.getBoundingClientRect();
+		const composerRect = composer.getBoundingClientRect();
+		const gap = composerRect.top - orgRect.bottom;
+		expect(gap).toBeGreaterThanOrEqual(0);
+		expect(gap).toBeLessThan(16);
 	},
 };
 

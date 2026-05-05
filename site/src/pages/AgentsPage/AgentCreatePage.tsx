@@ -6,6 +6,7 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	chatModelConfigs,
 	chatModels,
+	chatProviderConfigs,
 	createChat,
 	mcpServerConfigs,
 	userChatPersonalModelOverrides,
@@ -19,10 +20,14 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	countConfiguredProviderConfigs,
+	getModelOptionsFromConfigs,
+} from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -34,6 +39,10 @@ const AgentCreatePage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -47,6 +56,25 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
+	const providerCount =
+		permissions.editDeploymentConfig &&
+		chatProviderConfigsQuery.isSuccess &&
+		chatModelsQuery.isSuccess
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					chatModelsQuery.data,
+				)
+			: undefined;
+	const modelCount =
+		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+			? catalogModelOptions.length
+			: undefined;
+	const agentSetupNotice =
+		providerCount !== undefined &&
+		modelCount !== undefined &&
+		(providerCount === 0 || modelCount === 0) ? (
+			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
+		) : undefined;
 
 	const handleCreateChat = async ({
 		message,
@@ -125,6 +153,7 @@ const AgentCreatePage: FC = () => {
 				canCreateChat={permissions.createChat}
 				modelCatalog={chatModelsQuery.data}
 				modelOptions={catalogModelOptions}
+				agentSetupNotice={agentSetupNotice}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
