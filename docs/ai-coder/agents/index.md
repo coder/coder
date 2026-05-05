@@ -244,6 +244,7 @@ tasks:
 | `process_output`                            | Retrieve output from a background process                                |
 | `process_list`                              | List all tracked processes in the workspace                              |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                      |
+| `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel                       |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                  |
 | `message_agent`                             | Send a follow-up message to a running sub-agent                          |

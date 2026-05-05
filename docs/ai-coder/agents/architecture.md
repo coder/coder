@@ -132,15 +132,16 @@ approach, discussing architecture) never provision or connect to a workspace.
 These tools execute inside the workspace via the workspace daemon's HTTP API.
 They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 
-| Tool             | What it does                                                       |
-|------------------|--------------------------------------------------------------------|
-| `read_file`      | Reads file contents with line-number pagination.                   |
-| `write_file`     | Writes content to a file.                                          |
-| `edit_files`     | Performs atomic search-and-replace edits across one or more files. |
-| `execute`        | Runs a shell command, waiting for completion up to a timeout.      |
-| `process_output` | Retrieves output from a tracked process.                           |
-| `process_list`   | Lists all tracked processes in the workspace.                      |
-| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.          |
+| Tool             | What it does                                                                                                                                                                                                                                                                       |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `read_file`      | Reads file contents with line-number pagination.                                                                                                                                                                                                                                   |
+| `write_file`     | Writes content to a file.                                                                                                                                                                                                                                                          |
+| `edit_files`     | Performs atomic search-and-replace edits across one or more files.                                                                                                                                                                                                                 |
+| `execute`        | Runs a shell command, waiting for completion up to a timeout.                                                                                                                                                                                                                      |
+| `process_output` | Retrieves output from a tracked process.                                                                                                                                                                                                                                           |
+| `process_list`   | Lists all tracked processes in the workspace.                                                                                                                                                                                                                                      |
+| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.                                                                                                                                                                                                                          |
+| `attach_file`    | Attach a workspace file to the current chat so the user can download it directly from the conversation. Use this when the user should receive an artifact such as a screenshot, log, patch, or document. Pass an absolute file path. The file must already exist in the workspace. |
 
 ### Platform tools
 
