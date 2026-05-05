@@ -4268,7 +4268,7 @@ func subscribeWithInitialError(chatID uuid.UUID, message string) (
 	return []codersdk.ChatStreamEvent{{
 		Type:   codersdk.ChatStreamEventTypeError,
 		ChatID: chatID,
-		Error:  &codersdk.ChatStreamError{Message: message},
+		Error:  &codersdk.ChatError{Message: message},
 	}}, events, func() {}, true
 }
 
