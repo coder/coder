@@ -115,21 +115,20 @@ func (k *Key) State() KeyState {
 	return KeyStateValid
 }
 
-// remainingCooldown returns the duration until the key's
-// cooldown expires for temporary keys. Returns 0 for keys
-// that are valid (no active cooldown) or permanent.
-func (k *Key) remainingCooldown() time.Duration {
+// stateAndCooldown returns the key's state and remaining
+// cooldown as a single atomic snapshot.
+func (k *Key) stateAndCooldown() (KeyState, time.Duration) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
 	if k.permanent {
-		return 0
+		return KeyStatePermanent, 0
 	}
 	now := k.clock.Now()
 	if now.Before(k.cooldownUntil) {
-		return k.cooldownUntil.Sub(now)
+		return KeyStateTemporary, k.cooldownUntil.Sub(now)
 	}
-	return 0
+	return KeyStateValid, 0
 }
 
 // MarkTemporary marks the key as temporarily unavailable with
@@ -186,13 +185,13 @@ func (p *Pool) exhaustionError() error {
 	var retryAfter time.Duration
 	var hasCooldown bool
 	for i := range p.keys {
-		switch p.keys[i].State() {
+		state, cooldown := p.keys[i].stateAndCooldown()
+		switch state {
 		// Recoverable now: signal transient with zero retry-after.
 		case KeyStateValid:
 			return &TransientExhaustionError{}
 		// Recoverable later: track soonest remaining cooldown.
 		case KeyStateTemporary:
-			cooldown := p.keys[i].remainingCooldown()
 			if !hasCooldown || cooldown < retryAfter {
 				retryAfter = cooldown
 				hasCooldown = true
