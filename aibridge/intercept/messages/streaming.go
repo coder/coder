@@ -614,11 +614,11 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 		// into known types (i.e. [shared.OverloadedError]).
 		// See https://github.com/anthropics/anthropic-sdk-go/blob/v1.12.0/packages/ssestream/ssestream.go#L172-L174
 		// All it does is wrap the payload in an error - which is all we can return, currently.
-		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), string(constant.ValueOf[constant.Error]()), 0, 0)
+		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), string(constant.ValueOf[constant.Error]()), http.StatusBadGateway, 0)
 	}
 	if lastErr != nil {
 		logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
-		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), string(constant.ValueOf[constant.Error]()), 0, 0)
+		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), string(constant.ValueOf[constant.Error]()), http.StatusBadGateway, 0)
 	}
 	return nil
 }
