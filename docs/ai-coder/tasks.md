@@ -5,7 +5,7 @@
 >
 > Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
 >
-> We recommend transitioning to [Coder Agents](./agents.md), the long-term replacement.
+> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
 
 Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider, powered by Coder workspaces.
 
