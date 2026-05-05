@@ -152,7 +152,10 @@ export const ChatWithTurnSummaryAndError: Story = {
 				id: "chat-turn-summary-error",
 				title: "Fix workspace startup",
 				status: "error",
-				last_error: "Workspace startup failed",
+				last_error: {
+					message: "Workspace startup failed",
+					retryable: false,
+				},
 				last_turn_summary: "Recreated the workspace image",
 			}),
 		],

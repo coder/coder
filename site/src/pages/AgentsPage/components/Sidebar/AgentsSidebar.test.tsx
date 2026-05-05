@@ -567,7 +567,10 @@ describe("AgentsSidebar subtitles", () => {
 							id: "summary-error-chat",
 							title: "Summary error chat",
 							status: "error",
-							last_error: "Workspace startup failed",
+							last_error: {
+								message: "Workspace startup failed",
+								retryable: false,
+							},
 							last_turn_summary: "Provisioned a workspace",
 						}),
 					]}

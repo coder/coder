@@ -4127,7 +4127,7 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 
 	require.Equal(t, database.ChatStatusRequiresAction, fromDB.Status,
 		"expected requires_action, got %s (last_error=%q)",
-		fromDB.Status, fromDB.LastError.String)
+		fromDB.Status, string(fromDB.LastError.RawMessage))
 	require.False(t, fromDB.LastTurnSummary.Valid,
 		"requires action chats should clear cached turn summaries")
 	require.Equal(t, int32(0), mockPush.dispatchCount.Load(),
