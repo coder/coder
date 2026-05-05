@@ -76,8 +76,6 @@ export function isChatUsageLimitExceededResponse(
 	}
 	const obj = value as Record<string, unknown>;
 	return (
-		typeof obj.message === "string" &&
-		obj.message.trim() !== "" &&
 		typeof obj.spent_micros === "number" &&
 		typeof obj.limit_micros === "number" &&
 		typeof obj.resets_at === "string"
