@@ -103,6 +103,14 @@ sudo mv /var/run/docker.sock.bak /var/run/docker.sock
 
 ## Ideas for extending this
 
+- **Why `precondition` not `check`**: Terraform `check` blocks
+  (added in v1.5) only produce warnings, they don't block the
+  operation. If Docker is missing, continuing is pointless since
+  every Docker resource will fail with a worse error. `precondition`
+  blocks the plan with a clear error, which is what we want.
+  `check` blocks are better for post-deploy health validation
+  ("is this service responding?") where you want to know but
+  not block.
 - **Other templates**: the same `external` + `precondition` pattern
   works for any prerequisite check (Kubernetes connectivity,
   cloud credentials, etc.). Could be a reusable Terraform module.
