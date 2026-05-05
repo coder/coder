@@ -2,7 +2,7 @@ import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
 	formatUsageLimitMessage,
-	isUsageLimitData,
+	isChatUsageLimitExceededResponse,
 } from "./usageLimitMessage";
 
 describe("formatUsageLimitMessage", () => {
@@ -103,7 +103,7 @@ describe("chatDetailErrorsEqual", () => {
 	});
 });
 
-describe("isUsageLimitData", () => {
+describe("isChatUsageLimitExceededResponse", () => {
 	it("accepts a fully populated valid payload", () => {
 		const error: ChatDetailError = {
 			message: "Your usage limit has been reached.",
@@ -112,7 +112,8 @@ describe("isUsageLimitData", () => {
 
 		expect(error.kind).toBe("usage_limit");
 		expect(
-			isUsageLimitData({
+			isChatUsageLimitExceededResponse({
+				message: "Chat usage limit exceeded.",
 				spent_micros: 900_000,
 				limit_micros: 500_000,
 				resets_at: "2026-03-16T00:00:00Z",
@@ -121,20 +122,31 @@ describe("isUsageLimitData", () => {
 	});
 
 	it("rejects null", () => {
-		expect(isUsageLimitData(null)).toBe(false);
+		expect(isChatUsageLimitExceededResponse(null)).toBe(false);
 	});
 
 	it("rejects undefined", () => {
-		expect(isUsageLimitData(undefined)).toBe(false);
+		expect(isChatUsageLimitExceededResponse(undefined)).toBe(false);
 	});
 
 	it("rejects an empty object (missing all fields)", () => {
-		expect(isUsageLimitData({})).toBe(false);
+		expect(isChatUsageLimitExceededResponse({})).toBe(false);
+	});
+
+	it("rejects when message is missing", () => {
+		expect(
+			isChatUsageLimitExceededResponse({
+				spent_micros: 900_000,
+				limit_micros: 500_000,
+				resets_at: "2026-03-16T00:00:00Z",
+			}),
+		).toBe(false);
 	});
 
 	it("rejects when spent_micros is missing", () => {
 		expect(
-			isUsageLimitData({
+			isChatUsageLimitExceededResponse({
+				message: "Chat usage limit exceeded.",
 				limit_micros: 500_000,
 				resets_at: "2026-03-16T00:00:00Z",
 			}),
@@ -143,7 +155,8 @@ describe("isUsageLimitData", () => {
 
 	it("rejects when limit_micros is missing", () => {
 		expect(
-			isUsageLimitData({
+			isChatUsageLimitExceededResponse({
+				message: "Chat usage limit exceeded.",
 				spent_micros: 900_000,
 				resets_at: "2026-03-16T00:00:00Z",
 			}),
@@ -152,13 +165,18 @@ describe("isUsageLimitData", () => {
 
 	it("rejects when resets_at is missing", () => {
 		expect(
-			isUsageLimitData({ spent_micros: 900_000, limit_micros: 500_000 }),
+			isChatUsageLimitExceededResponse({
+				message: "Chat usage limit exceeded.",
+				spent_micros: 900_000,
+				limit_micros: 500_000,
+			}),
 		).toBe(false);
 	});
 
 	it("rejects wrong field types (string for spent_micros)", () => {
 		expect(
-			isUsageLimitData({
+			isChatUsageLimitExceededResponse({
+				message: "Chat usage limit exceeded.",
 				spent_micros: "900000",
 				limit_micros: 500_000,
 				resets_at: "2026-03-16T00:00:00Z",
@@ -168,7 +186,8 @@ describe("isUsageLimitData", () => {
 
 	it("accepts payload with extra fields", () => {
 		expect(
-			isUsageLimitData({
+			isChatUsageLimitExceededResponse({
+				message: "Chat usage limit exceeded.",
 				spent_micros: 900_000,
 				limit_micros: 500_000,
 				resets_at: "2026-03-16T00:00:00Z",

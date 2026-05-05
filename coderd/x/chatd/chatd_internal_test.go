@@ -2323,7 +2323,7 @@ func TestSubscribeDoesNotReplayRetryAfterTerminalError(t *testing.T) {
 	server.publishRetry(chatID, newTestRetryPayload())
 	server.publishError(chatID, chaterror.ClassifiedError{
 		Message:    "OpenAI is rate limiting requests.",
-		Kind:       chaterror.KindRateLimit,
+		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 429,
@@ -2399,7 +2399,7 @@ func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
 
 	classified := chaterror.ClassifiedError{
 		Message:    "OpenAI is rate limiting requests.",
-		Kind:       chaterror.KindRateLimit,
+		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 429,
@@ -2449,7 +2449,7 @@ func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
 func newTestRetryPayload() *codersdk.ChatStreamRetry {
 	payload := chaterror.StreamRetryPayload(1, 1500*time.Millisecond, chaterror.ClassifiedError{
 		Message:    "OpenAI is rate limiting requests.",
-		Kind:       chaterror.KindRateLimit,
+		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 429,

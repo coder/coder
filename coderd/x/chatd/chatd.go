@@ -5362,7 +5362,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			classified := chaterror.ClassifiedError{
 				Message: panicFailureReason(r),
-				Kind:    chaterror.KindGeneric,
+				Kind:    codersdk.ChatErrorKindGeneric,
 			}
 			lastErrorPayload = chaterror.TerminalErrorPayload(classified)
 			p.publishError(chat.ID, classified)
@@ -8014,7 +8014,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				lastErrorPayload, marshalErr := encodeChatLastErrorPayload(
 					chaterror.TerminalErrorPayload(chaterror.ClassifiedError{
 						Message: "Dynamic tool execution timed out",
-						Kind:    chaterror.KindGeneric,
+						Kind:    codersdk.ChatErrorKindGeneric,
 					}),
 				)
 				if marshalErr != nil {

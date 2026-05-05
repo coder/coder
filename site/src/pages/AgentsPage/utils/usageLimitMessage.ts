@@ -1,27 +1,17 @@
+import type * as TypesGen from "#/api/typesGenerated";
 import { formatCostMicros } from "#/utils/currency";
 
-/**
- * Shape of structured usage-limit fields added to 409 responses
- * from chat endpoints.
- */
-interface UsageLimitData {
-	spent_micros?: number;
-	limit_micros?: number;
-	resets_at?: string; // RFC3339
-}
+type UsageLimitData = Partial<
+	Pick<
+		TypesGen.ChatUsageLimitExceededResponse,
+		"spent_micros" | "limit_micros" | "resets_at"
+	>
+>;
 
 /**
  * Known provider failure kinds surfaced in chat retry/error events.
  */
-export type ChatProviderFailureKind =
-	| "generic"
-	| "overloaded"
-	| "rate_limit"
-	| "timeout"
-	| "startup_timeout"
-	| "auth"
-	| "config"
-	| "usage_limit";
+export type ChatProviderFailureKind = TypesGen.ChatErrorKind;
 
 /**
  * Typed classification for errors surfaced in the agent detail view.
@@ -33,7 +23,7 @@ export type ChatProviderFailureKind =
 export type ChatDetailError = {
 	message: string;
 	detail?: string;
-	kind: ChatProviderFailureKind | (string & {});
+	kind: ChatProviderFailureKind;
 	provider?: string;
 	retryable?: boolean;
 	statusCode?: number;
@@ -81,16 +71,18 @@ function formatResetDate(isoString: string): string {
 }
 
 /**
- * Runtime guard that validates whether an unknown value has the shape
- * of structured usage-limit fields from a 409 response.
- * All three fields must be present with correct types.
+ * Runtime guard for the structured 409 usage-limit response.
  */
-export function isUsageLimitData(value: unknown): value is UsageLimitData {
+export function isChatUsageLimitExceededResponse(
+	value: unknown,
+): value is TypesGen.ChatUsageLimitExceededResponse {
 	if (value == null || typeof value !== "object") {
 		return false;
 	}
 	const obj = value as Record<string, unknown>;
 	return (
+		typeof obj.message === "string" &&
+		obj.message.trim() !== "" &&
 		typeof obj.spent_micros === "number" &&
 		typeof obj.limit_micros === "number" &&
 		typeof obj.resets_at === "string"

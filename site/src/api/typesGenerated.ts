@@ -1697,7 +1697,7 @@ export interface ChatError {
 	/**
 	 * Kind classifies the error for consistent client rendering.
 	 */
-	readonly kind?: string;
+	readonly kind?: ChatErrorKind;
 	/**
 	 * Provider identifies the upstream model provider when known.
 	 */
@@ -1711,6 +1711,28 @@ export interface ChatError {
 	 */
 	readonly status_code?: number;
 }
+
+// From codersdk/chats.go
+export type ChatErrorKind =
+	| "auth"
+	| "config"
+	| "generic"
+	| "overloaded"
+	| "rate_limit"
+	| "startup_timeout"
+	| "timeout"
+	| "usage_limit";
+
+export const ChatErrorKinds: ChatErrorKind[] = [
+	"auth",
+	"config",
+	"generic",
+	"overloaded",
+	"rate_limit",
+	"startup_timeout",
+	"timeout",
+	"usage_limit",
+];
 
 // From codersdk/chats.go
 /**
@@ -2480,7 +2502,7 @@ export interface ChatStreamRetry {
 	/**
 	 * Kind classifies the retry reason for consistent client rendering.
 	 */
-	readonly kind?: string;
+	readonly kind?: ChatErrorKind;
 	/**
 	 * Provider identifies the upstream model provider when known.
 	 */

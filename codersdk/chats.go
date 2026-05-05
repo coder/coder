@@ -1425,6 +1425,33 @@ type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
 }
 
+// ChatErrorKind classifies chat errors for consistent client rendering.
+type ChatErrorKind string
+
+const (
+	ChatErrorKindGeneric        ChatErrorKind = "generic"
+	ChatErrorKindOverloaded     ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit      ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout        ChatErrorKind = "timeout"
+	ChatErrorKindStartupTimeout ChatErrorKind = "startup_timeout"
+	ChatErrorKindAuth           ChatErrorKind = "auth"
+	ChatErrorKindConfig         ChatErrorKind = "config"
+	ChatErrorKindUsageLimit     ChatErrorKind = "usage_limit"
+)
+
+// AllChatErrorKinds contains every ChatErrorKind value.
+// Update this when adding new constants above.
+var AllChatErrorKinds = []ChatErrorKind{
+	ChatErrorKindGeneric,
+	ChatErrorKindOverloaded,
+	ChatErrorKindRateLimit,
+	ChatErrorKindTimeout,
+	ChatErrorKindStartupTimeout,
+	ChatErrorKindAuth,
+	ChatErrorKindConfig,
+	ChatErrorKindUsageLimit,
+}
+
 // ChatError represents a terminal chat error in persisted chat state or the
 // live stream.
 type ChatError struct {
@@ -1434,7 +1461,7 @@ type ChatError struct {
 	// normalized error message when available.
 	Detail string `json:"detail,omitempty"`
 	// Kind classifies the error for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// Retryable reports whether the underlying error is transient.
@@ -1453,7 +1480,7 @@ type ChatStreamRetry struct {
 	// Error is the normalized error message from the failed attempt.
 	Error string `json:"error"`
 	// Kind classifies the retry reason for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// StatusCode is the best-effort upstream HTTP status code.

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ClassifiedError is the normalized, user-facing view of an
@@ -12,7 +14,7 @@ import (
 type ClassifiedError struct {
 	Message    string
 	Detail     string
-	Kind       string
+	Kind       codersdk.ChatErrorKind
 	Provider   string
 	Retryable  bool
 	StatusCode int
@@ -117,7 +119,7 @@ func Classify(err error) ClassifiedError {
 		return normalizeClassification(ClassifiedError{
 			Message:    "The request was canceled before it completed.",
 			Detail:     structured.detail,
-			Kind:       KindGeneric,
+			Kind:       codersdk.ChatErrorKindGeneric,
 			Provider:   provider,
 			StatusCode: statusCode,
 			RetryAfter: structured.retryAfter,
@@ -128,7 +130,7 @@ func Classify(err error) ClassifiedError {
 		return normalizeClassification(ClassifiedError{
 			Message:    responsesAPIDiagnosticMessage,
 			Detail:     detail,
-			Kind:       KindGeneric,
+			Kind:       codersdk.ChatErrorKindGeneric,
 			Provider:   provider,
 			StatusCode: statusCode,
 			RetryAfter: structured.retryAfter,
@@ -154,42 +156,42 @@ func Classify(err error) ClassifiedError {
 	// the root cause when both signals appear.
 	rules := []struct {
 		match     bool
-		kind      string
+		kind      codersdk.ChatErrorKind
 		retryable bool
 	}{
 		{
 			match:     overloadedMatch,
-			kind:      KindOverloaded,
+			kind:      codersdk.ChatErrorKindOverloaded,
 			retryable: true,
 		},
 		{
 			match:     authStrong,
-			kind:      KindAuth,
+			kind:      codersdk.ChatErrorKindAuth,
 			retryable: false,
 		},
 		{
 			match:     authWeak && !configMatch,
-			kind:      KindAuth,
+			kind:      codersdk.ChatErrorKindAuth,
 			retryable: false,
 		},
 		{
 			match:     rateLimitMatch && !configMatch,
-			kind:      KindRateLimit,
+			kind:      codersdk.ChatErrorKindRateLimit,
 			retryable: true,
 		},
 		{
 			match:     timeoutMatch && !configMatch,
-			kind:      KindTimeout,
+			kind:      codersdk.ChatErrorKindTimeout,
 			retryable: !deadline,
 		},
 		{
 			match:     configMatch,
-			kind:      KindConfig,
+			kind:      codersdk.ChatErrorKindConfig,
 			retryable: false,
 		},
 		{
 			match:     genericRetryableMatch,
-			kind:      KindGeneric,
+			kind:      codersdk.ChatErrorKindGeneric,
 			retryable: true,
 		},
 	}
@@ -209,7 +211,7 @@ func Classify(err error) ClassifiedError {
 
 	return normalizeClassification(ClassifiedError{
 		Detail:     structured.detail,
-		Kind:       KindGeneric,
+		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,
 		RetryAfter: structured.retryAfter,
@@ -229,7 +231,7 @@ func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {
 func normalizeClassification(classified ClassifiedError) ClassifiedError {
 	classified.Message = strings.TrimSpace(classified.Message)
 	classified.Detail = normalizeClassificationDetail(classified.Detail)
-	classified.Kind = strings.TrimSpace(classified.Kind)
+	classified.Kind = codersdk.ChatErrorKind(strings.TrimSpace(string(classified.Kind)))
 	classified.Provider = normalizeProvider(classified.Provider)
 	if classified.RetryAfter < 0 {
 		classified.RetryAfter = 0
@@ -239,10 +241,10 @@ func normalizeClassification(classified ClassifiedError) ClassifiedError {
 			classified.RetryAfter <= 0 {
 			return ClassifiedError{}
 		}
-		classified.Kind = KindGeneric
+		classified.Kind = codersdk.ChatErrorKindGeneric
 	}
 	if classified.Kind == "" {
-		classified.Kind = KindGeneric
+		classified.Kind = codersdk.ChatErrorKindGeneric
 	}
 	if classified.Message == "" {
 		classified.Message = terminalMessage(classified)

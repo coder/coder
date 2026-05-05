@@ -571,7 +571,7 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	require.Equal(t, "received status 429 from upstream", records[0].errMsg)
 	require.Equal(t, chatretry.Delay(0), records[0].delay)
 	require.Equal(t, "openai", records[0].classified.Provider)
-	require.Equal(t, chaterror.KindRateLimit, records[0].classified.Kind)
+	require.Equal(t, codersdk.ChatErrorKindRateLimit, records[0].classified.Kind)
 	require.True(t, records[0].classified.Retryable)
 	require.Equal(t, 429, records[0].classified.StatusCode)
 	require.Equal(
@@ -633,7 +633,7 @@ func TestStartupGuard_DisarmPreservesPermanentError(t *testing.T) {
 		"openai",
 		xerrors.New("invalid model"),
 	))
-	require.Equal(t, chaterror.KindConfig, classified.Kind)
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
 	require.False(t, classified.Retryable)
 	require.Nil(t, context.Cause(attemptCtx))
 }
@@ -700,7 +700,7 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
@@ -788,7 +788,7 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 			require.NoError(t, awaitRunResult(ctx, t, done))
 			require.Equal(t, 2, attempts)
 			require.Len(t, retries, 1)
-			require.Equal(t, chaterror.KindTimeout, retries[0].Kind, "Kind")
+			require.Equal(t, codersdk.ChatErrorKindTimeout, retries[0].Kind, "Kind")
 			require.True(t, retries[0].Retryable, "Retryable")
 			require.Equal(t, provider, retries[0].Provider, "Provider")
 		})
@@ -862,7 +862,7 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
@@ -1077,7 +1077,7 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(

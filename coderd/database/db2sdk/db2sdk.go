@@ -28,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1619,16 +1618,16 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
 		return &codersdk.ChatError{
 			Message: fallbackChatLastErrorMessage,
-			Kind:    chaterror.KindGeneric,
+			Kind:    codersdk.ChatErrorKindGeneric,
 		}
 	}
 
 	payload.Message = strings.TrimSpace(payload.Message)
 	payload.Detail = strings.TrimSpace(payload.Detail)
-	payload.Kind = strings.TrimSpace(payload.Kind)
+	payload.Kind = codersdk.ChatErrorKind(strings.TrimSpace(string(payload.Kind)))
 	payload.Provider = strings.TrimSpace(payload.Provider)
 	if payload.Kind == "" {
-		payload.Kind = chaterror.KindGeneric
+		payload.Kind = codersdk.ChatErrorKindGeneric
 	}
 	if payload.Message == "" {
 		payload.Message = fallbackChatLastErrorMessage

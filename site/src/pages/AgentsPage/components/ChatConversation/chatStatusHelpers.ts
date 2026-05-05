@@ -24,7 +24,7 @@ const normalizeProvider = (provider?: string): string | undefined => {
 };
 
 export const getErrorTitle = (
-	kind: ChatProviderFailureKind | (string & {}),
+	kind: ChatProviderFailureKind,
 	mode: "retry" | "error",
 ): string => {
 	switch (kind) {
@@ -40,13 +40,15 @@ export const getErrorTitle = (
 			return "Authentication failed";
 		case "config":
 			return "Configuration error";
+		case "usage_limit":
+			return "Usage limit reached";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}
 };
 
 export const getProviderStatusURL = (
-	kind: ChatProviderFailureKind | (string & {}),
+	kind: ChatProviderFailureKind,
 	provider?: string,
 ): string | undefined => {
 	if (kind !== "overloaded") {

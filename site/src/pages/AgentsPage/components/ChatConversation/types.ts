@@ -70,7 +70,7 @@ export type ReconnectState = ReconnectSchedule;
 export type RetryState = {
 	attempt: number;
 	error: string;
-	kind: ChatProviderFailureKind | (string & {});
+	kind: ChatProviderFailureKind;
 	provider?: string;
 	delayMs?: number;
 	retryingAt?: string;
