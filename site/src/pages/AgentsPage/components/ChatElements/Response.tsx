@@ -76,27 +76,6 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 	);
 };
 
-const languageAliases: Record<string, string> = {
-	js: "javascript",
-	jsx: "jsx",
-	py: "python",
-	rb: "ruby",
-	sh: "bash",
-	shell: "bash",
-	ts: "typescript",
-	tsx: "tsx",
-	yml: "yaml",
-	zsh: "bash",
-};
-
-const getCodeLanguage = (langClass: string | undefined): string | undefined => {
-	const language = langClass?.replace(/^language-/, "").toLowerCase();
-	if (!language) {
-		return undefined;
-	}
-	return languageAliases[language] ?? language;
-};
-
 const fileViewerTheme = {
 	light: "github-light",
 	dark: "github-dark-high-contrast",
@@ -233,15 +212,14 @@ const createComponents = (
 				const langClass = classes.find((c: string) =>
 					c.startsWith("language-"),
 				);
-				const rawLang = langClass?.replace(/^language-/, "") ?? "text";
-				const lang = getCodeLanguage(langClass) ?? "text";
+				const lang = langClass?.replace(/^language-/, "") ?? "text";
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
 					return (
 						<div className="my-4 overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 							<FileViewer
 								file={{
-									name: `block.${rawLang}`,
+									name: `block.${lang}`,
 									lang: lang as SupportedLanguages,
 									contents: content,
 									cacheKey: content,
