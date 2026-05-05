@@ -1289,6 +1289,12 @@
 							"description": "Programmatic access to Coder Agents via the Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
 							"state": ["beta"]
+						},
+						{
+							"title": "Tasks to Chats API Migration",
+							"description": "Guide for migrating from the Tasks API to the Chats API",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
+							"state": ["beta"]
 						}
 					]
 				}
