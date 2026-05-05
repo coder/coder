@@ -1064,12 +1064,6 @@
 							"state": ["beta"]
 						},
 						{
-							"title": "Chats API",
-							"description": "Programmatic access to Coder Agents via the Chats API",
-							"path": "./ai-coder/agents/chats-api.md",
-							"state": ["beta"]
-						},
-						{
 							"title": "Tasks to Chats API Migration",
 							"description": "Guide for migrating from the Tasks API to the Chats API",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
@@ -1300,6 +1294,12 @@
 							"title": "Create a GitHub to Coder Tasks Workflow",
 							"description": "How to setup Coder Tasks to run in GitHub",
 							"path": "./ai-coder/github-to-tasks.md"
+						},
+						{
+							"title": "Tasks to Chats API Migration",
+							"description": "Guide for migrating from the Tasks API to the Chats API",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
+							"state": ["beta"]
 						}
 					]
 				}
@@ -1502,7 +1502,8 @@
 						},
 						{
 							"title": "Chats",
-							"path": "./reference/api/chats.md"
+							"path": "./reference/api/chats.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Debug",

@@ -236,7 +236,7 @@ multiplier, not a replacement for developer judgment.
 
 ### Use the API for programmatic automation
 
-The [Chats API](./chats-api.md) enables programmatic access to Coder Agents.
+The [Chats API](../../reference/api/chats.md) enables programmatic access to Coder Agents.
 This is useful for building automations such as:
 
 - Triggering Coder Agents from CI/CD pipelines when builds fail.
@@ -270,7 +270,7 @@ narrowly scoped.
 
 > [!NOTE]
 > The Chats API is in beta and may change without notice.
-> See [Chats API](./chats-api.md) for the full endpoint reference.
+> See [Chats API](../../reference/api/chats.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
 
@@ -322,4 +322,4 @@ Your input directly influences product direction during Beta.
 - [Template Optimization](./platform-controls/template-optimization.md) —
   create agent-friendly templates with network boundaries and scoped
   credentials.
-- [Chats API](./chats-api.md) — build programmatic integrations.
+- [Chats API](../../reference/api/chats.md): build programmatic integrations.

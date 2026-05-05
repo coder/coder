@@ -90,7 +90,7 @@ type Chat struct {
 	HasUnread bool `json:"has_unread"`
 	// LastInjectedContext holds the most recently persisted
 	// injected context parts (AGENTS.md files and skills). It
-	// is updated only when context changes — first workspace
+	// is updated only when context changes, on first workspace
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
