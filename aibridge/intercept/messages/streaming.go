@@ -535,7 +535,8 @@ newStream:
 			// Mid-stream error or logical error: events have
 			// already streamed for this iteration, so the
 			// error is relayed as an SSE event.
-			if respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr); respErr != nil {
+			streamErr := stream.Err()
+			if respErr := i.mapStreamError(ctx, logger, streamErr, lastErr); respErr != nil {
 				interceptionErr = respErr
 				payload, err := i.marshal(respErr)
 				if err != nil {
@@ -543,6 +544,11 @@ newStream:
 				} else if err := events.Send(streamCtx, payload); err != nil {
 					logger.Warn(ctx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
 				}
+			} else if streamErr != nil {
+				// Unrecoverable (e.g., broken pipe, context
+				// canceled): can't relay to the client, but record
+				// the error so it isn't silently swallowed.
+				interceptionErr = streamErr
 			}
 		} else {
 			// Pre-stream failure of this iteration. For
