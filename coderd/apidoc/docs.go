@@ -18670,10 +18670,12 @@ const docTemplate = `{
         "codersdk.JobErrorCode": {
             "type": "string",
             "enum": [
-                "REQUIRED_TEMPLATE_VARIABLES"
+                "REQUIRED_TEMPLATE_VARIABLES",
+                "INSUFFICIENT_QUOTA"
             ],
             "x-enum-varnames": [
-                "RequiredTemplateVariables"
+                "RequiredTemplateVariables",
+                "JobErrorCodeInsufficientQuota"
             ]
         },
         "codersdk.License": {
@@ -20839,7 +20841,8 @@ const docTemplate = `{
                 },
                 "error_code": {
                     "enum": [
-                        "REQUIRED_TEMPLATE_VARIABLES"
+                        "REQUIRED_TEMPLATE_VARIABLES",
+                        "INSUFFICIENT_QUOTA"
                     ],
                     "allOf": [
                         {

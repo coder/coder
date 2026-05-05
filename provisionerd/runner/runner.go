@@ -33,11 +33,15 @@ const (
 
 	RequiredTemplateVariablesErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
 	requiredTemplateVariablesErrorText = "required template variables"
+
+	InsufficientQuotaErrorCode = "INSUFFICIENT_QUOTA"
+	insufficientQuotaErrorText = "insufficient quota"
 )
 
 var errorCodes = map[string]string{
 	MissingParameterErrorCode:          missingParameterErrorText,
 	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
+	InsufficientQuotaErrorCode:         insufficientQuotaErrorText,
 }
 
 var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")

@@ -260,10 +260,19 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			buildID := workspace.LatestBuild.ID
 			if buildID != uuid.Nil {
 				if err := waitForBuild(ctx, db, buildID); err != nil {
-					return buildToolResponse(newBuildError(
-						xerrors.Errorf("workspace build failed: %w", err).Error(),
-						buildID,
-					)), nil
+					msg := xerrors.Errorf("workspace build failed: %w", err).Error()
+					if codersdk.JobIsInsufficientQuotaErrorCode(buildErrorCode(err)) {
+						return quotaErrorToolResponse(
+							ctx,
+							db,
+							ownerID,
+							organizationID,
+							msg,
+							buildID,
+							"create",
+						), nil
+					}
+					return buildToolResponse(newBuildError(msg, buildID)), nil
 				}
 			}
 
@@ -517,7 +526,11 @@ func waitForBuild(
 			if job.Error.Valid {
 				errMsg = job.Error.String
 			}
-			return xerrors.New(errMsg)
+			var code codersdk.JobErrorCode
+			if job.ErrorCode.Valid {
+				code = codersdk.JobErrorCode(job.ErrorCode.String)
+			}
+			return &workspaceBuildError{message: errMsg, code: code}
 		case database.ProvisionerJobStatusCanceled:
 			return xerrors.New("build was canceled")
 		case database.ProvisionerJobStatusPending,

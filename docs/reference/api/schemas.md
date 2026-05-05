@@ -7486,9 +7486,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                      |
-|-------------------------------|
-| `REQUIRED_TEMPLATE_VARIABLES` |
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
 
@@ -10007,7 +10007,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Property     | Value(s)                                                             |
 |--------------|----------------------------------------------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                        |
+| `error_code` | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                  |
 | `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
 
 ## codersdk.ProvisionerJobInput

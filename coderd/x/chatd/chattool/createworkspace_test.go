@@ -417,6 +417,113 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 		"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
 }
 
+func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	buildID := uuid.New()
+
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetTemplateByID(gomock.Any(), templateID).
+		Return(database.Template{
+			ID:             templateID,
+			OrganizationID: orgID,
+		}, nil)
+
+	db.EXPECT().
+		GetChatWorkspaceTTL(gomock.Any()).
+		Return("0s", nil)
+
+	db.EXPECT().
+		GetWorkspaceBuildByID(gomock.Any(), buildID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+		}, nil)
+
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusFailed,
+			Error:     sql.NullString{String: "insufficient quota", Valid: true},
+			ErrorCode: sql.NullString{
+				String: string(codersdk.JobErrorCodeInsufficientQuota),
+				Valid:  true,
+			},
+		}, nil)
+
+	db.EXPECT().
+		GetQuotaConsumedForUser(gomock.Any(), database.GetQuotaConsumedForUserParams{
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		}).
+		Return(int64(40), nil)
+	db.EXPECT().
+		GetQuotaAllowanceForUser(gomock.Any(), database.GetQuotaAllowanceForUserParams{
+			UserID:         ownerID,
+			OrganizationID: orgID,
+		}).
+		Return(int64(40), nil)
+
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{
+			ID:        workspaceID,
+			Name:      req.Name,
+			OwnerName: "testuser",
+			LatestBuild: codersdk.WorkspaceBuild{
+				ID: buildID,
+			},
+		}, nil
+	}
+
+	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
+		OwnerID:     ownerID,
+		ChatID:      uuid.Nil,
+		CreateFn:    createFn,
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q,"name":"test-quota-fail"}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, string(codersdk.JobErrorCodeInsufficientQuota), result["error_code"])
+	require.Equal(t, "Workspace quota reached", result["title"])
+	require.Contains(t, result["message"], "workspace quota is full")
+	require.Equal(t, buildID.String(), result["build_id"])
+	quota, ok := result["quota"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(40), quota["credits_consumed"])
+	require.Equal(t, float64(40), quota["budget"])
+	require.False(t, resp.IsError,
+		"quotaToolResponse must not set IsError; chatprompt strips structured fields from error responses")
+}
+
 func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 	t.Parallel()
 

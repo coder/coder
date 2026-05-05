@@ -1446,7 +1446,7 @@ Status Code **200**
 
 | Property                     | Value(s)                                                                 |
 |------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `REQUIRED_TEMPLATE_VARIABLES`                                            |
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
 | `workspace_build_transition` | `delete`, `start`, `stop`                                                |
 | `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
 | `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
@@ -1729,7 +1729,7 @@ Status Code **200**
 
 | Property                     | Value(s)                                                                 |
 |------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `REQUIRED_TEMPLATE_VARIABLES`                                            |
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
 | `workspace_build_transition` | `delete`, `start`, `stop`                                                |
 | `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
 | `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |

@@ -858,13 +858,17 @@ func TestStartWorkspace(t *testing.T) {
 		testutil.TryReceive(ctx, t, jobRead)
 		testutil.TryReceive(ctx, t, jobRead)
 
-		// Fail the provisioner job.
+		// Fail the provisioner job with an insufficient quota error.
 		now := time.Now().UTC()
 		require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:          startBuildJobID,
 			UpdatedAt:   now,
 			CompletedAt: sql.NullTime{Time: now, Valid: true},
-			Error:       sql.NullString{String: "terraform apply failed", Valid: true},
+			Error:       sql.NullString{String: "insufficient quota", Valid: true},
+			ErrorCode: sql.NullString{
+				String: string(codersdk.JobErrorCodeInsufficientQuota),
+				Valid:  true,
+			},
 		}))
 
 		res := testutil.TryReceive(ctx, t, done)
@@ -873,9 +877,13 @@ func TestStartWorkspace(t *testing.T) {
 		var result map[string]any
 		require.NoError(t, json.Unmarshal([]byte(res.resp.Content), &result))
 		require.Contains(t, result["error"], "workspace start build failed")
+		require.Equal(t, string(codersdk.JobErrorCodeInsufficientQuota), result["error_code"])
+		require.Equal(t, "Workspace quota reached", result["title"])
+		require.Contains(t, result["message"], "workspace quota is full")
 		require.Equal(t, startBuildID.String(), result["build_id"])
+		require.NotNil(t, result["quota"])
 		require.False(t, res.resp.IsError,
-			"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
+			"quotaToolResponse must not set IsError; chatprompt strips structured fields from error responses")
 	})
 
 	t.Run("DeletedWorkspace", func(t *testing.T) {
