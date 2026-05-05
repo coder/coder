@@ -1,18 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { TemplateCard } from "./TemplateCard";
+import { ModuleCard } from "./ModuleCard";
 
-const meta: Meta<typeof TemplateCard> = {
-	title: "pages/TemplateBuilder/TemplateCard",
-	component: TemplateCard,
+const meta: Meta<typeof ModuleCard> = {
+	title: "pages/TemplateBuilder/ModuleCard",
+	component: ModuleCard,
 	args: {
 		onSelect: fn(),
-		detailsUrl: "https://registry.coder.com/templates/docker",
 	},
 };
 
 export default meta;
-type Story = StoryObj<typeof TemplateCard>;
+type Story = StoryObj<typeof ModuleCard>;
 
 export const Default: Story = {
 	args: {

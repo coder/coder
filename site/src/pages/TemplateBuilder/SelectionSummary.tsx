@@ -1,6 +1,6 @@
+import { XIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
-import { XIcon } from "lucide-react";
 
 type SelectedTemplate = {
 	name: string;
@@ -75,9 +75,8 @@ const StepIndicator: React.FC<{
 					"border border-border border-solid",
 					"flex items-center justify-center",
 					variant === "complete" && "border-border-success",
-					variant === "current" && "border-border-primary",
-					variant === "upcoming" &&
-						"border-border border-border-secondary text-content-secondary",
+					variant === "current" && "border-content-primary",
+					variant === "upcoming" && "border-border text-content-secondary",
 				)}
 			>
 				{step}
@@ -103,7 +102,7 @@ const StepDivider: React.FC<{
 	return (
 		<div
 			className={cn(
-				"border-0 border-l border-border border-solid border-surface-primary mx-4 -translate-x-px",
+				"border-0 border-l border-border border-solid mx-4 -translate-x-px",
 				children ? "px-3 py-2" : "h-4",
 				className,
 			)}

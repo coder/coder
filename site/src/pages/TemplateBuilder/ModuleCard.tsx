@@ -1,16 +1,17 @@
+import { CheckIcon } from "lucide-react";
 import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
-type TemplateCardProps = {
+type ModuleCardProps = {
 	name: string;
 	description: string;
 	iconUrl?: string;
-	detailsUrl: string;
+	detailsUrl?: string;
 	selected?: boolean;
 	onSelect?: () => void;
 };
 
-export const TemplateCard: React.FC<TemplateCardProps> = ({
+export const ModuleCard: React.FC<ModuleCardProps> = ({
 	name,
 	description,
 	iconUrl,
@@ -20,7 +21,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 }) => {
 	return (
 		<div
-			role="radio"
+			role="checkbox"
 			aria-checked={selected}
 			tabIndex={0}
 			className={cn(
@@ -49,31 +50,26 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				<div
 					aria-hidden="true"
 					className={cn(
-						"flex items-center justify-center size-4 rounded-full border border-solid mt-0.5 shrink-0",
-						selected ? "border-content-primary" : "border-content-secondary",
+						"flex items-center justify-center size-4 rounded-xs mt-0.5 shrink-0",
+						"border border-solid border-border border-border-secondary",
+						selected ? "bg-content-primary" : "bg-surface-secondary",
 					)}
 				>
 					{selected && (
-						<div className="size-2 rounded-full bg-content-primary" />
+						<CheckIcon className="size-3 absolute text-content-invert" />
 					)}
 				</div>
 			</div>
 
 			<div className="flex flex-col justify-between">
 				<div className="text-md font-semibold text-content-primary">{name}</div>
-				<div>
-					<p className="text-sm font-normal text-content-secondary">
-						{description}
-					</p>
+				<p className="text-sm font-normal text-content-secondary">
+					{description}
+				</p>
 
-					<Link
-						href={detailsUrl}
-						target="_blank"
-						className="text-sm font-normal"
-					>
-						View Details
-					</Link>
-				</div>
+				<Link href={detailsUrl} target="_blank" className="text-sm font-normal">
+					View Details
+				</Link>
 			</div>
 		</div>
 	);

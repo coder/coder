@@ -21,13 +21,32 @@ export const NoSelection: Story = {
 	},
 };
 
-export const TemplateSelected: Story = {
+export const BaseTemplateStep: Story = {
+	args: {
+		currentStep: 1,
+		selectedTemplate: undefined,
+		selectedModules: undefined,
+	},
+};
+
+export const WithBaseTemplate: Story = {
 	args: {
 		currentStep: 1,
 		selectedTemplate: {
 			name: "Docker Containers",
 			iconUrl: "/icon/docker.svg",
 		},
+	},
+};
+
+export const ModulesStep: Story = {
+	args: {
+		currentStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: undefined,
 	},
 };
 
