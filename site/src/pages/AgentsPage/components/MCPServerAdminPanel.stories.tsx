@@ -201,6 +201,67 @@ export const CreateServer: Story = {
 	},
 };
 
+/** Open the Slack preset and create a disabled Slack MCP server. */
+export const CreateSlackPreset: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add Slack MCP/i }),
+		);
+
+		await expect(
+			await body.findByText(/Slack MCP preset/i),
+		).toBeInTheDocument();
+		expect(body.getByLabelText(/Display Name/i)).toHaveValue("Slack");
+		expect(body.getByLabelText(/^Slug/i)).toHaveValue("slack");
+		expect(body.getByLabelText(/Server URL/i)).toHaveValue(
+			"https://mcp.slack.com/mcp",
+		);
+		expect(body.getByLabelText(/Client ID/i)).toBeInTheDocument();
+		expect(body.getByLabelText(/Authorization URL/i)).toHaveValue(
+			"https://slack.com/oauth/v2_user/authorize",
+		);
+		expect(body.getByLabelText(/Token URL/i)).toHaveValue(
+			"https://slack.com/api/oauth.v2.user.access",
+		);
+		expect(body.getByLabelText(/^Scopes/i)).toHaveValue(
+			"search:read.public search:read.private search:read.mpim search:read.im search:read.files search:read.users channels:history groups:history mpim:history im:history canvases:read users:read users:read.email",
+		);
+
+		const createButton = body.getByRole("button", { name: /Create server/i });
+		expect(createButton).toBeDisabled();
+
+		await userEvent.type(body.getByLabelText(/Client ID/i), "123.abc");
+		await userEvent.type(body.getByLabelText(/Client Secret/i), "slack-secret");
+		await userEvent.click(createButton);
+
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				display_name: "Slack",
+				slug: "slack",
+				icon_url: "/icon/slack.svg",
+				url: "https://mcp.slack.com/mcp",
+				transport: "streamable_http",
+				auth_type: "oauth2",
+				oauth2_client_id: "123.abc",
+				oauth2_client_secret: "slack-secret",
+				oauth2_auth_url: "https://slack.com/oauth/v2_user/authorize",
+				oauth2_token_url: "https://slack.com/api/oauth.v2.user.access",
+				oauth2_scopes: expect.stringContaining("search:read.public"),
+				availability: "default_off",
+				enabled: false,
+			}),
+		);
+	},
+};
+
 /** Open the create form and select OAuth2 auth type. */
 export const CreateServerOAuth2: Story = {
 	args: {
@@ -236,6 +297,14 @@ export const CreateServerOAuth2: Story = {
 		// Fill OAuth2 fields.
 		await userEvent.type(body.getByLabelText(/Client ID/i), "my-client-id");
 		await userEvent.type(body.getByLabelText(/Client Secret/i), "my-secret");
+		await userEvent.type(
+			body.getByLabelText(/Authorization URL/i),
+			"https://github.com/login/oauth/authorize",
+		);
+		await userEvent.type(
+			body.getByLabelText(/Token URL/i),
+			"https://github.com/login/oauth/access_token",
+		);
 
 		// Submit.
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
@@ -248,6 +317,8 @@ export const CreateServerOAuth2: Story = {
 				auth_type: "oauth2",
 				oauth2_client_id: "my-client-id",
 				oauth2_client_secret: "my-secret",
+				oauth2_auth_url: "https://github.com/login/oauth/authorize",
+				oauth2_token_url: "https://github.com/login/oauth/access_token",
 			}),
 		);
 	},
@@ -359,7 +430,7 @@ export const EditServer: Story = {
 	},
 };
 
-/** Edit a server that has OAuth2 — secret field should show placeholder. */
+/** Edit a server that has OAuth2. Secret field should show placeholder. */
 export const EditServerWithOAuth2Secret: Story = {
 	args: {
 		serversData: [
@@ -393,6 +464,9 @@ export const EditServerWithOAuth2Secret: Story = {
 		const secretField = await body.findByLabelText(/Client Secret/i);
 		expect(secretField).toHaveValue("••••••••••••••••");
 		expect(body.getByLabelText(/Client ID/i)).toHaveValue("gh-client-id");
+		expect(body.getByLabelText(/OAuth callback URL/i)).toHaveValue(
+			`${location.origin}/api/experimental/mcp/servers/mcp-github/oauth2/callback`,
+		);
 	},
 };
 

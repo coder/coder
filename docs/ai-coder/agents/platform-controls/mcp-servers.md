@@ -10,9 +10,36 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 ## Add an MCP server
 
 1. Navigate to **Agents** > **Settings** > **MCP Servers**.
-1. Click **Add**.
+1. Click **Add server**, or click **Add Slack** to start from the Slack
+   preset.
 1. Fill in the configuration fields described below.
 1. Click **Save**.
+
+### Slack preset
+
+The Slack preset fills the hosted Slack MCP endpoint and OAuth2 URLs:
+
+| Field               | Value                                        |
+|---------------------|----------------------------------------------|
+| URL                 | `https://mcp.slack.com/mcp`                  |
+| Authorization URL   | `https://slack.com/oauth/v2_user/authorize`  |
+| Token URL           | `https://slack.com/api/oauth.v2.user.access` |
+| Transport           | `streamable_http`                            |
+| Authentication type | `oauth2`                                     |
+
+To finish setup:
+
+1. Create an internal Slack app or a Slack Marketplace app.
+1. Enable MCP for the Slack app.
+1. Copy the app's client ID and client secret into Coder.
+1. Save the preset-created server. Coder creates it disabled.
+1. Reopen the server, copy the OAuth callback URL, and add it as a Slack
+   redirect URL.
+1. Enable the server when the Slack app redirect URL is ready.
+
+The preset starts with read-focused Slack scopes. Add write scopes such as
+`chat:write`, `canvases:write`, or `reactions:write` if agents should take
+those actions.
 
 ### Identity
 
@@ -51,7 +78,7 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 Each MCP server uses one of five authentication modes. When you change the
 auth type, fields from the previous type are automatically cleared.
 
-Secrets are never returned in API responses — boolean flags indicate whether
+Secrets are never returned in API responses. Boolean flags indicate whether
 a value is set.
 
 ### None
@@ -64,7 +91,7 @@ authentication.
 Per-user authorization. The administrator configures the OAuth2 provider, and
 each user independently completes the authorization flow.
 
-**Manual configuration** — provide all three fields together:
+**Manual configuration**: provide all three fields together:
 
 | Field              | Description                 |
 |--------------------|-----------------------------|
@@ -79,12 +106,12 @@ Optional fields:
 | `oauth2_client_secret` | OAuth2 client secret.           |
 | `oauth2_scopes`        | Space-separated list of scopes. |
 
-**Auto-discovery** — leave `oauth2_client_id`, `oauth2_auth_url`, and
+**Auto-discovery**: leave `oauth2_client_id`, `oauth2_auth_url`, and
 `oauth2_token_url` empty. The server attempts discovery in this order:
 
-1. RFC 9728 — Protected Resource Metadata
-1. RFC 8414 — Authorization Server Metadata
-1. RFC 7591 — Dynamic Client Registration
+1. RFC 9728: Protected Resource Metadata
+1. RFC 8414: Authorization Server Metadata
+1. RFC 7591: Dynamic Client Registration
 
 Users connect through a popup that redirects through the OAuth2 provider.
 Tokens are stored per-user and refreshed automatically. Users can disconnect

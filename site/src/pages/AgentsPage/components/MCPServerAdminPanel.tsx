@@ -12,6 +12,7 @@ import { type FC, lazy, Suspense, useId, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Badge } from "#/components/Badge/Badge";
@@ -21,6 +22,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Input } from "#/components/Input/Input";
 import {
@@ -90,6 +92,49 @@ const AVAILABILITY_OPTIONS = [
 	},
 ] as const;
 
+const SLACK_MCP_READ_SCOPES = [
+	"search:read.public",
+	"search:read.private",
+	"search:read.mpim",
+	"search:read.im",
+	"search:read.files",
+	"search:read.users",
+	"channels:history",
+	"groups:history",
+	"mpim:history",
+	"im:history",
+	"canvases:read",
+	"users:read",
+	"users:read.email",
+].join(" ");
+
+const MCP_SERVER_PRESETS = [
+	{
+		id: "slack",
+		displayName: "Slack",
+		summary:
+			"Search Slack workspace data and read messages with Slack's hosted MCP server.",
+		buttonLabel: "Add Slack",
+		values: {
+			displayName: "Slack",
+			slug: "slack",
+			description:
+				"Search Slack workspace data and read messages with Slack's hosted MCP server.",
+			iconURL: "/icon/slack.svg",
+			url: "https://mcp.slack.com/mcp",
+			transport: "streamable_http",
+			authType: "oauth2",
+			oauth2AuthURL: "https://slack.com/oauth/v2_user/authorize",
+			oauth2TokenURL: "https://slack.com/api/oauth.v2.user.access",
+			oauth2Scopes: SLACK_MCP_READ_SCOPES,
+			availability: "default_off",
+			enabled: false,
+		},
+	},
+] as const;
+
+type MCPServerPreset = (typeof MCP_SERVER_PRESETS)[number];
+
 // ── Helpers ────────────────────────────────────────────────────
 
 const slugify = (value: string): string =>
@@ -110,6 +155,9 @@ const joinList = (arr: readonly string[] | undefined): string =>
 
 const authTypeLabel = (t: string) =>
 	AUTH_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? t;
+
+const oauth2CallbackURL = (serverID: string): string =>
+	`${location.origin}/api/experimental/mcp/servers/${serverID}/oauth2/callback`;
 
 // ── Server icon ────────────────────────────────────────────────
 
@@ -234,6 +282,7 @@ interface ServerListProps {
 	servers: readonly TypesGen.MCPServerConfig[];
 	onSelect: (server: TypesGen.MCPServerConfig) => void;
 	onAdd: () => void;
+	onAddPreset: (presetID: MCPServerPreset["id"]) => void;
 	sectionLabel?: string;
 	sectionDescription?: string;
 }
@@ -242,6 +291,7 @@ const ServerList: FC<ServerListProps> = ({
 	servers,
 	onSelect,
 	onAdd,
+	onAddPreset,
 	sectionLabel,
 	sectionDescription,
 }) => {
@@ -254,10 +304,28 @@ const ServerList: FC<ServerListProps> = ({
 					"Configure external MCP servers that provide additional tools for Coder Agents."
 				}
 				action={
-					<Button size="sm" onClick={onAdd}>
-						<PlusIcon className="h-4 w-4" />
-						Add server
-					</Button>
+					<div className="flex items-center gap-2">
+						{MCP_SERVER_PRESETS.map((preset) => (
+							<Button
+								key={preset.id}
+								variant="outline"
+								size="sm"
+								onClick={() => onAddPreset(preset.id)}
+								title={preset.summary}
+							>
+								<MCPServerIcon
+									iconUrl={preset.values.iconURL}
+									name={preset.displayName}
+									className="h-4 w-4"
+								/>
+								{preset.buttonLabel}
+							</Button>
+						))}
+						<Button size="sm" onClick={onAdd}>
+							<PlusIcon className="h-4 w-4" />
+							Add server
+						</Button>
+					</div>
 				}
 			/>
 
@@ -266,10 +334,32 @@ const ServerList: FC<ServerListProps> = ({
 					<p className="m-0 text-sm text-content-secondary">
 						No MCP servers configured yet.
 					</p>
-					<Button size="sm" onClick={onAdd} aria-label="Add your first server">
-						<PlusIcon className="h-4 w-4" />
-						Add your first server
-					</Button>
+					<div className="flex flex-wrap items-center justify-center gap-2">
+						<Button
+							size="sm"
+							onClick={onAdd}
+							aria-label="Add your first server"
+						>
+							<PlusIcon className="h-4 w-4" />
+							Add your first server
+						</Button>
+						{MCP_SERVER_PRESETS.map((preset) => (
+							<Button
+								key={preset.id}
+								variant="outline"
+								size="sm"
+								onClick={() => onAddPreset(preset.id)}
+								title={preset.summary}
+							>
+								<MCPServerIcon
+									iconUrl={preset.values.iconURL}
+									name={preset.displayName}
+									className="h-4 w-4"
+								/>
+								Add {preset.displayName} MCP
+							</Button>
+						))}
+					</div>
 				</div>
 			) : (
 				<div>
@@ -355,36 +445,45 @@ interface MCPServerFormValues {
 
 const buildInitialValues = (
 	server: TypesGen.MCPServerConfig | null,
-): MCPServerFormValues => ({
-	displayName: server?.display_name ?? "",
-	slug: server?.slug ?? "",
-	slugTouched: false,
-	description: server?.description ?? "",
-	iconURL: server?.icon_url ?? "",
-	url: server?.url ?? "",
-	transport: server?.transport ?? "streamable_http",
-	authType: server?.auth_type ?? "none",
-	oauth2ClientID: server?.oauth2_client_id ?? "",
-	oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
-	oauth2SecretTouched: false,
-	oauth2AuthURL: server?.oauth2_auth_url ?? "",
-	oauth2TokenURL: server?.oauth2_token_url ?? "",
-	oauth2Scopes: server?.oauth2_scopes ?? "",
-	apiKeyHeader: server?.api_key_header ?? "",
-	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
-	apiKeyTouched: false,
-	availability: server?.availability ?? "default_off",
-	enabled: server?.enabled ?? true,
-	modelIntent: server?.model_intent ?? false,
-	allowInPlanMode: server?.allow_in_plan_mode ?? false,
-	toolAllowList: joinList(server?.tool_allow_list),
-	toolDenyList: joinList(server?.tool_deny_list),
-	customHeaders: [],
-	customHeadersTouched: false,
-});
+	preset?: MCPServerPreset,
+): MCPServerFormValues => {
+	const presetValues = server === null ? preset?.values : undefined;
+
+	return {
+		displayName: server?.display_name ?? presetValues?.displayName ?? "",
+		slug: server?.slug ?? presetValues?.slug ?? "",
+		slugTouched: false,
+		description: server?.description ?? presetValues?.description ?? "",
+		iconURL: server?.icon_url ?? presetValues?.iconURL ?? "",
+		url: server?.url ?? presetValues?.url ?? "",
+		transport:
+			server?.transport ?? presetValues?.transport ?? "streamable_http",
+		authType: server?.auth_type ?? presetValues?.authType ?? "none",
+		oauth2ClientID: server?.oauth2_client_id ?? "",
+		oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
+		oauth2SecretTouched: false,
+		oauth2AuthURL: server?.oauth2_auth_url ?? presetValues?.oauth2AuthURL ?? "",
+		oauth2TokenURL:
+			server?.oauth2_token_url ?? presetValues?.oauth2TokenURL ?? "",
+		oauth2Scopes: server?.oauth2_scopes ?? presetValues?.oauth2Scopes ?? "",
+		apiKeyHeader: server?.api_key_header ?? "",
+		apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
+		apiKeyTouched: false,
+		availability:
+			server?.availability ?? presetValues?.availability ?? "default_off",
+		enabled: server?.enabled ?? presetValues?.enabled ?? true,
+		modelIntent: server?.model_intent ?? false,
+		allowInPlanMode: server?.allow_in_plan_mode ?? false,
+		toolAllowList: joinList(server?.tool_allow_list),
+		toolDenyList: joinList(server?.tool_deny_list),
+		customHeaders: [],
+		customHeadersTouched: false,
+	};
+};
 
 interface ServerFormProps {
 	server: TypesGen.MCPServerConfig | null;
+	preset?: MCPServerPreset;
 	isSaving: boolean;
 	isDeleting: boolean;
 	onSave: (
@@ -397,6 +496,7 @@ interface ServerFormProps {
 
 const ServerForm: FC<ServerFormProps> = ({
 	server,
+	preset,
 	isSaving,
 	isDeleting,
 	onSave,
@@ -406,12 +506,14 @@ const ServerForm: FC<ServerFormProps> = ({
 	const formId = useId();
 	const isEditing = server !== null;
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [showDetails, setShowDetails] = useState(false);
-	const [showAuth, setShowAuth] = useState(false);
+	const [showDetails, setShowDetails] = useState(preset !== undefined);
+	const [showAuth, setShowAuth] = useState(
+		preset?.values.authType === "oauth2",
+	);
 	const [showBehavior, setShowBehavior] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
-		initialValues: buildInitialValues(server),
+		initialValues: buildInitialValues(server, preset),
 		onSubmit: async (values) => {
 			const effectiveOAuth2Secret =
 				values.oauth2SecretTouched &&
@@ -463,10 +565,22 @@ const ServerForm: FC<ServerFormProps> = ({
 	});
 
 	const isDisabled = isSaving || isDeleting;
+	const callbackURL = server ? oauth2CallbackURL(server.id) : "";
+	const isSlackPreset = preset?.id === "slack";
+	const oauth2ManualFields = [
+		form.values.oauth2ClientID.trim(),
+		form.values.oauth2AuthURL.trim(),
+		form.values.oauth2TokenURL.trim(),
+	];
+	const hasPartialOAuth2ManualConfig =
+		form.values.authType === "oauth2" &&
+		oauth2ManualFields.some((value) => value !== "") &&
+		oauth2ManualFields.some((value) => value === "");
 	const canSubmit =
 		form.values.displayName.trim() !== "" &&
 		form.values.slug.trim() !== "" &&
 		form.values.url.trim() !== "" &&
+		!hasPartialOAuth2ManualConfig &&
 		!isDisabled;
 
 	return (
@@ -503,6 +617,16 @@ const ServerForm: FC<ServerFormProps> = ({
 				)}
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
+			{isSlackPreset && (
+				<Alert severity="info" className="mb-4">
+					<AlertTitle className="font-medium">Slack MCP preset</AlertTitle>
+					<AlertDescription>
+						Enter a Slack app client ID and secret. Coder creates the server
+						disabled so you can add its OAuth callback URL in Slack before users
+						connect.
+					</AlertDescription>
+				</Alert>
+			)}
 			<form
 				id={formId}
 				onSubmit={form.handleSubmit}
@@ -685,6 +809,30 @@ const ServerForm: FC<ServerFormProps> = ({
 											provider and enter the credentials below. Coder will
 											handle the per-user authorization flow.
 										</p>
+										{server && (
+											<Field
+												label="OAuth callback URL"
+												htmlFor={`${formId}-oauth-callback-url`}
+												description="Add this Redirect URL in the provider before users connect."
+											>
+												<InputGroup className="h-9">
+													<InputGroupInput
+														id={`${formId}-oauth-callback-url`}
+														value={callbackURL}
+														readOnly
+														className="h-9 min-w-0 font-mono text-[13px]"
+													/>
+													<InputGroupAddon align="inline-end">
+														<CopyButton
+															text={callbackURL}
+															label="Copy OAuth callback URL"
+															className="h-7 w-7"
+															disabled={isDisabled}
+														/>
+													</InputGroupAddon>
+												</InputGroup>
+											</Field>
+										)}
 										<div className="grid items-start gap-4 sm:grid-cols-2">
 											<Field label="Client ID" htmlFor={`${formId}-oauth-id`}>
 												<Input
@@ -755,7 +903,15 @@ const ServerForm: FC<ServerFormProps> = ({
 												/>
 											</Field>
 										</div>
-										<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
+										<Field
+											label="Scopes"
+											htmlFor={`${formId}-oauth-scopes`}
+											description={
+												isSlackPreset
+													? "Read-focused Slack scopes. Add write scopes when agents should post messages, write canvases, or add reactions."
+													: undefined
+											}
+										>
 											<Input
 												id={`${formId}-oauth-scopes`}
 												className="h-9 text-[13px]"
@@ -764,6 +920,12 @@ const ServerForm: FC<ServerFormProps> = ({
 												disabled={isDisabled}
 											/>
 										</Field>
+										{hasPartialOAuth2ManualConfig && (
+											<p className="m-0 text-xs text-content-destructive">
+												Provide Client ID, Authorization URL, and Token URL
+												together, or leave all three blank for auto-discovery.
+											</p>
+										)}
 									</div>
 								)}
 
@@ -1140,6 +1302,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const serverId = searchParams.get("server");
+	const presetID = searchParams.get("preset");
 	const navigate = useNavigate();
 	const location = useLocation();
 	// Whether the current form entry was pushed by an in-app click
@@ -1167,6 +1330,9 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 			: null;
 	const isFormView = serverId !== null;
 	const isCreating = serverId === "new";
+	const activePreset = isCreating
+		? MCP_SERVER_PRESETS.find((preset) => preset.id === presetID)
+		: undefined;
 
 	const handleSave = async (
 		req: TypesGen.CreateMCPServerConfigRequest,
@@ -1231,13 +1397,20 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 						onAdd={() =>
 							setSearchParams({ server: "new" }, { state: { pushed: true } })
 						}
+						onAddPreset={(presetID) =>
+							setSearchParams(
+								{ server: "new", preset: presetID },
+								{ state: { pushed: true } },
+							)
+						}
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
 					/>
 				) : isCreating || (!isLoadingServers && editingServer) ? (
 					<ServerForm
-						key={serverId}
+						key={`${serverId}:${activePreset?.id ?? "custom"}`}
 						server={isCreating ? null : editingServer}
+						preset={activePreset}
 						isSaving={isCreatingServer || isUpdatingServer}
 						isDeleting={isDeletingServer}
 						onSave={handleSave}
