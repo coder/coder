@@ -12,6 +12,22 @@ description: >-
 Capture, convert, and archive screen recordings from `computer_use`
 subagent sessions to the `recordings` branch of `coder/coder`.
 
+This skill is designed for
+[Coder Agents](https://coder.com/docs/ai-coder/agents) with the
+`computer_use` subagent type enabled. Coder Agents can spawn a
+`computer_use` subagent to interact with a virtual desktop, and
+the session is automatically recorded to an mp4 file. This skill
+handles everything after the recording is captured: converting to
+GIF, extracting a thumbnail, and archiving to the recordings
+branch.
+
+Requirements:
+- A Coder Agents deployment with `computer_use` enabled (requires
+  an Anthropic provider and the virtual desktop feature)
+- `ffmpeg` installed in the workspace (the skill installs it if
+  missing)
+- Push access to the `recordings` branch
+
 ## When to use
 
 - After a `computer_use` subagent finishes and you need to save
