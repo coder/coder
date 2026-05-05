@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -610,14 +611,15 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 			},
 		}, nil).
 		After(firstJob)
+	ownerCtx := ownerContextMatcher{ownerID: ownerID}
 	db.EXPECT().
-		GetQuotaConsumedForUser(gomock.Any(), database.GetQuotaConsumedForUserParams{
+		GetQuotaConsumedForUser(ownerCtx, database.GetQuotaConsumedForUserParams{
 			OwnerID:        ownerID,
 			OrganizationID: orgID,
 		}).
 		Return(int64(40), nil)
 	db.EXPECT().
-		GetQuotaAllowanceForUser(gomock.Any(), database.GetQuotaAllowanceForUserParams{
+		GetQuotaAllowanceForUser(ownerCtx, database.GetQuotaAllowanceForUserParams{
 			UserID:         ownerID,
 			OrganizationID: orgID,
 		}).
@@ -1426,6 +1428,23 @@ func testCheckExistingWorkspaceOptions(
 		AgentConnFn:                    agentConnFn,
 		AgentInactiveDisconnectTimeout: 30 * time.Second,
 	}
+}
+
+type ownerContextMatcher struct {
+	ownerID uuid.UUID
+}
+
+func (m ownerContextMatcher) Matches(v any) bool {
+	ctx, ok := v.(context.Context)
+	if !ok {
+		return false
+	}
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	return ok && actor.ID == m.ownerID.String()
+}
+
+func (m ownerContextMatcher) String() string {
+	return "context with owner actor"
 }
 
 func expectExistingWorkspaceLookup(

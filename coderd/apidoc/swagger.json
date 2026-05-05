@@ -17014,10 +17014,7 @@
 		"codersdk.JobErrorCode": {
 			"type": "string",
 			"enum": ["REQUIRED_TEMPLATE_VARIABLES", "INSUFFICIENT_QUOTA"],
-			"x-enum-varnames": [
-				"RequiredTemplateVariables",
-				"InsufficientQuota"
-			]
+			"x-enum-varnames": ["RequiredTemplateVariables", "InsufficientQuota"]
 		},
 		"codersdk.License": {
 			"type": "object",

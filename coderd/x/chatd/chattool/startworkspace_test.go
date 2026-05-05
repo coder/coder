@@ -11,9 +11,8 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 
@@ -711,85 +710,6 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, onChatUpdatedCalled.Load(), "OnChatUpdated should be called to notify frontend of build ID")
 	})
 
-	t.Run("FailedBuild", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(t, db)
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		// Create a workspace with a build that is still running.
-		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-		}).Seed(database.WorkspaceBuild{
-			Transition: database.WorkspaceTransitionStart,
-		}).Starting().Do()
-		ws := wsResp.Workspace
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    org.ID,
-			OwnerID:           user.ID,
-			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-			LastModelConfigID: modelCfg.ID,
-			Title:             "test-failed-build",
-		})
-
-		jobRead := make(chan struct{}, 1)
-		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
-
-		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
-			OwnerID: user.ID,
-			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-				return nil, func() {}, nil
-			},
-			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
-				t.Fatal("StartFn should not be called for an in-progress build")
-				return codersdk.WorkspaceBuild{}, nil
-			},
-			WorkspaceMu: &sync.Mutex{},
-			Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		})
-
-		type toolResult struct {
-			resp fantasy.ToolResponse
-			err  error
-		}
-		done := make(chan toolResult, 1)
-		go func() {
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
-			done <- toolResult{resp, err}
-		}()
-
-		// Wait for the tool to observe the running job.
-		testutil.TryReceive(ctx, t, jobRead)
-
-		// Fail the build.
-		now := time.Now().UTC()
-		require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID:          wsResp.Build.JobID,
-			UpdatedAt:   now,
-			CompletedAt: sql.NullTime{Time: now, Valid: true},
-			Error:       sql.NullString{String: "terraform apply failed", Valid: true},
-		}))
-
-		res := testutil.TryReceive(ctx, t, done)
-		require.NoError(t, res.err)
-
-		var result map[string]any
-		require.NoError(t, json.Unmarshal([]byte(res.resp.Content), &result))
-		require.Contains(t, result["error"], "waiting for in-progress build")
-		require.Equal(t, wsResp.Build.ID.String(), result["build_id"])
-		require.False(t, res.resp.IsError,
-			"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
-	})
-
 	t.Run("FailedBuildQuota", func(t *testing.T) {
 		t.Parallel()
 
@@ -803,6 +723,7 @@ func TestStartWorkspace(t *testing.T) {
 			Members(user).
 			Do()
 		org := orgResp.Org
+		// Create a workspace with a build that is still running.
 		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
@@ -817,7 +738,7 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-failed-build-quota",
+			Title:             "test-failed-build",
 		})
 
 		authzDB := dbauthz.New(
@@ -857,8 +778,10 @@ func TestStartWorkspace(t *testing.T) {
 			done <- toolResult{resp, err}
 		}()
 
+		// Wait for the tool to observe the running job.
 		testutil.TryReceive(ctx, t, jobRead)
 
+		// Fail the build.
 		now := time.Now().UTC()
 		require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:          wsResp.Build.JobID,
