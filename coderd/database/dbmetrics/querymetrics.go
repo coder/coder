@@ -968,6 +968,14 @@ func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIModelPriceByProviderModel").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIModelPriceByProviderModel").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAPIKeyByID(ctx, id)
@@ -5277,6 +5285,14 @@ func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, 
 	r0 := m.s.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspacesTTLByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspacesTTLByTemplateID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertAIModelPrice(ctx context.Context, arg database.UpsertAIModelPriceParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertAIModelPrice(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertAIModelPrice").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIModelPrice").Inc()
 	return r0
 }
 

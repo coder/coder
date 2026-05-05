@@ -239,6 +239,7 @@ type sqlcQuerier interface {
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)
+	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -1180,6 +1181,11 @@ type sqlcQuerier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
+	// Insert a row for (provider, model), or replace its price columns if the
+	// pair already exists. Used by the startup seed loader so price corrections
+	// in newer Coder releases overwrite the existing values on upgrade. Rows
+	// absent from the seed are not touched.
+	UpsertAIModelPrice(ctx context.Context, arg UpsertAIModelPriceParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error

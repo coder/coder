@@ -1667,6 +1667,21 @@ func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeUserPromptsByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeUserPromptsByInterceptionID), ctx, interceptionID)
 }
 
+// GetAIModelPriceByProviderModel mocks base method.
+func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIModelPriceByProviderModel", ctx, arg)
+	ret0, _ := ret[0].(database.AiModelPrice)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIModelPriceByProviderModel indicates an expected call of GetAIModelPriceByProviderModel.
+func (mr *MockStoreMockRecorder) GetAIModelPriceByProviderModel(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceByProviderModel", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceByProviderModel), ctx, arg)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -9923,6 +9938,20 @@ func (m *MockStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesTTLByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesTTLByTemplateID), ctx, arg)
+}
+
+// UpsertAIModelPrice mocks base method.
+func (m *MockStore) UpsertAIModelPrice(ctx context.Context, arg database.UpsertAIModelPriceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAIModelPrice", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAIModelPrice indicates an expected call of UpsertAIModelPrice.
+func (mr *MockStoreMockRecorder) UpsertAIModelPrice(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrice", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrice), ctx, arg)
 }
 
 // UpsertAISeatState mocks base method.

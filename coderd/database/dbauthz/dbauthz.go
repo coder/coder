@@ -2451,6 +2451,10 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
+func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
@@ -7393,6 +7397,10 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 		return err
 	}
 	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
+}
+
+func (q *querier) UpsertAIModelPrice(ctx context.Context, arg database.UpsertAIModelPriceParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {

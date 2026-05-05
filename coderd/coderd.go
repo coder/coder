@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aibridge/prices"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -591,6 +592,14 @@ func New(options *Options) *API {
 		// Not ideal, but not using Fatal here and just continuing
 		// after logging the error would be a potential security hole.
 		options.Logger.Fatal(ctx, "failed to reconcile system role permissions", slog.Error(err))
+	}
+
+	// Apply the embedded AI Bridge model price seed. Failure here means the
+	// embedded JSON is corrupted, which is a release-time bug worth crashing
+	// on rather than silently disabling cost tracking.
+	//nolint:gocritic // No user request context here, so use a system-restricted context.
+	if err := prices.Load(dbauthz.AsSystemRestricted(ctx), options.Database); err != nil {
+		options.Logger.Fatal(ctx, "failed to load AI Bridge price seed", slog.Error(err))
 	}
 
 	// AGPL uses a no-op build usage checker as there are no license
