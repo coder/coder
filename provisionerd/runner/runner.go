@@ -20,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	strings2 "github.com/coder/coder/v2/coderd/util/strings"
@@ -874,7 +875,7 @@ func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
 			Output:    "This build would exceed your quota. Failing.",
 			Stage:     stage,
 		})
-		return r.failedWorkspaceBuildf("insufficient quota")
+		return r.failedWorkspaceBuildf(insufficientQuotaErrorText)
 	}
 	return nil
 }

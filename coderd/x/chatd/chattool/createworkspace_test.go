@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
@@ -465,7 +466,7 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 			JobStatus: database.ProvisionerJobStatusFailed,
 			Error:     sql.NullString{String: "insufficient quota", Valid: true},
 			ErrorCode: sql.NullString{
-				String: string(codersdk.JobErrorCodeInsufficientQuota),
+				String: string(codersdk.InsufficientQuota),
 				Valid:  true,
 			},
 		}, nil)
@@ -512,16 +513,20 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	require.Equal(t, string(codersdk.JobErrorCodeInsufficientQuota), result["error_code"])
+	require.Equal(t, string(codersdk.InsufficientQuota), result["error_code"])
 	require.Equal(t, "Workspace quota reached", result["title"])
+	require.Contains(t, result["error"], "workspace build failed")
 	require.Contains(t, result["message"], "workspace quota is full")
+	steps, ok := result["next_steps"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, steps)
 	require.Equal(t, buildID.String(), result["build_id"])
 	quota, ok := result["quota"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, float64(40), quota["credits_consumed"])
 	require.Equal(t, float64(40), quota["budget"])
 	require.False(t, resp.IsError,
-		"quotaToolResponse must not set IsError; chatprompt strips structured fields from error responses")
+		"quota responses must not set IsError; chatprompt strips structured fields from error responses")
 }
 
 func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
@@ -537,6 +542,15 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 	workspaceID := uuid.New()
 	jobID := uuid.New()
 	buildID := uuid.New()
+
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
 
 	db.EXPECT().
 		GetChatByID(gomock.Any(), chatID).
@@ -591,7 +605,7 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 			JobStatus: database.ProvisionerJobStatusFailed,
 			Error:     sql.NullString{String: "insufficient quota", Valid: true},
 			ErrorCode: sql.NullString{
-				String: string(codersdk.JobErrorCodeInsufficientQuota),
+				String: string(codersdk.InsufficientQuota),
 				Valid:  true,
 			},
 		}, nil).
@@ -630,9 +644,10 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 
 	var result map[string]any
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	require.Equal(t, string(codersdk.JobErrorCodeInsufficientQuota), result["error_code"])
+	require.Equal(t, string(codersdk.InsufficientQuota), result["error_code"])
 	require.Equal(t, "Workspace quota reached", result["title"])
 	require.Contains(t, result["error"], "existing workspace build failed")
+	require.Contains(t, result["message"], "could not start this workspace")
 	require.Contains(t, result["message"], "workspace quota is full")
 	require.Equal(t, buildID.String(), result["build_id"])
 	quota, ok := result["quota"].(map[string]any)
@@ -1135,6 +1150,7 @@ func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.
 	require.Error(t, check.BuildErr)
 	require.Contains(t, check.BuildErr.Error(), "existing workspace build failed")
 	require.Equal(t, buildID, check.BuildID)
+	require.Equal(t, buildFailureActionStart, check.BuildAction)
 	require.NoError(t, check.Err)
 }
 

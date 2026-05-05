@@ -18675,7 +18675,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "RequiredTemplateVariables",
-                "JobErrorCodeInsufficientQuota"
+                "InsufficientQuota"
             ]
         },
         "codersdk.License": {

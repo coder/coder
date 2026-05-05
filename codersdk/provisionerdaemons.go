@@ -166,8 +166,8 @@ const (
 type JobErrorCode string
 
 const (
-	RequiredTemplateVariables     JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
-	JobErrorCodeInsufficientQuota JobErrorCode = "INSUFFICIENT_QUOTA"
+	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	InsufficientQuota         JobErrorCode = "INSUFFICIENT_QUOTA"
 )
 
 // JobIsMissingParameterErrorCode returns whether the error is a missing parameter error.

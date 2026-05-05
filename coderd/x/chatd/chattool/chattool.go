@@ -10,10 +10,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// toolResponse builds a fantasy.ToolResponse from a JSON-serializable
-// result map. The map constraint ensures all tool results serialize
-// to JSON objects so the frontend can safely parse them.
-func toolResponse(result map[string]any) fantasy.ToolResponse {
+func marshalToolResponse(result any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fantasy.NewTextResponse("{}")
@@ -21,15 +18,18 @@ func toolResponse(result map[string]any) fantasy.ToolResponse {
 	return fantasy.NewTextResponse(string(data))
 }
 
+// toolResponse builds a fantasy.ToolResponse from a JSON-serializable
+// result map. The map constraint ensures all tool results serialize
+// to JSON objects so the frontend can safely parse them.
+func toolResponse(result map[string]any) fantasy.ToolResponse {
+	return marshalToolResponse(result)
+}
+
 // buildToolResponse marshals a buildErrorResult into a tool response.
 // Separate from toolResponse to keep the map[string]any constraint
 // on the general helper while allowing typed error structs.
 func buildToolResponse(r buildErrorResult) fantasy.ToolResponse {
-	data, err := json.Marshal(r)
-	if err != nil {
-		return fantasy.NewTextResponse("{}")
-	}
-	return fantasy.NewTextResponse(string(data))
+	return marshalToolResponse(r)
 }
 
 // responseErrorResult converts a codersdk.Response into a structured

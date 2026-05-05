@@ -17016,7 +17016,7 @@
 			"enum": ["REQUIRED_TEMPLATE_VARIABLES", "INSUFFICIENT_QUOTA"],
 			"x-enum-varnames": [
 				"RequiredTemplateVariables",
-				"JobErrorCodeInsufficientQuota"
+				"InsufficientQuota"
 			]
 		},
 		"codersdk.License": {

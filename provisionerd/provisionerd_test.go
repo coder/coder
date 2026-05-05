@@ -22,9 +22,11 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/runner"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
@@ -527,6 +529,7 @@ func TestProvisionerd(t *testing.T) {
 			didComplete atomic.Bool
 			didLog      atomic.Bool
 			didFail     atomic.Bool
+			failedCode  = atomic.NewString("")
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
@@ -561,6 +564,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					didFail.Store(true)
+					failedCode.Store(job.ErrorCode)
 					return &proto.Empty{}, nil
 				},
 			}), nil
@@ -605,6 +609,7 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.False(t, didComplete.Load(), "should not complete the job")
+		assert.Equal(t, runner.InsufficientQuotaErrorCode, failedCode.Load())
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
