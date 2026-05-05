@@ -74,7 +74,7 @@ func (api *API) PrimaryWorkspaceProxy(ctx context.Context) (database.WorkspacePr
 // @Produce json
 // @Tags WorkspaceProxies
 // @Success 200 {object} codersdk.RegionsResponse[codersdk.Region]
-// @Router /regions [get]
+// @Router /api/v2/regions [get]
 func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	//nolint:gocritic // this route intentionally requests resources that users

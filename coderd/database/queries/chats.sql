@@ -718,7 +718,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -733,7 +733,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid

@@ -66,7 +66,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	mcp_server_ids: [],
 	labels: {},
 	children: [],

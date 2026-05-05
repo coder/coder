@@ -48,10 +48,36 @@ The response is the newly created `Chat` object:
   "last_model_config_id": "...",
   "title": "hello world",
   "status": "waiting",
-  "last_error": null,
   "diff_status": null,
   "created_at": "2025-07-17T00:00:00Z",
   "updated_at": "2025-07-17T00:00:00Z",
+  "archived": false,
+  "pin_order": 0,
+  "mcp_server_ids": [],
+  "labels": {},
+  "has_unread": false,
+  "client_type": "api"
+}
+```
+
+If a chat later ends in error, the same `Chat` shape includes a structured
+`last_error` object. For brevity, unchanged nullable IDs are omitted here:
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "title": "hello world",
+  "status": "error",
+  "last_error": {
+    "message": "Azure OpenAI is rate limiting requests.",
+    "kind": "rate_limit",
+    "provider": "azure",
+    "retryable": true,
+    "status_code": 429,
+    "detail": "Retry after 30 seconds."
+  },
+  "created_at": "2025-07-17T00:00:00Z",
+  "updated_at": "2025-07-17T00:00:30Z",
   "archived": false,
   "pin_order": 0,
   "mcp_server_ids": [],

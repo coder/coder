@@ -1286,7 +1286,7 @@ export interface Chat {
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
-	readonly last_error: string | null;
+	readonly last_error?: ChatError;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -1321,23 +1321,28 @@ export interface Chat {
 }
 
 // From codersdk/chats.go
-export type ChatAgentModelOverrideContext = "explore" | "general";
+export type ChatAttachmentMediaType =
+	| "application/json"
+	| "application/pdf"
+	| "image/gif"
+	| "image/jpeg"
+	| "image/png"
+	| "image/webp"
+	| "text/csv"
+	| "text/markdown"
+	| "text/plain";
 
-export const ChatAgentModelOverrideContexts: ChatAgentModelOverrideContext[] = [
-	"explore",
-	"general",
+export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
+	"application/json",
+	"application/pdf",
+	"image/gif",
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+	"text/csv",
+	"text/markdown",
+	"text/plain",
 ];
-
-// From codersdk/chats.go
-/**
- * ChatAgentModelOverrideResponse is the response body for the chat agent
- * model override configuration endpoint.
- */
-export interface ChatAgentModelOverrideResponse {
-	readonly context: ChatAgentModelOverrideContext;
-	readonly model_config_id: string;
-	readonly is_malformed: boolean;
-}
 
 // From codersdk/chats.go
 /**
@@ -1364,6 +1369,15 @@ export const ChatClientTypes: ChatClientType[] = ["api", "ui"];
  */
 export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
+
+// From codersdk/chats.go
+/**
+ * ChatComputerUseProviderResponse is the response for getting the computer use
+ * provider setting.
+ */
+export interface ChatComputerUseProviderResponse {
+	readonly provider: string;
+}
 
 // From codersdk/deployment.go
 export interface ChatConfig {
@@ -1663,6 +1677,39 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatError represents a terminal chat error in persisted chat state or the
+ * live stream.
+ */
+export interface ChatError {
+	/**
+	 * Message is the normalized, user-facing error message.
+	 */
+	readonly message: string;
+	/**
+	 * Detail is optional provider-specific context shown alongside the
+	 * normalized error message when available.
+	 */
+	readonly detail?: string;
+	/**
+	 * Kind classifies the error for consistent client rendering.
+	 */
+	readonly kind?: string;
+	/**
+	 * Provider identifies the upstream model provider when known.
+	 */
+	readonly provider?: string;
+	/**
+	 * Retryable reports whether the underlying error is transient.
+	 */
+	readonly retryable: boolean;
+	/**
+	 * StatusCode is the best-effort upstream HTTP status code.
+	 */
+	readonly status_code?: number;
 }
 
 // From codersdk/chats.go
@@ -2096,6 +2143,29 @@ export interface ChatModelOpenRouterProviderOptions {
 }
 
 // From codersdk/chats.go
+export type ChatModelOverrideContext =
+	| "explore"
+	| "general"
+	| "title_generation";
+
+export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"explore",
+	"general",
+	"title_generation",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatModelOverrideResponse is the response body for the chat model override
+ * configuration endpoint.
+ */
+export interface ChatModelOverrideResponse {
+	readonly context: ChatModelOverrideContext;
+	readonly model_config_id: string;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
 /**
  * ChatModelProvider represents provider availability and model results.
  */
@@ -2174,6 +2244,55 @@ export interface ChatModelVercelProviderOptions {
  */
 export interface ChatModelsResponse {
 	readonly providers: readonly ChatModelProvider[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatPersonalModelOverride is a resolved user personal model override.
+ */
+export interface ChatPersonalModelOverride {
+	readonly context: ChatPersonalModelOverrideContext;
+	readonly mode: ChatPersonalModelOverrideMode;
+	readonly model_config_id: string;
+	readonly is_set: boolean;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatPersonalModelOverrideContext = "explore" | "general" | "root";
+
+export const ChatPersonalModelOverrideContexts: ChatPersonalModelOverrideContext[] =
+	["explore", "general", "root"];
+
+// From codersdk/chats.go
+/**
+ * ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
+ * defaults used when a personal override selects deployment_default.
+ */
+export interface ChatPersonalModelOverrideDeploymentDefaults {
+	readonly general: ChatModelOverrideResponse;
+	readonly explore: ChatModelOverrideResponse;
+}
+
+// From codersdk/chats.go
+export type ChatPersonalModelOverrideMode =
+	| "chat_default"
+	| "deployment_default"
+	| "model";
+
+export const ChatPersonalModelOverrideModes: ChatPersonalModelOverrideMode[] = [
+	"chat_default",
+	"deployment_default",
+	"model",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatPersonalModelOverridesAdminSettings describes whether users may manage
+ * personal model override settings.
+ */
+export interface ChatPersonalModelOverridesAdminSettings {
+	readonly allow_users: boolean;
 }
 
 // From codersdk/chats.go
@@ -2297,38 +2416,6 @@ export interface ChatStreamActionRequired {
 
 // From codersdk/chats.go
 /**
- * ChatStreamError represents an error event in the stream.
- */
-export interface ChatStreamError {
-	/**
-	 * Message is the normalized, user-facing error message.
-	 */
-	readonly message: string;
-	/**
-	 * Detail is optional provider-specific context shown alongside the
-	 * normalized error message when available.
-	 */
-	readonly detail?: string;
-	/**
-	 * Kind classifies the error for consistent client rendering.
-	 */
-	readonly kind?: string;
-	/**
-	 * Provider identifies the upstream model provider when known.
-	 */
-	readonly provider?: string;
-	/**
-	 * Retryable reports whether the underlying error is transient.
-	 */
-	readonly retryable: boolean;
-	/**
-	 * StatusCode is the best-effort upstream HTTP status code.
-	 */
-	readonly status_code?: number;
-}
-
-// From codersdk/chats.go
-/**
  * ChatStreamEvent represents a real-time update for chat streaming.
  */
 export interface ChatStreamEvent {
@@ -2337,7 +2424,7 @@ export interface ChatStreamEvent {
 	readonly message?: ChatMessage;
 	readonly message_part?: ChatStreamMessagePart;
 	readonly status?: ChatStreamStatus;
-	readonly error?: ChatStreamError;
+	readonly error?: ChatError;
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
@@ -4579,7 +4666,7 @@ export interface MCPServerConfig {
 	readonly icon_url: string;
 	readonly transport: string; // "streamable_http" or "sse"
 	readonly url: string;
-	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers"
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 	/**
 	 * OAuth2 fields (only populated for admins).
 	 */
@@ -7806,20 +7893,20 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
- * UpdateChatAgentModelOverrideRequest is the request body for updating the
- * chat agent model override configuration endpoint.
- */
-export interface UpdateChatAgentModelOverrideRequest {
-	readonly model_config_id: string;
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatAutoArchiveDaysRequest is a request to update the chat
  * auto-archive period.
  */
 export interface UpdateChatAutoArchiveDaysRequest {
 	readonly auto_archive_days: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatComputerUseProviderRequest is the request to update the computer use
+ * provider setting.
+ */
+export interface UpdateChatComputerUseProviderRequest {
+	readonly provider: string;
 }
 
 // From codersdk/chats.go
@@ -7852,6 +7939,24 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelOverrideRequest is the request body for updating the chat
+ * model override configuration endpoint.
+ */
+export interface UpdateChatModelOverrideRequest {
+	readonly model_config_id: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatPersonalModelOverridesAdminSettingsRequest is the request body for
+ * updating personal model override admin settings.
+ */
+export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
+	readonly allow_users: boolean;
 }
 
 // From codersdk/chats.go
@@ -8157,6 +8262,16 @@ export interface UpdateUserChatCompactionThresholdRequest {
  */
 export interface UpdateUserChatDebugLoggingRequest {
 	readonly debug_logging_enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateUserChatPersonalModelOverrideRequest is the request body for updating
+ * a user personal model override.
+ */
+export interface UpdateUserChatPersonalModelOverrideRequest {
+	readonly mode: ChatPersonalModelOverrideMode;
+	readonly model_config_id: string;
 }
 
 // From codersdk/notifications.go
@@ -8468,6 +8583,19 @@ export interface UserChatDebugLoggingSettings {
 	readonly debug_logging_enabled: boolean;
 	readonly user_toggle_allowed: boolean;
 	readonly forced_by_deployment: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatPersonalModelOverridesResponse is the response body for user
+ * personal model override settings.
+ */
+export interface UserChatPersonalModelOverridesResponse {
+	readonly enabled: boolean;
+	readonly root: ChatPersonalModelOverride;
+	readonly general: ChatPersonalModelOverride;
+	readonly explore: ChatPersonalModelOverride;
+	readonly deployment_defaults: ChatPersonalModelOverrideDeploymentDefaults;
 }
 
 // From codersdk/chats.go

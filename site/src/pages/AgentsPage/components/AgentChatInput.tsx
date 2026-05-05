@@ -3,9 +3,9 @@ import {
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
-	ImageIcon,
 	MicIcon,
 	MonitorIcon,
+	PaperclipIcon,
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
@@ -54,6 +54,10 @@ import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import {
+	chatAttachmentAcceptAttribute,
+	isChatAttachmentFile,
+} from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
 import {
 	AttachmentPreview,
@@ -149,7 +153,11 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
+	onTextPreview?: (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
@@ -326,6 +334,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
 		null,
 	);
+	const [previewTextMediaType, setPreviewTextMediaType] = useState<
+		string | null
+	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
 		"main",
@@ -514,16 +525,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		onRemoveAttachment?.(file);
 	};
 
-	const handleTextPreview = (content: string, fileName: string) => {
+	const handleTextPreview = (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => {
 		if (onTextPreview) {
-			onTextPreview(content, fileName);
+			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
+			setPreviewTextMediaType(mediaType ?? null);
 		}
 	};
 
-	// Drag-and-drop support for image files.
+	// Drag-and-drop support for any chat-supported file type.
 	const [isDragging, setIsDragging] = useState(false);
 
 	const handleDragOver = (e: React.DragEvent) => {
@@ -543,11 +559,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const images = Array.from(e.dataTransfer.files).filter((f) =>
-			f.type.startsWith("image/"),
+		const attachable = Array.from(e.dataTransfer.files).filter(
+			isChatAttachmentFile,
 		);
-		if (images.length > 0) {
-			onAttach(images);
+		if (attachable.length > 0) {
+			onAttach(attachable);
 		}
 	};
 
@@ -783,7 +799,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
 					aria-label="Chat message"
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
@@ -814,13 +830,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
-				{/* Hidden file input for image attachment */}
+				{/* Hidden file input for attaching any server-accepted file type. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
 						multiple
-						accept="image/*"
+						accept={chatAttachmentAcceptAttribute}
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
@@ -906,8 +922,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												}}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 											>
-												<ImageIcon className="size-3.5 shrink-0" />
-												Attach image
+												<PaperclipIcon className="size-3.5 shrink-0" />
+												Attach file
 											</button>
 										)}
 										{onPlanModeToggle && (
@@ -1255,9 +1271,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<TextPreviewDialog
 					content={previewText}
 					fileName={previewTextFileName ?? undefined}
+					mediaType={previewTextMediaType ?? undefined}
 					onClose={() => {
 						setPreviewText(null);
 						setPreviewTextFileName(null);
+						setPreviewTextMediaType(null);
 					}}
 				/>
 			)}

@@ -1070,7 +1070,7 @@ func TestAgents(t *testing.T) {
 			t.Parallel()
 			updated, cmd := applyStream(newTestChatViewModel(nil), codersdk.ChatStreamEvent{
 				Type:  codersdk.ChatStreamEventTypeError,
-				Error: &codersdk.ChatStreamError{Message: "stream blew up"},
+				Error: &codersdk.ChatError{Message: "stream blew up"},
 			})
 			require.Nil(t, cmd)
 			require.Equal(t, "stream error: stream blew up", updated.err.Error())

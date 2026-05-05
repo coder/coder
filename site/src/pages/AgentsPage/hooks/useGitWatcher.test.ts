@@ -80,9 +80,11 @@ describe("useGitWatcher", () => {
 
 		expect(mockWatchChatGit).toHaveBeenCalledWith("chat-123");
 		expect(result.current.isConnected).toBe(false);
+		expect(result.current.hasReceivedChanges).toBe(false);
 
 		act(() => socket.simulateOpen());
 		expect(result.current.isConnected).toBe(true);
+		expect(result.current.hasReceivedChanges).toBe(false);
 	});
 
 	it("does not connect when chatId is undefined", () => {
@@ -92,6 +94,7 @@ describe("useGitWatcher", () => {
 
 		expect(mockWatchChatGit).not.toHaveBeenCalled();
 		expect(result.current.isConnected).toBe(false);
+		expect(result.current.hasReceivedChanges).toBe(false);
 		expect(result.current.repositories.size).toBe(0);
 	});
 
@@ -104,6 +107,7 @@ describe("useGitWatcher", () => {
 
 		expect(mockWatchChatGit).not.toHaveBeenCalled();
 		expect(result.current.isConnected).toBe(false);
+		expect(result.current.hasReceivedChanges).toBe(false);
 		expect(result.current.repositories.size).toBe(0);
 	});
 
@@ -116,6 +120,7 @@ describe("useGitWatcher", () => {
 
 		expect(mockWatchChatGit).not.toHaveBeenCalled();
 		expect(result.current.isConnected).toBe(false);
+		expect(result.current.hasReceivedChanges).toBe(false);
 		expect(result.current.repositories.size).toBe(0);
 	});
 
@@ -211,6 +216,7 @@ describe("useGitWatcher", () => {
 		await waitFor(() => {
 			expect(result.current.repositories.size).toBe(2);
 		});
+		expect(result.current.hasReceivedChanges).toBe(true);
 
 		const repoA = result.current.repositories.get("/home/user/project-a");
 		expect(repoA).toEqual({
@@ -225,6 +231,24 @@ describe("useGitWatcher", () => {
 			branch: "feature",
 			unified_diff: "diff content b",
 		});
+	});
+
+	it("marks empty changes messages as received", async () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+		act(() => {
+			socket.simulateMessage({ type: "changes", repositories: [] });
+		});
+
+		await waitFor(() => {
+			expect(result.current.hasReceivedChanges).toBe(true);
+		});
+		expect(result.current.repositories.size).toBe(0);
 	});
 
 	it("evicts repos with removed: true", async () => {
@@ -443,6 +467,7 @@ describe("useGitWatcher", () => {
 		await waitFor(() => {
 			expect(result.current.repositories.size).toBe(1);
 		});
+		expect(result.current.hasReceivedChanges).toBe(true);
 
 		// The old socket should be closed when we switch chatId.
 		const socket2 = createMockSocket();
@@ -453,6 +478,7 @@ describe("useGitWatcher", () => {
 
 		// Repositories should be reset immediately after chatId changes.
 		expect(result.current.repositories.size).toBe(0);
+		expect(result.current.hasReceivedChanges).toBe(false);
 
 		// The new socket should work independently.
 		act(() => socket2.simulateOpen());
@@ -472,6 +498,7 @@ describe("useGitWatcher", () => {
 		await waitFor(() => {
 			expect(result.current.repositories.size).toBe(1);
 		});
+		expect(result.current.hasReceivedChanges).toBe(true);
 		expect(result.current.repositories.has("/home/user/project-x")).toBe(true);
 	});
 

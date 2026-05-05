@@ -316,16 +316,107 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 	// Also create a non-oauth server. It should report
 	// auth_connected=true because no auth is needed.
 	_ = createMCPServerConfig(t, adminClient, "no-auth-server", true)
+
+	// And a user_oidc server. user_oidc never requires a per-user
+	// connect step, so auth_connected is always true regardless of
+	// whether the calling user has an OIDC link.
+	_, err = adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "User OIDC Server",
+		Slug:          "user-oidc-server",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/oidc",
+		AuthType:      "user_oidc",
+		Availability:  "default_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+
 	memberConfigs, err = memberClient.MCPServerConfigs(ctx)
 	require.NoError(t, err)
-	require.Len(t, memberConfigs, 2)
+	require.Len(t, memberConfigs, 3)
 	for _, cfg := range memberConfigs {
-		if cfg.AuthType == "none" {
-			require.True(t, cfg.AuthConnected)
-		} else {
-			require.False(t, cfg.AuthConnected)
+		switch cfg.AuthType {
+		case "none", "user_oidc":
+			require.True(t, cfg.AuthConnected, "%s should report auth_connected", cfg.AuthType)
+		default:
+			require.False(t, cfg.AuthConnected, "%s should not report auth_connected", cfg.AuthType)
 		}
 	}
+}
+
+func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newMCPClient(t)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Start with an oauth2 config that has a client secret, then
+	// switch the auth_type to user_oidc and verify all auth-specific
+	// fields are cleared.
+	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:        "Switch Server",
+		Slug:               "switch-server",
+		Transport:          "streamable_http",
+		URL:                "https://mcp.example.com/v1",
+		AuthType:           "oauth2",
+		OAuth2ClientID:     "cid",
+		OAuth2ClientSecret: "secret-value",
+		OAuth2AuthURL:      "https://auth.example.com/authorize",
+		OAuth2TokenURL:     "https://auth.example.com/token",
+		OAuth2Scopes:       "read write",
+		Availability:       "default_off",
+		Enabled:            true,
+		ToolAllowList:      []string{},
+		ToolDenyList:       []string{},
+	})
+	require.NoError(t, err)
+	require.True(t, created.HasOAuth2Secret)
+	require.Equal(t, "cid", created.OAuth2ClientID)
+
+	newAuth := "user_oidc"
+	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		AuthType: &newAuth,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "user_oidc", updated.AuthType)
+	require.False(t, updated.HasOAuth2Secret, "oauth2 secret should be cleared")
+	require.False(t, updated.HasAPIKey, "api key should remain unset")
+	require.False(t, updated.HasCustomHeaders, "custom headers should remain unset")
+	require.Empty(t, updated.OAuth2ClientID)
+	require.Empty(t, updated.OAuth2AuthURL)
+	require.Empty(t, updated.OAuth2TokenURL)
+	require.Empty(t, updated.OAuth2Scopes)
+	require.Empty(t, updated.APIKeyHeader)
+}
+
+func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
+	t.Parallel()
+
+	// Create with user_oidc and confirm validation accepts the value
+	// while no auth-specific fields are persisted on the row.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newMCPClient(t)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "User OIDC Direct",
+		Slug:          "user-oidc-direct",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/oidc-direct",
+		AuthType:      "user_oidc",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "user_oidc", created.AuthType)
+	require.False(t, created.HasOAuth2Secret)
+	require.False(t, created.HasAPIKey)
+	require.False(t, created.HasCustomHeaders)
 }
 
 func TestMCPServerConfigsAvailability(t *testing.T) {

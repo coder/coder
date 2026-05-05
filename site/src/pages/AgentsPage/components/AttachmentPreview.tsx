@@ -52,7 +52,11 @@ export const AttachmentPreview: FC<{
 	previewUrls?: Map<File, string>;
 	onPreview?: (url: string) => void;
 	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
+	onTextPreview?: (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => void;
 	onInlineText?: (file: File, content?: string) => void;
 }> = ({
 	attachments,
@@ -157,7 +161,7 @@ export const AttachmentPreview: FC<{
 											textFileId,
 										);
 										if (nextContent !== undefined) {
-											onTextPreview?.(nextContent, file.name);
+											onTextPreview?.(nextContent, file.name, file.type);
 										}
 									}}
 								>

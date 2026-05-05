@@ -77,6 +77,7 @@ type createWorkspaceArgs struct {
 	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
 	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
 	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template."`
+	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
 }
 
 // CreateWorkspace returns a tool that creates a new workspace from a
@@ -91,7 +92,10 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			"template_id (from list_templates). Optionally provide "+
 			"a name and parameter values (from read_template). "+
 			"If no name is given, one will be generated. "+
-			"This tool is idempotent — if the chat already has a "+
+			"Provide a preset_id (from read_template) to apply "+
+			"preset parameters and potentially claim a prebuilt "+
+			"workspace for faster startup. "+
+			"This tool is idempotent. If the chat already has a "+
 			"workspace that is building or running, the existing "+
 			"workspace is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -182,6 +186,18 @@ func CreateWorkspace(organizationID uuid.UUID, db database.Store, options Create
 			createReq := codersdk.CreateWorkspaceRequest{
 				TemplateID: templateID,
 				TTLMillis:  ttlMs,
+			}
+
+			// Apply preset if provided.
+			presetIDStr := strings.TrimSpace(args.PresetID)
+			if presetIDStr != "" {
+				presetID, err := uuid.Parse(presetIDStr)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("invalid preset_id: %w", err).Error(),
+					), nil
+				}
+				createReq.TemplateVersionPresetID = presetID
 			}
 
 			name := strings.TrimSpace(args.Name)

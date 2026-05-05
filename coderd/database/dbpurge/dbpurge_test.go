@@ -1839,20 +1839,17 @@ func TestDeleteOldChatFiles(t *testing.T) {
 	// backdates updated_at to control the "archived since" window.
 	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, ownerID, orgID, modelConfigID uuid.UUID, archived bool, updatedAt time.Time) database.Chat {
 		t.Helper()
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    orgID,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelConfigID,
 			Title:             "test-chat",
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 		})
-		require.NoError(t, err)
 		if archived {
-			_, err = db.ArchiveChatByID(ctx, chat.ID)
+			_, err := db.ArchiveChatByID(ctx, chat.ID)
 			require.NoError(t, err)
 		}
-		_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
+		_, err := rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
 		require.NoError(t, err)
 		return chat
 	}
@@ -1863,25 +1860,20 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		org         database.Organization
 		modelConfig database.ChatModelConfig
 	}
-	setupChatDeps := func(ctx context.Context, t *testing.T, db database.Store) chatDeps {
+	setupChatDeps := func(t *testing.T, db database.Store) chatDeps {
 		t.Helper()
 		user := dbgen.User(t, db, database.User{})
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:             "openai",
-			DisplayName:          "OpenAI",
-			Enabled:              true,
-			CentralApiKeyEnabled: true,
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
 		})
-		require.NoError(t, err)
-		mc, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 			Provider:     "openai",
 			Model:        "test-model",
 			ContextLimit: 8192,
-			Options:      json.RawMessage("{}"),
 		})
-		require.NoError(t, err)
 		return chatDeps{user: user, org: org, modelConfig: mc}
 	}
 
@@ -1898,7 +1890,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := setupChatDeps(ctx, t, db)
+				deps := setupChatDeps(t, db)
 
 				// Disable retention.
 				err := db.UpsertChatRetentionDays(ctx, int32(0))
@@ -1929,7 +1921,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := setupChatDeps(ctx, t, db)
+				deps := setupChatDeps(t, db)
 
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
@@ -1937,27 +1929,12 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// Old archived chat (31 days) — should be deleted.
 				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
 				// Insert a message so we can verify CASCADE.
-				_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-					ChatID:              oldChat.ID,
-					CreatedBy:           []uuid.UUID{deps.user.ID},
-					ModelConfigID:       []uuid.UUID{deps.modelConfig.ID},
-					Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-					Content:             []string{`[{"type":"text","text":"hello"}]`},
-					ContentVersion:      []int16{0},
-					Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-					InputTokens:         []int64{0},
-					OutputTokens:        []int64{0},
-					TotalTokens:         []int64{0},
-					ReasoningTokens:     []int64{0},
-					CacheCreationTokens: []int64{0},
-					CacheReadTokens:     []int64{0},
-					ContextLimit:        []int64{0},
-					Compressed:          []bool{false},
-					TotalCostMicros:     []int64{0},
-					RuntimeMs:           []int64{0},
-					ProviderResponseID:  []string{""},
+				_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+					ChatID:        oldChat.ID,
+					CreatedBy:     uuid.NullUUID{UUID: deps.user.ID, Valid: true},
+					ModelConfigID: uuid.NullUUID{UUID: deps.modelConfig.ID, Valid: true},
+					Role:          database.ChatMessageRoleUser,
 				})
-				require.NoError(t, err)
 
 				// Recently archived chat (10 days) — should be retained.
 				recentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
@@ -1998,7 +1975,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := setupChatDeps(ctx, t, db)
+				deps := setupChatDeps(t, db)
 
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
@@ -2049,7 +2026,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				deps := setupChatDeps(ctx, t, db)
+				deps := setupChatDeps(t, db)
 
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
@@ -2126,7 +2103,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// file purge should show only surviving files.
 				ctx := testutil.Context(t, testutil.WaitLong)
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				deps := setupChatDeps(ctx, t, db)
+				deps := setupChatDeps(t, db)
 
 				// Create a chat with three attached files.
 				fileA := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
@@ -2179,19 +2156,13 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// clean up links for both parent and child chats
 				// independently via FK cascade.
 				parentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
-				childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+				childChat := dbgen.Chat(t, db, database.Chat{
 					OrganizationID:    deps.org.ID,
 					OwnerID:           deps.user.ID,
 					LastModelConfigID: deps.modelConfig.ID,
+					RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 					Title:             "child-chat",
-					Status:            database.ChatStatusWaiting,
-					ClientType:        database.ChatClientTypeUi,
 				})
-				require.NoError(t, err)
-
-				// Set root_chat_id to link child to parent.
-				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET root_chat_id = $1 WHERE id = $2", parentChat.ID, childChat.ID)
-				require.NoError(t, err)
 
 				// Attach different files to parent and child.
 				parentFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
@@ -2243,7 +2214,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				deps := setupChatDeps(ctx, t, db)
+				deps := setupChatDeps(t, db)
 
 				// Create 3 deletable orphaned files (all 31 days old).
 				for range 3 {
@@ -2272,7 +2243,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				deps := setupChatDeps(ctx, t, db)
+				deps := setupChatDeps(t, db)
 
 				// Create 3 deletable old archived chats.
 				for range 3 {
@@ -2307,25 +2278,20 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 // helpers for TestAutoArchiveInactiveChats. Kept scoped to the
 // test so they don't leak into the package surface area.
-func archiveTestDeps(ctx context.Context, t *testing.T, db database.Store) chatAutoArchiveDeps {
+func archiveTestDeps(t *testing.T, db database.Store) chatAutoArchiveDeps {
 	t.Helper()
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
 	})
-	require.NoError(t, err)
-	mc, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		Provider:     "openai",
 		Model:        "test-model",
 		ContextLimit: 8192,
-		Options:      json.RawMessage("{}"),
 	})
-	require.NoError(t, err)
 	return chatAutoArchiveDeps{user: user, org: org, modelConfig: mc}
 }
 
@@ -2361,7 +2327,7 @@ func newArchiveHarness(t *testing.T, now time.Time) *archiveHarness {
 		db:     db,
 		rawDB:  rawDB,
 		logger: logger,
-		deps:   archiveTestDeps(ctx, t, db),
+		deps:   archiveTestDeps(t, db),
 	}
 }
 
@@ -2370,16 +2336,13 @@ func newArchiveHarness(t *testing.T, now time.Time) *archiveHarness {
 // digest contents.
 func createArchiveChat(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, deps chatAutoArchiveDeps, title string, createdAt time.Time) database.Chat {
 	t.Helper()
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    deps.org.ID,
 		OwnerID:           deps.user.ID,
 		LastModelConfigID: deps.modelConfig.ID,
 		Title:             title,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 	})
-	require.NoError(t, err)
-	_, err = rawDB.ExecContext(ctx, "UPDATE chats SET created_at = $1, updated_at = $1 WHERE id = $2", createdAt, chat.ID)
+	_, err := rawDB.ExecContext(ctx, "UPDATE chats SET created_at = $1, updated_at = $1 WHERE id = $2", createdAt, chat.ID)
 	require.NoError(t, err)
 	return chat
 }
@@ -2389,29 +2352,13 @@ func createArchiveChat(ctx context.Context, t *testing.T, db database.Store, raw
 // auto-archive query's LATERAL subquery.
 func insertTextMessage(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, chatID, userID, modelConfigID uuid.UUID, createdAt time.Time) {
 	t.Helper()
-	msgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              chatID,
-		CreatedBy:           []uuid.UUID{userID},
-		ModelConfigID:       []uuid.UUID{modelConfigID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-		Content:             []string{`[{"type":"text","text":"hello"}]`},
-		ContentVersion:      []int16{0},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
-		ProviderResponseID:  []string{""},
+	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chatID,
+		CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
 	})
-	require.NoError(t, err)
-	require.Len(t, msgs, 1)
-	_, err = rawDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1 WHERE id = $2", createdAt, msgs[0].ID)
+	_, err := rawDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1 WHERE id = $2", createdAt, msg.ID)
 	require.NoError(t, err)
 }
 

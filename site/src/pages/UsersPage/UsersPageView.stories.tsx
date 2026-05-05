@@ -5,10 +5,7 @@ import {
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
-import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import {
-	MockAssignableSiteRoles,
-	MockAuthMethodsPasswordOnly,
 	MockUserMember,
 	MockUserOwner,
 	mockApiError,
@@ -31,19 +28,19 @@ const meta: Meta<typeof UsersPageView> = {
 	title: "pages/UsersPageView",
 	component: UsersPageView,
 	args: {
-		isNonInitialPage: false,
-		users: [
-			{ ...MockUserOwner, has_ai_seat: false },
-			{ ...MockUserMember, has_ai_seat: false },
-		],
-		roles: MockAssignableSiteRoles,
 		canEditUsers: true,
 		filterProps: defaultFilterProps,
-		authMethods: MockAuthMethodsPasswordOnly,
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 2,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 2,
+				users: [
+					{ ...MockUserOwner, has_ai_seat: false },
+					{ ...MockUserMember, has_ai_seat: false },
+				],
+			},
+		},
 	},
 };
 
@@ -64,32 +61,40 @@ export const Member: Story = {
 
 export const Empty: Story = {
 	args: {
-		users: [],
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 0,
+				users: [],
+			},
+		},
 	},
 };
 
 export const EmptyPage: Story = {
 	args: {
-		users: [],
-		isNonInitialPage: true,
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 0,
+				users: [],
+			},
+		},
 	},
 };
 
 export const WithError: Story = {
 	args: {
-		users: undefined,
 		usersQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
-		} as UsePaginatedQueryResult,
+			data: {
+				count: 0,
+				users: [],
+			},
+		},
 		filterProps: {
 			...defaultFilterProps,
 			error: mockApiError({

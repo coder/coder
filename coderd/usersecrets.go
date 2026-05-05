@@ -26,7 +26,7 @@ import (
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.CreateUserSecretRequest true "Create secret request"
 // @Success 201 {object} codersdk.UserSecret
-// @Router /users/{user}/secrets [post]
+// @Router /api/v2/users/{user}/secrets [post]
 func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -116,7 +116,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Tags Secrets
 // @Param user path string true "User ID, username, or me"
 // @Success 200 {array} codersdk.UserSecret
-// @Router /users/{user}/secrets [get]
+// @Router /api/v2/users/{user}/secrets [get]
 func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -141,7 +141,7 @@ func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //noli
 // @Param user path string true "User ID, username, or me"
 // @Param name path string true "Secret name"
 // @Success 200 {object} codersdk.UserSecret
-// @Router /users/{user}/secrets/{name} [get]
+// @Router /api/v2/users/{user}/secrets/{name} [get]
 func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -176,7 +176,7 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Param name path string true "Secret name"
 // @Param request body codersdk.UpdateUserSecretRequest true "Update secret request"
 // @Success 200 {object} codersdk.UserSecret
-// @Router /users/{user}/secrets/{name} [patch]
+// @Router /api/v2/users/{user}/secrets/{name} [patch]
 func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -313,7 +313,7 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or me"
 // @Param name path string true "Secret name"
 // @Success 204
-// @Router /users/{user}/secrets/{name} [delete]
+// @Router /api/v2/users/{user}/secrets/{name} [delete]
 func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

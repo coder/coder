@@ -16,7 +16,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
@@ -24,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -195,6 +195,11 @@ type RunOptions struct {
 type ProviderTool struct {
 	Definition fantasy.Tool
 	Runner     fantasy.AgentTool
+	// ResultProviderMetadata extracts provider-specific metadata from successful
+	// local runner responses. The chat loop attaches returned metadata to the tool
+	// result sent back to the model. OpenAI computer-use uses this to request
+	// original screenshot detail for image results.
+	ResultProviderMetadata func(response fantasy.ToolResponse) fantasy.ProviderMetadata
 }
 
 // stepResult holds the accumulated output of a single streaming
@@ -512,7 +517,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				Content:             result.content,
 				Usage:               result.usage,
 				ContextLimit:        contextLimit,
-				ProviderResponseID:  extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+				ProviderResponseID:  chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 				Runtime:             time.Since(stepStart),
 				ToolCallCreatedAt:   result.toolCallCreatedAt,
 				ToolResultCreatedAt: result.toolResultCreatedAt,
@@ -538,8 +543,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// when previous_response_id is set, so we must leave chain
 			// mode and reload the full history before the next call.
 			stepMessages := result.toResponseMessages()
-			if hasPreviousResponseID(opts.ProviderOptions) {
-				clearPreviousResponseID(opts.ProviderOptions)
+			if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
+				opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
 				if opts.DisableChainMode != nil {
 					opts.DisableChainMode()
 				}
@@ -1020,13 +1025,22 @@ func executeTools(
 		toolMap[t.Info().Name] = t
 	}
 	providerRunnerNames := make(map[string]struct{}, len(providerTools))
+	resultProviderMetadata := make(
+		map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
+		len(providerTools),
+	)
 	// Include runners from provider tools so locally-executed
 	// provider tools (e.g. computer use) can be dispatched.
 	for _, pt := range providerTools {
-		if pt.Runner != nil {
-			name := pt.Runner.Info().Name
-			toolMap[name] = pt.Runner
-			providerRunnerNames[name] = struct{}{}
+		if pt.Runner == nil {
+			continue
+		}
+
+		name := pt.Runner.Info().Name
+		toolMap[name] = pt.Runner
+		providerRunnerNames[name] = struct{}{}
+		if pt.ResultProviderMetadata != nil {
+			resultProviderMetadata[name] = pt.ResultProviderMetadata
 		}
 	}
 
@@ -1052,7 +1066,19 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, logger, provider, model, builtinToolNames, activeTools, providerRunnerNames)
+			results[i] = executeSingleTool(
+				ctx,
+				toolMap,
+				tc,
+				metrics,
+				logger,
+				provider,
+				model,
+				builtinToolNames,
+				activeTools,
+				providerRunnerNames,
+				resultProviderMetadata,
+			)
 		}()
 	}
 	wg.Wait()
@@ -1233,7 +1259,7 @@ func persistPendingDynamicStep(
 		Content:                 result.content,
 		Usage:                   result.usage,
 		ContextLimit:            contextLimit,
-		ProviderResponseID:      extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+		ProviderResponseID:      chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 		Runtime:                 time.Since(stepStart),
 		PendingDynamicToolCalls: pending,
 	}); err != nil {
@@ -1349,6 +1375,7 @@ func executeSingleTool(
 	builtinToolNames map[string]bool,
 	activeTools []string,
 	providerRunnerNames map[string]struct{},
+	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1428,6 +1455,18 @@ func executeSingleTool(
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
 			Text: strings.ToValidUTF8(resp.Content, "\uFFFD"),
+		}
+	}
+
+	if _, isError := result.Result.(fantasy.ToolResultOutputContentError); isError {
+		return result
+	}
+	if len(result.ProviderMetadata) == 0 {
+		if callback := resultProviderMetadata[tc.ToolName]; callback != nil {
+			metadata := callback(resp)
+			if len(metadata) > 0 {
+				result.ProviderMetadata = metadata
+			}
 		}
 	}
 	return result
@@ -1707,85 +1746,6 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
-}
-
-// hasPreviousResponseID checks whether the provider options contain
-// an OpenAI Responses entry with a non-empty PreviousResponseID.
-func hasPreviousResponseID(providerOptions fantasy.ProviderOptions) bool {
-	if providerOptions == nil {
-		return false
-	}
-
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			return options.PreviousResponseID != nil &&
-				*options.PreviousResponseID != ""
-		}
-	}
-
-	return false
-}
-
-// clearPreviousResponseID removes PreviousResponseID from the OpenAI
-// Responses provider options entry, if present.
-func clearPreviousResponseID(providerOptions fantasy.ProviderOptions) {
-	if providerOptions == nil {
-		return
-	}
-
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			options.PreviousResponseID = nil
-		}
-	}
-}
-
-// extractOpenAIResponseID extracts the OpenAI Responses API response
-// ID from provider metadata. Returns an empty string if no OpenAI
-// Responses metadata is present.
-func extractOpenAIResponseID(metadata fantasy.ProviderMetadata) string {
-	if len(metadata) == 0 {
-		return ""
-	}
-
-	for _, entry := range metadata {
-		if providerMetadata, ok := entry.(*fantasyopenai.ResponsesProviderMetadata); ok && providerMetadata != nil {
-			return providerMetadata.ResponseID
-		}
-	}
-
-	return ""
-}
-
-// extractOpenAIResponseIDIfStored returns the OpenAI response ID
-// only when the provider options indicate store=true. Response IDs
-// from store=false turns are not persisted server-side and cannot
-// be used for chaining.
-func extractOpenAIResponseIDIfStored(
-	providerOptions fantasy.ProviderOptions,
-	metadata fantasy.ProviderMetadata,
-) string {
-	if !isResponsesStoreEnabled(providerOptions) {
-		return ""
-	}
-
-	return extractOpenAIResponseID(metadata)
-}
-
-// isResponsesStoreEnabled checks whether the OpenAI Responses
-// provider options explicitly enable store=true.
-func isResponsesStoreEnabled(providerOptions fantasy.ProviderOptions) bool {
-	if providerOptions == nil {
-		return false
-	}
-
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			return options.Store != nil && *options.Store
-		}
-	}
-
-	return false
 }
 
 // recordToolResultTimestamp lazily initializes the

@@ -926,30 +926,19 @@ func TestMCPServerConfigs(t *testing.T) {
 		apiKeyValue   = "my-api-key"
 		customHeaders = `{"X-Custom":"header-value"}`
 	)
-	// insertConfig is a small helper that creates a user and an MCP
-	// server config through the encrypted store, returning both.
+	// insertConfig is a small helper that creates an MCP server
+	// config through the encrypted store with secret fields set.
 	insertConfig := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) database.MCPServerConfig {
 		t.Helper()
-		user := dbgen.User(t, crypt, database.User{})
-		cfg, err := crypt.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			DisplayName:        "Test MCP Server",
-			Slug:               "test-mcp-" + uuid.New().String()[:8],
+		cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
 			Description:        "test description",
-			Url:                "https://mcp.example.com",
-			Transport:          "streamable_http",
 			AuthType:           "oauth2",
 			OAuth2ClientID:     "client-id",
 			OAuth2ClientSecret: oauthSecret,
 			APIKeyValue:        apiKeyValue,
 			CustomHeaders:      customHeaders,
-			ToolAllowList:      []string{},
-			ToolDenyList:       []string{},
 			Availability:       "force_on",
-			Enabled:            true,
-			CreatedBy:          user.ID,
-			UpdatedBy:          user.ID,
 		})
-		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders)
 		return cfg
 	}
@@ -1084,20 +1073,12 @@ func TestMCPServerUserTokens(t *testing.T) {
 	) (database.MCPServerConfig, database.MCPServerUserToken) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
-		cfg, err := crypt.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			DisplayName:   "Token Test MCP",
-			Slug:          "tok-mcp-" + uuid.New().String()[:8],
-			Url:           "https://mcp.example.com",
-			Transport:     "streamable_http",
-			AuthType:      "oauth2",
-			ToolAllowList: []string{},
-			ToolDenyList:  []string{},
-			Availability:  "default_off",
-			Enabled:       true,
-			CreatedBy:     user.ID,
-			UpdatedBy:     user.ID,
+		cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
+			DisplayName: "Token Test MCP",
+			AuthType:    "oauth2",
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
-		require.NoError(t, err)
 
 		tok, err := crypt.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
 			MCPServerConfigID: cfg.ID,
@@ -1196,14 +1177,11 @@ func TestUserChatProviderKeys(t *testing.T) {
 	) (database.ChatProvider, database.UserChatProviderKey) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
-		provider, err := crypt.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:        "openai",
-			DisplayName:     "OpenAI",
-			APIKey:          "",
-			Enabled:         true,
+		provider := dbgen.ChatProvider(t, crypt, database.ChatProvider{
 			AllowUserApiKey: true,
+		}, func(params *database.InsertChatProviderParams) {
+			params.APIKey = ""
 		})
-		require.NoError(t, err)
 
 		key, err := crypt.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
 			UserID:         user.ID,

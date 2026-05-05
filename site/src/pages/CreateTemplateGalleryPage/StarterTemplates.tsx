@@ -22,9 +22,9 @@ const selectTags = (starterTemplatesByTag: StarterTemplatesByTag) => {
 };
 
 const sortVisibleTemplates = (templates: TemplateExample[]) => {
-	// The tasks-docker template should be first, as it's the easiest way to
-	// get started with Coder. The docker template should be second.
-	const featuredTemplateIds = ["tasks-docker", "docker"];
+	// The docker template should be first, as it's the easiest way to get
+	// started with Coder.
+	const featuredTemplateIds = ["docker"];
 
 	const featuredTemplates: TemplateExample[] = [];
 	for (const id of featuredTemplateIds) {

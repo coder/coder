@@ -394,7 +394,7 @@ func NewMultiReplicaSubscribeFn(
 			case mergedEvents <- codersdk.ChatStreamEvent{
 				Type:   codersdk.ChatStreamEventTypeError,
 				ChatID: chatID,
-				Error:  &codersdk.ChatStreamError{Message: msg},
+				Error:  &codersdk.ChatError{Message: msg},
 			}:
 			case <-ctx.Done():
 			}

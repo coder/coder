@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,42 +37,22 @@ func TestChatParam(t *testing.T) {
 	insertChat := func(t *testing.T, db database.Store, ownerID, organizationID uuid.UUID) database.Chat {
 		t.Helper()
 
-		_, err := db.InsertChatProvider(context.Background(), database.InsertChatProviderParams{
-			Provider:             "openai",
-			DisplayName:          "OpenAI",
-			APIKey:               "test-api-key",
-			BaseUrl:              "https://api.openai.com/v1",
-			ApiKeyKeyID:          sql.NullString{},
-			CreatedBy:            uuid.NullUUID{UUID: ownerID, Valid: true},
-			Enabled:              true,
-			CentralApiKeyEnabled: true,
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			APIKey:    "test-api-key",
+			BaseUrl:   "https://api.openai.com/v1",
+			CreatedBy: uuid.NullUUID{UUID: ownerID, Valid: true},
 		})
-		require.NoError(t, err)
 
-		modelConfig, err := db.InsertChatModelConfig(context.Background(), database.InsertChatModelConfigParams{
-			Provider:             "openai",
-			Model:                "gpt-4o-mini",
-			DisplayName:          "Test model",
-			Enabled:              true,
-			IsDefault:            true,
-			ContextLimit:         128000,
-			CompressionThreshold: 70,
-			Options:              []byte("{}"),
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			IsDefault: true,
 		})
-		require.NoError(t, err)
 
-		chat, err := db.InsertChat(context.Background(), database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    organizationID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           ownerID,
-			WorkspaceID:       uuid.NullUUID{},
-			ParentChatID:      uuid.NullUUID{},
-			RootChatID:        uuid.NullUUID{},
 			LastModelConfigID: modelConfig.ID,
 			Title:             "Test chat",
 		})
-		require.NoError(t, err)
 
 		return chat
 	}

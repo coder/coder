@@ -48,7 +48,7 @@ import {
 } from "#/components/Table/Table";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { AISeatCell } from "#/modules/users/AISeatCell";
-import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
+import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import { TableColumnHelpPopover } from "./UserTable/TableColumnHelpPopover";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 

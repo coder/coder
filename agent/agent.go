@@ -120,14 +120,14 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC28(ctx context.Context) (
-		proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC29(ctx context.Context) (
+		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
 	)
-	// ConnectRPC28WithRole is like ConnectRPC28 but sends an explicit
+	// ConnectRPC29WithRole is like ConnectRPC29 but sends an explicit
 	// role query parameter to the server. The workspace agent should
 	// use role "agent" to enable connection monitoring.
-	ConnectRPC28WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC29WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -1066,7 +1066,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC28WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC29WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}

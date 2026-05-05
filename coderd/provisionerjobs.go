@@ -38,7 +38,7 @@ import (
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param job path string true "Job ID" format(uuid)
 // @Success 200 {object} codersdk.ProvisionerJob
-// @Router /organizations/{organization}/provisionerjobs/{job} [get]
+// @Router /api/v2/organizations/{organization}/provisionerjobs/{job} [get]
 func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -78,7 +78,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
 // @Param initiator query string false "Filter results by initiator" format(uuid)
 // @Success 200 {array} codersdk.ProvisionerJob
-// @Router /organizations/{organization}/provisionerjobs [get]
+// @Router /api/v2/organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

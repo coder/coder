@@ -61,7 +61,7 @@ import (
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgent
-// @Router /workspaceagents/{workspaceagent} [get]
+// @Router /api/v2/workspaceagents/{workspaceagent} [get]
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx        = r.Context()
@@ -138,7 +138,7 @@ const AgentAPIVersionREST = "1.0"
 // @Tags Agents
 // @Param request body agentsdk.PatchLogs true "logs"
 // @Success 200 {object} codersdk.Response
-// @Router /workspaceagents/me/logs [patch]
+// @Router /api/v2/workspaceagents/me/logs [patch]
 func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -295,7 +295,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 // @Tags Agents
 // @Param request body agentsdk.PatchAppStatus true "app status"
 // @Success 200 {object} codersdk.Response
-// @Router /workspaceagents/me/app-status [patch]
+// @Router /api/v2/workspaceagents/me/app-status [patch]
 // @Deprecated Use UpdateAppStatus on the Agent API instead.
 func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -378,7 +378,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 // @Param no_compression query bool false "Disable compression for WebSocket connection"
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.WorkspaceAgentLog
-// @Router /workspaceagents/{workspaceagent}/logs [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/logs [get]
 func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	// This mostly copies how provisioner job logs are streamed!
 	var (
@@ -686,7 +686,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentListeningPortsResponse
-// @Router /workspaceagents/{workspaceagent}/listening-ports [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/listening-ports [get]
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
@@ -796,7 +796,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentListContainersResponse
-// @Router /workspaceagents/{workspaceagent}/containers/watch [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/containers/watch [get]
 func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -904,7 +904,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Param label query string true "Labels" format(key=value)
 // @Success 200 {object} codersdk.WorkspaceAgentListContainersResponse
-// @Router /workspaceagents/{workspaceagent}/containers [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/containers [get]
 func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
@@ -1001,7 +1001,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Param devcontainer path string true "Devcontainer ID"
 // @Success 204
-// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer} [delete]
+// @Router /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer} [delete]
 func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
@@ -1091,7 +1091,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Param devcontainer path string true "Devcontainer ID"
 // @Success 202 {object} codersdk.Response
-// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate [post]
+// @Router /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate [post]
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
@@ -1176,7 +1176,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Success 200 {object} workspacesdk.AgentConnectionInfo
-// @Router /workspaceagents/{workspaceagent}/connection [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/connection [get]
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -1197,7 +1197,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 // @Produce json
 // @Tags Agents
 // @Success 200 {object} workspacesdk.AgentConnectionInfo
-// @Router /workspaceagents/connection [get]
+// @Router /api/v2/workspaceagents/connection [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1215,7 +1215,7 @@ func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
-// @Router /derp-map [get]
+// @Router /api/v2/derp-map [get]
 func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -1297,7 +1297,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Success 101
-// @Router /workspaceagents/{workspaceagent}/coordinate [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/coordinate [get]
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -1421,7 +1421,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 // @Tags Agents
 // @Param request body agentsdk.PostLogSourceRequest true "Log source request"
 // @Success 200 {object} codersdk.WorkspaceAgentLogSource
-// @Router /workspaceagents/me/log-source [post]
+// @Router /api/v2/workspaceagents/me/log-source [post]
 func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req agentsdk.PostLogSourceRequest
@@ -1471,7 +1471,7 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 // @Param wait query bool false "Opt in to durable reinit checks"
 // @Success 200 {object} agentsdk.ReinitializationEvent
 // @Failure 409 {object} codersdk.Response
-// @Router /workspaceagents/me/reinit [get]
+// @Router /api/v2/workspaceagents/me/reinit [get]
 func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	// Allow us to interrupt watch via cancel.
 	ctx, cancel := context.WithCancel(r.Context())
@@ -1648,7 +1648,7 @@ func convertScripts(dbScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) 
 // @Tags Agents
 // @Success 200 "Success"
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Router /workspaceagents/{workspaceagent}/watch-metadata [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/watch-metadata [get]
 // @x-apidocgen {"skip": true}
 // @Deprecated Use /workspaceagents/{workspaceagent}/watch-metadata-ws instead
 func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.Request) {
@@ -1662,7 +1662,7 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 // @Tags Agents
 // @Success 200 {object} codersdk.ServerSentEvent
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Router /workspaceagents/{workspaceagent}/watch-metadata-ws [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadataWS(rw http.ResponseWriter, r *http.Request) {
 	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
@@ -1922,7 +1922,7 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 // @Param id query string true "Provider ID"
 // @Param listen query bool false "Wait for a new token to be issued"
 // @Success 200 {object} agentsdk.ExternalAuthResponse
-// @Router /workspaceagents/me/external-auth [get]
+// @Router /api/v2/workspaceagents/me/external-auth [get]
 func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
@@ -2203,7 +2203,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
-// @Router /tailnet [get]
+// @Router /api/v2/tailnet [get]
 func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
