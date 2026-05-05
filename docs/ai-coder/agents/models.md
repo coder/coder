@@ -32,7 +32,7 @@ models, internal gateways, or third-party proxies like LiteLLM.
 ### Add a provider
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Open **Settings** and select the **Providers** tab.
+1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
 1. Click the provider you want to configure.
 1. Enter the **API key** for the provider, if required.
 1. Optionally set a **Base URL** to override the default endpoint. This is
@@ -129,7 +129,7 @@ generation parameters, and provider-specific options.
 
 ### Add a model
 
-1. Open **Settings** and select the **Models** tab.
+1. Open **Settings** > **Manage Agents** and select the **Models** tab.
 1. Click **Add** and select the provider for the new model.
 1. Enter the **Model Identifier** — the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
@@ -272,7 +272,8 @@ the chat falls back to the deployment default.
 > require `update` permission on the deployment configuration resource.
 
 Administrators can pin specific agent contexts to a specific model from
-**Agents** > **Settings** > **Agents**. Three contexts are configurable:
+**Agents** > **Settings** > **Manage Agents** > **Agents**. Three contexts
+are configurable:
 
 | Context              | Applies to                                                                                                                                          | When unset                                                                                                                                            |
 |----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -296,9 +297,9 @@ endpoint accepts `{ "model_config_id": "<uuid>" }` and returns
 
 Administrators can let users override the model for their own chats and
 their own delegated subagents. The toggle is at **Agents** > **Settings** >
-**Agents** under *Enable users to define their personal overrides*. When the
-toggle is off, any saved user values remain stored but are ignored at
-runtime.
+**Manage Agents** > **Agents** under *Enable users to define their personal
+overrides*. When the toggle is off, any saved user values remain stored but
+are ignored at runtime.
 
 The same admin gate is exposed at:
 
@@ -306,8 +307,7 @@ The same admin gate is exposed at:
 - `PUT /api/experimental/chats/config/personal-model-overrides`
 
 When the gate is on, users see an additional **Agents** tab under their
-user-side **Agents** > **Settings**. Three contexts are configurable per
-user:
+own **Agents** > **Settings**. Three contexts are configurable per user:
 
 | Context     | Applies to                                    | Modes available                               |
 |-------------|-----------------------------------------------|-----------------------------------------------|

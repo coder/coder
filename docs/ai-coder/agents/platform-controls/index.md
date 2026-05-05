@@ -52,9 +52,9 @@ Administrators can set a system prompt that applies to all agent sessions. This
 is useful for establishing organizational conventions: coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-This setting is available under **Agents** > **Settings** > **Instructions**
-and is only accessible to administrators. Developers do not see or interact
-with it.
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Instructions** and is only accessible to
+administrators. Developers do not see or interact with it.
 
 ### Plan mode instructions
 
@@ -63,8 +63,8 @@ enters plan mode. These instructions supplement the built-in planning behavior
 and are useful for organization-specific planning requirements such as required
 plan sections, approval checkpoints, or review workflows.
 
-This setting is available under **Agents** > **Settings** > **Instructions**.
-Developers do not edit it directly.
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Instructions**. Developers do not edit it directly.
 
 The same value is exposed over the experimental chat configuration API:
 
@@ -82,13 +82,14 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-Administrators can also restrict which templates are available to agents using
-the template allowlist in **Agents** > **Settings** > **Templates**. When the
-allowlist is configured, the agent can only see and provision workspaces from
-the selected templates. When the allowlist is empty, all templates are
-available. This is separate from what developers see when manually creating
-workspaces, so you can apply stricter policies to agent-created workspaces
-without affecting the manual workspace experience.
+Administrators can also restrict which templates are available to agents
+using the template allowlist at **Agents** > **Settings** >
+**Manage Agents** > **Templates**. When the allowlist is configured, the
+agent can only see and provision workspaces from the selected templates.
+When the allowlist is empty, all templates are available. This is separate
+from what developers see when manually creating workspaces, so you can apply
+stricter policies to agent-created workspaces without affecting the manual
+workspace experience.
 
 See [Template Optimization](./template-optimization.md) for best practices on writing
 discoverable descriptions, restricting template visibility, configuring network
@@ -111,9 +112,10 @@ Administrators can set a default autostop timer for agent-created workspaces
 that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
-This setting is available under **Agents** > **Settings** > **Lifecycle**.
-The maximum configurable value is 30 days. When disabled, workspaces follow
-their template's autostop rules (or none, if the template does not define any).
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Lifecycle**. The maximum configurable value is 30
+days. When disabled, workspaces follow their template's autostop rules (or
+none, if the template does not define any).
 
 ### Spend management
 
@@ -139,17 +141,18 @@ Administrators can configure a retention period for archived conversations.
 When enabled, archived conversations and orphaned files older than the
 retention period are automatically purged. The default is 30 days.
 
-This setting is available under **Agents** > **Settings** > **Lifecycle**.
-See [Data Retention](./chat-retention.md) for details.
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Lifecycle**. See [Data Retention](./chat-retention.md)
+for details.
 
 ### Experiments
 
 Administrators can opt in to experimental features under **Agents** >
-**Settings** > **Experiments**. These currently include the **Virtual
-desktop** (computer-use subagents), the **Advisor** (an inline second-opinion
-tool for root agents), and **Chat debug logging** (detailed traces of each
-chat turn). Behavior, configuration surface, and APIs may change between
-releases.
+**Settings** > **Manage Agents** > **Experiments**. These currently include
+the **Virtual desktop** (computer-use subagents), the **Advisor** (an inline
+second-opinion tool for root agents), and **Chat debug logging** (detailed
+traces of each chat turn). Behavior, configuration surface, and APIs may
+change between releases.
 
 See [Experiments](./experiments.md) for what each feature does, how to enable
 it, and the relevant API endpoints.

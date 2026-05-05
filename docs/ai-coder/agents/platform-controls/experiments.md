@@ -1,8 +1,9 @@
 # Experiments
 
-The **Experiments** tab under **Agents** > **Settings** is where administrators
-opt in to features that are still iterating. The behavior, configuration
-surface, and APIs documented here may change between releases without notice.
+The **Experiments** tab under **Agents** > **Settings** > **Manage Agents**
+is where administrators opt in to features that are still iterating. The
+behavior, configuration surface, and APIs documented here may change between
+releases without notice.
 
 > [!NOTE]
 > Everything in this page is experimental. Pin a release before broad rollout

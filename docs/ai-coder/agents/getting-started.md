@@ -37,8 +37,8 @@ Before you begin, confirm the following:
 To configure Coder Agents:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Open **Settings** and select the **Providers** tab. Pick a provider, enter
-   your API key, and save.
+1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
+   Pick a provider, enter your API key, and save.
 1. Switch to the **Models** tab, click **Add**, and configure at least one
    model with its identifier, display name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
@@ -180,7 +180,8 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **Agents** > **Settings** > **Instructions**
+Configure the system prompt from **Agents** > **Settings** >
+**Manage Agents** > **Instructions**
 or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 

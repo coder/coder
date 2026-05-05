@@ -5,11 +5,12 @@ for agent chat sessions. Configured servers are injected into or offered to
 users during chat depending on the availability policy.
 
 This is an admin-only feature accessible at **Agents** > **Settings** >
-**MCP Servers**.
+**Manage Agents** > **MCP Servers**.
 
 ## Add an MCP server
 
-1. Navigate to **Agents** > **Settings** > **MCP Servers**.
+1. Navigate to **Agents** > **Settings** > **Manage Agents** >
+   **MCP Servers**.
 1. Click **Add**.
 1. Fill in the configuration fields described below.
 1. Click **Save**.
