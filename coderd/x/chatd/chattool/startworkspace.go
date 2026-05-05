@@ -100,12 +100,6 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				), nil
 			}
 
-			// Set up dbauthz context for owner-scoped DB lookups.
-			ownerCtx, ownerErr := asOwner(ctx, db, options.OwnerID)
-			if ownerErr != nil {
-				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
-			}
-
 			// If a build is already in progress, wait for it.
 			switch job.JobStatus {
 			case database.ProvisionerJobStatusPending,
@@ -138,7 +132,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 					// fields from IsError content.
 					// The frontend detects errors via the "error" key instead.
 					return buildFailureToolResponse(
-						ownerCtx,
+						ctx,
 						options.Logger,
 						db,
 						options.OwnerID,
@@ -170,6 +164,12 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 			default:
 				// Failed, canceled, etc — try starting anyway.
+			}
+
+			// Set up dbauthz context for the start call.
+			ownerCtx, ownerErr := asOwner(ctx, db, options.OwnerID)
+			if ownerErr != nil {
+				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 
 			startReq := codersdk.CreateWorkspaceBuildRequest{
@@ -219,7 +219,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 			}
 			if err := waitForBuild(ctx, db, startBuild.ID); err != nil {
 				return buildFailureToolResponse(
-					ownerCtx,
+					ctx,
 					options.Logger,
 					db,
 					options.OwnerID,

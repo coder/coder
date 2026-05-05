@@ -127,17 +127,11 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 
 			ownerID := options.OwnerID
 
-			// Set up dbauthz context for owner-scoped DB lookups.
-			ownerCtx, ownerErr := asOwner(ctx, db, ownerID)
-			if ownerErr != nil {
-				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
-			}
-
 			// Check for an existing workspace on the chat.
 			check := options.checkExistingWorkspace(ctx, db, chatID)
 			if check.BuildErr != nil {
 				return buildFailureToolResponse(
-					ownerCtx,
+					ctx,
 					options.Logger,
 					db,
 					ownerID,
@@ -152,6 +146,12 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			}
 			if check.Done {
 				return toolResponse(check.Result), nil
+			}
+
+			// Set up dbauthz context for DB lookups.
+			ownerCtx, ownerErr := asOwner(ctx, db, ownerID)
+			if ownerErr != nil {
+				return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 			}
 			ctx = ownerCtx
 

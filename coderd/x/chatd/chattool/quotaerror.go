@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -99,7 +100,21 @@ func workspaceQuotaDetails(
 		return nil
 	}
 
-	consumed, err := db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
+	quotaCtx := ctx
+	if actor, ok := dbauthz.ActorFromContext(ctx); !ok || actor.ID != ownerID.String() {
+		ownerCtx, err := asOwner(ctx, db, ownerID)
+		if err != nil {
+			logger.Debug(ctx, "failed to load owner authorization for quota lookup",
+				slog.F("owner_id", ownerID),
+				slog.F("organization_id", organizationID),
+				slog.Error(err),
+			)
+			return nil
+		}
+		quotaCtx = ownerCtx
+	}
+
+	consumed, err := db.GetQuotaConsumedForUser(quotaCtx, database.GetQuotaConsumedForUserParams{
 		OwnerID:        ownerID,
 		OrganizationID: organizationID,
 	})
@@ -111,7 +126,7 @@ func workspaceQuotaDetails(
 		)
 		return nil
 	}
-	budget, err := db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
+	budget, err := db.GetQuotaAllowanceForUser(quotaCtx, database.GetQuotaAllowanceForUserParams{
 		UserID:         ownerID,
 		OrganizationID: organizationID,
 	})
