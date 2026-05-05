@@ -1094,6 +1094,11 @@
 									"path": "./ai-coder/ai-gateway/clients/index.md",
 									"children": [
 										{
+											"title": "Coder Agents",
+											"description": "Route Coder Agents traffic through AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/coder-agents.md"
+										},
+										{
 											"title": "Claude Code",
 											"description": "Configure Claude Code to use AI Gateway",
 											"path": "./ai-coder/ai-gateway/clients/claude-code.md"
