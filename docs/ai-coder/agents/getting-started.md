@@ -22,8 +22,10 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
 - **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
-  Owners can assign this from **Admin** > **Users**. See
-  [Grant Coder Agents User](#step-2-grant-coder-agents-user) below.
+  This role is granted **per organization**. Owners and organization admins can
+  assign it from **Admin settings** > **Organizations** > _[your organization]_ >
+  **Members**. See [Grant Coder Agents User](#step-2-grant-coder-agents-user)
+  below.
 
 ## Step 1: Configure an LLM provider and model
 
@@ -51,35 +53,56 @@ Detailed instructions for each provider and model option are in the
 
 ## Step 2: Grant Coder Agents User
 
-The **Coder Agents User** role controls which users can interact with Coder Agents.
-Members do not have Coder Agents User by default.
+The **Coder Agents User** role controls which users can interact with Coder
+Agents. The role is assigned **per organization**, so a user must be granted
+it in each organization where they need access. Members do not have it by
+default.
 
-Owners always have full access and do not need the role. Repeat the following steps for each user who needs access.
+Owners always have full access and do not need the role. Repeat the following
+steps for each user who needs access in each organization.
 
 > [!NOTE]
 > Users who created conversations before this role was introduced are
-> automatically granted the role during upgrade.
+> automatically granted the role in each organization they already belong to
+> during upgrade.
 
 **Dashboard (individual):**
 
-1. Go to **Admin** > **Users** in the Coder dashboard.
-1. Click the roles icon next to the user you want to grant access to.
-1. Enable the **Coder Agents User** role and save.
+1. Open **Admin settings** > **Organizations** in the Coder dashboard, then
+   select the organization where you want to grant access.
+1. The **Members** tab opens by default. Find the user in the table.
+1. Click the **Roles** cell for that user to open the role editor.
+1. Toggle on **Coder Agents User** and save.
 
-**CLI (bulk):**
+> [!TIP]
+> If your deployment has multiple organizations, repeat this for each
+> organization where the user needs access.
 
-You can also grant the role via CLI. For example, to grant the role to
-all active users at once:
+**CLI (bulk, per organization):**
+
+Granting the role via CLI is org-scoped. To grant it to a single user in a
+specific organization:
 
 ```sh
-coder users list -o json \
-  | jq -r '.[].username' \
-  | while read u; do
-      coder users edit-roles "$u" \
-        --roles "$(coder users show "$u" -o json \
-          | jq -r '[.roles[].name, "agents-access"] | unique | join(",")')" \
-        --yes
+coder organizations members edit-roles alice agents-access -O my-org
+```
+
+To grant the role to every member of an organization:
+
+```sh
+ORG="my-org"
+coder organizations members list -O "$ORG" -o json \
+  | jq -r '.[].user_id' \
+  | while read user_id; do
+      coder organizations members edit-roles "$user_id" agents-access -O "$ORG"
     done
+```
+
+You can also set the organization with the `CODER_ORGANIZATION` environment
+variable instead of `-O`:
+
+```sh
+CODER_ORGANIZATION=my-org coder organizations members edit-roles alice agents-access
 ```
 
 ## Step 3: Start your first Coder Agent
