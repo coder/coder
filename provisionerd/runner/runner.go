@@ -41,7 +41,6 @@ const (
 var errorCodes = map[string]string{
 	MissingParameterErrorCode:          missingParameterErrorText,
 	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
-	InsufficientQuotaErrorCode:         insufficientQuotaErrorText,
 }
 
 var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
@@ -874,7 +873,10 @@ func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
 			Output:    "This build would exceed your quota. Failing.",
 			Stage:     stage,
 		})
-		return r.failedWorkspaceBuildf(insufficientQuotaErrorText)
+		return r.failedWorkspaceBuildfCode(
+			InsufficientQuotaErrorCode,
+			insufficientQuotaErrorText,
+		)
 	}
 	return nil
 }
@@ -1110,6 +1112,20 @@ func resourceNames(rs []*sdkproto.Resource) []string {
 
 func (r *Runner) failedWorkspaceBuildf(format string, args ...interface{}) *proto.FailedJob {
 	failedJob := r.failedJobf(format, args...)
+	failedJob.Type = &proto.FailedJob_WorkspaceBuild_{}
+	return failedJob
+}
+
+func (r *Runner) failedWorkspaceBuildfCode(
+	code string,
+	format string,
+	args ...interface{},
+) *proto.FailedJob {
+	failedJob := &proto.FailedJob{
+		JobId:     r.job.JobId,
+		Error:     fmt.Sprintf(format, args...),
+		ErrorCode: code,
+	}
 	failedJob.Type = &proto.FailedJob_WorkspaceBuild_{}
 	return failedJob
 }
