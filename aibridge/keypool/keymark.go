@@ -23,6 +23,9 @@ func MarkKeyOnStatus(
 	switch statusCode {
 	case http.StatusTooManyRequests:
 		cooldown := ParseRetryAfter(resp)
+		if cooldown <= 0 {
+			cooldown = defaultCooldown
+		}
 		if key.MarkTemporary(cooldown) {
 			logger.Warn(ctx, "key marked temporary",
 				slog.F("provider", providerName),
