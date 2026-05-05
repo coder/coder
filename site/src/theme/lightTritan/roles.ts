@@ -2,9 +2,14 @@ import type { Roles } from "../roles";
 import colors from "../tailwindColors";
 
 // Tritanopia reduces blue/yellow discrimination. Red vs green remains
-// intact, so we keep `success` on green, `error` on red, and `danger`
-// on the base orange. Only `warning` shifts to a magenta/fuchsia that
-// stays distinct from the blue accents and red destructive states.
+// intact, so `error` and `danger` keep their red/orange axis. We follow
+// GitHub Primer's tritanopia palette and shift `success` from green to
+// sky-blue so the success+destructive pair stays consistent with the
+// protan-deuter palette and matches the diff-addition convention users
+// expect from other tritan-aware tools (see primer/primitives'
+// diffBlob.json5: `'light-tritanopia': '{base.color.blue.1}'`).
+// `warning` shifts to fuchsia because amber and sky-blue blur together
+// under tritanopia.
 const roles: Roles = {
 	danger: {
 		background: colors.orange[50],
@@ -79,31 +84,31 @@ const roles: Roles = {
 		},
 	},
 	success: {
-		background: colors.green[50],
-		outline: colors.green[500],
-		text: colors.green[950],
+		background: colors.sky[100],
+		outline: colors.sky[500],
+		text: colors.sky[950],
 		fill: {
-			solid: colors.green[600],
-			outline: colors.green[600],
+			solid: colors.sky[600],
+			outline: colors.sky[600],
 			text: colors.white,
 		},
 		disabled: {
-			background: colors.green[50],
-			outline: colors.green[800],
-			text: colors.green[800],
+			background: colors.sky[50],
+			outline: colors.sky[800],
+			text: colors.sky[800],
 			fill: {
-				solid: colors.green[800],
-				outline: colors.green[800],
+				solid: colors.sky[800],
+				outline: colors.sky[800],
 				text: colors.white,
 			},
 		},
 		hover: {
-			background: colors.green[100],
-			outline: colors.green[500],
+			background: colors.sky[200],
+			outline: colors.sky[500],
 			text: colors.black,
 			fill: {
-				solid: colors.green[500],
-				outline: colors.green[500],
+				solid: colors.sky[500],
+				outline: colors.sky[500],
 				text: colors.white,
 			},
 		},

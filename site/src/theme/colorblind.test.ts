@@ -160,4 +160,23 @@ describe("colorblind role palettes", () => {
 			themes.dark.roles.danger,
 		);
 	});
+
+	it("shifts tritan success off the base green role onto sky-blue", () => {
+		// GitHub Primer's tritanopia preset renders diff additions in
+		// blue rather than green. Mirror that here so success no longer
+		// matches the base palette and instead aligns with the
+		// protan-deuter success role, which is already sky-based.
+		expect(themes["light-tritan"].roles.success).not.toEqual(
+			themes.light.roles.success,
+		);
+		expect(themes["dark-tritan"].roles.success).not.toEqual(
+			themes.dark.roles.success,
+		);
+		expect(themes["light-tritan"].roles.success).toEqual(
+			themes["light-protan-deuter"].roles.success,
+		);
+		expect(themes["dark-tritan"].roles.success).toEqual(
+			themes["dark-protan-deuter"].roles.success,
+		);
+	});
 });
