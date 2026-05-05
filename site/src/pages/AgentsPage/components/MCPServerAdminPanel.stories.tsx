@@ -698,3 +698,55 @@ export const CustomHeadersAuthType: Story = {
 		);
 	},
 };
+
+export const CreateServerUserOIDC: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add your first server/i }),
+		);
+
+		await userEvent.type(
+			await body.findByLabelText(/Display Name/i),
+			"Internal API",
+		);
+		await userEvent.type(
+			body.getByLabelText(/Server URL/i),
+			"https://mcp.internal.example.com/v1",
+		);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
+		await userEvent.click(body.getByLabelText(/Authentication/i));
+		await userEvent.click(
+			await body.findByRole("option", { name: /User OIDC Identity/i }),
+		);
+
+		// No additional auth fields for user_oidc; the helper text is shown.
+		expect(
+			body.getByText(/forwarded to this MCP server in the/i),
+		).toBeInTheDocument();
+
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
+
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				auth_type: "user_oidc",
+			}),
+		);
+		// Should not include any oauth2/api_key/custom_headers fields.
+		const call = (args.onCreateServer as ReturnType<typeof fn>).mock
+			.calls[0][0];
+		expect(call).not.toHaveProperty("oauth2_client_id");
+		expect(call).not.toHaveProperty("api_key_value");
+		expect(call).not.toHaveProperty("custom_headers");
+	},
+};

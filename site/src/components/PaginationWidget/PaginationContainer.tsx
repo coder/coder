@@ -3,8 +3,9 @@ import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { PaginationAmount } from "./PaginationAmount";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
-export type PaginationResult = PaginationResultInfo & {
+export type PaginationResult<Data = unknown> = PaginationResultInfo & {
 	isPlaceholderData: boolean;
+	data?: Data;
 };
 
 type PaginationProps = HTMLAttributes<HTMLDivElement> & {

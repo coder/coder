@@ -12,6 +12,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import { normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
@@ -21,20 +22,6 @@ import {
 	isActiveChatStatus,
 } from "./chatStore";
 import type { RetryState } from "./types";
-
-const normalizeChatDetailError = (
-	error: TypesGen.ChatStreamError | undefined,
-): ChatDetailError => {
-	const detail = error?.detail?.trim();
-	return {
-		message: error?.message.trim() || "Chat processing failed.",
-		kind: error?.kind?.trim() || "generic",
-		provider: error?.provider?.trim() || undefined,
-		retryable: error?.retryable,
-		statusCode: error?.status_code,
-		...(detail ? { detail } : {}),
-	};
-};
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
@@ -527,7 +514,10 @@ export const useChatStore = (
 							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 								continue;
 							}
-							const reason = normalizeChatDetailError(streamEvent.error);
+							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
+								kind: "generic",
+								message: "Chat processing failed.",
+							};
 							store.setChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();

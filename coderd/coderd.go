@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	_ "embed"
 	"errors"
 	"expvar"
 	"flag"
@@ -93,6 +94,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -114,6 +116,9 @@ import (
 // See https://github.com/swaggo/http-swagger/issues/78
 var globalHTTPSwaggerHandler http.HandlerFunc
 
+//go:embed swagger_request_interceptor.js
+var swaggerRequestInterceptor string
+
 func init() {
 	globalHTTPSwaggerHandler = httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
@@ -129,16 +134,11 @@ func init() {
 		// So remove authenticating via a cookie, and rely on the authorization
 		// header passed in.
 		httpSwagger.UIConfig(map[string]string{
-			// Pulled from https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/
-			// 'withCredentials' should disable fetch sending browser credentials, but
-			// for whatever reason it does not.
-			// So this `requestInterceptor` ensures browser credentials are
-			// omitted from all requests.
-			"requestInterceptor": `(a => {
-				a.credentials = "omit";
-				return a;
-			})`,
-			"withCredentials": "false",
+			// The interceptor source lives in swagger_request_interceptor.js so
+			// it can be edited as real JavaScript.
+			// See https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/.
+			"requestInterceptor": swaggerRequestInterceptor,
+			"withCredentials":    "false",
 		}))
 }
 
@@ -309,7 +309,7 @@ type Options struct {
 // @license.name AGPL-3.0
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
 
-// @BasePath /api/v2
+// @BasePath /
 
 // @securitydefinitions.apiKey Authorization
 // @in header
@@ -768,7 +768,7 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
-	{ // Experimental: agents — chat daemon and git sync worker initialization.
+	{ // Chat daemon and git sync worker initialization.
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -777,6 +777,14 @@ func New(options *Options) *API {
 			maxChatsPerAcquire = math.MinInt32
 		}
 
+		var oidcMCPSrc mcpclient.UserOIDCTokenSource
+		if options.OIDCConfig != nil {
+			oidcMCPSrc = newOIDCMCPTokenSource(
+				options.Database,
+				options.OIDCConfig,
+				options.Logger.Named("mcp-user-oidc"),
+			)
+		}
 		api.chatDaemon = chatd.New(chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
@@ -794,6 +802,7 @@ func New(options *Options) *API {
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
+			OIDCTokenSource:                oidcMCPSrc,
 		}).Start()
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
@@ -1153,11 +1162,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		// Experimental(agents): chat API routes gated by ExperimentAgents.
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
@@ -1184,14 +1191,22 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/agent-model-override/{context}", api.getChatAgentModelOverride)
-				r.Put("/agent-model-override/{context}", api.putChatAgentModelOverride)
+				r.Get("/model-override/{context}", api.getChatModelOverride)
+				r.Put("/model-override/{context}", api.putChatModelOverride)
+				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
+				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
+				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
+				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
+				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
+				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
 				r.Get("/debug-logging", api.getChatDebugLogging)
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
 				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
+				r.Get("/advisor", api.getChatAdvisorConfig)
+				r.Put("/advisor", api.putChatAdvisorConfig)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
@@ -1278,7 +1293,6 @@ func New(options *Options) *API {
 			)
 			// MCP server configuration endpoints.
 			r.Route("/servers", func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents))
 				r.Get("/", api.listMCPServerConfigs)
 				r.Post("/", api.createMCPServerConfig)
 				r.Route("/{mcpServer}", func(r chi.Router) {
@@ -2004,14 +2018,10 @@ func New(options *Options) *API {
 			"parsing additional CSP headers", slog.Error(cspParseErrors))
 	}
 
-	// Add blob: to img-src for chat file attachment previews when
-	// the agents experiment is enabled.
-	if api.Experiments.Enabled(codersdk.ExperimentAgents) {
-		additionalCSPHeaders[httpmw.CSPDirectiveImgSrc] = append(
-			additionalCSPHeaders[httpmw.CSPDirectiveImgSrc], "blob:",
-		)
-	}
-
+	// Add blob: to img-src for chat file attachment previews.
+	additionalCSPHeaders[httpmw.CSPDirectiveImgSrc] = append(
+		additionalCSPHeaders[httpmw.CSPDirectiveImgSrc], "blob:",
+	)
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspProxyHosts := func() []*proxyhealth.ProxyHost {
@@ -2159,9 +2169,9 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// Experimental(agents): chatDaemon handles background processing of pending chats.
+	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
-	// Experimental(agents): gitSyncWorker refreshes stale chat diff statuses in the background.
+	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker

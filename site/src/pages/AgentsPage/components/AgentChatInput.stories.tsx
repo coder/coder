@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { withProxyProvider } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -25,6 +26,7 @@ const defaultModelOptions = [
 const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
+	decorators: [withProxyProvider()],
 	args: {
 		onSend: fn(),
 		onContentChange: fn(),
@@ -649,6 +651,10 @@ export const PlanningIndicator: Story = {
 	args: {
 		planModeEnabled: true,
 		onPlanModeToggle: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

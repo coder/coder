@@ -39,6 +39,32 @@ type ModelOptionConfigLike =
 			readonly context_limit?: unknown;
 	  });
 
+export const hasConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	return countConfiguredProviderConfigs(providerConfigs, catalog) > 0;
+};
+
+export const countConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): number => {
+	const availableProviders = getAvailableProviders(catalog);
+	return (
+		providerConfigs?.filter((providerConfig) => {
+			if (
+				providerConfig.source === "supported" ||
+				providerConfig.enabled !== true
+			) {
+				return false;
+			}
+			const provider = asString(providerConfig.provider).trim().toLowerCase();
+			return provider !== "" && availableProviders.has(provider);
+		}).length ?? 0
+	);
+};
+
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
 ): { readonly provider: string; readonly model: string } => {

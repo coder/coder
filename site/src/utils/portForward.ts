@@ -38,14 +38,20 @@ export const portForwardURL = (
 	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
 
 	const baseUrl = `${location.protocol}//${host.replace(/\*/g, subdomain)}`;
-	const url = new URL(baseUrl);
-	if (pathname) {
-		url.pathname = pathname;
+	try {
+		const url = new URL(baseUrl);
+		if (pathname) {
+			url.pathname = pathname;
+		}
+		if (search) {
+			url.search = search;
+		}
+		return url.toString();
+	} catch {
+		// When the proxy host is empty or invalid, return a do-nothing anchor
+		// so the link renders without navigating anywhere.
+		return "#";
 	}
-	if (search) {
-		url.search = search;
-	}
-	return url.toString();
 };
 
 /**

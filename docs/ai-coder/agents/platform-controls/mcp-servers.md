@@ -48,7 +48,7 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 
 ## Authentication
 
-Each MCP server uses one of four authentication modes. When you change the
+Each MCP server uses one of five authentication modes. When you change the
 auth type, fields from the previous type are automatically cleared.
 
 Secrets are never returned in API responses — boolean flags indicate whether
@@ -103,6 +103,21 @@ A static key sent as a header on every request.
 
 Arbitrary key-value header pairs sent on every request. At least one header
 is required when this mode is selected.
+
+### User OIDC Identity
+
+Forwards the calling user's OIDC access token (stored in
+`user_links.oauth_access_token`) to the MCP server as an
+`Authorization: Bearer <token>` header. The token is refreshed
+transparently before each request if it has expired or is close to
+expiring.
+
+No admin-configurable fields. No per-user connect step.
+
+**Limitation**: this auth mode only works for users who authenticated to
+Coder via OIDC. Users who logged in with password or GitHub will see
+requests sent without an authorization header, and the upstream MCP
+server is expected to respond with 401.
 
 ## Tool governance
 

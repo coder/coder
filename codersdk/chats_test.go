@@ -447,7 +447,14 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	reviewerCount := int32(2)
 	refreshedAt := now
 	staleAt := now.Add(time.Hour)
-	lastError := "boom"
+	lastError := &codersdk.ChatError{
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       "generic",
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
+	}
 	prURL := "https://github.com/coder/coder/pull/42"
 	workspaceID := uuid.New()
 	buildID := uuid.New()
@@ -466,7 +473,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 		LastModelConfigID: uuid.New(),
 		Title:             "round-trip-test",
 		Status:            codersdk.ChatStatusRunning,
-		LastError:         &lastError,
+		LastError:         lastError,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,

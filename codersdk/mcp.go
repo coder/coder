@@ -42,7 +42,7 @@ type MCPServerConfig struct {
 	Transport string `json:"transport"` // "streamable_http" or "sse"
 	URL       string `json:"url"`
 
-	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers"
+	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 
 	// OAuth2 fields (only populated for admins).
 	OAuth2ClientID  string `json:"oauth2_client_id,omitempty"`
@@ -84,7 +84,7 @@ type CreateMCPServerConfigRequest struct {
 	Transport string `json:"transport" validate:"required,oneof=streamable_http sse"`
 	URL       string `json:"url" validate:"required,url"`
 
-	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers"`
+	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
 	OAuth2ClientID     string            `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
@@ -113,7 +113,7 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers"`
+	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
 	OAuth2ClientID     *string            `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret *string            `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`

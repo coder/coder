@@ -5400,7 +5400,7 @@ type AutoArchiveInactiveChatsRow struct {
 	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
 	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	Mode                NullChatMode          `db:"mode" json:"mode"`
 	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels              json.RawMessage       `db:"labels" json:"labels"`
@@ -8701,7 +8701,7 @@ SET
     worker_id = $2::uuid,
     started_at = $3::timestamptz,
     heartbeat_at = $4::timestamptz,
-    last_error = $5::text,
+    last_error = $5::jsonb,
     updated_at = NOW()
 WHERE
     id = $6::uuid
@@ -8710,12 +8710,12 @@ RETURNING
 `
 
 type UpdateChatStatusParams struct {
-	Status      ChatStatus     `db:"status" json:"status"`
-	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	LastError   sql.NullString `db:"last_error" json:"last_error"`
-	ID          uuid.UUID      `db:"id" json:"id"`
+	Status      ChatStatus            `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	ID          uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error) {
@@ -8768,7 +8768,7 @@ SET
     worker_id = $2::uuid,
     started_at = $3::timestamptz,
     heartbeat_at = $4::timestamptz,
-    last_error = $5::text,
+    last_error = $5::jsonb,
     updated_at = $6::timestamptz
 WHERE
     id = $7::uuid
@@ -8777,13 +8777,13 @@ RETURNING
 `
 
 type UpdateChatStatusPreserveUpdatedAtParams struct {
-	Status      ChatStatus     `db:"status" json:"status"`
-	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	LastError   sql.NullString `db:"last_error" json:"last_error"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
-	ID          uuid.UUID      `db:"id" json:"id"`
+	Status      ChatStatus            `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	UpdatedAt   time.Time             `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error) {
@@ -20536,6 +20536,22 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getChatAdvisorConfig = `-- name: GetChatAdvisorConfig :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config
+`
+
+// GetChatAdvisorConfig returns the deployment-wide runtime configuration
+// for the experimental chat advisor as a JSON blob. Callers unmarshal the
+// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
+// values apply by default.
+func (q *sqlQuerier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatAdvisorConfig)
+	var advisor_config string
+	err := row.Scan(&advisor_config)
+	return advisor_config, err
+}
+
 const getChatAutoArchiveDays = `-- name: GetChatAutoArchiveDays :one
 SELECT COALESCE(
     (SELECT value::integer FROM site_configs
@@ -20550,6 +20566,18 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	var auto_archive_days int32
 	err := row.Scan(&auto_archive_days)
 	return auto_archive_days, err
+}
+
+const getChatComputerUseProvider = `-- name: GetChatComputerUseProvider :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider
+`
+
+func (q *sqlQuerier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatComputerUseProvider)
+	var provider string
+	err := row.Scan(&provider)
+	return provider, err
 }
 
 const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one
@@ -20625,6 +20653,20 @@ func (q *sqlQuerier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (boo
 	var include_default_system_prompt bool
 	err := row.Scan(&include_default_system_prompt)
 	return include_default_system_prompt, err
+}
+
+const getChatPersonalModelOverridesEnabled = `-- name: GetChatPersonalModelOverridesEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_personal_model_overrides_enabled'), false) :: boolean AS enabled
+`
+
+// GetChatPersonalModelOverridesEnabled returns whether users may configure
+// personal chat model overrides. It defaults to false when unset.
+func (q *sqlQuerier) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getChatPersonalModelOverridesEnabled)
+	var enabled bool
+	err := row.Scan(&enabled)
+	return enabled, err
 }
 
 const getChatPlanModeInstructions = `-- name: GetChatPlanModeInstructions :one
@@ -20713,6 +20755,18 @@ func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, erro
 	var template_allowlist string
 	err := row.Scan(&template_allowlist)
 	return template_allowlist, err
+}
+
+const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
 }
 
 const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
@@ -20914,6 +20968,19 @@ func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) er
 	return err
 }
 
+const upsertChatAdvisorConfig = `-- name: UpsertChatAdvisorConfig :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config'
+`
+
+// UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
+// for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
+// to JSON before invoking this query.
+func (q *sqlQuerier) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatAdvisorConfig, value)
+	return err
+}
+
 const upsertChatAutoArchiveDays = `-- name: UpsertChatAutoArchiveDays :exec
 INSERT INTO site_configs (key, value)
 VALUES ('agents_chat_auto_archive_days', CAST($1 AS integer)::text)
@@ -20923,6 +20990,16 @@ WHERE site_configs.key = 'agents_chat_auto_archive_days'
 
 func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDays, autoArchiveDays)
+	return err
+}
+
+const upsertChatComputerUseProvider = `-- name: UpsertChatComputerUseProvider :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_computer_use_provider'
+`
+
+func (q *sqlQuerier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatComputerUseProvider, provider)
 	return err
 }
 
@@ -21014,6 +21091,30 @@ func (q *sqlQuerier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, i
 	return err
 }
 
+const upsertChatPersonalModelOverridesEnabled = `-- name: UpsertChatPersonalModelOverridesEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_personal_model_overrides_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_personal_model_overrides_enabled'
+`
+
+// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
+// personal chat model overrides.
+func (q *sqlQuerier) UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertChatPersonalModelOverridesEnabled, enabled)
+	return err
+}
+
 const upsertChatPlanModeInstructions = `-- name: UpsertChatPlanModeInstructions :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_chat_plan_mode_instructions', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_plan_mode_instructions'
@@ -21053,6 +21154,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_temp
 
 func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatTemplateAllowlist, templateAllowlist)
+	return err
+}
+
+const upsertChatTitleGenerationModelOverride = `-- name: UpsertChatTitleGenerationModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverride, value)
 	return err
 }
 
@@ -21234,10 +21345,11 @@ func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
 	return err
 }
 
-const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :exec
+const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :many
 DELETE
 FROM tailnet_tunnels
 WHERE coordinator_id = $1 and src_id = $2
+RETURNING src_id, dst_id
 `
 
 type DeleteAllTailnetTunnelsParams struct {
@@ -21245,9 +21357,32 @@ type DeleteAllTailnetTunnelsParams struct {
 	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
 }
 
-func (q *sqlQuerier) DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteAllTailnetTunnels, arg.CoordinatorID, arg.SrcID)
-	return err
+type DeleteAllTailnetTunnelsRow struct {
+	SrcID uuid.UUID `db:"src_id" json:"src_id"`
+	DstID uuid.UUID `db:"dst_id" json:"dst_id"`
+}
+
+func (q *sqlQuerier) DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) ([]DeleteAllTailnetTunnelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, deleteAllTailnetTunnels, arg.CoordinatorID, arg.SrcID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DeleteAllTailnetTunnelsRow
+	for rows.Next() {
+		var i DeleteAllTailnetTunnelsRow
+		if err := rows.Scan(&i.SrcID, &i.DstID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteTailnetPeer = `-- name: DeleteTailnetPeer :one
@@ -21522,13 +21657,14 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uui
 	return items, nil
 }
 
-const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
+const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :many
 UPDATE
 	tailnet_peers
 SET
 	status = $2
 WHERE
 	coordinator_id = $1
+RETURNING id
 `
 
 type UpdateTailnetPeerStatusByCoordinatorParams struct {
@@ -21536,9 +21672,27 @@ type UpdateTailnetPeerStatusByCoordinatorParams struct {
 	Status        TailnetStatus `db:"status" json:"status"`
 }
 
-func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error {
-	_, err := q.db.ExecContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
-	return err
+func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertTailnetCoordinator = `-- name: UpsertTailnetCoordinator :one
@@ -25286,6 +25440,24 @@ func (q *sqlQuerier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID 
 	return debug_logging_enabled, err
 }
 
+const getUserChatPersonalModelOverride = `-- name: GetUserChatPersonalModelOverride :one
+SELECT value AS personal_model_override FROM user_configs
+WHERE user_id = $1
+	AND key = $2
+`
+
+type GetUserChatPersonalModelOverrideParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Key    string    `db:"key" json:"key"`
+}
+
+func (q *sqlQuerier) GetUserChatPersonalModelOverride(ctx context.Context, arg GetUserChatPersonalModelOverrideParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatPersonalModelOverride, arg.UserID, arg.Key)
+	var personal_model_override string
+	err := row.Scan(&personal_model_override)
+	return personal_model_override, err
+}
+
 const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
@@ -25735,6 +25907,41 @@ func (q *sqlQuerier) ListUserChatCompactionThresholds(ctx context.Context, userI
 	for rows.Next() {
 		var i UserConfig
 		if err := rows.Scan(&i.UserID, &i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserChatPersonalModelOverrides = `-- name: ListUserChatPersonalModelOverrides :many
+SELECT key, value FROM user_configs
+WHERE user_id = $1
+	AND key LIKE 'chat\_personal\_model\_override:%'
+ORDER BY key
+`
+
+type ListUserChatPersonalModelOverridesRow struct {
+	Key   string `db:"key" json:"key"`
+	Value string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserChatPersonalModelOverrides, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserChatPersonalModelOverridesRow
+	for rows.Next() {
+		var i ListUserChatPersonalModelOverridesRow
+		if err := rows.Scan(&i.Key, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -26350,6 +26557,24 @@ type UpsertUserChatDebugLoggingEnabledParams struct {
 
 func (q *sqlQuerier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error {
 	_, err := q.db.ExecContext(ctx, upsertUserChatDebugLoggingEnabled, arg.UserID, arg.DebugLoggingEnabled)
+	return err
+}
+
+const upsertUserChatPersonalModelOverride = `-- name: UpsertUserChatPersonalModelOverride :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES ($1::uuid, $2::text, $3::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = $3::text
+`
+
+type UpsertUserChatPersonalModelOverrideParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Key    string    `db:"key" json:"key"`
+	Value  string    `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error {
+	_, err := q.db.ExecContext(ctx, upsertUserChatPersonalModelOverride, arg.UserID, arg.Key, arg.Value)
 	return err
 }
 
@@ -33347,18 +33572,44 @@ func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg Up
 }
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name, id FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+SELECT
+	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id,
+	workspace_agent_script_timings.exit_code,
+	workspace_agent_script_timings.status
+	FROM workspace_agent_scripts
+	LEFT JOIN workspace_agent_script_timings
+		ON workspace_agent_script_timings.script_id = workspace_agent_scripts.id
+	WHERE workspace_agent_scripts.workspace_agent_id = ANY($1 :: uuid [ ])
+	ORDER BY workspace_agent_scripts.id, workspace_agent_script_timings.started_at
+	DESC NULLS LAST
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
+type GetWorkspaceAgentScriptsByAgentIDsRow struct {
+	WorkspaceAgentID uuid.UUID                            `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      uuid.UUID                            `db:"log_source_id" json:"log_source_id"`
+	LogPath          string                               `db:"log_path" json:"log_path"`
+	CreatedAt        time.Time                            `db:"created_at" json:"created_at"`
+	Script           string                               `db:"script" json:"script"`
+	Cron             string                               `db:"cron" json:"cron"`
+	StartBlocksLogin bool                                 `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       bool                                 `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        bool                                 `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   int32                                `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string                               `db:"display_name" json:"display_name"`
+	ID               uuid.UUID                            `db:"id" json:"id"`
+	ExitCode         sql.NullInt32                        `db:"exit_code" json:"exit_code"`
+	Status           NullWorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceAgentScriptsByAgentIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WorkspaceAgentScript
+	var items []GetWorkspaceAgentScriptsByAgentIDsRow
 	for rows.Next() {
-		var i WorkspaceAgentScript
+		var i GetWorkspaceAgentScriptsByAgentIDsRow
 		if err := rows.Scan(
 			&i.WorkspaceAgentID,
 			&i.LogSourceID,
@@ -33372,6 +33623,8 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 			&i.TimeoutSeconds,
 			&i.DisplayName,
 			&i.ID,
+			&i.ExitCode,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}

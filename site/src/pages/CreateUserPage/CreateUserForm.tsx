@@ -21,6 +21,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { RoleSelector } from "#/modules/roles/RoleSelector";
 import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
@@ -28,7 +29,6 @@ import {
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
-import { RoleSelector } from "./RoleSelector";
 
 const loginTypeOptions = {
 	password: {
@@ -81,10 +81,10 @@ type CreateUserFormData = {
 	readonly login_type: TypesGen.LoginType;
 	readonly password: string;
 	readonly service_account: boolean;
-	readonly roles: string[];
+	readonly roles: Set<string>;
 };
 
-interface CreateUserFormProps {
+type CreateUserFormProps = {
 	error?: unknown;
 	isLoading: boolean;
 	onSubmit: (user: CreateUserFormData) => void;
@@ -95,7 +95,7 @@ interface CreateUserFormProps {
 	availableRoles?: TypesGen.AssignableRoles[];
 	rolesLoading?: boolean;
 	rolesError?: unknown;
-}
+};
 
 // Stable reference for empty org options to avoid re-render loops
 // in the render-time state adjustment pattern.
@@ -133,7 +133,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 				: "00000000-0000-0000-0000-000000000000",
 			login_type: defaultLoginType,
 			service_account: defaultLoginType === "none",
-			roles: [],
+			roles: new Set(),
 		},
 		validationSchema,
 		onSubmit,
@@ -241,6 +241,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							>
 								<SelectValue placeholder="Select a login type…" />
 							</SelectTrigger>
+
 							<SelectContent className="max-w-sm">
 								{availableLoginTypes.map((key) => {
 									const opt = loginTypeOptions[key];
@@ -345,30 +346,13 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 						/>
 					)}
 
-					{rolesLoading ? (
-						<RoleSelector
-							loading
-							roles={[]}
-							selectedRoles={[]}
-							onChange={() => {}}
-						/>
-					) : rolesError ? (
-						<RoleSelector
-							error={rolesError}
-							roles={[]}
-							selectedRoles={[]}
-							onChange={() => {}}
-						/>
-					) : (
-						availableRoles &&
-						availableRoles.length > 0 && (
-							<RoleSelector
-								roles={availableRoles}
-								selectedRoles={form.values.roles}
-								onChange={(roles) => form.setFieldValue("roles", roles)}
-							/>
-						)
-					)}
+					<RoleSelector
+						loading={rolesLoading}
+						error={rolesError}
+						availableRoles={availableRoles}
+						selectedRoles={form.values.roles}
+						onChange={(roles) => form.setFieldValue("roles", roles)}
+					/>
 				</div>
 
 				<FormFooter className="mt-8">

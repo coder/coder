@@ -81,7 +81,7 @@ export const TerminalOverloadedError: Story = {
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "overloaded",
-				message: "Anthropic is temporarily overloaded (HTTP 529).",
+				message: "Anthropic is temporarily overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -94,8 +94,9 @@ export const TerminalOverloadedError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
+			canvas.getByText(/anthropic is temporarily overloaded\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
@@ -254,7 +255,7 @@ export const GenericErrorShowsProviderDetail: Story = {
 		liveStatus: buildLiveStatus({
 			streamError: {
 				kind: "generic",
-				message: "Anthropic returned an unexpected error (HTTP 400).",
+				message: "Anthropic returned an unexpected error.",
 				detail:
 					"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
 				provider: "anthropic",
@@ -269,8 +270,9 @@ export const GenericErrorShowsProviderDetail: Story = {
 			canvas.getByRole("heading", { name: /request failed/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic returned an unexpected error \(http 400\)/i),
+			canvas.getByText(/anthropic returned an unexpected error\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
 		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };

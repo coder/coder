@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /audit`
+`GET /api/v2/audit`
 
 ### Parameters
 

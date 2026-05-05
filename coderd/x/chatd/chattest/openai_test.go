@@ -237,6 +237,63 @@ func TestOpenAI_ToolCalls(t *testing.T) {
 	require.GreaterOrEqual(t, requestCount.Load(), int32(2), "expected follow-up model call after tool execution")
 }
 
+func TestOpenAI_ToolCalls_ResponsesAPI(t *testing.T) {
+	t.Parallel()
+
+	var requestCount atomic.Int32
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		switch requestCount.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("get_weather", `{"location":"San Francisco"}`),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("The weather in San Francisco is 72F.")...,
+			)
+		}
+	})
+
+	client, err := fantasyopenai.New(
+		fantasyopenai.WithAPIKey("test-key"),
+		fantasyopenai.WithBaseURL(serverURL),
+		fantasyopenai.WithUseResponsesAPI(),
+	)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	model, err := client.LanguageModel(ctx, "gpt-4")
+	require.NoError(t, err)
+
+	type weatherInput struct {
+		Location string `json:"location"`
+	}
+	var toolCallCount atomic.Int32
+	weatherTool := fantasy.NewAgentTool(
+		"get_weather",
+		"Get weather for a location.",
+		func(ctx context.Context, input weatherInput, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			toolCallCount.Add(1)
+			require.Equal(t, "San Francisco", input.Location)
+			return fantasy.NewTextResponse("72F"), nil
+		},
+	)
+
+	agent := fantasy.NewAgent(
+		model,
+		fantasy.WithSystemPrompt("You are a helpful assistant."),
+		fantasy.WithTools(weatherTool),
+	)
+
+	result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
+		Prompt: "What's the weather in San Francisco?",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, int32(1), toolCallCount.Load(), "expected exactly one tool execution")
+	require.GreaterOrEqual(t, requestCount.Load(), int32(2), "expected follow-up model call after tool execution")
+}
+
 func TestOpenAI_NonStreaming_ResponsesAPI(t *testing.T) {
 	t.Parallel()
 

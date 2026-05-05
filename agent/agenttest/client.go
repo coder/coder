@@ -140,14 +140,14 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC28WithRole(ctx context.Context, _ string) (
-	agentproto.DRPCAgentClient28, proto.DRPCTailnetClient28, error,
+func (c *Client) ConnectRPC29WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
-	return c.ConnectRPC28(ctx)
+	return c.ConnectRPC29(ctx)
 }
 
-func (c *Client) ConnectRPC28(ctx context.Context) (
-	agentproto.DRPCAgentClient28, proto.DRPCTailnetClient28, error,
+func (c *Client) ConnectRPC29(ctx context.Context) (
+	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {

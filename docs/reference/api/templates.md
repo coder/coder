@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates`
+`GET /api/v2/organizations/{organization}/templates`
 
 Returns a list of templates for the specified organization.
 By default, only non-deprecated templates are returned.
@@ -165,7 +165,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/templates`
+`POST /api/v2/organizations/{organization}/templates`
 
 > Body parameter
 
@@ -291,7 +291,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/examples`
+`GET /api/v2/organizations/{organization}/templates/examples`
 
 ### Parameters
 
@@ -353,7 +353,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/{templatename}`
+`GET /api/v2/organizations/{organization}/templates/{templatename}`
 
 ### Parameters
 
@@ -443,7 +443,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/{templatename}/versions/{templateversionname}`
+`GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}`
 
 ### Parameters
 
@@ -546,7 +546,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
+`GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
 
 ### Parameters
 
@@ -651,7 +651,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/templateversions`
+`POST /api/v2/organizations/{organization}/templateversions`
 
 > Body parameter
 
@@ -777,7 +777,7 @@ curl -X GET http://coder-server:8080/api/v2/templates \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates`
+`GET /api/v2/templates`
 
 Returns a list of templates.
 By default, only non-deprecated templates are returned.
@@ -924,7 +924,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/examples \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/examples`
+`GET /api/v2/templates/examples`
 
 ### Example responses
 
@@ -980,7 +980,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}`
+`GET /api/v2/templates/{template}`
 
 ### Parameters
 
@@ -1069,7 +1069,7 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /templates/{template}`
+`DELETE /api/v2/templates/{template}`
 
 ### Parameters
 
@@ -1114,7 +1114,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templates/{template}`
+`PATCH /api/v2/templates/{template}`
 
 > Body parameter
 
@@ -1243,7 +1243,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/daus`
+`GET /api/v2/templates/{template}/daus`
 
 ### Parameters
 
@@ -1286,7 +1286,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/versions`
+`GET /api/v2/templates/{template}/versions`
 
 ### Parameters
 
@@ -1465,7 +1465,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templates/{template}/versions`
+`PATCH /api/v2/templates/{template}/versions`
 
 > Body parameter
 
@@ -1519,7 +1519,7 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templates/{template}/versions/archive`
+`POST /api/v2/templates/{template}/versions/archive`
 
 > Body parameter
 
@@ -1572,7 +1572,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/versions/{templateversionname}`
+`GET /api/v2/templates/{template}/versions/{templateversionname}`
 
 ### Parameters
 
@@ -1747,7 +1747,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}`
+`GET /api/v2/templateversions/{templateversion}`
 
 ### Parameters
 
@@ -1849,7 +1849,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templateversions/{templateversion}`
+`PATCH /api/v2/templateversions/{templateversion}`
 
 > Body parameter
 
@@ -1960,7 +1960,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/archive`
+`POST /api/v2/templateversions/{templateversion}/archive`
 
 ### Parameters
 
@@ -2004,7 +2004,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templateversions/{templateversion}/cancel`
+`PATCH /api/v2/templateversions/{templateversion}/cancel`
 
 ### Parameters
 
@@ -2049,7 +2049,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/dry-run`
+`POST /api/v2/templateversions/{templateversion}/dry-run`
 
 > Body parameter
 
@@ -2145,7 +2145,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}`
 
 ### Parameters
 
@@ -2221,7 +2221,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templateversions/{templateversion}/dry-run/{jobID}/cancel`
+`PATCH /api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel`
 
 ### Parameters
 
@@ -2266,7 +2266,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}/logs`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs`
 
 ### Parameters
 
@@ -2342,7 +2342,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners`
 
 ### Parameters
 
@@ -2382,7 +2382,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}/resources`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources`
 
 ### Parameters
 
@@ -2494,6 +2494,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
           {
             "cron": "string",
             "display_name": "string",
+            "exit_code": 0,
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -2501,6 +2502,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "run_on_stop": true,
             "script": "string",
             "start_blocks_login": true,
+            "status": "ok",
             "timeout": 0
           }
         ],
@@ -2620,6 +2622,7 @@ Status Code **200**
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» exit_code`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -2627,6 +2630,7 @@ Status Code **200**
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceAgentScriptStatus](schemas.md#codersdkworkspaceagentscriptstatus)                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
@@ -2658,8 +2662,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -2674,7 +2678,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dynamic-parameters`
+`GET /api/v2/templateversions/{templateversion}/dynamic-parameters`
 
 ### Parameters
 
@@ -2702,7 +2706,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/dynamic-parameters/evaluate`
+`POST /api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate`
 
 > Body parameter
 
@@ -2798,6 +2802,14 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
         "value": "string"
       }
     }
+  ],
+  "secret_requirements": [
+    {
+      "env": "string",
+      "file": "string",
+      "help_message": "string",
+      "satisfied": true
+    }
   ]
 }
 ```
@@ -2821,7 +2833,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/external-auth`
+`GET /api/v2/templateversions/{templateversion}/external-auth`
 
 ### Parameters
 
@@ -2881,7 +2893,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/logs`
+`GET /api/v2/templateversions/{templateversion}/logs`
 
 ### Parameters
 
@@ -2955,7 +2967,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/parameters`
+`GET /api/v2/templateversions/{templateversion}/parameters`
 
 ### Parameters
 
@@ -2982,7 +2994,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/presets`
+`GET /api/v2/templateversions/{templateversion}/presets`
 
 ### Parameters
 
@@ -3049,7 +3061,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/resources`
+`GET /api/v2/templateversions/{templateversion}/resources`
 
 ### Parameters
 
@@ -3160,6 +3172,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
           {
             "cron": "string",
             "display_name": "string",
+            "exit_code": 0,
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -3167,6 +3180,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "run_on_stop": true,
             "script": "string",
             "start_blocks_login": true,
+            "status": "ok",
             "timeout": 0
           }
         ],
@@ -3286,6 +3300,7 @@ Status Code **200**
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» exit_code`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -3293,6 +3308,7 @@ Status Code **200**
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceAgentScriptStatus](schemas.md#codersdkworkspaceagentscriptstatus)                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
@@ -3324,8 +3340,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -3341,7 +3357,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/rich-parameters`
+`GET /api/v2/templateversions/{templateversion}/rich-parameters`
 
 ### Parameters
 
@@ -3439,7 +3455,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/s
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/schema`
+`GET /api/v2/templateversions/{templateversion}/schema`
 
 ### Parameters
 
@@ -3466,7 +3482,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/unarchive`
+`POST /api/v2/templateversions/{templateversion}/unarchive`
 
 ### Parameters
 
@@ -3510,7 +3526,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/v
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/variables`
+`GET /api/v2/templateversions/{templateversion}/variables`
 
 ### Parameters
 

@@ -224,6 +224,9 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
+	ApiKeyScopeAiSeat                              APIKeyScope = "ai_seat:*"
+	ApiKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
+	ApiKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -467,7 +470,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatRead,
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
-		ApiKeyScopeChat:
+		ApiKeyScopeChat,
+		ApiKeyScopeAiSeat,
+		ApiKeyScopeAiSeatCreate,
+		ApiKeyScopeAiSeatRead:
 		return true
 	}
 	return false
@@ -680,6 +686,9 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
+		ApiKeyScopeAiSeat,
+		ApiKeyScopeAiSeatCreate,
+		ApiKeyScopeAiSeatRead,
 	}
 }
 
@@ -4358,7 +4367,7 @@ type Chat struct {
 	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
 	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	Mode                NullChatMode          `db:"mode" json:"mode"`
 	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels              StringMap             `db:"labels" json:"labels"`

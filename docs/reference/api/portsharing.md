@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/port-share`
+`GET /api/v2/workspaces/{workspace}/port-share`
 
 ### Parameters
 
@@ -57,7 +57,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaces/{workspace}/port-share`
+`POST /api/v2/workspaces/{workspace}/port-share`
 
 > Body parameter
 
@@ -110,7 +110,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /workspaces/{workspace}/port-share`
+`DELETE /api/v2/workspaces/{workspace}/port-share`
 
 > Body parameter
 

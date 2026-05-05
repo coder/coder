@@ -69,7 +69,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	children: [],
 	...overrides,
 });
@@ -109,6 +108,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		isCreating: false,
 		regeneratingTitleChatIds: [],
 		archivedFilter: "active" as const,
+		isPersonalModelOverridesEnabled: true,
 		onArchivedFilterChange: fn(),
 	},
 	parameters: {
@@ -274,7 +274,7 @@ export const RunningChatPreservesSpinner: Story = {
 		await expect(spinner).toBeInTheDocument();
 
 		// The toggle button should exist (the node has children) but
-		// must be invisible by default — it only appears on hover of
+		// must be invisible by default. It only appears on hover of
 		// the icon area itself, not the whole row.
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
 		await expect(toggle).toBeInTheDocument();
@@ -589,6 +589,9 @@ export const CancellingRenameDialogKeepsTitle: Story = {
 	},
 };
 
+const animatedGeneratedTitle =
+	"AI suggested title for a complex workspace migration with focused follow up tasks";
+
 export const RenameChatGenerateFillsInput: Story = {
 	args: {
 		chats: [
@@ -598,7 +601,7 @@ export const RenameChatGenerateFillsInput: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		onProposeTitle: fn(async () => "AI suggested title"),
+		onProposeTitle: fn(async () => animatedGeneratedTitle),
 		onRenameTitle: fn(() => Promise.resolve()),
 	},
 	parameters: {
@@ -625,9 +628,25 @@ export const RenameChatGenerateFillsInput: Story = {
 		});
 
 		await userEvent.click(body.getByRole("button", { name: "Generate" }));
-		await waitFor(() => {
-			expect(input).toHaveValue("AI suggested title");
-		});
+		await waitFor(
+			() => {
+				const value = input.value;
+				expect(value.length).toBeGreaterThan(0);
+				expect(animatedGeneratedTitle.startsWith(value)).toBe(true);
+				expect(value).not.toBe(animatedGeneratedTitle);
+				expect(body.getByRole("button", { name: "Generate" })).toBeDisabled();
+				expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
+			},
+			{ timeout: 2_000 },
+		);
+		await waitFor(
+			() => {
+				expect(input).toHaveValue(animatedGeneratedTitle);
+			},
+			{ timeout: 4_000 },
+		);
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+		expect(body.getByRole("button", { name: "Save" })).toBeEnabled();
 		expect(args.onProposeTitle).toHaveBeenCalledWith("rename-generate");
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 	},
@@ -680,6 +699,7 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 			expect(input).toHaveAttribute("aria-invalid", "true");
 		});
 		expect(input).toHaveValue("Original title");
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
 	},
 };
 
@@ -692,7 +712,7 @@ export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		onProposeTitle: fn(async () => "Server suggestion"),
+		onProposeTitle: fn(async () => animatedGeneratedTitle),
 		onRenameTitle: fn(() => Promise.resolve()),
 	},
 	parameters: {
@@ -718,13 +738,41 @@ export const RenameChatCancelAfterGenerateRestoresTitle: Story = {
 			name: "Chat title",
 		});
 		await userEvent.click(body.getByRole("button", { name: "Generate" }));
-		await waitFor(() => {
-			expect(input).toHaveValue("Server suggestion");
-		});
+		await waitFor(
+			() => {
+				const value = input.value;
+				expect(value.length).toBeGreaterThan(0);
+				expect(animatedGeneratedTitle.startsWith(value)).toBe(true);
+				expect(value).not.toBe(animatedGeneratedTitle);
+				expect(body.getByRole("button", { name: "Generate" })).toBeDisabled();
+				expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
+			},
+			{ timeout: 2_000 },
+		);
 
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await waitFor(() => {
+			expect(
+				body.queryByRole("heading", { name: "Rename chat" }),
+			).not.toBeInTheDocument();
+		});
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 		expect(canvas.getByText("Keep this one")).toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Keep this one",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+		const reopenedInput = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		expect(reopenedInput).toHaveValue("Keep this one");
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		expect(reopenedInput).toHaveValue("Keep this one");
 	},
 };
 
@@ -1334,7 +1382,7 @@ export const WithUnreadChats: Story = {
 			canvas.queryByTestId("unread-indicator-read-1"),
 		).not.toBeInTheDocument();
 		// Unread chat that IS the active chat should not show
-		// the indicator — the user is already viewing it.
+		// the indicator because the user is already viewing it.
 		expect(
 			canvas.queryByTestId("unread-indicator-unread-active"),
 		).not.toBeInTheDocument();
@@ -1600,6 +1648,126 @@ export const SettingsAPIKeysNonAdmin: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Secrets (API keys)" }),
 		).toBeInTheDocument();
+	},
+};
+export const SettingsUserAgentsNonAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/user-agents" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("aria-current", "page");
+		expect(
+			canvas.queryByRole("link", { name: "Manage Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SettingsUserAgentsFeatureDisabled: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+		isPersonalModelOverridesEnabled: false,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/general" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "General" })).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: "Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SettingsUserAgentsOverridesLoading: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+		isPersonalModelOverridesEnabled: undefined,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/general" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "General" })).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: "Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SettingsUserAgentsAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/user-agents" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("aria-current", "page");
+		expect(
+			canvas.getByRole("link", { name: "Manage Agents" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SettingsAdminAgentsEntryPreserved: Story = {
+	args: {
+		chats: [],
+		isAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/agents" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const agentsLink = canvas.getByRole("link", { name: "Agents" });
+		await expect(agentsLink).toHaveAttribute("aria-current", "page");
+		expect(canvas.getByText("Manage Agents")).toBeInTheDocument();
 	},
 };
 
