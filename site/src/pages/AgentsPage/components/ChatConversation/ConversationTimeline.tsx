@@ -44,7 +44,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { AttachmentFailureProvider } from "./AttachmentFailureContext";
+import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -1055,7 +1055,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<AttachmentFailureProvider>
+			<ExpiredFileIdsProvider>
 				<div
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
@@ -1103,7 +1103,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						);
 					})}
 				</div>
-			</AttachmentFailureProvider>
+			</ExpiredFileIdsProvider>
 		);
 	},
 );
