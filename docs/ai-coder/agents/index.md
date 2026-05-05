@@ -220,9 +220,9 @@ enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
 Administrators can configure multiple providers simultaneously and set a default
 model. Developers select from enabled models when starting a chat.
 
-<img src="../../images/guides/ai-agents/llm-providers.png" alt="Screenshot of the provider/model configuration admin panel">
+<img src="../../images/guides/ai-agents/llm-providers.png" alt="Screenshot of the provider/model configuration in the Agents settings">
 
-<small>The model configuration panel in the Coder dashboard.</small>
+<small>The model configuration in the Agents settings panel.</small>
 
 ## Built-in tools
 
@@ -265,8 +265,8 @@ are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
 
 `spawn_agent` with `type=computer_use` additionally requires an
-Anthropic provider and the virtual desktop feature to be enabled by an
-administrator.
+Anthropic or OpenAI provider and the virtual desktop feature to be
+enabled by an administrator.
 `read_skill` and `read_skill_file` are available when the workspace contains
 skills in its `.agents/skills/` directory.
 

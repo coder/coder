@@ -710,10 +710,7 @@ const AgentChatPage: FC = () => {
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = filterWorkspaceOptionsByOrganization(
-		workspacesQuery.data?.workspaces ?? [],
-		chatQuery.data?.organization_id,
-	);
+	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;

@@ -720,6 +720,7 @@ export const DetailPageWorkspacePicker: Story = {
 				id: "ws-detail",
 				name: "agents-workspace",
 				owner_name: "mike",
+				organization_id: "org-1",
 			},
 		],
 		selectedWorkspaceId: "ws-detail",
@@ -810,7 +811,12 @@ export const OverflowBadges: Story = {
 			pagerdutyMCP.id,
 		],
 		workspaceOptions: [
-			{ id: "ws-1", name: "my-long-workspace-name", owner_name: "admin" },
+			{
+				id: "ws-1",
+				name: "my-long-workspace-name",
+				owner_name: "admin",
+				organization_id: "org-1",
+			},
 		],
 		selectedWorkspaceId: "ws-1",
 		onWorkspaceChange: fn(),

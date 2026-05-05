@@ -24890,6 +24890,97 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 	return i, err
 }
 
+const getUserSecretsTelemetrySummary = `-- name: GetUserSecretsTelemetrySummary :one
+WITH active_users AS (
+    SELECT id AS user_id
+    FROM users
+    WHERE deleted = false
+      AND is_system = false
+      AND status = 'active'::user_status
+),
+per_user AS (
+    SELECT au.user_id, COUNT(us.id)::bigint AS n
+    FROM active_users au
+    LEFT JOIN user_secrets us ON us.user_id = au.user_id
+    GROUP BY au.user_id
+),
+secrets_filtered AS (
+    SELECT us.env_name, us.file_path
+    FROM user_secrets us
+    JOIN active_users au ON au.user_id = us.user_id
+)
+SELECT
+    COUNT(*) FILTER (WHERE n > 0)::bigint                                                       AS users_with_secrets,
+    (SELECT COUNT(*) FROM secrets_filtered)::bigint                                             AS total_secrets,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name != '' AND file_path = '' )::bigint    AS env_name_only,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name = ''  AND file_path != '')::bigint    AS file_path_only,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name != '' AND file_path != '')::bigint    AS both,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name = ''  AND file_path = '' )::bigint    AS neither,
+    COALESCE(MAX(n), 0)::bigint                                                                 AS secrets_per_user_max,
+    COALESCE(percentile_disc(0.25) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p25,
+    COALESCE(percentile_disc(0.50) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p50,
+    COALESCE(percentile_disc(0.75) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p75,
+    COALESCE(percentile_disc(0.90) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p90
+FROM per_user
+`
+
+type GetUserSecretsTelemetrySummaryRow struct {
+	UsersWithSecrets  int64 `db:"users_with_secrets" json:"users_with_secrets"`
+	TotalSecrets      int64 `db:"total_secrets" json:"total_secrets"`
+	EnvNameOnly       int64 `db:"env_name_only" json:"env_name_only"`
+	FilePathOnly      int64 `db:"file_path_only" json:"file_path_only"`
+	Both              int64 `db:"both" json:"both"`
+	Neither           int64 `db:"neither" json:"neither"`
+	SecretsPerUserMax int64 `db:"secrets_per_user_max" json:"secrets_per_user_max"`
+	SecretsPerUserP25 int64 `db:"secrets_per_user_p25" json:"secrets_per_user_p25"`
+	SecretsPerUserP50 int64 `db:"secrets_per_user_p50" json:"secrets_per_user_p50"`
+	SecretsPerUserP75 int64 `db:"secrets_per_user_p75" json:"secrets_per_user_p75"`
+	SecretsPerUserP90 int64 `db:"secrets_per_user_p90" json:"secrets_per_user_p90"`
+}
+
+// Returns deployment-wide aggregates for the telemetry snapshot.
+//
+// The denominator for both user-level counts and the per-user
+// distribution is active non-system users. Specifically:
+//
+//   - deleted = false: Coder soft-deletes by flipping users.deleted
+//     rather than removing rows, so secrets persist after delete but
+//     are unreachable.
+//   - status = 'active': dormant users (no recent activity) and
+//     suspended users (explicitly disabled) cannot use secrets, so
+//     they shouldn't dilute the percentile distribution as
+//     zero-secret entries.
+//   - is_system = false: internal subjects like the prebuilds user
+//     never use secrets in the normal flow.
+//
+// Status transitions move users in and out of this denominator, so a
+// snapshot's UsersWithSecrets can drop without any secret being
+// deleted.
+//
+// The percentile distribution is computed across all active non-system
+// users, including those with zero secrets, so the percentiles reflect
+// deployment-wide adoption rather than only the power-user subset.
+// percentile_disc returns an actual integer count from the underlying
+// values rather than interpolating between rows.
+func (q *sqlQuerier) GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretsTelemetrySummary)
+	var i GetUserSecretsTelemetrySummaryRow
+	err := row.Scan(
+		&i.UsersWithSecrets,
+		&i.TotalSecrets,
+		&i.EnvNameOnly,
+		&i.FilePathOnly,
+		&i.Both,
+		&i.Neither,
+		&i.SecretsPerUserMax,
+		&i.SecretsPerUserP25,
+		&i.SecretsPerUserP50,
+		&i.SecretsPerUserP75,
+		&i.SecretsPerUserP90,
+	)
+	return i, err
+}
+
 const listUserSecrets = `-- name: ListUserSecrets :many
 SELECT
     id, user_id, name, description,
