@@ -2,18 +2,19 @@
 
 Follow this guide to get your first Coder development environment
 running in under 10 minutes. This guide covers the essential concepts and shows
-you how to create your first workspace and run VS Code from it.
+you how to create your first workspace and open it in your preferred editor.
+This workspace includes a basic set of tools to edit most code bases.
 
-## What You'll Do
+## What you'll do
 
 In this quickstart, you'll:
 
-- ✅ Install Coder server
-- ✅ Create a **template** (blueprint for dev environments)
-- ✅ Launch a **workspace** (your actual dev environment)
-- ✅ Connect from your favorite IDE
+- ✅ Install Coder server.
+- ✅ Create a **template** (blueprint for dev environments).
+- ✅ Launch a **workspace** (your actual dev environment).
+- ✅ Connect from your favorite IDE.
 
-## Understanding Coder: 30-Second Overview
+## A 30-second metaphor for Coder
 
 Before diving in, the following table breaks down the core concepts that power Coder,
 explained through a cooking analogy:
@@ -33,7 +34,7 @@ explained through a cooking analogy:
 - Familiarity with running commands in the terminal
 - 10 minutes of your time
 
-## Step 1: Install Docker and Set Up Permissions
+## Step 1: Install Docker and set up permissions
 
 <div class="tabs">
 
@@ -92,7 +93,7 @@ is installed.
 
 </div>
 
-## Step 2: Install & Start Coder
+## Step 2: Install and start Coder
 
 Install the `coder` CLI to get started:
 
@@ -149,7 +150,7 @@ viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
 like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
 lines of output, so you might have to scroll up to find it.
 
-## Step 3: Initial Setup
+## Step 3: Initial setup
 
 1. Create your admin account:
    - Email: `your.email@example.com`
@@ -160,61 +161,67 @@ lines of output, so you might have to scroll up to find it.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
-## Step 4: Create your First Template and Workspace
+## Step 4: Create your first template and workspace
 
 > [!TIP]
 > If you use an AI coding assistant, the [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md) agent skill can guide you through creating and customizing templates with best practices built-in.
 
-Templates define what's in your development environment. Let's start simple:
+Templates define what's in your development environment. The following is a basic example:
 
-1. Click **"Templates"** → **"New Template"**
+1. Select **Templates** → **New Template**.
 
-1. Choose a starter template:
+2. Select the **Coder Quickstart** template from the list of starter templates.
 
-   | Starter                             | Best For                                                | Includes                                               |
-   |-------------------------------------|---------------------------------------------------------|--------------------------------------------------------|
-   | **Docker Containers** (Recommended) | Getting started quickly, local development, prototyping | Ubuntu container with common dev tools, Docker runtime |
-   | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
-   | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
+   **Note:** running this template requires Docker to be running in the background, so make sure Docker is running!
 
-1. Click **"Use template"** on **Docker Containers**. **Note:** running this template requires Docker to be running in the background, so make sure Docker is running!
-
-1. Name your template:
+3. Name your template:
    - Name: `quickstart`
    - Display name: `quickstart doc template`
    - Description: `Provision Docker containers as Coder workspaces`
 
-1. Click **"Save"**
+4. Select **Save**.
 
    ![Create template](../images/screenshots/create-template.png)
 
 **What just happened?** You defined a template — a reusable blueprint for dev
 environments — in your Coder deployment. It's now stored in your organization's
 template list, where you and any teammates in the same org can create workspaces
-from it. Let's launch one.
+from it. Now it's time launch a workspace.
 
-## Step 5: Launch your Workspace
+## Step 5: Launch your workspace
 
-1. After the template is ready, select **Create Workspace**.
+1. After the template is ready, select **+ Create Workspace**.
 
-1. Give the workspace a name and select **Create Workspace**.
+2. Give the workspace a name. If you need a suggestion for a workspace, you can select the automatically generated name next to the **Need a suggestion?** label.
 
-1. Coder starts your new workspace:
+3. In this window are [parameters](../admin/templates/extending-templates/parameters.md) that customize the workspace's behavior. Set the following based on your needs:
 
-   ![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace
-   is running_
+   - **Programming Languages**: the languages to pre-install in your workspace. You can use more than one if you want.
+   - **IDEs & Editors**: the IDEs and editors you want to configure for quick access once the workspace is running. You can choose more than one if you want.
+   - **Git Repository (Optional)**: the Git repository you want to clone into your workspace. Leave this field blank to skip it.
+
+   **Note:** If you use any of the JetBrains IDEs as your preferred IDE (such as PyCharm, GoLand, or RustRover), select **JetBrains IDEs** as the value. A new parameter will appear, with which you can choose your preferred JetBrains IDE.
+
+4. Launch your workspace by selecting **Create workspace**.
+
+After a short wait (10-15 seconds on most modern computers), Coder will start your new workspace:
+
+![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace is running_
 
 ## Step 6: Connect your IDE
 
-Select **VS Code Desktop** to install the Coder extension and connect to your
-Coder workspace.
+Each of the buttons in the workspace view is a different **agent app**
+(more on this in a later section). Select your preferred IDE from the
+list of agent apps. This guide assumes you'll use Visual Studio Code,
+but the process is similar for other IDEs and editors.
 
 After VS Code loads the remote environment, you can select **Open Folder** to
 explore directories in the Docker container or work on something new.
 
 ![Changing directories in VS Code](../images/screenshots/change-directory-vscode.png)
 
-To clone an existing repository:
+If you didn't clone an existing Git repository when you created your
+workspace, you can clone it manually if you want:
 
 1. Select **Clone Repository** and enter the repository URL.
 
@@ -224,25 +231,25 @@ To clone an existing repository:
    Learn more about how to find the repository URL in the
    [GitHub documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
 
-1. Choose the folder to which VS Code should clone the repo. It will be in its
+2. Choose the folder to which VS Code should clone the repo. It will be in its
    own directory within this folder.
 
    Note that you cannot create a new parent directory in this step.
 
-1. After VS Code completes the clone, select **Open** to open the directory.
+3. After VS Code completes the clone, select **Open** to open the directory.
 
-1. You are now using VS Code in your Coder environment!
+4. You are now using VS Code in your Coder environment!
 
-## Success! You're Coding in Coder
+## Success! You're coding in Coder
 
 You now have:
 
-- **Coder server** running locally
-- **A template** defining your environment
-- **A workspace** running that environment
-- **IDE access** to code remotely
+- A Coder server running locally.
+- A template defining your environment.
+- A workspace running that environment.
+- IDE access to code remotely.
 
-### What's Next?
+### What's next?
 
 Now that you have your own workspace running, you can start exploring more
 advanced capabilities that Coder offers.
