@@ -11,6 +11,16 @@ export const roleDescriptions: Record<string, string> = {
 	"template-admin": "Template admin can manage all templates and workspaces.",
 	auditor: "Auditor can access the audit logs.",
 	"agents-access": "Grants access to Coder Agents chat.",
+	"organization-admin":
+		"Organization admin can manage all resources within this organization.",
+	"organization-user-admin":
+		"Organization user admin can manage members and groups within this organization.",
+	"organization-template-admin":
+		"Organization template admin can manage templates and workspaces within this organization.",
+	"organization-auditor":
+		"Organization auditor can access audit logs for this organization.",
+	"organization-workspace-creation-ban":
+		"Prevents this user from creating new workspaces in this organization.",
 	member:
 		"Everybody is a member. This is a shared and default role for all users.",
 };
