@@ -229,21 +229,76 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Creating chat session..."
+          # Resolve the service account's organization ID. The chat
+          # creation endpoint requires an organization_id field.
+          echo "Fetching organization ID..."
+          ORG_HTTP_CODE=$(curl --silent --output /tmp/org_response.json \
+            --write-out "%{http_code}" \
+            -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+            "${CODER_URL}/api/v2/users/me/organizations")
 
-          RESPONSE=$(curl --silent --fail-with-body \
+          if [[ "${ORG_HTTP_CODE}" -ge 400 ]]; then
+            echo "::error::Failed to fetch organizations (HTTP ${ORG_HTTP_CODE})"
+            echo "Response: $(cat /tmp/org_response.json)"
+            exit 1
+          fi
+
+          ORG_ID=$(jq -r '.[0].id // empty' /tmp/org_response.json)
+          if [[ -z "${ORG_ID}" ]]; then
+            echo "::error::No organization found for the service account"
+            exit 1
+          fi
+          echo "Organization ID: ${ORG_ID}"
+
+          # Find the service account's workspace from the
+          # coder-workflow-bot template so the chat agent has a
+          # pre-configured environment to work in.
+          echo "Looking up workspace..."
+          WS_HTTP_CODE=$(curl --silent --output /tmp/ws_response.json \
+            --write-out "%{http_code}" \
+            -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+            "${CODER_URL}/api/v2/workspaces?q=owner:me+template:coder-workflow-bot&limit=1")
+
+          if [[ "${WS_HTTP_CODE}" -ge 400 ]]; then
+            echo "::error::Failed to fetch workspaces (HTTP ${WS_HTTP_CODE})"
+            echo "Response: $(cat /tmp/ws_response.json)"
+            exit 1
+          fi
+
+          WORKSPACE_ID=$(jq -r '.workspaces[0].id // empty' /tmp/ws_response.json)
+          if [[ -z "${WORKSPACE_ID}" ]]; then
+            echo "::error::No workspace from coder-workflow-bot template found for the service account"
+            echo "::error::Provision a workspace from the coder-workflow-bot template for the doc-check bot user"
+            exit 1
+          fi
+          echo "Workspace ID: ${WORKSPACE_ID}"
+
+          echo "Creating chat session..."
+          CHAT_HTTP_CODE=$(curl --silent \
+            --output /tmp/chat_response.json \
+            --write-out "%{http_code}" \
             -X POST \
             -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg prompt "${CHAT_PROMPT}" \
-              '{content: [{type: "text", text: $prompt}]}')" \
+              --arg org_id "${ORG_ID}" \
+              --arg ws_id "${WORKSPACE_ID}" \
+              '{organization_id: $org_id, workspace_id: $ws_id, content: [{type: "text", text: $prompt}]}')" \
             "${CODER_URL}/api/experimental/chats")
+
+          RESPONSE=$(cat /tmp/chat_response.json)
+
+          if [[ "${CHAT_HTTP_CODE}" -ge 400 ]]; then
+            echo "::error::Chat API returned HTTP ${CHAT_HTTP_CODE}"
+            echo "Response: ${RESPONSE}"
+            exit 1
+          fi
 
           CHAT_ID=$(echo "${RESPONSE}" | jq -r '.id')
           CHAT_STATUS=$(echo "${RESPONSE}" | jq -r '.status')
 
           if [[ -z "${CHAT_ID}" || "${CHAT_ID}" == "null" ]]; then
-            echo "::error::Failed to create chat — no ID returned"
+            echo "::error::Failed to create chat, no ID returned"
             echo "Response: ${RESPONSE}"
             exit 1
           fi
