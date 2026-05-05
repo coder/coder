@@ -3,7 +3,6 @@ import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Role } from "#/api/typesGenerated";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -117,8 +116,6 @@ const RoleTable: FC<RoleTableProps> = ({
 	canDeleteOrgRole,
 	onDeleteRole,
 }) => {
-	const isLoading = roles === undefined;
-	const isEmpty = Boolean(roles && roles.length === 0);
 	return (
 		<Table>
 			<TableHeader>
@@ -129,55 +126,73 @@ const RoleTable: FC<RoleTableProps> = ({
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				<ChooseOne>
-					<Cond condition={isLoading}>
-						<TableLoader />
-					</Cond>
-
-					<Cond condition={isEmpty}>
-						<TableRow className="h-14">
-							<TableCell colSpan={999}>
-								<EmptyState
-									message="No custom roles yet"
-									description={
-										canCreateOrgRole && isCustomRolesEnabled
-											? "Create your first custom role"
-											: !isCustomRolesEnabled
-												? "Upgrade to a premium license to create a custom role"
-												: "You don't have permission to create a custom role"
-									}
-									cta={
-										canCreateOrgRole &&
-										isCustomRolesEnabled && (
-											<Button asChild>
-												<RouterLink to="create">
-													<PlusIcon />
-													Create custom role
-												</RouterLink>
-											</Button>
-										)
-									}
-								/>
-							</TableCell>
-						</TableRow>
-					</Cond>
-
-					<Cond>
-						{[...(roles ?? [])]
-							.sort((a, b) => a.name.localeCompare(b.name))
-							.map((role) => (
-								<RoleRow
-									key={role.name}
-									role={role}
-									canUpdateOrgRole={canUpdateOrgRole}
-									canDeleteOrgRole={canDeleteOrgRole}
-									onDelete={() => onDeleteRole(role)}
-								/>
-							))}
-					</Cond>
-				</ChooseOne>
+				<RoleTableBody
+					roles={roles}
+					isCustomRolesEnabled={isCustomRolesEnabled}
+					canCreateOrgRole={canCreateOrgRole}
+					canUpdateOrgRole={canUpdateOrgRole}
+					canDeleteOrgRole={canDeleteOrgRole}
+					onDeleteRole={onDeleteRole}
+				/>
 			</TableBody>
 		</Table>
+	);
+};
+
+const RoleTableBody: FC<RoleTableProps> = ({
+	roles,
+	isCustomRolesEnabled,
+	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
+	onDeleteRole,
+}) => {
+	if (roles === undefined) {
+		return <TableLoader />;
+	}
+	if (roles.length === 0) {
+		return (
+			<TableRow className="h-14">
+				<TableCell colSpan={999}>
+					<EmptyState
+						message="No custom roles yet"
+						description={
+							canCreateOrgRole && isCustomRolesEnabled
+								? "Create your first custom role"
+								: !isCustomRolesEnabled
+									? "Upgrade to a premium license to create a custom role"
+									: "You don't have permission to create a custom role"
+						}
+						cta={
+							canCreateOrgRole &&
+							isCustomRolesEnabled && (
+								<Button asChild>
+									<RouterLink to="create">
+										<PlusIcon />
+										Create custom role
+									</RouterLink>
+								</Button>
+							)
+						}
+					/>
+				</TableCell>
+			</TableRow>
+		);
+	}
+	return (
+		<>
+			{[...roles]
+				.sort((a, b) => a.name.localeCompare(b.name))
+				.map((role) => (
+					<RoleRow
+						key={role.name}
+						role={role}
+						canUpdateOrgRole={canUpdateOrgRole}
+						canDeleteOrgRole={canDeleteOrgRole}
+						onDelete={() => onDeleteRole(role)}
+					/>
+				))}
+		</>
 	);
 };
 

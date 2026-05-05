@@ -6,7 +6,6 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 } from "#/api/typesGenerated";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -195,34 +194,28 @@ const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
 	if (agent.scripts.length === 0) {
 		return <ReadyLifecycle />;
 	}
-	return (
-		<ChooseOne>
-			<Cond condition={agent.lifecycle_state === "ready"}>
-				<ReadyLifecycle />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "start_timeout"}>
-				<StartTimeoutLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "start_error"}>
-				<StartErrorLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "shutting_down"}>
-				<ShuttingDownLifecycle />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
-				<ShutdownTimeoutLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "shutdown_error"}>
-				<ShutdownErrorLifecycle agent={agent} />
-			</Cond>
-			<Cond condition={agent.lifecycle_state === "off"}>
-				<OffLifecycle />
-			</Cond>
-			<Cond>
-				<StartingLifecycle />
-			</Cond>
-		</ChooseOne>
-	);
+	if (agent.lifecycle_state === "ready") {
+		return <ReadyLifecycle />;
+	}
+	if (agent.lifecycle_state === "start_timeout") {
+		return <StartTimeoutLifecycle agent={agent} />;
+	}
+	if (agent.lifecycle_state === "start_error") {
+		return <StartErrorLifecycle agent={agent} />;
+	}
+	if (agent.lifecycle_state === "shutting_down") {
+		return <ShuttingDownLifecycle />;
+	}
+	if (agent.lifecycle_state === "shutdown_timeout") {
+		return <ShutdownTimeoutLifecycle agent={agent} />;
+	}
+	if (agent.lifecycle_state === "shutdown_error") {
+		return <ShutdownErrorLifecycle agent={agent} />;
+	}
+	if (agent.lifecycle_state === "off") {
+		return <OffLifecycle />;
+	}
+	return <StartingLifecycle />;
 };
 
 const DisconnectedStatus: FC = () => {
@@ -265,44 +258,32 @@ const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => (
 );
 
 export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
-	return (
-		<ChooseOne>
-			<Cond condition={agent.status === "connected"}>
-				<ConnectedStatus agent={agent} />
-			</Cond>
-			<Cond condition={agent.status === "disconnected"}>
-				<DisconnectedStatus />
-			</Cond>
-			<Cond condition={agent.status === "timeout"}>
-				<TimeoutStatus agent={agent} />
-			</Cond>
-			<Cond>
-				<ConnectingStatus />
-			</Cond>
-		</ChooseOne>
-	);
+	if (agent.status === "connected") {
+		return <ConnectedStatus agent={agent} />;
+	}
+	if (agent.status === "disconnected") {
+		return <DisconnectedStatus />;
+	}
+	if (agent.status === "timeout") {
+		return <TimeoutStatus agent={agent} />;
+	}
+	return <ConnectingStatus />;
 };
 
 const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 	if (!agent) {
 		return <DisconnectedStatus />;
 	}
-	return (
-		<ChooseOne>
-			<Cond condition={agent.status === "connected"}>
-				<ConnectedStatus agent={agent} />
-			</Cond>
-			<Cond condition={agent.status === "disconnected"}>
-				<DisconnectedStatus />
-			</Cond>
-			<Cond condition={agent.status === "timeout"}>
-				<TimeoutStatus agent={agent} />
-			</Cond>
-			<Cond>
-				<ConnectingStatus />
-			</Cond>
-		</ChooseOne>
-	);
+	if (agent.status === "connected") {
+		return <ConnectedStatus agent={agent} />;
+	}
+	if (agent.status === "disconnected") {
+		return <DisconnectedStatus />;
+	}
+	if (agent.status === "timeout") {
+		return <TimeoutStatus agent={agent} />;
+	}
+	return <ConnectingStatus />;
 };
 
 const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => (
