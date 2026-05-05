@@ -241,12 +241,12 @@ type UpdateTemplateMeta struct {
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
-	// value. The action only runs when this field is set to true.
+	// value.
 	UpdateWorkspaceLastUsedAt *bool `json:"update_workspace_last_used_at,omitempty"`
 	// UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
 	// from the template. This is useful for preventing dormant workspaces being
 	// immediately deleted when updating the dormant_ttl field to a new, shorter
-	// value. The action only runs when this field is set to true.
+	// value.
 	UpdateWorkspaceDormantAt *bool `json:"update_workspace_dormant_at,omitempty"`
 	// RequireActiveVersion mandates workspaces built using this template
 	// use the active version of the template. This option has no
@@ -261,7 +261,7 @@ type UpdateTemplateMeta struct {
 	// behavior of granting the 'everyone' group access to use the template.
 	// If this is set to true, the template will not be available to all users,
 	// and must be explicitly granted to users or groups in the permissions settings
-	// of the template. The action only runs when this field is set to true.
+	// of the template.
 	DisableEveryoneGroupAccess *bool                         `json:"disable_everyone_group_access,omitempty"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
 	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`

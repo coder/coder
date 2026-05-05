@@ -21479,7 +21479,7 @@
 					"type": "string"
 				},
 				"disable_everyone_group_access": {
-					"description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template. The action only runs when this field is set to true.",
+					"description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
 					"type": "boolean"
 				},
 				"disable_module_cache": {
@@ -21512,11 +21512,11 @@
 					"type": "integer"
 				},
 				"update_workspace_dormant_at": {
-					"description": "UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being\nimmediately deleted when updating the dormant_ttl field to a new, shorter\nvalue. The action only runs when this field is set to true.",
+					"description": "UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being\nimmediately deleted when updating the dormant_ttl field to a new, shorter\nvalue.",
 					"type": "boolean"
 				},
 				"update_workspace_last_used_at": {
-					"description": "UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces\nspawned from the template. This is useful for preventing workspaces being\nimmediately locked when updating the inactivity_ttl field to a new, shorter\nvalue. The action only runs when this field is set to true.",
+					"description": "UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces\nspawned from the template. This is useful for preventing workspaces being\nimmediately locked when updating the inactivity_ttl field to a new, shorter\nvalue.",
 					"type": "boolean"
 				},
 				"use_classic_parameter_flow": {

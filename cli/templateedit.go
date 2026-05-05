@@ -196,7 +196,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
-				// TODO(PLAT-184): now that the API accepts partial updates,
+				// TODO(Emyrk): now that the API accepts partial updates,
 				// rewrite this CLI to only set pointers for flags the user
 				// explicitly provided via userSetOption. The current
 				// fetch-then-resend-everything dance is no longer required.
