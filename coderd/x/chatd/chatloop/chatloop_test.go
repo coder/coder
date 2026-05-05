@@ -576,7 +576,7 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	require.Equal(t, 429, records[0].classified.StatusCode)
 	require.Equal(
 		t,
-		"OpenAI is rate limiting requests (HTTP 429).",
+		"OpenAI is rate limiting requests.",
 		records[0].classified.Message,
 	)
 }

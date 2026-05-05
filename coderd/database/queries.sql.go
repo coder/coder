@@ -5400,7 +5400,7 @@ type AutoArchiveInactiveChatsRow struct {
 	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
 	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	Mode                NullChatMode          `db:"mode" json:"mode"`
 	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels              json.RawMessage       `db:"labels" json:"labels"`
@@ -8701,7 +8701,7 @@ SET
     worker_id = $2::uuid,
     started_at = $3::timestamptz,
     heartbeat_at = $4::timestamptz,
-    last_error = $5::text,
+    last_error = $5::jsonb,
     updated_at = NOW()
 WHERE
     id = $6::uuid
@@ -8710,12 +8710,12 @@ RETURNING
 `
 
 type UpdateChatStatusParams struct {
-	Status      ChatStatus     `db:"status" json:"status"`
-	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	LastError   sql.NullString `db:"last_error" json:"last_error"`
-	ID          uuid.UUID      `db:"id" json:"id"`
+	Status      ChatStatus            `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	ID          uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error) {
@@ -8768,7 +8768,7 @@ SET
     worker_id = $2::uuid,
     started_at = $3::timestamptz,
     heartbeat_at = $4::timestamptz,
-    last_error = $5::text,
+    last_error = $5::jsonb,
     updated_at = $6::timestamptz
 WHERE
     id = $7::uuid
@@ -8777,13 +8777,13 @@ RETURNING
 `
 
 type UpdateChatStatusPreserveUpdatedAtParams struct {
-	Status      ChatStatus     `db:"status" json:"status"`
-	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	LastError   sql.NullString `db:"last_error" json:"last_error"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
-	ID          uuid.UUID      `db:"id" json:"id"`
+	Status      ChatStatus            `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	UpdatedAt   time.Time             `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error) {

@@ -161,6 +161,7 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	agentSetupNotice?: ReactNode;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -200,6 +201,7 @@ interface ChatPageInputProps {
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 	workspaceOptions: readonly TypesGen.Workspace[];
+	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
 	onWorkspaceChange: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
@@ -228,6 +230,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	agentSetupNotice,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -250,6 +253,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPAuthComplete,
 	lastInjectedContext,
 	workspaceOptions,
+	chatOrganizationId,
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	isWorkspaceLoading,
@@ -393,6 +397,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
+	const [chatFullWidth] = useChatFullWidth();
+
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
@@ -477,6 +483,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
+			chatOrganizationId={chatOrganizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={isWorkspaceLoading}
@@ -493,12 +500,19 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		/>
 	);
 
-	if (!modelSelectorHelp) {
+	if (!agentSetupNotice && !modelSelectorHelp) {
 		return inputElement;
 	}
 
 	return (
 		<div>
+			{agentSetupNotice && (
+				<div
+					className={cn("mx-auto w-full pb-2", chatWidthClass(chatFullWidth))}
+				>
+					{agentSetupNotice}
+				</div>
+			)}
 			{inputElement}
 			{modelSelectorHelp && (
 				<div className="px-3 pt-1 text-2xs text-content-secondary">

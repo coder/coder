@@ -23,6 +23,7 @@ import {
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
+	chatProviderConfigs,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -57,6 +58,8 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { AgentSetupNotice } from "./components/AgentSetupNotice";
+import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -79,6 +82,7 @@ import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
+	countConfiguredProviderConfigs,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
@@ -547,16 +551,13 @@ const getPersistedDetailError = ({
 	if (cachedError?.kind === "usage_limit") {
 		return cachedError;
 	}
-	if (chatStatus === "error") {
-		if (cachedError) {
-			return cachedError;
-		}
-		const lastError = chatRecord?.last_error?.trim();
-		if (lastError) {
-			return { kind: "generic", message: lastError };
-		}
+	if (chatStatus !== "error") {
+		return undefined;
 	}
-	return undefined;
+	if (cachedError) {
+		return cachedError;
+	}
+	return normalizeChatErrorPayload(chatRecord?.last_error);
 };
 
 /**
@@ -647,7 +648,7 @@ const AgentChatPage: FC = () => {
 		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
-	const { user: currentUser } = useAuthenticated();
+	const { permissions, user: currentUser } = useAuthenticated();
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -700,15 +701,16 @@ const AgentChatPage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = filterWorkspaceOptionsByOrganization(
-		workspacesQuery.data?.workspaces ?? [],
-		chatQuery.data?.organization_id,
-	);
+	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
@@ -733,6 +735,19 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	const providerCount =
+		permissions.editDeploymentConfig &&
+		chatProviderConfigsQuery.isSuccess &&
+		chatModelsQuery.isSuccess
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					chatModelsQuery.data,
+				)
+			: undefined;
+	const modelCount =
+		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+			? modelOptions.length
+			: undefined;
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 
@@ -1037,6 +1052,12 @@ const AgentChatPage: FC = () => {
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
+	const agentSetupNotice =
+		providerCount !== undefined &&
+		modelCount !== undefined &&
+		(providerCount === 0 || modelCount === 0) ? (
+			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
+		) : undefined;
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
@@ -1485,6 +1506,7 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			agentSetupNotice={agentSetupNotice}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}

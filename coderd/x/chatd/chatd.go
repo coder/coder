@@ -1761,7 +1761,7 @@ func (p *Server) EditMessage(
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			return xerrors.Errorf("set chat pending: %w", err)
@@ -1849,7 +1849,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 				WorkerID:    uuid.NullUUID{},
 				StartedAt:   sql.NullTime{},
 				HeartbeatAt: sql.NullTime{},
-				LastError:   sql.NullString{},
+				LastError:   pqtype.NullRawMessage{},
 			})
 			if updateErr != nil {
 				return xerrors.Errorf("set archived chat waiting before cleanup: %w", updateErr)
@@ -2365,7 +2365,7 @@ func (p *Server) SubmitToolResults(
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		}); updateErr != nil {
 			return xerrors.Errorf("update chat status: %w", updateErr)
 		}
@@ -3369,7 +3369,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		return updateErr
 	}, nil)
@@ -3569,7 +3569,7 @@ func insertUserMessageAndSetPending(
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
@@ -3846,7 +3846,7 @@ func (p *Server) processOnce(ctx context.Context) {
 				WorkerID:    uuid.NullUUID{},
 				StartedAt:   sql.NullTime{},
 				HeartbeatAt: sql.NullTime{},
-				LastError:   sql.NullString{},
+				LastError:   pqtype.NullRawMessage{},
 			})
 			if updateErr != nil {
 				p.logger.Error(ctx, "failed to release chat acquired during shutdown",
@@ -4364,7 +4364,7 @@ func (p *Server) Subscribe(
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeError,
 			ChatID: chatID,
-			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
 		})
 	} else {
 		for _, msg := range messages {
@@ -4387,7 +4387,7 @@ func (p *Server) Subscribe(
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeError,
 			ChatID: chatID,
-			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
 		})
 	} else if len(queued) > 0 {
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
@@ -4412,7 +4412,7 @@ func (p *Server) Subscribe(
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeError,
 			ChatID: chatID,
-			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
 		})
 	} else {
 		statusEvent := codersdk.ChatStreamEvent{
@@ -4490,7 +4490,7 @@ func (p *Server) Subscribe(
 				case mergedEvents <- codersdk.ChatStreamEvent{
 					Type:   codersdk.ChatStreamEventTypeError,
 					ChatID: chatID,
-					Error: &codersdk.ChatStreamError{
+					Error: &codersdk.ChatError{
 						Message: psErr.Error(),
 					},
 				}:
@@ -4593,7 +4593,7 @@ func (p *Server) Subscribe(
 					case mergedEvents <- codersdk.ChatStreamEvent{
 						Type:   codersdk.ChatStreamEventTypeError,
 						ChatID: chatID,
-						Error: &codersdk.ChatStreamError{
+						Error: &codersdk.ChatError{
 							Message: notify.Error,
 						},
 					}:
@@ -4856,7 +4856,7 @@ func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetr
 }
 
 func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedError) {
-	payload := chaterror.StreamErrorPayload(classified)
+	payload := chaterror.TerminalErrorPayload(classified)
 	if payload == nil {
 		return
 	}
@@ -4880,6 +4880,17 @@ func processingFailure(err error) (chaterror.ClassifiedError, bool) {
 		return chaterror.ClassifiedError{}, false
 	}
 	return classified, true
+}
+
+func encodeChatLastErrorPayload(payload *codersdk.ChatError) (pqtype.NullRawMessage, error) {
+	if payload == nil {
+		return pqtype.NullRawMessage{}, nil
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return pqtype.NullRawMessage{}, err
+	}
+	return pqtype.NullRawMessage{RawMessage: encoded, Valid: true}, nil
 }
 
 func panicFailureReason(recovered any) string {
@@ -5156,7 +5167,7 @@ func (p *Server) finishActiveChat(
 	logger slog.Logger,
 	chat database.Chat,
 	status database.ChatStatus,
-	lastError string,
+	lastError pqtype.NullRawMessage,
 ) (finishActiveChatResult, error) {
 	result := finishActiveChatResult{}
 
@@ -5204,7 +5215,7 @@ func (p *Server) finishActiveChat(
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{String: lastError, Valid: lastError != ""},
+			LastError:   lastError,
 		})
 		return updateErr
 	}, nil)
@@ -5330,10 +5341,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// interrupt processing.
 	close(controlArmed)
 
-	// Determine the final status and last error to set when we're done.
+	// Determine the final status and last error payload to set when we're done.
 	status := database.ChatStatusWaiting
 	wasInterrupted := false
-	lastError := ""
+	var lastErrorPayload *codersdk.ChatError
 	generatedTitle := &generatedChatTitle{}
 	runResult := runChatResult{}
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
@@ -5349,12 +5360,22 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// Handle panics gracefully.
 		if r := recover(); r != nil {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
-			lastError = panicFailureReason(r)
-			p.publishError(chat.ID, chaterror.ClassifiedError{
-				Message: lastError,
+			classified := chaterror.ClassifiedError{
+				Message: panicFailureReason(r),
 				Kind:    chaterror.KindGeneric,
-			})
+			}
+			lastErrorPayload = chaterror.TerminalErrorPayload(classified)
+			p.publishError(chat.ID, classified)
 			status = database.ChatStatusError
+		}
+
+		encodedLastError, err := encodeChatLastErrorPayload(lastErrorPayload)
+		if err != nil {
+			logger.Warn(cleanupCtx, "failed to marshal chat last error payload",
+				slog.Error(err),
+			)
+			lastErrorPayload = nil
+			encodedLastError = pqtype.NullRawMessage{}
 		}
 
 		// Check for queued messages and auto-promote the next one.
@@ -5362,7 +5383,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// races with the promote endpoint (which also sets status to
 		// pending). We use a transaction with FOR UPDATE to ensure we
 		// don't overwrite a status change made by another caller.
-		finishResult, err := p.finishActiveChat(cleanupCtx, logger, chat, status, lastError)
+		finishResult, err := p.finishActiveChat(cleanupCtx, logger, chat, status, encodedLastError)
 		if errors.Is(err, errChatTakenByOtherWorker) {
 			// Another worker owns this chat now — skip all
 			// post-TX side effects (status publish, pubsub,
@@ -5425,7 +5446,11 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			p.publishChatActionRequired(finishResult.updatedChat, runResult.PendingDynamicToolCalls)
 		}
 		if !wasInterrupted {
-			p.maybeSendPushNotification(cleanupCtx, finishResult.updatedChat, status, lastError, runResult, logger)
+			lastErrorMessage := ""
+			if lastErrorPayload != nil {
+				lastErrorMessage = lastErrorPayload.Message
+			}
+			p.maybeSendPushNotification(cleanupCtx, finishResult.updatedChat, status, lastErrorMessage, runResult, logger)
 		}
 	}()
 
@@ -5440,18 +5465,19 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
 			status = database.ChatStatusWaiting
+			lastErrorPayload = nil
 			wasInterrupted = true
 			return
 		}
 		if isShutdownCancellation(ctx, chatCtx, err) {
 			logger.Info(ctx, "chat canceled during shutdown; returning to pending")
 			status = database.ChatStatusPending
-			lastError = ""
+			lastErrorPayload = nil
 			return
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
 		if classified, ok := processingFailure(err); ok {
-			lastError = classified.Message
+			lastErrorPayload = chaterror.TerminalErrorPayload(classified)
 			p.publishError(chat.ID, classified)
 		}
 		status = database.ChatStatusError
@@ -5476,7 +5502,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	if ctx.Err() != nil {
 		logger.Info(ctx, "chat completed during shutdown; returning to pending")
 		status = database.ChatStatusPending
-		lastError = ""
+		lastErrorPayload = nil
 		return
 	}
 }
@@ -7983,11 +8009,21 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				return nil
 			}
 
-			lastError := sql.NullString{}
+			lastError := pqtype.NullRawMessage{}
 			if locked.Status == database.ChatStatusRequiresAction {
-				lastError = sql.NullString{
-					String: "Dynamic tool execution timed out",
-					Valid:  true,
+				lastErrorPayload, marshalErr := encodeChatLastErrorPayload(
+					chaterror.TerminalErrorPayload(chaterror.ClassifiedError{
+						Message: "Dynamic tool execution timed out",
+						Kind:    chaterror.KindGeneric,
+					}),
+				)
+				if marshalErr != nil {
+					p.logger.Warn(ctx, "failed to marshal stale recovery last error payload",
+						slog.F("chat_id", chat.ID),
+						slog.Error(marshalErr),
+					)
+				} else {
+					lastError = lastErrorPayload
 				}
 			}
 

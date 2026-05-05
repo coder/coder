@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { type ComponentProps, useState } from "react";
-import { Navigate } from "react-router";
+import { Navigate, useOutletContext } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -36,8 +36,9 @@ import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
 import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
-import { AgentsPageView } from "./AgentsPageView";
+import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { ChatTopBar } from "./components/ChatTopBar";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
@@ -153,7 +154,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	children: [],
 	...overrides,
 });
@@ -164,6 +164,10 @@ const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
 	<AgentSettingsAgentsPageView
+		adminOverridesData={{ allow_users: false }}
+		onSaveAdminOverrides={fn()}
+		isSavingAdminOverrides={false}
+		isSaveAdminOverridesError={false}
 		exploreModelOverrideData={{
 			context: "explore",
 			model_config_id: "",
@@ -216,6 +220,32 @@ const agentsRouting = {
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const AgentTopBarRouteElement = () => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsOutletContext>();
+	return (
+		<ChatTopBar
+			chatTitle="Collapsed sidebar agent"
+			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
+			onArchiveAgent={fn()}
+			onArchiveAndDeleteWorkspace={fn()}
+			onRegenerateTitle={fn()}
+			onUnarchiveAgent={fn()}
+			isSidebarCollapsed={isSidebarCollapsed}
+			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+		/>
+	);
+};
+
+const agentsWithChatTopBarRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <AgentTopBarRouteElement /> }
+			: route,
+	),
 };
 
 const defaultArgs: ComponentProps<typeof AgentsPageView> = {
@@ -435,7 +465,11 @@ export const WithChatList: Story = {
 				id: "chat-3",
 				title: "Fix database migration issue",
 				status: "error",
-				last_error: "Connection timeout",
+				last_error: {
+					message: "Connection timeout",
+					kind: "generic",
+					retryable: false,
+				},
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
@@ -475,7 +509,7 @@ export const ResizableSidebar: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const sidebar = canvas.getByTestId("agents-left-sidebar");
+		const sidebar = canvas.getByTestId("agents-sidebar-panel");
 		const handle = canvas.getByRole("separator", {
 			name: "Resize agents sidebar",
 		});
@@ -558,6 +592,92 @@ export const SidebarCollapsed: Story = {
 export const WithToolbarEndContent: Story = {
 	args: {
 		isAgentsAdmin: true,
+	},
+};
+
+export const EmptyStateZoom200Desktop: Story = {
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("agents-page-layout");
+		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
+		const main = await canvas.findByTestId("agents-main-panel");
+
+		await waitFor(() => {
+			const layoutStyles = getComputedStyle(layout);
+			const sidebarStyles = getComputedStyle(sidebar);
+			const mainStyles = getComputedStyle(main);
+			const sidebarRect = sidebar.getBoundingClientRect();
+			const mainRect = main.getBoundingClientRect();
+
+			expect(layoutStyles.flexDirection).toBe("row");
+			expect(sidebarStyles.display).not.toBe("none");
+			expect(mainStyles.display).toBe("flex");
+			expect(sidebarRect.width).toBeGreaterThan(0);
+			expect(mainRect.width).toBeGreaterThan(0);
+			expect(sidebarRect.left).toBeLessThan(mainRect.left);
+			expect(sidebarRect.right).toBeLessThanOrEqual(mainRect.left + 1);
+		});
+
+		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: /TestUser/ }),
+		).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200Desktop: Story = {
+	args: {
+		isSidebarCollapsed: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
+	args: {
+		agentId: "chat-1",
+		isSidebarCollapsed: true,
+		chatList: [
+			buildChat({
+				id: "chat-1",
+				title: "Collapsed sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: agentsWithChatTopBarRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
 	},
 };
 

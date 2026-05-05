@@ -1286,7 +1286,7 @@ export interface Chat {
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
-	readonly last_error: string | null;
+	readonly last_error?: ChatError;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -1677,6 +1677,39 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatError represents a terminal chat error in persisted chat state or the
+ * live stream.
+ */
+export interface ChatError {
+	/**
+	 * Message is the normalized, user-facing error message.
+	 */
+	readonly message: string;
+	/**
+	 * Detail is optional provider-specific context shown alongside the
+	 * normalized error message when available.
+	 */
+	readonly detail?: string;
+	/**
+	 * Kind classifies the error for consistent client rendering.
+	 */
+	readonly kind?: string;
+	/**
+	 * Provider identifies the upstream model provider when known.
+	 */
+	readonly provider?: string;
+	/**
+	 * Retryable reports whether the underlying error is transient.
+	 */
+	readonly retryable: boolean;
+	/**
+	 * StatusCode is the best-effort upstream HTTP status code.
+	 */
+	readonly status_code?: number;
 }
 
 // From codersdk/chats.go
@@ -2383,38 +2416,6 @@ export interface ChatStreamActionRequired {
 
 // From codersdk/chats.go
 /**
- * ChatStreamError represents an error event in the stream.
- */
-export interface ChatStreamError {
-	/**
-	 * Message is the normalized, user-facing error message.
-	 */
-	readonly message: string;
-	/**
-	 * Detail is optional provider-specific context shown alongside the
-	 * normalized error message when available.
-	 */
-	readonly detail?: string;
-	/**
-	 * Kind classifies the error for consistent client rendering.
-	 */
-	readonly kind?: string;
-	/**
-	 * Provider identifies the upstream model provider when known.
-	 */
-	readonly provider?: string;
-	/**
-	 * Retryable reports whether the underlying error is transient.
-	 */
-	readonly retryable: boolean;
-	/**
-	 * StatusCode is the best-effort upstream HTTP status code.
-	 */
-	readonly status_code?: number;
-}
-
-// From codersdk/chats.go
-/**
  * ChatStreamEvent represents a real-time update for chat streaming.
  */
 export interface ChatStreamEvent {
@@ -2423,7 +2424,7 @@ export interface ChatStreamEvent {
 	readonly message?: ChatMessage;
 	readonly message_part?: ChatStreamMessagePart;
 	readonly status?: ChatStreamStatus;
-	readonly error?: ChatStreamError;
+	readonly error?: ChatError;
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;

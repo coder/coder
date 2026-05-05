@@ -26,7 +26,7 @@ import {
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
-import { useExpiredFileIds } from "./ExpiredFileIdsContext";
+import { useFileProbes } from "./FileProbeContext";
 import type { RenderBlock } from "./types";
 
 export type PreviewTextAttachment = {
@@ -293,7 +293,7 @@ const RemoteTextAttachmentButton: FC<{
 	onPreview,
 	showStatus = false,
 }) => {
-	const { hasExpired, markExpired } = useExpiredFileIds();
+	const { hasExpired, markExpired } = useFileProbes();
 	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
@@ -414,7 +414,15 @@ const RemoteImageBlock: FC<{
 	displayName: string;
 	onImageClick?: (src: string) => void;
 }> = ({ fileId, href, displayName, onImageClick }) => {
-	const { hasExpired, markExpired } = useExpiredFileIds();
+	const {
+		hasExpired,
+		markExpired,
+		isPending,
+		markPending,
+		clearPending,
+		getProbeResult,
+		setProbeResult,
+	} = useFileProbes();
 	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
 		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
@@ -429,10 +437,12 @@ const RemoteImageBlock: FC<{
 			/>
 		);
 	}
-	if (failureState.kind !== "idle") {
+	const sharedResult = fileId ? getProbeResult(fileId) : undefined;
+	const effectiveFailure = sharedResult ?? failureState;
+	if (effectiveFailure.kind !== "idle") {
 		return (
 			<AttachmentFallbackTile
-				state={failureState}
+				state={effectiveFailure}
 				labels={imageAttachmentFailureLabels}
 			/>
 		);
@@ -464,7 +474,13 @@ const RemoteImageBlock: FC<{
 						setFailureState({ kind: "expired" });
 						return;
 					}
+					// Dedup: skip probe, context will propagate the result.
+					if (isPending(fileId)) {
+						setFailureState({ kind: "failed" });
+						return;
+					}
 
+					markPending(fileId);
 					const controller = probeRequest.start();
 					// Optimistically swap to the generic failure tile. The
 					// probe will either upgrade it to "expired" or fill in
@@ -474,22 +490,27 @@ const RemoteImageBlock: FC<{
 
 					void probeAttachmentFailure(href, controller.signal)
 						.then((reason) => {
-							if (!probeRequest.clear(controller)) {
-								return;
-							}
+							clearPending(fileId);
+							// Context writes stay above the clear() guard so
+							// siblings get the result even if this block unmounted.
 							if (reason.kind === "expired") {
 								markExpired(fileId);
 							}
-							setFailureState(reason);
+							setProbeResult(fileId, reason);
+							if (probeRequest.clear(controller)) {
+								setFailureState(reason);
+							}
 						})
 						.catch((error) => {
-							if (!probeRequest.clear(controller)) {
-								return;
-							}
+							clearPending(fileId);
 							if (isAbortError(error)) {
 								return;
 							}
-							setFailureState(attachmentFailureFromError(error));
+							const failure = attachmentFailureFromError(error);
+							setProbeResult(fileId, failure);
+							if (probeRequest.clear(controller)) {
+								setFailureState(failure);
+							}
 						});
 				}}
 			/>

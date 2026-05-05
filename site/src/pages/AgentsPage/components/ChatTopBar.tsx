@@ -86,7 +86,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					asChild
 					variant="subtle"
 					size="icon"
-					className="inline-flex h-7 w-7 min-w-0 shrink-0 md:hidden"
+					className="inline-flex h-7 w-7 min-w-0 shrink-0 sm:hidden"
 				>
 					<Link
 						to={{ pathname: "/agents", search: location.search }}
@@ -103,7 +103,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					size="icon"
 					onClick={onToggleSidebarCollapsed}
 					aria-label="Expand sidebar"
-					className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+					className="hidden h-7 w-7 min-w-0 shrink-0 sm:inline-flex"
 				>
 					<PanelLeftIcon />
 				</Button>
@@ -173,10 +173,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						draft={prDraft}
 						className="!size-3.5 shrink-0"
 					/>
-					<span className="truncate max-w-[120px] hidden md:inline">
+					<span className="truncate max-w-[120px] hidden sm:inline">
 						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
 					</span>
-					<span className="md:hidden">
+					<span className="sm:hidden">
 						{prNumberMatch ? prNumberMatch : "PR"}
 					</span>
 				</a>

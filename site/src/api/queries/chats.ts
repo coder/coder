@@ -1329,6 +1329,32 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatPersonalModelOverridesAdminSettingsKey = [
+	...chatsKey,
+	"admin-personal-model-overrides",
+] as const;
+
+export const chatPersonalModelOverridesAdminSettings = () => ({
+	queryKey: chatPersonalModelOverridesAdminSettingsKey,
+	queryFn: () => API.experimental.getChatPersonalModelOverridesAdminSettings(),
+});
+
+export const updateChatPersonalModelOverridesAdminSettings = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (
+		req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
+	) => API.experimental.updateChatPersonalModelOverridesAdminSettings(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatPersonalModelOverridesAdminSettingsKey,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
+		});
+	},
+});
+
 export * from "./chatDebugLogging";
 export const chatAdvisorConfigKey = ["chat-advisor-config"] as const;
 
@@ -1440,6 +1466,34 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatUserCustomPromptKey,
+		});
+	},
+});
+
+const userChatPersonalModelOverridesKey = [
+	...chatsKey,
+	"user-personal-model-overrides",
+] as const;
+
+export const userChatPersonalModelOverrides = () => ({
+	queryKey: userChatPersonalModelOverridesKey,
+	queryFn: (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> =>
+		API.experimental.getUserChatPersonalModelOverrides(),
+});
+
+type UpdateUserChatPersonalModelOverrideArgs = {
+	context: TypesGen.ChatPersonalModelOverrideContext;
+	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
+};
+
+export const updateUserChatPersonalModelOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+		API.experimental.updateUserChatPersonalModelOverride(context, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
 		});
 	},
 });

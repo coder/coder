@@ -218,7 +218,6 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	children: [],
 });
 
@@ -1805,9 +1804,6 @@ describe("useChatStore", () => {
 			expect(result.current.streamError).toEqual({
 				kind: "generic",
 				message: "Chat processing failed.",
-				provider: undefined,
-				retryable: false,
-				statusCode: undefined,
 			});
 		});
 	});

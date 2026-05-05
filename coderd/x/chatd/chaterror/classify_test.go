@@ -26,7 +26,7 @@ func TestClassify(t *testing.T) {
 			name: "AmbiguousOverloadKeepsProviderUnknown",
 			err:  xerrors.New("status 529 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is temporarily overloaded (HTTP 529).",
+				Message:    "The AI provider is temporarily overloaded.",
 				Kind:       chaterror.KindOverloaded,
 				Provider:   "",
 				Retryable:  true,
@@ -114,7 +114,7 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitStatus429ClassifiesAsRateLimit",
 			err:  xerrors.New("status 429 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is rate limiting requests (HTTP 429).",
+				Message:    "The AI provider is rate limiting requests.",
 				Kind:       chaterror.KindRateLimit,
 				Provider:   "",
 				Retryable:  true,
@@ -561,7 +561,7 @@ func TestWithProviderUsesExplicitHint(t *testing.T) {
 
 	enriched := classified.WithProvider("azure openai")
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "Azure OpenAI is rate limiting requests (HTTP 429).",
+		Message:    "Azure OpenAI is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -577,7 +577,7 @@ func TestWithProviderAddsProviderWhenUnknown(t *testing.T) {
 
 	enriched := classified.WithProvider("openai")
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI is rate limiting requests (HTTP 429).",
+		Message:    "OpenAI is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
@@ -595,7 +595,7 @@ func TestClassify_UsesStructuredProviderStatusAndRetryAfter(t *testing.T) {
 	))
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "The AI provider is rate limiting requests (HTTP 429).",
+		Message:    "The AI provider is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "",
 		Retryable:  true,
@@ -659,7 +659,7 @@ func TestWithProviderPreservesRetryAfter(t *testing.T) {
 	enriched := classified.WithProvider("openai")
 	require.Equal(t, 30*time.Second, enriched.RetryAfter)
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI is rate limiting requests (HTTP 429).",
+		Message:    "OpenAI is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
@@ -679,7 +679,7 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 	))
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "The AI provider returned an unexpected error (HTTP 400).",
+		Message:    "The AI provider returned an unexpected error.",
 		Detail:     "Image exceeds 5 MB maximum.",
 		Kind:       chaterror.KindGeneric,
 		Provider:   "",

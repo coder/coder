@@ -102,7 +102,7 @@ export const ResizableAgentsSidebarFrame = ({
 
 	return (
 		<div
-			data-testid="agents-left-sidebar"
+			data-testid="agents-sidebar-panel"
 			style={
 				{
 					"--agents-left-sidebar-width": `${width}px`,
@@ -110,7 +110,7 @@ export const ResizableAgentsSidebarFrame = ({
 			}
 			className={cn(
 				className,
-				"relative md:w-[var(--agents-left-sidebar-width)] md:min-w-[240px] md:max-w-[min(520px,50vw)]",
+				"relative sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[240px] sm:max-w-[min(520px,50vw)]",
 			)}
 		>
 			{children}
@@ -128,7 +128,7 @@ export const ResizableAgentsSidebarFrame = ({
 				onPointerUp={handlePointerUp}
 				onPointerCancel={handlePointerUp}
 				onKeyDown={handleKeyDown}
-				className="absolute top-0 right-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-none md:block"
+				className="absolute top-0 right-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-none sm:block"
 			/>
 		</div>
 	);

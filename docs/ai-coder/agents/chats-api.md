@@ -48,10 +48,36 @@ The response is the newly created `Chat` object:
   "last_model_config_id": "...",
   "title": "hello world",
   "status": "waiting",
-  "last_error": null,
   "diff_status": null,
   "created_at": "2025-07-17T00:00:00Z",
   "updated_at": "2025-07-17T00:00:00Z",
+  "archived": false,
+  "pin_order": 0,
+  "mcp_server_ids": [],
+  "labels": {},
+  "has_unread": false,
+  "client_type": "api"
+}
+```
+
+If a chat later ends in error, the same `Chat` shape includes a structured
+`last_error` object. For brevity, unchanged nullable IDs are omitted here:
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "title": "hello world",
+  "status": "error",
+  "last_error": {
+    "message": "Azure OpenAI is rate limiting requests.",
+    "kind": "rate_limit",
+    "provider": "azure",
+    "retryable": true,
+    "status_code": 429,
+    "detail": "Retry after 30 seconds."
+  },
+  "created_at": "2025-07-17T00:00:00Z",
+  "updated_at": "2025-07-17T00:00:30Z",
   "archived": false,
   "pin_order": 0,
   "mcp_server_ids": [],
@@ -200,13 +226,14 @@ indicator without polling.
 
 Each event is a JSON object with `kind` and `chat` fields:
 
-| Kind                 | Description                      |
-|----------------------|----------------------------------|
-| `created`            | A new chat was created.          |
-| `status_change`      | A chat's status changed.         |
-| `title_change`       | A chat's title was updated.      |
-| `diff_status_change` | A chat's diff/PR status changed. |
-| `deleted`            | A chat was deleted.              |
+| Kind                 | Description                          |
+|----------------------|--------------------------------------|
+| `created`            | A new chat was created.              |
+| `status_change`      | A chat's status changed.             |
+| `title_change`       | A chat's title was updated.          |
+| `diff_status_change` | A chat's diff/PR status changed.     |
+| `action_required`    | A chat is waiting for a tool result. |
+| `deleted`            | A chat was deleted.                  |
 
 ### List chats
 
@@ -347,8 +374,6 @@ appear in the `files` field on subsequent
 | `waiting`         | Idle. Newly created, finished successfully, or interrupted.                  |
 | `pending`         | Queued for processing.                                                       |
 | `running`         | Agent is actively working.                                                   |
-| `paused`          | Agent is paused (for example, waiting for user input).                       |
-| `completed`       | Agent finished and the task is complete.                                     |
 | `error`           | Agent encountered an error.                                                  |
 | `requires_action` | Agent invoked a client-provided tool and needs the result before continuing. |
 
@@ -363,13 +388,13 @@ deployment-admin privileges.
 Chats whose newest non-deleted message is older than
 `auto_archive_days` are automatically archived by a background job.
 Pinned chats and chats belonging to a still-active thread are
-exempt. `0` disables the feature; the default is 90.
+exempt. `0` disables the feature, which is the default.
 
 ```sh
 # Read
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   https://coder.example.com/api/experimental/chats/config/auto-archive-days
-# { "auto_archive_days": 90 }
+# { "auto_archive_days": 0 }
 
 # Update
 curl -X PUT -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \

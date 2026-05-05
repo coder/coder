@@ -493,7 +493,7 @@ func requireResponsesChatWaiting(
 	chat, err := db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	if chat.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q", chat.LastError.String)
+		require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chat.LastError))
 	}
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
 }
