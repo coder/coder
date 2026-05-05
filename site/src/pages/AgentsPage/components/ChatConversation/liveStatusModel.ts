@@ -1,7 +1,5 @@
-import type {
-	ChatDetailError,
-	ChatProviderFailureKind,
-} from "../../utils/usageLimitMessage";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { getErrorTitle } from "./chatStatusHelpers";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
@@ -19,7 +17,7 @@ export type LiveStatusModel =
 	| ({
 			phase: "retrying";
 			title: string;
-			kind: ChatProviderFailureKind;
+			kind: TypesGen.ChatErrorKind;
 			message: string;
 			attempt: number;
 			provider?: string;
@@ -37,7 +35,7 @@ export type LiveStatusModel =
 	| ({
 			phase: "failed";
 			title: string;
-			kind: ChatProviderFailureKind;
+			kind: TypesGen.ChatErrorKind;
 			message: string;
 			detail?: string;
 			provider?: string;

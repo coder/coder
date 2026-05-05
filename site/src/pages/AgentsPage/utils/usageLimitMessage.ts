@@ -9,11 +9,6 @@ type UsageLimitData = Partial<
 >;
 
 /**
- * Known provider failure kinds surfaced in chat retry/error events.
- */
-export type ChatProviderFailureKind = TypesGen.ChatErrorKind;
-
-/**
  * Typed classification for errors surfaced in the agent detail view.
  * - "usage_limit": the user hit a spending cap (409 + valid usage data).
  * - other kinds come from normalized stream/provider failures such as
@@ -23,7 +18,7 @@ export type ChatProviderFailureKind = TypesGen.ChatErrorKind;
 export type ChatDetailError = {
 	message: string;
 	detail?: string;
-	kind: ChatProviderFailureKind;
+	kind: TypesGen.ChatErrorKind;
 	provider?: string;
 	retryable?: boolean;
 	statusCode?: number;
