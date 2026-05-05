@@ -131,19 +131,15 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 					// viewer. The fantasy/chatprompt pipeline discards structured
 					// fields from IsError content.
 					// The frontend detects errors via the "error" key instead.
-					msg := xerrors.Errorf("waiting for in-progress build: %w", err).Error()
-					if codersdk.JobIsInsufficientQuotaErrorCode(buildErrorCode(err)) {
-						return quotaErrorToolResponse(
-							ctx,
-							db,
-							options.OwnerID,
-							ws.OrganizationID,
-							msg,
-							build.ID,
-							"start",
-						), nil
-					}
-					return buildToolResponse(newBuildError(msg, build.ID)), nil
+					return buildFailureToolResponse(
+						ctx,
+						db,
+						options.OwnerID,
+						ws.OrganizationID,
+						"start",
+						build.ID,
+						xerrors.Errorf("waiting for in-progress build: %w", err),
+					), nil
 				}
 				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
 				// Re-fire after the agent is fully ready so
@@ -221,19 +217,15 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				options.OnChatUpdated(updatedChat)
 			}
 			if err := waitForBuild(ctx, db, startBuild.ID); err != nil {
-				msg := xerrors.Errorf("workspace start build failed: %w", err).Error()
-				if codersdk.JobIsInsufficientQuotaErrorCode(buildErrorCode(err)) {
-					return quotaErrorToolResponse(
-						ownerCtx,
-						db,
-						options.OwnerID,
-						ws.OrganizationID,
-						msg,
-						startBuild.ID,
-						"start",
-					), nil
-				}
-				return buildToolResponse(newBuildError(msg, startBuild.ID)), nil
+				return buildFailureToolResponse(
+					ownerCtx,
+					db,
+					options.OwnerID,
+					ws.OrganizationID,
+					"start",
+					startBuild.ID,
+					xerrors.Errorf("workspace start build failed: %w", err),
+				), nil
 			}
 
 			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)

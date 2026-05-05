@@ -524,6 +524,124 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 		"quotaToolResponse must not set IsError; chatprompt strips structured fields from error responses")
 }
 
+func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	chatID := uuid.New()
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	buildID := uuid.New()
+
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{
+			ID:             workspaceID,
+			Name:           "existing-quota-workspace",
+			OrganizationID: orgID,
+		}, nil)
+	db.EXPECT().
+		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+			Transition:  database.WorkspaceTransitionStart,
+		}, nil)
+	firstJob := db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusRunning,
+		}, nil)
+	db.EXPECT().
+		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:     uuid.NullUUID{},
+		}).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceBuildByID(gomock.Any(), buildID).
+		Return(database.WorkspaceBuild{
+			ID:          buildID,
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+			Transition:  database.WorkspaceTransitionStart,
+		}, nil)
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusFailed,
+			Error:     sql.NullString{String: "insufficient quota", Valid: true},
+			ErrorCode: sql.NullString{
+				String: string(codersdk.JobErrorCodeInsufficientQuota),
+				Valid:  true,
+			},
+		}, nil).
+		After(firstJob)
+	db.EXPECT().
+		GetQuotaConsumedForUser(gomock.Any(), database.GetQuotaConsumedForUserParams{
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		}).
+		Return(int64(40), nil)
+	db.EXPECT().
+		GetQuotaAllowanceForUser(gomock.Any(), database.GetQuotaAllowanceForUserParams{
+			UserID:         ownerID,
+			OrganizationID: orgID,
+		}).
+		Return(int64(40), nil)
+
+	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
+		OwnerID: ownerID,
+		ChatID:  chatID,
+		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			t.Fatal("CreateFn should not be called when an existing build is in progress")
+			return codersdk.Workspace{}, nil
+		},
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q,"name":"test-existing-quota-fail"}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, string(codersdk.JobErrorCodeInsufficientQuota), result["error_code"])
+	require.Equal(t, "Workspace quota reached", result["title"])
+	require.Contains(t, result["error"], "existing workspace build failed")
+	require.Contains(t, result["message"], "workspace quota is full")
+	require.Equal(t, buildID.String(), result["build_id"])
+	quota, ok := result["quota"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(40), quota["credits_consumed"])
+	require.Equal(t, float64(40), quota["budget"])
+	require.False(t, resp.IsError)
+}
+
 func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 	t.Parallel()
 
@@ -1014,9 +1132,10 @@ func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.
 	options := testCheckExistingWorkspaceOptions(nil)
 	check := options.checkExistingWorkspace(context.Background(), db, chatID)
 
-	require.Error(t, check.Err)
-	require.Contains(t, check.Err.Error(), "existing workspace build failed")
-	require.Equal(t, buildID, check.FailedBuildID)
+	require.Error(t, check.BuildErr)
+	require.Contains(t, check.BuildErr.Error(), "existing workspace build failed")
+	require.Equal(t, buildID, check.BuildID)
+	require.NoError(t, check.Err)
 }
 
 func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {

@@ -87,9 +87,9 @@ func workspaceQuotaDetails(
 	db database.Store,
 	ownerID uuid.UUID,
 	organizationID uuid.UUID,
-) (*quotaErrorDetails, error) {
+) *quotaErrorDetails {
 	if db == nil || ownerID == uuid.Nil || organizationID == uuid.Nil {
-		return nil, nil
+		return nil
 	}
 
 	consumed, err := db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
@@ -97,19 +97,19 @@ func workspaceQuotaDetails(
 		OrganizationID: organizationID,
 	})
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	budget, err := db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
 		UserID:         ownerID,
 		OrganizationID: organizationID,
 	})
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	return &quotaErrorDetails{
 		CreditsConsumed: consumed,
 		Budget:          budget,
-	}, nil
+	}
 }
 
 func quotaErrorToolResponse(
@@ -121,6 +121,26 @@ func quotaErrorToolResponse(
 	buildID uuid.UUID,
 	action string,
 ) fantasy.ToolResponse {
-	quota, _ := workspaceQuotaDetails(ctx, db, ownerID, organizationID)
+	quota := workspaceQuotaDetails(ctx, db, ownerID, organizationID)
 	return quotaToolResponse(newQuotaError(msg, buildID, action, quota))
+}
+
+// buildFailureToolResponse keeps build failures as structured JSON tool
+// responses. The chatprompt pipeline strips structured fields from error
+// responses, so quota and generic build failures both use normal text
+// responses that the frontend detects via the "error" key.
+func buildFailureToolResponse(
+	ctx context.Context,
+	db database.Store,
+	ownerID uuid.UUID,
+	organizationID uuid.UUID,
+	action string,
+	buildID uuid.UUID,
+	err error,
+) fantasy.ToolResponse {
+	msg := err.Error()
+	if codersdk.JobIsInsufficientQuotaErrorCode(buildErrorCode(err)) {
+		return quotaErrorToolResponse(ctx, db, ownerID, organizationID, msg, buildID, action)
+	}
+	return buildToolResponse(newBuildError(msg, buildID))
 }
