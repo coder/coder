@@ -40,9 +40,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 				}}
 			>
 				<DialogHeader className="space-y-5 text-left sm:text-left">
-					<DialogTitle className="text-xl">
-						Welcome to Coder Agents
-					</DialogTitle>
+					<DialogTitle className="text-xl">Welcome to Coder Agents</DialogTitle>
 					<DialogDescription className="text-base">
 						Complete 2 quick steps to get started.
 					</DialogDescription>

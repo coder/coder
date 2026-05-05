@@ -252,18 +252,15 @@ export const MissingProviderAndModelSetup: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		const dialog = within(
-			body.getByRole("dialog", { name: "Finish setting up agents" }),
+			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
 		);
 
 		await waitFor(() => {
-			expect(dialog.getByText("Finish setting up agents")).toBeVisible();
+			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
 		});
-		expect(
-			dialog.getByText("Connect a chat provider (0 provider configured)"),
-		).toBeVisible();
-		expect(
-			dialog.getByText("Add a chat model (0 models configured)"),
-		).toBeVisible();
+		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
+		expect(dialog.getByText("Add a chat model")).toBeVisible();
+		expect(dialog.queryByLabelText("Complete")).not.toBeInTheDocument();
 		expect(
 			dialog.getByRole("link", { name: "Go to Providers" }),
 		).toHaveAttribute("href", "/agents/settings/providers");

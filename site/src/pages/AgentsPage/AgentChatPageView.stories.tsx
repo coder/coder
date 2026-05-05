@@ -401,12 +401,9 @@ export const MissingProviderAndModelSetup: Story = {
 		await waitFor(() => {
 			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
 		});
-		expect(
-			dialog.getByText("Connect a chat provider (0 provider configured)"),
-		).toBeVisible();
-		expect(
-			dialog.getByText("Add a chat model (0 models configured)"),
-		).toBeVisible();
+		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
+		expect(dialog.getByText("Add a chat model")).toBeVisible();
+		expect(dialog.queryByLabelText("Complete")).not.toBeInTheDocument();
 		expect(
 			dialog.getByRole("link", { name: "Go to Providers" }),
 		).toHaveAttribute("href", "/agents/settings/providers");
@@ -435,12 +432,9 @@ export const MissingModelSetup: Story = {
 		await waitFor(() => {
 			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
 		});
-		expect(
-			dialog.getByText("Connect a chat provider (1 provider configured)"),
-		).toBeVisible();
-		expect(
-			dialog.getByText("Add a chat model (0 models configured)"),
-		).toBeVisible();
+		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
+		expect(dialog.getByText("Add a chat model")).toBeVisible();
+		expect(dialog.getAllByLabelText("Complete")).toHaveLength(1);
 		expect(
 			dialog.getByRole("link", { name: "Go to Providers" }),
 		).toHaveAttribute("href", "/agents/settings/providers");
@@ -466,12 +460,9 @@ export const MissingProviderSetup: Story = {
 		await waitFor(() => {
 			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
 		});
-		expect(
-			dialog.getByText("Connect a chat provider (0 provider configured)"),
-		).toBeVisible();
-		expect(
-			dialog.getByText("Add a chat model (1 model configured)"),
-		).toBeVisible();
+		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
+		expect(dialog.getByText("Add a chat model")).toBeVisible();
+		expect(dialog.getAllByLabelText("Complete")).toHaveLength(1);
 		expect(
 			dialog.getByRole("link", { name: "Go to Providers" }),
 		).toHaveAttribute("href", "/agents/settings/providers");
