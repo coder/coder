@@ -7,6 +7,7 @@ import type { TemplateVersion } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { AlertVariant } from "#/modules/provisioners/ProvisionerAlert";
+import { BuildErrorAlert } from "#/modules/provisioners/BuildErrorAlert";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -68,6 +69,13 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 								availableProvisioners={availableProvisioners}
 								tags={templateVersion?.job.tags ?? {}}
 								variant={AlertVariant.Inline}
+							/>
+						)}
+
+						{error instanceof JobError && error.job.error && (
+							<BuildErrorAlert
+								error={error.job.error}
+								title="Template import failed"
 							/>
 						)}
 

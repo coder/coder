@@ -31,6 +31,7 @@ import {
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
 import { BuildAvatar } from "#/modules/builds/BuildAvatar/BuildAvatar";
+import { BuildErrorAlert } from "#/modules/provisioners/BuildErrorAlert";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
@@ -209,6 +210,10 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 												to delete the workspace skipping resource destruction.
 											</div>
 										</Alert>
+									)}
+								{build.job.status === "failed" &&
+									build.job.error && (
+										<BuildErrorAlert error={build.job.error} />
 									)}
 								{build?.job?.logs_overflowed && (
 									<Alert

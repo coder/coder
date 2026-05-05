@@ -226,7 +226,8 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	lockFilePath := e.files.TerraformLockFile()
 	preInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
 
-	outWriter, doneOut := e.provisionLogWriter(logr)
+		outWriter, doneOut, _ := e.provisionLogWriter(logr)
+
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -314,19 +315,29 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		args = append(args, "-var", variable)
 	}
 
-	outWriter, doneOut := e.provisionLogWriter(logr)
-	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
-	defer func() {
-		_ = outWriter.Close()
-		_ = errWriter.Close()
-		<-doneOut
-		<-doneErr
-	}()
+		outWriter, doneOut, diags := e.provisionLogWriter(logr)
+		errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
+		defer func() {
+			_ = outWriter.Close()
+			_ = errWriter.Close()
+			<-doneOut
+			<-doneErr
+		}()
 
-	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	if err != nil {
-		return nil, xerrors.Errorf("terraform plan: %w", err)
-	}
+		err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	// Close writers and drain log goroutines so all diagnostics
+	// are collected before we inspect them.
+	_ = outWriter.Close()
+	_ = errWriter.Close()
+	<-doneOut
+	<-doneErr
+		if err != nil {
+			if summary := diags.Summary(); summary != "" {
+				return nil, xerrors.Errorf("terraform plan: %s", summary)
+			}
+			return nil, xerrors.Errorf("terraform plan: %w", err)
+		}
+
 
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
@@ -531,20 +542,30 @@ func (e *executor) apply(
 		e.files.PlanFilePath(),
 	}
 
-	outWriter, doneOut := e.provisionLogWriter(logr)
-	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
-	defer func() {
-		_ = outWriter.Close()
-		_ = errWriter.Close()
-		<-doneOut
-		<-doneErr
-	}()
+		outWriter, doneOut, diags := e.provisionLogWriter(logr)
+		errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
+		defer func() {
+			_ = outWriter.Close()
+			_ = errWriter.Close()
+			<-doneOut
+			<-doneErr
+		}()
 
-	// `terraform apply`
-	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	if err != nil {
-		return nil, xerrors.Errorf("terraform apply: %w", err)
-	}
+		// `terraform apply`
+		err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	// Close writers and drain log goroutines so all diagnostics
+	// are collected before we inspect them.
+	_ = outWriter.Close()
+	_ = errWriter.Close()
+	<-doneOut
+	<-doneErr
+		if err != nil {
+			if summary := diags.Summary(); summary != "" {
+				return nil, xerrors.Errorf("terraform apply: %s", summary)
+			}
+			return nil, xerrors.Errorf("terraform apply: %w", err)
+		}
+
 
 	statefilePath := e.files.StateFilePath()
 	stateContent, err := os.ReadFile(statefilePath)
@@ -640,15 +661,18 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
 // closed by the caller to end logging, after which the returned channel will be closed to indicate that logging of the
 // written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func (e *executor) provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
+func (e *executor) provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any, *diagnosticCollector) {
 	r, w := io.Pipe()
 	done := make(chan any)
+	collector := &diagnosticCollector{}
 
-	go e.provisionReadAndLog(sink, r, done)
-	return w, done
+	go e.provisionReadAndLog(sink, r, done, collector)
+	return w, done, collector
 }
 
-func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
+
+func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- any, collector *diagnosticCollector) {
+
 	defer close(done)
 
 	errCount := 0
@@ -684,8 +708,38 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
 			sink.ProvisionLog(logLevel, diagLine)
 		}
+		// Capture error diagnostics so callers can include them
+		// in error messages. Use a newline between the summary
+		// and the detail to preserve the multi-line structure of
+		// messages like precondition failures.
+		if log.Diagnostic.Severity == "error" {
+			summary := log.Diagnostic.Summary
+			if log.Diagnostic.Detail != "" {
+				summary += ":\n" + log.Diagnostic.Detail
+			}
+			collector.errors = append(collector.errors, summary)
+		}
 	}
 }
+
+// diagnosticCollector captures terraform error diagnostics during
+// plan/apply so they can be included in error messages instead of
+// the generic "exit status 1".
+type diagnosticCollector struct {
+	errors []string
+}
+
+// Summary returns the most relevant error diagnostic collected
+// during the terraform operation.
+func (d *diagnosticCollector) Summary() string {
+	if len(d.errors) == 0 {
+		return ""
+	}
+	// Return the last error diagnostic, which is typically the
+	// most relevant (e.g. the resource that actually failed).
+	return d.errors[len(d.errors)-1]
+}
+
 
 func parseTerraformLogLine(line []byte) *terraformProvisionLog {
 	var log terraformProvisionLog

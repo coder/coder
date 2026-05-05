@@ -2,10 +2,10 @@ import { BlocksIcon, HistoryIcon } from "lucide-react";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
+import { BuildErrorAlert } from "#/modules/provisioners/BuildErrorAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
@@ -183,12 +183,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 							)}
 
 							{workspace.latest_build.job.error && (
-								<Alert severity="error" prominent>
-									<AlertTitle>Workspace build failed</AlertTitle>
-									<AlertDescription>
-										{workspace.latest_build.job.error}
-									</AlertDescription>
-								</Alert>
+								<BuildErrorAlert error={workspace.latest_build.job.error} />
 							)}
 
 							{transitionStats !== undefined && (

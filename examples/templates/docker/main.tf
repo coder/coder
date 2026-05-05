@@ -6,11 +6,21 @@ terraform {
     docker = {
       source = "kreuzwerker/docker"
     }
+    external = {
+      source = "hashicorp/external"
+    }
   }
 }
 
 locals {
   username = data.coder_workspace_owner.me.name
+  # Resolve the effective socket path so the check can verify
+  # connectivity before resource creation begins.
+  docker_socket_path = (
+    var.docker_socket != ""
+    ? replace(var.docker_socket, "unix://", "")
+    : "/var/run/docker.sock"
+  )
 }
 
 variable "docker_socket" {
@@ -22,6 +32,23 @@ variable "docker_socket" {
 provider "docker" {
   # Defaulting to null if the variable is an empty string lets us have an optional variable without having to set our own default
   host = var.docker_socket != "" ? var.docker_socket : null
+}
+
+# Verify Docker connectivity before any docker resources are
+# created. The external data source always succeeds (returns a
+# status), so the precondition can produce a clear, actionable
+# error instead of the generic provider message.
+data "external" "docker_check" {
+  program = ["sh", "-c", <<-EOT
+    if [ -S "${local.docker_socket_path}" ] && \
+       curl -sf --unix-socket "${local.docker_socket_path}" \
+            http://localhost/_ping >/dev/null 2>&1; then
+      echo '{"status":"ok"}'
+    else
+      echo '{"status":"unreachable"}'
+    fi
+  EOT
+  ]
 }
 
 data "coder_provisioner" "me" {}
@@ -149,6 +176,20 @@ resource "docker_volume" "home_volume" {
   # Protect the volume from being deleted due to changes in attributes.
   lifecycle {
     ignore_changes = all
+    precondition {
+      condition     = data.external.docker_check.result.status == "ok"
+      error_message = <<-EOF
+        Could not reach Docker at ${local.docker_socket_path}.
+
+        This template needs a working Docker socket on the provisioner host.
+        A few things to check:
+          - Is Docker installed?
+          - Is the daemon running? (sudo systemctl start docker)
+          - Can the Coder user access the socket?
+
+        Docs: https://coder.com/docs/admin/templates/extending-templates/docker-in-workspaces
+      EOF
+    }
   }
   # Add labels in Docker to keep track of orphan resources.
   labels {
