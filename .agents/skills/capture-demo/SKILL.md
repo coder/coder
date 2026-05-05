@@ -74,7 +74,87 @@ ffmpeg -y -i recording.mp4 \
 Expect roughly 2x the mp4 size. If over 5 MB, try `fps=8` or
 `scale=720:-1`.
 
-## Step 3: Extract a good frame
+## Step 3: Analyze and edit the recording
+
+Raw recordings from `computer_use` subagents are almost never
+publish-ready. The agent navigates slowly, retries failed actions,
+hits network errors, and spends most of its time on setup rather
+than the feature being demoed. Always review the recording before
+converting.
+
+### Extract frames for review
+
+```bash
+mkdir -p /tmp/frames
+ffmpeg -y -i recording.mp4 -vf "fps=1" /tmp/frames/f_%03d.jpg 2>&1 | tail -1
+DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 recording.mp4)
+echo "Duration: ${DURATION}s, Frames: $(ls /tmp/frames/f_*.jpg | wc -l)"
+```
+
+### Identify sections with a computer_use subagent
+
+Spawn a `computer_use` subagent to sample frames at regular
+intervals and describe what each shows. Sample 8-10 frames evenly
+spaced across the recording:
+
+```
+Open file:///tmp/frames/f_001.jpg, f_100.jpg, f_200.jpg, ...
+For each: one-line description ("login page", "starter templates",
+"prerequisites step", "creation form", etc.)
+```
+
+Build a timeline from the results:
+
+| Frames | Time | Content | Keep? |
+|--------|------|---------|-------|
+| 1-80 | 0-80s | Login failures | Cut |
+| 80-120 | ... | Gallery | Speed up 4-6x |
+| 120-150 | ... | Prerequisites step | Keep, normal speed |
+| 150-170 | ... | Creation form | Keep, trim to 5s |
+
+### Quality-check for bugs
+
+While reviewing frames, look for:
+- Text showing "undefined", "null", "NaN", or "[object Object]"
+- Blank or broken UI components
+- Error banners that shouldn't be there
+- Stale data from previous sessions
+
+If you find a rendering bug, **fix the code and re-record**.
+Don't ship a demo with visible bugs.
+
+### Cut and assemble
+
+Use ffmpeg to extract only the good sections. Speed up boring
+parts (navigation, loading) and keep the feature showcase at
+normal speed:
+
+```bash
+# Fast section (gallery browsing, 4x speed)
+ffmpeg -y -ss START -to END -i recording.mp4 -vf "setpts=0.25*PTS" -an /tmp/c1.mp4
+
+# Normal section (the feature)
+ffmpeg -y -ss START -to END -i recording.mp4 -an /tmp/c2.mp4
+
+# Concatenate
+cat > /tmp/clips.txt << 'EOF'
+file '/tmp/c1.mp4'
+file '/tmp/c2.mp4'
+EOF
+ffmpeg -y -f concat -safe 0 -i /tmp/clips.txt -c copy /tmp/edited.mp4
+```
+
+### Pacing guidelines
+
+- **Total recording**: aim for 15-60 seconds. Over 60s loses
+  attention.
+- **Setup/navigation**: speed up 4-6x or cut entirely.
+- **The feature itself**: normal speed, hold on key states for
+  3-5 seconds so viewers can read.
+- **Final state**: hold 3-4 seconds before ending.
+- **Login pages, error retries, loading spinners**: always cut.
+
+## Step 4: Extract a good frame
 
 Don't use the auto `.thumb.jpg` from `/tmp`, it's almost always
 a blank desktop.
@@ -97,7 +177,7 @@ START=$(echo "$DURATION * 0.75" | bc)
 ffmpeg -y -ss "$START" -i recording.mp4 -vf "fps=2" -frames:v 8 frame_%02d.jpg
 ```
 
-## Step 4: Stage in /tmp
+## Step 5: Stage in /tmp
 
 Get everything into a staging dir before touching git.
 
@@ -127,7 +207,7 @@ Recorded <date> against `<branch>` branch.
 EOF
 ```
 
-## Step 5: Push via worktree
+## Step 6: Push via worktree
 
 Use a worktree so your working branch stays untouched.
 
@@ -163,7 +243,7 @@ cd /path/to/coder
 git worktree remove /tmp/recordings-worktree
 ```
 
-## Step 6: Share it
+## Step 7: Share it
 
 ### Where to use what
 
