@@ -307,7 +307,7 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
-	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+	for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
 		result[k] = v
 	}
 	return result
