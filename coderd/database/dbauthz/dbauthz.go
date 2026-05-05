@@ -1748,10 +1748,9 @@ func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Contex
 }
 
 func (q *querier) ClearStaleChatRunnerReady(ctx context.Context, staleThreshold time.Time) ([]uuid.UUID, error) {
-	// System-only sweep called from chatd's stale chat recovery loop. The
-	// caller already runs under dbauthz.AsSystemRestricted because the
-	// workspace_agents rows it touches may belong to many different
-	// owners.
+	// System-only sweep called from chatd's stale chat recovery loop.
+	// Callers must run under dbauthz.AsSystemRestricted because the row
+	// updates span many workspaces and tenants.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}

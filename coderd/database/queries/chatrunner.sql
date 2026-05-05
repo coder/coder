@@ -82,12 +82,21 @@ WHERE
     id = @agent_id::uuid;
 
 -- name: ClearStaleChatRunnerReady :many
--- Clears chat_runner_ready on workspace agents that have been disconnected
--- past the agent stale threshold and still have at least one pending chat
--- bound to them. Coderd's AcquireChats query skips chats whose bound agent
--- still reports ready, so leaving the flag true after disconnect would
--- strand those chats indefinitely. Returns the IDs of the cleared agents
--- for observability.
+-- Clears chat_runner_ready on workspace agents that look unreachable yet
+-- still have at least one pending chat bound to them. Coderd's AcquireChats
+-- query skips chats whose bound agent still reports ready, so leaving the
+-- flag true after a workspace stop, agent crash, or ungraceful shutdown
+-- would strand those chats. The "looks unreachable" predicate covers two
+-- shapes:
+--
+--   1. The disconnect monitor recorded a disconnected_at older than the
+--      stale threshold (graceful disconnect or ping timeout).
+--   2. The agent never recorded a disconnected_at (e.g. coderd was
+--      restarted while the workspace was stopped, so the monitor never
+--      ran cleanup) but the most recent connection is older than the
+--      stale threshold.
+--
+-- Returns the IDs of the cleared agents for observability.
 UPDATE
     workspace_agents
 SET
@@ -95,8 +104,13 @@ SET
     chat_runner_ready_at = NULL
 WHERE
     chat_runner_ready = true
-    AND disconnected_at IS NOT NULL
-    AND disconnected_at < @stale_threshold::timestamptz
+    AND (
+        (disconnected_at IS NOT NULL
+            AND disconnected_at < @stale_threshold::timestamptz)
+        OR (disconnected_at IS NULL
+            AND last_connected_at IS NOT NULL
+            AND last_connected_at < @stale_threshold::timestamptz)
+    )
     AND EXISTS (
         SELECT 1
         FROM chats c

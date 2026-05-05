@@ -7933,8 +7933,12 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 	// true. coderd's AcquireChats query skips chats whose agent is ready,
 	// so leaving the flag set after a workspace stop or agent crash strands
 	// the chat in pending. Cleared agents fall back to coderd execution on
-	// the next acquire pass.
-	if cleared, err := p.db.ClearStaleChatRunnerReady(ctx, agentStaleAfter); err != nil {
+	// the next acquire pass. Run under the system context because the
+	// sweep updates workspace_agents rows across many workspaces and
+	// tenants.
+	//nolint:gocritic // System-wide sweep across all workspaces.
+	clearCtx := dbauthz.AsSystemRestricted(ctx)
+	if cleared, err := p.db.ClearStaleChatRunnerReady(clearCtx, agentStaleAfter); err != nil {
 		// Recovery is best-effort; do not abort the broader sweep.
 		p.logger.Warn(ctx, "failed to clear stale chat runner ready",
 			slog.Error(err))
