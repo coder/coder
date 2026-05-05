@@ -1271,9 +1271,9 @@
 									"state": ["beta"]
 								},
 								{
-									"title": "Advisor",
-									"description": "Optional advisor tool that gives agents inline strategic guidance during chat runs",
-									"path": "./ai-coder/agents/platform-controls/advisor.md",
+									"title": "Experiments",
+									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
+									"path": "./ai-coder/agents/platform-controls/experiments.md",
 									"state": ["beta"]
 								}
 							]

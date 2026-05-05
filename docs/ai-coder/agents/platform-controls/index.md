@@ -105,24 +105,6 @@ opt-out, or opt-in for each chat.
 
 See [MCP Servers](./mcp-servers.md) for configuration details.
 
-### Virtual desktop
-
-Administrators can enable a virtual desktop within agent workspaces.
-When enabled, agents can use `spawn_agent` with
-`type=computer_use` to interact with a
-desktop environment using screenshots, mouse, and keyboard input.
-
-This setting is available under **Agents** > **Settings** > **Experiments**.
-It requires:
-
-- The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
-  module to be installed in the workspace template.
-- A computer-use provider (Anthropic or OpenAI) to be configured. Select the
-  provider from the **Computer use provider** dropdown in the same section.
-  Anthropic is the default; the selected provider must have an API key
-  configured under the **Providers** tab. The model used for the computer-use
-  subagent is fixed per provider and is not configurable from this UI.
-
 ### Workspace autostop fallback
 
 Administrators can set a default autostop timer for agent-created workspaces
@@ -160,82 +142,17 @@ retention period are automatically purged. The default is 30 days.
 This setting is available under **Agents** > **Settings** > **Lifecycle**.
 See [Data Retention](./chat-retention.md) for details.
 
-### Advisor
+### Experiments
 
-Administrators can enable the **Advisor**, an optional tool that lets a root
-agent pause its current turn and request strategic guidance from a separate,
-single-step model call. It is intended for planning ambiguity, architectural
-tradeoffs, debugging strategy, and risk reduction.
+Administrators can opt in to experimental features under **Agents** >
+**Settings** > **Experiments**. These currently include the **Virtual
+desktop** (computer-use subagents), the **Advisor** (an inline second-opinion
+tool for root agents), and **Chat debug logging** (detailed traces of each
+chat turn). Behavior, configuration surface, and APIs may change between
+releases.
 
-This setting is available under **Agents** > **Settings** > **Experiments**.
-The advisor is not available in plan mode or to subagents. See
-[Advisor](./advisor.md) for configuration details and limits.
-
-### Chat debug logging
-
-Administrators can enable optional debug logging that records detailed traces
-of each chat turn, including the normalized request sent to the LLM provider,
-the full response, token usage, retry attempts, and error details. This is
-useful for troubleshooting unexpected model behavior, validating provider
-integrations, and reviewing how an agent reached a particular result.
-
-Debug logging is **off by default**. Three layers control whether it runs for
-a given chat:
-
-1. **Deployment override (force-on).** If `CODER_CHAT_DEBUG_LOGGING_ENABLED`
-   is set to `true` (or the equivalent CLI flag
-   `--chat-debug-logging-enabled` is passed at server start), debug logging is
-   forced on for every chat across the deployment. The runtime admin and user
-   toggles become read-only.
-1. **Runtime admin gate.** When the deployment override is unset,
-   administrators decide whether users can opt in. The gate is at
-   **Agents** > **Settings** > **Experiments** under
-   *Let users record chat debug logs*. The same value is exposed at
-   `GET/PUT /api/experimental/chats/config/debug-logging`. The PUT endpoint
-   requires `update` permission on the deployment configuration resource.
-1. **Per-user toggle.** When the admin has allowed it (and the deployment
-   override is unset), users can turn debug logging on for their own chats
-   from **Agents** > **Settings** > **General** under *Record debug logs for
-   my chats*. The same value is exposed at
-   `GET/PUT /api/experimental/chats/config/user-debug-logging`. The PUT
-   endpoint returns `409 Conflict` if the deployment override is active and
-   `403 Forbidden` if the admin has not enabled user opt-in.
-
-#### What gets captured
-
-Each chat turn produces a debug *run* with one or more *steps*. A step
-records:
-
-- The normalized request sent to the model provider (prompt, tools,
-  parameters).
-- The model's response, including completions, tool calls, and tool results.
-- Token usage and any per-attempt metadata.
-- Retry attempts and their payloads.
-- Errors returned by the provider, when applicable.
-
-> [!IMPORTANT]
-> Debug logs may contain sensitive content from prompts, responses, tool
-> calls, and errors. Treat them with the same care as conversation history.
-> Only the chat owner (or a user with read access to the chat) can fetch a
-> chat's debug runs through the API. Administrators do not get blanket
-> access to all users' debug data.
-
-#### Reading debug data
-
-There is no dashboard viewer for debug runs today. Use the experimental API
-to fetch them:
-
-- `GET /api/experimental/chats/{chat}/runs` lists the most recent runs for a
-  chat (up to 100, newest first).
-- `GET /api/experimental/chats/{chat}/runs/{debugRun}` returns a single run
-  with all of its steps, including the normalized request and response
-  bodies.
-
-Debug runs and steps are stored alongside the chat. They are not retained
-separately: when the parent conversation is deleted (manually, by retention,
-or by chat purge), the associated debug data is removed in the same
-operation. See [Data Retention](./chat-retention.md) for the conversation
-retention controls.
+See [Experiments](./experiments.md) for what each feature does, how to enable
+it, and the relevant API endpoints.
 
 ## Where we are headed
 
