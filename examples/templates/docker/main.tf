@@ -187,7 +187,7 @@ resource "docker_volume" "home_volume" {
           - Is the daemon running? (sudo systemctl start docker)
           - Can the Coder user access the socket?
 
-        Docs: https://coder.com/docs/admin/templates/extending-templates/docker-in-workspaces
+        Docs: https://coder.com/docs/tutorials/quickstart#cannot-connect-to-the-docker-daemon
       EOF
     }
   }
