@@ -177,6 +177,72 @@ This setting is available under **Agents** > **Settings** > **Experiments**.
 The advisor is not available in plan mode or to subagents. See
 [Advisor](./advisor.md) for configuration details and limits.
 
+### Chat debug logging
+
+Administrators can enable optional debug logging that records detailed traces
+of each chat turn, including the normalized request sent to the LLM provider,
+the full response, token usage, retry attempts, and error details. This is
+useful for troubleshooting unexpected model behavior, validating provider
+integrations, and reviewing how an agent reached a particular result.
+
+Debug logging is **off by default**. Three layers control whether it runs for
+a given chat:
+
+1. **Deployment override (force-on).** If `CODER_CHAT_DEBUG_LOGGING_ENABLED`
+   is set to `true` (or the equivalent CLI flag
+   `--chat-debug-logging-enabled` is passed at server start), debug logging is
+   forced on for every chat across the deployment. The runtime admin and user
+   toggles become read-only.
+1. **Runtime admin gate.** When the deployment override is unset,
+   administrators decide whether users can opt in. The gate is at
+   **Agents** > **Settings** > **Experiments** under
+   *Let users record chat debug logs*. The same value is exposed at
+   `GET/PUT /api/experimental/chats/config/debug-logging`. The PUT endpoint
+   requires `update` permission on the deployment configuration resource.
+1. **Per-user toggle.** When the admin has allowed it (and the deployment
+   override is unset), users can turn debug logging on for their own chats
+   from **Agents** > **Settings** > **General** under *Record debug logs for
+   my chats*. The same value is exposed at
+   `GET/PUT /api/experimental/chats/config/user-debug-logging`. The PUT
+   endpoint returns `409 Conflict` if the deployment override is active and
+   `403 Forbidden` if the admin has not enabled user opt-in.
+
+#### What gets captured
+
+Each chat turn produces a debug *run* with one or more *steps*. A step
+records:
+
+- The normalized request sent to the model provider (prompt, tools,
+  parameters).
+- The model's response, including completions, tool calls, and tool results.
+- Token usage and any per-attempt metadata.
+- Retry attempts and their payloads.
+- Errors returned by the provider, when applicable.
+
+> [!IMPORTANT]
+> Debug logs may contain sensitive content from prompts, responses, tool
+> calls, and errors. Treat them with the same care as conversation history.
+> Only the chat owner (or a user with read access to the chat) can fetch a
+> chat's debug runs through the API. Administrators do not get blanket
+> access to all users' debug data.
+
+#### Reading debug data
+
+There is no dashboard viewer for debug runs today. Use the experimental API
+to fetch them:
+
+- `GET /api/experimental/chats/{chat}/runs` lists the most recent runs for a
+  chat (up to 100, newest first).
+- `GET /api/experimental/chats/{chat}/runs/{debugRun}` returns a single run
+  with all of its steps, including the normalized request and response
+  bodies.
+
+Debug runs and steps are stored alongside the chat. They are not retained
+separately: when the parent conversation is deleted (manually, by retention,
+or by chat purge), the associated debug data is removed in the same
+operation. See [Data Retention](./chat-retention.md) for the conversation
+retention controls.
+
 ## Where we are headed
 
 The controls above cover providers, models, system prompts, templates, MCP
