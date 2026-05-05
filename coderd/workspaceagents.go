@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
+	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -3795,12 +3796,26 @@ func chatRunnerFunctionToolDefinition(
 func chatRunnerProviderDefinedToolDefinition(
 	tool fantasy.ProviderDefinedTool,
 ) (agentsdk.ChatRunnerToolDefinition, error) {
+	// Provider is only meaningful for the computer-use tool today, where the
+	// agent needs to know which provider implementation to instantiate. For
+	// every other provider-defined tool the field is omitted.
+	provider := ""
+	if tool.Name == "computer" {
+		switch {
+		case openaicomputeruse.IsTool(tool):
+			provider = chattool.ComputerUseProviderOpenAI
+		default:
+			provider = chattool.ComputerUseProviderAnthropic
+		}
+	}
 	providerConfig, err := json.Marshal(struct {
-		ID   string         `json:"id"`
-		Args map[string]any `json:"args"`
+		ID       string         `json:"id"`
+		Args     map[string]any `json:"args"`
+		Provider string         `json:"provider,omitempty"`
 	}{
-		ID:   tool.ID,
-		Args: tool.Args,
+		ID:       tool.ID,
+		Args:     tool.Args,
+		Provider: provider,
 	})
 	if err != nil {
 		return agentsdk.ChatRunnerToolDefinition{}, xerrors.Errorf(

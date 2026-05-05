@@ -3,10 +3,12 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -19,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -450,7 +453,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 3, Valid: true},
 		}).Return(database.Chat{}, nil)
 
@@ -472,7 +475,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{String: "something broke", Valid: true},
+			LastError:   newPqLastError("something broke", true),
 			LeaseEpoch:  sql.NullInt64{Int64: 4, Valid: true},
 		}).Return(database.Chat{}, nil)
 
@@ -494,7 +497,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 5, Valid: true},
 		}).Return(database.Chat{}, nil)
 
@@ -517,7 +520,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 6, Valid: true},
 		}).Return(updatedChat, nil)
 
@@ -570,7 +573,7 @@ func TestReleaseChatLease(t *testing.T) {
 					WorkerID:    uuid.NullUUID{},
 					StartedAt:   sql.NullTime{},
 					HeartbeatAt: sql.NullTime{},
-					LastError:   sql.NullString{String: tt.errorMsg, Valid: tt.errorMsg != ""},
+					LastError:   newPqLastError(tt.errorMsg, tt.errorMsg != ""),
 					LeaseEpoch:  sql.NullInt64{Int64: tt.leaseEpoch, Valid: true},
 				}).Return(updatedChat, nil)
 
@@ -609,7 +612,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 14, Valid: true},
 		}).Return(updatedChat, nil)
 
@@ -654,7 +657,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 15, Valid: true},
 		}).Return(database.Chat{ID: chatID, Status: database.ChatStatusCompleted}, nil)
 
@@ -705,7 +708,7 @@ func TestReleaseChatLease(t *testing.T) {
 					WorkerID:    uuid.NullUUID{},
 					StartedAt:   sql.NullTime{},
 					HeartbeatAt: sql.NullTime{},
-					LastError:   sql.NullString{String: tt.errorMsg, Valid: tt.errorMsg != ""},
+					LastError:   newPqLastError(tt.errorMsg, tt.errorMsg != ""),
 					LeaseEpoch:  sql.NullInt64{Int64: tt.leaseEpoch, Valid: true},
 				}).Return(database.Chat{ID: chatID, Status: tt.status}, nil)
 
@@ -740,7 +743,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 10, Valid: true},
 		}).Return(database.Chat{ID: chatID, Status: database.ChatStatusRequiresAction}, nil)
 
@@ -775,7 +778,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 6, Valid: true},
 		}).Return(database.Chat{}, sql.ErrNoRows)
 
@@ -798,7 +801,7 @@ func TestReleaseChatLease(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 			LeaseEpoch:  sql.NullInt64{Int64: 6, Valid: true},
 		}).Return(database.Chat{}, dbErr)
 
@@ -830,4 +833,20 @@ func requireDRPCCode(t *testing.T, err error, wantCode uint64) {
 
 	require.Error(t, err)
 	require.Equal(t, wantCode, drpcerr.Code(err))
+}
+
+// newPqLastError builds the JSONB representation of a chat runner's
+// last error message. valid=false produces a NULL row.
+func newPqLastError(message string, valid bool) pqtype.NullRawMessage {
+	if !valid {
+		return pqtype.NullRawMessage{}
+	}
+	encoded, err := json.Marshal(codersdk.ChatError{
+		Message: message,
+		Kind:    chaterror.KindGeneric,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return pqtype.NullRawMessage{RawMessage: encoded, Valid: true}
 }

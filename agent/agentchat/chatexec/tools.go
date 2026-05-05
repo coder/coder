@@ -605,8 +605,9 @@ func buildProviderTools(
 }
 
 type providerDefinedToolConfig struct {
-	ID   string         `json:"id"`
-	Args map[string]any `json:"args"`
+	ID       string         `json:"id"`
+	Args     map[string]any `json:"args"`
+	Provider string         `json:"provider,omitempty"`
 }
 
 func providerToolFromDefinition(
@@ -653,7 +654,8 @@ func providerToolFromDefinition(
 	if err != nil {
 		return chatloop.ProviderTool{}, err
 	}
-	tool.Runner = chattool.NewComputerUseTool(width, height, getLocalConn, nil, quartz.NewReal(), logger.Named("computer_use"))
+	provider := chattool.DefaultComputerUseProvider(cfg.Provider)
+	tool.Runner = chattool.NewComputerUseTool(provider, width, height, getLocalConn, nil, quartz.NewReal(), logger.Named("computer_use"))
 	return tool, nil
 }
 

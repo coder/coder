@@ -568,7 +568,11 @@ func TestExecutor_BuildsProviderTools(t *testing.T) {
 			Name: "web_search",
 			Args: map[string]any{"allowed_domains": []string{"example.com"}},
 		}),
-		providerToolDefinition(t, chattool.ComputerUseProviderTool(1280, 800)),
+		func() agentsdk.ChatRunnerToolDefinition {
+			tool, err := chattool.ComputerUseProviderTool(chattool.ComputerUseProviderAnthropic, 1280, 800)
+			require.NoError(t, err)
+			return providerToolDefinition(t, tool)
+		}(),
 	}
 
 	client := &mockChatRunnerClient{runtimeContextResp: runtimeContext}

@@ -3254,7 +3254,6 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
 			LastError:   pqtype.NullRawMessage{},
-			LastError:   sql.NullString{},
 			LeaseEpoch:  sql.NullInt64{},
 		})
 		if updateErr != nil {

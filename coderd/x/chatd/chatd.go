@@ -5641,7 +5641,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if errors.Is(err, errHandoffToWorkspaceAgent) {
 			logger.Info(ctx, "handing off chat to workspace agent")
 			status = database.ChatStatusPending
-			lastError = ""
+			lastErrorPayload = nil
 			return
 		}
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {

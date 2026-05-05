@@ -3,9 +3,11 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,7 +18,26 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
+
+// encodeChatRunnerLastError converts an agent-supplied error message into a
+// JSONB-encoded codersdk.ChatError. Empty messages produce a NULL value so
+// release-on-success paths do not write a synthetic error row.
+func encodeChatRunnerLastError(message string) (pqtype.NullRawMessage, error) {
+	if message == "" {
+		return pqtype.NullRawMessage{}, nil
+	}
+	payload := codersdk.ChatError{
+		Message: message,
+		Kind:    chaterror.KindGeneric,
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return pqtype.NullRawMessage{}, err
+	}
+	return pqtype.NullRawMessage{RawMessage: encoded, Valid: true}, nil
+}
 
 type ChatRunnerAPI struct {
 	AgentID            uuid.UUID
@@ -179,6 +200,14 @@ func (a *ChatRunnerAPI) ReleaseChatLease(ctx context.Context, req *agentproto.Re
 		return nil, err
 	}
 
+	lastError, err := encodeChatRunnerLastError(req.Error)
+	if err != nil {
+		return nil, drpcerr.WithCode(
+			xerrors.Errorf("encode last error: %w", err),
+			uint64(codes.Internal),
+		)
+	}
+
 	// nolint:gocritic // Agent-side system operation.
 	chat, err := a.Database.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 		ID:          chatID,
@@ -187,11 +216,8 @@ func (a *ChatRunnerAPI) ReleaseChatLease(ctx context.Context, req *agentproto.Re
 		RunnerType:  database.NullChatRunnerType{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError: sql.NullString{
-			String: req.Error,
-			Valid:  req.Error != "",
-		},
-		LeaseEpoch: sql.NullInt64{Int64: req.LeaseEpoch, Valid: true},
+		LastError:   lastError,
+		LeaseEpoch:  sql.NullInt64{Int64: req.LeaseEpoch, Valid: true},
 	})
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {

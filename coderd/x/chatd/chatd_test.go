@@ -1914,7 +1914,7 @@ func TestAcquireChatsIncrementsLeaseEpoch(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 		LeaseEpoch:  sql.NullInt64{Valid: false},
 	})
 	require.NoError(t, err)
@@ -2312,7 +2312,7 @@ func TestUpdateChatStatusRejectsStaleEpoch(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 		LeaseEpoch:  sql.NullInt64{Int64: leaseEpoch - 1, Valid: true},
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
@@ -2330,7 +2330,7 @@ func TestUpdateChatStatusRejectsStaleEpoch(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 		LeaseEpoch:  sql.NullInt64{Int64: leaseEpoch, Valid: true},
 	})
 	require.NoError(t, err)
@@ -2343,7 +2343,7 @@ func TestUpdateChatStatusRejectsStaleEpoch(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 		LeaseEpoch:  sql.NullInt64{Valid: false},
 	})
 	require.NoError(t, err)
@@ -4140,7 +4140,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 		LeaseEpoch:  sql.NullInt64{Int64: startupRecoveredChats[0].LeaseEpoch, Valid: true},
 	})
 	require.NoError(t, err)
@@ -4463,7 +4463,7 @@ func TestUpdateChatStatus_ClearsRunnerType(t *testing.T) {
 		RunnerType:  database.NullChatRunnerType{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 		LeaseEpoch:  sql.NullInt64{Int64: acquired[0].LeaseEpoch, Valid: true},
 	})
 	require.NoError(t, err)

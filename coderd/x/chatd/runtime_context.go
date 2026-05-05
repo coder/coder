@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // ResolvedChainMode captures the prompt-chaining state derived from persisted
@@ -266,7 +265,15 @@ func (p *Server) resolveRuntimeContext(
 	)
 	providerToolDefinitions := buildProviderToolDefinitions(callConfig.ProviderOptions)
 	if chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse {
-		providerToolDefinitions = append(providerToolDefinitions, computerUseProviderToolDefinition())
+		computerUseProvider, _, _, cuErr := p.computerUseProviderAndModelFromConfig(ctx)
+		if cuErr != nil {
+			return runtimeCtx, xerrors.Errorf("resolve computer use provider: %w", cuErr)
+		}
+		tool, cuErr := computerUseProviderToolDefinition(computerUseProvider)
+		if cuErr != nil {
+			return runtimeCtx, xerrors.Errorf("build computer use provider tool: %w", cuErr)
+		}
+		providerToolDefinitions = append(providerToolDefinitions, tool)
 	}
 
 	runtimeCtx = resolvedRuntimeContext{
@@ -387,9 +394,10 @@ func buildProviderToolDefinitions(
 	return definitions
 }
 
-func computerUseProviderToolDefinition() fantasy.Tool {
-	desktopGeometry := workspacesdk.DefaultDesktopGeometry()
+func computerUseProviderToolDefinition(provider string) (fantasy.Tool, error) {
+	desktopGeometry := chattool.DefaultComputerUseDesktopGeometry(provider)
 	return chattool.ComputerUseProviderTool(
+		provider,
 		desktopGeometry.DeclaredWidth,
 		desktopGeometry.DeclaredHeight,
 	)
