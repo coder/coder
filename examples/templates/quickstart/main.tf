@@ -30,21 +30,27 @@ data "coder_workspace_owner" "me" {}
 # This runs via the external provider (no Docker dependency) so it
 # evaluates before any docker_* resource and produces a friendlier
 # error than the raw provider failure.
-data "external" "docker_check" {
-  program = [
-    "sh", "-c",
-    "if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then echo '{\"available\":\"true\"}'; else echo '{\"available\":\"false\"}'; fi",
-  ]
-}
-
-resource "terraform_data" "docker_available" {
-  lifecycle {
-    precondition {
-      condition     = data.external.docker_check.result.available == "true"
-      error_message = "Cannot connect to the Docker daemon. Make sure Docker is installed and the daemon is running. Check the logs for more information."
-    }
-  }
-}
+# TODO: Re-enable before merging. Removed during development because
+# the template import dry-run plan also triggers the precondition,
+# blocking import on provisioners without Docker.
+#
+# data "external" "docker_check" {
+#   count = data.coder_workspace.me.start_count
+#   program = [
+#     "sh", "-c",
+#     "if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then echo '{\"available\":\"true\"}'; else echo '{\"available\":\"false\"}'; fi",
+#   ]
+# }
+#
+# resource "terraform_data" "docker_available" {
+#   count = data.coder_workspace.me.start_count
+#   lifecycle {
+#     precondition {
+#       condition     = data.external.docker_check[0].result.available == "true"
+#       error_message = "Cannot connect to the Docker daemon. Make sure Docker is installed and the daemon is running. Check the logs for more information."
+#     }
+#   }
+# }
 
 # --- Parameters ---
 
@@ -57,6 +63,7 @@ data "coder_parameter" "languages" {
   default      = jsonencode(["python"])
   mutable      = true
   icon         = "/icon/code.svg"
+  order        = 1
 
   option {
     name  = "Python"
@@ -99,6 +106,7 @@ data "coder_parameter" "ides" {
   default      = jsonencode(["code-server"])
   mutable      = true
   icon         = "/icon/code.svg"
+  order        = 2
 
   option {
     name  = "VS Code (Browser)"
@@ -132,14 +140,76 @@ data "coder_parameter" "ides" {
   }
 }
 
+# Shown only when "JetBrains IDEs" is selected in the IDEs parameter.
+# Pre-selects IDEs that match the chosen languages.
+data "coder_parameter" "jetbrains_ides" {
+  count        = contains(local.ides, "jetbrains") ? 1 : 0
+  name         = "jetbrains_ides"
+  display_name = "JetBrains IDEs"
+  description  = "Select the JetBrains IDEs to install"
+  type         = "list(string)"
+  form_type    = "multi-select"
+  default      = jsonencode(local.jetbrains_ides_from_languages)
+  mutable      = true
+  icon         = "/icon/jetbrains.svg"
+  order        = 3
+
+  option {
+    name  = "IntelliJ IDEA"
+    value = "IU"
+    icon  = "/icon/intellij.svg"
+  }
+  option {
+    name  = "PyCharm"
+    value = "PY"
+    icon  = "/icon/pycharm.svg"
+  }
+  option {
+    name  = "GoLand"
+    value = "GO"
+    icon  = "/icon/goland.svg"
+  }
+  option {
+    name  = "WebStorm"
+    value = "WS"
+    icon  = "/icon/webstorm.svg"
+  }
+  option {
+    name  = "RustRover"
+    value = "RR"
+    icon  = "/icon/rustrover.svg"
+  }
+  option {
+    name  = "CLion"
+    value = "CL"
+    icon  = "/icon/clion.svg"
+  }
+  option {
+    name  = "PhpStorm"
+    value = "PS"
+    icon  = "/icon/phpstorm.svg"
+  }
+  option {
+    name  = "RubyMine"
+    value = "RM"
+    icon  = "/icon/rubymine.svg"
+  }
+  option {
+    name  = "Rider"
+    value = "RD"
+    icon  = "/icon/rider.svg"
+  }
+}
+
 data "coder_parameter" "git_repo" {
   name         = "git_repo"
-  display_name = "Git Repository"
+  display_name = "Git Repository (Optional)"
   description  = "URL of a Git repository to clone into your workspace (leave empty to skip)"
   type         = "string"
   default      = ""
   mutable      = true
   icon         = "/icon/git.svg"
+  order        = 4
 }
 
 # --- Locals ---
@@ -150,7 +220,7 @@ locals {
   ides      = jsondecode(data.coder_parameter.ides.value)
 
   # Map selected languages to the relevant JetBrains IDE product codes.
-  # Only these IDEs appear when the user selects "JetBrains IDEs."
+  # Used as the default for the JetBrains IDE selector parameter.
   jetbrains_by_language = {
     python = ["PY"]
     go     = ["GO"]
@@ -159,9 +229,13 @@ locals {
     rust   = ["RR"]
     cpp    = ["CL"]
   }
-  jetbrains_ides = distinct(flatten([
+  jetbrains_ides_from_languages = distinct(flatten([
     for lang in local.languages : lookup(local.jetbrains_by_language, lang, [])
   ]))
+
+  # The actual JetBrains IDEs to install, from the user's selection
+  # in the conditional JetBrains parameter (or empty if not shown).
+  jetbrains_selected = contains(local.ides, "jetbrains") ? jsondecode(data.coder_parameter.jetbrains_ides[0].value) : []
 }
 
 # --- Agent ---
@@ -253,14 +327,18 @@ module "cursor" {
   order    = 3
 }
 
-module "jetbrains" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "jetbrains") && length(local.jetbrains_ides) > 0 ? 1 : 0)
-  source   = "registry.coder.com/coder/jetbrains/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
-  default  = toset(local.jetbrains_ides)
-}
+# TODO: Re-add the coder/jetbrains module once Coder's dynamic
+# parameter system respects module count for parameter visibility.
+# The module's internal coder_parameter appears even when count = 0,
+# creating a ghost parameter in the workspace creation form.
+# module "jetbrains" {
+#   count    = data.coder_workspace.me.start_count * (contains(local.ides, "jetbrains") && length(local.jetbrains_selected) > 0 ? 1 : 0)
+#   source   = "registry.coder.com/coder/jetbrains/coder"
+#   version  = "~> 1.0"
+#   agent_id = coder_agent.main.id
+#   folder   = "/home/coder"
+#   default  = toset(local.jetbrains_selected)
+# }
 
 module "zed" {
   count    = data.coder_workspace.me.start_count * (contains(local.ides, "zed") ? 1 : 0)
@@ -306,9 +384,10 @@ data "coder_workspace_preset" "backend_go" {
   name = "Backend (Go)"
   icon = "/icon/go.svg"
   parameters = {
-    languages = jsonencode(["go"])
-    ides      = jsonencode(["code-server", "jetbrains"])
-    git_repo  = ""
+    languages      = jsonencode(["go"])
+    ides           = jsonencode(["code-server", "jetbrains"])
+    jetbrains_ides = jsonencode(["GO"])
+    git_repo       = ""
   }
 }
 
@@ -355,7 +434,7 @@ resource "docker_volume" "home_volume" {
     label = "coder.workspace_name_at_creation"
     value = data.coder_workspace.me.name
   }
-  depends_on = [terraform_data.docker_available]
+  depends_on = []
 }
 
 resource "docker_container" "workspace" {
@@ -393,5 +472,5 @@ resource "docker_container" "workspace" {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name
   }
-  depends_on = [terraform_data.docker_available]
+  depends_on = []
 }

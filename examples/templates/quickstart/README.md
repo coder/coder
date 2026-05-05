@@ -1,5 +1,5 @@
 ---
-display_name: Quickstart
+display_name: Coder Quickstart
 description: Get started with Coder by picking your languages, editors, and a repo
 icon: ../../../site/static/icon/coder.svg
 maintainer_github: coder
@@ -7,7 +7,7 @@ verified: true
 tags: [docker, quickstart]
 ---
 
-# Quickstart
+# Coder Quickstart
 
 Get up and running with Coder in minutes. Choose your programming languages, pick your preferred editors, optionally clone a Git repository, and start coding.
 
@@ -51,7 +51,7 @@ Select a preset to auto-fill languages and editors for common workflows:
 
 | Preset | Languages | Editors |
 |---|---|---|
-| **Web Development** (default) | Python, Node.js | VS Code (Browser) |
+| **Web Development** | Python, Node.js | VS Code (Browser) |
 | **Backend (Go)** | Go | VS Code (Browser), JetBrains GoLand |
 | **Data Science** | Python | VS Code (Browser) |
 | **Full Stack** | Python, Node.js, Go | VS Code (Browser), Cursor |
