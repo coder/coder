@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -59,6 +59,42 @@ export const MarkdownAndLinks: Story = {};
 export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
+	},
+};
+
+const singleLineCodeBlockMarkdown = `
+\`\`\`
+07c3697 feat: update agent skills
+\`\`\`
+`;
+
+const expectNativeCodeBlock = async (
+	canvasElement: HTMLElement,
+	text: RegExp,
+) => {
+	const canvas = within(canvasElement);
+	const codeText = await canvas.findByText(text);
+	const pre = codeText.closest("pre");
+	expect(pre).toBeInTheDocument();
+	expect(
+		canvasElement.querySelector("diffs-container"),
+	).not.toBeInTheDocument();
+	if (!(pre instanceof HTMLElement)) {
+		throw new Error("Expected fenced code to render as a native pre block.");
+	}
+	const styles = getComputedStyle(pre);
+	expect(styles.fontSize).toBe("12px");
+	expect(styles.lineHeight).toBe("20px");
+	expect(styles.paddingTop).toBe("8px");
+	expect(styles.paddingBottom).toBe(styles.paddingTop);
+};
+
+export const SingleLineFencedBlock: Story = {
+	args: {
+		children: singleLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectNativeCodeBlock(canvasElement, /07c3697 feat/);
 	},
 };
 
@@ -134,12 +170,8 @@ export const StreamingCodeFence: Story = {
 		streaming: true,
 	},
 	play: async ({ canvasElement }) => {
-		// The code fence should be parsed into a FileViewer (web component),
-		// not rendered as raw backtick text.
-		await waitFor(() => {
-			const viewer = canvasElement.querySelector("diffs-container");
-			expect(viewer).toBeInTheDocument();
-		});
+		await expectNativeCodeBlock(canvasElement, /const x = 1/);
+
 		// The raw triple-backtick should not appear as visible text.
 		const bodyText = canvasElement.textContent ?? "";
 		expect(bodyText).not.toContain("```");

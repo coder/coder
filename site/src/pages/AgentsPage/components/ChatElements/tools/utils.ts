@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
-import type React from "react";
+import type { CSSProperties } from "react";
 import * as Yup from "yup";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
@@ -420,7 +420,7 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": "1.5",
-} as React.CSSProperties;
+} as CSSProperties;
 
 export const BORDER_BG_STYLE = {
 	background: "hsl(var(--border-default))",

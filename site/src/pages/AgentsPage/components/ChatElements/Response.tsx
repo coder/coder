@@ -1,8 +1,3 @@
-import { useTheme } from "@emotion/react";
-import {
-	File as FileViewer,
-	type SupportedLanguages,
-} from "@pierre/diffs/react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
 import {
 	type Components,
@@ -31,14 +26,6 @@ const chatRehypePlugins = [
 	defaultRehypePlugins.harden,
 ];
 
-const fileViewerCSS =
-	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
-
-const fileViewerTheme = {
-	light: "github-light",
-	dark: "github-dark-high-contrast",
-} as const;
-
 type HastNode = {
 	type?: string;
 	value?: string;
@@ -58,8 +45,6 @@ type MarkdownComponentProps = {
 	disabled?: boolean;
 	className?: string;
 };
-
-type FileViewerThemeType = "light" | "dark";
 
 /**
  * Recursively extracts text from a HAST node tree. This is plain
@@ -86,10 +71,7 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 	);
 };
 
-const createComponents = (
-	fileViewerThemeType: FileViewerThemeType,
-	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
-): Components => {
+const createComponents = (): Components => {
 	return {
 		a: ({ href, children }: MarkdownComponentProps) => (
 			<a
@@ -191,8 +173,6 @@ const createComponents = (
 				{children}
 			</code>
 		),
-		// Fenced code blocks: extract language and content from the HAST
-		// node directly (plain data), then render with FileViewer.
 		pre: ({ node }: MarkdownComponentProps) => {
 			const codeChild = node?.children?.[0];
 			if (codeChild?.tagName === "code") {
@@ -200,44 +180,25 @@ const createComponents = (
 				const langClass = classes.find((c: string) =>
 					c.startsWith("language-"),
 				);
-				const lang = langClass ? langClass.replace("language-", "") : "text";
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
 					return (
-						<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs">
-							<FileViewer
-								file={{
-									name: `block.${lang}`,
-									lang: lang as SupportedLanguages,
-									contents: content,
-									cacheKey: content,
-								}}
-								options={{
-									overflow: "scroll",
-									themeType: fileViewerThemeType,
-									disableFileHeader: true,
-									disableLineNumbers: true,
-									theme: viewerTheme,
-									unsafeCSS: fileViewerCSS,
-								}}
-							/>
-						</div>
+						<pre className="my-4 overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2 font-mono text-xs leading-5 text-content-primary">
+							<code className={langClass}>{content}</code>
+						</pre>
 					);
 				}
 			}
-			return <pre>{node?.children?.map?.(() => null)}</pre>;
+			return <pre>{getHastText(node)}</pre>;
 		},
 	};
 };
 
-// Precompute component maps for both themes at module scope so
-// every Response instance shares the same stable references.
-// This prevents Streamdown from discarding its cached render
-// tree on each parent re-render.
-const componentsByTheme: Record<FileViewerThemeType, Components> = {
-	light: createComponents("light", fileViewerTheme.light),
-	dark: createComponents("dark", fileViewerTheme.dark),
-};
+// Precompute the component map at module scope so every Response
+// instance shares the same stable references. This prevents
+// Streamdown from discarding its cached render tree on each parent
+// re-render.
+const components = createComponents();
 
 export const Response = ({
 	className,
@@ -247,11 +208,6 @@ export const Response = ({
 	streaming,
 	...props
 }: ResponseProps) => {
-	const theme = useTheme();
-	const fileViewerThemeType: FileViewerThemeType =
-		theme.palette.mode === "dark" ? "dark" : "light";
-	const components = componentsByTheme[fileViewerThemeType];
-
 	return (
 		<div
 			ref={ref}
