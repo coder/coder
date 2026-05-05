@@ -1,6 +1,9 @@
-import type { ComponentPropsWithRef, ReactNode } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { useTheme } from "@emotion/react";
+import {
+	File as FileViewer,
+	type SupportedLanguages,
+} from "@pierre/diffs/react";
+import type { ComponentPropsWithRef, CSSProperties, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -94,20 +97,34 @@ const getCodeLanguage = (langClass: string | undefined): string | undefined => {
 	return languageAliases[language] ?? language;
 };
 
-const codeBlockClassName = cn(
-	"my-4 overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2 font-mono text-xs leading-5 text-content-primary",
-	"[&>code]:font-mono [&>code]:text-xs [&>code]:leading-5",
-	"[&_.token.comment]:text-content-secondary [&_.token.prolog]:text-content-secondary [&_.token.doctype]:text-content-secondary [&_.token.cdata]:text-content-secondary",
-	"[&_.token.punctuation]:text-content-secondary",
-	"[&_.token.property]:text-highlight-sky [&_.token.tag]:text-highlight-sky [&_.token.constant]:text-highlight-sky [&_.token.symbol]:text-highlight-sky",
-	"[&_.token.boolean]:text-highlight-orange [&_.token.number]:text-highlight-orange [&_.token.regex]:text-highlight-orange [&_.token.important]:text-highlight-orange",
-	"[&_.token.selector]:text-highlight-green [&_.token.attr-name]:text-highlight-green [&_.token.string]:text-highlight-green [&_.token.char]:text-highlight-green [&_.token.builtin]:text-highlight-green [&_.token.inserted]:text-highlight-green",
-	"[&_.token.operator]:text-highlight-purple [&_.token.entity]:text-highlight-purple [&_.token.url]:text-highlight-purple [&_.token.atrule]:text-highlight-purple [&_.token.attr-value]:text-highlight-purple [&_.token.keyword]:text-highlight-purple",
-	"[&_.token.function]:text-content-link [&_.token.class-name]:text-content-link",
-	"[&_.token.variable]:text-highlight-red [&_.token.deleted]:text-content-destructive",
-);
+const fileViewerTheme = {
+	light: "github-light",
+	dark: "github-dark-high-contrast",
+} as const;
 
-const createComponents = (): Components => {
+type FileViewerThemeType = keyof typeof fileViewerTheme;
+
+const markdownFileViewerCSS = [
+	":host { background-color: transparent !important; }",
+	"pre, [data-code], [data-line], [data-diffs-header] { background-color: transparent !important; }",
+	"[data-code] { padding-block: 8px !important; overflow: auto clip !important; scrollbar-width: none !important; }",
+	"[data-code]::-webkit-scrollbar { width: 0 !important; height: 0 !important; }",
+	"[data-disable-line-numbers][data-file] { --diffs-grid-number-column-width: 0px !important; }",
+	"[data-disable-line-numbers] [data-column-number] { min-width: 0 !important; padding: 0 !important; }",
+	"[data-line] { min-height: 20px !important; padding-inline: 12px !important; }",
+].join(" ");
+
+const markdownFileViewerStyle = {
+	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
+	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
+	"--diffs-font-size": "12px",
+	"--diffs-line-height": "20px",
+} as CSSProperties;
+
+const createComponents = (
+	fileViewerThemeType: FileViewerThemeType,
+	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
+): Components => {
 	return {
 		a: ({ href, children }: MarkdownComponentProps) => (
 			<a
@@ -216,26 +233,30 @@ const createComponents = (): Components => {
 				const langClass = classes.find((c: string) =>
 					c.startsWith("language-"),
 				);
-				const language = getCodeLanguage(langClass);
+				const rawLang = langClass?.replace(/^language-/, "") ?? "text";
+				const lang = getCodeLanguage(langClass) ?? "text";
 				const content = getHastText(codeChild).trimEnd();
-				if (content && language) {
-					return (
-						<SyntaxHighlighter
-							className={codeBlockClassName}
-							codeTagProps={{ className: langClass, style: {} }}
-							language={language}
-							style={dracula}
-							useInlineStyles={false}
-						>
-							{content}
-						</SyntaxHighlighter>
-					);
-				}
 				if (content) {
 					return (
-						<pre className={codeBlockClassName}>
-							<code>{content}</code>
-						</pre>
+						<div className="my-4 overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
+							<FileViewer
+								file={{
+									name: `block.${rawLang}`,
+									lang: lang as SupportedLanguages,
+									contents: content,
+									cacheKey: content,
+								}}
+								options={{
+									overflow: "scroll",
+									themeType: fileViewerThemeType,
+									disableFileHeader: true,
+									disableLineNumbers: true,
+									theme: viewerTheme,
+									unsafeCSS: markdownFileViewerCSS,
+								}}
+								style={markdownFileViewerStyle}
+							/>
+						</div>
 					);
 				}
 			}
@@ -244,11 +265,14 @@ const createComponents = (): Components => {
 	};
 };
 
-// Precompute the component map at module scope so every Response
-// instance shares the same stable references. This prevents
-// Streamdown from discarding its cached render tree on each parent
-// re-render.
-const components = createComponents();
+// Precompute component maps for both themes at module scope so
+// every Response instance shares the same stable references. This
+// prevents Streamdown from discarding its cached render tree on each
+// parent re-render.
+const componentsByTheme: Record<FileViewerThemeType, Components> = {
+	light: createComponents("light", fileViewerTheme.light),
+	dark: createComponents("dark", fileViewerTheme.dark),
+};
 
 export const Response = ({
 	className,
@@ -258,6 +282,11 @@ export const Response = ({
 	streaming,
 	...props
 }: ResponseProps) => {
+	const theme = useTheme();
+	const fileViewerThemeType: FileViewerThemeType =
+		theme.palette.mode === "dark" ? "dark" : "light";
+	const components = componentsByTheme[fileViewerThemeType];
+
 	return (
 		<div
 			ref={ref}

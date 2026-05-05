@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -63,7 +63,6 @@ export const FencedFileBlock: Story = {
 	play: async ({ canvasElement }) => {
 		await expectCodeBlock(canvasElement, /func ValidateToken/, {
 			highlighted: true,
-			languageClass: "language-go",
 		});
 	},
 };
@@ -74,46 +73,106 @@ const singleLineCodeBlockMarkdown = `
 \`\`\`
 `;
 
+const findCodeBlockHost = async (canvasElement: HTMLElement, text: RegExp) => {
+	let host: HTMLElement | undefined;
+	await waitFor(() => {
+		const hosts = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).filter(
+			(element): element is HTMLElement => element instanceof HTMLElement,
+		);
+		host = hosts.find((element) => {
+			text.lastIndex = 0;
+			return text.test(element.shadowRoot?.textContent ?? "");
+		});
+		expect(host).toBeDefined();
+	});
+
+	if (!host) {
+		throw new Error("Expected fenced code to render inside FileViewer.");
+	}
+	return host;
+};
+
 const expectCodeBlock = async (
 	canvasElement: HTMLElement,
 	text: RegExp,
-	options: { highlighted?: boolean; languageClass?: string } = {},
+	options: { highlighted?: boolean } = {},
 ) => {
-	const canvas = within(canvasElement);
-	const pre = await canvas.findByText((_, element) => {
-		if (!(element instanceof HTMLElement) || element.tagName !== "PRE") {
-			return false;
-		}
-		text.lastIndex = 0;
-		return text.test(element.textContent ?? "");
-	});
+	const host = await findCodeBlockHost(canvasElement, text);
+	expect(host).toBeInTheDocument();
+	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
+	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
+
+	const shadowRoot = host.shadowRoot;
+	if (!shadowRoot) {
+		throw new Error("Expected FileViewer to render code in its shadow root.");
+	}
+	expect(shadowRoot.textContent ?? "").not.toContain("```");
+
+	const pre = shadowRoot.querySelector(
+		"pre[data-file][data-disable-line-numbers]",
+	);
 	expect(pre).toBeInTheDocument();
-	expect(
-		canvasElement.querySelector("diffs-container"),
-	).not.toBeInTheDocument();
 	if (!(pre instanceof HTMLElement)) {
-		throw new Error("Expected fenced code to render as a native pre block.");
+		throw new Error("Expected FileViewer to render a pre element.");
 	}
-	const styles = getComputedStyle(pre);
-	expect(styles.fontSize).toBe("12px");
-	expect(styles.lineHeight).toBe("20px");
-	expect(styles.paddingTop).toBe("8px");
-	expect(styles.paddingBottom).toBe(styles.paddingTop);
-	const code = pre.querySelector("code");
-	if (options.languageClass) {
-		expect(code).toHaveClass(options.languageClass);
+
+	const code = shadowRoot.querySelector("[data-code]");
+	expect(code).toBeInTheDocument();
+	if (!(code instanceof HTMLElement)) {
+		throw new Error("Expected FileViewer to render a code container.");
 	}
+
+	const line = shadowRoot.querySelector("[data-line]");
+	expect(line).toBeInTheDocument();
+	if (!(line instanceof HTMLElement)) {
+		throw new Error("Expected FileViewer to render code lines.");
+	}
+
+	const gutter = shadowRoot.querySelector("[data-column-number]");
+	expect(gutter).toBeInTheDocument();
+	if (!(gutter instanceof HTMLElement)) {
+		throw new Error("Expected FileViewer to render its line-number gutter.");
+	}
+
+	const preStyles = getComputedStyle(pre);
+	expect(preStyles.fontSize).toBe("12px");
+	expect(preStyles.lineHeight).toBe("20px");
+
+	const codeStyles = getComputedStyle(code);
+	expect(codeStyles.paddingTop).toBe("8px");
+	expect(codeStyles.paddingBottom).toBe("8px");
+	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
+
+	const lineStyles = getComputedStyle(line);
+	expect(lineStyles.paddingLeft).toBe("12px");
+	expect(lineStyles.paddingRight).toBe("12px");
+	expect(lineStyles.paddingRight).toBe(lineStyles.paddingLeft);
+	expect(lineStyles.minHeight).toBe("20px");
+
+	const gutterStyles = getComputedStyle(gutter);
+	expect(gutterStyles.minWidth).toBe("0px");
+	expect(gutterStyles.paddingLeft).toBe("0px");
+	expect(gutterStyles.paddingRight).toBe("0px");
+
 	if (options.highlighted) {
-		const highlightedToken = pre.querySelector(
-			".token.keyword, .token.string, .token.function, .token.number",
-		);
-		expect(highlightedToken).toBeInTheDocument();
-		if (!(highlightedToken instanceof HTMLElement)) {
-			throw new Error("Expected fenced code to render highlighted tokens.");
+		let highlightedToken: HTMLElement | null = null;
+		await waitFor(() => {
+			const token = shadowRoot.querySelector("span[style*='color']");
+			expect(token).toBeInTheDocument();
+			if (!(token instanceof HTMLElement)) {
+				throw new Error("Expected FileViewer to render highlighted tokens.");
+			}
+			highlightedToken = token;
+		});
+		if (!highlightedToken) {
+			throw new Error("Expected FileViewer to render highlighted tokens.");
 		}
-		expect(getComputedStyle(highlightedToken).color).not.toBe(styles.color);
+		expect(getComputedStyle(highlightedToken).color).not.toBe(lineStyles.color);
 	}
-	return pre;
+
+	return host;
 };
 
 export const SingleLineFencedBlock: Story = {
@@ -194,11 +253,9 @@ export const StreamingCodeFence: Story = {
 		streaming: true,
 	},
 	play: async ({ canvasElement }) => {
-		const pre = await expectCodeBlock(canvasElement, /const x = 1/, {
+		await expectCodeBlock(canvasElement, /const x = 1/, {
 			highlighted: true,
-			languageClass: "language-ts",
 		});
-		expect(pre.querySelector(".token.keyword")).toBeInTheDocument();
 
 		// The raw triple-backtick should not appear as visible text.
 		const bodyText = canvasElement.textContent ?? "";
