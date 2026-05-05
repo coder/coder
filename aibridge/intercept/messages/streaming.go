@@ -551,8 +551,11 @@ newStream:
 			if currentKey != nil && i.markKeyOnError(ctx, currentKey, stream.Err()) {
 				continue newStream
 			}
-			// Non-key error: relay it.
-			respErr := getErrorResponse(stream.Err())
+			// Non-key error: relay it. Use mapStreamError so that
+			// unknown upstream errors (TCP reset, DNS failure, TLS
+			// error, deadline exceeded) are wrapped in a generic
+			// response instead of producing a silent HTTP 200.
+			respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr)
 			if respErr != nil {
 				interceptionErr = respErr
 				if events.IsStreaming() {
