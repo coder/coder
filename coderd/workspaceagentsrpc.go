@@ -426,6 +426,26 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 				)
 			}
 		}
+
+		// Clear chat_runner_ready when the agent disconnects. The flag is a
+		// liveness signal: it tells coderd's chat acquisition path to skip
+		// chats whose bound agent will run them. Leaving it true after the
+		// agent process is gone strands those chats, because coderd skips
+		// them and no agent runner is alive to claim them. Clearing here
+		// keeps the runner-readiness signal aligned with the connection
+		// state. Best-effort: an error here must not block disconnect
+		// cleanup.
+		if clearErr := m.db.UpdateWorkspaceAgentChatRunnerStatus(finalCtx, database.UpdateWorkspaceAgentChatRunnerStatusParams{
+			AgentID:         m.workspaceAgent.ID,
+			ChatRunnerReady: false,
+		}); clearErr != nil &&
+			!xerrors.Is(clearErr, context.Canceled) &&
+			!database.IsQueryCanceledError(clearErr) {
+			m.logger.Warn(finalCtx, "failed to clear chat runner ready on disconnect",
+				slog.Error(clearErr),
+			)
+		}
+
 		m.updater.publishWorkspaceUpdate(finalCtx, m.workspace.OwnerID, wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
 			WorkspaceID: m.workspaceBuild.WorkspaceID,

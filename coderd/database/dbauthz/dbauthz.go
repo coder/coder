@@ -1747,6 +1747,17 @@ func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Contex
 	return q.db.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID)
 }
 
+func (q *querier) ClearStaleChatRunnerReady(ctx context.Context, staleThreshold time.Time) ([]uuid.UUID, error) {
+	// System-only sweep called from chatd's stale chat recovery loop. The
+	// caller already runs under dbauthz.AsSystemRestricted because the
+	// workspace_agents rows it touches may belong to many different
+	// owners.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ClearStaleChatRunnerReady(ctx, staleThreshold)
+}
+
 func (q *querier) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {

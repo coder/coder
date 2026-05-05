@@ -304,6 +304,14 @@ func (m queryMetricsStore) ClearChatMessageProviderResponseIDsByChatID(ctx conte
 	return r0
 }
 
+func (m queryMetricsStore) ClearStaleChatRunnerReady(ctx context.Context, staleThreshold time.Time) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClearStaleChatRunnerReady(ctx, staleThreshold)
+	m.queryLatencies.WithLabelValues("ClearStaleChatRunnerReady").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearStaleChatRunnerReady").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeInterceptions(ctx, arg)

@@ -86,6 +86,13 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error
+	// Clears chat_runner_ready on workspace agents that have been disconnected
+	// past the agent stale threshold and still have at least one pending chat
+	// bound to them. Coderd's AcquireChats query skips chats whose bound agent
+	// still reports ready, so leaving the flag true after disconnect would
+	// strand those chats indefinitely. Returns the IDs of the cleared agents
+	// for observability.
+	ClearStaleChatRunnerReady(ctx context.Context, staleThreshold time.Time) ([]uuid.UUID, error)
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)

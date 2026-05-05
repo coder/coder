@@ -1,3 +1,5 @@
+//go:build !slim
+
 package chatdebug
 
 import (
@@ -299,6 +301,17 @@ func (s *Service) CreateRun(
 
 	s.publishEvent(ctx, run.ChatID, EventKindRunUpdate, run.ID, uuid.Nil)
 	return run, nil
+}
+
+// CreateCompactionRun is a slim-safe wrapper around CreateRun that returns
+// only the new run's ID. The chatloop package depends on this method so it
+// can compile in slim builds where the database row type is unavailable.
+func (s *Service) CreateCompactionRun(ctx context.Context, params CreateRunParams) (uuid.UUID, error) {
+	run, err := s.CreateRun(ctx, params)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return run.ID, nil
 }
 
 // UpdateRun updates an existing debug run and emits a run update event.
@@ -651,22 +664,6 @@ func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
 	}
 	CleanupStepCounter(p.RunID)
 	return nil
-}
-
-// ClassifyError maps a run error to the appropriate debug status.
-// nil → StatusCompleted, context.Canceled → StatusInterrupted,
-// everything else → StatusError. Callers with additional
-// classification rules (e.g. ErrInterrupted, ErrDynamicToolCall)
-// should handle those before falling back to this helper.
-func ClassifyError(err error) Status {
-	switch {
-	case err == nil:
-		return StatusCompleted
-	case errors.Is(err, context.Canceled):
-		return StatusInterrupted
-	default:
-		return StatusError
-	}
 }
 
 func nullUUID(id uuid.UUID) uuid.NullUUID {

@@ -310,7 +310,7 @@ func startCompactionDebugRun(
 	createRunCtx, createRunCancel := context.WithTimeout(
 		context.WithoutCancel(ctx), compactionDebugCreateRunTimeout,
 	)
-	run, err := options.DebugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	runID, err := options.DebugSvc.CreateCompactionRun(createRunCtx, chatdebug.CreateRunParams{
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
@@ -329,7 +329,7 @@ func startCompactionDebugRun(
 	}
 
 	compactionCtx := chatdebug.ContextWithRun(ctx, &chatdebug.RunContext{
-		RunID:               run.ID,
+		RunID:               runID,
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
@@ -348,7 +348,7 @@ func startCompactionDebugRun(
 		}
 		// Debug instrumentation must not surface as a compaction failure.
 		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
-			RunID:  run.ID,
+			RunID:  runID,
 			ChatID: options.ChatID,
 			Status: status,
 		})

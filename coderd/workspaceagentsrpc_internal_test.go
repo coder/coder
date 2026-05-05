@@ -99,6 +99,17 @@ func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 				After(connected).
 				Times(1).
 				Return(nil)
+			// Disconnect cleanup also clears the chat_runner_ready flag so
+			// pending chats bound to this agent can be picked up by coderd.
+			mDB.EXPECT().UpdateWorkspaceAgentChatRunnerStatus(
+				gomock.Any(),
+				database.UpdateWorkspaceAgentChatRunnerStatusParams{
+					AgentID:         agentID,
+					ChatRunnerReady: false,
+				},
+			).
+				AnyTimes().
+				Return(nil)
 			mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), build.WorkspaceID).
 				AnyTimes().
 				Return(database.WorkspaceBuild{ID: build.ID}, nil)
@@ -177,6 +188,16 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 		After(connected).
 		Times(1).
 		Return(nil)
+	// Disconnect cleanup also clears chat_runner_ready.
+	mDB.EXPECT().UpdateWorkspaceAgentChatRunnerStatus(
+		gomock.Any(),
+		database.UpdateWorkspaceAgentChatRunnerStatusParams{
+			AgentID:         agent.ID,
+			ChatRunnerReady: false,
+		},
+	).
+		AnyTimes().
+		Return(nil)
 	mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), build.WorkspaceID).
 		AnyTimes().
 		Return(database.WorkspaceBuild{ID: build.ID}, nil)
@@ -239,6 +260,16 @@ func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
 	).
 		After(connected).
 		Times(1).
+		Return(nil)
+	// Disconnect cleanup also clears chat_runner_ready.
+	mDB.EXPECT().UpdateWorkspaceAgentChatRunnerStatus(
+		gomock.Any(),
+		database.UpdateWorkspaceAgentChatRunnerStatusParams{
+			AgentID:         agent.ID,
+			ChatRunnerReady: false,
+		},
+	).
+		AnyTimes().
 		Return(nil)
 
 	// return a new buildID each time, meaning the connection is outdated
@@ -324,6 +355,16 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 	).
 		After(connected).
 		Times(1).
+		Return(nil)
+	// Disconnect cleanup also clears chat_runner_ready.
+	mDB.EXPECT().UpdateWorkspaceAgentChatRunnerStatus(
+		gomock.Any(),
+		database.UpdateWorkspaceAgentChatRunnerStatusParams{
+			AgentID:         agent.ID,
+			ChatRunnerReady: false,
+		},
+	).
+		AnyTimes().
 		Return(nil)
 	mDB.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), build.WorkspaceID).
 		AnyTimes().

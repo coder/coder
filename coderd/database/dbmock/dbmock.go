@@ -407,6 +407,21 @@ func (mr *MockStoreMockRecorder) ClearChatMessageProviderResponseIDsByChatID(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatMessageProviderResponseIDsByChatID", reflect.TypeOf((*MockStore)(nil).ClearChatMessageProviderResponseIDsByChatID), ctx, chatID)
 }
 
+// ClearStaleChatRunnerReady mocks base method.
+func (m *MockStore) ClearStaleChatRunnerReady(ctx context.Context, staleThreshold time.Time) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearStaleChatRunnerReady", ctx, staleThreshold)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearStaleChatRunnerReady indicates an expected call of ClearStaleChatRunnerReady.
+func (mr *MockStoreMockRecorder) ClearStaleChatRunnerReady(ctx, staleThreshold any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearStaleChatRunnerReady", reflect.TypeOf((*MockStore)(nil).ClearStaleChatRunnerReady), ctx, staleThreshold)
+}
+
 // CountAIBridgeInterceptions mocks base method.
 func (m *MockStore) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	m.ctrl.T.Helper()

@@ -7927,6 +7927,23 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 	now := time.Now()
 	coderdStaleAfter := now.Add(-p.inFlightChatStaleAfter)
 	agentStaleAfter := now.Add(-p.agentStaleAfter)
+
+	// Unstick chats whose bound workspace agent has been disconnected past
+	// the agent stale threshold but whose chat_runner_ready flag is still
+	// true. coderd's AcquireChats query skips chats whose agent is ready,
+	// so leaving the flag set after a workspace stop or agent crash strands
+	// the chat in pending. Cleared agents fall back to coderd execution on
+	// the next acquire pass.
+	if cleared, err := p.db.ClearStaleChatRunnerReady(ctx, agentStaleAfter); err != nil {
+		// Recovery is best-effort; do not abort the broader sweep.
+		p.logger.Warn(ctx, "failed to clear stale chat runner ready",
+			slog.Error(err))
+	} else if len(cleared) > 0 {
+		p.logger.Info(ctx, "cleared stale chat runner ready flags",
+			slog.F("agent_count", len(cleared)),
+			slog.F("agent_ids", cleared))
+	}
+
 	staleChats, err := p.db.GetStaleChats(ctx, database.GetStaleChatsParams{
 		AgentStaleThreshold:  agentStaleAfter,
 		CoderdStaleThreshold: coderdStaleAfter,

@@ -1,5 +1,3 @@
-//go:build !slim
-
 package chatexec
 
 import (
