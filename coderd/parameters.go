@@ -23,6 +23,8 @@ import (
 	"github.com/coder/websocket"
 )
 
+const initialDynamicParametersResponseID = -1
+
 // @Summary Evaluate dynamic parameters for template version
 // @ID evaluate-dynamic-parameters-for-template-version
 // @Security CoderSessionToken
@@ -68,7 +70,7 @@ func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter
 	}
 
 	api.templateVersionDynamicParameters(true, codersdk.DynamicParametersRequest{
-		ID:      -1,
+		ID:      initialDynamicParametersResponseID,
 		Inputs:  map[string]string{},
 		OwnerID: userID,
 	})(rw, r)
@@ -147,12 +149,12 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 		api.Logger,
 	)
 
-	secretEvents := make(chan struct{}, 1)
+	secretEvents := make(chan uuid.UUID, 1)
 	secretSubscriber := &parameterSecretEventSubscriber{
 		api:    api,
 		events: secretEvents,
 	}
-	secretSubscriber.EnsureOwner(ctx, initial.OwnerID)
+	secretSubscriber.UpdateOwnerSubscription(ctx, initial.OwnerID)
 	defer secretSubscriber.Close()
 
 	sender := dynamicParametersResponseSender{
@@ -161,7 +163,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	}
 
 	// Send an initial form state, computed without any user input.
-	if !sender.Send(ctx, -1, initial.OwnerID, initial.Inputs) {
+	if !sender.Send(ctx, initialDynamicParametersResponseID, initial.OwnerID, initial.Inputs) {
 		return
 	}
 
@@ -170,13 +172,16 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	updates := stream.Chan()
 	ownerID := initial.OwnerID
 	inputs := initial.Inputs
-	lastResponseID := -1
+	lastResponseID := initialDynamicParametersResponseID
 	for {
 		select {
 		case <-ctx.Done():
 			stream.Close(websocket.StatusGoingAway)
 			return
-		case <-secretEvents:
+		case eventOwnerID := <-secretEvents:
+			if eventOwnerID != ownerID {
+				continue
+			}
 			lastResponseID = nextDynamicParametersResponseID(lastResponseID, lastResponseID+1)
 			if !sender.Send(ctx, lastResponseID, ownerID, inputs) {
 				return
@@ -195,7 +200,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 
 			ownerID = update.OwnerID
 			inputs = update.Inputs
-			secretSubscriber.EnsureOwner(ctx, ownerID)
+			secretSubscriber.UpdateOwnerSubscription(ctx, ownerID)
 			responseID := nextDynamicParametersResponseID(lastResponseID, update.ID)
 			lastResponseID = responseID
 			if !sender.Send(ctx, responseID, ownerID, inputs) {
@@ -245,23 +250,22 @@ func (s dynamicParametersResponseSender) Send(
 
 type parameterSecretEventSubscriber struct {
 	api    *API
-	events chan struct{}
+	events chan uuid.UUID
 
 	cancel  func()
 	ownerID uuid.UUID
 }
 
-func (s *parameterSecretEventSubscriber) EnsureOwner(ctx context.Context, ownerID uuid.UUID) {
+// UpdateOwnerSubscription switches the pubsub subscription to the owner's
+// user secret channel. Dynamic parameters can render for a workspace owner
+// other than the connected user, so owner changes must update the channel
+// that drives secret requirement refreshes.
+func (s *parameterSecretEventSubscriber) UpdateOwnerSubscription(ctx context.Context, ownerID uuid.UUID) {
 	if ownerID == s.ownerID {
 		return
 	}
 	if s.cancel != nil {
 		s.Close()
-		// A canceled callback may have already queued one event.
-		select {
-		case <-s.events:
-		default:
-		}
 	}
 	// Websocket authorization uses the actor snapshot from connection
 	// creation, matching the rest of the websocket handlers.
@@ -270,7 +274,10 @@ func (s *parameterSecretEventSubscriber) EnsureOwner(ctx context.Context, ownerI
 		return
 	}
 	s.ownerID = ownerID
-	cancel, err := s.api.Pubsub.Subscribe(usersecretspubsub.Channel(ownerID), s.notify)
+	subscribedOwnerID := ownerID
+	cancel, err := s.api.Pubsub.Subscribe(usersecretspubsub.Channel(ownerID), func(context.Context, []byte) {
+		s.notify(subscribedOwnerID)
+	})
 	if err != nil {
 		// Leave the owner unset so transient pubsub failures can be
 		// retried on the next update for this owner.
@@ -292,9 +299,9 @@ func (s *parameterSecretEventSubscriber) Close() {
 	s.cancel = nil
 }
 
-func (s *parameterSecretEventSubscriber) notify(context.Context, []byte) {
+func (s *parameterSecretEventSubscriber) notify(ownerID uuid.UUID) {
 	select {
-	case s.events <- struct{}{}:
+	case s.events <- ownerID:
 	default:
 	}
 }
