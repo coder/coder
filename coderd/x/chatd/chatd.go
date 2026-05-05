@@ -25,7 +25,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
-	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -108,10 +107,6 @@ const (
 	// cross-replica relay subscribers time to connect and
 	// snapshot the buffer before it is garbage-collected.
 	bufferRetainGracePeriod = 5 * time.Second
-	// chatStreamHistoryFetchTimeout bounds server-owned shared
-	// history reads. It is intentionally generous because initial
-	// and catch-up scans may be larger than control-path lookups.
-	chatStreamHistoryFetchTimeout = 30 * time.Second
 	// chatStreamControlFetchTimeout bounds subscriber-owned
 	// control-path DB reads when the caller has no deadline.
 	chatStreamControlFetchTimeout = 5 * time.Second
@@ -183,11 +178,6 @@ type Server struct {
 	// gives each chat independent locking — concurrent chats
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
-
-	// streamMessageFetches coalesces concurrent chat stream durable
-	// history reads. It is not a cache: once a shared fetch
-	// completes, future reads hit the database again.
-	streamMessageFetches singleflight.Group[string, []database.ChatMessage]
 
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
 	// per chat to avoid re-fetching on every turn. The cache is
@@ -4257,21 +4247,6 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 	}
 }
 
-func cloneChatMessagesForStream(messages []database.ChatMessage) []database.ChatMessage {
-	cloned := slices.Clone(messages)
-	for i := range cloned {
-		cloned[i].Content.RawMessage = slices.Clone(cloned[i].Content.RawMessage)
-	}
-	return cloned
-}
-
-// streamSharedHistoryFetchContext detaches subscriber cancellation from a
-// shared history fetch and runs it under a server-owned timeout budget.
-// Shared work should not inherit the winner's request deadline.
-func streamSharedHistoryFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), chatStreamHistoryFetchTimeout)
-}
-
 // streamSubscriberControlFetchContext keeps a control-path lookup tied to the
 // requesting subscriber while applying a fallback timeout when the caller has
 // no deadline.
@@ -4280,33 +4255,6 @@ func streamSubscriberControlFetchContext(ctx context.Context) (context.Context, 
 		return ctx, func() {}
 	}
 	return context.WithTimeout(ctx, chatStreamControlFetchTimeout)
-}
-
-// getStreamChatMessages loads durable chat messages for an already-authorized
-// subscriber. Subscribe() must validate the caller before this helper is used.
-// The shared fetch intentionally runs as chatd so request identity and timeout
-// policy come from chatd rather than whichever caller won singleflight.
-func (p *Server) getStreamChatMessages(
-	ctx context.Context,
-	params database.GetChatMessagesByChatIDParams,
-) ([]database.ChatMessage, error) {
-	messages, err := singleflightDoChan(
-		ctx,
-		&p.streamMessageFetches,
-		fmt.Sprintf("chat-messages:%s:after:%d", params.ChatID, params.AfterID),
-		func() ([]database.ChatMessage, error) {
-			fetchCtx, cancel := streamSharedHistoryFetchContext(ctx)
-			defer cancel()
-			//nolint:gocritic // SubscribeAuthorized already validated the
-			// caller; the shared singleflight fetch runs as chatd so the
-			// leader's request identity cannot affect other authorized waiters.
-			return p.db.GetChatMessagesByChatID(dbauthz.AsChatd(fetchCtx), params)
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return cloneChatMessagesForStream(messages), nil
 }
 
 func subscribeWithInitialError(chatID uuid.UUID, message string) (
@@ -4491,7 +4439,7 @@ func (p *Server) SubscribeAuthorized(
 	// caller already has messages up to that ID (e.g. from the REST
 	// endpoint), so we only fetch newer ones to avoid sending
 	// duplicate data.
-	messages, err := p.getStreamChatMessages(ctx, database.GetChatMessagesByChatIDParams{
+	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chatID,
 		AfterID: afterMessageID,
 	})
@@ -4634,7 +4582,7 @@ func (p *Server) SubscribeAuthorized(
 							}
 							lastMessageID = event.Message.ID
 						}
-					} else if newMessages, msgErr := p.getStreamChatMessages(mergedCtx, database.GetChatMessagesByChatIDParams{
+					} else if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
 						AfterID: lastMessageID,
 					}); msgErr != nil {
