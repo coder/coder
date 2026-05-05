@@ -60,6 +60,12 @@ export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
 	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /func ValidateToken/, {
+			highlighted: true,
+			languageClass: "language-go",
+		});
+	},
 };
 
 const singleLineCodeBlockMarkdown = `
@@ -68,13 +74,19 @@ const singleLineCodeBlockMarkdown = `
 \`\`\`
 `;
 
-const expectNativeCodeBlock = async (
+const expectCodeBlock = async (
 	canvasElement: HTMLElement,
 	text: RegExp,
+	options: { highlighted?: boolean; languageClass?: string } = {},
 ) => {
 	const canvas = within(canvasElement);
-	const codeText = await canvas.findByText(text);
-	const pre = codeText.closest("pre");
+	const pre = await canvas.findByText((_, element) => {
+		if (!(element instanceof HTMLElement) || element.tagName !== "PRE") {
+			return false;
+		}
+		text.lastIndex = 0;
+		return text.test(element.textContent ?? "");
+	});
 	expect(pre).toBeInTheDocument();
 	expect(
 		canvasElement.querySelector("diffs-container"),
@@ -87,6 +99,21 @@ const expectNativeCodeBlock = async (
 	expect(styles.lineHeight).toBe("20px");
 	expect(styles.paddingTop).toBe("8px");
 	expect(styles.paddingBottom).toBe(styles.paddingTop);
+	const code = pre.querySelector("code");
+	if (options.languageClass) {
+		expect(code).toHaveClass(options.languageClass);
+	}
+	if (options.highlighted) {
+		const highlightedToken = pre.querySelector(
+			".token.keyword, .token.string, .token.function, .token.number",
+		);
+		expect(highlightedToken).toBeInTheDocument();
+		if (!(highlightedToken instanceof HTMLElement)) {
+			throw new Error("Expected fenced code to render highlighted tokens.");
+		}
+		expect(getComputedStyle(highlightedToken).color).not.toBe(styles.color);
+	}
+	return pre;
 };
 
 export const SingleLineFencedBlock: Story = {
@@ -94,7 +121,7 @@ export const SingleLineFencedBlock: Story = {
 		children: singleLineCodeBlockMarkdown,
 	},
 	play: async ({ canvasElement }) => {
-		await expectNativeCodeBlock(canvasElement, /07c3697 feat/);
+		await expectCodeBlock(canvasElement, /07c3697 feat/);
 	},
 };
 
@@ -160,17 +187,18 @@ export const StreamingInlineMarkdown: Story = {
 };
 
 // Verifies that an incomplete fenced code block in streaming mode
-// renders inside a code element rather than showing raw backticks.
-// The FileViewer renders a <diffs-container> web component whose
-// content lives in Shadow DOM, so we assert on DOM structure rather
-// than text content inside the web component.
+// renders as code rather than showing raw backticks.
 export const StreamingCodeFence: Story = {
 	args: {
 		children: "```ts\nconst x = 1",
 		streaming: true,
 	},
 	play: async ({ canvasElement }) => {
-		await expectNativeCodeBlock(canvasElement, /const x = 1/);
+		const pre = await expectCodeBlock(canvasElement, /const x = 1/, {
+			highlighted: true,
+			languageClass: "language-ts",
+		});
+		expect(pre.querySelector(".token.keyword")).toBeInTheDocument();
 
 		// The raw triple-backtick should not appear as visible text.
 		const bodyText = canvasElement.textContent ?? "";

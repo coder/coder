@@ -1,4 +1,6 @@
 import type { ComponentPropsWithRef, ReactNode } from "react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -70,6 +72,40 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 		(classToken): classToken is string => typeof classToken === "string",
 	);
 };
+
+const languageAliases: Record<string, string> = {
+	js: "javascript",
+	jsx: "jsx",
+	py: "python",
+	rb: "ruby",
+	sh: "bash",
+	shell: "bash",
+	ts: "typescript",
+	tsx: "tsx",
+	yml: "yaml",
+	zsh: "bash",
+};
+
+const getCodeLanguage = (langClass: string | undefined): string | undefined => {
+	const language = langClass?.replace(/^language-/, "").toLowerCase();
+	if (!language) {
+		return undefined;
+	}
+	return languageAliases[language] ?? language;
+};
+
+const codeBlockClassName = cn(
+	"my-4 overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2 font-mono text-xs leading-5 text-content-primary",
+	"[&>code]:font-mono [&>code]:text-xs [&>code]:leading-5",
+	"[&_.token.comment]:text-content-secondary [&_.token.prolog]:text-content-secondary [&_.token.doctype]:text-content-secondary [&_.token.cdata]:text-content-secondary",
+	"[&_.token.punctuation]:text-content-secondary",
+	"[&_.token.property]:text-highlight-sky [&_.token.tag]:text-highlight-sky [&_.token.constant]:text-highlight-sky [&_.token.symbol]:text-highlight-sky",
+	"[&_.token.boolean]:text-highlight-orange [&_.token.number]:text-highlight-orange [&_.token.regex]:text-highlight-orange [&_.token.important]:text-highlight-orange",
+	"[&_.token.selector]:text-highlight-green [&_.token.attr-name]:text-highlight-green [&_.token.string]:text-highlight-green [&_.token.char]:text-highlight-green [&_.token.builtin]:text-highlight-green [&_.token.inserted]:text-highlight-green",
+	"[&_.token.operator]:text-highlight-purple [&_.token.entity]:text-highlight-purple [&_.token.url]:text-highlight-purple [&_.token.atrule]:text-highlight-purple [&_.token.attr-value]:text-highlight-purple [&_.token.keyword]:text-highlight-purple",
+	"[&_.token.function]:text-content-link [&_.token.class-name]:text-content-link",
+	"[&_.token.variable]:text-highlight-red [&_.token.deleted]:text-content-destructive",
+);
 
 const createComponents = (): Components => {
 	return {
@@ -167,7 +203,7 @@ const createComponents = (): Components => {
 		td: ({ children }: MarkdownComponentProps) => (
 			<td className="px-4 py-2">{children}</td>
 		),
-		// Inline code only — fenced blocks are handled by the pre override.
+		// Inline code only, fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
 			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
 				{children}
@@ -180,11 +216,25 @@ const createComponents = (): Components => {
 				const langClass = classes.find((c: string) =>
 					c.startsWith("language-"),
 				);
+				const language = getCodeLanguage(langClass);
 				const content = getHastText(codeChild).trimEnd();
+				if (content && language) {
+					return (
+						<SyntaxHighlighter
+							className={codeBlockClassName}
+							codeTagProps={{ className: langClass, style: {} }}
+							language={language}
+							style={dracula}
+							useInlineStyles={false}
+						>
+							{content}
+						</SyntaxHighlighter>
+					);
+				}
 				if (content) {
 					return (
-						<pre className="my-4 overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2 font-mono text-xs leading-5 text-content-primary">
-							<code className={langClass}>{content}</code>
+						<pre className={codeBlockClassName}>
+							<code>{content}</code>
 						</pre>
 					);
 				}
