@@ -116,8 +116,9 @@ It requires:
 
 - The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
   module to be installed in the workspace template.
-- An Anthropic provider to be configured (computer use is an Anthropic
-  capability).
+- An Anthropic or OpenAI provider to be configured. Administrators select
+  which provider agents use under the **Computer use provider** dropdown
+  next to the virtual desktop toggle. Anthropic is the default.
 
 ### Workspace autostop fallback
 

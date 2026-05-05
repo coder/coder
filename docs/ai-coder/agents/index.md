@@ -265,8 +265,8 @@ are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
 
 `spawn_agent` with `type=computer_use` additionally requires an
-Anthropic provider and the virtual desktop feature to be enabled by an
-administrator.
+Anthropic or OpenAI provider and the virtual desktop feature to be
+enabled by an administrator.
 `read_skill` and `read_skill_file` are available when the workspace contains
 skills in its `.agents/skills/` directory.
 
