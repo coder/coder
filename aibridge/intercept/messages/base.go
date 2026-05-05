@@ -209,6 +209,9 @@ func (i *interceptionBase) isSmallFastModel() bool {
 // calls. BYOK auth is set here. Centralized auth is set
 // per-attempt by the failover loop.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
+	// TODO(ssncferreira): validate auth is configured per
+	// https://github.com/coder/aibridge/issues/266.
+
 	// BYOK auth.
 	if i.cfg.KeyPool == nil {
 		if i.cfg.BYOKBearerToken != "" {
