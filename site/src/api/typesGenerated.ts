@@ -8259,6 +8259,10 @@ export interface UpdateTemplateACL {
 }
 
 // From codersdk/templates.go
+/**
+ * UpdateTemplateMeta is the request body for the PATCH /templates/{template}
+ * endpoint. All fields are optional. Fields that are nil are not modified.
+ */
 export interface UpdateTemplateMeta {
 	readonly name?: string;
 	readonly display_name?: string;
@@ -8288,15 +8292,16 @@ export interface UpdateTemplateMeta {
 	 * UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	 * spawned from the template. This is useful for preventing workspaces being
 	 * immediately locked when updating the inactivity_ttl field to a new, shorter
-	 * value.
+	 * value. The action only runs when this field is set to true.
 	 */
-	readonly update_workspace_last_used_at: boolean;
+	readonly update_workspace_last_used_at?: boolean;
 	/**
-	 * UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned
-	 * from the template. This is useful for preventing dormant workspaces being immediately
-	 * deleted when updating the dormant_ttl field to a new, shorter value.
+	 * UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
+	 * from the template. This is useful for preventing dormant workspaces being
+	 * immediately deleted when updating the dormant_ttl field to a new, shorter
+	 * value. The action only runs when this field is set to true.
 	 */
-	readonly update_workspace_dormant_at: boolean;
+	readonly update_workspace_dormant_at?: boolean;
 	/**
 	 * RequireActiveVersion mandates workspaces built using this template
 	 * use the active version of the template. This option has no
@@ -8315,9 +8320,9 @@ export interface UpdateTemplateMeta {
 	 * behavior of granting the 'everyone' group access to use the template.
 	 * If this is set to true, the template will not be available to all users,
 	 * and must be explicitly granted to users or groups in the permissions settings
-	 * of the template.
+	 * of the template. The action only runs when this field is set to true.
 	 */
-	readonly disable_everyone_group_access: boolean;
+	readonly disable_everyone_group_access?: boolean;
 	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior?: CORSBehavior;
 	/**

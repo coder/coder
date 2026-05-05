@@ -314,7 +314,14 @@ func TestTemplateEdit(t *testing.T) {
 					ctx := testutil.Context(t, testutil.WaitLong)
 					err := inv.WithContext(ctx).Run()
 					if c.ok {
-						require.NoError(t, err)
+						// Either a successful no-op or a 304 Not Modified is
+						// acceptable: the request itself is allowed (it does not
+						// require enterprise entitlement), and AGPL silently
+						// ignores enterprise-only schedule fields, so the
+						// effective template state is unchanged.
+						if err != nil {
+							require.ErrorContains(t, err, "not modified")
+						}
 					} else {
 						require.Error(t, err)
 						require.ErrorContains(t, err, "appears to be an AGPL deployment")
@@ -430,7 +437,13 @@ func TestTemplateEdit(t *testing.T) {
 					ctx := testutil.Context(t, testutil.WaitLong)
 					err := inv.WithContext(ctx).Run()
 					if c.ok {
-						require.NoError(t, err)
+						// Either a successful no-op or a 304 Not Modified is
+						// acceptable: AGPL silently ignores enterprise-only
+						// schedule fields, so the effective template state is
+						// unchanged.
+						if err != nil {
+							require.ErrorContains(t, err, "not modified")
+						}
 					} else {
 						require.Error(t, err)
 						require.ErrorContains(t, err, "license is not entitled")
@@ -751,8 +764,10 @@ func TestTemplateEdit(t *testing.T) {
 					var req codersdk.UpdateTemplateMeta
 					err = json.Unmarshal(body, &req)
 					require.NoError(t, err)
-					assert.False(t, req.AllowUserAutostart)
-					assert.False(t, req.AllowUserAutostop)
+					require.NotNil(t, req.AllowUserAutostart)
+					assert.False(t, *req.AllowUserAutostart)
+					require.NotNil(t, req.AllowUserAutostop)
+					assert.False(t, *req.AllowUserAutostop)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
 					atomic.AddInt64(&updateTemplateCalled, 1)

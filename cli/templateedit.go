@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -88,6 +89,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			}
 
 			// Default values
+			if !userSetOption(inv, "name") {
+				name = template.Name
+			}
+
 			if !userSetOption(inv, "description") {
 				description = template.Description
 			}
@@ -169,12 +174,12 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			}
 
 			req := codersdk.UpdateTemplateMeta{
-				Name:               name,
+				Name:               &name,
 				DisplayName:        &displayName,
 				Description:        &description,
 				Icon:               &icon,
-				DefaultTTLMillis:   defaultTTL.Milliseconds(),
-				ActivityBumpMillis: activityBump.Milliseconds(),
+				DefaultTTLMillis:   ptr.Ref(defaultTTL.Milliseconds()),
+				ActivityBumpMillis: ptr.Ref(activityBump.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -182,15 +187,19 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 					DaysOfWeek: autostartRequirementDaysOfWeek,
 				},
-				FailureTTLMillis:               failureTTL.Milliseconds(),
-				TimeTilDormantMillis:           dormancyThreshold.Milliseconds(),
-				TimeTilDormantAutoDeleteMillis: dormancyAutoDeletion.Milliseconds(),
-				AllowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
-				AllowUserAutostart:             allowUserAutostart,
-				AllowUserAutostop:              allowUserAutostop,
-				RequireActiveVersion:           requireActiveVersion,
+				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
+				AllowUserCancelWorkspaceJobs:   &allowUserCancelWorkspaceJobs,
+				AllowUserAutostart:             &allowUserAutostart,
+				AllowUserAutostop:              &allowUserAutostop,
+				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
-				DisableEveryoneGroupAccess:     disableEveryoneGroup,
+				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
+				// TODO(PLAT-184): now that the API accepts partial updates,
+				// rewrite this CLI to only set pointers for flags the user
+				// explicitly provided via userSetOption. The current
+				// fetch-then-resend-everything dance is no longer required.
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)

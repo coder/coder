@@ -215,40 +215,43 @@ type ACLAvailable struct {
 	Groups []Group       `json:"groups"`
 }
 
+// UpdateTemplateMeta is the request body for the PATCH /templates/{template}
+// endpoint. All fields are optional. Fields that are nil are not modified.
 type UpdateTemplateMeta struct {
-	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
+	Name             *string `json:"name,omitempty" validate:"omitempty,template_name"`
 	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
 	Description      *string `json:"description,omitempty"`
 	Icon             *string `json:"icon,omitempty"`
-	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
+	DefaultTTLMillis *int64  `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
-	ActivityBumpMillis int64 `json:"activity_bump_ms,omitempty"`
+	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
-	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop              bool                          `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs   bool                          `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis               int64                         `json:"failure_ttl_ms,omitempty"`
-	TimeTilDormantMillis           int64                         `json:"time_til_dormant_ms,omitempty"`
-	TimeTilDormantAutoDeleteMillis int64                         `json:"time_til_dormant_autodelete_ms,omitempty"`
+	AllowUserAutostart             *bool                         `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              *bool                         `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   *bool                         `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               *int64                        `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           *int64                        `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis *int64                        `json:"time_til_dormant_autodelete_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
-	// value.
-	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
-	// UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned
-	// from the template. This is useful for preventing dormant workspaces being immediately
-	// deleted when updating the dormant_ttl field to a new, shorter value.
-	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	// value. The action only runs when this field is set to true.
+	UpdateWorkspaceLastUsedAt *bool `json:"update_workspace_last_used_at,omitempty"`
+	// UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
+	// from the template. This is useful for preventing dormant workspaces being
+	// immediately deleted when updating the dormant_ttl field to a new, shorter
+	// value. The action only runs when this field is set to true.
+	UpdateWorkspaceDormantAt *bool `json:"update_workspace_dormant_at,omitempty"`
 	// RequireActiveVersion mandates workspaces built using this template
 	// use the active version of the template. This option has no
 	// effect on template admins.
-	RequireActiveVersion bool `json:"require_active_version,omitempty"`
+	RequireActiveVersion *bool `json:"require_active_version,omitempty"`
 	// DeprecationMessage if set, will mark the template as deprecated and block
 	// any new workspaces from using this template.
 	// If passed an empty string, will remove the deprecated message, making
@@ -258,8 +261,8 @@ type UpdateTemplateMeta struct {
 	// behavior of granting the 'everyone' group access to use the template.
 	// If this is set to true, the template will not be available to all users,
 	// and must be explicitly granted to users or groups in the permissions settings
-	// of the template.
-	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
+	// of the template. The action only runs when this field is set to true.
+	DisableEveryoneGroupAccess *bool                         `json:"disable_everyone_group_access,omitempty"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
 	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`
 	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic

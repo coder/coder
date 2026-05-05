@@ -23334,7 +23334,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "disable_everyone_group_access": {
-                    "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+                    "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template. The action only runs when this field is set to true.",
                     "type": "boolean"
                 },
                 "disable_module_cache": {
@@ -23367,11 +23367,11 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "update_workspace_dormant_at": {
-                    "description": "UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being immediately\ndeleted when updating the dormant_ttl field to a new, shorter value.",
+                    "description": "UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being\nimmediately deleted when updating the dormant_ttl field to a new, shorter\nvalue. The action only runs when this field is set to true.",
                     "type": "boolean"
                 },
                 "update_workspace_last_used_at": {
-                    "description": "UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces\nspawned from the template. This is useful for preventing workspaces being\nimmediately locked when updating the inactivity_ttl field to a new, shorter\nvalue.",
+                    "description": "UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces\nspawned from the template. This is useful for preventing workspaces being\nimmediately locked when updating the inactivity_ttl field to a new, shorter\nvalue. The action only runs when this field is set to true.",
                     "type": "boolean"
                 },
                 "use_classic_parameter_flow": {

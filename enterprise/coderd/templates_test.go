@@ -186,14 +186,18 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// OK
+		// OK: setting the same level is a no-op under the new PATCH semantics
+		// (304 Not Modified) but must not be a server error.
 		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
-		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
+		if err != nil {
+			require.ErrorContains(t, err, "not modified")
+		}
+		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		assert.Equal(t, level, updated.MaxPortShareLevel)
-
+		assert.Equal(t, level, template.MaxPortShareLevel)
 		// Invalid level
 		level = "invalid"
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
@@ -258,7 +262,7 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        template.Name,
+			Name:        ptr.Ref(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        &template.Icon,
@@ -275,7 +279,7 @@ func TestTemplates(t *testing.T) {
 
 		// Ensure a missing field is a noop
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        template.Name,
+			Name:        ptr.Ref(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        ptr.Ref(template.Icon + "something"),
@@ -312,7 +316,7 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        template.Name,
+			Name:        ptr.Ref(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        &template.Icon,
@@ -348,12 +352,12 @@ func TestTemplates(t *testing.T) {
 
 		ctx := context.Background()
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         template.Name,
+			Name:                         ptr.Ref(template.Name),
 			DisplayName:                  &template.DisplayName,
 			Description:                  &template.Description,
 			Icon:                         &template.Icon,
-			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			DefaultTTLMillis:             time.Hour.Milliseconds(),
+			AllowUserCancelWorkspaceJobs: ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+			DefaultTTLMillis:             ptr.Ref(time.Hour.Milliseconds()),
 			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 				Weeks:      3,
@@ -402,14 +406,14 @@ func TestTemplates(t *testing.T) {
 			)
 
 			updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                           template.Name,
+				Name:                           ptr.Ref(template.Name),
 				DisplayName:                    &template.DisplayName,
 				Description:                    &template.Description,
 				Icon:                           &template.Icon,
-				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
-				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
-				FailureTTLMillis:               failureTTL.Milliseconds(),
-				TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+				AllowUserCancelWorkspaceJobs:   ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+				TimeTilDormantMillis:           ptr.Ref(inactivityTTL.Milliseconds()),
+				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 			})
 			require.NoError(t, err)
 			require.Equal(t, failureTTL.Milliseconds(), updated.FailureTTLMillis)
@@ -471,14 +475,14 @@ func TestTemplates(t *testing.T) {
 				// nolint: paralleltest // context is from parent t.Run
 				t.Run(c.Name, func(t *testing.T) {
 					_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-						Name:                           template.Name,
+						Name:                           ptr.Ref(template.Name),
 						DisplayName:                    &template.DisplayName,
 						Description:                    &template.Description,
 						Icon:                           &template.Icon,
-						AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
-						TimeTilDormantMillis:           c.TimeTilDormantMS,
-						FailureTTLMillis:               c.FailureTTLMS,
-						TimeTilDormantAutoDeleteMillis: c.DormantAutoDeleteMS,
+						AllowUserCancelWorkspaceJobs:   ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+						TimeTilDormantMillis:           ptr.Ref(c.TimeTilDormantMS),
+						FailureTTLMillis:               ptr.Ref(c.FailureTTLMS),
+						TimeTilDormantAutoDeleteMillis: ptr.Ref(c.DormantAutoDeleteMS),
 					})
 					require.Error(t, err)
 					cerr, ok := codersdk.AsError(err)
@@ -529,7 +533,7 @@ func TestTemplates(t *testing.T) {
 
 		dormantTTL := time.Minute
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
@@ -547,7 +551,7 @@ func TestTemplates(t *testing.T) {
 		// Disable the time_til_dormant_auto_delete on the template, then we can assert that the workspaces
 		// no longer have a deleting_at field.
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: 0,
+			TimeTilDormantAutoDeleteMillis: ptr.Ref[int64](0),
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 0, updated.TimeTilDormantAutoDeleteMillis)
@@ -604,8 +608,8 @@ func TestTemplates(t *testing.T) {
 		dormantTTL := time.Minute
 		//nolint:gocritic // non-template-admin cannot update template meta
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
-			UpdateWorkspaceDormantAt:       true,
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
+			UpdateWorkspaceDormantAt:       ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
@@ -661,8 +665,8 @@ func TestTemplates(t *testing.T) {
 
 		inactivityTTL := time.Minute
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis:      inactivityTTL.Milliseconds(),
-			UpdateWorkspaceLastUsedAt: true,
+			TimeTilDormantMillis:      ptr.Ref(inactivityTTL.Milliseconds()),
+			UpdateWorkspaceLastUsedAt: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, inactivityTTL.Milliseconds(), updated.TimeTilDormantMillis)
@@ -706,14 +710,14 @@ func TestTemplates(t *testing.T) {
 
 		// Update the field and assert it persists.
 		updatedTemplate, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: false,
+			RequireActiveVersion: ptr.Ref(false),
 		})
 		require.NoError(t, err)
 		require.False(t, updatedTemplate.RequireActiveVersion)
 
 		// Flip it back to ensure we aren't hardcoding to a default value.
 		updatedTemplate, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: true,
+			RequireActiveVersion: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.True(t, updatedTemplate.RequireActiveVersion)
@@ -1003,12 +1007,12 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(acl.Groups))
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         template.Name,
+			Name:                         ptr.Ref(template.Name),
 			DisplayName:                  &template.DisplayName,
 			Description:                  &template.Description,
 			Icon:                         &template.Icon,
-			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			DisableEveryoneGroupAccess:   true,
+			AllowUserCancelWorkspaceJobs: ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+			DisableEveryoneGroupAccess:   ptr.Ref(true),
 		})
 		require.NoError(t, err)
 

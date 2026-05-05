@@ -679,15 +679,36 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// All fields on UpdateTemplateMeta are optional. For each pointer field
+	// that is nil in the request, we fall back to the existing template's
+	// value so that omitted fields are not modified.
+	name := ptr.NilToDefault(req.Name, template.Name)
+	// Users should not be able to clear the template name in the UI.
+	if name == "" {
+		name = template.Name
+	}
+	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
+	description := ptr.NilToDefault(req.Description, template.Description)
+	icon := ptr.NilToDefault(req.Icon, template.Icon)
+	allowUserAutostart := ptr.NilToDefault(req.AllowUserAutostart, template.AllowUserAutostart)
+	allowUserAutostop := ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop)
+	allowUserCancelWorkspaceJobs := ptr.NilToDefault(req.AllowUserCancelWorkspaceJobs, template.AllowUserCancelWorkspaceJobs)
+	requireActiveVersion := ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion)
+	defaultTTLMillis := ptr.NilToDefault(req.DefaultTTLMillis, time.Duration(template.DefaultTTL).Milliseconds())
+	activityBumpMillis := ptr.NilToDefault(req.ActivityBumpMillis, time.Duration(template.ActivityBump).Milliseconds())
+	failureTTLMillis := ptr.NilToDefault(req.FailureTTLMillis, time.Duration(template.FailureTTL).Milliseconds())
+	timeTilDormantMillis := ptr.NilToDefault(req.TimeTilDormantMillis, time.Duration(template.TimeTilDormant).Milliseconds())
+	timeTilDormantAutoDeleteMillis := ptr.NilToDefault(req.TimeTilDormantAutoDeleteMillis, time.Duration(template.TimeTilDormantAutoDelete).Milliseconds())
+
 	var (
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
 		autostartRequirementDaysOfWeekParsed uint8
 	)
-	if req.DefaultTTLMillis < 0 {
+	if defaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.ActivityBumpMillis < 0 {
+	if activityBumpMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
 
@@ -736,13 +757,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	// to ensure an uninformed user does not send an unintentionally
 	// small number resulting in potentially catastrophic consequences.
 	const minTTL = 1000 * 60
-	if req.FailureTTLMillis < 0 || (req.FailureTTLMillis > 0 && req.FailureTTLMillis < minTTL) {
+	if failureTTLMillis < 0 || (failureTTLMillis > 0 && failureTTLMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Value must be at least one minute."})
 	}
-	if req.TimeTilDormantMillis < 0 || (req.TimeTilDormantMillis > 0 && req.TimeTilDormantMillis < minTTL) {
+	if timeTilDormantMillis < 0 || (timeTilDormantMillis > 0 && timeTilDormantMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_ms", Detail: "Value must be at least one minute."})
 	}
-	if req.TimeTilDormantAutoDeleteMillis < 0 || (req.TimeTilDormantAutoDeleteMillis > 0 && req.TimeTilDormantAutoDeleteMillis < minTTL) {
+	if timeTilDormantAutoDeleteMillis < 0 || (timeTilDormantAutoDeleteMillis > 0 && timeTilDormantAutoDeleteMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
 	maxPortShareLevel := template.MaxPortSharingLevel
@@ -786,44 +807,46 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		disableModuleCache = *req.DisableModuleCache
 	}
 
-	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
-	description := ptr.NilToDefault(req.Description, template.Description)
-	icon := ptr.NilToDefault(req.Icon, template.Icon)
-
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
-		if req.Name == template.Name &&
+		// disableEveryoneIntent is true when the request asks to remove the
+		// 'everyone' group access entry that currently exists on the template.
+		// We compute it before the no-op short-circuit so that an otherwise
+		// no-op request that toggles this one-shot field still falls through
+		// to the update path.
+		_, hasEveryoneGroup := template.GroupACL[template.OrganizationID.String()]
+		disableEveryoneIntent := req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess && hasEveryoneGroup
+
+		if name == template.Name &&
 			description == template.Description &&
 			displayName == template.DisplayName &&
 			icon == template.Icon &&
-			req.AllowUserAutostart == template.AllowUserAutostart &&
-			req.AllowUserAutostop == template.AllowUserAutostop &&
-			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
-			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
-			req.ActivityBumpMillis == time.Duration(template.ActivityBump).Milliseconds() &&
+			allowUserAutostart == template.AllowUserAutostart &&
+			allowUserAutostop == template.AllowUserAutostop &&
+			allowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
+			defaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
+			activityBumpMillis == time.Duration(template.ActivityBump).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
 			req.AutostopRequirement.Weeks == scheduleOpts.AutostopRequirement.Weeks &&
-			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
-			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
-			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
-			req.RequireActiveVersion == template.RequireActiveVersion &&
+			failureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
+			timeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
+			timeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
+			requireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
 			(classicTemplateFlow == template.UseClassicParameterFlow) &&
 			(disableModuleCache == template.DisableModuleCache) &&
 			maxPortShareLevel == template.MaxPortSharingLevel &&
-			corsBehavior == template.CorsBehavior {
+			corsBehavior == template.CorsBehavior &&
+			!disableEveryoneIntent {
 			return nil
 		}
 
-		// Users should not be able to clear the template name in the UI
-		name := req.Name
-		if name == "" {
-			name = template.Name
-		}
-
 		groupACL := template.GroupACL
-		if req.DisableEveryoneGroupAccess {
+		// DisableEveryoneGroupAccess is a one-shot intent: when set to true the
+		// everyone-group ACL entry is removed. Omitting the field (nil) or
+		// passing false leaves the ACL unchanged.
+		if req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess {
 			delete(groupACL, template.OrganizationID.String())
 		}
 
@@ -850,7 +873,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisplayName:                  displayName,
 			Description:                  description,
 			Icon:                         icon,
-			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
+			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      classicTemplateFlow,
@@ -861,9 +884,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
-		if template.RequireActiveVersion != req.RequireActiveVersion || deprecationMessage != template.Deprecated {
+		if template.RequireActiveVersion != requireActiveVersion || deprecationMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
-				RequireActiveVersion: req.RequireActiveVersion,
+				RequireActiveVersion: requireActiveVersion,
 				Deprecated:           deprecationMessage,
 			})
 			if err != nil {
@@ -876,15 +899,20 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("fetch updated template metadata: %w", err)
 		}
 
-		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
-		activityBump := time.Duration(req.ActivityBumpMillis) * time.Millisecond
-		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
-		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
-		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		defaultTTL := time.Duration(defaultTTLMillis) * time.Millisecond
+		activityBump := time.Duration(activityBumpMillis) * time.Millisecond
+		failureTTL := time.Duration(failureTTLMillis) * time.Millisecond
+		inactivityTTL := time.Duration(timeTilDormantMillis) * time.Millisecond
+		timeTilDormantAutoDelete := time.Duration(timeTilDormantAutoDeleteMillis) * time.Millisecond
+		// UpdateWorkspaceLastUsedAt is a one-shot intent: only run the side
+		// effect when the field was explicitly set to true.
 		var updateWorkspaceLastUsedAt workspacestats.UpdateTemplateWorkspacesLastUsedAtFunc
-		if req.UpdateWorkspaceLastUsedAt {
+		if req.UpdateWorkspaceLastUsedAt != nil && *req.UpdateWorkspaceLastUsedAt {
 			updateWorkspaceLastUsedAt = workspacestats.UpdateTemplateWorkspacesLastUsedAt
 		}
+		// UpdateWorkspaceDormantAt is a one-shot intent: only run the side
+		// effect when the field was explicitly set to true.
+		updateWorkspaceDormantAt := req.UpdateWorkspaceDormantAt != nil && *req.UpdateWorkspaceDormantAt
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			activityBump != time.Duration(template.ActivityBump) ||
@@ -894,14 +922,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			failureTTL != time.Duration(template.FailureTTL) ||
 			inactivityTTL != time.Duration(template.TimeTilDormant) ||
 			timeTilDormantAutoDelete != time.Duration(template.TimeTilDormantAutoDelete) ||
-			req.AllowUserAutostart != template.AllowUserAutostart ||
-			req.AllowUserAutostop != template.AllowUserAutostop {
+			allowUserAutostart != template.AllowUserAutostart ||
+			allowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
 				// Some of these values are enterprise-only, but the
 				// TemplateScheduleStore will handle avoiding setting them if
 				// unlicensed.
-				UserAutostartEnabled: req.AllowUserAutostart,
-				UserAutostopEnabled:  req.AllowUserAutostop,
+				UserAutostartEnabled: allowUserAutostart,
+				UserAutostopEnabled:  allowUserAutostop,
 				DefaultTTL:           defaultTTL,
 				ActivityBump:         activityBump,
 				AutostopRequirement: schedule.TemplateAutostopRequirement{
@@ -915,7 +943,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				TimeTilDormant:            inactivityTTL,
 				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
 				UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
-				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
+				UpdateWorkspaceDormantAt:  updateWorkspaceDormantAt,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -927,7 +955,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: fmt.Sprintf("Template with name %q already exists.", req.Name),
+				Message: fmt.Sprintf("Template with name %q already exists.", name),
 				Validations: []codersdk.ValidationError{{
 					Field:  "name",
 					Detail: "This value is already in use and should be unique.",
