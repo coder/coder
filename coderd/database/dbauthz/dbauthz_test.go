@@ -6255,6 +6255,114 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 	})
 }
 
+// TestAuthorizeProvisionerJob_SystemFastPath verifies that
+// authorizeProvisionerJob short-circuits for system-restricted callers
+// instead of fanning out into GetWorkspaceBuildByJobID -> GetWorkspaceByID.
+// That cascade adds 2 SQL queries + 1 RBAC eval per provisioner-job lookup
+// and saturates the pgx pool when called repeatedly from agent
+// instance-identity auth (see incident report against v2.33.0-rc.3).
+func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
+	t.Parallel()
+
+	jobID := uuid.New()
+	job := database.ProvisionerJob{
+		ID:   jobID,
+		Type: database.ProvisionerJobTypeWorkspaceBuild,
+	}
+
+	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
+
+	t.Run("AsSystemRestricted/SkipsCascade", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// The fast-path must short-circuit before GetWorkspaceBuildByJobID
+		// or GetWorkspaceByID can be called. The strict mock will fail
+		// the test if either is invoked.
+		mockDB.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).Return(job, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+
+		got, err := q.GetProvisionerJobByID(ctx, jobID)
+		require.NoError(t, err)
+		require.Equal(t, job, got)
+	})
+
+	t.Run("AsSystemRestricted/TemplateVersion/SkipsCascade", func(t *testing.T) {
+		t.Parallel()
+
+		// The fast-path is type-agnostic: it must short-circuit the
+		// template-version cascade as well, so neither
+		// GetTemplateVersionByJobID nor GetTemplateByID is invoked.
+		tvJobID := uuid.New()
+		tvJob := database.ProvisionerJob{
+			ID:   tvJobID,
+			Type: database.ProvisionerJobTypeTemplateVersionImport,
+		}
+
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		mockDB.EXPECT().GetProvisionerJobByID(gomock.Any(), tvJobID).Return(tvJob, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+
+		got, err := q.GetProvisionerJobByID(ctx, tvJobID)
+		require.NoError(t, err)
+		require.Equal(t, tvJob, got)
+	})
+
+	t.Run("NonSystemActor/StillCascades", func(t *testing.T) {
+		t.Parallel()
+
+		// An auditor has no ResourceSystem permission, so the fast-path
+		// must fall through to the workspace-build cascade. That cascade
+		// then fails authz on the workspace because auditors cannot read
+		// arbitrary workspaces. The error type is what we assert: it
+		// proves the cascade ran rather than the fast-path short-circuiting.
+		orgID := uuid.New()
+		wsID := uuid.New()
+		workspace := database.Workspace{
+			ID:             wsID,
+			OwnerID:        uuid.New(),
+			OrganizationID: orgID,
+		}
+		build := database.WorkspaceBuild{
+			ID:          uuid.New(),
+			WorkspaceID: wsID,
+			JobID:       jobID,
+		}
+		auditor := rbac.Subject{
+			ID:     uuid.NewString(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleAuditor()},
+			Groups: []string{orgID.String()},
+			Scope:  rbac.ScopeAll,
+		}
+
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		mockDB.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).Return(job, nil)
+		mockDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), jobID).Return(build, nil)
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		ctx := dbauthz.As(context.Background(), auditor)
+
+		_, err := q.GetProvisionerJobByID(ctx, jobID)
+		require.Error(t, err)
+		require.True(t, dbauthz.IsNotAuthorizedError(err),
+			"cascade must run and produce a NotAuthorized error for auditor: got %v", err)
+	})
+}
+
 func TestAsAutostart(t *testing.T) {
 	t.Parallel()
 

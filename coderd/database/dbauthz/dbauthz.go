@@ -1503,6 +1503,28 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole,
 }
 
 func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.ProvisionerJob) error {
+	// System-restricted callers (e.g. instance-identity agent auth via
+	// AsSystemRestricted) have already passed an outer authz check before
+	// reaching the provisioner job. Skip the per-job RBAC fan-out through
+	// GetWorkspaceBuildByJobID -> GetWorkspaceByID, which serializes 2
+	// extra DB queries + 1 RBAC eval per call. Under saturated pgx pools
+	// this cascade can block agent auth past the HTTP write timeout (see
+	// incident report against v2.33.0-rc.3 with multi-agent
+	// instance-identity templates).
+	//
+	// We check the subject type directly rather than calling
+	// authorizeContext(ResourceSystem) so we do not record a site-scoped
+	// authz call on every provisioner-job lookup; tests like
+	// TestCreateUserWorkspace/AuthzStory assert that workspace creation
+	// only emits org-scoped authz calls. The same actor.Type check is
+	// already used elsewhere in this file (see GetChatDiffStatusesByChatIDs).
+	//
+	// If a future system actor needs the same fast-path, add its
+	// SubjectType here explicitly rather than broadening to a permission
+	// check.
+	if actor, ok := ActorFromContext(ctx); ok && actor.Type == rbac.SubjectTypeSystemRestricted {
+		return nil
+	}
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		// Authorized call to get workspace build. If we can read the build, we can
