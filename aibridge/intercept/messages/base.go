@@ -532,7 +532,7 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 		return false
 	}
 	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.StatusCode, apiErr.Response,
+		ctx, key, apiErr.Response,
 		i.logger, i.providerName,
 	)
 }

@@ -94,7 +94,10 @@ func TestMarkKeyOnStatus(t *testing.T) {
 			key, err := pool.Walker().Next()
 			require.NoError(t, err)
 
-			resp := &http.Response{Header: make(http.Header)}
+			resp := &http.Response{
+				StatusCode: tc.statusCode,
+				Header:     make(http.Header),
+			}
 			for k, v := range tc.headers {
 				resp.Header.Set(k, v)
 			}
@@ -102,7 +105,6 @@ func TestMarkKeyOnStatus(t *testing.T) {
 			got := keypool.MarkKeyOnStatus(
 				context.Background(),
 				key,
-				tc.statusCode,
 				resp,
 				// 401 and 403 cases legitimately log at error
 				// level when marking a key permanent.

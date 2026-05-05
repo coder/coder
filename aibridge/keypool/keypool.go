@@ -207,8 +207,8 @@ func (p *Pool) exhaustionError() error {
 }
 
 // PoolState returns a snapshot of each key's state in the pool's
-// original order. The result reflects the state at call time and
-// is not updated after. Use Walker for the failover iteration path.
+// original order, used by tests and other diagnostic callers. Use
+// Walker for the failover iteration path.
 func (p *Pool) PoolState() []KeyState {
 	states := make([]KeyState, len(p.keys))
 	for i := range p.keys {

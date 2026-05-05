@@ -9,17 +9,20 @@ import (
 )
 
 // MarkKeyOnStatus marks key based on a key-specific HTTP
-// status code (429 for temporary, 401 or 403 for permanent).
-// Returns true if the status was a key-specific failover
-// trigger so callers can retry with the next key.
+// status code from resp (429 for temporary, 401 or 403 for
+// permanent). Returns true if the status was a key-specific
+// failover trigger so callers can retry with the next key.
 func MarkKeyOnStatus(
 	ctx context.Context,
 	key *Key,
-	statusCode int,
 	resp *http.Response,
 	logger slog.Logger,
 	providerName string,
 ) bool {
+	if resp == nil {
+		return false
+	}
+	statusCode := resp.StatusCode
 	switch statusCode {
 	case http.StatusTooManyRequests:
 		cooldown := ParseRetryAfter(resp)

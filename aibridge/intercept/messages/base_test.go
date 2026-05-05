@@ -1086,28 +1086,28 @@ func TestMarkKeyOnError(t *testing.T) {
 		{
 			// Rate-limited: temporary cooldown.
 			name:           "429_marks_temporary",
-			err:            &anthropic.Error{StatusCode: http.StatusTooManyRequests},
+			err:            &anthropic.Error{StatusCode: http.StatusTooManyRequests, Response: &http.Response{StatusCode: http.StatusTooManyRequests}},
 			expectedReturn: true,
 			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
 			// Auth failure: mark permanent.
 			name:           "401_marks_permanent",
-			err:            &anthropic.Error{StatusCode: http.StatusUnauthorized},
+			err:            &anthropic.Error{StatusCode: http.StatusUnauthorized, Response: &http.Response{StatusCode: http.StatusUnauthorized}},
 			expectedReturn: true,
 			expectedState:  keypool.KeyStatePermanent,
 		},
 		{
 			// Auth forbidden: mark permanent.
 			name:           "403_marks_permanent",
-			err:            &anthropic.Error{StatusCode: http.StatusForbidden},
+			err:            &anthropic.Error{StatusCode: http.StatusForbidden, Response: &http.Response{StatusCode: http.StatusForbidden}},
 			expectedReturn: true,
 			expectedState:  keypool.KeyStatePermanent,
 		},
 		{
 			// Server errors are not key-specific.
 			name:           "500_does_not_mark",
-			err:            &anthropic.Error{StatusCode: http.StatusInternalServerError},
+			err:            &anthropic.Error{StatusCode: http.StatusInternalServerError, Response: &http.Response{StatusCode: http.StatusInternalServerError}},
 			expectedReturn: false,
 			expectedState:  keypool.KeyStateValid,
 		},
