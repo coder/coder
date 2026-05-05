@@ -984,44 +984,96 @@
 					"path": "./ai-coder/ide-agents.md"
 				},
 				{
-					"title": "Coder Tasks",
-					"description": "Run Coding Agents on your Own Infrastructure",
-					"path": "./ai-coder/tasks.md",
+					"title": "Coder Agents",
+					"description": "Self-hosted agent by Coder",
+					"path": "./ai-coder/agents/index.md",
+					"state": ["beta"],
 					"children": [
 						{
-							"title": "Understanding Coder Tasks",
-							"description": "Core principles and concepts behind Coder Tasks",
-							"path": "./ai-coder/tasks-core-principles.md"
+							"title": "Getting Started",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
+							"path": "./ai-coder/agents/getting-started.md",
+							"state": ["beta"]
 						},
 						{
-							"title": "Custom Agents",
-							"description": "Run custom agents with Coder Tasks",
-							"path": "./ai-coder/custom-agents.md"
+							"title": "Architecture",
+							"description": "How the agent in the control plane communicates with workspaces",
+							"path": "./ai-coder/agents/architecture.md",
+							"state": ["beta"]
 						},
 						{
-							"title": "Task Lifecycle",
-							"description": "How tasks pause and resume, and what gets preserved",
-							"path": "./ai-coder/tasks-lifecycle.md"
+							"title": "Models",
+							"description": "Configure LLM providers and models for Coder Agents",
+							"path": "./ai-coder/agents/models.md",
+							"state": ["beta"]
 						},
 						{
-							"title": "Agent Compatibility",
-							"description": "Which AI agents support session persistence across workspace restarts",
-							"path": "./ai-coder/agent-compatibility.md"
+							"title": "Platform Controls",
+							"description": "How platform teams control agent behavior, models, and policies",
+							"path": "./ai-coder/agents/platform-controls/index.md",
+							"state": ["beta"],
+							"children": [
+								{
+									"title": "Template Optimization",
+									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "MCP Servers",
+									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
+									"path": "./ai-coder/agents/platform-controls/mcp-servers.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Spend Management",
+									"description": "Spend limits and cost tracking for Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Git Providers",
+									"description": "Git provider configuration for the in-chat diff viewer",
+									"path": "./ai-coder/agents/platform-controls/git-providers.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Data Retention",
+									"description": "Automatic cleanup of old conversation data",
+									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Auto-Archive",
+									"description": "Automatic archiving of inactive conversations",
+									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Experiments",
+									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
+									"path": "./ai-coder/agents/platform-controls/experiments.md",
+									"state": ["beta"]
+								}
+							]
 						},
 						{
-							"title": "Tasks Migration Guide",
-							"description": "Changes to Coder Tasks made in v2.28",
-							"path": "./ai-coder/tasks-migration.md"
+							"title": "Extending Agents",
+							"description": "Add custom skills and MCP tools to agent workspaces",
+							"path": "./ai-coder/agents/extending-agents.md",
+							"state": ["beta"]
 						},
 						{
-							"title": "Security \u0026 Agent Firewall",
-							"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
-							"path": "./ai-coder/security.md"
+							"title": "Chats API",
+							"description": "Programmatic access to Coder Agents via the Chats API",
+							"path": "./ai-coder/agents/chats-api.md",
+							"state": ["beta"]
 						},
 						{
-							"title": "Create a GitHub to Coder Tasks Workflow",
-							"description": "How to setup Coder Tasks to run in GitHub",
-							"path": "./ai-coder/github-to-tasks.md"
+							"title": "Tasks to Chats API Migration",
+							"description": "Guide for migrating from the Tasks API to the Chats API",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
+							"state": ["beta"]
 						}
 					]
 				},
@@ -1210,96 +1262,44 @@
 					"state": ["beta"]
 				},
 				{
-					"title": "Coder Agents",
-					"description": "Self-hosted agent by Coder",
-					"path": "./ai-coder/agents/index.md",
-					"state": ["beta"],
+					"title": "Coder Tasks",
+					"description": "Run Coding Agents on your Own Infrastructure",
+					"path": "./ai-coder/tasks.md",
 					"children": [
 						{
-							"title": "Getting Started",
-							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
-							"path": "./ai-coder/agents/getting-started.md",
-							"state": ["beta"]
+							"title": "Understanding Coder Tasks",
+							"description": "Core principles and concepts behind Coder Tasks",
+							"path": "./ai-coder/tasks-core-principles.md"
 						},
 						{
-							"title": "Architecture",
-							"description": "How the agent in the control plane communicates with workspaces",
-							"path": "./ai-coder/agents/architecture.md",
-							"state": ["beta"]
+							"title": "Custom Agents",
+							"description": "Run custom agents with Coder Tasks",
+							"path": "./ai-coder/custom-agents.md"
 						},
 						{
-							"title": "Models",
-							"description": "Configure LLM providers and models for Coder Agents",
-							"path": "./ai-coder/agents/models.md",
-							"state": ["beta"]
+							"title": "Task Lifecycle",
+							"description": "How tasks pause and resume, and what gets preserved",
+							"path": "./ai-coder/tasks-lifecycle.md"
 						},
 						{
-							"title": "Platform Controls",
-							"description": "How platform teams control agent behavior, models, and policies",
-							"path": "./ai-coder/agents/platform-controls/index.md",
-							"state": ["beta"],
-							"children": [
-								{
-									"title": "Template Optimization",
-									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
-									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "MCP Servers",
-									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
-									"path": "./ai-coder/agents/platform-controls/mcp-servers.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "Spend Management",
-									"description": "Spend limits and cost tracking for Coder Agents",
-									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "Git Providers",
-									"description": "Git provider configuration for the in-chat diff viewer",
-									"path": "./ai-coder/agents/platform-controls/git-providers.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "Data Retention",
-									"description": "Automatic cleanup of old conversation data",
-									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "Auto-Archive",
-									"description": "Automatic archiving of inactive conversations",
-									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "Experiments",
-									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
-									"path": "./ai-coder/agents/platform-controls/experiments.md",
-									"state": ["beta"]
-								}
-							]
+							"title": "Agent Compatibility",
+							"description": "Which AI agents support session persistence across workspace restarts",
+							"path": "./ai-coder/agent-compatibility.md"
 						},
 						{
-							"title": "Extending Agents",
-							"description": "Add custom skills and MCP tools to agent workspaces",
-							"path": "./ai-coder/agents/extending-agents.md",
-							"state": ["beta"]
+							"title": "Tasks Migration Guide",
+							"description": "Changes to Coder Tasks made in v2.28",
+							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
-							"title": "Chats API",
-							"description": "Programmatic access to Coder Agents via the Chats API",
-							"path": "./ai-coder/agents/chats-api.md",
-							"state": ["beta"]
+							"title": "Security \u0026 Agent Firewall",
+							"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
+							"path": "./ai-coder/security.md"
 						},
 						{
-							"title": "Tasks to Chats API Migration",
-							"description": "Guide for migrating from the Tasks API to the Chats API",
-							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
-							"state": ["beta"]
+							"title": "Create a GitHub to Coder Tasks Workflow",
+							"description": "How to setup Coder Tasks to run in GitHub",
+							"path": "./ai-coder/github-to-tasks.md"
 						}
 					]
 				}
