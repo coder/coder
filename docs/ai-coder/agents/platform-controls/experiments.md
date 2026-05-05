@@ -83,8 +83,13 @@ Off by default. Three layers control whether it runs for a given chat:
 > chat's debug runs through the API. Administrators do not get blanket
 > access to all users' debug data.
 
-There is no dashboard viewer today. Read debug data through the experimental
-API:
+When debug logging is active for a chat, a **Debug** tab appears in the
+right panel of the Agents page (alongside Git, Terminal, and Desktop) for
+that chat's owner. The tab lists recent debug runs and lets you expand a run
+into its per-step request, response, token usage, retry attempts, errors,
+and policy metadata.
+
+The same data is available through the experimental API:
 
 - `GET /api/experimental/chats/{chat}/runs` lists the most recent runs for a
   chat (up to 100, newest first).
