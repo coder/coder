@@ -3,7 +3,7 @@
 Prototype of a README preview step with prerequisites confirmation
 before template creation in the Coder UI.
 
-Recorded 2026-05-04 against `main` branch.
+Recorded 2026-05-05 against `main` branch.
 
 ## What changed
 
@@ -13,5 +13,12 @@ Recorded 2026-05-04 against `main` branch.
 - "Continue to create" button is disabled until confirmation
 - Prerequisites section is removed from the README below to avoid duplication
 - HTML comments are stripped from rendered markdown
+- Fixed bug where # comments inside code blocks were parsed as headings
+
+## Recording notes
+
+Edited from a 27-minute raw recording. Login attempts and network
+errors were cut. Gallery section is sped up 6x. Prerequisites step
+and creation form play at normal speed.
 
 ![Demo](recording.gif)
