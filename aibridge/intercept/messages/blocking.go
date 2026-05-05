@@ -382,14 +382,12 @@ func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, sv
 			// handles retries via key rotation.
 			option.WithMaxRetries(0),
 		)
-		if err == nil {
-			return msg, nil
+		// Key-specific failure: try the next key.
+		if i.markKeyOnError(ctx, key, err) {
+			continue
 		}
-		// Mark the key based on the upstream response.
-		if !i.markKeyOnError(ctx, key, err) {
-			// Not a key-specific failure: return without
-			// trying another key.
-			return nil, err
-		}
+		// Either success (msg, nil) or a non-key error (nil, err):
+		// nothing to retry, return as-is.
+		return msg, err
 	}
 }
