@@ -14,9 +14,8 @@ const featuredExampleIds = [
 	"docker",
 	"kubernetes",
 	"aws-linux",
-	"aws-windows",
 	"gcp-linux",
-	"gcp-windows",
+	"azure-linux",
 ];
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
