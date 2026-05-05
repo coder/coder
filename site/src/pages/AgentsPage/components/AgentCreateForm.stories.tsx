@@ -368,11 +368,6 @@ export const WithOrganizationPicker: Story = {
 	},
 };
 
-// Guards the tight spacing between the CompactOrgSelector row and the
-// chat input composer. The outer stack uses `gap-2` (8 px), so the
-// visible gap should stay comfortably below 16 px. Prior to the fix
-// the stack used `gap-4` (16 px) which left a much larger gap on
-// 200% zoom desktops.
 export const OrgPickerTightSpacing: Story = {
 	parameters: {
 		showOrganizations: true,

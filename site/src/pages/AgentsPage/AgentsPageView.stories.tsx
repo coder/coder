@@ -509,12 +509,6 @@ export const WithToolbarEndContent: Story = {
 	},
 };
 
-// Covers 200% browser zoom on a 1440x900 desktop (CSS viewport
-// 720x450). The empty state must stay on the desktop branch (sidebar
-// and chat area side-by-side), not collapse into the mobile stack.
-// Chromatic and Storybook render this story at 720 px. The play
-// function asserts the rendered layout so the regression guard stays
-// tied to user-visible behavior instead of Tailwind class tokens.
 export const EmptyStateZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },

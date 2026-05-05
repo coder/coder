@@ -929,13 +929,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										)}
 										{workspaceOptions &&
 											onWorkspaceChange &&
-											// isBelowMdViewport() intentionally uses the md:
-											// breakpoint (768 px) to match the full-width
-											// dropdown CSS in index.css. The page shell and
-											// navigation controls switch to desktop at sm:
-											// (640 px), but the chat pane is still narrow at
-											// 640 to 767 px after the sidebar is visible, so
-											// dropdowns stay full-width in that range.
 											(isBelowMdViewport() ? (
 												<button
 													type="button"
