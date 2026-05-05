@@ -60,11 +60,6 @@ default.
 Owners always have full access and do not need the role. Repeat the following
 steps for each user who needs access in each organization.
 
-> [!NOTE]
-> Users who created conversations before this role was introduced are
-> automatically granted the role in each organization they already belong to
-> during upgrade.
-
 **Dashboard (individual):**
 
 1. Open **Admin settings** > **Organizations** in the Coder dashboard, then
@@ -79,30 +74,39 @@ steps for each user who needs access in each organization.
 
 **CLI (bulk, per organization):**
 
-Granting the role via CLI is org-scoped. To grant it to a single user in a
-specific organization:
+Granting the role via CLI is org-scoped. The `edit-roles` command **replaces**
+the member's full set of org roles, so include every role you want them to
+keep. To grant `agents-access` to a single user while preserving their
+existing org roles:
 
 ```sh
-coder organizations members edit-roles alice agents-access -O my-org
+ORG="my-org"
+USER="alice"
+ROLES=$(coder organizations members list -O "$ORG" -o json \
+  | jq -r --arg user "$USER" \
+      '.[] | select(.username == $user) | [.roles[].name, "agents-access"]
+      | unique | join(" ")')
+# shellcheck disable=SC2086
+coder organizations members edit-roles "$USER" -O "$ORG" $ROLES
 ```
 
-To grant the role to every member of an organization:
+To grant the role to every member of an organization while preserving their
+existing roles:
 
 ```sh
 ORG="my-org"
 coder organizations members list -O "$ORG" -o json \
-  | jq -r '.[].user_id' \
-  | while read user_id; do
-      coder organizations members edit-roles "$user_id" agents-access -O "$ORG"
+  | jq -c '.[] | {user_id, roles: [.roles[].name]}' \
+  | while read -r row; do
+      user_id=$(echo "$row" | jq -r '.user_id')
+      roles=$(echo "$row" | jq -r '(.roles + ["agents-access"]) | unique | join(" ")')
+      # shellcheck disable=SC2086
+      coder organizations members edit-roles "$user_id" -O "$ORG" $roles
     done
 ```
 
 You can also set the organization with the `CODER_ORGANIZATION` environment
-variable instead of `-O`:
-
-```sh
-CODER_ORGANIZATION=my-org coder organizations members edit-roles alice agents-access
-```
+variable instead of `-O`.
 
 ## Step 3: Start your first Coder Agent
 
@@ -210,8 +214,8 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing in the admin Settings panel (Input Price,
-  Output Price) to track spend.
+- Setting per-model token pricing under **Agents** > **Settings** >
+  **Manage Agents** > **Models** (Input Price, Output Price) to track spend.
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group

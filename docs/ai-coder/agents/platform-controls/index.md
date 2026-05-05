@@ -148,14 +148,11 @@ for details.
 ### Experiments
 
 Administrators can opt in to experimental features under **Agents** >
-**Settings** > **Manage Agents** > **Experiments**. These currently include
-the **Virtual desktop** (computer-use subagents), the **Advisor** (an inline
-second-opinion tool for root agents), and **Chat debug logging** (detailed
-traces of each chat turn). Behavior, configuration surface, and APIs may
-change between releases.
+**Settings** > **Manage Agents** > **Experiments**. Behavior, configuration
+surface, and APIs may change between releases.
 
-See [Experiments](./experiments.md) for what each feature does, how to enable
-it, and the relevant API endpoints.
+See [Experiments](./experiments.md) for the current list of experiments, how
+to enable them, and the relevant API endpoints.
 
 ## Where we are headed
 
