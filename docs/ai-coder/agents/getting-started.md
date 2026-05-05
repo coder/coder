@@ -22,22 +22,23 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
 - **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
-  Owners can assign this from **Admin** > **Users**. See
-  [Grant Coder Agents User](#step-2-grant-coder-agents-user) below.
+  This role is granted **per organization**. Owners and organization admins can
+  assign it from **Admin settings** > **Organizations** > _[your organization]_ >
+  **Members**. See [Grant Coder Agents User](#step-2-grant-coder-agents-user)
+  below.
 
 ## Step 1: Configure an LLM provider and model
 
 > [!IMPORTANT]
 > Configuring providers, models, and system prompts requires the
 > **Owner** role (Coder administrator). Non-admin users cannot access the
-> Admin panel or modify deployment-level Agents configuration.
+> admin Settings panel or modify deployment-level Agents configuration.
 
 To configure Coder Agents:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Click **Admin** to open the configuration dialog.
-1. Under the **Providers** tab, select a provider, enter your API key, and
-   save.
+1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
+   Pick a provider, enter your API key, and save.
 1. Switch to the **Models** tab, click **Add**, and configure at least one
    model with its identifier, display name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
@@ -51,36 +52,61 @@ Detailed instructions for each provider and model option are in the
 
 ## Step 2: Grant Coder Agents User
 
-The **Coder Agents User** role controls which users can interact with Coder Agents.
-Members do not have Coder Agents User by default.
+The **Coder Agents User** role controls which users can interact with Coder
+Agents. The role is assigned **per organization**, so a user must be granted
+it in each organization where they need access. Members do not have it by
+default.
 
-Owners always have full access and do not need the role. Repeat the following steps for each user who needs access.
-
-> [!NOTE]
-> Users who created conversations before this role was introduced are
-> automatically granted the role during upgrade.
+Owners always have full access and do not need the role. Repeat the following
+steps for each user who needs access in each organization.
 
 **Dashboard (individual):**
 
-1. Go to **Admin** > **Users** in the Coder dashboard.
-1. Click the roles icon next to the user you want to grant access to.
-1. Enable the **Coder Agents User** role and save.
+1. Open **Admin settings** > **Organizations** in the Coder dashboard, then
+   select the organization where you want to grant access.
+1. The **Members** tab opens by default. Find the user in the table.
+1. Click the **Roles** cell for that user to open the role editor.
+1. Toggle on **Coder Agents User** and save.
 
-**CLI (bulk):**
+> [!TIP]
+> If your deployment has multiple organizations, repeat this for each
+> organization where the user needs access.
 
-You can also grant the role via CLI. For example, to grant the role to
-all active users at once:
+**CLI (bulk, per organization):**
+
+Granting the role via CLI is org-scoped. The `edit-roles` command **replaces**
+the member's full set of org roles, so include every role you want them to
+keep. To grant `agents-access` to a single user while preserving their
+existing org roles:
 
 ```sh
-coder users list -o json \
-  | jq -r '.[].username' \
-  | while read u; do
-      coder users edit-roles "$u" \
-        --roles "$(coder users show "$u" -o json \
-          | jq -r '[.roles[].name, "agents-access"] | unique | join(",")')" \
-        --yes
+ORG="my-org"
+USER="alice"
+ROLES=$(coder organizations members list -O "$ORG" -o json \
+  | jq -r --arg user "$USER" \
+      '.[] | select(.username == $user) | [.roles[].name, "agents-access"]
+      | unique | join(" ")')
+# shellcheck disable=SC2086
+coder organizations members edit-roles "$USER" -O "$ORG" $ROLES
+```
+
+To grant the role to every member of an organization while preserving their
+existing roles:
+
+```sh
+ORG="my-org"
+coder organizations members list -O "$ORG" -o json \
+  | jq -c '.[] | {user_id, roles: [.roles[].name]}' \
+  | while read -r row; do
+      user_id=$(echo "$row" | jq -r '.user_id')
+      roles=$(echo "$row" | jq -r '(.roles + ["agents-access"]) | unique | join(" ")')
+      # shellcheck disable=SC2086
+      coder organizations members edit-roles "$user_id" -O "$ORG" $roles
     done
 ```
+
+You can also set the organization with the `CODER_ORGANIZATION` environment
+variable instead of `-O`.
 
 ## Step 3: Start your first Coder Agent
 
@@ -158,7 +184,8 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from the **Admin** dialog on the Agents page
+Configure the system prompt from **Agents** > **Settings** >
+**Manage Agents** > **Instructions**
 or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
@@ -187,8 +214,8 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing in the admin panel (Input Price, Output
-  Price) to track spend.
+- Setting per-model token pricing under **Agents** > **Settings** >
+  **Manage Agents** > **Models** (Input Price, Output Price) to track spend.
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group

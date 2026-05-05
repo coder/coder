@@ -1259,14 +1259,8 @@
 								},
 								{
 									"title": "Git Providers",
-									"description": "Git provider configuration for the diff viewer and PR Insights",
+									"description": "Git provider configuration for the in-chat diff viewer",
 									"path": "./ai-coder/agents/platform-controls/git-providers.md",
-									"state": ["beta"]
-								},
-								{
-									"title": "PR Insights",
-									"description": "Pull request analytics for Coder Agents",
-									"path": "./ai-coder/agents/platform-controls/pr-insights.md",
 									"state": ["beta"]
 								},
 								{
@@ -1279,6 +1273,12 @@
 									"title": "Auto-Archive",
 									"description": "Automatic archiving of inactive conversations",
 									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Experiments",
+									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
+									"path": "./ai-coder/agents/platform-controls/experiments.md",
 									"state": ["beta"]
 								}
 							]
