@@ -12786,6 +12786,22 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
 	})
 
+	t.Run("SubmitToolResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{
+				ToolCallID: "call_forbidden",
+				Output:     json.RawMessage(`"forbidden"`),
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
 	t.Run("RegenerateChatTitle", func(t *testing.T) {
 		t.Parallel()
 
