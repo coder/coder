@@ -163,7 +163,7 @@ git worktree remove /tmp/recordings-worktree 2>/dev/null
 git worktree add /tmp/recordings-worktree recordings
 ```
 
-## Step 6: Embed in PRs and issues
+## Step 6: Embed in PRs, issues, and Linear tickets
 
 ### Which format to use where
 
@@ -171,6 +171,7 @@ git worktree add /tmp/recordings-worktree recordings
 |---|---|---|
 | **PR description** | GIF | Renders inline, reviewers see it immediately |
 | **GitHub issue** | GIF | Same reason |
+| **Linear ticket** | GIF + mp4/thumbnail links | Use `linear__save_comment` to post directly |
 | **Slack / async chat** | Thumbnail + mp4 link | GIFs autoplay and annoy people in chat |
 | **Archival / repo** | All three | Keep mp4 (lossless), GIF (preview), thumbnail (static reference) |
 
@@ -191,6 +192,21 @@ GIF and link the others:
 - [Thumbnail](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/thumbnail.jpg)
 </details>
 ```
+
+### Posting to Linear
+
+If the Coder Agent has Linear tools available, post the recording
+directly to a ticket using `linear__save_comment`:
+
+```
+linear__save_comment(
+  issueId: "TEAM-123",
+  body: "## Demo\n\n![<feature> demo](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/recording.gif)\n\n<details>\n<summary>Full recording and static thumbnail</summary>\n\n- [Full recording (mp4)](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/recording.mp4)\n- [Thumbnail](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/thumbnail.jpg)\n</details>"
+)
+```
+
+The raw.githubusercontent.com URLs work directly in Linear
+markdown; no need to upload files separately.
 
 ## Common issues
 
