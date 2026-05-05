@@ -6,37 +6,21 @@ import (
 )
 
 // terminalMessage produces the user-facing error description shown
-// when retries are exhausted. It includes HTTP status codes and
-// actionable remediation guidance.
+// when retries are exhausted. HTTP status codes are carried in the
+// classified payload's StatusCode field and rendered as a separate
+// footer chip by the UI, so they are intentionally omitted here to
+// avoid duplicating the same information in two places.
 func terminalMessage(classified ClassifiedError) string {
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
 	case KindOverloaded:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is temporarily overloaded (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
 		return fmt.Sprintf("%s is temporarily overloaded.", subject)
 
 	case KindRateLimit:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is rate limiting requests (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
 		return fmt.Sprintf("%s is rate limiting requests.", subject)
 
 	case KindTimeout:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is temporarily unavailable (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		if !classified.Retryable {
+		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The request timed out before it completed."
 		}
 		return fmt.Sprintf("%s is temporarily unavailable.", subject)
@@ -65,13 +49,7 @@ func terminalMessage(classified ClassifiedError) string {
 		)
 
 	default:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s returned an unexpected error (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		if !classified.Retryable {
+		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
 		}
 		return fmt.Sprintf("%s returned an unexpected error.", subject)

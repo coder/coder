@@ -1,12 +1,17 @@
 package chatprovider_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
@@ -44,6 +49,7 @@ func TestResolveUserProviderKeys(t *testing.T) {
 
 	openAIProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	anthropicProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	bedrockProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
 
 	tests := []struct {
 		name             string
@@ -52,6 +58,7 @@ func TestResolveUserProviderKeys(t *testing.T) {
 		userKeys         []chatprovider.UserProviderKey
 		wantAvailability map[string]chatprovider.ProviderAvailability
 		wantKeys         map[string]string
+		wantKeyPresence  map[string]bool
 	}{
 		{
 			name:      "CentralOnlyKeyPresent",
@@ -71,6 +78,74 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			},
 			wantKeys: map[string]string{
 				fantasyopenai.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyopenai.Name: false,
+			},
+		},
+		{
+			name:      "BedrockCentralOnlyAmbientCredentialsEnabled",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: true,
+			},
+		},
+		{
+			name:      "BedrockFallbackAmbientCredentialsEnabled",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "", true, true)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: true,
+			},
+		},
+		{
+			name:      "BedrockUserKeyRequiredWithoutFallback",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "", true, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: false,
+			},
+		},
+		{
+			name:      "BedrockCentralDisabledMissingAPIKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, false, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: false,
+			},
+		},
+		{
+			name:      "BedrockCentralStoredKeyPresent",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(bedrockProviderID, fantasybedrock.Name, true, "bedrock-token", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasybedrock.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasybedrock.Name: "bedrock-token",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasybedrock.Name: true,
 			},
 		},
 		{
@@ -177,8 +252,22 @@ func TestResolveUserProviderKeys(t *testing.T) {
 				require.Equal(t, wantAvailability, gotAvailability)
 				require.Equal(t, tt.wantKeys[provider], keys.APIKey(provider))
 			}
+			for provider, wantPresent := range tt.wantKeyPresence {
+				gotKey, ok := keys.ByProvider[provider]
+				require.Equal(t, wantPresent, ok, "unexpected key presence for provider %q", provider)
+				require.Equal(t, wantPresent, keys.HasProvider(provider), "unexpected HasProvider result for provider %q", provider)
+				if wantPresent {
+					require.Equal(t, tt.wantKeys[provider], gotKey)
+				}
+			}
 		})
 	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
 }
 
 func TestReasoningEffortFromChat(t *testing.T) {
@@ -207,6 +296,12 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			provider: "anthropic",
 			input:    ptr.Ref("max"),
 			want:     ptr.Ref(string(fantasyanthropic.EffortMax)),
+		},
+		{
+			name:     "AnthropicXHighEffort",
+			provider: "anthropic",
+			input:    ptr.Ref("xhigh"),
+			want:     ptr.Ref(string(fantasyanthropic.EffortXHigh)),
 		},
 		{
 			name:     "OpenRouterEffort",
@@ -730,6 +825,343 @@ func TestCoderHeaders(t *testing.T) {
 	})
 }
 
+func TestModelFromConfig_Bedrock(t *testing.T) {
+	t.Parallel()
+
+	const modelID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+
+	// This verifies the policy gate that permits an empty Bedrock key.
+	// End-to-end ambient credential auth would need a real AWS
+	// environment or a more complete mock, which is outside this scope.
+	t.Run("AllowsEmptyAPIKeyForAmbientCredentials", func(t *testing.T) {
+		t.Parallel()
+
+		model, err := chatprovider.ModelFromConfig(
+			fantasybedrock.Name,
+			modelID,
+			chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasybedrock.Name: "",
+				},
+			},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+		require.Equal(t, fantasybedrock.Name, model.Provider())
+	})
+
+	t.Run("RequiresResolvedProviderForAmbientCredentials", func(t *testing.T) {
+		t.Parallel()
+
+		model, err := chatprovider.ModelFromConfig(
+			fantasybedrock.Name,
+			modelID,
+			chatprovider.ProviderAPIKeys{},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
+		)
+		require.Nil(t, model)
+		require.EqualError(t, err, "API key for provider \"bedrock\" is not set")
+	})
+
+	t.Run("ForwardsBaseURLAndExplicitAPIKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		type requestCapture struct {
+			Path          string
+			Authorization string
+			UserAgent     string
+		}
+
+		requests := make(chan requestCapture, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests <- requestCapture{
+				Path:          r.URL.Path,
+				Authorization: r.Header.Get("Authorization"),
+				UserAgent:     r.Header.Get("User-Agent"),
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(bedrockNonStreamingResponse())
+		}))
+		defer server.Close()
+
+		model, err := chatprovider.ModelFromConfig(
+			fantasybedrock.Name,
+			modelID,
+			chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasybedrock.Name: "test-key",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasybedrock.Name: server.URL,
+				},
+			},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, model)
+
+		_, err = model.Generate(ctx, fantasy.Call{
+			Prompt: []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{
+						fantasy.TextPart{Text: "hello"},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		got := testutil.TryReceive(ctx, t, requests)
+		require.Equal(t, "/model/"+modelID+"/invoke", got.Path)
+		require.Equal(t, "Bearer test-key", got.Authorization)
+		require.Equal(t, chatprovider.UserAgent(), got.UserAgent)
+	})
+
+	t.Run("NonBedrockStillRequiresAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			provider string
+			model    string
+			wantErr  string
+		}{
+			{
+				name:     "OpenAI",
+				provider: fantasyopenai.Name,
+				model:    "gpt-4",
+				wantErr:  "OPENAI_API_KEY is not set",
+			},
+			{
+				name:     "Anthropic",
+				provider: fantasyanthropic.Name,
+				model:    "claude-sonnet-4-20250514",
+				wantErr:  "ANTHROPIC_API_KEY is not set",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				model, err := chatprovider.ModelFromConfig(
+					tt.provider,
+					tt.model,
+					chatprovider.ProviderAPIKeys{},
+					chatprovider.UserAgent(),
+					nil,
+					nil,
+				)
+				require.Nil(t, model)
+				require.EqualError(t, err, tt.wantErr)
+			})
+		}
+	})
+}
+
+// TestModelFromConfig_BedrockStripsAnthropicHeaders is a regression test
+// for a bug where the Anthropic SDK reads ANTHROPIC_API_KEY from the
+// process environment and adds X-Api-Key and Anthropic-Version headers to
+// every request. On Bedrock, these headers conflict with SigV4 signing and
+// cause auth failures. The SDK's Bedrock middleware strips them before
+// signing. This test verifies the outgoing request shape with both
+// Anthropic and AWS credentials present.
+func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	t.Setenv("ANTHROPIC_API_KEY", "anthropic-env-key")
+	t.Setenv("AWS_REGION", "us-east-2")
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
+
+	type requestCapture struct {
+		Authorization    string
+		AnthropicVersion string
+		XAPIKey          string
+		Body             string
+		ReadError        error
+	}
+
+	requests := make(chan requestCapture, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+
+		requests <- requestCapture{
+			Authorization:    r.Header.Get("Authorization"),
+			AnthropicVersion: r.Header.Get("Anthropic-Version"),
+			XAPIKey:          r.Header.Get("X-Api-Key"),
+			Body:             string(body),
+			ReadError:        err,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(bedrockNonStreamingResponse())
+	}))
+	defer server.Close()
+
+	model, err := chatprovider.ModelFromConfig(
+		fantasybedrock.Name,
+		"anthropic.claude-opus-4-6-v1",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasybedrock.Name: server.URL,
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "hello"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	got := testutil.TryReceive(ctx, t, requests)
+	require.NoError(t, got.ReadError)
+	require.Empty(t, got.AnthropicVersion)
+	require.Empty(t, got.XAPIKey)
+	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
+	require.NotContains(t, got.Authorization, "anthropic-version")
+	require.NotContains(t, got.Authorization, "x-api-key")
+	require.Contains(t, got.Body, `"anthropic_version":"bedrock-2023-05-31"`)
+}
+
+func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	t.Setenv("ANTHROPIC_API_KEY", "anthropic-env-key")
+	t.Setenv("AWS_REGION", "us-east-2")
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
+
+	type requestCapture struct {
+		Path          string
+		Accept        string
+		BedrockAccept string
+		Authorization string
+		Body          string
+		ReadError     error
+	}
+
+	requests := make(chan requestCapture, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+
+		requests <- requestCapture{
+			Path:          r.URL.Path,
+			Accept:        r.Header.Get("Accept"),
+			BedrockAccept: r.Header.Get("X-Amzn-Bedrock-Accept"),
+			Authorization: r.Header.Get("Authorization"),
+			Body:          string(body),
+			ReadError:     err,
+		}
+
+		w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	model, err := chatprovider.ModelFromConfig(
+		fantasybedrock.Name,
+		"anthropic.claude-opus-4-6-v1",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasybedrock.Name: server.URL,
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model)
+
+	stream, err := model.Stream(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "hello"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for part := range stream {
+		require.NotEqual(t, fantasy.StreamPartTypeError, part.Type)
+		break
+	}
+
+	got := testutil.TryReceive(ctx, t, requests)
+	require.NoError(t, got.ReadError)
+	require.Equal(t, "/model/us.anthropic.claude-opus-4-6-v1/invoke-with-response-stream", got.Path)
+	require.Empty(t, got.Accept)
+	require.Equal(t, "application/json", got.BedrockAccept)
+	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
+	require.Contains(t, got.Authorization, "x-amzn-bedrock-accept")
+	require.Contains(t, got.Body, `"anthropic_version":"bedrock-2023-05-31"`)
+}
+
+func bedrockNonStreamingResponse() map[string]any {
+	return map[string]any{
+		"id":    "msg_01Test",
+		"type":  "message",
+		"role":  "assistant",
+		"model": "claude-sonnet-4-20250514",
+		"content": []any{
+			map[string]any{
+				"type": "text",
+				"text": "Hi there",
+			},
+		},
+		"stop_reason":   "end_turn",
+		"stop_sequence": "",
+		"usage": map[string]any{
+			"cache_creation": map[string]any{
+				"ephemeral_1h_input_tokens": 0,
+				"ephemeral_5m_input_tokens": 0,
+			},
+			"cache_creation_input_tokens": 0,
+			"cache_read_input_tokens":     0,
+			"input_tokens":                5,
+			"output_tokens":               2,
+			"server_tool_use": map[string]any{
+				"web_search_requests": 0,
+			},
+			"service_tier": "standard",
+		},
+	}
+}
+
 // TestModelFromConfig_ExtraHeaders verifies that extra headers passed
 // to ModelFromConfig are sent on outgoing LLM API requests. Only the
 // OpenAI and Anthropic providers are tested end-to-end because the
@@ -777,7 +1209,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 			BaseURLByProvider: map[string]string{"openai": serverURL},
 		}
 
-		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers)
+		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers, nil)
 		require.NoError(t, err)
 
 		_, err = model.Generate(ctx, fantasy.Call{
@@ -808,7 +1240,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 			BaseURLByProvider: map[string]string{"anthropic": serverURL},
 		}
 
-		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers)
+		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers, nil)
 		require.NoError(t, err)
 
 		_, err = model.Generate(ctx, fantasy.Call{
@@ -844,7 +1276,7 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 		BaseURLByProvider: map[string]string{"openai": serverURL},
 	}
 
-	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil)
+	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil, nil)
 	require.NoError(t, err)
 
 	_, err = model.Generate(ctx, fantasy.Call{
@@ -854,6 +1286,48 @@ func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
 			},
 		},
+	})
+	require.NoError(t, err)
+	_ = testutil.TryReceive(ctx, t, called)
+}
+
+func TestModelFromConfig_HTTPClient(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	called := make(chan struct{})
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		assert.Equal(t, "true", req.Header.Get("X-Test-Transport"))
+		close(called)
+		return chattest.OpenAINonStreamingResponse("hello")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{"openai": "test-key"},
+		BaseURLByProvider: map[string]string{"openai": serverURL},
+	}
+	client := &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		cloned := req.Clone(req.Context())
+		cloned.Header = req.Header.Clone()
+		cloned.Header.Set("X-Test-Transport", "true")
+		return http.DefaultTransport.RoundTrip(cloned)
+	})}
+
+	model, err := chatprovider.ModelFromConfig(
+		"openai",
+		"gpt-4",
+		keys,
+		chatprovider.UserAgent(),
+		nil,
+		client,
+	)
+	require.NoError(t, err)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}},
 	})
 	require.NoError(t, err)
 	_ = testutil.TryReceive(ctx, t, called)
@@ -917,4 +1391,213 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, []string{"foo"}, options.OpenRouter.Provider.Ignore)
 	require.Equal(t, []string{"int8"}, options.OpenRouter.Provider.Quantizations)
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
+}
+
+// TestApplyReasoningEffortToOptions covers every provider's mutation branch
+// plus the seeding path for missing provider entries. A typo or wrong type
+// assertion in any branch fails a unit test here rather than silently
+// dropping the admin-configured reasoning effort in chatd callers.
+func TestApplyReasoningEffortToOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilOptionsAndNilModelIsNoOp", func(t *testing.T) {
+		t.Parallel()
+		// Must not panic when options and model are both nil.
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, nil, "medium")
+		require.Nil(t, got)
+	})
+
+	t.Run("EmptyEffortReturnsInputUnchanged", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "   ")
+		require.Nil(t, got)
+	})
+
+	t.Run("EmptyEffortPreservesExistingOptions", func(t *testing.T) {
+		t.Parallel()
+		effort := fantasyopenai.ReasoningEffortLow
+		opts := &fantasyopenai.ProviderOptions{ReasoningEffort: &effort}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		got := chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortLow, *opts.ReasoningEffort)
+		// The input map must be returned untouched rather than allocated anew.
+		require.Len(t, got, 1)
+	})
+
+	t.Run("UnrecognizedEffortLeavesOptionsUntouched", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenai.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "not-a-real-effort")
+		require.Nil(t, opts.ReasoningEffort)
+	})
+
+	t.Run("OpenAIProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenai.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("OpenAIResponsesProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenai.ResponsesProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("OpenAICompatProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenaicompat.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenaicompat.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("AnthropicProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyanthropic.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyanthropic.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "high")
+		require.NotNil(t, opts.Effort)
+		require.Equal(t, fantasyanthropic.EffortHigh, *opts.Effort)
+	})
+
+	t.Run("OpenRouterAllocatesReasoningOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyopenrouter.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyopenrouter.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "medium")
+		require.NotNil(t, opts.Reasoning, "Reasoning container must be allocated")
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyopenrouter.ReasoningEffort("medium"), *opts.Reasoning.Effort)
+	})
+
+	t.Run("OpenRouterPreservesExistingReasoningContainer", func(t *testing.T) {
+		t.Parallel()
+		enabled := true
+		opts := &fantasyopenrouter.ProviderOptions{
+			Reasoning: &fantasyopenrouter.ReasoningOptions{Enabled: &enabled},
+		}
+		providerOptions := fantasy.ProviderOptions{fantasyopenrouter.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "high")
+		require.NotNil(t, opts.Reasoning.Enabled)
+		require.True(t, *opts.Reasoning.Enabled)
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyopenrouter.ReasoningEffort("high"), *opts.Reasoning.Effort)
+	})
+
+	t.Run("VercelAllocatesReasoningOptions", func(t *testing.T) {
+		t.Parallel()
+		opts := &fantasyvercel.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{fantasyvercel.Name: opts}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "minimal")
+		require.NotNil(t, opts.Reasoning)
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyvercel.ReasoningEffortMinimal, *opts.Reasoning.Effort)
+	})
+
+	t.Run("MultipleProvidersReceiveMutations", func(t *testing.T) {
+		t.Parallel()
+		openaiOpts := &fantasyopenai.ProviderOptions{}
+		anthropicOpts := &fantasyanthropic.ProviderOptions{}
+		providerOptions := fantasy.ProviderOptions{
+			fantasyopenai.Name:    openaiOpts,
+			fantasyanthropic.Name: anthropicOpts,
+		}
+
+		chatprovider.ApplyReasoningEffortToOptions(providerOptions, nil, "high")
+		require.NotNil(t, openaiOpts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *openaiOpts.ReasoningEffort)
+		require.NotNil(t, anthropicOpts.Effort)
+		require.Equal(t, fantasyanthropic.EffortHigh, *anthropicOpts.Effort)
+	})
+
+	t.Run("SeedsOpenAICompletionsWhenModelHasNoOptions", func(t *testing.T) {
+		t.Parallel()
+		// A model name absent from the Responses allowlist must seed
+		// the completions options struct so reasoning_effort lands.
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "not-a-real-openai-model"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "medium")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
+		require.True(t, ok, "expected *ProviderOptions for non-Responses model, got %T", got[fantasyopenai.Name])
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("SeedsOpenAIResponsesWhenModelIsResponsesModel", func(t *testing.T) {
+		t.Parallel()
+		// A model name in the Responses allowlist must seed the
+		// Responses-specific options struct so the provider routes to
+		// the Responses endpoint.
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "medium")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+		require.True(t, ok, "expected *ResponsesProviderOptions for Responses model, got %T", got[fantasyopenai.Name])
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *opts.ReasoningEffort)
+	})
+
+	t.Run("SeedsAnthropicWhenModelHasNoOptions", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-3-5"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "high")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, opts.Effort)
+		require.Equal(t, fantasyanthropic.EffortHigh, *opts.Effort)
+	})
+
+	t.Run("SeedsOpenRouterWhenModelHasNoOptions", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: fantasyopenrouter.Name, ModelName: "openrouter-x"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "low")
+		require.NotNil(t, got)
+		opts, ok := got[fantasyopenrouter.Name].(*fantasyopenrouter.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, opts.Reasoning)
+		require.NotNil(t, opts.Reasoning.Effort)
+		require.Equal(t, fantasyopenrouter.ReasoningEffort("low"), *opts.Reasoning.Effort)
+	})
+
+	t.Run("UnknownProviderReturnsInputUnchanged", func(t *testing.T) {
+		t.Parallel()
+		model := &chattest.FakeModel{ProviderName: "unknown", ModelName: "x"}
+		got := chatprovider.ApplyReasoningEffortToOptions(nil, model, "medium")
+		require.Nil(t, got)
+	})
+
+	t.Run("PreservesExistingProviderEntry", func(t *testing.T) {
+		t.Parallel()
+		existing := &fantasyopenai.ProviderOptions{}
+		existingEffort := fantasyopenai.ReasoningEffortLow
+		existing.ReasoningEffort = &existingEffort
+		providerOptions := fantasy.ProviderOptions{fantasyopenai.Name: existing}
+
+		model := &chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}
+		got := chatprovider.ApplyReasoningEffortToOptions(providerOptions, model, "medium")
+		require.Same(t, existing, got[fantasyopenai.Name],
+			"existing provider entry must not be replaced")
+		// The reasoning effort on the existing entry is overwritten.
+		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *existing.ReasoningEffort)
+	})
 }

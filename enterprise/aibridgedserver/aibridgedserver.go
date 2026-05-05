@@ -191,6 +191,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		StartedAt:                  in.StartedAt.AsTime(),
 		ThreadParentInterceptionID: uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
 		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
+		CredentialKind:             credentialKindOrDefault(in.CredentialKind),
+		CredentialHint:             in.CredentialHint,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -629,6 +631,17 @@ func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string)
 		Id:  aibridged.InternalMCPServerID,
 		Url: u,
 	}, nil
+}
+
+// credentialKindOrDefault converts the proto credential kind string to
+// the database enum, defaulting to "centralized" when the value is
+// empty or not a valid enum member.
+func credentialKindOrDefault(kind string) database.CredentialKind {
+	ck := database.CredentialKind(kind)
+	if !ck.Valid() {
+		return database.CredentialKindCentralized
+	}
+	return ck
 }
 
 func metadataToMap(in map[string]*anypb.Any) map[string]any {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -21,7 +22,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
@@ -65,6 +66,12 @@ var preferredTitleModels = []struct {
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
+type shortTextCandidate struct {
+	provider string
+	model    string
+	lm       fantasy.LanguageModel
+}
+
 func selectPreferredConfiguredShortTextModelConfig(
 	configs []database.ChatModelConfig,
 ) (database.ChatModelConfig, bool) {
@@ -99,48 +106,142 @@ type generatedTitle struct {
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
 // current title is either empty or still the fallback truncation).
-// It tries cheap, fast models first and falls back to the user's
-// chat model. It is a best-effort operation that logs and swallows
-// errors.
+// It uses the configured title generation model override when set.
+// Otherwise, it tries cheap, fast models first and falls back to the
+// user's chat model. It is a best-effort operation that logs and
+// swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
+	fallbackProvider string,
+	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
 	keys chatprovider.ProviderAPIKeys,
 	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
+	debugSvc *chatdebug.Service,
 ) {
 	input, ok := titleInput(chat, messages)
 	if !ok {
 		return
 	}
+	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Build candidate list: preferred lightweight models first,
-	// then the user's chat model as last resort.
-	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
-	for _, c := range preferredTitleModels {
-		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys, chatprovider.UserAgent(),
-			chatprovider.CoderHeaders(chat),
+	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+		titleCtx,
+		chat,
+		keys,
+	)
+	if overrideErr != nil {
+		if overrideSet {
+			logger.Warn(ctx, "title generation model override unavailable, skipping title generation",
+				slog.F("chat_id", chat.ID),
+				slog.F("override_context", titleGenerationOverrideContext),
+				slog.Error(overrideErr),
+			)
+			return
+		}
+		logger.Debug(ctx, "failed to resolve title generation model override",
+			slog.F("chat_id", chat.ID),
+			slog.F("override_context", titleGenerationOverrideContext),
+			slog.Error(overrideErr),
 		)
-		if err == nil {
-			candidates = append(candidates, m)
+	}
+
+	var candidates []shortTextCandidate
+	if overrideSet {
+		candidates = []shortTextCandidate{{
+			provider: overrideConfig.Provider,
+			model:    overrideConfig.Model,
+			lm:       overrideModel,
+		}}
+	} else {
+		// Build candidate list: preferred lightweight models first,
+		// then the user's chat model as last resort.
+		candidates = make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
+		for _, c := range preferredTitleModels {
+			m, err := chatprovider.ModelFromConfig(
+				c.provider, c.model, keys, chatprovider.UserAgent(),
+				chatprovider.CoderHeaders(chat),
+				nil,
+			)
+			if err == nil {
+				candidates = append(candidates, shortTextCandidate{
+					provider: c.provider,
+					model:    c.model,
+					lm:       m,
+				})
+			}
+		}
+		candidates = append(candidates, shortTextCandidate{
+			provider: fallbackProvider,
+			model:    fallbackModelName,
+			lm:       fallbackModel,
+		})
+	}
+
+	var historyTipMessageID int64
+	if len(messages) > 0 {
+		historyTipMessageID = messages[len(messages)-1].ID
+	}
+
+	var triggerMessageID int64
+	for _, message := range messages {
+		if message.Visibility == database.ChatMessageVisibilityModel {
+			continue
+		}
+		if message.Role == database.ChatMessageRoleUser {
+			triggerMessageID = message.ID
+			break
 		}
 	}
-	candidates = append(candidates, fallbackModel)
+
+	seedSummary := chatdebug.SeedSummary(
+		chatdebug.TruncateLabel(input, chatdebug.MaxLabelLength),
+	)
+
 	var lastErr error
-	for _, model := range candidates {
-		title, err := generateTitle(titleCtx, model, input)
+	for _, candidate := range candidates {
+		candidateCtx := titleCtx
+		candidateModel := candidate.lm
+		finishDebugRun := func(error) {}
+		if debugEnabled {
+			candidateCtx, candidateModel, finishDebugRun = prepareQuickgenDebugCandidate(
+				titleCtx,
+				chat,
+				keys,
+				debugSvc,
+				candidate,
+				chatdebug.KindTitleGeneration,
+				triggerMessageID,
+				historyTipMessageID,
+				seedSummary,
+				logger,
+			)
+		}
+
+		title, err := generateTitle(candidateCtx, candidateModel, input)
+		finishDebugRun(err)
 		if err != nil {
 			lastErr = err
-			logger.Debug(ctx, "title model candidate failed",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
+			if overrideSet {
+				logger.Warn(ctx, "title model candidate failed",
+					slog.F("chat_id", chat.ID),
+					slog.F("override_context", titleGenerationOverrideContext),
+					slog.F("provider", candidate.provider),
+					slog.F("model", candidate.model),
+					slog.Error(err),
+				)
+			} else {
+				logger.Debug(ctx, "title model candidate failed",
+					slog.F("chat_id", chat.ID),
+					slog.Error(err),
+				)
+			}
 			continue
 		}
 		if title == "" || title == chat.Title {
@@ -160,16 +261,155 @@ func (p *Server) maybeGenerateChatTitle(
 		}
 		chat.Title = title
 		generatedTitle.Store(title)
-		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange, nil)
+		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 		return
 	}
 
 	if lastErr != nil {
-		logger.Debug(ctx, "all title model candidates failed",
-			slog.F("chat_id", chat.ID),
-			slog.Error(lastErr),
+		if overrideSet {
+			logger.Warn(ctx, "all title model candidates failed",
+				slog.F("chat_id", chat.ID),
+				slog.F("override_context", titleGenerationOverrideContext),
+				slog.Error(lastErr),
+			)
+		} else {
+			logger.Debug(ctx, "all title model candidates failed",
+				slog.F("chat_id", chat.ID),
+				slog.Error(lastErr),
+			)
+		}
+	}
+}
+
+func newQuickgenDebugModel(
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+	debugSvc *chatdebug.Service,
+	provider string,
+	model string,
+) (fantasy.LanguageModel, error) {
+	httpClient := &http.Client{Transport: &chatdebug.RecordingTransport{}}
+	debugModel, err := chatprovider.ModelFromConfig(
+		provider,
+		model,
+		keys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+		httpClient,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if debugModel == nil {
+		return nil, xerrors.Errorf(
+			"create model for %s/%s returned nil",
+			provider,
+			model,
 		)
 	}
+
+	return chatdebug.WrapModel(debugModel, debugSvc, chatdebug.RecorderOptions{
+		ChatID:   chat.ID,
+		OwnerID:  chat.OwnerID,
+		Provider: provider,
+		Model:    model,
+	}), nil
+}
+
+func prepareQuickgenDebugCandidate(
+	ctx context.Context,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+	debugSvc *chatdebug.Service,
+	candidate shortTextCandidate,
+	kind chatdebug.RunKind,
+	triggerMessageID int64,
+	historyTipMessageID int64,
+	seedSummary map[string]any,
+	logger slog.Logger,
+) (context.Context, fantasy.LanguageModel, func(error)) {
+	finishDebugRun := func(error) {}
+	if debugSvc == nil {
+		return ctx, candidate.lm, finishDebugRun
+	}
+
+	debugModel, err := newQuickgenDebugModel(
+		chat,
+		keys,
+		debugSvc,
+		candidate.provider,
+		candidate.model,
+	)
+	if err != nil {
+		logger.Warn(ctx, "failed to build short-text debug model",
+			slog.F("chat_id", chat.ID),
+			slog.F("run_kind", kind),
+			slog.F("provider", candidate.provider),
+			slog.F("model", candidate.model),
+			slog.Error(err),
+		)
+		return ctx, candidate.lm, finishDebugRun
+	}
+
+	// Debug instrumentation must not eat into the quickgen budget
+	// (30s titleCtx / summaryCtx on the caller). Detach and bound
+	// the insert so a slow DB can't delay title generation or push
+	// summaries, matching prepareManualTitleDebugRun,
+	// prepareChatTurnDebugRun, and startCompactionDebugRun.
+	createRunCtx, createRunCancel := context.WithTimeout(
+		context.WithoutCancel(ctx), debugCreateRunTimeout,
+	)
+	run, err := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+		ChatID:              chat.ID,
+		TriggerMessageID:    triggerMessageID,
+		HistoryTipMessageID: historyTipMessageID,
+		Kind:                kind,
+		Status:              chatdebug.StatusInProgress,
+		Provider:            candidate.provider,
+		Model:               candidate.model,
+		Summary:             seedSummary,
+	})
+	createRunCancel()
+	if err != nil {
+		logger.Warn(ctx, "failed to create short-text debug run",
+			slog.F("chat_id", chat.ID),
+			slog.F("run_kind", kind),
+			slog.F("provider", candidate.provider),
+			slog.F("model", candidate.model),
+			slog.Error(err),
+		)
+		return ctx, candidate.lm, finishDebugRun
+	}
+
+	runCtx := chatdebug.ContextWithRun(
+		ctx,
+		&chatdebug.RunContext{
+			RunID:               run.ID,
+			ChatID:              chat.ID,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			Kind:                kind,
+			Provider:            candidate.provider,
+			Model:               candidate.model,
+		},
+	)
+	finishDebugRun = func(runErr error) {
+		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
+			RunID:       run.ID,
+			ChatID:      chat.ID,
+			Status:      chatdebug.ClassifyError(runErr),
+			SeedSummary: seedSummary,
+			Timeout:     10 * time.Second,
+		}); finalizeErr != nil {
+			logger.Warn(ctx, "failed to finalize short-text debug run",
+				slog.F("chat_id", chat.ID),
+				slog.F("run_kind", kind),
+				slog.F("run_id", run.ID),
+				slog.Error(finalizeErr),
+			)
+		}
+	}
+	return runCtx, debugModel, finishDebugRun
 }
 
 // generateTitle calls the model with a title-generation system prompt
@@ -180,7 +420,7 @@ func generateTitle(
 	model fantasy.LanguageModel,
 	input string,
 ) (string, error) {
-	title, _, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input)
+	title, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -188,6 +428,24 @@ func generateTitle(
 }
 
 func generateStructuredTitle(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	systemPrompt string,
+	userInput string,
+) (string, error) {
+	title, _, err := generateStructuredTitleWithUsage(
+		ctx,
+		model,
+		systemPrompt,
+		userInput,
+	)
+	if err != nil {
+		return "", err
+	}
+	return title, nil
+}
+
+func generateStructuredTitleWithUsage(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	systemPrompt string,
@@ -226,8 +484,6 @@ func generateStructuredTitle(
 		return genErr
 	}, nil)
 	if err != nil {
-		// Extract usage from the error when available so that
-		// failed attempts are still accounted for in usage tracking.
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
 		if errors.As(err, &noObjErr) {
@@ -529,7 +785,7 @@ func generateManualTitle(
 		userInput = strings.TrimSpace(firstUserText)
 	}
 
-	title, usage, err := generateStructuredTitle(
+	title, usage, err := generateStructuredTitleWithUsage(
 		titleCtx,
 		fallbackModel,
 		systemPrompt,
@@ -556,30 +812,72 @@ func generatePushSummary(
 	ctx context.Context,
 	chat database.Chat,
 	assistantText string,
+	fallbackProvider string,
+	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
 	keys chatprovider.ProviderAPIKeys,
 	logger slog.Logger,
+	debugSvc *chatdebug.Service,
+	triggerMessageID int64,
+	historyTipMessageID int64,
 ) string {
+	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
+
 	summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	assistantText = truncateRunes(assistantText, maxConversationContextRunes)
 	input := "Chat title: " + chat.Title + "\n\nAgent's last message:\n" + assistantText
 
-	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
+	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
 			c.provider, c.model, keys, chatprovider.UserAgent(),
 			chatprovider.CoderHeaders(chat),
+			nil,
 		)
 		if err == nil {
-			candidates = append(candidates, m)
+			candidates = append(candidates, shortTextCandidate{
+				provider: c.provider,
+				model:    c.model,
+				lm:       m,
+			})
 		}
 	}
-	candidates = append(candidates, fallbackModel)
+	candidates = append(candidates, shortTextCandidate{
+		provider: fallbackProvider,
+		model:    fallbackModelName,
+		lm:       fallbackModel,
+	})
 
-	for _, model := range candidates {
-		summary, _, err := generateShortText(summaryCtx, model, pushSummaryPrompt, input)
+	pushSeedSummary := chatdebug.SeedSummary("Push summary")
+
+	for _, candidate := range candidates {
+		candidateCtx := summaryCtx
+		candidateModel := candidate.lm
+		finishDebugRun := func(error) {}
+		if debugEnabled {
+			candidateCtx, candidateModel, finishDebugRun = prepareQuickgenDebugCandidate(
+				summaryCtx,
+				chat,
+				keys,
+				debugSvc,
+				candidate,
+				chatdebug.KindQuickgen,
+				triggerMessageID,
+				historyTipMessageID,
+				pushSeedSummary,
+				logger,
+			)
+		}
+
+		summary, err := generateShortText(
+			candidateCtx,
+			candidateModel,
+			pushSummaryPrompt,
+			input,
+		)
+		finishDebugRun(err)
 		if err != nil {
 			logger.Debug(ctx, "push summary model candidate failed",
 				slog.Error(err),
@@ -595,13 +893,14 @@ func generatePushSummary(
 
 // generateShortText calls a model with a system prompt and user
 // input, returning a cleaned-up short text response. It reuses the
-// same retry logic as title generation.
+// same retry logic as title generation. Retries can therefore
+// produce multiple debug steps for a single quickgen run.
 func generateShortText(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	systemPrompt string,
 	userInput string,
-) (string, fantasy.Usage, error) {
+) (string, error) {
 	prompt := []fantasy.Message{
 		{
 			Role: fantasy.MessageRoleSystem,
@@ -629,7 +928,7 @@ func generateShortText(
 		return genErr
 	}, nil)
 	if err != nil {
-		return "", fantasy.Usage{}, xerrors.Errorf("generate short text: %w", err)
+		return "", xerrors.Errorf("generate short text: %w", err)
 	}
 
 	responseParts := make([]codersdk.ChatMessagePart, 0, len(response.Content))
@@ -639,5 +938,5 @@ func generateShortText(
 		}
 	}
 	text := normalizeShortTextOutput(contentBlocksToText(responseParts))
-	return text, response.Usage, nil
+	return text, nil
 }

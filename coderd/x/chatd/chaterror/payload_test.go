@@ -11,16 +11,16 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
+func TestTerminalErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	t.Parallel()
 
 	classified := chaterror.Classify(
 		xerrors.New("azure openai received status 429 from upstream"),
 	)
-	payload := chaterror.StreamErrorPayload(classified)
+	payload := chaterror.TerminalErrorPayload(classified)
 
-	require.Equal(t, &codersdk.ChatStreamError{
-		Message:    "Azure OpenAI is rate limiting requests (HTTP 429).",
+	require.Equal(t, &codersdk.ChatError{
+		Message:    "Azure OpenAI is rate limiting requests.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -28,10 +28,23 @@ func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	}, payload)
 }
 
-func TestStreamErrorPayloadNilForEmptyClassification(t *testing.T) {
+func TestTerminalErrorPayloadIncludesProviderDetail(t *testing.T) {
 	t.Parallel()
 
-	require.Nil(t, chaterror.StreamErrorPayload(chaterror.ClassifiedError{}))
+	payload := chaterror.TerminalErrorPayload(chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"Image exceeds 5 MB maximum."}}`),
+	)))
+
+	require.Equal(t, "Image exceeds 5 MB maximum.", payload.Detail)
+}
+
+func TestTerminalErrorPayloadNilForEmptyClassification(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, chaterror.TerminalErrorPayload(chaterror.ClassifiedError{}))
 }
 
 func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
@@ -40,7 +53,7 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	delay := 3 * time.Second
 	startedAt := time.Now()
 	payload := chaterror.StreamRetryPayload(2, delay, chaterror.ClassifiedError{
-		Message:    "OpenAI returned an unexpected error (HTTP 503).",
+		Message:    "OpenAI returned an unexpected error.",
 		Kind:       chaterror.KindGeneric,
 		Provider:   "openai",
 		Retryable:  true,

@@ -21,10 +21,11 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newTestServer(t, db, ps, uuid.New())
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	// Create a parent chat.
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent",
 		ModelConfigID:      model.ID,
@@ -32,12 +33,13 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Simulate what spawn_computer_use_agent does: set ChatMode
+	// Simulate what spawn_agent does: set ChatMode
 	// to computer_use and provide a system prompt.
 	prompt := "Use the desktop to open Firefox"
 
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID: parent.OwnerID,
+		OrganizationID: org.ID,
+		OwnerID:        parent.OwnerID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -75,9 +77,10 @@ func TestSpawnComputerUseAgent_SystemPromptFormat(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newTestServer(t, db, ps, uuid.New())
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent",
 		ModelConfigID:      model.ID,
@@ -89,7 +92,8 @@ func TestSpawnComputerUseAgent_SystemPromptFormat(t *testing.T) {
 	systemPrompt := "Computer use instructions\n\n" + prompt
 
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID: parent.OwnerID,
+		OrganizationID: org.ID,
+		OwnerID:        parent.OwnerID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -132,9 +136,10 @@ func TestSpawnComputerUseAgent_ChildIsListedUnderParent(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newTestServer(t, db, ps, uuid.New())
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "parent",
 		ModelConfigID:      model.ID,
@@ -145,7 +150,8 @@ func TestSpawnComputerUseAgent_ChildIsListedUnderParent(t *testing.T) {
 	prompt := "Check the UI layout"
 
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID: parent.OwnerID,
+		OrganizationID: org.ID,
+		OwnerID:        parent.OwnerID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -175,10 +181,11 @@ func TestSpawnComputerUseAgent_RootChatIDPropagation(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newTestServer(t, db, ps, uuid.New())
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 
 	// Create a root parent chat (no parent of its own).
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
 		Title:              "root-parent",
 		ModelConfigID:      model.ID,
@@ -189,7 +196,8 @@ func TestSpawnComputerUseAgent_RootChatIDPropagation(t *testing.T) {
 	prompt := "Take a screenshot"
 
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID: parent.OwnerID,
+		OrganizationID: org.ID,
+		OwnerID:        parent.OwnerID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,

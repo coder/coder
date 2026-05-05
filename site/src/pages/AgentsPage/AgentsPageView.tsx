@@ -6,6 +6,7 @@ import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	AgentsSidebar,
+	isSettingsView,
 	sidebarViewFromPath,
 } from "./components/Sidebar/AgentsSidebar";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -24,6 +25,7 @@ export interface AgentsOutletContext {
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRegenerateTitle?: (chatId: string) => void;
+	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -38,7 +40,6 @@ interface AgentsPageViewProps {
 	chatList: TypesGen.Chat[];
 	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	logoUrl: string;
 	handleNewAgent: () => void;
 	isCreating: boolean;
 	isArchiving: boolean;
@@ -61,9 +62,12 @@ interface AgentsPageViewProps {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => void;
+	onRegenerateTitle: (chatId: string) => Promise<string>;
+	onProposeTitle: (chatId: string) => Promise<string>;
+	onRenameTitle: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
+	isPersonalModelOverridesEnabled?: boolean;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
@@ -77,7 +81,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	chatList,
 	catalogModelOptions,
 	modelConfigs,
-	logoUrl,
 	handleNewAgent,
 	isCreating,
 	isArchiving,
@@ -98,8 +101,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
 	onRegenerateTitle,
+	onProposeTitle,
+	onRenameTitle,
 	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
+	isPersonalModelOverridesEnabled,
 	isAgentsAdmin,
 	hasNextPage,
 	onLoadMore,
@@ -112,10 +118,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	// Mobile can't fit the sidebar nav and content side by side,
 	// so we show one or the other depending on the route depth.
-	const isSettingsIndex =
-		sidebarView.panel === "settings" && !sidebarView.section;
-	const isSettingsDetail =
-		sidebarView.panel === "settings" && Boolean(sidebarView.section);
+	const isSettingsPanel = isSettingsView(sidebarView);
+	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
+	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 	const isAnalytics = sidebarView.panel === "analytics";
 
 	// The sidebar expects plain string error messages, but the outlet
@@ -139,7 +144,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
-		onRegenerateTitle,
+		onRegenerateTitle: (chatId: string) => {
+			onRegenerateTitle(chatId).catch(() => {});
+		},
 		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -158,7 +165,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
 						: isSettingsDetail || isAnalytics
 							? "hidden md:block shrink-0"
-							: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
+							: "order-2 md:order-none flex-1 min-h-0 border-b border-border-default md:flex-none md:border-t-0 md:border-b-0",
 					isSidebarCollapsed && "md:hidden",
 				)}
 			>
@@ -167,14 +174,14 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
-					logoUrl={logoUrl}
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 					onPinAgent={requestPinAgent}
 					onUnpinAgent={requestUnpinAgent}
 					onReorderPinnedAgent={requestReorderPinnedAgent}
-					onRegenerateTitle={onRegenerateTitle}
+					onRenameTitle={onRenameTitle}
+					onProposeTitle={onProposeTitle}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
@@ -189,6 +196,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
+					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}
 				/>
 			</div>
@@ -199,7 +207,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					!agentId &&
 						!isSettingsDetail &&
 						sidebarView.panel === "chats" &&
-						"order-1 md:order-none flex-none md:flex-1",
+						"contents md:flex md:flex-1 md:flex-col",
 				)}
 			>
 				<Outlet context={outletContextValue} />

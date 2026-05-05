@@ -1,4 +1,11 @@
-import { type FC, useMemo, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -9,7 +16,6 @@ import { templates, templateVersionRoot } from "#/api/queries/templates";
 import { workspaces } from "#/api/queries/workspaces";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePagination } from "#/hooks/usePagination";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -28,14 +34,19 @@ const ACTIVE_BUILDS_REFRESH_INTERVAL = 5_000;
 const NO_ACTIVE_BUILDS_REFRESH_INTERVAL = 30_000;
 
 function useSafeSearchParams() {
-	// Have to wrap setSearchParams because React Router doesn't make sure that
-	// the function's memory reference stays stable on each render, even though
-	// its logic never changes, and even though it has function update support
+	// Have to wrap setSearchParams because React Router doesn't guarantee
+	// a stable reference for setSearchParams across renders.
 	const [searchParams, setSearchParams] = useSearchParams();
-	const stableSetSearchParams = useEffectEvent(setSearchParams);
-
-	// Need this to be a tuple type, but can't use "as const", because that would
-	// make the whole array readonly and cause type mismatches downstream
+	const setterRef = useRef(setSearchParams);
+	useLayoutEffect(() => {
+		setterRef.current = setSearchParams;
+	}, [setSearchParams]);
+	const stableSetSearchParams = useCallback(
+		(...args: Parameters<typeof setSearchParams>) => setterRef.current(...args),
+		[],
+	);
+	// Need this to return a tuple, not a plain array. Using "as const"
+	// would make it readonly and cause type mismatches at call sites.
 	return [searchParams, stableSetSearchParams] as ReturnType<
 		typeof useSearchParams
 	>;
@@ -71,8 +82,6 @@ const WorkspacesPage: FC = () => {
 		},
 	});
 	const { permissions, user: me } = useAuthenticated();
-	const { experiments } = useDashboard();
-	const agentsEnabled = experiments.includes("agents");
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
@@ -136,7 +145,11 @@ const WorkspacesPage: FC = () => {
 	);
 	const chatsByWorkspaceQuery = useQuery({
 		...chatsByWorkspace(workspaceIds),
-		enabled: agentsEnabled && workspaceIds.length > 0,
+		// Only fetch chat lookups for users who can actually create chats;
+		// the endpoint still runs a DB query + RBAC post-filter and the
+		// AgentsNavItem / chat link UI is already hidden for users without
+		// this permission, so the query would return nothing useful for them.
+		enabled: permissions.createChat && workspaceIds.length > 0,
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();

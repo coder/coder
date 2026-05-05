@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strconv"
 	"sync"
 	"time"
@@ -180,6 +182,38 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp.Output = "key action performed"
+
+	case "key_down":
+		if action.Text == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Missing \"text\" for key_down action.",
+			})
+			return
+		}
+		if err := a.desktop.KeyDown(ctx, *action.Text); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Key down failed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resp.Output = "key_down action performed"
+
+	case "key_up":
+		if action.Text == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Missing \"text\" for key_up action.",
+			})
+			return
+		}
+		if err := a.desktop.KeyUp(ctx, *action.Text); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Key up failed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resp.Output = "key_up action performed"
 
 	case "type":
 		if action.Text == nil {
@@ -620,6 +654,11 @@ func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer artifact.Reader.Close()
+	defer func() {
+		if artifact.ThumbnailReader != nil {
+			_ = artifact.ThumbnailReader.Close()
+		}
+	}()
 
 	if artifact.Size > workspacesdk.MaxRecordingSize {
 		a.logger.Warn(ctx, "recording file exceeds maximum size",
@@ -633,10 +672,60 @@ func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rw.Header().Set("Content-Type", "video/mp4")
-	rw.Header().Set("Content-Length", strconv.FormatInt(artifact.Size, 10))
+	// Discard the thumbnail if it exceeds the maximum size.
+	// The server-side consumer also enforces this per-part, but
+	// rejecting it here avoids streaming a large thumbnail over
+	// the wire for nothing.
+	if artifact.ThumbnailReader != nil && artifact.ThumbnailSize > workspacesdk.MaxThumbnailSize {
+		a.logger.Warn(ctx, "thumbnail file exceeds maximum size, omitting",
+			slog.F("recording_id", recordingID),
+			slog.F("size", artifact.ThumbnailSize),
+			slog.F("max_size", workspacesdk.MaxThumbnailSize),
+		)
+		_ = artifact.ThumbnailReader.Close()
+		artifact.ThumbnailReader = nil
+		artifact.ThumbnailSize = 0
+	}
+
+	// The multipart response is best-effort: once WriteHeader(200) is
+	// called, CreatePart failures produce a truncated response without
+	// the closing boundary. The server-side consumer handles this
+	// gracefully, preserving any parts read before the error.
+	mw := multipart.NewWriter(rw)
+	defer mw.Close()
+	rw.Header().Set("Content-Type", "multipart/mixed; boundary="+mw.Boundary())
 	rw.WriteHeader(http.StatusOK)
-	_, _ = io.Copy(rw, artifact.Reader)
+
+	// Part 1: video/mp4 (always present).
+	videoPart, err := mw.CreatePart(textproto.MIMEHeader{
+		"Content-Type": {"video/mp4"},
+	})
+	if err != nil {
+		a.logger.Warn(ctx, "failed to create video multipart part",
+			slog.F("recording_id", recordingID),
+			slog.Error(err))
+		return
+	}
+	if _, err := io.Copy(videoPart, artifact.Reader); err != nil {
+		a.logger.Warn(ctx, "failed to write video multipart part",
+			slog.F("recording_id", recordingID),
+			slog.Error(err))
+		return
+	}
+
+	// Part 2: image/jpeg (present only when thumbnail was extracted).
+	if artifact.ThumbnailReader != nil {
+		thumbPart, err := mw.CreatePart(textproto.MIMEHeader{
+			"Content-Type": {"image/jpeg"},
+		})
+		if err != nil {
+			a.logger.Warn(ctx, "failed to create thumbnail multipart part",
+				slog.F("recording_id", recordingID),
+				slog.Error(err))
+			return
+		}
+		_, _ = io.Copy(thumbPart, artifact.ThumbnailReader)
+	}
 }
 
 // coordFromAction extracts the coordinate pair from a DesktopAction,

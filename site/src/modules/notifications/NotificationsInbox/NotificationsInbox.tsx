@@ -1,4 +1,4 @@
-import { type FC, useEffect } from "react";
+import { type FC, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { watchInboxNotifications } from "#/api/api";
@@ -7,7 +7,6 @@ import type {
 	ListInboxNotificationsResponse,
 	UpdateInboxNotificationReadStatusResponse,
 } from "#/api/typesGenerated";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { InboxPopover } from "./InboxPopover";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
@@ -41,7 +40,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		queryFn: () => fetchNotifications(),
 	});
 
-	const updateNotificationsCache = useEffectEvent(
+	const updateNotificationsCache = useCallback(
 		async (
 			callback: (
 				res: ListInboxNotificationsResponse,
@@ -58,6 +57,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 				},
 			);
 		},
+		[queryClient],
 	);
 
 	useEffect(() => {

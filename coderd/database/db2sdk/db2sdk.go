@@ -20,6 +20,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -522,7 +524,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		}
 	}
 
-	status := dbAgent.Status(agentInactiveDisconnectTimeout)
+	status := dbAgent.Status(dbtime.Now(), agentInactiveDisconnectTimeout)
 	workspaceAgent.Status = codersdk.WorkspaceAgentStatus(status.Status)
 	workspaceAgent.FirstConnectedAt = status.FirstConnectedAt
 	workspaceAgent.LastConnectedAt = status.LastConnectedAt
@@ -538,6 +540,12 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	switch {
 	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:
 		workspaceAgent.Health.Reason = "agent is not running"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentConnecting:
+		// Note: the case above catches connecting+off as "not running".
+		// This case handles connecting agents with a non-off lifecycle
+		// (e.g. "created" or "starting"), where the agent binary has
+		// not yet established a connection to coderd.
+		workspaceAgent.Health.Reason = "agent has not yet connected"
 	case workspaceAgent.Status == codersdk.WorkspaceAgentTimeout:
 		workspaceAgent.Health.Reason = "agent is taking too long to connect"
 	case workspaceAgent.Status == codersdk.WorkspaceAgentDisconnected:
@@ -666,6 +674,27 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 		Level:     codersdk.LogLevel(log.Level),
 		SourceID:  log.LogSourceID,
 	}
+}
+
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+	script := codersdk.WorkspaceAgentScript{
+		ID:               dbScript.ID,
+		LogPath:          dbScript.LogPath,
+		LogSourceID:      dbScript.LogSourceID,
+		Script:           dbScript.Script,
+		Cron:             dbScript.Cron,
+		RunOnStart:       dbScript.RunOnStart,
+		RunOnStop:        dbScript.RunOnStop,
+		StartBlocksLogin: dbScript.StartBlocksLogin,
+		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+		DisplayName:      dbScript.DisplayName,
+		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
+	}
+	if dbScript.Status.Valid {
+		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
+		script.Status = &status
+	}
+	return script
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
@@ -1031,11 +1060,12 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			Name:      row.UserName,
 			AvatarURL: row.UserAvatarUrl,
 		}),
-		Providers: row.Providers,
-		Models:    row.Models,
-		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
-		StartedAt: row.StartedAt,
-		Threads:   row.Threads,
+		Providers:    row.Providers,
+		Models:       row.Models,
+		Metadata:     jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt:    row.StartedAt,
+		Threads:      row.Threads,
+		LastActiveAt: row.LastActiveAt,
 		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
 			InputTokens:           row.InputTokens,
 			OutputTokens:          row.OutputTokens,
@@ -1234,6 +1264,8 @@ func buildAIBridgeThread(
 	if rootIntc != nil {
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
+		thread.CredentialKind = string(rootIntc.CredentialKind)
+		thread.CredentialHint = sanitizeCredentialHint(rootIntc.CredentialHint)
 		// Get first user prompt from root interception.
 		// A thread can only have one prompt, by definition, since we currently
 		// only store the last prompt observed in an interception.
@@ -1399,6 +1431,25 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 	return presets
 }
 
+// sanitizeCredentialHint ensures the hint looks masked before exposing
+// it in the API. The aibridge library uses "..." as the masking
+// delimiter (e.g. "sk-a...efgh"), so we check for its presence. If
+// the hint doesn't contain "..." or exceeds the max length, it's
+// replaced with "..." to prevent leaking raw secrets.
+func sanitizeCredentialHint(hint string) string {
+	// Matches the VARCHAR(15) DB constraint.
+	const maxCredentialHintLength = 15
+
+	if hint == "" {
+		return ""
+	}
+
+	if len(hint) > maxCredentialHintLength || !strings.Contains(hint, "...") {
+		return "..."
+	}
+	return hint
+}
+
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
 	var m map[string]any
 	if !rawMessage.Valid {
@@ -1488,10 +1539,11 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 	}
 
 	return codersdk.ChatQueuedMessage{
-		ID:        message.ID,
-		ChatID:    message.ChatID,
-		Content:   parts,
-		CreatedAt: message.CreatedAt,
+		ID:            message.ID,
+		ChatID:        message.ChatID,
+		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
+		Content:       parts,
+		CreatedAt:     message.CreatedAt,
 	}
 }
 
@@ -1517,12 +1569,71 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	return parts, nil
 }
 
+func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
+	if !v.Valid {
+		return nil
+	}
+	value := v.UUID
+	return &value
+}
+
 func nullInt64Ptr(v sql.NullInt64) *int64 {
 	if !v.Valid {
 		return nil
 	}
 	value := v.Int64
 	return &value
+}
+
+func nullInt32Ptr(n sql.NullInt32) *int32 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int32
+}
+
+func nullStringPtr(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	value := v.String
+	return &value
+}
+
+func nullTimePtr(v sql.NullTime) *time.Time {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Time
+	return &value
+}
+
+const fallbackChatLastErrorMessage = "The chat request failed unexpectedly."
+
+func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
+	if !raw.Valid {
+		return nil
+	}
+
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return &codersdk.ChatError{
+			Message: fallbackChatLastErrorMessage,
+			Kind:    chaterror.KindGeneric,
+		}
+	}
+
+	payload.Message = strings.TrimSpace(payload.Message)
+	payload.Detail = strings.TrimSpace(payload.Detail)
+	payload.Kind = strings.TrimSpace(payload.Kind)
+	payload.Provider = strings.TrimSpace(payload.Provider)
+	if payload.Kind == "" {
+		payload.Kind = chaterror.KindGeneric
+	}
+	if payload.Message == "" {
+		payload.Message = fallbackChatLastErrorMessage
+	}
+	return &payload
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
@@ -1540,8 +1651,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	lastError := decodeChatLastError(c.LastError)
 	chat := codersdk.Chat{
 		ID:                c.ID,
+		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
@@ -1552,14 +1665,21 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		UpdatedAt:         c.UpdatedAt,
 		MCPServerIDs:      mcpServerIDs,
 		Labels:            labels,
+		ClientType:        codersdk.ChatClientType(c.ClientType),
+		LastError:         lastError,
 	}
-	if c.LastError.Valid {
-		chat.LastError = &c.LastError.String
+	if c.PlanMode.Valid {
+		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}
 	if c.ParentChatID.Valid {
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID
 	}
+	// Always initialize Children to an empty slice so the JSON
+	// field serializes as [] rather than null. Root chats may
+	// later have children populated; child chats remain empty
+	// because nesting depth is capped at 1.
+	chat.Children = []codersdk.Chat{}
 	switch {
 	case c.RootChatID.Valid:
 		rootChatID := c.RootChatID.UUID
@@ -1611,24 +1731,186 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	return chat
 }
 
-// ChatRows converts a slice of database.GetChatsRow (which embeds
-// Chat plus HasUnread) to codersdk.Chat, looking up diff statuses
-// from the provided map. When diffStatusesByChatID is non-nil,
-// chats without an entry receive an empty DiffStatus.
-func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
-	result := make([]codersdk.Chat, len(rows))
-	for i, row := range rows {
-		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
+func chatDebugAttempts(raw json.RawMessage) []map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var attempts []map[string]any
+	if err := json.Unmarshal(raw, &attempts); err != nil {
+		return []map[string]any{{
+			"error":       "malformed attempts payload",
+			"parse_error": err.Error(),
+			"raw":         string(raw),
+		}}
+	}
+	// Guard against JSON literal "null" which unmarshals successfully
+	// but leaves the slice nil. The DB column is JSONB NOT NULL but
+	// that only rejects SQL NULL, not JSONB null.
+	if attempts == nil {
+		return []map[string]any{}
+	}
+	return attempts
+}
+
+// rawJSONObject deserializes a JSON object payload for debug display.
+// If the payload is malformed, it returns a map with "error" and "raw"
+// keys preserving the original content for diagnostics.  Callers that
+// consume the result programmatically should check for the "error" key.
+func rawJSONObject(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return map[string]any{
+			"error":       "malformed debug payload",
+			"parse_error": err.Error(),
+			"raw":         string(raw),
+		}
+	}
+	// Guard against JSON literal "null" which unmarshals successfully
+	// but leaves the map nil. The DB column is JSONB NOT NULL but
+	// that only rejects SQL NULL, not JSONB null.
+	if object == nil {
+		return map[string]any{}
+	}
+	return object
+}
+
+func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
+	if !raw.Valid {
+		return nil
+	}
+	return rawJSONObject(raw.RawMessage)
+}
+
+// ChatDebugRunSummary converts a database.ChatDebugRun to a
+// codersdk.ChatDebugRunSummary.
+func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
+	return codersdk.ChatDebugRunSummary{
+		ID:         r.ID,
+		ChatID:     r.ChatID,
+		Kind:       codersdk.ChatDebugRunKind(r.Kind),
+		Status:     codersdk.ChatDebugStatus(r.Status),
+		Provider:   nullStringPtr(r.Provider),
+		Model:      nullStringPtr(r.Model),
+		Summary:    rawJSONObject(r.Summary),
+		StartedAt:  r.StartedAt,
+		UpdatedAt:  r.UpdatedAt,
+		FinishedAt: nullTimePtr(r.FinishedAt),
+	}
+}
+
+// ChatDebugStep converts a database.ChatDebugStep to a
+// codersdk.ChatDebugStep.
+func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
+	return codersdk.ChatDebugStep{
+		ID:                  s.ID,
+		RunID:               s.RunID,
+		ChatID:              s.ChatID,
+		StepNumber:          s.StepNumber,
+		Operation:           codersdk.ChatDebugStepOperation(s.Operation),
+		Status:              codersdk.ChatDebugStatus(s.Status),
+		HistoryTipMessageID: nullInt64Ptr(s.HistoryTipMessageID),
+		AssistantMessageID:  nullInt64Ptr(s.AssistantMessageID),
+		NormalizedRequest:   rawJSONObject(s.NormalizedRequest),
+		NormalizedResponse:  nullRawJSONObject(s.NormalizedResponse),
+		Usage:               nullRawJSONObject(s.Usage),
+		Attempts:            chatDebugAttempts(s.Attempts),
+		Error:               nullRawJSONObject(s.Error),
+		Metadata:            rawJSONObject(s.Metadata),
+		StartedAt:           s.StartedAt,
+		UpdatedAt:           s.UpdatedAt,
+		FinishedAt:          nullTimePtr(s.FinishedAt),
+	}
+}
+
+// ChatDebugRunDetail converts a database.ChatDebugRun and its steps
+// to a codersdk.ChatDebugRun.
+func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep) codersdk.ChatDebugRun {
+	sdkSteps := make([]codersdk.ChatDebugStep, 0, len(steps))
+	for _, s := range steps {
+		sdkSteps = append(sdkSteps, ChatDebugStep(s))
+	}
+	return codersdk.ChatDebugRun{
+		ID:                  r.ID,
+		ChatID:              r.ChatID,
+		RootChatID:          nullUUIDPtr(r.RootChatID),
+		ParentChatID:        nullUUIDPtr(r.ParentChatID),
+		ModelConfigID:       nullUUIDPtr(r.ModelConfigID),
+		TriggerMessageID:    nullInt64Ptr(r.TriggerMessageID),
+		HistoryTipMessageID: nullInt64Ptr(r.HistoryTipMessageID),
+		Kind:                codersdk.ChatDebugRunKind(r.Kind),
+		Status:              codersdk.ChatDebugStatus(r.Status),
+		Provider:            nullStringPtr(r.Provider),
+		Model:               nullStringPtr(r.Model),
+		Summary:             rawJSONObject(r.Summary),
+		StartedAt:           r.StartedAt,
+		UpdatedAt:           r.UpdatedAt,
+		FinishedAt:          nullTimePtr(r.FinishedAt),
+		Steps:               sdkSteps,
+	}
+}
+
+// ChildChatRows converts child chat rows to codersdk.Chat values,
+// resolving diff statuses from the shared map. When diffStatuses
+// is non-nil, children without an entry receive an empty DiffStatus.
+func ChildChatRows(
+	children []database.GetChildChatsByParentIDsRow,
+	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+) []codersdk.Chat {
+	result := make([]codersdk.Chat, len(children))
+	for i, row := range children {
+		diffStatus, ok := diffStatuses[row.Chat.ID]
 		if ok {
 			result[i] = Chat(row.Chat, &diffStatus, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
-			if diffStatusesByChatID != nil {
+			if diffStatuses != nil {
 				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
 				result[i].DiffStatus = &emptyDiffStatus
 			}
 		}
 		result[i].HasUnread = row.HasUnread
+	}
+	return result
+}
+
+// ChatRowsWithChildren converts root chat rows and their child rows
+// into codersdk.Chat values with children embedded under each parent.
+// Both root and child diff statuses are resolved from the shared map.
+func ChatRowsWithChildren(
+	roots []database.GetChatsRow,
+	children []database.GetChildChatsByParentIDsRow,
+	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+) []codersdk.Chat {
+	// Group children by parent ID.
+	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
+	for _, row := range children {
+		parentID := row.Chat.ParentChatID.UUID
+		childrenByParent[parentID] = append(childrenByParent[parentID], row)
+	}
+
+	result := make([]codersdk.Chat, len(roots))
+	for i, row := range roots {
+		diffStatus, ok := diffStatuses[row.Chat.ID]
+		if ok {
+			result[i] = Chat(row.Chat, &diffStatus, nil)
+		} else {
+			result[i] = Chat(row.Chat, nil, nil)
+			if diffStatuses != nil {
+				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
+				result[i].DiffStatus = &emptyDiffStatus
+			}
+		}
+		result[i].HasUnread = row.HasUnread
+
+		// Embed child chats.
+		if childRows, ok := childrenByParent[row.Chat.ID]; ok {
+			result[i].Children = ChildChatRows(childRows, diffStatuses)
+		}
 	}
 	return result
 }
@@ -1713,5 +1995,43 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	staleAt := status.StaleAt
 	result.StaleAt = &staleAt
 
+	return result
+}
+
+// UserSecret converts a database ListUserSecretsRow (metadata only,
+// no value) to an SDK UserSecret.
+func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
+	return codersdk.UserSecret{
+		ID:          secret.ID,
+		Name:        secret.Name,
+		Description: secret.Description,
+		EnvName:     secret.EnvName,
+		FilePath:    secret.FilePath,
+		CreatedAt:   secret.CreatedAt,
+		UpdatedAt:   secret.UpdatedAt,
+	}
+}
+
+// UserSecretFromFull converts a full database UserSecret row to an
+// SDK UserSecret, omitting the value and encryption key ID.
+func UserSecretFromFull(secret database.UserSecret) codersdk.UserSecret {
+	return codersdk.UserSecret{
+		ID:          secret.ID,
+		Name:        secret.Name,
+		Description: secret.Description,
+		EnvName:     secret.EnvName,
+		FilePath:    secret.FilePath,
+		CreatedAt:   secret.CreatedAt,
+		UpdatedAt:   secret.UpdatedAt,
+	}
+}
+
+// UserSecrets converts a slice of database ListUserSecretsRow to
+// SDK UserSecret values.
+func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
+	result := make([]codersdk.UserSecret, 0, len(secrets))
+	for _, s := range secrets {
+		result = append(result, UserSecret(s))
+	}
 	return result
 }

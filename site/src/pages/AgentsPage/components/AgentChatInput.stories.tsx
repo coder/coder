@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { withProxyProvider } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -23,6 +26,7 @@ const defaultModelOptions = [
 const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
+	decorators: [withProxyProvider()],
 	args: {
 		onSend: fn(),
 		onContentChange: fn(),
@@ -76,6 +80,47 @@ export const SendsAndClearsInput: Story = {
 		await waitFor(() => {
 			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
 		});
+	},
+};
+
+/**
+ * CODAGT-210: On mobile viewports, Enter must insert a newline rather
+ * than submit the message, because Shift+Enter is cumbersome on
+ * on-screen keyboards. Users submit via the send button instead.
+ */
+export const MobileEnterInsertsNewline: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Line one",
+	},
+	play: async ({ canvasElement, args }) => {
+		const originalMatchMedia = window.matchMedia;
+		window.matchMedia = ((query: string) =>
+			({
+				matches: query === "(max-width: 639px)",
+				media: query,
+				onchange: null,
+				addEventListener: () => undefined,
+				removeEventListener: () => undefined,
+				dispatchEvent: () => true,
+				addListener: () => undefined,
+				removeListener: () => undefined,
+			}) as MediaQueryList) as typeof window.matchMedia;
+
+		try {
+			const canvas = within(canvasElement);
+			const editor = canvas.getByTestId("chat-message-input");
+			await waitFor(() => {
+				expect(editor.textContent).toBe("Line one");
+			});
+
+			await userEvent.click(editor);
+			await userEvent.keyboard("{Enter}");
+
+			expect(args.onSend).not.toHaveBeenCalled();
+		} finally {
+			window.matchMedia = originalMatchMedia;
+		}
 	},
 };
 
@@ -485,6 +530,7 @@ const makeMCPServer = (
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
+	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -581,6 +627,134 @@ export const PlusMenuOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+export const PlanFirstMenuItem: Story = {
+	args: {
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1)!;
+		expect(toggle).toBeInTheDocument();
+	},
+};
+
+export const PlanningIndicator: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Disable plan mode" }),
+		).toBeVisible();
+	},
+};
+
+export const DisablePlanModeFromBadge: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dismiss = canvas.getByRole("button", {
+			name: "Disable plan mode",
+		});
+		await userEvent.click(dismiss);
+		expect(args.onPlanModeToggle).toHaveBeenCalledTimes(1);
+		expect(args.onPlanModeToggle).toHaveBeenCalledWith(false);
+	},
+};
+
+export const PlanningIndicatorWithoutToggle: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Disable plan mode" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const PlanFirstCheckedState: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await body.findByRole("dialog");
+		const toggles = await body.findAllByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+		const toggle = toggles.at(-1)!;
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+	},
+};
+
+export const DetailPageWorkspacePicker: Story = {
+	args: {
+		workspaceOptions: [
+			{
+				id: "ws-detail",
+				name: "agents-workspace",
+				owner_name: "mike",
+			},
+		],
+		selectedWorkspaceId: "ws-detail",
+		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-detail",
+			name: "agents-workspace",
+			route: "/@mike/agents-workspace",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getAllByText("agents-workspace")).toHaveLength(1);
+		expect(
+			canvas.queryByRole("button", {
+				name: "Remove workspace agents-workspace",
+			}),
+		).not.toBeInTheDocument();
+
+		const moreOptionsButton = canvas.getByRole("button", {
+			name: "More options",
+		});
+		await userEvent.click(moreOptionsButton);
+		await waitFor(() => {
+			const plusMenuId = moreOptionsButton.getAttribute("aria-controls");
+			if (!plusMenuId) {
+				throw new Error("Expected More options to control a menu dialog.");
+			}
+
+			const plusMenu = canvasElement.ownerDocument.getElementById(plusMenuId);
+			if (!(plusMenu instanceof HTMLElement)) {
+				throw new Error("Expected More options menu dialog to render.");
+			}
+
+			expect(within(plusMenu).getByText("Attach workspace")).toBeVisible();
+		});
 	},
 };
 
@@ -726,5 +900,43 @@ export const ContextNearLimit: Story = {
 				},
 			] as TypesGen.ChatMessagePart[],
 		},
+	},
+};
+
+/** Long workspace name at iPhone SE width — verifies truncation. */
+export const LongWorkspaceNameMobile: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		workspace: {
+			...MockWorkspace,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "test-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The workspace pill button should be present.
+		const pill = await canvas.findByRole("button", {
+			name: /workspace menu/,
+		});
+		await waitFor(() => {
+			expect(pill).toBeVisible();
+		});
+		// The toolbar row should not cause horizontal overflow.
+		const toolbar = pill.closest(
+			".flex.items-center.justify-between",
+		) as HTMLElement;
+		if (toolbar?.parentElement) {
+			expect(toolbar.scrollWidth).toBeLessThanOrEqual(
+				toolbar.parentElement.clientWidth,
+			);
+		}
 	},
 };

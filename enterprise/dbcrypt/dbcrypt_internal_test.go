@@ -926,30 +926,19 @@ func TestMCPServerConfigs(t *testing.T) {
 		apiKeyValue   = "my-api-key"
 		customHeaders = `{"X-Custom":"header-value"}`
 	)
-	// insertConfig is a small helper that creates a user and an MCP
-	// server config through the encrypted store, returning both.
+	// insertConfig is a small helper that creates an MCP server
+	// config through the encrypted store with secret fields set.
 	insertConfig := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) database.MCPServerConfig {
 		t.Helper()
-		user := dbgen.User(t, crypt, database.User{})
-		cfg, err := crypt.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			DisplayName:        "Test MCP Server",
-			Slug:               "test-mcp-" + uuid.New().String()[:8],
+		cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
 			Description:        "test description",
-			Url:                "https://mcp.example.com",
-			Transport:          "streamable_http",
 			AuthType:           "oauth2",
 			OAuth2ClientID:     "client-id",
 			OAuth2ClientSecret: oauthSecret,
 			APIKeyValue:        apiKeyValue,
 			CustomHeaders:      customHeaders,
-			ToolAllowList:      []string{},
-			ToolDenyList:       []string{},
 			Availability:       "force_on",
-			Enabled:            true,
-			CreatedBy:          user.ID,
-			UpdatedBy:          user.ID,
 		})
-		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders)
 		return cfg
 	}
@@ -1084,20 +1073,12 @@ func TestMCPServerUserTokens(t *testing.T) {
 	) (database.MCPServerConfig, database.MCPServerUserToken) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
-		cfg, err := crypt.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			DisplayName:   "Token Test MCP",
-			Slug:          "tok-mcp-" + uuid.New().String()[:8],
-			Url:           "https://mcp.example.com",
-			Transport:     "streamable_http",
-			AuthType:      "oauth2",
-			ToolAllowList: []string{},
-			ToolDenyList:  []string{},
-			Availability:  "default_off",
-			Enabled:       true,
-			CreatedBy:     user.ID,
-			UpdatedBy:     user.ID,
+		cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
+			DisplayName: "Token Test MCP",
+			AuthType:    "oauth2",
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
-		require.NoError(t, err)
 
 		tok, err := crypt.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
 			MCPServerConfigID: cfg.ID,
@@ -1196,14 +1177,11 @@ func TestUserChatProviderKeys(t *testing.T) {
 	) (database.ChatProvider, database.UserChatProviderKey) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
-		provider, err := crypt.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:        "openai",
-			DisplayName:     "OpenAI",
-			APIKey:          "",
-			Enabled:         true,
+		provider := dbgen.ChatProvider(t, crypt, database.ChatProvider{
 			AllowUserApiKey: true,
+		}, func(params *database.InsertChatProviderParams) {
+			params.APIKey = ""
 		})
-		require.NoError(t, err)
 
 		key, err := crypt.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
 			UserID:         user.ID,
@@ -1285,5 +1263,200 @@ func TestUserChatProviderKeys(t *testing.T) {
 		rawKey := getUserChatProviderKey(t, db, key.UserID, provider.ID)
 		require.NotEqual(t, updatedAPIKey, rawKey.APIKey)
 		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, updatedAPIKey)
+	})
+}
+
+func TestUserSecrets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		//nolint:gosec // test credentials
+		initialValue = "super-secret-value-initial"
+		//nolint:gosec // test credentials
+		updatedValue = "super-secret-value-updated"
+	)
+
+	insertUserSecret := func(
+		t *testing.T,
+		crypt *dbCrypt,
+		ciphers []Cipher,
+	) database.UserSecret {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		secret, err := crypt.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			ID:     uuid.New(),
+			UserID: user.ID,
+			Name:   "test-secret-" + uuid.NewString()[:8],
+			Value:  initialValue,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, secret.Value)
+		if len(ciphers) > 0 {
+			require.Equal(t, ciphers[0].HexDigest(), secret.ValueKeyID.String)
+		}
+		return secret
+	}
+
+	t.Run("CreateUserSecretEncryptsValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		// Reading through crypt should return plaintext.
+		got, err := crypt.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, got.Value)
+
+		// Reading through raw DB should return encrypted value.
+		raw, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, initialValue, raw.Value)
+		requireEncryptedEquals(t, ciphers[0], raw.Value, initialValue)
+	})
+
+	t.Run("ListUserSecretsWithValuesDecrypts", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		secrets, err := crypt.ListUserSecretsWithValues(ctx, secret.UserID)
+		require.NoError(t, err)
+		require.Len(t, secrets, 1)
+		require.Equal(t, initialValue, secrets[0].Value)
+	})
+
+	t.Run("UpdateUserSecretReEncryptsValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		updated, err := crypt.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+			UserID:      secret.UserID,
+			Name:        secret.Name,
+			UpdateValue: true,
+			Value:       updatedValue,
+			ValueKeyID:  sql.NullString{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, updatedValue, updated.Value)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ValueKeyID.String)
+
+		// Raw DB should have new encrypted value.
+		raw, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, updatedValue, raw.Value)
+		requireEncryptedEquals(t, ciphers[0], raw.Value, updatedValue)
+	})
+
+	t.Run("NoCipherStoresPlaintext", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		user := dbgen.User(t, crypt, database.User{})
+
+		secret, err := crypt.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			ID:     uuid.New(),
+			UserID: user.ID,
+			Name:   "plaintext-secret",
+			Value:  initialValue,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, secret.Value)
+		require.False(t, secret.ValueKeyID.Valid)
+
+		// Raw DB should also have plaintext.
+		raw, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   "plaintext-secret",
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialValue, raw.Value)
+		require.False(t, raw.ValueKeyID.Valid)
+	})
+
+	t.Run("UpdateMetadataOnlySkipsEncryption", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+
+		// Read the raw encrypted value from the database.
+		rawBefore, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+
+		// Perform a metadata-only update (no value change).
+		updated, err := crypt.UpdateUserSecretByUserIDAndName(ctx, database.UpdateUserSecretByUserIDAndNameParams{
+			UserID:            secret.UserID,
+			Name:              secret.Name,
+			UpdateValue:       false,
+			Value:             "",
+			ValueKeyID:        sql.NullString{},
+			UpdateDescription: true,
+			Description:       "updated description",
+			UpdateEnvName:     false,
+			EnvName:           "",
+			UpdateFilePath:    false,
+			FilePath:          "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "updated description", updated.Description)
+		require.Equal(t, initialValue, updated.Value)
+
+		// Read the raw encrypted value again.
+		rawAfter, err := db.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: secret.UserID,
+			Name:   secret.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, rawBefore.Value, rawAfter.Value)
+		require.Equal(t, rawBefore.ValueKeyID, rawAfter.ValueKeyID)
+	})
+
+	t.Run("GetUserSecretDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:     user.ID,
+			Name:       "corrupt-secret",
+			Value:      fakeBase64RandomData(t, 32),
+			ValueKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+		})
+
+		_, err := crypt.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   "corrupt-secret",
+		})
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
+	t.Run("ListUserSecretsWithValuesDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:     user.ID,
+			Name:       "corrupt-list-secret",
+			Value:      fakeBase64RandomData(t, 32),
+			ValueKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+		})
+
+		_, err := crypt.ListUserSecretsWithValues(ctx, user.ID)
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
 	})
 }

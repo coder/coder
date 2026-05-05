@@ -829,35 +829,6 @@ func TestPostUsers(t *testing.T) {
 		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
 	})
 
-	// CreateWithAgentsExperiment verifies that new users
-	// are auto-assigned the agents-access role when the
-	// experiment is enabled. The experiment-disabled case
-	// is implicitly covered by TestInitialRoles, which
-	// asserts exactly [owner] with no experiment — it
-	// would fail if agents-access leaked through.
-	t.Run("CreateWithAgentsExperiment", func(t *testing.T) {
-		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAgents)}
-		client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
-		firstUser := coderdtest.CreateFirstUser(t, client)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
-			Email:           "another@user.org",
-			Username:        "someone-else",
-			Password:        "SomeSecurePassword!",
-		})
-		require.NoError(t, err)
-
-		roles, err := client.UserRoles(ctx, user.Username)
-		require.NoError(t, err)
-		require.Contains(t, roles.Roles, codersdk.RoleAgentsAccess,
-			"new user should have agents-access role when agents experiment is enabled")
-	})
-
 	t.Run("CreateWithStatus", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -979,7 +950,7 @@ func TestPostUsers(t *testing.T) {
 		require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 	})
 
-	t.Run("ServiceAccount/OK", func(t *testing.T) {
+	t.Run("ServiceAccount/Unlicensed", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
@@ -987,98 +958,16 @@ func TestPostUsers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Username:        "service-acct-ok",
 			UserLoginType:   codersdk.LoginTypeNone,
 			ServiceAccount:  true,
 		})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.LoginTypeNone, user.LoginType)
-		require.Empty(t, user.Email)
-		require.Equal(t, "service-acct-ok", user.Username)
-		require.Equal(t, codersdk.UserStatusDormant, user.Status)
-	})
-
-	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-email",
-			Email:           "should-not-have@email.com",
-			ServiceAccount:  true,
-		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Email cannot be set for service accounts")
-	})
-
-	t.Run("ServiceAccount/WithPassword", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-password",
-			Password:        "ShouldNotHavePassword123!",
-			ServiceAccount:  true,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Password cannot be set for service accounts")
-	})
-
-	t.Run("ServiceAccount/WithInvalidLoginType", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-login-type",
-			UserLoginType:   codersdk.LoginTypePassword,
-			ServiceAccount:  true,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Service accounts must use login type 'none'")
-	})
-
-	t.Run("ServiceAccount/DefaultLoginType", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-default-login",
-			ServiceAccount:  true,
-		})
-		require.NoError(t, err)
-
-		found, err := client.User(ctx, user.ID.String())
-		require.NoError(t, err)
-		require.Equal(t, codersdk.LoginTypeNone, found.LoginType)
-		require.Empty(t, found.Email)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Premium feature")
 	})
 
 	t.Run("NonServiceAccount/WithoutEmail", func(t *testing.T) {
@@ -1097,32 +986,6 @@ func TestPostUsers(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
-	t.Run("ServiceAccount/MultipleWithoutEmail", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		user1, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-multi-1",
-			ServiceAccount:  true,
-		})
-		require.NoError(t, err)
-		require.Empty(t, user1.Email)
-
-		user2, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{first.OrganizationID},
-			Username:        "service-acct-multi-2",
-			ServiceAccount:  true,
-		})
-		require.NoError(t, err)
-		require.Empty(t, user2.Email)
-		require.NotEqual(t, user1.ID, user2.ID)
 	})
 }
 
@@ -1832,7 +1695,7 @@ func TestGetUsersFilter(t *testing.T) {
 	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
+	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
 		res, err := client.Users(testCtx, req)
 		require.NoError(t, err)
 		reduced := make([]codersdk.ReducedUser, len(res.Users))
@@ -1989,7 +1852,7 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// When: user dismisses the task notification alert
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: true,
+			TaskNotificationAlertDismissed: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
@@ -2007,19 +1870,96 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// Given: user has dismissed the task notification alert
 		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: true,
+			TaskNotificationAlertDismissed: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
 		// When: the task notification alert dismissal is cleared
 		// (e.g., when user enables a task notification in the UI settings)
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: false,
+			TaskNotificationAlertDismissed: ptr.Ref(false),
 		})
 		require.NoError(t, err)
 
 		// Then: the setting is updated to false
 		require.False(t, updated.TaskNotificationAlertDismissed)
+	})
+}
+
+func TestThinkingDisplayMode(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	t.Run("defaults to auto", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAuto, settings.ThinkingDisplayMode)
+	})
+
+	t.Run("round-trips a valid mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModeAlwaysCollapsed,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysCollapsed, updated.ThinkingDisplayMode)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysCollapsed, settings.ThinkingDisplayMode)
+	})
+
+	t.Run("rejects invalid mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: "bogus",
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("empty mode preserves stored value", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// Set a non-default mode.
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModePreview,
+		})
+		require.NoError(t, err)
+
+		// Send an update that omits thinking_display_mode (zero value).
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)
 	})
 }
 

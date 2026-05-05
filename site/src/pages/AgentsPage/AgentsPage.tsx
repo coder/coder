@@ -5,11 +5,12 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
+	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -19,26 +20,32 @@ import {
 	chatsByWorkspaceKeyPrefix,
 	infiniteChats,
 	invalidateChatListQueries,
+	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
+	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
+	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
+	updateChatTitle,
 	updateInfiniteChatsCache,
+	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useArchivedFilterParam } from "./hooks/useArchivedFilterParam";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -51,57 +58,18 @@ import {
 	chatDetailErrorsEqual,
 } from "./utils/usageLimitMessage";
 
-// Type guard for SSE events from the chat list watch endpoint.
-// Shallow-compare two ChatDiffStatus objects by their meaningful
-// fields, ignoring refreshed_at/stale_at which change on every poll.
-function diffStatusEqual(
-	a: TypesGen.ChatDiffStatus | undefined,
-	b: TypesGen.ChatDiffStatus | undefined,
-): boolean {
-	if (a === b) return true;
-	if (!a || !b) return false;
-	return (
-		a.url === b.url &&
-		a.pull_request_state === b.pull_request_state &&
-		a.pull_request_title === b.pull_request_title &&
-		a.pull_request_draft === b.pull_request_draft &&
-		a.changes_requested === b.changes_requested &&
-		a.additions === b.additions &&
-		a.deletions === b.deletions &&
-		a.changed_files === b.changed_files &&
-		a.pr_number === b.pr_number &&
-		a.approved === b.approved &&
-		a.commits === b.commits
-	);
-}
-
-function isChatListSSEEvent(
-	data: unknown,
-): data is { kind: string; chat: TypesGen.Chat } {
-	if (typeof data !== "object" || data === null) return false;
-	const obj = data as Record<string, unknown>;
-	return (
-		typeof obj.kind === "string" &&
-		typeof obj.chat === "object" &&
-		obj.chat !== null &&
-		"id" in obj.chat
-	);
-}
-
 export type { AgentsOutletContext } from "./AgentsPageView";
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
 	const { agentId } = useParams();
 	const { permissions } = useAuthenticated();
-	const { appearance } = useDashboard();
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
-	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
-		"active",
-	);
+	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -151,15 +119,56 @@ const AgentsPage: FC = () => {
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently — react-query
+	// subscribe to the same queries independently, and react-query
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(),
+	);
+	const [chatErrorReasons, setChatErrorReasons] = useState<
+		Record<string, ChatDetailError>
+	>({});
+	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
+		const trimmedMessage = reason.message.trim();
+		if (!chatId || !trimmedMessage) {
+			return;
+		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
+		setChatErrorReasons((current) => {
+			const existing = current[chatId];
+			if (chatDetailErrorsEqual(existing, nextReason)) {
+				return current;
+			}
+			return {
+				...current,
+				[chatId]: nextReason,
+			};
+		});
+	};
+	const clearChatErrorReason = (chatId: string) => {
+		if (!chatId) {
+			return;
+		}
+		setChatErrorReasons((current) => {
+			if (!(chatId in current)) {
+				return current;
+			}
+			const next = { ...current };
+			delete next[chatId];
+			return next;
+		});
+	};
+
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
+			clearPersistedSidebarTabId(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -182,6 +191,7 @@ const AgentsPage: FC = () => {
 			),
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
+			clearPersistedSidebarTabId(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
@@ -240,51 +250,25 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
+	const renameTitleMutation = useMutation({
+		...updateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to rename chat."));
+		},
+	});
 	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
 	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
 		readonly string[]
 	>([]);
+	const regeneratingTitlePromisesRef = useRef(
+		new Map<string, Promise<string>>(),
+	);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, ChatDetailError>
-	>({});
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
-	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
-		const trimmedMessage = reason.message.trim();
-		if (!chatId || !trimmedMessage) {
-			return;
-		}
-		const nextReason: ChatDetailError = {
-			...reason,
-			message: trimmedMessage,
-		};
-		setChatErrorReasons((current) => {
-			const existing = current[chatId];
-			if (chatDetailErrorsEqual(existing, nextReason)) {
-				return current;
-			}
-			return {
-				...current,
-				[chatId]: nextReason,
-			};
-		});
-	};
-	const clearChatErrorReason = (chatId: string) => {
-		if (!chatId) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (!(chatId in current)) {
-				return current;
-			}
-			const next = { ...current };
-			delete next[chatId];
-			return next;
-		});
-	};
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -320,6 +304,32 @@ const AgentsPage: FC = () => {
 			},
 		});
 	};
+
+	// Track the active chat ID in a ref so the watchChats
+	// WebSocket handler can read it without re-subscribing
+	// on every navigation.
+	const activeChatIDRef = useRef(agentId);
+	const navigateAfterArchive = (archivedChatId: string) => {
+		const activeChatId = activeChatIDRef.current;
+		if (
+			shouldNavigateAfterArchive(
+				activeChatId,
+				archivedChatId,
+				// Read root_chat_id from the per-chat cache, which
+				// survives WebSocket eviction of sub-agents (only the
+				// parent's chatKey is removed). This must be read at
+				// callback time so it reflects the user's current
+				// location.
+				activeChatId
+					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+							?.root_chat_id
+					: undefined,
+			)
+		) {
+			navigate({ pathname: "/agents", search: location.search });
+		}
+	};
+
 	const requestArchiveAndDeleteWorkspace = async (
 		chatId: string,
 		workspaceId: string,
@@ -409,18 +419,35 @@ const AgentsPage: FC = () => {
 		regeneratingTitleChatIdsRef.current = next;
 		setRegeneratingTitleChatIds(Array.from(next));
 	};
-	const requestRegenerateTitle = (chatId: string) => {
-		if (!addRegeneratingTitleChatId(chatId)) {
-			return;
+	const requestRegenerateTitle = (chatId: string): Promise<string> => {
+		const existing = regeneratingTitlePromisesRef.current.get(chatId);
+		if (existing) {
+			return existing;
 		}
-		void regenerateTitleMutation
-			.mutateAsync(chatId)
-			.catch(() => {
-				// The shared mutation onError already reports the failure.
-			})
-			.finally(() => {
-				removeRegeneratingTitleChatId(chatId);
-			});
+		addRegeneratingTitleChatId(chatId);
+		const clearRegenerateTitleTracking = () => {
+			regeneratingTitlePromisesRef.current.delete(chatId);
+			removeRegeneratingTitleChatId(chatId);
+		};
+		const promise = regenerateTitleMutation.mutateAsync(chatId).then(
+			(updated) => {
+				clearRegenerateTitleTracking();
+				return updated.title;
+			},
+			(error) => {
+				clearRegenerateTitleTracking();
+				throw error;
+			},
+		);
+		regeneratingTitlePromisesRef.current.set(chatId, promise);
+		return promise;
+	};
+	const requestProposeTitle = async (chatId: string): Promise<string> => {
+		const result = await proposeTitleMutation.mutateAsync(chatId);
+		return result.title;
+	};
+	const requestRenameTitle = async (chatId: string, title: string) => {
+		await renameTitleMutation.mutateAsync({ chatId, title });
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -432,33 +459,9 @@ const AgentsPage: FC = () => {
 		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
-		navigate("/agents");
+		navigate({ pathname: "/agents", search: location.search });
 	};
 
-	// Track the active chat ID in a ref so the watchChats
-	// WebSocket handler can read it without re-subscribing on
-	// every navigation.
-	const activeChatIDRef = useRef(agentId);
-	const navigateAfterArchive = (archivedChatId: string) => {
-		const activeChatId = activeChatIDRef.current;
-		if (
-			shouldNavigateAfterArchive(
-				activeChatId,
-				archivedChatId,
-				// Read root_chat_id from the per-chat cache, which
-				// survives WebSocket eviction of sub-agents (only the
-				// parent's chatKey is removed). This must be read at
-				// callback time so it reflects the user's current
-				// location.
-				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
-							?.root_chat_id
-					: undefined,
-			)
-		) {
-			navigate("/agents");
-		}
-	};
 	useEffect(() => {
 		activeChatIDRef.current = agentId;
 	});
@@ -492,14 +495,7 @@ const AgentsPage: FC = () => {
 						console.warn("Failed to parse chat watch event:", event.parseError);
 						return;
 					}
-					const sse = event.parsedMessage;
-					if (sse?.type !== "data" || !sse.data) {
-						return;
-					}
-					if (!isChatListSSEEvent(sse.data)) {
-						return;
-					}
-					const chatEvent = sse.data;
+					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					// Read the previous status from the infinite chat list
 					// cache before we write the update below. The per-chat
@@ -520,21 +516,24 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
+						// Drop the chat from the flat root list (root or
+						// cascade via root_chat_id) and from any parent's
+						// embedded children (individual child archive).
 						updateInfiniteChatsCache(queryClient, (chats) =>
 							chats.filter(
 								(c) =>
 									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
 							),
 						);
+						removeChildFromParentInCache(queryClient, updatedChat.id);
 						queryClient.removeQueries({
 							queryKey: chatKey(updatedChat.id),
 							exact: true,
 						});
 						return;
 					}
-
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
+						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
@@ -542,14 +541,8 @@ const AgentsPage: FC = () => {
 							exact: true,
 						});
 					}
-					// Scope field updates by event kind so that
-					// status_change events (which may carry a stale title
-					// snapshot from before async title generation
-					// finished) don't clobber a title_change that already
-					// landed.
-					const isTitleEvent = chatEvent.kind === "title_change";
-					const isStatusEvent = chatEvent.kind === "status_change";
-					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
+					// Merge watch payloads by event kind so stale field
+					// snapshots do not clobber fresher cached metadata.
 
 					// Cancel in-flight list and per-chat refetches so
 					// they cannot overwrite the cache update below with
@@ -578,103 +571,24 @@ const AgentsPage: FC = () => {
 					// page, so a naive prepend would duplicate the
 					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
-						prependToInfiniteChatsCache(queryClient, updatedChat);
+						if (updatedChat.parent_chat_id) {
+							// Child chat: add to its parent's children
+							// array. If the parent is not in any loaded
+							// page, the child is silently dropped.
+							addChildToParentInCache(
+								queryClient,
+								updatedChat,
+								updatedChat.parent_chat_id,
+							);
+						} else {
+							prependToInfiniteChatsCache(queryClient, updatedChat);
+						}
 					} else {
-						updateInfiniteChatsCache(queryClient, (chats) => {
-							let didUpdate = false;
-							const nextChats = chats.map((c) => {
-								if (c.id !== updatedChat.id) return c;
-								const nextStatus = isStatusEvent
-									? updatedChat.status
-									: c.status;
-								const nextTitle = isTitleEvent ? updatedChat.title : c.title;
-								const nextDiffStatus = isDiffStatusEvent
-									? updatedChat.diff_status
-									: c.diff_status;
-								const nextWorkspaceId =
-									updatedChat.workspace_id ?? c.workspace_id;
-								const nextUpdatedAt =
-									c.updated_at > updatedChat.updated_at
-										? c.updated_at
-										: updatedChat.updated_at;
-								// The server's pubsub path does not compute
-								// has_unread (it always sends false). For
-								// status_change events on non-active chats,
-								// optimistically mark as unread since the
-								// assistant produced new output.
-								const nextHasUnread =
-									isStatusEvent && updatedChat.id !== activeChatIDRef.current
-										? true
-										: c.has_unread;
-								if (
-									nextStatus === c.status &&
-									nextTitle === c.title &&
-									diffStatusEqual(nextDiffStatus, c.diff_status) &&
-									nextWorkspaceId === c.workspace_id &&
-									nextHasUnread === c.has_unread
-								) {
-									return c;
-								}
-								didUpdate = true;
-								return {
-									...c,
-									status: nextStatus,
-									title: nextTitle,
-									diff_status: nextDiffStatus,
-									workspace_id: nextWorkspaceId,
-									updated_at: nextUpdatedAt,
-									has_unread: nextHasUnread,
-								};
-							});
-							return didUpdate ? nextChats : chats;
+						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
+							eventKind: chatEvent.kind,
+							activeChatId: activeChatIDRef.current,
 						});
 					}
-					queryClient.setQueryData<TypesGen.Chat | undefined>(
-						chatKey(updatedChat.id),
-						(previousChat) => {
-							if (!previousChat) {
-								return previousChat;
-							}
-							// Only create a new object if a field actually
-							// changed. Returning the same reference prevents
-							// react-query from notifying subscribers, avoiding
-							// unnecessary re-renders of AgentChatPage during
-							// streaming when repeated status_change events
-							// carry the same "running" status.
-							const nextStatus = isStatusEvent
-								? updatedChat.status
-								: previousChat.status;
-							const nextTitle = isTitleEvent
-								? updatedChat.title
-								: previousChat.title;
-							const nextDiffStatus = isDiffStatusEvent
-								? updatedChat.diff_status
-								: previousChat.diff_status;
-							const nextWorkspaceId =
-								updatedChat.workspace_id ?? previousChat.workspace_id;
-							const nextUpdatedAt =
-								previousChat.updated_at > updatedChat.updated_at
-									? previousChat.updated_at
-									: updatedChat.updated_at;
-
-							if (
-								nextStatus === previousChat.status &&
-								nextTitle === previousChat.title &&
-								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
-								nextWorkspaceId === previousChat.workspace_id
-							) {
-								return previousChat;
-							}
-							return {
-								...previousChat,
-								status: nextStatus,
-								title: nextTitle,
-								diff_status: nextDiffStatus,
-								workspace_id: nextWorkspaceId,
-								updated_at: nextUpdatedAt,
-							};
-						},
-					);
 				});
 				return ws;
 			},
@@ -709,7 +623,6 @@ const AgentsPage: FC = () => {
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
 				isCreating={false}
 				isArchiving={isArchiving}
@@ -730,8 +643,13 @@ const AgentsPage: FC = () => {
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onRegenerateTitle={requestRegenerateTitle}
+				onProposeTitle={requestProposeTitle}
+				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				isPersonalModelOverridesEnabled={
+					personalModelOverridesQuery.data?.enabled
+				}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}

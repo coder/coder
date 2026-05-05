@@ -13,7 +13,6 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -55,10 +54,10 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
-					<Stack direction="row" spacing={1} alignItems="center">
+					<div className="flex flex-row gap-2 items-center">
 						<span>Connection Log</span>
 						<ConnectionLogHelpPopover />
-					</Stack>
+					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					View workspace connection events.

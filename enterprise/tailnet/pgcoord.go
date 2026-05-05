@@ -42,6 +42,27 @@ const (
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
+func publishPeerUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, peerID uuid.UUID) {
+	if err := ps.Publish(eventPeerUpdate, []byte(peerID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish peer update", slog.F("peer_id", peerID), slog.Error(err))
+	}
+}
+
+func publishTunnelUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, srcID, dstID uuid.UUID) {
+	if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish tunnel update",
+			slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
+	}
+}
+
+func publishCoordinatorHeartbeat(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, id uuid.UUID) {
+	if err := ps.Publish(EventHeartbeats, []byte(id.String())); err != nil {
+		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.F("coordinator_id", id), slog.Error(err))
+	} else {
+		logger.Debug(ctx, "sent heartbeat", slog.F("coordinator_id", id))
+	}
+}
+
 // pgCoord is a postgres-backed coordinator
 //
 //	                 ┌────────────┐
@@ -152,11 +173,11 @@ func newPGCoordInternal(
 		logger:           logger,
 		pubsub:           ps,
 		store:            store,
-		binder:           newBinder(ctx, logger, id, store, bCh, fHB),
+		binder:           newBinder(ctx, logger, id, store, ps, bCh, fHB),
 		bindings:         bCh,
 		newConnections:   cCh,
 		closeConnections: ccCh,
-		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
+		tunneler:         newTunneler(ctx, logger, id, store, ps, sCh, fHB),
 		tunnelerCh:       sCh,
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
@@ -273,6 +294,7 @@ type tunneler struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	updates       <-chan tunnel
 
 	mu     sync.Mutex
@@ -286,6 +308,7 @@ func newTunneler(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	updates <-chan tunnel,
 	startWorkers <-chan struct{},
 ) *tunneler {
@@ -294,6 +317,7 @@ func newTunneler(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		updates:       updates,
 		latest:        make(map[uuid.UUID]map[uuid.UUID]tunnel),
 		workQ:         newWorkQ[tKey](ctx),
@@ -396,7 +420,8 @@ func (t *tunneler) writeOne(tun tunnel) error {
 	var err error
 	switch {
 	case tun.dst == uuid.Nil:
-		err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
+		var deleted []database.DeleteAllTailnetTunnelsRow
+		deleted, err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
 			SrcID:         tun.src,
 			CoordinatorID: t.coordinatorID,
 		})
@@ -404,6 +429,11 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("src_id", tun.src),
 			slog.Error(err),
 		)
+		if err == nil {
+			for _, row := range deleted {
+				publishTunnelUpdate(t.ctx, t.pubsub, t.logger, row.SrcID, row.DstID)
+			}
+		}
 	case tun.active:
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -415,6 +445,9 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("dst_id", tun.dst),
 			slog.Error(err),
 		)
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
+		}
 	case !tun.active:
 		_, err = t.store.DeleteTailnetTunnel(t.ctx, database.DeleteTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -428,7 +461,10 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		)
 		// writeOne should be idempotent
 		if xerrors.Is(err, sql.ErrNoRows) {
-			err = nil
+			return nil // No row deleted, skip publish.
+		}
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
 		}
 	default:
 		panic("unreachable")
@@ -459,6 +495,7 @@ type binder struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	bindings      <-chan binding
 
 	mu     sync.Mutex
@@ -473,6 +510,7 @@ func newBinder(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	bindings <-chan binding,
 	startWorkers <-chan struct{},
 ) *binder {
@@ -481,6 +519,7 @@ func newBinder(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		bindings:      bindings,
 		latest:        make(map[bKey]binding),
 		workQ:         newWorkQ[bKey](ctx),
@@ -508,12 +547,15 @@ func newBinder(ctx context.Context,
 
 		ctx, cancel := context.WithTimeout(dbauthz.As(context.Background(), pgCoordSubject), time.Second*15)
 		defer cancel()
-		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
+		peerIDs, err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
 			CoordinatorID: b.coordinatorID,
 			Status:        database.TailnetStatusLost,
 		})
 		if err != nil {
 			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
+		}
+		for _, peerID := range peerIDs {
+			publishPeerUpdate(ctx, b.pubsub, b.logger, peerID)
 		}
 	}()
 	return b
@@ -592,6 +634,9 @@ func (b *binder) writeOne(bnd binding) error {
 			slog.F("binding_id", bnd.bKey),
 			slog.F("node", bnd.node),
 			slog.Error(err))
+	}
+	if err == nil {
+		publishPeerUpdate(b.ctx, b.pubsub, b.logger, uuid.UUID(bnd.bKey))
 	}
 	return err
 }
@@ -1299,9 +1344,11 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	keys := make([]mKey, 0, len(q.mappers))
 	for mk := range q.mappers {
-		q.mappingQ.enqueue(mk)
+		keys = append(keys, mk)
 	}
+	q.mappingQ.enqueue(keys...)
 }
 
 func (q *querier) handleUpdates() {
@@ -1710,11 +1757,17 @@ func (h *heartbeats) checkExpiry() {
 	expired := false
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
-		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
+		h.logger.Debug(h.ctx, "last heartbeat from coordinator",
+			slog.F("other_coordinator_id", id),
+			slog.F("last_heartbeat", lastHB),
+		)
 		if lastHB >= MissedHeartbeats*HeartbeatPeriod {
 			expired = true
 			delete(h.coordinators, id)
-			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
+			h.logger.Info(h.ctx, "coordinator failed heartbeat check",
+				slog.F("other_coordinator_id", id),
+				slog.F("last_heartbeat", lastHB),
+			)
 		}
 	}
 	if expired {
@@ -1754,7 +1807,7 @@ func (h *heartbeats) sendBeat() {
 		}
 		return
 	}
-	h.logger.Debug(h.ctx, "sent heartbeat")
+	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})

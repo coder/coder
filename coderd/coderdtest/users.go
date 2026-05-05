@@ -123,6 +123,10 @@ func UsersPagination(
 	require.Contains(t, gotUsers[0].Name, "after")
 }
 
+type UsersFilterOptions struct {
+	CreateServiceAccounts bool
+}
+
 // UsersFilter creates a set of users to run various filters against for
 // testing.  It can be used to test filtering both users and group members.
 func UsersFilter(
@@ -130,10 +134,15 @@ func UsersFilter(
 	t *testing.T,
 	client *codersdk.Client,
 	db database.Store,
+	options *UsersFilterOptions,
 	setup func(users []codersdk.User),
 	fetch func(ctx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser,
 ) {
 	t.Helper()
+
+	if options == nil {
+		options = &UsersFilterOptions{}
+	}
 
 	firstUser, err := client.User(setupCtx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
@@ -148,6 +157,7 @@ func UsersFilter(
 	users := make([]codersdk.User, 0)
 	users = append(users, firstUser)
 	orgID := firstUser.OrganizationIDs[0]
+	githubIDs := make(map[int]uuid.UUID)
 	for i := range 15 {
 		roles := []rbac.RoleIdentifier{}
 		if i%2 == 0 {
@@ -159,7 +169,6 @@ func UsersFilter(
 		userClient, userData := CreateAnotherUserMutators(t, client, orgID, roles, func(r *codersdk.CreateUserRequestWithOrgs) {
 			switch {
 			case i%7 == 0:
-				r.Username += fmt.Sprintf("-gh%d", i)
 				r.UserLoginType = codersdk.LoginTypeGithub
 				r.Password = ""
 			case i%6 == 0:
@@ -190,6 +199,7 @@ func UsersFilter(
 				},
 			})
 			require.NoError(t, err)
+			githubIDs[i] = userData.ID
 		}
 
 		user, err := userClient.User(setupCtx, codersdk.Me)
@@ -211,11 +221,13 @@ func UsersFilter(
 	}
 
 	// Add some service accounts.
-	for range 3 {
-		_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.ServiceAccount = true
-		})
-		users = append(users, user)
+	if options.CreateServiceAccounts {
+		for range 3 {
+			_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.ServiceAccount = true
+			})
+			users = append(users, user)
+		}
 	}
 
 	hashedPassword, err := userpassword.Hash("SomeStrongPassword!")
@@ -362,7 +374,7 @@ func UsersFilter(
 				SearchQuery: "github_com_user_id:7",
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				return strings.HasSuffix(u.Username, "-gh7")
+				return u.ID == githubIDs[7]
 			},
 		},
 		{

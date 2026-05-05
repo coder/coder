@@ -6,6 +6,7 @@ import {
 	Outlet,
 	Route,
 	ScrollRestoration,
+	useLocation,
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
@@ -356,8 +357,26 @@ const AgentCreatePage = lazy(
 const AgentSettingsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPage"),
 );
-const AgentSettingsBehaviorPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsBehaviorPage"),
+const AgentSettingsGeneralPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
+);
+const AgentSettingsCompactionPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
+);
+const AgentSettingsInstructionsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsInstructionsPage"),
+);
+const AgentSettingsExperimentsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
+);
+const AgentSettingsLifecyclePage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsLifecyclePage"),
+);
+const AgentSettingsAgentsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsAgentsPage"),
+);
+const AgentSettingsUserAgentsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
 const AgentSettingsProvidersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsProvidersPage"),
@@ -371,11 +390,8 @@ const AgentSettingsModelsPage = lazy(
 const AgentSettingsMCPServersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsMCPServersPage"),
 );
-const AgentSettingsLimitsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsLimitsPage"),
-);
-const AgentSettingsUsagePage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsUsagePage"),
+const AgentSettingsSpendPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
 );
 const AgentSettingsInsightsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsInsightsPage"),
@@ -469,6 +485,12 @@ const groupsRouter = () => {
 			</Route>
 		</Route>
 	);
+};
+
+/** Redirect that preserves the current query string. */
+const NavigateWithSearch = ({ to }: { to: string }) => {
+	const location = useLocation();
+	return <Navigate to={{ pathname: to, search: location.search }} replace />;
 };
 
 export const router = createBrowserRouter(
@@ -643,7 +665,10 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
-						<Route index element={<Navigate to="request-logs" replace />} />
+						<Route
+							index
+							element={<Navigate to="/aibridge/sessions" replace />}
+						/>
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
 					</Route>
 
@@ -703,8 +728,27 @@ export const router = createBrowserRouter(
 				>
 					<Route index element={<AgentCreatePage />} />
 					<Route path="settings" element={<AgentSettingsPage />}>
-						<Route index element={<AgentSettingsBehaviorPage />} />
-						<Route path="behavior" element={<AgentSettingsBehaviorPage />} />
+						<Route index element={<AgentSettingsGeneralPage />} />
+						<Route path="general" element={<AgentSettingsGeneralPage />} />
+						<Route
+							path="compaction"
+							element={<AgentSettingsCompactionPage />}
+						/>
+						<Route
+							path="instructions"
+							element={<AgentSettingsInstructionsPage />}
+						/>
+						<Route
+							path="experiments"
+							element={<AgentSettingsExperimentsPage />}
+						/>
+						<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
+						<Route
+							path="user-agents"
+							element={<AgentSettingsUserAgentsPage />}
+						/>
+						<Route path="admin" element={<AgentSettingsAgentsPage />} />
+						<Route path="agents" element={<AgentSettingsAgentsPage />} />
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route path="providers" element={<AgentSettingsProvidersPage />} />
 						<Route path="models" element={<AgentSettingsModelsPage />} />
@@ -712,12 +756,13 @@ export const router = createBrowserRouter(
 							path="mcp-servers"
 							element={<AgentSettingsMCPServersPage />}
 						/>
-						<Route path="limits" element={<AgentSettingsLimitsPage />} />
-						<Route path="usage" element={<AgentSettingsUsagePage />} />
+						<Route path="spend" element={<AgentSettingsSpendPage />} />
+						<Route path="limits" element={<Navigate to="spend" replace />} />
+						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
 						<Route path="insights" element={<AgentSettingsInsightsPage />} />
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>
-					<Route path="analytics" element={<AgentAnalyticsPage />} />{" "}
+					<Route path="analytics" element={<AgentAnalyticsPage />} />
 					<Route
 						path=":agentId"
 						element={

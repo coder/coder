@@ -1332,6 +1332,89 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			// Default branch: multiple visible chats, retention enabled,
+			// no overflow. Body phrasing is number-neutral so this also
+			// covers the n>1 grammar shape without a dedicated branch in
+			// the template.
+			name: "TemplateChatAutoArchiveDigest",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Pins the n=1 rendering so future edits to the body cannot
+			// reintroduce a count-conditional that breaks the singular
+			// case. The list-introduction sentence and retention sentence
+			// both use plural-form pronouns ("them", "they") that read
+			// naturally for a single item.
+			name: "TemplateChatAutoArchiveDigestSingular",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Covers the retention_days="0" indefinite-retention branch.
+			name: "TemplateChatAutoArchiveDigestRetentionZero",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "0",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Covers the additional_archived_count overflow sentence.
+			name: "TemplateChatAutoArchiveDigestOverflow",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+					"additional_archived_count": "6",
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:

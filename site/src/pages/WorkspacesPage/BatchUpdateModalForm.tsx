@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import { Label, Slot } from "radix-ui";
 import {
 	type FC,
@@ -116,12 +116,12 @@ const ReviewPanel: FC<ReviewPanelProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<span className="leading-tight">{workspaceName}</span>
 						{running && (
-							<Badge size="xs" variant="warning" border="none">
+							<Badge size="xs" variant="warning">
 								Running
 							</Badge>
 						)}
 						{transitioning && (
-							<Badge size="xs" variant="warning" border="none">
+							<Badge size="xs" variant="warning">
 								Getting latest status
 							</Badge>
 						)}
@@ -184,7 +184,7 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 			className="rounded-md border-border-warning border border-solid p-4"
 		>
 			<h4 className="m-0 font-semibold flex flex-row items-center gap-2 text-content-primary">
-				<TriangleAlert className="text-content-warning" size={16} />
+				<TriangleAlertIcon className="text-content-warning" size={16} />
 				Running workspaces detected
 			</h4>
 

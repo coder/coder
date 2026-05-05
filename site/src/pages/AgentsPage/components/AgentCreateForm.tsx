@@ -1,11 +1,14 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -22,6 +25,7 @@ import {
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import type { ModelSelectorOption } from "./ChatElements";
+import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -42,6 +46,8 @@ export type CreateChatOptions = {
 	workspaceId?: string;
 	model?: string;
 	mcpServerIds?: string[];
+	organizationId: string;
+	planMode?: TypesGen.ChatPlanMode;
 };
 
 /**
@@ -78,7 +84,7 @@ export function useEmptyStateDraft() {
 				try {
 					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
 				} catch {
-					// QuotaExceededError — silently discard the draft.
+					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
 				localStorage.removeItem(emptyInputStorageKey);
@@ -119,6 +125,8 @@ interface AgentCreateFormProps {
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
+	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
+	isPersonalModelOverridesLoading?: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
@@ -137,6 +145,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
+	rootPersonalModelOverride,
+	isPersonalModelOverridesLoading = false,
 	mcpServers,
 	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
@@ -144,7 +154,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspacesError,
 	isWorkspacesLoading,
 }) => {
-	const { organizations } = useDashboard();
+	const { organizations, showOrganizations } = useDashboard();
 	const {
 		initialInputValue,
 		initialEditorState,
@@ -155,6 +165,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
+	/*
+	 * Model precedence: user click > root override (specific model) > root
+	 * override (chat_default, resolved) > last-used > default > first available.
+	 */
 	const lastUsedModelID =
 		initialLastModelConfigID &&
 		modelOptions.some((option) => option.id === initialLastModelConfigID)
@@ -171,22 +185,84 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? defaultModelConfig.id
 			: "";
 	})();
-	const preferredModelID =
+	const isUsableRootPersonalOverride =
+		rootPersonalModelOverride?.is_set === true &&
+		!rootPersonalModelOverride.is_malformed;
+	const rootOverrideModelID =
+		isUsableRootPersonalOverride &&
+		rootPersonalModelOverride.mode === "model" &&
+		modelOptions.some(
+			(option) => option.id === rootPersonalModelOverride.model_config_id,
+		)
+			? rootPersonalModelOverride.model_config_id
+			: "";
+	const isRootOverrideChatDefault =
+		isUsableRootPersonalOverride &&
+		rootPersonalModelOverride.mode === "chat_default";
+	const rootOverrideDisplayModelID = isRootOverrideChatDefault
+		? defaultModelID || (modelOptions[0]?.id ?? "")
+		: rootOverrideModelID;
+	const fallbackModelID =
 		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
+	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
 	const [userSelectedModel, setUserSelectedModel] = useState("");
 	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
+	const hasValidUserSelectedModel =
+		hasUserSelectedModel &&
+		modelOptions.some((modelOption) => modelOption.id === userSelectedModel);
 	// Derive the effective model every render so we never reference
 	// a stale model id and can honor fallback precedence.
-	const selectedModel =
-		hasUserSelectedModel &&
-		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
-			? userSelectedModel
-			: preferredModelID;
+	const selectedModel = hasValidUserSelectedModel
+		? userSelectedModel
+		: preferredModelID;
+	const submittedModel = (() => {
+		if (hasValidUserSelectedModel) {
+			return userSelectedModel;
+		}
+		if (rootOverrideModelID) {
+			return rootOverrideModelID;
+		}
+		return selectedModel || undefined;
+	})();
+	const initialOrg =
+		organizations.find((o) => o.is_default) ?? organizations[0];
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
-			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
+			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
+			if (!stored) return null;
+
+			// The stored value is kept optimistically until workspaces
+			// load. effectiveWorkspaceId (computed after render) drops
+			// it if it doesn't match the current org's workspaces.
+			if (workspaceOptions.length === 0) return stored;
+
+			// Validate the stored workspace still exists and belongs
+			// to the initial org. Without this, a workspace from a
+			// previously selected org persists across sessions and
+			// gets submitted even though it's hidden from the picker.
+			const workspace = workspaceOptions.find((ws) => ws.id === stored);
+			if (!workspace) {
+				localStorage.removeItem(selectedWorkspaceIdStorageKey);
+				return null;
+			}
+			if (
+				showOrganizations &&
+				initialOrg &&
+				workspace.organization_id !== initialOrg.id
+			) {
+				localStorage.removeItem(selectedWorkspaceIdStorageKey);
+				return null;
+			}
+			return stored;
 		},
 	);
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		initialOrg ?? null,
+	);
+	const [pendingOrgChange, setPendingOrgChange] =
+		useState<TypesGen.Organization | null>(null);
+	const organizationId = selectedOrg?.id ?? "";
+	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
@@ -220,11 +296,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		lastUsedModelID,
 	]);
 
-	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
-	// that the onSend callback always sees the latest values without
-	// the shared input component re-rendering on every change.
-	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	const selectedModelRef = useRef(selectedModel);
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
 		null,
 	);
@@ -238,12 +309,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return getDefaultMCPSelection(mcpServers ?? []);
 	})();
-	const selectedMCPServerIdsRef = useRef(effectiveMCPServerIds);
-	useEffect(() => {
-		selectedWorkspaceIdRef.current = selectedWorkspaceId;
-		selectedModelRef.current = selectedModel;
-		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
-	});
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -259,22 +324,42 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
+	const isForbidden = !canCreateChat;
+
+	// Filter workspaces by the selected organization. We use
+	// client-side filtering of the full "owner:me" fetch rather
+	// than re-querying with an org filter because it avoids
+	// extra loading/error states on org change. The full list is
+	// already small (user's own workspaces) and limit: 0
+	// guarantees completeness. If workspace counts grow large
+	// enough to warrant pagination, this should switch to a
+	// server-side organization:<name> query filter.
+	const filteredWorkspaces =
+		showOrganizations && selectedOrg
+			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
+			: workspaceOptions;
+
+	const effectiveWorkspaceId =
+		selectedWorkspaceId !== null &&
+		(isWorkspacesLoading ||
+			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
+			? selectedWorkspaceId
+			: null;
+
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
 		await onCreateChat({
 			message,
 			fileIDs,
-			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-			model: selectedModelRef.current || undefined,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: submittedModel,
+			organizationId,
 			mcpServerIds:
-				selectedMCPServerIdsRef.current.length > 0
-					? [...selectedMCPServerIdsRef.current]
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
 					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
 		}).catch((err) => {
-			// Re-enable draft persistence so the user can edit
-			// and retry after a failed send attempt, then rethrow
-			// so callers (handleSendWithAttachments) can preserve
-			// attachments on failure.
 			resetDraft();
 			throw err;
 		});
@@ -288,7 +373,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizations[0]?.id, { persist: true });
+	} = useFileAttachments(organizationId || undefined, { persist: true });
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -317,83 +402,166 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const isForbidden = !canCreateChat;
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "chat" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
+
+	// Reconcile selectedOrg when permission filtering removes it.
+	// Only pure state setters run during render; side effects
+	// (localStorage, blob URL cleanup) run in the effect below.
+	const [prevPermittedOrgs, setPrevPermittedOrgs] = useState(permittedOrgs);
+	const [orgWasAdjusted, setOrgWasAdjusted] = useState(false);
+	if (permittedOrgs !== prevPermittedOrgs) {
+		setPrevPermittedOrgs(permittedOrgs);
+		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
+			// Fall back through: first permitted org, then the
+			// dashboard default. Never null out selectedOrg.
+			// organizationId must always be a valid UUID for the
+			// create-chat request.
+			const nextOrg = permittedOrgs[0] ?? initialOrg ?? null;
+			setSelectedOrg(nextOrg);
+			if (nextOrg?.id !== selectedOrg.id) {
+				setOrgWasAdjusted(true);
+			}
+		}
+	}
+
+	// Clean up workspace and attachment state after a programmatic
+	// org change from permission filtering. These calls have side
+	// effects (localStorage, blob URL revocation) that must not
+	// run during render.
+	const onOrgAdjusted = useEffectEvent(() => {
+		handleWorkspaceChange(null);
+		resetAttachments();
+	});
+	useEffect(() => {
+		if (orgWasAdjusted) {
+			setOrgWasAdjusted(false);
+			onOrgAdjusted();
+		}
+	}, [orgWasAdjusted]);
 
 	return (
-		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-				{isForbidden ? (
-					<ChatAccessDeniedAlert />
-				) : createError ? (
-					isApiError(createError) &&
-					createError.response?.status === 409 &&
-					isUsageLimitData(createError.response.data) ? (
-						<Alert
-							severity="info"
-							actions={
-								<Button asChild size="sm">
-									<Link to="/agents/analytics">View Usage</Link>
-								</Button>
-							}
+		<>
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto p-4 pb-4 md:order-none md:h-full md:flex-1 md:items-center md:pt-12">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+					{isForbidden ? (
+						<ChatAccessDeniedAlert />
+					) : createError ? (
+						isApiError(createError) &&
+						createError.response?.status === 409 &&
+						isUsageLimitData(createError.response.data) ? (
+							<Alert
+								severity="info"
+								actions={
+									<Button asChild size="sm">
+										<Link to="/agents/analytics">View Usage</Link>
+									</Button>
+								}
+							>
+								<AlertDescription>
+									{formatUsageLimitMessage(createError.response.data)}
+								</AlertDescription>
+							</Alert>
+						) : (
+							<ErrorAlert error={createError} />
+						)
+					) : null}
+					{workspacesError != null && <ErrorAlert error={workspacesError} />}
+					{permittedOrgsQuery.error != null && (
+						<ErrorAlert error={permittedOrgsQuery.error} />
+					)}
+					{showOrganizations && permittedOrgs.length > 1 && (
+						<CompactOrgSelector
+							value={selectedOrg}
+							options={permittedOrgs}
+							onChange={(newOrg) => {
+								const orgChanged = newOrg.id !== selectedOrg?.id;
+								if (orgChanged && attachments.length > 0) {
+									setPendingOrgChange(newOrg);
+									return;
+								}
+								if (orgChanged) {
+									handleWorkspaceChange(null);
+								}
+								setSelectedOrg(newOrg);
+							}}
+						/>
+					)}
+					<AgentChatInput
+						onSend={handleSendWithAttachments}
+						placeholder="Ask Coder to build, fix bugs, or explore your project..."
+						isDisabled={
+							isCreating || isForbidden || isPersonalModelOverridesLoading
+						}
+						isLoading={isCreating}
+						initialValue={initialInputValue}
+						initialEditorState={initialEditorState}
+						onContentChange={handleContentChange}
+						selectedModel={selectedModel}
+						onModelChange={handleModelChange}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						isModelCatalogLoading={isModelCatalogLoading}
+						hasModelOptions={hasModelOptions}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={setPlanModeEnabled}
+						attachments={attachments}
+						onAttach={handleAttach}
+						onRemoveAttachment={handleRemoveAttachment}
+						uploadStates={uploadStates}
+						previewUrls={previewUrls}
+						textContents={textContents}
+						mcpServers={mcpServers}
+						selectedMCPServerIds={effectiveMCPServerIds}
+						onMCPSelectionChange={(ids) => {
+							setUserMCPServerIds(ids);
+							saveMCPSelection(ids);
+						}}
+						onMCPAuthComplete={onMCPAuthComplete}
+						workspaceOptions={filteredWorkspaces}
+						selectedWorkspaceId={effectiveWorkspaceId}
+						onWorkspaceChange={handleWorkspaceChange}
+						isWorkspaceLoading={isWorkspacesLoading}
+					/>
+					{modelSelectorHelp ? (
+						<div className="px-3 pt-1 text-2xs text-content-secondary">
+							{modelSelectorHelp}
+						</div>
+					) : null}
+					<p className="mt-1 text-center text-xs text-content-secondary/50">
+						<a
+							href={docs("/ai-coder/agents")}
+							target="_blank"
+							rel="noreferrer"
+							className="text-content-secondary/50 underline hover:text-content-secondary"
 						>
-							<AlertDescription>
-								{formatUsageLimitMessage(createError.response.data)}
-							</AlertDescription>
-						</Alert>
-					) : (
-						<ErrorAlert error={createError} />
-					)
-				) : null}
-				{workspacesError != null && <ErrorAlert error={workspacesError} />}
-				<AgentChatInput
-					onSend={handleSendWithAttachments}
-					placeholder="Ask Coder to build, fix bugs, or explore your project..."
-					isDisabled={isCreating || isForbidden}
-					isLoading={isCreating}
-					initialValue={initialInputValue}
-					initialEditorState={initialEditorState}
-					onContentChange={handleContentChange}
-					selectedModel={selectedModel}
-					onModelChange={handleModelChange}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					isModelCatalogLoading={isModelCatalogLoading}
-					hasModelOptions={hasModelOptions}
-					attachments={attachments}
-					onAttach={handleAttach}
-					onRemoveAttachment={handleRemoveAttachment}
-					uploadStates={uploadStates}
-					previewUrls={previewUrls}
-					textContents={textContents}
-					mcpServers={mcpServers}
-					selectedMCPServerIds={effectiveMCPServerIds}
-					onMCPSelectionChange={(ids) => {
-						setUserMCPServerIds(ids);
-						saveMCPSelection(ids);
-					}}
-					onMCPAuthComplete={onMCPAuthComplete}
-					workspaceOptions={workspaceOptions}
-					selectedWorkspaceId={selectedWorkspaceId}
-					onWorkspaceChange={handleWorkspaceChange}
-					isWorkspaceLoading={isWorkspacesLoading}
-				/>
-				{modelSelectorHelp ? (
-					<div className="px-3 pt-1 text-2xs text-content-secondary">
-						{modelSelectorHelp}
-					</div>
-				) : null}
-				<p className="mt-1 text-center text-xs text-content-secondary/50">
-					Coder Agents is available via{" "}
-					<a
-						href={docs("/ai-coder/agents/early-access")}
-						target="_blank"
-						rel="noreferrer"
-						className="text-content-secondary/50 underline hover:text-content-secondary"
-					>
-						Early Access
-					</a>
-				</p>
+							Introductory access
+						</a>{" "}
+						to Coder Agents through September 2026
+					</p>
+				</div>
 			</div>
-		</div>
+			<ConfirmDialog
+				open={pendingOrgChange !== null}
+				title="Change organization?"
+				description="Changing organization will remove your current attachments."
+				type="info"
+				hideCancel={false}
+				confirmText="Continue"
+				onConfirm={() => {
+					resetAttachments();
+					handleWorkspaceChange(null);
+					setSelectedOrg(pendingOrgChange);
+					setPendingOrgChange(null);
+				}}
+				onClose={() => setPendingOrgChange(null)}
+			/>
+		</>
 	);
 };

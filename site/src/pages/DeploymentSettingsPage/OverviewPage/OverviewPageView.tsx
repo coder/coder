@@ -4,6 +4,7 @@ import type {
 	Experiment,
 	SerpentOption,
 } from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -11,10 +12,8 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { useDeploymentOptions } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
-import { Alert, AlertTitle } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 
@@ -42,7 +41,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<Stack spacing={4}>
+			<div className="flex flex-col gap-8">
 				<UserEngagementChart
 					data={dailyActiveUsers?.entries.map((i) => ({
 						date: i.date,
@@ -80,7 +79,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 					)}
 					additionalValues={safeExperiments}
 				/>
-			</Stack>
+			</div>
 		</>
 	);
 };

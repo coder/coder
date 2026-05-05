@@ -30,6 +30,8 @@ import {
 	useRef,
 } from "react";
 import { cn } from "#/utils/cn";
+import { isMobileViewport } from "#/utils/mobile";
+import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -200,16 +202,16 @@ const PasteSanitizationPlugin: FC<{
 					}
 					// Native paste event (ClipboardEvent).
 
-					// Check for image files in the clipboard (e.g.
+					// Check for attachable files in the clipboard (e.g.
 					// pasted screenshots). Forward them to the parent
 					// via callback instead of inserting text.
 					if (onFilePaste && dataTransfer?.files.length) {
-						const images = Array.from(dataTransfer.files).filter((f) =>
-							f.type.startsWith("image/"),
+						const attachable = Array.from(dataTransfer.files).filter(
+							isChatAttachmentFile,
 						);
-						if (images.length > 0) {
+						if (attachable.length > 0) {
 							event.preventDefault();
-							for (const file of images) {
+							for (const file of attachable) {
 								onFilePaste(file);
 							}
 							return true;
@@ -256,7 +258,9 @@ const PasteSanitizationPlugin: FC<{
 };
 
 // Handles Enter key behavior: plain Enter submits via the onEnter
-// callback, Shift+Enter inserts a newline.
+// callback, Shift+Enter inserts a newline. On mobile viewports, Enter
+// always inserts a newline; users submit via the send button because
+// Shift+Enter is cumbersome on touch keyboards (CODAGT-210).
 const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 	onEnter,
 }) {
@@ -266,7 +270,7 @@ const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 		return editor.registerCommand(
 			KEY_ENTER_COMMAND,
 			(event: KeyboardEvent | null) => {
-				if (event?.shiftKey) {
+				if (event?.shiftKey || isMobileViewport()) {
 					return false;
 				}
 				if (onEnter) {
@@ -709,7 +713,7 @@ const ChatMessageInput = ({
 					initialEditorState={initialEditorState}
 				/>
 				<InsertTextPlugin onEditorReady={handleEditorReady} />
-				<EditableStatePlugin disabled={!!disabled} />
+				<EditableStatePlugin disabled={Boolean(disabled)} />
 				{autoFocus && <AutoFocusPlugin />}
 			</div>
 		</LexicalComposer>

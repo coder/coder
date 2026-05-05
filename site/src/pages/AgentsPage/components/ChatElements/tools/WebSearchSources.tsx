@@ -36,8 +36,8 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 			hasContent={unique.length > 0}
 			header={
 				<>
-					<GlobeIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-					<span className="text-sm text-content-secondary">
+					<GlobeIcon className="h-4 w-4 shrink-0 text-current" />
+					<span className="text-[13px]">
 						Searched <span className="text-content-secondary/60">{detail}</span>
 					</span>
 				</>
@@ -85,7 +85,7 @@ const SourcePill: FC<{ source: { url: string; title: string } }> = ({
 				"px-2.5 py-1 text-xs leading-none text-content-secondary",
 				"no-underline transition-colors",
 				"hover:bg-surface-tertiary hover:text-content-primary",
-				"hover:border-border-hover",
+				"hover:border-border-secondary",
 				"max-w-[200px]",
 			)}
 		>

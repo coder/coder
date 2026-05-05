@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	preview "github.com/coder/preview"
+	dynamicparameters "github.com/coder/coder/v2/coderd/dynamicparameters"
 	uuid "github.com/google/uuid"
 	hcl "github.com/hashicorp/hcl/v2"
 	gomock "go.uber.org/mock/gomock"
@@ -56,16 +56,21 @@ func (mr *MockRendererMockRecorder) Close() *gomock.Call {
 }
 
 // Render mocks base method.
-func (m *MockRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+func (m *MockRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string, opts ...dynamicparameters.RenderOption) (*dynamicparameters.RenderResult, hcl.Diagnostics) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Render", ctx, ownerID, values)
-	ret0, _ := ret[0].(*preview.Output)
+	varargs := []any{ctx, ownerID, values}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Render", varargs...)
+	ret0, _ := ret[0].(*dynamicparameters.RenderResult)
 	ret1, _ := ret[1].(hcl.Diagnostics)
 	return ret0, ret1
 }
 
 // Render indicates an expected call of Render.
-func (mr *MockRendererMockRecorder) Render(ctx, ownerID, values any) *gomock.Call {
+func (mr *MockRendererMockRecorder) Render(ctx, ownerID, values any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Render", reflect.TypeOf((*MockRenderer)(nil).Render), ctx, ownerID, values)
+	varargs := append([]any{ctx, ownerID, values}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Render", reflect.TypeOf((*MockRenderer)(nil).Render), varargs...)
 }

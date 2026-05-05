@@ -14,6 +14,7 @@ import {
 	getTemplatesQueryKey,
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
+import { workspacesKey } from "#/api/queries/workspaces";
 import type { Workspace } from "#/api/typesGenerated";
 import { workspaceChecks } from "#/modules/workspaces/permissions";
 import {
@@ -22,6 +23,7 @@ import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockUserOwner,
+	MockWorkspace,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -55,7 +57,7 @@ const deletingWorkspace: Workspace = {
 	},
 };
 
-const meta: Meta<typeof WorkspacesPage> = {
+const meta = {
 	title: "pages/WorkspacesPage/WorkspacesPage",
 	component: WorkspacesPage,
 	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
@@ -108,10 +110,10 @@ const meta: Meta<typeof WorkspacesPage> = {
 		spyOn(API, "getOrganizations").mockResolvedValue([MockDefaultOrganization]);
 		spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
 	},
-};
+} satisfies Meta<typeof WorkspacesPage>;
 
 export default meta;
-type Story = StoryObj<typeof WorkspacesPage>;
+type Story = StoryObj<typeof meta>;
 
 export const DeleteWorkspaceShowsDeletingStateImmediately: Story = {
 	beforeEach: () => {
@@ -168,5 +170,49 @@ export const DeleteWorkspaceShowsDeletingStateImmediately: Story = {
 				await within(row).findByText("Deleting");
 			},
 		);
+	},
+};
+
+const makePage = (prefix: string) =>
+	Array.from({ length: 25 }, (_, i) => ({
+		...MockWorkspace,
+		id: `${prefix}-workspace-${i}`,
+		name: `${prefix}-workspace-${i}`,
+	}));
+
+export const PaginationChangesQueryKey: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: workspacesKey({ q: "owner:me", limit: 25, offset: 0 }),
+				data: { workspaces: makePage("page1"), count: 50 },
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 25, offset: 25 }),
+				data: { workspaces: makePage("page2"), count: 50 },
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await step("Page 1 renders from cache", async () => {
+			await canvas.findByText("page1-workspace-0");
+		});
+
+		await step("Clicking next page shows page 2 data", async () => {
+			const nextButton = await canvas.findByRole("button", {
+				name: /next page/i,
+			});
+			await user.click(nextButton);
+
+			await canvas.findByText("page2-workspace-0");
+			await waitFor(() => {
+				expect(canvas.queryByText("page1-workspace-0")).not.toBeInTheDocument();
+			});
+		});
 	},
 };

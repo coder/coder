@@ -64,7 +64,7 @@ links */}}
         line-height: 140%;
       }
 
-      .user-name {
+			.user-name {
         font-weight: bold;
       }
 
@@ -113,17 +113,53 @@ links */}}
         <img class="coder-svg" src="/icon/coder.svg" alt="Coder" />
       </div>
       <h1>Authorize {{ .AppName }}</h1>
-      <p>
+      <p id="description">
         Allow {{ .AppName }} to have full access to your
         <span class="user-name">{{ .Username }}</span> account?
       </p>
-      <div class="button-group">
-        <form method="POST" style="display: inline;">
+      <div class="button-group" id="button-group">
+        <form id="allow-form" method="POST" style="display: inline;">
           <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}" />
           <button type="submit" class="primary-button">Allow</button>
         </form>
-        <a href="{{ .CancelURI }}">Cancel</a>
+        <a id="cancel-link" href="{{ .CancelURI }}">Cancel</a>
       </div>
     </div>
+    <script>
+      (function () {
+        var appName = "{{ .AppName }}";
+        var description = document.getElementById("description");
+        var buttonGroup = document.getElementById("button-group");
+        var allowForm = document.getElementById("allow-form");
+        var cancelLink = document.getElementById("cancel-link");
+
+        function showFeedback(message) {
+          buttonGroup.style.display = "none";
+          description.textContent = message;
+        }
+
+        allowForm.addEventListener("submit", function (e) {
+          e.preventDefault();
+          showFeedback(
+              appName +
+              " is now authorized to access your account. This window can now be closed."
+          );
+          setTimeout(function () {
+            allowForm.submit();
+          }, 500);
+        });
+
+        cancelLink.addEventListener("click", function (e) {
+          e.preventDefault();
+          showFeedback(
+              appName +
+              " was denied access to your account. This window can now be closed."
+          );
+          setTimeout(function () {
+            window.location.href = cancelLink.href;
+          }, 500);
+        });
+      })();
+    </script>
   </body>
 </html>

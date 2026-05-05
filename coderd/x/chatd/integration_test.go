@@ -35,13 +35,12 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Stand up a full coderd with the agents experiment.
+	// Stand up a full coderd.
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an Anthropic provider with the real API key.
@@ -73,6 +72,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// --- Step 1: Send a message that triggers web_search ---
 	t.Log("Creating chat with web search query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -295,13 +295,12 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Stand up a full coderd with the agents experiment.
+	// Stand up a full coderd.
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an OpenAI provider with the real API key.
@@ -337,6 +336,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	// --- Step 1: Send a message that triggers reasoning ---
 	t.Log("Creating chat with reasoning query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -449,13 +449,12 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Stand up a full coderd with the agents experiment.
+	// Stand up a full coderd.
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an OpenAI provider with the real API key.
@@ -490,6 +489,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	// --- Step 1: Send a message that triggers reasoning ---
 	t.Log("Creating chat with reasoning query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,

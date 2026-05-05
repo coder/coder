@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -26,7 +25,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { Stack } from "#/components/Stack/Stack";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
 	TableBody,
@@ -228,10 +227,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-					<Stack spacing={1} direction="row" alignItems="center">
+					<div className="flex flex-row gap-2 items-center">
 						Templates
 						<TemplateHelpPopover />
-					</Stack>
+					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					Select a template to create a workspace.
@@ -290,9 +289,7 @@ const TableLoader: FC = () => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div className="flex items-center gap-2">
-						<AvatarDataSkeleton />
-					</div>
+					<AvatarDataSkeleton />
 				</TableCell>
 				<TableCell>
 					<Skeleton variant="text" width="25%" />

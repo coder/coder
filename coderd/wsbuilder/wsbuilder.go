@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -58,6 +60,7 @@ type Builder struct {
 	deploymentValues *codersdk.DeploymentValues
 	experiments      codersdk.Experiments
 	usageChecker     UsageChecker
+	logger           slog.Logger
 
 	richParameterValues     []codersdk.WorkspaceBuildParameter
 	initiator               uuid.UUID
@@ -194,6 +197,12 @@ func (b Builder) Experiments(exp codersdk.Experiments) Builder {
 	return b
 }
 
+func (b Builder) Logger(log slog.Logger) Builder {
+	// nolint: revive
+	b.logger = log
+	return b
+}
+
 func (b Builder) Initiator(u uuid.UUID) Builder {
 	// nolint: revive
 	b.initiator = u
@@ -261,6 +270,11 @@ func (b Builder) BuildMetrics(m *Metrics) Builder {
 	b.buildMetrics = m
 	return b
 }
+
+// ErrParameterValidation is a sentinel indicating that a workspace
+// build failed because a template-version parameter could not be
+// validated (missing required value, immutable change, etc.).
+var ErrParameterValidation = xerrors.New("parameter validation failed")
 
 type BuildError struct {
 	// Status is a suitable HTTP status code
@@ -490,7 +504,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		}
 
 		if b.templateVersionPresetID == uuid.Nil {
-			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, b.store, templateVersionID, names, values)
+			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, store, templateVersionID, names, values)
 			if err != nil {
 				return BuildError{http.StatusInternalServerError, "find matching preset", err}
 			}
@@ -528,7 +542,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
-		task, err := b.getWorkspaceTask()
+		task, err := b.getWorkspaceTask(store)
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
 		}
@@ -677,11 +691,11 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 
 // getWorkspaceTask returns the task associated with the workspace, if any.
 // If no task exists, it returns (nil, nil).
-func (b *Builder) getWorkspaceTask() (*database.Task, error) {
+func (b *Builder) getWorkspaceTask(store database.Store) (*database.Task, error) {
 	if b.hasTask != nil {
 		return b.task, nil
 	}
-	t, err := b.store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
+	t, err := store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			b.hasTask = ptr.Ref(false)
@@ -753,6 +767,7 @@ func (b *Builder) getDynamicParameterRenderer() (dynamicparameters.Renderer, err
 		dynamicparameters.WithProvisionerJob(*job),
 		dynamicparameters.WithTerraformValues(*tfVals),
 		dynamicparameters.WithTemplateVariableValues(variableValues),
+		dynamicparameters.WithLogger(b.logger.Named("dynamicparameters")),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version renderer: %w", err)
@@ -878,10 +893,16 @@ func (b *Builder) getDynamicParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to check if first build", err}
 	}
 
+	// Don't let missing secrets block stop or delete.
+	var resolveOpts []dynamicparameters.ResolveOption
+	if b.trans != database.WorkspaceTransitionStart {
+		resolveOpts = append(resolveOpts, dynamicparameters.SkipSecretRequirements())
+	}
 	buildValues, err := dynamicparameters.ResolveParameters(b.ctx, b.workspace.OwnerID, render, firstBuild,
 		lastBuildParameters,
 		b.richParameterValues,
-		presetParameterValues)
+		presetParameterValues,
+		resolveOpts...)
 	if err != nil {
 		return nil, nil, BuildError{http.StatusBadRequest, "resolve parameters", err}
 	}
@@ -929,7 +950,7 @@ func (b *Builder) getClassicParameters() (names, values []string, err error) {
 			// At this point, we've queried all the data we need from the database,
 			// so the only errors are problems with the request (missing data, failed
 			// validation, immutable parameters, etc.)
-			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
+			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), errors.Join(ErrParameterValidation, err)}
 		}
 
 		names = append(names, templateVersionParameter.Name)
@@ -1117,13 +1138,13 @@ func (b *Builder) getDynamicProvisionerTags() (map[string]string, error) {
 		vals[name] = values[i]
 	}
 
-	output, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
-	tagErr := dynamicparameters.CheckTags(output, diags)
+	result, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
+	tagErr := dynamicparameters.CheckTags(result.Output, diags)
 	if tagErr != nil {
 		return nil, BuildError{http.StatusBadRequest, "workspace tags validation failed", tagErr}
 	}
 
-	for k, v := range output.WorkspaceTags.Tags() {
+	for k, v := range result.Output.WorkspaceTags.Tags() {
 		tags[k] = v
 	}
 
@@ -1382,7 +1403,7 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	task, err := b.getWorkspaceTask()
+	task, err := b.getWorkspaceTask(b.store)
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch workspace task", err}
 	}

@@ -1,11 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
-import { organizationsKey } from "#/api/queries/organizations";
-import type { Organization } from "#/api/typesGenerated";
 import {
+	assignableRole,
+	MockAuditorRole,
+	MockAuthMethodsPasswordOnly,
 	MockOrganization,
 	MockOrganization2,
+	MockOwnerRole,
+	MockTemplateAdminRole,
+	MockUserAdminRole,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { CreateUserForm } from "./CreateUserForm";
@@ -17,6 +21,7 @@ const meta: Meta<typeof CreateUserForm> = {
 		onCancel: action("cancel"),
 		onSubmit: action("submit"),
 		isLoading: false,
+		serviceAccountsEnabled: true,
 	},
 };
 
@@ -25,37 +30,20 @@ type Story = StoryObj<typeof CreateUserForm>;
 
 export const Ready: Story = {};
 
-const permissionCheckQuery = (organizations: Organization[]) => {
-	return {
-		key: [
-			"authorization",
-			{
-				checks: Object.fromEntries(
-					organizations.map((org) => [
-						org.id,
-						{
-							action: "create",
-							object: {
-								resource_type: "organization_member",
-								organization_id: org.id,
-							},
-						},
-					]),
-				),
-			},
-		],
-		data: Object.fromEntries(organizations.map((org) => [org.id, true])),
-	};
-};
+// Query key used by permittedOrganizations() in the form.
+const permittedOrgsKey = [
+	"organizations",
+	"permitted",
+	{ object: { resource_type: "organization_member" }, action: "create" },
+];
 
 export const WithOrganizations: Story = {
 	parameters: {
 		queries: [
 			{
-				key: organizationsKey,
+				key: permittedOrgsKey,
 				data: [MockOrganization, MockOrganization2],
 			},
-			permissionCheckQuery([MockOrganization, MockOrganization2]),
 		],
 	},
 	args: {
@@ -86,5 +74,47 @@ export const GeneralError: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
+	},
+};
+
+const mockAvailableRoles = [
+	assignableRole(MockOwnerRole, true),
+	assignableRole(MockUserAdminRole, true),
+	assignableRole(MockTemplateAdminRole, true),
+	assignableRole(MockAuditorRole, true),
+];
+
+export const RolesLoading: Story = {
+	args: {
+		rolesLoading: true,
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
+export const RolesError: Story = {
+	args: {
+		rolesError: mockApiError({
+			message: "Failed to fetch assignable roles.",
+		}),
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
+export const WithRoles: Story = {
+	args: {
+		availableRoles: mockAvailableRoles,
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
+export const WithRolesSelected: Story = {
+	args: {
+		availableRoles: mockAvailableRoles,
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("checkbox", { name: /owner/i }));
+		await userEvent.click(canvas.getByRole("checkbox", { name: /auditor/i }));
 	},
 };

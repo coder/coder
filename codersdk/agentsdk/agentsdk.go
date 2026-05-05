@@ -101,6 +101,15 @@ type PostMetadataRequest struct {
 // performance.
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
+// Manifest is the workspace agent's view of its own configuration.
+//
+// Secrets are intentionally not a field on this struct. The manifest
+// may be serialized (JSON, %+v, logger fields, debug endpoints) in
+// many places that do not and should not carry secret values.
+// Keeping Secrets off of the struct makes leaking them impossible
+// via any code path that only holds a *Manifest. Callers that need
+// secrets must load them explicitly via SecretsFromProto on the raw
+// proto.
 type Manifest struct {
 	ParentID  uuid.UUID `json:"parent_id"`
 	AgentID   uuid.UUID `json:"agent_id"`
@@ -126,6 +135,16 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+}
+
+// WorkspaceSecret is a user secret for injection into a workspace.
+//
+// Value carries decrypted secret material and is omitted from JSON
+// serialization to protect against future leaking of the secret.
+type WorkspaceSecret struct {
+	EnvName  string
+	FilePath string
+	Value    []byte `json:"-"`
 }
 
 type LogSource struct {
@@ -286,6 +305,31 @@ func (c *Client) ConnectRPC28WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 8), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC29 returns a dRPC client to the Agent API v2.9. It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.32+
+func (c *Client) ConnectRPC29(ctx context.Context) (
+	proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 9), "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC29WithRole is like ConnectRPC29 but sends an explicit role
+// query parameter to the server. Use "agent" for workspace agents to
+// enable connection monitoring.
+func (c *Client) ConnectRPC29WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 9), role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -463,6 +507,33 @@ type FixedSessionTokenProvider struct {
 
 func (FixedSessionTokenProvider) RefreshToken(_ context.Context) error {
 	return nil
+}
+
+// InstanceIdentityConfig holds optional configuration for cloud
+// instance-identity authentication.
+type InstanceIdentityConfig struct {
+	AgentName string
+}
+
+// InstanceIdentityOption configures instance-identity authentication.
+type InstanceIdentityOption func(*InstanceIdentityConfig)
+
+// WithInstanceIdentityAgentName sets the agent name selector sent with
+// the instance-identity authentication request.
+func WithInstanceIdentityAgentName(name string) InstanceIdentityOption {
+	return func(c *InstanceIdentityConfig) {
+		c.AgentName = name
+	}
+}
+
+// applyInstanceIdentityOptions applies the given options and returns
+// the resulting configuration.
+func applyInstanceIdentityOptions(opts []InstanceIdentityOption) InstanceIdentityConfig {
+	var cfg InstanceIdentityConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return cfg
 }
 
 func WithFixedToken(token string) SessionTokenSetup {
@@ -891,4 +962,67 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 		}
 		return &reinitEvent, nil
 	}
+}
+
+// AddChatContextRequest is the request body for adding chat context.
+type AddChatContextRequest struct {
+	// ChatID optionally identifies the chat to add context to.
+	// If empty, auto-detection is used (CODER_CHAT_ID env, the
+	// only active chat, or the only top-level active chat for this
+	// agent).
+	ChatID uuid.UUID `json:"chat_id,omitempty"`
+	// Parts are the context-file and skill parts to add.
+	Parts []codersdk.ChatMessagePart `json:"parts"`
+}
+
+// AddChatContextResponse is the response for adding chat context.
+type AddChatContextResponse struct {
+	ChatID uuid.UUID `json:"chat_id"`
+	Count  int       `json:"count"`
+}
+
+// ClearChatContextRequest is the request body for clearing chat context.
+type ClearChatContextRequest struct {
+	// ChatID optionally identifies the chat to clear context from.
+	// If empty, auto-detection is used (CODER_CHAT_ID env, the
+	// only active chat, or the only top-level active chat for this
+	// agent).
+	ChatID uuid.UUID `json:"chat_id,omitempty"`
+}
+
+// ClearChatContextResponse is the response for clearing chat context.
+type ClearChatContextResponse struct {
+	ChatID uuid.UUID `json:"chat_id"`
+}
+
+// AddChatContext adds context-file and skill parts to an active chat.
+func (c *Client) AddChatContext(ctx context.Context, req AddChatContextRequest) (AddChatContextResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/chat-context", req)
+	if err != nil {
+		return AddChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AddChatContextResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp AddChatContextResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ClearChatContext soft-deletes context-file and skill messages from an active chat.
+func (c *Client) ClearChatContext(ctx context.Context, req ClearChatContextRequest) (ClearChatContextResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodDelete, "/api/v2/workspaceagents/me/experimental/chat-context", req)
+	if err != nil {
+		return ClearChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ClearChatContextResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp ClearChatContextResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

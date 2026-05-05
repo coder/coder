@@ -62,10 +62,10 @@ const LoginOauthDevicePageWithState: FC<{ state: string }> = ({ state }) => {
 		if (!exchangeExternalAuthDeviceQuery.isSuccess) {
 			return;
 		}
-		// We use window.location.href in lieu of a navigate hook
+		// We use location.href in lieu of a navigate hook
 		// because we need to refresh the page after the GitHub
 		// callback query sets a session cookie.
-		window.location.href = exchangeExternalAuthDeviceQuery.data.redirect_url;
+		location.href = exchangeExternalAuthDeviceQuery.data.redirect_url;
 	}, [
 		exchangeExternalAuthDeviceQuery.isSuccess,
 		exchangeExternalAuthDeviceQuery.data?.redirect_url,

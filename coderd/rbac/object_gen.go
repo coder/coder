@@ -15,6 +15,14 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAiSeat
+	// Valid Actions
+	//  - "ActionCreate" :: record AI seat usage
+	//  - "ActionRead" :: read AI seat state
+	ResourceAiSeat = Object{
+		Type: "ai_seat",
+	}
+
 	// ResourceAibridgeInterception
 	// Valid Actions
 	//  - "ActionCreate" :: create aibridge interceptions & related records
@@ -433,6 +441,7 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAiSeat,
 		ResourceAibridgeInterception,
 		ResourceApiKey,
 		ResourceAssignOrgRole,

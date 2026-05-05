@@ -31,46 +31,47 @@ export const PromptTable: FC<PromptTableProps> = ({
 	return (
 		<dl
 			className={cn(
-				"text-sm text-content-secondary font-normal m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-center",
-				"[&_dt]:whitespace-nowrap py-1",
-				"[&_dt]:pr-4 [&_dt]:flex [&_dt]:items-center [&_dt]:h-6",
-				"[&_dd]:m-0 [&_dd]:min-w-0 [&_dd]:h-6",
+				"text-sm text-content-secondary font-normal m-0 flex flex-col gap-y-2 py-1",
 				className,
 			)}
 		>
-			<dt>Timestamp</dt>
-			<dd
-				className="text-right flex items-center justify-end"
-				title={formatDate(timestamp)}
-			>
-				<span className="block font-mono text-xs whitespace-nowrap truncate">
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 whitespace-nowrap">Timestamp</dt>
+				<dd
+					className="ml-4 min-w-0 truncate font-mono text-xs"
+					title={formatDate(timestamp)}
+				>
 					{formatDate(timestamp)}
-				</span>
-			</dd>
+				</dd>
+			</div>
 
-			<dt>Model</dt>
-			<dd className="flex justify-end">
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Badge className="gap-1.5 max-w-full min-w-0 overflow-hidden">
-								<AIBridgeModelIcon model={model} className="size-icon-xs" />
-								<span className="truncate min-w-0 flex-1">{model}</span>
-							</Badge>
-						</TooltipTrigger>
-						<TooltipContent>{model}</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</dd>
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 whitespace-nowrap">Model</dt>
+				<dd className="ml-4 min-w-0 truncate flex justify-end">
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge className="gap-1.5 max-w-full min-w-0 overflow-hidden">
+									<AIBridgeModelIcon model={model} className="size-icon-xs" />
+									<span className="truncate min-w-0 flex-1">{model}</span>
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent>{model}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</dd>
+			</div>
 
-			<dt>In / out tokens</dt>
-			<dd className="flex justify-end">
-				<TokenBadges
-					inputTokens={inputTokens}
-					outputTokens={outputTokens}
-					tokenUsageMetadata={tokenUsageMetadata}
-				/>
-			</dd>
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 whitespace-nowrap">In / out tokens</dt>
+				<dd className="ml-4 min-w-0 truncate flex justify-end">
+					<TokenBadges
+						inputTokens={inputTokens}
+						outputTokens={outputTokens}
+						tokenUsageMetadata={tokenUsageMetadata}
+					/>
+				</dd>
+			</div>
 		</dl>
 	);
 };

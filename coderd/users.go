@@ -42,7 +42,7 @@ import (
 // @Tags Agents
 // @Success 200 "Success"
 // @Param user path string true "User ID, name, or me"
-// @Router /debug/{user}/debug-link [get]
+// @Router /api/v2/debug/{user}/debug-link [get]
 // @x-apidocgen {"skip": true}
 func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -80,7 +80,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.OIDCClaimsResponse
-// @Router /users/oidc-claims [get]
+// @Router /api/v2/users/oidc-claims [get]
 func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -138,7 +138,7 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.Response
-// @Router /users/first [get]
+// @Router /api/v2/users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// nolint:gocritic // Getting user count is a system function.
@@ -173,7 +173,7 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param request body codersdk.CreateFirstUserRequest true "First user request"
 // @Success 201 {object} codersdk.CreateFirstUserResponse
-// @Router /users/first [post]
+// @Router /api/v2/users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// The first user can also be created via oidc, so if making changes to the flow,
 	// ensure that the oidc flow is also updated.
@@ -312,7 +312,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.GetUsersResponse
-// @Router /users [get]
+// @Router /api/v2/users [get]
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	users, userCount, ok := api.GetUsers(rw, r)
@@ -432,7 +432,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 // @Tags Users
 // @Param request body codersdk.CreateUserRequestWithOrgs true "Create user request"
 // @Success 201 {object} codersdk.User
-// @Router /users [post]
+// @Router /api/v2/users [post]
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
@@ -475,6 +475,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		req.UserLoginType = codersdk.LoginTypeNone
+
+		// Service accounts are a Premium feature.
+		if !api.Entitlements.Enabled(codersdk.FeatureServiceAccounts) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("%s is a Premium feature. Contact sales!", codersdk.FeatureServiceAccounts.Humanize()),
+			})
+			return
+		}
 	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword
@@ -607,6 +615,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequestWithOrgs: req,
 		LoginType:                 loginType,
 		accountCreatorName:        accountCreator.Name,
+		RBACRoles:                 req.Roles,
 	})
 
 	if dbauthz.IsNotAuthorizedError(err) {
@@ -641,7 +650,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200
-// @Router /users/{user} [delete]
+// @Router /api/v2/users/{user} [delete]
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
@@ -747,7 +756,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user} [get]
+// @Router /api/v2/users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -775,7 +784,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or me"
 // @Param template_id query string true "Template ID"
 // @Success 200 {array} codersdk.UserParameter
-// @Router /users/{user}/autofill-parameters [get]
+// @Router /api/v2/users/{user}/autofill-parameters [get]
 func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
@@ -826,7 +835,7 @@ func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) 
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.UserLoginType
-// @Router /users/{user}/login-type [get]
+// @Router /api/v2/users/{user}/login-type [get]
 func (*API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -856,7 +865,7 @@ func (*API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserProfileRequest true "Updated profile"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user}/profile [put]
+// @Router /api/v2/users/{user}/profile [put]
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -947,7 +956,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user}/status/suspend [put]
+// @Router /api/v2/users/{user}/status/suspend [put]
 func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Request) {
 	return api.putUserStatus(database.UserStatusSuspended)
 }
@@ -959,7 +968,7 @@ func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Req
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user}/status/activate [put]
+// @Router /api/v2/users/{user}/status/activate [put]
 func (api *API) putActivateUserAccount() func(rw http.ResponseWriter, r *http.Request) {
 	return api.putUserStatus(database.UserStatusActive)
 }
@@ -1108,7 +1117,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.UserAppearanceSettings
-// @Router /users/{user}/appearance [get]
+// @Router /api/v2/users/{user}/appearance [get]
 func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -1156,7 +1165,7 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
 // @Success 200 {object} codersdk.UserAppearanceSettings
-// @Router /users/{user}/appearance [put]
+// @Router /api/v2/users/{user}/appearance [put]
 func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -1212,7 +1221,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.UserPreferenceSettings
-// @Router /users/{user}/preferences [get]
+// @Router /api/v2/users/{user}/preferences [get]
 func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -1230,8 +1239,18 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
+		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
 	})
 }
 
@@ -1244,7 +1263,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserPreferenceSettingsRequest true "New preference settings"
 // @Success 200 {object} codersdk.UserPreferenceSettings
-// @Router /users/{user}/preferences [put]
+// @Router /api/v2/users/{user}/preferences [put]
 func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -1256,21 +1275,80 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	updatedTaskAlertDismissed, err := api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
-		UserID:                         user.ID,
-		TaskNotificationAlertDismissed: params.TaskNotificationAlertDismissed,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user task notification alert dismissed.",
-			Detail:  err.Error(),
+	if params.ThinkingDisplayMode != "" &&
+		!slices.Contains(codersdk.ValidThinkingDisplayModes, params.ThinkingDisplayMode) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid thinking display mode.",
+			Validations: []codersdk.ValidationError{
+				{Field: "thinking_display_mode", Detail: "must be one of: auto, preview, always_expanded, always_collapsed"},
+			},
 		})
 		return
+	}
+	var err error
+
+	var updatedTaskAlertDismissed bool
+	if params.TaskNotificationAlertDismissed != nil {
+		updatedTaskAlertDismissed, err = api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
+			UserID:                         user.ID,
+			TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating user task notification alert dismissed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		updatedTaskAlertDismissed, err = api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading task notification alert dismissed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	var resolvedThinkingMode codersdk.ThinkingDisplayMode
+	if params.ThinkingDisplayMode != "" {
+		updated, err := api.Database.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+			UserID:              user.ID,
+			ThinkingDisplayMode: string(params.ThinkingDisplayMode),
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating thinking display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resolvedThinkingMode = codersdk.ThinkingDisplayMode(updated)
+	} else {
+		stored, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading thinking display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resolvedThinkingMode = sanitizeThinkingDisplayMode(stored)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
+		ThinkingDisplayMode:            resolvedThinkingMode,
 	})
+}
+
+func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
+	mode := codersdk.ThinkingDisplayMode(raw)
+	if slices.Contains(codersdk.ValidThinkingDisplayModes, mode) {
+		return mode
+	}
+	return codersdk.ThinkingDisplayModeAuto
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {
@@ -1285,7 +1363,7 @@ func isValidFontName(font codersdk.TerminalFontName) bool {
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserPasswordRequest true "Update password request"
 // @Success 204
-// @Router /users/{user}/password [put]
+// @Router /api/v2/users/{user}/password [put]
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -1420,7 +1498,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user}/roles [get]
+// @Router /api/v2/users/{user}/roles [get]
 func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -1466,7 +1544,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user}/roles [put]
+// @Router /api/v2/users/{user}/roles [put]
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()
@@ -1543,7 +1621,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {array} codersdk.Organization
-// @Router /users/{user}/organizations [get]
+// @Router /api/v2/users/{user}/organizations [get]
 func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -1585,7 +1663,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param organizationname path string true "Organization name"
 // @Success 200 {object} codersdk.Organization
-// @Router /users/{user}/organizations/{organizationname} [get]
+// @Router /api/v2/users/{user}/organizations/{organizationname} [get]
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
@@ -1628,18 +1706,6 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	rbacRoles := []string{}
 	if req.RBACRoles != nil {
 		rbacRoles = req.RBACRoles
-	}
-
-	// When the agents experiment is enabled, auto-assign the
-	// agents-access role so new users can use Coder Agents
-	// without manual admin intervention. Skip this for OIDC
-	// users when site role sync is enabled, because the sync
-	// will overwrite roles on every login anyway — those
-	// admins should use --oidc-user-role-default instead.
-	if api.Experiments.Enabled(codersdk.ExperimentAgents) &&
-		!(req.LoginType == database.LoginTypeOIDC && api.IDPSync.SiteRoleSyncEnabled()) &&
-		!slices.Contains(rbacRoles, codersdk.RoleAgentsAccess) {
-		rbacRoles = append(rbacRoles, codersdk.RoleAgentsAccess)
 	}
 
 	var user database.User

@@ -14,7 +14,7 @@ import (
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200
-// @Router /templateversions/{templateversion}/parameters [get]
+// @Router /api/v2/templateversions/{templateversion}/parameters [get]
 func templateVersionParametersDeprecated(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, []struct{}{})
 }
@@ -25,7 +25,7 @@ func templateVersionParametersDeprecated(rw http.ResponseWriter, r *http.Request
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200
-// @Router /templateversions/{templateversion}/schema [get]
+// @Router /api/v2/templateversions/{templateversion}/schema [get]
 func templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, []struct{}{})
 }
@@ -41,7 +41,7 @@ func templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
 // @Param follow query bool false "Follow log stream"
 // @Param no_compression query bool false "Disable compression for WebSocket connection"
 // @Success 200 {array} codersdk.WorkspaceAgentLog
-// @Router /workspaceagents/{workspaceagent}/startup-logs [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/startup-logs [get]
 func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Request) {
 	api.workspaceAgentLogs(rw, r)
 }
@@ -55,7 +55,7 @@ func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Req
 // @Param id query string true "Provider ID"
 // @Param listen query bool false "Wait for a new token to be issued"
 // @Success 200 {object} agentsdk.ExternalAuthResponse
-// @Router /workspaceagents/me/gitauth [get]
+// @Router /api/v2/workspaceagents/me/gitauth [get]
 func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
 	api.workspaceAgentsExternalAuth(rw, r)
 }
@@ -67,7 +67,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {array} codersdk.WorkspaceResource
-// @Router /workspacebuilds/{workspacebuild}/resources [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/resources [get]
 // @Deprecated this endpoint is unused and will be removed in future.
 func (api *API) workspaceBuildResourcesDeprecated(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

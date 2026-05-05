@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
@@ -37,6 +37,8 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 		Metadata:              marshalForProto(req.Metadata),
 		StartedAt:             timestamppb.New(req.StartedAt),
 		CorrelatingToolCallId: req.CorrelatingToolCallID,
+		CredentialKind:        req.CredentialKind,
+		CredentialHint:        req.CredentialHint,
 	})
 	return err
 }

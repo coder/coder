@@ -78,6 +78,7 @@ type AIBridgeSession struct {
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
 	LastPrompt        *string                          `json:"last_prompt,omitempty"`
+	LastActiveAt      time.Time                        `json:"last_active_at" format:"date-time"`
 }
 
 type AIBridgeSessionTokenUsageSummary struct {
@@ -127,6 +128,8 @@ type AIBridgeThread struct {
 	Prompt         *string                          `json:"prompt,omitempty"`
 	Model          string                           `json:"model"`
 	Provider       string                           `json:"provider"`
+	CredentialKind string                           `json:"credential_kind"`
+	CredentialHint string                           `json:"credential_hint"`
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
@@ -277,6 +280,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 
 // AIBridgeListInterceptions returns AI Bridge interceptions with the given
 // filter.
+//
+// Deprecated: Use AIBridgeListSessions instead, which provides richer
+// session-level aggregation including threads and agentic actions.
 func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
 	if err != nil {

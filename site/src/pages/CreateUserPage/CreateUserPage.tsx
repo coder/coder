@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { roles } from "#/api/queries/roles";
 import { authMethods, createUser } from "#/api/queries/users";
 import { Margins } from "#/components/Margins/Margins";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "#/utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
@@ -14,7 +16,9 @@ const CreateUserPage: FC = () => {
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));
 	const authMethodsQuery = useQuery(authMethods());
+	const rolesQuery = useQuery(roles());
 	const { showOrganizations } = useDashboard();
+	const { service_accounts: serviceAccountsEnabled } = useFeatureVisibility();
 
 	return (
 		<Margins>
@@ -34,6 +38,7 @@ const CreateUserPage: FC = () => {
 							password: user.password,
 							user_status: null,
 							service_account: user.service_account,
+							roles: [...user.roles],
 						},
 						{
 							onSuccess: () => {
@@ -58,6 +63,10 @@ const CreateUserPage: FC = () => {
 				}}
 				authMethods={authMethodsQuery.data}
 				showOrganizations={showOrganizations}
+				serviceAccountsEnabled={serviceAccountsEnabled}
+				availableRoles={rolesQuery.data}
+				rolesLoading={rolesQuery.isLoading}
+				rolesError={rolesQuery.error}
 			/>
 		</Margins>
 	);

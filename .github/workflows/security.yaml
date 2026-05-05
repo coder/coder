@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -63,3 +63,75 @@ jobs:
             --data "{\"content\": \"$msg\"}" \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
+  osv-scanner:
+    permissions:
+      security-events: write
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    env:
+      IMAGE_REF: ghcr.io/coder/coder:latest
+      OSV_SCANNER_VERSION: v2.3.5
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Install OSV-Scanner
+        run: |
+          curl -fsSL -o /usr/local/bin/osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          chmod +x /usr/local/bin/osv-scanner
+
+      - name: Pull released Coder image
+        run: docker pull "$IMAGE_REF"
+
+      - name: Run OSV-Scanner vulnerability scanner
+        id: scan
+        run: |
+          set +e
+          osv-scanner scan image "$IMAGE_REF" \
+            --format sarif \
+            --output-file osv-results.sarif
+          scan_exit_code=$?
+          set -e
+
+          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${scan_exit_code}" -eq 0 ]]; then
+            exit 0
+          fi
+
+          if [[ "${scan_exit_code}" -eq 1 ]]; then
+            echo "OSV-Scanner found vulnerabilities in ${IMAGE_REF}."
+            echo "Results will be uploaded to GitHub Security and as a SARIF artifact."
+            exit 0
+          fi
+
+          echo "::error::OSV-Scanner failed with exit code ${scan_exit_code}"
+          exit "${scan_exit_code}"
+
+      - name: Upload OSV-Scanner scan results to GitHub Security tab
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5
+        with:
+          sarif_file: osv-results.sarif
+          category: "OSV-Scanner"
+
+      - name: Upload OSV-Scanner scan results as an artifact
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: osv-scanner
+          path: osv-results.sarif
+          retention-days: 7
+
+      - name: Send Slack notification on failure
+        if: ${{ failure() }}
+        run: |
+          msg="❌ OSV-Scanner Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$msg\"}" \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"

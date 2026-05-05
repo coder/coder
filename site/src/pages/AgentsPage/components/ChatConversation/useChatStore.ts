@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
-import { asNumber, asString } from "../ChatElements/runtimeTypeUtils";
+import { normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
@@ -18,50 +23,14 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
-const isChatStreamEvent = (data: unknown): data is TypesGen.ChatStreamEvent =>
-	typeof data === "object" &&
-	data !== null &&
-	"type" in data &&
-	typeof (data as Record<string, unknown>).type === "string";
-
-const isChatStreamEventArray = (
-	data: unknown,
-): data is TypesGen.ChatStreamEvent[] =>
-	Array.isArray(data) && data.every(isChatStreamEvent);
-
-const toChatStreamEvents = (data: unknown): TypesGen.ChatStreamEvent[] => {
-	if (isChatStreamEvent(data)) {
-		return [data];
-	}
-	if (isChatStreamEventArray(data)) {
-		return data;
-	}
-	return [];
-};
-
-const normalizeChatDetailError = (
-	error: TypesGen.ChatStreamError | Record<string, unknown> | undefined,
-): ChatDetailError => ({
-	message: asString(error?.message).trim() || "Chat processing failed.",
-	kind: asString(error?.kind).trim() || "generic",
-	provider: asString(error?.provider).trim() || undefined,
-	retryable:
-		typeof error?.retryable === "boolean" ? error.retryable : undefined,
-	statusCode: asNumber(error?.status_code),
+const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
+	attempt: Math.max(1, retry.attempt),
+	error: retry.error.trim() || "Retrying request shortly.",
+	kind: retry.kind?.trim() || "generic",
+	provider: retry.provider?.trim() || undefined,
+	delayMs: retry.delay_ms,
+	retryingAt: retry.retrying_at.trim() || undefined,
 });
-
-const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => {
-	const delayMs = asNumber(retry.delay_ms);
-	const retryingAt = asString(retry.retrying_at).trim() || undefined;
-	return {
-		attempt: Math.max(1, asNumber(retry.attempt) ?? 1),
-		error: asString(retry.error).trim() || "Retrying request shortly.",
-		kind: asString(retry.kind).trim() || "generic",
-		provider: asString(retry.provider).trim() || undefined,
-		...(delayMs !== undefined ? { delayMs } : {}),
-		...(retryingAt ? { retryingAt } : {}),
-	};
-};
 
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	state.streamError === null &&
@@ -140,12 +109,10 @@ export const useChatStore = (
 				: undefined;
 	});
 
-	// Keep error-reason callbacks in refs so the WebSocket effect
-	// can call them without including them in its dependency array.
-	// This prevents the socket from tearing down when the parent
-	// re-renders with new callback identities.
-	const setChatErrorReasonStable = useEffectEvent(setChatErrorReason);
-	const clearChatErrorReasonStable = useEffectEvent(clearChatErrorReason);
+	// Wrap error-reason callbacks so the WebSocket effect can call
+	// them without including them in its dependency array.
+	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
+	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
 
 	// True once the initial REST page has resolved for the current
 	// chat. The WebSocket effect gates on this so that
@@ -161,7 +128,7 @@ export const useChatStore = (
 	// last REST fetch, and structural sharing can suppress the
 	// refetch-driven store update when no new durable messages
 	// have been committed to the DB yet.
-	const upsertCacheMessages = useEffectEvent(
+	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (!chatID || messages.length === 0) {
 				return;
@@ -202,6 +169,7 @@ export const useChatStore = (
 				};
 			});
 		},
+		[chatID, queryClient],
 	);
 
 	useEffect(() => {
@@ -236,10 +204,9 @@ export const useChatStore = (
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
 				// Only classify a store-held ID as stale if it was
 				// present in the PREVIOUS sync's fetched data. IDs
-				// added to the store after the last sync (by the WS
-				// handler or handleSend) are new, not stale, and
-				// must not trigger the destructive replaceMessages
-				// path.
+				// added to the store after the last sync (for example
+				// by the WS handler) are new, not stale, and must not
+				// trigger the destructive replaceMessages path.
 				const prevIDs = new Set(prev.map((m) => m.id));
 				const hasStaleEntries =
 					contentChanged &&
@@ -410,9 +377,9 @@ export const useChatStore = (
 		};
 
 		// Discard buffered parts without applying them. Used when
-		// stream state is about to be cleared (pending, waiting,
-		// retry) — flushing would re-populate the state that the
-		// event is about to clear.
+		// the stream is no longer active (pending, waiting, retry)
+		// so stale buffered parts are not applied after the
+		// status transition.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
@@ -422,7 +389,7 @@ export const useChatStore = (
 		};
 
 		const handleMessage = (
-			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
+			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
 		) => {
 			if (disposed) {
 				return;
@@ -434,11 +401,8 @@ export const useChatStore = (
 				});
 				return;
 			}
-			if (payload.parsedMessage.type !== "data") {
-				return;
-			}
 
-			const streamEvents = toChatStreamEvents(payload.parsedMessage.data);
+			const streamEvents = payload.parsedMessage;
 			if (streamEvents.length === 0) {
 				return;
 			}
@@ -531,14 +495,13 @@ export const useChatStore = (
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearStreamState();
 								store.clearRetryState();
 							}
 							if (nextStatus === "running") {
 								store.clearRetryState();
 							}
 							if (nextStatus !== "error") {
-								clearChatErrorReasonStable(chatID);
+								clearChatErrorReasonEvent(chatID);
 							}
 							updateSidebarChat((chat) =>
 								chat.status === nextStatus
@@ -551,11 +514,14 @@ export const useChatStore = (
 							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 								continue;
 							}
-							const reason = normalizeChatDetailError(streamEvent.error);
+							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
+								kind: "generic",
+								message: "Chat processing failed.",
+							};
 							store.setChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();
-							setChatErrorReasonStable(chatID, reason);
+							setChatErrorReasonEvent(chatID, reason);
 							updateSidebarChat((chat) =>
 								chat.status === "error" ? chat : { ...chat, status: "error" },
 							);
@@ -660,15 +626,7 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [
-		chatID,
-		initialDataLoaded,
-		queryClient,
-		store,
-		setChatErrorReasonStable,
-		clearChatErrorReasonStable,
-		upsertCacheMessages,
-	]);
+	}, [chatID, initialDataLoaded, queryClient, store, upsertCacheMessages]);
 	return {
 		store,
 		clearStreamError: () => {

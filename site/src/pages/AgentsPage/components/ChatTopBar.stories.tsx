@@ -1,20 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { ChatTopBar } from "./ChatTopBar";
+
+// Probe element rendered at /agents to verify search params are preserved
+// when the mobile back button navigates away from a chat.
+const AgentsSearchProbe = () => {
+	const location = useLocation();
+	return <div data-testid="agents-search">{location.search}</div>;
+};
 
 const defaultProps = {
 	chatTitle: "Build authentication feature",
 	panel: {
 		showSidebarPanel: false,
 		onToggleSidebar: fn(),
-	},
-	workspace: {
-		canOpenEditors: true,
-		canOpenWorkspace: true,
-		onOpenInEditor: fn(),
-		onViewWorkspace: fn(),
-		onOpenTerminal: fn(),
-		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
 	onArchiveAgent: fn(),
 	onArchiveAndDeleteWorkspace: fn(),
@@ -57,18 +58,20 @@ export const WithParentChat: Story = {
 	args: {
 		parentChat: {
 			id: "parent-chat-1",
+			organization_id: "test-org-id",
 			owner_id: "owner-id",
 			last_model_config_id: "model-config-1",
 			mcp_server_ids: [],
 			labels: {},
 			title: "Set up CI/CD pipeline",
 			status: "completed",
-			last_error: null,
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
 			pin_order: 0,
 			has_unread: false,
+			client_type: "ui",
+			children: [],
 		},
 	},
 };
@@ -244,6 +247,33 @@ export const GenerateTitle: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Generate new title")).toBeInTheDocument();
+		});
+	},
+};
+
+export const PreservesArchivedFilterOnMobileBack: Story = {
+	decorators: mobileDecorator,
+	parameters: {
+		chromatic: { viewports: [390] },
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/chat-123",
+				searchParams: { archived: "archived" },
+			},
+			routing: [
+				{ path: "/agents/:agentId", useStoryElement: true },
+				{ path: "/agents", element: <AgentsSearchProbe /> },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backLink = await canvas.findByLabelText("Back");
+		await userEvent.click(backLink);
+		await waitFor(() => {
+			expect(canvas.getByTestId("agents-search")).toHaveTextContent(
+				"?archived=archived",
+			);
 		});
 	},
 };

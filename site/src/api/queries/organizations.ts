@@ -5,10 +5,10 @@ import {
 	type GetProvisionerJobsParams,
 } from "#/api/api";
 import type {
+	AuthorizationCheck,
 	CreateOrganizationRequest,
 	GroupSyncSettings,
 	Organization,
-	PaginatedMembersRequest,
 	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
@@ -27,6 +27,7 @@ import {
 	type WorkspacePermissions,
 	workspacePermissionChecks,
 } from "#/modules/permissions/workspaces";
+import { prepareQuery } from "#/utils/filters";
 import { meKey } from "./users";
 import { cachedQuery } from "./util";
 
@@ -95,16 +96,14 @@ export const organizationMembers = (id: string, req: UsersRequest) => {
 export const paginatedOrganizationMembers = (
 	id: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<
-	PaginatedMembersResponse,
-	PaginatedMembersRequest
-> => {
+): UsePaginatedQueryOptions<PaginatedMembersResponse, UsersRequest> => {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {
 			return {
-				limit: limit,
-				offset: offset,
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
 			};
 		},
 		queryKey: ({ payload }) => organizationMembersKey(id, payload),
@@ -160,7 +159,7 @@ export const updateOrganizationMemberRoles = (
 	};
 };
 
-export const organizationsKey = ["organizations"] as const;
+const organizationsKey = ["organizations"] as const;
 
 const notAvailable = { available: false, value: undefined } as const;
 
@@ -296,6 +295,31 @@ export const provisionerJobs = (
 };
 
 /**
+ * Fetch organizations the current user is permitted to use for a given
+ * action. Fetches all organizations, runs a per-org authorization
+ * check, and returns only those that pass.
+ */
+export const permittedOrganizations = (check: AuthorizationCheck) => {
+	return {
+		queryKey: ["organizations", "permitted", check],
+		queryFn: async (): Promise<Organization[]> => {
+			const orgs = await API.getOrganizations();
+			const checks = Object.fromEntries(
+				orgs.map((org) => [
+					org.id,
+					{
+						...check,
+						object: { ...check.object, organization_id: org.id },
+					},
+				]),
+			);
+			const permissions = await API.checkAuthorization({ checks });
+			return orgs.filter((org) => permissions[org.id]);
+		},
+	};
+};
+
+/**
  * Fetch permissions for all provided organizations.
  *
  * If organizations are undefined, return a disabled query.
@@ -304,7 +328,7 @@ export const organizationsPermissions = (
 	organizationIds: string[] | undefined,
 ) => {
 	return {
-		enabled: !!organizationIds,
+		enabled: Boolean(organizationIds),
 		queryKey: [
 			"organizations",
 			[...(organizationIds ?? []).sort()],
@@ -351,7 +375,7 @@ export const workspacePermissionsByOrganization = (
 	userId: string,
 ) => {
 	return {
-		enabled: !!organizationIds,
+		enabled: Boolean(organizationIds),
 		queryKey: [
 			"workspaces",
 			[...(organizationIds ?? []).sort()],

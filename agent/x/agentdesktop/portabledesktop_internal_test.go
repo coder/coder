@@ -2,6 +2,7 @@ package agentdesktop
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -584,6 +585,7 @@ func TestPortableDesktop_StartRecording(t *testing.T) {
 		joined := strings.Join(cmd, " ")
 		if strings.Contains(joined, "record") && strings.Contains(joined, "coder-recording-"+recID) {
 			found = true
+			assert.Contains(t, joined, "--thumbnail", "record command should include --thumbnail flag")
 			break
 		}
 	}
@@ -634,7 +636,9 @@ func TestPortableDesktop_StopRecording_ReturnsArtifact(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	rec := &recordedExecer{
 		scripts: map[string]string{
-			"record": `trap 'exit 0' INT; sleep 120 & wait`,
+			// Use exec so SIGINT is delivered directly to sleep
+			// and the process exits immediately. (See coder/internal#1462.)
+			"record": `exec sleep 120`,
 			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
 		},
 	}
@@ -665,6 +669,68 @@ func TestPortableDesktop_StopRecording_ReturnsArtifact(t *testing.T) {
 	require.NoError(t, err)
 	defer artifact.Reader.Close()
 	assert.Equal(t, int64(len("fake-mp4-data")), artifact.Size)
+
+	// No thumbnail file exists, so ThumbnailReader should be nil.
+	assert.Nil(t, artifact.ThumbnailReader, "ThumbnailReader should be nil when no thumbnail file exists")
+
+	require.NoError(t, pd.Close())
+}
+
+func TestPortableDesktop_StopRecording_WithThumbnail(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rec := &recordedExecer{
+		scripts: map[string]string{
+			// See TestPortableDesktop_StopRecording_ReturnsArtifact
+			// for why we use exec instead of trap+wait.
+			"record": `exec sleep 120`,
+			"up":     `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
+		},
+	}
+
+	clk := quartz.NewReal()
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		clock:        clk,
+		binPath:      "portabledesktop",
+		recordings:   make(map[string]*recordingProcess),
+	}
+	pd.lastDesktopActionAt.Store(clk.Now().UnixNano())
+
+	ctx := t.Context()
+	recID := uuid.New().String()
+	err := pd.StartRecording(ctx, recID)
+	require.NoError(t, err)
+
+	// Write a dummy MP4 file at the expected path.
+	filePath := filepath.Join(os.TempDir(), "coder-recording-"+recID+".mp4")
+	require.NoError(t, os.WriteFile(filePath, []byte("fake-mp4-data"), 0o600))
+	t.Cleanup(func() { _ = os.Remove(filePath) })
+
+	// Write a thumbnail file at the expected path.
+	thumbPath := filepath.Join(os.TempDir(), "coder-recording-"+recID+".thumb.jpg")
+	thumbContent := []byte("fake-jpeg-thumbnail")
+	require.NoError(t, os.WriteFile(thumbPath, thumbContent, 0o600))
+	t.Cleanup(func() { _ = os.Remove(thumbPath) })
+
+	artifact, err := pd.StopRecording(ctx, recID)
+	require.NoError(t, err)
+	defer artifact.Reader.Close()
+
+	assert.Equal(t, int64(len("fake-mp4-data")), artifact.Size)
+
+	// Thumbnail should be attached.
+	require.NotNil(t, artifact.ThumbnailReader, "ThumbnailReader should be non-nil when thumbnail file exists")
+	defer artifact.ThumbnailReader.Close()
+	assert.Equal(t, int64(len(thumbContent)), artifact.ThumbnailSize)
+
+	// Read and verify thumbnail content.
+	thumbData, err := io.ReadAll(artifact.ThumbnailReader)
+	require.NoError(t, err)
+	assert.Equal(t, thumbContent, thumbData)
 
 	require.NoError(t, pd.Close())
 }
@@ -750,11 +816,17 @@ func TestPortableDesktop_IdleTimeout_StopsRecordings(t *testing.T) {
 	stopTrap := clk.Trap().NewTimer("agentdesktop", "stop_timeout")
 
 	// Advance past idle timeout to trigger the stop-all.
-	clk.Advance(idleTimeout)
+	clk.Advance(idleTimeout).MustWait(ctx)
 
 	// Wait for the stop timer to be created, then release it.
 	stopTrap.MustWait(ctx).MustRelease(ctx)
 	stopTrap.Close()
+
+	// Advance past the 15s stop timeout so the process is
+	// forcibly killed. Without this the test depends on the real
+	// shell handling SIGINT promptly, which is unreliable on
+	// macOS CI runners (the flake in #1461).
+	clk.Advance(15 * time.Second).MustWait(ctx)
 
 	// The recording process should now be stopped.
 	require.Eventually(t, func() bool {
@@ -877,11 +949,17 @@ func TestPortableDesktop_IdleTimeout_MultipleRecordings(t *testing.T) {
 	stopTrap := clk.Trap().NewTimer("agentdesktop", "stop_timeout")
 
 	// Advance past idle timeout.
-	clk.Advance(idleTimeout)
+	clk.Advance(idleTimeout).MustWait(ctx)
 
-	// Wait for both stop timers.
+	// Each idle monitor goroutine serializes on p.mu, so the
+	// second stop timer is only created after the first stop
+	// completes. Advance past the 15s stop timeout after each
+	// release so the process is forcibly killed instead of
+	// depending on SIGINT (unreliable on macOS — see #1461).
 	stopTrap.MustWait(ctx).MustRelease(ctx)
+	clk.Advance(15 * time.Second).MustWait(ctx)
 	stopTrap.MustWait(ctx).MustRelease(ctx)
+	clk.Advance(15 * time.Second).MustWait(ctx)
 	stopTrap.Close()
 
 	// Both recordings should be stopped.

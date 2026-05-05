@@ -204,11 +204,12 @@ func (mr *MockAgentConnMockRecorder) DialContext(ctx, network, addr any) *gomock
 }
 
 // EditFiles mocks base method.
-func (m *MockAgentConn) EditFiles(ctx context.Context, edits workspacesdk.FileEditRequest) error {
+func (m *MockAgentConn) EditFiles(ctx context.Context, edits workspacesdk.FileEditRequest) (workspacesdk.FileEditResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EditFiles", ctx, edits)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(workspacesdk.FileEditResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // EditFiles indicates an expected call of EditFiles.
@@ -449,6 +450,21 @@ func (mr *MockAgentConnMockRecorder) RecreateDevcontainer(ctx, devcontainerID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecreateDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).RecreateDevcontainer), ctx, devcontainerID)
 }
 
+// ResolvePath mocks base method.
+func (m *MockAgentConn) ResolvePath(ctx context.Context, path string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolvePath", ctx, path)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolvePath indicates an expected call of ResolvePath.
+func (mr *MockAgentConnMockRecorder) ResolvePath(ctx, path any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolvePath", reflect.TypeOf((*MockAgentConn)(nil).ResolvePath), ctx, path)
+}
+
 // SSH mocks base method.
 func (m *MockAgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	m.ctrl.T.Helper()
@@ -580,10 +596,10 @@ func (mr *MockAgentConnMockRecorder) StartProcess(ctx, req any) *gomock.Call {
 }
 
 // StopDesktopRecording mocks base method.
-func (m *MockAgentConn) StopDesktopRecording(ctx context.Context, req workspacesdk.StopDesktopRecordingRequest) (io.ReadCloser, error) {
+func (m *MockAgentConn) StopDesktopRecording(ctx context.Context, req workspacesdk.StopDesktopRecordingRequest) (workspacesdk.StopDesktopRecordingResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StopDesktopRecording", ctx, req)
-	ret0, _ := ret[0].(io.ReadCloser)
+	ret0, _ := ret[0].(workspacesdk.StopDesktopRecordingResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

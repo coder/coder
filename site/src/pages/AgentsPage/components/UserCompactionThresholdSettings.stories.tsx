@@ -70,7 +70,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("spinbutton", {
+		const gpt4oInput = await canvas.findByRole("textbox", {
 			name: /GPT-4o compaction threshold/i,
 		});
 
@@ -96,10 +96,10 @@ export const Default: Story = {
 export const SaveAll: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("spinbutton", {
+		const gpt4oInput = await canvas.findByRole("textbox", {
 			name: /GPT-4o compaction threshold/i,
 		});
-		const claudeInput = await canvas.findByRole("spinbutton", {
+		const claudeInput = await canvas.findByRole("textbox", {
 			name: /Claude Sonnet compaction threshold/i,
 		});
 
@@ -129,15 +129,15 @@ export const WithOverrides: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("spinbutton", {
+		const gpt4oInput = await canvas.findByRole("textbox", {
 			name: /GPT-4o compaction threshold/i,
 		});
-		const claudeInput = await canvas.findByRole("spinbutton", {
+		const claudeInput = await canvas.findByRole("textbox", {
 			name: /Claude Sonnet compaction threshold/i,
 		});
 
-		expect(gpt4oInput).toHaveValue(90);
-		expect(claudeInput).toHaveValue(50);
+		expect(gpt4oInput).toHaveValue("90");
+		expect(claudeInput).toHaveValue("50");
 
 		// Reset buttons should be visible for both overridden models
 		const resetButtons = canvas.getAllByRole("button", {
@@ -155,7 +155,7 @@ export const WithOverrides: Story = {
 export const CancelChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("spinbutton", {
+		const gpt4oInput = await canvas.findByRole("textbox", {
 			name: /GPT-4o compaction threshold/i,
 		});
 
@@ -171,7 +171,7 @@ export const CancelChanges: Story = {
 		});
 
 		// Input should be cleared back to empty (no override)
-		expect(gpt4oInput).toHaveValue(null);
+		expect(gpt4oInput).toHaveValue("");
 	},
 };
 
@@ -179,11 +179,11 @@ export const InvalidDraftShowsFooter: Story = {
 	name: "Invalid Draft Shows Footer",
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("spinbutton", {
+		const gpt4oInput = await canvas.findByRole("textbox", {
 			name: /GPT-4o compaction threshold/i,
 		});
 
-		// Type an out-of-range value (number inputs reject non-numeric chars)
+		// Type an out-of-range value.
 		await userEvent.type(gpt4oInput, "150");
 
 		// Input should be marked invalid
@@ -205,7 +205,7 @@ export const DisableCompactionWarning: Story = {
 	name: "100% Disable Compaction Warning",
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("spinbutton", {
+		const gpt4oInput = await canvas.findByRole("textbox", {
 			name: /GPT-4o compaction threshold/i,
 		});
 
@@ -239,10 +239,10 @@ export const PartialSaveFailure: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const gpt4oInput = await canvas.findByRole("spinbutton", {
+		const gpt4oInput = await canvas.findByRole("textbox", {
 			name: /GPT-4o compaction threshold/i,
 		});
-		const claudeInput = await canvas.findByRole("spinbutton", {
+		const claudeInput = await canvas.findByRole("textbox", {
 			name: /Claude Sonnet compaction threshold/i,
 		});
 

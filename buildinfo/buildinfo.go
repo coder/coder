@@ -48,7 +48,7 @@ const (
 // Use golang.org/x/mod/semver to compare versions.
 func Version() string {
 	readVersion.Do(func() {
-		revision, valid := revision()
+		revision, valid := Revision()
 		if valid {
 			revision = "+" + revision[:7]
 		}
@@ -87,6 +87,12 @@ func IsDevVersion(v string) bool {
 	return strings.Contains(v, "-"+develPreRelease)
 }
 
+// IsRCVersion returns true if the version has a release candidate
+// pre-release tag, e.g. "v2.31.0-rc.0".
+func IsRCVersion(v string) bool {
+	return strings.Contains(v, "-rc.")
+}
+
 // IsDev returns true if this is a development build.
 // CI builds are also considered development builds.
 func IsDev() bool {
@@ -118,7 +124,7 @@ func IsBoringCrypto() bool {
 func ExternalURL() string {
 	readExternalURL.Do(func() {
 		repo := "https://github.com/coder/coder"
-		revision, valid := revision()
+		revision, valid := Revision()
 		if !valid {
 			externalURL = repo
 			return
@@ -141,8 +147,8 @@ func Time() (time.Time, bool) {
 	return parsed, true
 }
 
-// revision returns the Git hash of the build.
-func revision() (string, bool) {
+// Revision returns the full Git hash of the build.
+func Revision() (string, bool) {
 	return find("vcs.revision")
 }
 

@@ -22,7 +22,7 @@ type cspViolation struct {
 // @Tags General
 // @Param request body cspViolation true "Violation report"
 // @Success 200
-// @Router /csp/reports [post]
+// @Router /api/v2/csp/reports [post]
 func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var v cspViolation

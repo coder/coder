@@ -1,4 +1,4 @@
-import { ChevronDown as LucideChevronDown } from "lucide-react";
+import { ChevronDownIcon as LucideChevronDown } from "lucide-react";
 import { cn } from "#/utils/cn";
 
 interface ChevronDownIconProps

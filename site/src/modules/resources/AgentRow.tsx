@@ -1,17 +1,18 @@
 import Collapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
 import {
 	CopyIcon,
 	EllipsisIcon,
+	InfoIcon,
+	PackageIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import {
 	type FC,
-	useCallback,
+	type ReactNode,
 	useEffect,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -19,6 +20,7 @@ import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import type {
+	AgentScriptTiming,
 	Template,
 	Workspace,
 	WorkspaceAgent,
@@ -26,6 +28,7 @@ import type {
 } from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -36,16 +39,26 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tabs,
 	TabsContent,
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
-import { useTabOverflowKebabMenu } from "#/components/Tabs/utils";
+import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getAgentHealthIssues } from "#/modules/workspaces/health";
+import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -72,6 +85,7 @@ interface AgentRowProps {
 	workspace: Workspace;
 	template: Template;
 	initialMetadata?: WorkspaceAgentMetadata[];
+	agentScriptTimings?: readonly AgentScriptTiming[];
 	onUpdateAgent: () => void;
 }
 
@@ -136,9 +150,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
+	const healthIssues = getAgentHealthIssues(agent);
+	const hasAgentIssues = healthIssues.length > 0;
+	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
-		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
+		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
+			hasAgentIssues) &&
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
@@ -147,8 +165,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
-		setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures);
-	}, [agent.lifecycle_state, hasStartupFeatures]);
+		setShowLogs(
+			(agent.lifecycle_state !== "ready" || hasAgentIssues) &&
+				hasStartupFeatures,
+		);
+	}, [agent.lifecycle_state, hasAgentIssues, hasStartupFeatures]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
@@ -162,7 +183,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// This is a bit of a hack on the react-window API to get the scroll position.
 	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
 	// This makes it feel similar to a terminal that auto-scrolls downwards!
-	const handleLogScroll = useCallback((props: ListOnScrollProps) => {
+	const handleLogScroll = (props: ListOnScrollProps) => {
 		if (
 			props.scrollOffset === 0 ||
 			props.scrollUpdateWasRequested ||
@@ -175,11 +196,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 		if (!parent) {
 			return;
 		}
+		// Use the parent's scrollHeight (not the inner div's) so that
+		// any padding on the scroll container is included in the
+		// calculation and doesn't inflate the "at bottom" zone.
 		const distanceFromBottom =
-			logListDivRef.current.scrollHeight -
-			(props.scrollOffset + parent.clientHeight);
+			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
-	}, []);
+	};
 
 	const devcontainers = useAgentContainers(agent);
 
@@ -209,18 +232,27 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-
-	const [selectedLogTab, setSelectedLogTab] = useState("all");
-	const logTabs = useMemo(() => {
-		const sourceLogTabs = agent.log_sources
-			.filter((logSource) => {
-				// Remove the logSources that have no entries.
-				return agentLogs.some(
-					(log) =>
-						log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
-				);
-			})
-			.map((logSource) => ({
+	const failedStartupScriptSource = hasAgentIssues
+		? agent.log_sources.find(
+				(s) => s.display_name === STARTUP_SCRIPT_DISPLAY_NAME,
+			)
+		: undefined;
+	const [selectedLogTab, setSelectedLogTab] = useState(
+		failedStartupScriptSource?.id ?? "all",
+	);
+	const sortedSourceLogTabs = agent.log_sources
+		.filter((logSource) => {
+			// Remove the logSources that have no entries.
+			return agentLogs.some(
+				(log) =>
+					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+			);
+		})
+		.map((logSource) => {
+			const script = agent.scripts.find(
+				(s) => s.log_source_id === logSource.id,
+			);
+			return {
 				// Show the icon for the log source if it has one.
 				// In the startup script case, we show a bespoke play icon.
 				startIcon: logSource.icon ? (
@@ -234,36 +266,52 @@ export const AgentRow: FC<AgentRowProps> = ({
 				) : null,
 				title: logSource.display_name,
 				value: logSource.id,
-			}));
-		const startupScriptLogTab = sourceLogTabs.find(
-			(tab) => tab.title === STARTUP_SCRIPT_DISPLAY_NAME,
-		);
-		const sortedSourceLogTabs = sourceLogTabs
-			.filter((tab) => tab !== startupScriptLogTab)
-			.sort((a, b) => a.title.localeCompare(b.title));
-		return [
-			{
-				title: "All Logs",
-				value: "all",
-			},
-			...(startupScriptLogTab ? [startupScriptLogTab] : []),
-			...sortedSourceLogTabs,
-		] as {
-			startIcon?: React.ReactNode;
-			title: string;
-			value: string;
-		}[];
-	}, [agent.log_sources, agentLogs]);
+				error: Boolean(
+					script?.exit_code || (script?.status && script.status !== "ok"),
+				),
+			};
+		})
+		.sort((a, b) => {
+			// Errored scripts first, then startup script, then the rest.
+			if (a.error && !b.error) {
+				return -1;
+			}
+			if (b.error && !a.error) {
+				return 1;
+			}
+			if (a.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return -1;
+			}
+			if (b.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return 1;
+			}
+			return a.title.localeCompare(b.title);
+		});
+	const logTabs: {
+		startIcon?: ReactNode;
+		title: string;
+		value: string;
+		error: boolean;
+	}[] = [
+		{
+			title: "All Logs",
+			value: "all",
+			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
+			error: false,
+		},
+		...sortedSourceLogTabs,
+	];
+	const hasAnyLogs = agentLogs.length > 0;
+	const logTabsMeasureEnabled = hasStartupFeatures && hasAnyLogs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
 		visibleTabs: visibleLogTabs,
 		overflowTabs: overflowLogTabs,
 		getTabMeasureProps,
-	} = useTabOverflowKebabMenu({
+	} = useKebabMenu({
 		tabs: logTabs,
-		enabled: true,
+		enabled: logTabsMeasureEnabled,
 		isActive: showLogs,
-		alwaysVisibleTabsCount: 1,
 	});
 	const overflowLogTabValuesSet = new Set(
 		overflowLogTabs.map((tab) => tab.value),
@@ -279,16 +327,28 @@ export const AgentRow: FC<AgentRowProps> = ({
 		level: log.level,
 		sourceId: log.source_id,
 	}));
+	const allLogsText = agentLogs.map((log) => log.output).join("\n");
 	const selectedLogsText = selectedLogs.map((log) => log.output).join("\n");
 	const hasSelectedLogs = selectedLogs.length > 0;
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
-	const selectedLogTabTitle =
-		logTabs.find((tab) => tab.value === selectedLogTab)?.title ?? "Logs";
-	const sanitizedTabTitle = selectedLogTabTitle
-		.toLowerCase()
-		.replaceAll(/[^a-z0-9]+/g, "-")
-		.replaceAll(/(^-|-$)/g, "");
-	const logFilenameSuffix = sanitizedTabTitle || "logs";
+	const downloadableLogSets = logTabs
+		.filter((tab) => tab.value !== "all")
+		.map((tab) => {
+			const logsText = agentLogs
+				.filter((log) => log.source_id === tab.value)
+				.map((log) => log.output)
+				.join("\n");
+			const filenameSuffix = tab.title
+				.toLowerCase()
+				.replaceAll(/[^a-z0-9]+/g, "-")
+				.replaceAll(/(^-|-$)/g, "");
+			return {
+				label: tab.title,
+				filenameSuffix: filenameSuffix || tab.value,
+				logsText,
+				startIcon: tab.startIcon,
+			};
+		});
 
 	return (
 		<div
@@ -408,18 +468,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 				{agent.status === "connecting" && !isExternalAgent && (
 					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
-						<Skeleton
-							width={80}
-							height={32}
-							variant="rectangular"
-							className="rounded"
-						/>
-						<Skeleton
-							width={110}
-							height={32}
-							variant="rectangular"
-							className="rounded"
-						/>
+						<Skeleton width={80} height={32} className="rounded" />
+						<Skeleton width={110} height={32} className="rounded" />
 					</section>
 				)}
 
@@ -450,20 +500,62 @@ export const AgentRow: FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			{hasStartupFeatures && (
-				<section className="border-0 border-t border-solid border-border">
-					<div className="px-4 py-2 relative">
-						<Button
-							variant="subtle"
-							onClick={() => setShowLogs((v) => !v)}
-							className="after:content-[''] after:absolute after:inset-0"
-						>
-							<ChevronDownIcon open={showLogs} />
-							<span>Logs</span>
-						</Button>
-					</div>
-					<Collapse in={showLogs}>
-						<div className="px-4 pb-4">
+			<section className="border-0 border-t border-solid border-border">
+				<div className="px-4 py-2 relative">
+					<Button
+						variant="subtle"
+						onClick={() => setShowLogs((v) => !v)}
+						className="after:content-[''] after:absolute after:inset-0"
+					>
+						<ChevronDownIcon open={showLogs} />
+						<span>Logs</span>
+						{agent.lifecycle_state === "starting" &&
+							agent.log_sources.length > 0 &&
+							healthIssues.length === 0 && (
+								<Badge
+									variant="default"
+									size="xs"
+									className="ml-1.5"
+									svgSize="sm"
+								>
+									<Spinner
+										size="lg"
+										loading={true}
+										className="text-content-secondary -ml-1"
+									/>
+									<span>{agent.log_sources.length}</span>
+								</Badge>
+							)}
+						{healthIssues.length > 0 && (
+							<Badge
+								variant={hasWarningIssues ? "warning" : "info"}
+								size="xs"
+								className="ml-1.5"
+							>
+								{hasWarningIssues ? (
+									<TriangleAlertIcon className="-ml-0.5" />
+								) : (
+									<InfoIcon className="-ml-0.5" />
+								)}
+								<span>{healthIssues.length}</span>
+							</Badge>
+						)}
+					</Button>
+				</div>
+				<Collapse in={showLogs || (!hasStartupFeatures && hasAgentIssues)}>
+					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
+						{healthIssues.length > 0 && (
+							<div className="mb-4 flex flex-col gap-3">
+								{healthIssues.map((issue) => (
+									<AgentAlert
+										key={`${issue.title}-${issue.detail}`}
+										{...issue}
+										troubleshootingURL={agent.troubleshooting_url}
+									/>
+								))}
+							</div>
+						)}
+						{hasStartupFeatures && hasAnyLogs && (
 							<div className="border border-solid rounded-md overflow-clip">
 								<Tabs
 									className="-mx-px -mt-px"
@@ -471,11 +563,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 									onValueChange={setSelectedLogTab}
 								>
 									<div className="flex items-stretch">
-										<div
-											ref={logTabsListContainerRef}
-											className="min-w-0 flex-1"
-										>
-											<TabsList variant="insideBox" overflowKebabMenu>
+										<div className="min-w-0 flex-1 overflow-hidden">
+											<TabsList
+												variant="outsideBox"
+												overflowKebabMenu
+												ref={logTabsListContainerRef}
+												className="px-4"
+											>
 												{visibleLogTabs.map((tab) => (
 													<TabsTrigger
 														key={tab.value}
@@ -486,6 +580,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<span className="whitespace-nowrap">
 															{tab.title}
 														</span>
+														{tab.error && (
+															<Badge
+																variant="warning"
+																size="xs"
+																className="ml-1.5"
+															>
+																<TriangleAlertIcon />
+															</Badge>
+														)}
 													</TabsTrigger>
 												))}
 												{overflowLogTabs.length > 0 && (
@@ -501,7 +604,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		: "inactive"
 																}
 																aria-label="More log tabs"
-																className="border-none py-4 bg-transparent text-inherit inline-flex items-center justify-center cursor-pointer transition-colors duration-150 ease-linear"
+																className={cn(
+																	"cursor-pointer -mb-px",
+																	"inline-flex items-center justify-center",
+																	"border-none py-3 bg-transparent text-inherit",
+																	"transition-colors duration-150 ease-linear",
+																)}
 															>
 																<EllipsisIcon className="size-icon-sm" />
 																<span className="sr-only">More log tabs</span>
@@ -522,6 +630,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 																		<span className="whitespace-nowrap">
 																			{tab.title}
 																		</span>
+																		{tab.error && (
+																			<Badge
+																				variant="warning"
+																				size="xs"
+																				className="ml-1.5"
+																			>
+																				<TriangleAlertIcon />
+																			</Badge>
+																		)}
 																	</DropdownMenuRadioItem>
 																))}
 															</DropdownMenuRadioGroup>
@@ -533,23 +650,34 @@ export const AgentRow: FC<AgentRowProps> = ({
 										<div
 											className={cn(
 												"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
-												"border-solid border-0 border-b",
+												"border-solid border-0 border-b border-l",
 											)}
 										>
-											<Button
-												variant="subtle"
-												size="sm"
-												disabled={!hasSelectedLogs}
-												onClick={() => copyToClipboard(selectedLogsText)}
-											>
-												{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-												<span>Copy logs</span>
-											</Button>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess
+															? "Copied!"
+															: "Copy selected logs"}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
 											<DownloadSelectedAgentLogsButton
 												agentName={agent.name}
-												filenameSuffix={logFilenameSuffix}
-												logsText={selectedLogsText}
-												disabled={!hasSelectedLogs}
+												logSets={downloadableLogSets}
+												allLogsText={allLogsText}
+												disabled={!hasAnyLogs}
 											/>
 										</div>
 									</div>
@@ -570,16 +698,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 													sources={agent.log_sources}
 													overflowed={agent.logs_overflowed}
 													className="bg-transparent"
+													showSourceIcons={selectedLogTab === "all"}
 												/>
 											)}
 										</AutoSizer>
 									</TabsContent>
 								</Tabs>
 							</div>
-						</div>
-					</Collapse>
-				</section>
-			)}
+						)}
+					</div>
+				</Collapse>
+			</section>
 		</div>
 	);
 };

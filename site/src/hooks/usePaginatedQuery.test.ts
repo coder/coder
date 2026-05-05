@@ -258,6 +258,78 @@ describe(usePaginatedQuery.name, () => {
 		});
 	});
 
+	describe("Capped count behavior", () => {
+		const mockQueryKey = vi.fn(() => ["mock"]);
+
+		// Returns count 2001 (capped) with items on pages up to page 84
+		// (84 * 25 = 2100 items total).
+		const mockCappedQueryFn = vi.fn(({ pageNumber, limit }) => {
+			const totalItems = 2100;
+			const offset = (pageNumber - 1) * limit;
+			// Returns 0 items when the requested page is past the end, simulating
+			// an empty server response.
+			const itemsOnPage = Math.max(0, Math.min(limit, totalItems - offset));
+			return Promise.resolve({
+				data: new Array(itemsOnPage).fill(pageNumber),
+				count: 2001,
+				count_cap: 2000,
+			});
+		});
+
+		it("Caps totalRecords at 2000 when count exceeds cap", async () => {
+			const { result } = await render({
+				queryKey: mockQueryKey,
+				queryFn: mockCappedQueryFn,
+			});
+
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+			expect(result.current.totalRecords).toBe(2000);
+		});
+
+		it("hasNextPage is true when count is capped", async () => {
+			const { result } = await render(
+				{ queryKey: mockQueryKey, queryFn: mockCappedQueryFn },
+				"/?page=80",
+			);
+
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+			expect(result.current.hasNextPage).toBe(true);
+		});
+
+		it("hasPreviousPage is true when count is capped and page is beyond cap", async () => {
+			const { result } = await render(
+				{ queryKey: mockQueryKey, queryFn: mockCappedQueryFn },
+				"/?page=83",
+			);
+
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+			expect(result.current.hasPreviousPage).toBe(true);
+		});
+
+		it("Does not redirect to last page when count is capped and page is valid", async () => {
+			const { result } = await render(
+				{ queryKey: mockQueryKey, queryFn: mockCappedQueryFn },
+				"/?page=83",
+			);
+
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+			// Should stay on page 83 — not redirect to page 80.
+			expect(result.current.currentPage).toBe(83);
+		});
+
+		it("Redirects to last known page when navigating beyond actual data", async () => {
+			const { result } = await render(
+				{ queryKey: mockQueryKey, queryFn: mockCappedQueryFn },
+				"/?page=999",
+			);
+
+			// Page 999 has no items. Should redirect to page 81
+			// (ceil(2001 / 25) = 81), the last page guaranteed to
+			// have data.
+			await waitFor(() => expect(result.current.currentPage).toBe(81));
+		});
+	});
+
 	describe("Passing in searchParams property", () => {
 		const mockQueryKey = vi.fn(() => ["mock"]);
 		const mockQueryFn = vi.fn(({ pageNumber, limit }) =>

@@ -12,7 +12,6 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -32,7 +31,7 @@ export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
 > = ({ options, featureAuditLogEnabled, isPremium }) => {
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
@@ -94,6 +93,6 @@ export const ObservabilitySettingsPageView: FC<
 					)}
 				/>
 			</div>
-		</Stack>
+		</div>
 	);
 };

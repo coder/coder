@@ -72,6 +72,11 @@ const meta: Meta<typeof GroupLimitsSection> = {
 	component: GroupLimitsSection,
 	args: {
 		groupOverrides: mockGroupOverrides,
+		groupOrganizationNames: {
+			"group-1": "acme",
+			"group-2": "acme",
+			"group-4": "acme",
+		},
 		showGroupForm: false,
 		onShowGroupFormChange: fn(),
 		selectedGroup: null,
@@ -146,9 +151,7 @@ export const DeleteGroupOverride: Story = {
 		const dialog = await body.findByRole("dialog");
 		await expect(dialog).toBeInTheDocument();
 		await expect(
-			body.getByText(
-				/Are you sure you want to delete this group limit override/i,
-			),
+			body.getByText(/Are you sure you want to delete this group override/i),
 		).toBeInTheDocument();
 	},
 };

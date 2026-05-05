@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import * as Yup from "yup";
 import type {
@@ -332,7 +332,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							}}
 						>
 							<Spinner loading={form.isSubmitting}>
-								<Plus />
+								<PlusIcon />
 							</Spinner>
 							Add IdP group
 						</Button>
@@ -408,7 +408,7 @@ const GroupRow: FC<GroupRowProps> = ({
 					{!exists && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								<TriangleAlertIcon className="size-icon-xs cursor-pointer text-content-warning" />
 							</TooltipTrigger>
 							<TooltipContent
 								align="start"
@@ -437,7 +437,7 @@ const GroupRow: FC<GroupRowProps> = ({
 					aria-label="delete"
 					onClick={() => onDelete(idpGroup)}
 				>
-					<Trash />
+					<TrashIcon />
 					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>

@@ -1,6 +1,4 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
-import { EllipsisVertical, PlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Role } from "#/api/typesGenerated";
@@ -14,7 +12,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { Stack } from "#/components/Stack/Stack";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
 	TableBody,
@@ -50,7 +48,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	isCustomRolesEnabled,
 }) => {
 	return (
-		<Stack spacing={4}>
+		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
 				<PaywallPremium
 					message="Custom Roles"
@@ -58,14 +56,10 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					documentationLink={docs("/admin/users/groups-roles")}
 				/>
 			)}
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<span>
-					<h2 css={styles.tableHeader}>Custom Roles</h2>
-					<span css={styles.tableDescription}>
+					<h2 className="mb-0 text-lg">Custom Roles</h2>
+					<span className="text-sm text-content-secondary leading-relaxed">
 						Create custom roles to grant users a tailored set of granular
 						permissions.
 					</span>
@@ -78,7 +72,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 						</RouterLink>
 					</Button>
 				)}
-			</Stack>
+			</div>
 			<RoleTable
 				roles={customRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
@@ -88,8 +82,8 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				onDeleteRole={onDeleteRole}
 			/>
 			<span>
-				<h2 css={styles.tableHeader}>Built-In Roles</h2>
-				<span css={styles.tableDescription}>
+				<h2 className="mb-0 text-lg">Built-In Roles</h2>
+				<span className="text-sm text-content-secondary leading-relaxed">
 					Built-in roles have predefined permissions. You cannot edit or delete
 					built-in roles.
 				</span>
@@ -102,7 +96,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				canDeleteOrgRole={canDeleteOrgRole}
 				onDeleteRole={onDeleteRole}
 			/>
-		</Stack>
+		</div>
 	);
 };
 
@@ -219,7 +213,7 @@ const RoleRow: FC<RoleRowProps> = ({
 								variant="subtle"
 								aria-label="Open menu"
 							>
-								<EllipsisVertical aria-hidden="true" />
+								<EllipsisVerticalIcon aria-hidden="true" />
 								<span className="sr-only">Open menu</span>
 							</ShadcnButton>
 						</DropdownMenuTrigger>
@@ -262,18 +256,3 @@ const TableLoader = () => {
 		</TableLoaderSkeleton>
 	);
 };
-
-const styles = {
-	secondary: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-	tableHeader: () => ({
-		marginBottom: 0,
-		fontSize: 18,
-	}),
-	tableDescription: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

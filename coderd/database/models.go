@@ -224,6 +224,9 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
+	ApiKeyScopeAiSeat                              APIKeyScope = "ai_seat:*"
+	ApiKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
+	ApiKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -467,7 +470,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatRead,
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
-		ApiKeyScopeChat:
+		ApiKeyScopeChat,
+		ApiKeyScopeAiSeat,
+		ApiKeyScopeAiSeatCreate,
+		ApiKeyScopeAiSeatRead:
 		return true
 	}
 	return false
@@ -680,6 +686,9 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
+		ApiKeyScopeAiSeat,
+		ApiKeyScopeAiSeatCreate,
+		ApiKeyScopeAiSeatRead,
 	}
 }
 
@@ -1107,6 +1116,64 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatClientType string
+
+const (
+	ChatClientTypeUi  ChatClientType = "ui"
+	ChatClientTypeApi ChatClientType = "api"
+)
+
+func (e *ChatClientType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatClientType(s)
+	case string:
+		*e = ChatClientType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatClientType: %T", src)
+	}
+	return nil
+}
+
+type NullChatClientType struct {
+	ChatClientType ChatClientType `json:"chat_client_type"`
+	Valid          bool           `json:"valid"` // Valid is true if ChatClientType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatClientType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatClientType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatClientType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatClientType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatClientType), nil
+}
+
+func (e ChatClientType) Valid() bool {
+	switch e {
+	case ChatClientTypeUi,
+		ChatClientTypeApi:
+		return true
+	}
+	return false
+}
+
+func AllChatClientTypeValues() []ChatClientType {
+	return []ChatClientType{
+		ChatClientTypeUi,
+		ChatClientTypeApi,
+	}
+}
+
 type ChatMessageRole string
 
 const (
@@ -1236,6 +1303,7 @@ type ChatMode string
 
 const (
 	ChatModeComputerUse ChatMode = "computer_use"
+	ChatModeExplore     ChatMode = "explore"
 )
 
 func (e *ChatMode) Scan(src interface{}) error {
@@ -1275,7 +1343,8 @@ func (ns NullChatMode) Value() (driver.Value, error) {
 
 func (e ChatMode) Valid() bool {
 	switch e {
-	case ChatModeComputerUse:
+	case ChatModeComputerUse,
+		ChatModeExplore:
 		return true
 	}
 	return false
@@ -1284,18 +1353,75 @@ func (e ChatMode) Valid() bool {
 func AllChatModeValues() []ChatMode {
 	return []ChatMode{
 		ChatModeComputerUse,
+		ChatModeExplore,
+	}
+}
+
+type ChatPlanMode string
+
+const (
+	ChatPlanModePlan ChatPlanMode = "plan"
+)
+
+func (e *ChatPlanMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatPlanMode(s)
+	case string:
+		*e = ChatPlanMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatPlanMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatPlanMode struct {
+	ChatPlanMode ChatPlanMode `json:"chat_plan_mode"`
+	Valid        bool         `json:"valid"` // Valid is true if ChatPlanMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatPlanMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatPlanMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatPlanMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatPlanMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatPlanMode), nil
+}
+
+func (e ChatPlanMode) Valid() bool {
+	switch e {
+	case ChatPlanModePlan:
+		return true
+	}
+	return false
+}
+
+func AllChatPlanModeValues() []ChatPlanMode {
+	return []ChatPlanMode{
+		ChatPlanModePlan,
 	}
 }
 
 type ChatStatus string
 
 const (
-	ChatStatusWaiting   ChatStatus = "waiting"
-	ChatStatusPending   ChatStatus = "pending"
-	ChatStatusRunning   ChatStatus = "running"
-	ChatStatusPaused    ChatStatus = "paused"
-	ChatStatusCompleted ChatStatus = "completed"
-	ChatStatusError     ChatStatus = "error"
+	ChatStatusWaiting        ChatStatus = "waiting"
+	ChatStatusPending        ChatStatus = "pending"
+	ChatStatusRunning        ChatStatus = "running"
+	ChatStatusPaused         ChatStatus = "paused"
+	ChatStatusCompleted      ChatStatus = "completed"
+	ChatStatusError          ChatStatus = "error"
+	ChatStatusRequiresAction ChatStatus = "requires_action"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1340,7 +1466,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusRunning,
 		ChatStatusPaused,
 		ChatStatusCompleted,
-		ChatStatusError:
+		ChatStatusError,
+		ChatStatusRequiresAction:
 		return true
 	}
 	return false
@@ -1354,6 +1481,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusPaused,
 		ChatStatusCompleted,
 		ChatStatusError,
+		ChatStatusRequiresAction,
 	}
 }
 
@@ -1540,6 +1668,64 @@ func AllCorsBehaviorValues() []CorsBehavior {
 	return []CorsBehavior{
 		CorsBehaviorSimple,
 		CorsBehaviorPassthru,
+	}
+}
+
+type CredentialKind string
+
+const (
+	CredentialKindCentralized CredentialKind = "centralized"
+	CredentialKindByok        CredentialKind = "byok"
+)
+
+func (e *CredentialKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CredentialKind(s)
+	case string:
+		*e = CredentialKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CredentialKind: %T", src)
+	}
+	return nil
+}
+
+type NullCredentialKind struct {
+	CredentialKind CredentialKind `json:"credential_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if CredentialKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCredentialKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.CredentialKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CredentialKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCredentialKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CredentialKind), nil
+}
+
+func (e CredentialKind) Valid() bool {
+	switch e {
+	case CredentialKindCentralized,
+		CredentialKindByok:
+		return true
+	}
+	return false
+}
+
+func AllCredentialKindValues() []CredentialKind {
+	return []CredentialKind{
+		CredentialKindCentralized,
+		CredentialKindByok,
 	}
 }
 
@@ -3028,6 +3214,8 @@ const (
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
+	ResourceTypeChat                        ResourceType = "chat"
+	ResourceTypeUserSecret                  ResourceType = "user_secret"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3093,7 +3281,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
-		ResourceTypeAiSeat:
+		ResourceTypeAiSeat,
+		ResourceTypeChat,
+		ResourceTypeUserSecret:
 		return true
 	}
 	return false
@@ -3128,6 +3318,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
+		ResourceTypeChat,
+		ResourceTypeUserSecret,
 	}
 }
 
@@ -4040,6 +4232,10 @@ type AIBridgeInterception struct {
 	SessionID string `db:"session_id" json:"session_id"`
 	// The provider instance name which may differ from provider when multiple instances of the same provider type exist.
 	ProviderName string `db:"provider_name" json:"provider_name"`
+	// How the request was authenticated: centralized or byok.
+	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
+	// Masked credential identifier for audit (e.g. sk-a***efgh).
+	CredentialHint string `db:"credential_hint" json:"credential_hint"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4171,7 +4367,7 @@ type Chat struct {
 	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
 	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           sql.NullString        `db:"last_error" json:"last_error"`
+	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
 	Mode                NullChatMode          `db:"mode" json:"mode"`
 	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels              StringMap             `db:"labels" json:"labels"`
@@ -4180,6 +4376,48 @@ type Chat struct {
 	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+}
+
+type ChatDebugRun struct {
+	ID                  uuid.UUID       `db:"id" json:"id"`
+	ChatID              uuid.UUID       `db:"chat_id" json:"chat_id"`
+	RootChatID          uuid.NullUUID   `db:"root_chat_id" json:"root_chat_id"`
+	ParentChatID        uuid.NullUUID   `db:"parent_chat_id" json:"parent_chat_id"`
+	ModelConfigID       uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	TriggerMessageID    sql.NullInt64   `db:"trigger_message_id" json:"trigger_message_id"`
+	HistoryTipMessageID sql.NullInt64   `db:"history_tip_message_id" json:"history_tip_message_id"`
+	Kind                string          `db:"kind" json:"kind"`
+	Status              string          `db:"status" json:"status"`
+	Provider            sql.NullString  `db:"provider" json:"provider"`
+	Model               sql.NullString  `db:"model" json:"model"`
+	Summary             json.RawMessage `db:"summary" json:"summary"`
+	StartedAt           time.Time       `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	FinishedAt          sql.NullTime    `db:"finished_at" json:"finished_at"`
+}
+
+type ChatDebugStep struct {
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	RunID               uuid.UUID             `db:"run_id" json:"run_id"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	StepNumber          int32                 `db:"step_number" json:"step_number"`
+	Operation           string                `db:"operation" json:"operation"`
+	Status              string                `db:"status" json:"status"`
+	HistoryTipMessageID sql.NullInt64         `db:"history_tip_message_id" json:"history_tip_message_id"`
+	AssistantMessageID  sql.NullInt64         `db:"assistant_message_id" json:"assistant_message_id"`
+	NormalizedRequest   json.RawMessage       `db:"normalized_request" json:"normalized_request"`
+	NormalizedResponse  pqtype.NullRawMessage `db:"normalized_response" json:"normalized_response"`
+	Usage               pqtype.NullRawMessage `db:"usage" json:"usage"`
+	Attempts            json.RawMessage       `db:"attempts" json:"attempts"`
+	Error               pqtype.NullRawMessage `db:"error" json:"error"`
+	Metadata            json.RawMessage       `db:"metadata" json:"metadata"`
+	StartedAt           time.Time             `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
+	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
 }
 
 type ChatDiffStatus struct {
@@ -4283,10 +4521,11 @@ type ChatProvider struct {
 }
 
 type ChatQueuedMessage struct {
-	ID        int64           `db:"id" json:"id"`
-	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content   json.RawMessage `db:"content" json:"content"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	ID            int64           `db:"id" json:"id"`
+	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content       json.RawMessage `db:"content" json:"content"`
+	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
+	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -4503,6 +4742,7 @@ type MCPServerConfig struct {
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 }
 
 type MCPServerUserToken struct {

@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, InfoIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import {
 	type CSSProperties,
 	type FC,
@@ -10,14 +10,6 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
@@ -27,6 +19,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "../../utils/modelOptions";
+import { BackButton } from "../BackButton";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
@@ -94,6 +88,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
+	const [apiKeyModified, setApiKeyModified] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
 	const [centralAPIKeyEnabled, setCentralAPIKeyEnabled] = useState(
 		initialValues.centralAPIKeyEnabled,
@@ -106,6 +101,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+	const isBedrockProvider = provider === "bedrock";
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
 	const shouldShowAPIKeyField = centralAPIKeyEnabled;
 	const shouldShowFallbackToggle = centralAPIKeyEnabled && allowUserAPIKey;
@@ -115,30 +111,56 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		initialValues.allowCentralAPIKeyFallback;
 	const effectiveFallback =
 		shouldShowFallbackToggle && allowCentralAPIKeyFallback;
-	// Require a key whenever central-key usage is enabled and there is no
-	// stored deployment key yet. This covers both create and update flows,
-	// including toggling central-key usage on for an existing provider.
+	// Most providers require a stored deployment key whenever central-key
+	// usage is enabled and there is no saved key yet. Bedrock can also use
+	// ambient AWS credentials from the Coder server, so its API key stays
+	// optional.
 	const requiresAPIKey =
 		!isAPIKeyEnvManaged &&
+		!isBedrockProvider &&
 		centralAPIKeyEnabled &&
 		!providerState.hasManagedAPIKey;
 
 	const effectiveApiKey =
 		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER ? apiKey.trim() : "";
+	const hasTypedAPIKey = effectiveApiKey.length > 0;
+	// Clearing a saved Bedrock bearer token switches the provider back
+	// to ambient AWS credentials, so updates must send an explicit
+	// empty string.
+	const isClearingBedrockAPIKey =
+		isBedrockProvider &&
+		providerState.hasManagedAPIKey &&
+		apiKeyModified &&
+		effectiveApiKey === "";
+	const hasPendingAPIKeyChange =
+		(centralAPIKeyEnabled && hasTypedAPIKey) || isClearingBedrockAPIKey;
+	const shouldCreateAPIKey = centralAPIKeyEnabled && hasTypedAPIKey;
 	const hasCredentialSource = centralAPIKeyEnabled || allowUserAPIKey;
+	const apiKeyDescription = isBedrockProvider
+		? "Bearer token for Bedrock authentication. Leave empty to use ambient AWS credentials."
+		: "Secret key used to authenticate requests to this provider.";
+	const baseURLDescription = isBedrockProvider
+		? "Optional. Overrides the Bedrock runtime endpoint. Set AWS_REGION on the Coder server to select the target region."
+		: "Custom endpoint for this provider. Leave empty to use the default.";
+	const apiKeyPlaceholder = isBedrockProvider ? "Enter bearer token" : "sk-...";
 	const deleteProviderDescription = normalizedProviderConfig?.allow_user_api_key
 		? "Are you sure you want to delete this provider? Any personal API " +
 			"keys that users have saved for this provider will also be " +
 			"permanently deleted. This action is irreversible."
 		: "Are you sure you want to delete this provider? This action is irreversible.";
+	// New Bedrock providers can be saved immediately with ambient AWS
+	// credentials, even before any fields differ from their defaults.
+	const hasNewBedrockAmbientConfiguration =
+		isBedrockProvider && !providerConfig && centralAPIKeyEnabled;
 
 	const isDirty =
 		displayName.trim() !== initialValues.displayName ||
-		effectiveApiKey !== "" ||
+		hasPendingAPIKeyChange ||
 		baseURLValue.trim() !== initialValues.baseURL.trim() ||
 		centralAPIKeyEnabled !== initialValues.centralAPIKeyEnabled ||
 		allowUserAPIKey !== initialValues.allowUserAPIKey ||
-		effectiveFallback !== effectiveInitialFallback;
+		effectiveFallback !== effectiveInitialFallback ||
+		hasNewBedrockAmbientConfiguration;
 
 	const canSave =
 		!providerConfigsUnavailable &&
@@ -146,7 +168,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		!isAPIKeyEnvManaged &&
 		isDirty &&
 		hasCredentialSource &&
-		(!requiresAPIKey || effectiveApiKey);
+		(!requiresAPIKey || hasTypedAPIKey);
 
 	const handleSubmit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -159,7 +181,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			return;
 		}
 
-		if (requiresAPIKey && !effectiveApiKey) {
+		if (requiresAPIKey && !hasTypedAPIKey) {
 			return;
 		}
 
@@ -174,8 +196,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				...(trimmedDisplayName !== currentDisplayName && {
 					display_name: trimmedDisplayName,
 				}),
-				...(centralAPIKeyEnabled &&
-					effectiveApiKey && { api_key: effectiveApiKey }),
+				...(hasPendingAPIKeyChange && { api_key: effectiveApiKey }),
 				...(trimmedBaseURL !== currentBaseURL && {
 					base_url: trimmedBaseURL,
 				}),
@@ -204,7 +225,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		} else {
 			const req: TypesGen.CreateChatProviderConfigRequest = {
 				provider,
-				...(centralAPIKeyEnabled && { api_key: effectiveApiKey }),
+				...(shouldCreateAPIKey && { api_key: effectiveApiKey }),
 				central_api_key_enabled: centralAPIKeyEnabled,
 				allow_user_api_key: allowUserAPIKey,
 				allow_central_api_key_fallback: effectiveFallback,
@@ -224,6 +245,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 
 		setApiKeyTouched(false);
+		setApiKeyModified(false);
 		setApiKey(API_KEY_PLACEHOLDER);
 	};
 
@@ -241,15 +263,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
-				onClick={onBack}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<ChevronLeftIcon className="h-4 w-4" />
-				Back
-			</button>
-
+			<BackButton onClick={onBack} />
 			{/* Provider header, editable name */}
 			<div className="flex items-center gap-3">
 				<ProviderIcon provider={provider} className="h-8 w-8" />
@@ -273,7 +287,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				</Tooltip>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
-
 			{isAPIKeyEnvManaged ? (
 				<Alert severity="info">
 					<AlertTitle>API key managed by environment variable</AlertTitle>
@@ -295,36 +308,57 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								label="API Key"
 								htmlFor={apiKeyInputId}
 								required={requiresAPIKey}
-								description="Secret key used to authenticate requests to this provider."
+								description={apiKeyDescription}
 							>
-								<Input
-									id={apiKeyInputId}
-									name="provider_api_token"
-									type="password"
-									autoComplete="off"
-									data-1p-ignore
-									data-lpignore="true"
-									data-form-type="other"
-									data-bwignore
-									style={{ WebkitTextSecurity: "disc" } as CSSProperties}
-									className="h-9 font-mono text-[13px]"
-									placeholder="sk-..."
-									required={requiresAPIKey}
-									value={apiKey}
-									onFocus={handleApiKeyFocus}
-									onChange={(event) => {
-										setApiKey(event.target.value);
-										setApiKeyTouched(true);
-									}}
-									disabled={isDisabled}
-								/>
+								<div className="space-y-1.5">
+									<Input
+										id={apiKeyInputId}
+										name="provider_api_token"
+										type="password"
+										autoComplete="off"
+										data-1p-ignore
+										data-lpignore="true"
+										data-form-type="other"
+										data-bwignore
+										style={{ WebkitTextSecurity: "disc" } as CSSProperties}
+										className="h-9 font-mono text-[13px]"
+										placeholder={apiKeyPlaceholder}
+										required={requiresAPIKey}
+										value={apiKey}
+										onFocus={handleApiKeyFocus}
+										onChange={(event) => {
+											setApiKey(event.target.value);
+											setApiKeyTouched(true);
+											setApiKeyModified(true);
+										}}
+										disabled={isDisabled}
+									/>
+									{isBedrockProvider &&
+										providerState.hasManagedAPIKey &&
+										!isDisabled &&
+										(!apiKeyModified || apiKey !== "") && (
+											<div className="flex justify-end">
+												<button
+													type="button"
+													className="appearance-none border-0 bg-transparent p-0 text-xs text-content-link hover:cursor-pointer hover:underline"
+													onClick={() => {
+														setApiKey("");
+														setApiKeyTouched(true);
+														setApiKeyModified(true);
+													}}
+												>
+													Clear stored token
+												</button>
+											</div>
+										)}
+								</div>
 							</ProviderField>
 						)}
 
 						<ProviderField
 							label="Base URL"
 							htmlFor={baseURLInputId}
-							description="Custom endpoint for this provider. Leave empty to use the default."
+							description={baseURLDescription}
 						>
 							<Input
 								id={baseURLInputId}
@@ -408,38 +442,15 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					</div>
 				</form>
 			)}
-
 			{providerConfig && (
-				<Dialog
+				<ConfirmDeleteDialog
+					entity="provider"
+					description={deleteProviderDescription}
+					onConfirm={() => void onDeleteProvider(providerConfig.id)}
+					isPending={isProviderMutationPending}
 					open={confirmingDelete}
 					onOpenChange={(open) => !open && setConfirmingDelete(false)}
-				>
-					<DialogContent variant="destructive">
-						<DialogHeader>
-							<DialogTitle>Delete provider</DialogTitle>
-							<DialogDescription>{deleteProviderDescription}</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setConfirmingDelete(false)}
-								disabled={isProviderMutationPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={() => void onDeleteProvider(providerConfig.id)}
-								disabled={isProviderMutationPending}
-							>
-								{isProviderMutationPending && (
-									<Spinner className="h-4 w-4" loading />
-								)}
-								Delete provider
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				/>
 			)}
 		</div>
 	);
