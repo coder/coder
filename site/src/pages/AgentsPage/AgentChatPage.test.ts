@@ -1,11 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type * as TypesGen from "#/api/typesGenerated";
 import {
 	clearPersistedSidebarTabId,
 	draftInputStorageKeyPrefix,
-	filterWorkspaceOptionsByOrganization,
 	getPersistedDraftInputValue,
 	getPersistedSidebarTabId,
 	lastActiveSidebarTabStorageKeyPrefix,
@@ -125,32 +123,6 @@ describe("waitForPendingChatSettingsSyncs", () => {
 
 		workspaceUpdate.reject(new Error("boom"));
 		await expect(waitPromise).rejects.toThrow("boom");
-	});
-});
-
-describe("filterWorkspaceOptionsByOrganization", () => {
-	const makeWorkspace = (id: string, organizationID: string) =>
-		({ id, organization_id: organizationID }) as TypesGen.Workspace;
-
-	it("returns only workspaces from the active chat organization", () => {
-		const workspaces = [
-			makeWorkspace("workspace-1", "org-a"),
-			makeWorkspace("workspace-2", "org-b"),
-			makeWorkspace("workspace-3", "org-a"),
-		];
-
-		expect(filterWorkspaceOptionsByOrganization(workspaces, "org-a")).toEqual([
-			workspaces[0],
-			workspaces[2],
-		]);
-	});
-
-	it("returns an empty list until the chat organization is known", () => {
-		const workspaces = [makeWorkspace("workspace-1", "org-a")];
-
-		expect(filterWorkspaceOptionsByOrganization(workspaces, undefined)).toEqual(
-			[],
-		);
 	});
 });
 

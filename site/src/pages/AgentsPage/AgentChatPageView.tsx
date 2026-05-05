@@ -541,6 +541,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}
 								workspaceOptions={workspaceOptions}
+								chatOrganizationId={organizationId}
 								selectedWorkspaceId={selectedWorkspaceId}
 								onWorkspaceChange={onWorkspaceChange}
 								isWorkspaceLoading={isWorkspaceLoading}

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -39,10 +37,7 @@ type connIO struct {
 	// latest is the most recent, unfiltered snapshot of the mappings we know about
 	latest []mapping
 
-	name       string
-	start      int64
-	lastWrite  int64
-	overwrites int64
+	name string
 }
 
 func newConnIO(coordContext context.Context,
@@ -58,7 +53,6 @@ func newConnIO(coordContext context.Context,
 	auth agpl.CoordinateeAuth,
 ) *connIO {
 	peerCtx, cancel := context.WithCancel(peerCtx)
-	now := time.Now().Unix()
 	c := &connIO{
 		id:        id,
 		coordCtx:  coordContext,
@@ -72,8 +66,6 @@ func newConnIO(coordContext context.Context,
 		rfhs:      rfhs,
 		auth:      auth,
 		name:      name,
-		start:     now,
-		lastWrite: now,
 	}
 	go c.recvLoop()
 	c.logger.Info(coordContext, "serving connection")
@@ -254,7 +246,6 @@ func (c *connIO) UniqueID() uuid.UUID {
 }
 
 func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
-	atomic.StoreInt64(&c.lastWrite, time.Now().Unix())
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -273,14 +264,6 @@ func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
 
 func (c *connIO) Name() string {
 	return c.name
-}
-
-func (c *connIO) Stats() (start int64, lastWrite int64) {
-	return c.start, atomic.LoadInt64(&c.lastWrite)
-}
-
-func (c *connIO) Overwrites() int64 {
-	return atomic.LoadInt64(&c.overwrites)
 }
 
 // CoordinatorClose is used by the coordinator when closing a Queue. It
