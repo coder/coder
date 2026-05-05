@@ -84,6 +84,9 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		draft: ThemeModeDraft;
 		terminalFont: TerminalFontName;
 	} | null>(null);
+	const activeSchemeRef = useRef(activeScheme);
+
+	activeSchemeRef.current = activeScheme;
 
 	// Resync the local draft when the persisted settings change while
 	// no submit is in flight. This keeps the form in sync with fresh
@@ -133,7 +136,9 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		submitInFlightRef.current = true;
 		let submitted: Promise<unknown>;
 		try {
-			submitted = onSubmit(draftToUpdate(next, terminalFont, activeScheme));
+			submitted = onSubmit(
+				draftToUpdate(next, terminalFont, activeSchemeRef.current),
+			);
 		} catch (error) {
 			submitInFlightRef.current = false;
 			pendingSubmitRef.current = null;

@@ -92,4 +92,34 @@ describe("updateAppearanceSettings", () => {
 
 		expect(queryClient.getQueryData(myAppearanceKey)).toEqual(serverSettings);
 	});
+
+	it("keeps patch values when a successful appearance update response is partial", async () => {
+		const queryClient = new QueryClient();
+		const optimisticSettings = updateRequest({
+			theme_mode: "sync",
+			theme_light: "light-protan-deuter",
+			theme_dark: "dark-protan-deuter",
+		});
+		const serverSettings = {
+			theme_preference: "dark-tritan",
+			terminal_font: "jetbrains-mono",
+		} satisfies Partial<UserAppearanceSettings>;
+		const mutation = updateAppearanceSettings(queryClient);
+
+		const context = await mutation.onMutate?.(optimisticSettings);
+		if (!context) {
+			throw new Error("expected mutation context");
+		}
+
+		mutation.onSuccess?.(
+			serverSettings as UserAppearanceSettings,
+			optimisticSettings,
+			context,
+		);
+
+		expect(queryClient.getQueryData(myAppearanceKey)).toEqual({
+			...optimisticSettings,
+			...serverSettings,
+		});
+	});
 });
