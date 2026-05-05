@@ -639,10 +639,7 @@ func TestClientAndConnectionError(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// tc.addr may be an intentionally invalid URL; use withCustomProvider.
-			// MaxRetries is set to 0 to disable SDK retries and speed up the test.
 			cfg := openAICfg(tc.addr, apiKey)
-			maxRetries := 0
-			cfg.MaxRetries = &maxRetries
 			bridgeServer := newBridgeTestServer(ctx, t, tc.addr, withCustomProvider(provider.NewOpenAI(cfg)))
 
 			reqBytes := responsesRequestBytes(t, tc.streaming)
@@ -719,10 +716,7 @@ func TestUpstreamError(t *testing.T) {
 			}))
 			t.Cleanup(upstream.Close)
 
-			// MaxRetries is set to 0 to disable SDK retries and speed up the test.
 			cfg := openAICfg(upstream.URL, apiKey)
-			maxRetries := 0
-			cfg.MaxRetries = &maxRetries
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withCustomProvider(provider.NewOpenAI(cfg)))
 
 			reqBytes := responsesRequestBytes(t, tc.streaming)

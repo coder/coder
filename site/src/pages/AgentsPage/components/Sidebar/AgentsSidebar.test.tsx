@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
@@ -65,7 +66,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	mcp_server_ids: [],
 	labels: {},
 	children: [],
@@ -91,11 +91,13 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
-				<MemoryRouter initialEntries={["/agents"]}>
-					<DashboardContext.Provider value={dashboardValue}>
-						{children}
-					</DashboardContext.Provider>
-				</MemoryRouter>
+				<TooltipProvider>
+					<MemoryRouter initialEntries={["/agents"]}>
+						<DashboardContext.Provider value={dashboardValue}>
+							{children}
+						</DashboardContext.Provider>
+					</MemoryRouter>
+				</TooltipProvider>
 			</ThemeOverride>
 		</QueryClientProvider>
 	);

@@ -40,7 +40,7 @@ type ManifestAPI struct {
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
 	var (
 		dbApps        []database.WorkspaceApp
-		scripts       []database.WorkspaceAgentScript
+		scripts       []database.GetWorkspaceAgentScriptsByAgentIDsRow
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
@@ -184,7 +184,7 @@ func dbAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadat
 	}
 }
 
-func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentproto.WorkspaceAgentScript {
+func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []*agentproto.WorkspaceAgentScript {
 	ret := make([]*agentproto.WorkspaceAgentScript, len(scripts))
 	for i, script := range scripts {
 		ret[i] = dbAgentScriptToProto(script)
@@ -192,7 +192,7 @@ func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentprot
 	return ret
 }
 
-func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.WorkspaceAgentScript {
+func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow) *agentproto.WorkspaceAgentScript {
 	return &agentproto.WorkspaceAgentScript{
 		Id:               script.ID[:],
 		LogSourceId:      script.LogSourceID[:],

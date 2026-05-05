@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -673,6 +674,27 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 		Level:     codersdk.LogLevel(log.Level),
 		SourceID:  log.LogSourceID,
 	}
+}
+
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+	script := codersdk.WorkspaceAgentScript{
+		ID:               dbScript.ID,
+		LogPath:          dbScript.LogPath,
+		LogSourceID:      dbScript.LogSourceID,
+		Script:           dbScript.Script,
+		Cron:             dbScript.Cron,
+		RunOnStart:       dbScript.RunOnStart,
+		RunOnStop:        dbScript.RunOnStop,
+		StartBlocksLogin: dbScript.StartBlocksLogin,
+		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+		DisplayName:      dbScript.DisplayName,
+		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
+	}
+	if dbScript.Status.Valid {
+		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
+		script.Status = &status
+	}
+	return script
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
@@ -1563,6 +1585,13 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	return &value
 }
 
+func nullInt32Ptr(n sql.NullInt32) *int32 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int32
+}
+
 func nullStringPtr(v sql.NullString) *string {
 	if !v.Valid {
 		return nil
@@ -1577,6 +1606,34 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 	}
 	value := v.Time
 	return &value
+}
+
+const fallbackChatLastErrorMessage = "The chat request failed unexpectedly."
+
+func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
+	if !raw.Valid {
+		return nil
+	}
+
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return &codersdk.ChatError{
+			Message: fallbackChatLastErrorMessage,
+			Kind:    chaterror.KindGeneric,
+		}
+	}
+
+	payload.Message = strings.TrimSpace(payload.Message)
+	payload.Detail = strings.TrimSpace(payload.Detail)
+	payload.Kind = strings.TrimSpace(payload.Kind)
+	payload.Provider = strings.TrimSpace(payload.Provider)
+	if payload.Kind == "" {
+		payload.Kind = chaterror.KindGeneric
+	}
+	if payload.Message == "" {
+		payload.Message = fallbackChatLastErrorMessage
+	}
+	return &payload
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
@@ -1594,6 +1651,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	lastError := decodeChatLastError(c.LastError)
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
@@ -1608,9 +1666,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		MCPServerIDs:      mcpServerIDs,
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
-	}
-	if c.LastError.Valid {
-		chat.LastError = &c.LastError.String
+		LastError:         lastError,
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)

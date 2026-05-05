@@ -638,8 +638,17 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "WorkspaceDormantRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {orgAdmin, owner, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, userAdmin, memberMe, agentsAccessUser, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
 			Name:     "WorkspaceDormant",
-			Actions:  append(crud, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent),
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgAdmin, owner},
@@ -1100,6 +1109,14 @@ func TestRolePermissions(t *testing.T) {
 			Name:     "BoundaryUsage",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryUsage,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				false: {owner, setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "AiSeat",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
+			Resource: rbac.ResourceAiSeat,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				false: {owner, setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},

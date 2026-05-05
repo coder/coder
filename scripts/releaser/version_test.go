@@ -165,3 +165,76 @@ func TestVersionEqual(t *testing.T) {
 		})
 	}
 }
+
+func TestSortVersionsDesc(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input []version
+		want  []version
+	}{
+		{
+			// This is the exact scenario that triggered the bug:
+			// git's --sort=-v:refname places v2.32.0-rc.0 before
+			// v2.32.0, but semver says v2.32.0 > v2.32.0-rc.0.
+			name: "release_sorts_before_rc",
+			input: []version{
+				{2, 32, 0, "rc.0"},
+				{2, 32, 0, ""},
+				{2, 31, 2, ""},
+			},
+			want: []version{
+				{2, 32, 0, ""},
+				{2, 32, 0, "rc.0"},
+				{2, 31, 2, ""},
+			},
+		},
+		{
+			name: "multiple_rcs_and_releases",
+			input: []version{
+				{2, 33, 0, "rc.1"},
+				{2, 33, 0, "rc.0"},
+				{2, 32, 0, "rc.0"},
+				{2, 32, 0, ""},
+				{2, 32, 1, ""},
+				{2, 31, 0, ""},
+			},
+			want: []version{
+				{2, 33, 0, "rc.1"},
+				{2, 33, 0, "rc.0"},
+				{2, 32, 1, ""},
+				{2, 32, 0, ""},
+				{2, 32, 0, "rc.0"},
+				{2, 31, 0, ""},
+			},
+		},
+		{
+			name:  "already_sorted",
+			input: []version{{3, 0, 0, ""}, {2, 0, 0, ""}, {1, 0, 0, ""}},
+			want:  []version{{3, 0, 0, ""}, {2, 0, 0, ""}, {1, 0, 0, ""}},
+		},
+		{
+			name:  "empty",
+			input: []version{},
+			want:  []version{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := make([]version, len(tt.input))
+			copy(got, tt.input)
+			sortVersionsDesc(got)
+			if len(got) != len(tt.want) {
+				t.Fatalf("sortVersionsDesc() returned %d elements, want %d", len(got), len(tt.want))
+			}
+			for i := range got {
+				if !got[i].Equal(tt.want[i]) {
+					t.Fatalf("sortVersionsDesc()[%d] = %s, want %s\n  full result: %v", i, got[i], tt.want[i], got)
+				}
+			}
+		})
+	}
+}

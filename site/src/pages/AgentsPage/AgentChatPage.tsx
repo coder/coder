@@ -36,6 +36,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { user as userQuery } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -44,6 +45,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -55,6 +57,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -545,16 +548,13 @@ const getPersistedDetailError = ({
 	if (cachedError?.kind === "usage_limit") {
 		return cachedError;
 	}
-	if (chatStatus === "error") {
-		if (cachedError) {
-			return cachedError;
-		}
-		const lastError = chatRecord?.last_error?.trim();
-		if (lastError) {
-			return { kind: "generic", message: lastError };
-		}
+	if (chatStatus !== "error") {
+		return undefined;
 	}
-	return undefined;
+	if (cachedError) {
+		return cachedError;
+	}
+	return normalizeChatErrorPayload(chatRecord?.last_error);
 };
 
 /**
@@ -645,6 +645,7 @@ const AgentChatPage: FC = () => {
 		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
+	const { user: currentUser } = useAuthenticated();
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -796,6 +797,22 @@ const AgentChatPage: FC = () => {
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
+	const isArchived = chatRecord?.archived ?? false;
+	const isViewerNotOwner =
+		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
+	const chatOwnerQuery = useQuery({
+		...userQuery(chatRecord?.owner_id ?? ""),
+		enabled: isViewerNotOwner && !isArchived,
+	});
+	const chatOwner =
+		isViewerNotOwner && chatRecord !== undefined
+			? {
+					id: chatRecord.owner_id,
+					...(chatOwnerQuery.data?.username
+						? { username: chatOwnerQuery.data.username }
+						: {}),
+				}
+			: undefined;
 	const planModeEnabled = chatRecord?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -849,7 +866,6 @@ const AgentChatPage: FC = () => {
 					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
 				}
 			: undefined;
-	const isArchived = chatRecord?.archived ?? false;
 	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
@@ -1456,6 +1472,7 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
+			chatOwner={chatOwner}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}

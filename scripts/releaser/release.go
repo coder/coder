@@ -631,9 +631,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintln(&notes, "> [!NOTE]")
 		fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
 	case "mainline":
-		fmt.Fprintln(&notes)
-		fmt.Fprintln(&notes, "> [!NOTE]")
-		fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		// Only show the mainline blurb when the version is
+		// actually the current mainline series. Patches on
+		// older branches (e.g. ESR) are neither mainline nor
+		// stable, so we omit the note entirely.
+		if latestMainline != nil && newVersion.Minor == latestMainline.Minor {
+			fmt.Fprintln(&notes)
+			fmt.Fprintln(&notes, "> [!NOTE]")
+			fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		}
 	}
 
 	hasContent := false

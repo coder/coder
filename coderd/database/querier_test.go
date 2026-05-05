@@ -1260,54 +1260,37 @@ func TestGetAuthorizedChats(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
 
 	// Create FK dependencies: a chat provider and model config.
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
 	})
-	require.NoError(t, err)
-
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		Provider:             "openai",
 		Model:                "test-model",
-		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
-		Enabled:              true,
 		IsDefault:            true,
-		ContextLimit:         128000,
 		CompressionThreshold: 80,
-		Options:              json.RawMessage(`{}`),
 	})
-	require.NoError(t, err)
 
 	// Create 3 chats owned by owner.
 	for i := range 3 {
-		_, err := db.InsertChat(ctx, database.InsertChatParams{
+		dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("owner chat %d", i+1),
 		})
-		require.NoError(t, err)
 	}
 
 	// Create 2 chats owned by member.
 	for i := range 2 {
-		_, err := db.InsertChat(ctx, database.InsertChatParams{
+		dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             fmt.Sprintf("member chat %d", i+1),
 		})
-		require.NoError(t, err)
 	}
 
 	t.Run("sqlQuerier", func(t *testing.T) {
@@ -1437,15 +1420,12 @@ func TestGetAuthorizedChats(t *testing.T) {
 		paginationUser := dbgen.User(t, db, database.User{})
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
 		for i := range 7 {
-			_, err := db.InsertChat(ctx, database.InsertChatParams{
+			dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
-				Status:            database.ChatStatusWaiting,
-				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           paginationUser.ID,
 				LastModelConfigID: modelCfg.ID,
 				Title:             fmt.Sprintf("pagination chat %d", i+1),
 			})
-			require.NoError(t, err)
 		}
 
 		pagUserSubject, _, err := httpmw.UserRBACSubject(ctx, db, paginationUser.ID, rbac.ExpandableScope(rbac.ScopeAll))

@@ -20,13 +20,15 @@ import (
 // and the request was rejected without calling the handler.
 var ErrCircuitOpen = xerrors.New("circuit breaker is open")
 
-// DefaultIsFailure returns true for standard HTTP status codes that typically
-// indicate upstream overload.
+// DefaultIsFailure returns true for standard HTTP status codes that
+// typically indicate upstream overload.
+//
+// Note: 429 (Too Many Requests) is intentionally excluded. Rate
+// limits are key-specific and handled by automatic key failover.
 func DefaultIsFailure(statusCode int) bool {
 	switch statusCode {
-	case http.StatusTooManyRequests, // 429
-		http.StatusServiceUnavailable, // 503
-		http.StatusGatewayTimeout:     // 504
+	case http.StatusServiceUnavailable, // 503
+		http.StatusGatewayTimeout: // 504
 		return true
 	default:
 		return false

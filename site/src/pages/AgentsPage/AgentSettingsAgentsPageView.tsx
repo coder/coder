@@ -7,19 +7,23 @@ import {
 } from "./components/SubagentModelOverrideSettings";
 
 type SaveModelOverride = (
-	req: TypesGen.UpdateChatAgentModelOverrideRequest,
+	req: { readonly model_config_id: string },
 	options?: MutationCallbacks,
 ) => void;
 
 export interface AgentSettingsAgentsPageViewProps {
-	generalModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
-	exploreModelOverrideData?: TypesGen.ChatAgentModelOverrideResponse;
+	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
 	onSaveGeneralModelOverride?: SaveModelOverride;
 	isSavingGeneralModelOverride?: boolean;
 	isSaveGeneralModelOverrideError?: boolean;
+	onSaveTitleGenerationModel: SaveModelOverride;
+	isSavingTitleGenerationModel: boolean;
+	isSaveTitleGenerationModelError: boolean;
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
@@ -29,6 +33,7 @@ export const AgentSettingsAgentsPageView: FC<
 	AgentSettingsAgentsPageViewProps
 > = ({
 	generalModelOverrideData,
+	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
 	modelConfigsData,
 	modelConfigsError,
@@ -36,6 +41,9 @@ export const AgentSettingsAgentsPageView: FC<
 	onSaveGeneralModelOverride,
 	isSavingGeneralModelOverride = false,
 	isSaveGeneralModelOverrideError = false,
+	onSaveTitleGenerationModel,
+	isSavingTitleGenerationModel,
+	isSaveTitleGenerationModelError,
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
@@ -77,6 +85,31 @@ export const AgentSettingsAgentsPageView: FC<
 					/>
 				</section>
 			)}
+			<section
+				aria-label="Title generation model"
+				className="flex flex-col gap-3"
+			>
+				<SectionHeader
+					label="Title generation model"
+					description="Choose a model for generated chat titles. Leave unset to use Coder's default title algorithm, which currently tries fast title models for configured providers first, for example Claude Haiku, GPT-4o mini, and Gemini Flash, then falls back to the chat's current model. When a model is selected here, Coder uses only that model for title generation. Recommended title models are fast and low cost."
+					level="section"
+				/>
+				<SubagentModelOverrideSettings
+					title="Title generation model"
+					description="Choose a model for generated chat titles."
+					modelOverrideData={titleGenerationModelOverrideData}
+					enabledModelConfigs={enabledModelConfigs}
+					modelConfigsError={modelConfigsError}
+					isLoading={isLoadingModelConfigs}
+					onSaveModelOverride={onSaveTitleGenerationModel}
+					isSaving={isSavingTitleGenerationModel}
+					isSaveError={isSaveTitleGenerationModelError}
+					saveErrorMessage="Failed to save title generation model."
+					unsetPlaceholder="Use title default"
+					unavailableModelWarning="The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting."
+					showHeader={false}
+				/>
+			</section>
 			<section
 				aria-label="Explore subagent model"
 				className="flex flex-col gap-3"

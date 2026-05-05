@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -25,11 +26,13 @@ type stubChatConfigStore struct {
 	getChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
 	getDefaultChatModelConfig func(context.Context) (database.ChatModelConfig, error)
 	getUserChatCustomPrompt   func(context.Context, uuid.UUID) (string, error)
+	getChatAdvisorConfig      func(context.Context) (string, error)
 
 	enabledProvidersCalls  atomic.Int32
 	modelConfigByIDCalls   atomic.Int32
 	defaultModelConfigCall atomic.Int32
 	userPromptCalls        atomic.Int32
+	advisorConfigCalls     atomic.Int32
 }
 
 func (s *stubChatConfigStore) GetEnabledChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
@@ -62,6 +65,14 @@ func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userI
 		panic("unexpected GetUserChatCustomPrompt call")
 	}
 	return s.getUserChatCustomPrompt(ctx, userID)
+}
+
+func (s *stubChatConfigStore) GetChatAdvisorConfig(ctx context.Context) (string, error) {
+	s.advisorConfigCalls.Add(1)
+	if s.getChatAdvisorConfig == nil {
+		panic("unexpected GetChatAdvisorConfig call")
+	}
+	return s.getChatAdvisorConfig(ctx)
 }
 
 func TestConfigCache_EnabledProviders_CacheHit(t *testing.T) {
@@ -975,4 +986,217 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestConfigCache_AdvisorConfig_CacheHit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	const raw = `{"enabled":true,"max_uses_per_run":3,"max_output_tokens":16384}`
+	store := &stubChatConfigStore{
+		getChatAdvisorConfig: func(context.Context) (string, error) {
+			return raw, nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+	second, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+
+	require.True(t, first.Enabled)
+	require.Equal(t, 3, first.MaxUsesPerRun)
+	require.Equal(t, int64(16384), first.MaxOutputTokens)
+	require.Equal(t, first, second)
+	require.Equal(t, int32(1), store.advisorConfigCalls.Load(),
+		"second lookup must be served from cache")
+}
+
+func TestConfigCache_AdvisorConfig_TTLExpiry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	store := &stubChatConfigStore{}
+	store.getChatAdvisorConfig = func(context.Context) (string, error) {
+		call := store.advisorConfigCalls.Load()
+		return fmt.Sprintf(`{"max_uses_per_run":%d}`, call), nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+	clock.Advance(chatConfigAdvisorConfigTTL).MustWait(ctx)
+	second, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first.MaxUsesPerRun, second.MaxUsesPerRun,
+		"TTL expiry must trigger a refetch")
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
+}
+
+func TestConfigCache_AdvisorConfig_DBErrorNotCached(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	expected := xerrors.New("boom")
+	store := &stubChatConfigStore{
+		getChatAdvisorConfig: func(context.Context) (string, error) {
+			return "", expected
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	_, err := cache.AdvisorConfig(ctx)
+	require.ErrorIs(t, err, expected)
+	_, err = cache.AdvisorConfig(ctx)
+	require.ErrorIs(t, err, expected)
+
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load(),
+		"errors must not populate the cache; every call retries")
+}
+
+func TestConfigCache_AdvisorConfig_InvalidJSONNotCached(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	store := &stubChatConfigStore{
+		getChatAdvisorConfig: func(context.Context) (string, error) {
+			return "not valid json", nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	_, err := cache.AdvisorConfig(ctx)
+	require.Error(t, err, "malformed JSON must surface as an error")
+	_, err = cache.AdvisorConfig(ctx)
+	require.Error(t, err)
+
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load(),
+		"parse errors must not populate the cache; every call retries")
+}
+
+func TestConfigCache_AdvisorConfig_EmptyJSONYieldsZeroValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	// GetChatAdvisorConfig returns "{}" when the site-config row is
+	// absent. That must unmarshal to a zero-value AdvisorConfig rather
+	// than a parse error.
+	store := &stubChatConfigStore{
+		getChatAdvisorConfig: func(context.Context) (string, error) {
+			return "{}", nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	cfg, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AdvisorConfig{}, cfg)
+}
+
+// Guards the pubsub-driven invalidation path. Without this, an admin
+// writing PUT /api/experimental/chats/config/advisor could keep every
+// replica serving stale enabled/model/limits for up to
+// chatConfigAdvisorConfigTTL, which defeats the subscriber in chatd.go.
+func TestConfigCache_InvalidateAdvisorConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	store := &stubChatConfigStore{}
+	store.getChatAdvisorConfig = func(context.Context) (string, error) {
+		call := store.advisorConfigCalls.Load()
+		return fmt.Sprintf(`{"max_uses_per_run":%d}`, call), nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+
+	cache.InvalidateAdvisorConfig()
+
+	second, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first.MaxUsesPerRun, second.MaxUsesPerRun,
+		"invalidation must force a refetch without waiting for TTL expiry")
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
+}
+
+// Guards against the invalidation-during-singleflight race. A stale
+// in-flight fill started before InvalidateAdvisorConfig must not
+// re-cache its pre-update value, which would defeat the pubsub
+// invalidation path for up to chatConfigAdvisorConfigTTL.
+func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clock := quartz.NewMock(t)
+	staleConfig := `{"max_uses_per_run":1}`
+	freshConfig := `{"max_uses_per_run":2}`
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	store := &stubChatConfigStore{}
+	store.getChatAdvisorConfig = func(context.Context) (string, error) {
+		switch call := store.advisorConfigCalls.Load(); call {
+		case 1:
+			close(firstStarted)
+			<-releaseFirst
+			return staleConfig, nil
+		case 2:
+			close(secondStarted)
+			<-releaseSecond
+			return freshConfig, nil
+		default:
+			return "", xerrors.Errorf("unexpected advisor config call %d", call)
+		}
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	type result struct {
+		config codersdk.AdvisorConfig
+		err    error
+	}
+
+	firstResult := make(chan result, 1)
+	go func() {
+		config, err := cache.AdvisorConfig(ctx)
+		firstResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, firstStarted)
+	cache.InvalidateAdvisorConfig()
+
+	secondResult := make(chan result, 1)
+	go func() {
+		config, err := cache.AdvisorConfig(ctx)
+		secondResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, secondStarted)
+	close(releaseFirst)
+	first := <-firstResult
+	require.NoError(t, first.err)
+	require.EqualValues(t, 1, first.config.MaxUsesPerRun)
+	require.Nil(t, cache.advisorConfig,
+		"stale fill must not re-cache after invalidation")
+
+	close(releaseSecond)
+	second := <-secondResult
+	require.NoError(t, second.err)
+	require.EqualValues(t, 2, second.config.MaxUsesPerRun)
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
+
+	third, err := cache.AdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, third.MaxUsesPerRun)
+	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
 }

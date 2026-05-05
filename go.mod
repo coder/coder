@@ -87,7 +87,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    replay stored reasoning item references, only replay web_search references
 //    when paired with reasoning, and validate function_call output pairing.
 // See: https://github.com/coder/fantasy/commits/f83367a4a205
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260426185602-951a49c681df
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260427164812-d0e6ce2243af
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -105,6 +105,7 @@ replace github.com/openai/openai-go/v3 => github.com/kylecarbs/openai-go/v3 v3.0
 require (
 	cdr.dev/slog/v3 v3.0.0
 	cloud.google.com/go/compute/metadata v0.9.0
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
@@ -131,7 +132,7 @@ require (
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
-	github.com/coder/serpent v0.14.0
+	github.com/coder/serpent v0.15.0
 	github.com/coder/terraform-provider-coder/v2 v2.16.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
@@ -504,7 +505,7 @@ require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
-	github.com/coder/preview v1.0.8
+	github.com/coder/preview v1.0.9
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0

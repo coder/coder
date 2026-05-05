@@ -23,8 +23,8 @@ import (
 
 // Common response bodies for circuit breaker tests.
 const (
-	anthropicRateLimitError = `{"type":"error","error":{"type":"rate_limit_error","message":"rate limited"}}`
-	openAIRateLimitError    = `{"error":{"type":"rate_limit_error","message":"rate limited","code":"rate_limit_exceeded"}}`
+	anthropicOverloadedError = `{"type":"error","error":{"type":"api_error","message":"Internal server error"}}`
+	openAIOverloadedError    = `{"error":{"message":"Service Unavailable.","type":"cf_service_unavailable","code":503}}`
 )
 
 func anthropicSuccessResponse(model string) string {
@@ -59,7 +59,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			expectProvider: config.ProviderAnthropic,
 			expectEndpoint: "/v1/messages",
 			expectModel:    "claude-sonnet-4-20250514",
-			errorBody:      anthropicRateLimitError,
+			errorBody:      anthropicOverloadedError,
 			successBody:    anthropicSuccessResponse("claude-sonnet-4-20250514"),
 			requestBody:    `{"model":"claude-sonnet-4-20250514","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`,
 			headers: http.Header{
@@ -80,7 +80,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			expectProvider: config.ProviderOpenAI,
 			expectEndpoint: "/v1/chat/completions",
 			expectModel:    "gpt-4o",
-			errorBody:      openAIRateLimitError,
+			errorBody:      openAIOverloadedError,
 			successBody:    openAISuccessResponse("gpt-4o"),
 			requestBody:    `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`,
 			headers:        http.Header{"Authorization": {"Bearer test-key"}},
@@ -103,14 +103,14 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			var shouldFail atomic.Bool
 			shouldFail.Store(true)
 
-			// Mock upstream that returns 429 or 200 based on shouldFail flag.
+			// Mock upstream that returns 503 or 200 based on shouldFail flag.
 			// x-should-retry: false is required to disable SDK automatic retries (default MaxRetries=2).
 			mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				upstreamCalls.Add(1)
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("x-should-retry", "false")
 				if shouldFail.Load() {
-					w.WriteHeader(http.StatusTooManyRequests)
+					w.WriteHeader(http.StatusServiceUnavailable)
 					_, _ = w.Write([]byte(tc.errorBody))
 				} else {
 					w.WriteHeader(http.StatusOK)
@@ -146,10 +146,10 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			}
 
 			// Phase 1: Trip the circuit breaker
-			// First FailureThreshold requests hit upstream, get 429
+			// First FailureThreshold requests hit upstream, get 503
 			for i := uint32(0); i < cbConfig.FailureThreshold; i++ {
 				status := doRequest()
-				assert.Equal(t, http.StatusTooManyRequests, status)
+				assert.Equal(t, http.StatusServiceUnavailable, status)
 			}
 			//nolint:gosec // G115: test constant, no overflow risk
 			assert.Equal(t, int32(cbConfig.FailureThreshold), upstreamCalls.Load())
@@ -227,7 +227,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			expectProvider: config.ProviderAnthropic,
 			expectEndpoint: "/v1/messages",
 			expectModel:    "claude-sonnet-4-20250514",
-			errorBody:      anthropicRateLimitError,
+			errorBody:      anthropicOverloadedError,
 			requestBody:    `{"model":"claude-sonnet-4-20250514","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`,
 			headers: http.Header{
 				"x-api-key":         {"test"},
@@ -247,7 +247,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			expectProvider: config.ProviderOpenAI,
 			expectEndpoint: "/v1/chat/completions",
 			expectModel:    "gpt-4o",
-			errorBody:      openAIRateLimitError,
+			errorBody:      openAIOverloadedError,
 			requestBody:    `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`,
 			headers:        http.Header{"Authorization": {"Bearer test-key"}},
 			path:           pathOpenAIChatCompletions,
@@ -267,12 +267,12 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 
 			var upstreamCalls atomic.Int32
 
-			// Mock upstream that always returns 429.
+			// Mock upstream that always returns 503.
 			mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				upstreamCalls.Add(1)
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("x-should-retry", "false")
-				w.WriteHeader(http.StatusTooManyRequests)
+				w.WriteHeader(http.StatusServiceUnavailable)
 				_, _ = w.Write([]byte(tc.errorBody))
 			}))
 			defer mockUpstream.Close()
@@ -305,7 +305,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			// Phase 1: Trip the circuit
 			for i := uint32(0); i < cbConfig.FailureThreshold; i++ {
 				status := doRequest()
-				assert.Equal(t, http.StatusTooManyRequests, status)
+				assert.Equal(t, http.StatusServiceUnavailable, status)
 			}
 
 			// Verify circuit is open
@@ -321,7 +321,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			// Phase 3: Request in half-open state fails, circuit should re-open
 			upstreamCallsBefore := upstreamCalls.Load()
 			status = doRequest()
-			assert.Equal(t, http.StatusTooManyRequests, status, "Request should fail in half-open state")
+			assert.Equal(t, http.StatusServiceUnavailable, status, "Request should fail in half-open state")
 			assert.Equal(t, upstreamCallsBefore+1, upstreamCalls.Load(), "Request should reach upstream in half-open state")
 
 			// Circuit should be open again - next request should be rejected immediately
@@ -363,7 +363,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			expectProvider: config.ProviderAnthropic,
 			expectEndpoint: "/v1/messages",
 			expectModel:    "claude-sonnet-4-20250514",
-			errorBody:      anthropicRateLimitError,
+			errorBody:      anthropicOverloadedError,
 			successBody:    anthropicSuccessResponse("claude-sonnet-4-20250514"),
 			requestBody:    `{"model":"claude-sonnet-4-20250514","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`,
 			headers: http.Header{
@@ -384,7 +384,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			expectProvider: config.ProviderOpenAI,
 			expectEndpoint: "/v1/chat/completions",
 			expectModel:    "gpt-4o",
-			errorBody:      openAIRateLimitError,
+			errorBody:      openAIOverloadedError,
 			successBody:    openAISuccessResponse("gpt-4o"),
 			requestBody:    `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`,
 			headers:        http.Header{"Authorization": {"Bearer test-key"}},
@@ -413,7 +413,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("x-should-retry", "false")
 				if shouldFail.Load() {
-					w.WriteHeader(http.StatusTooManyRequests)
+					w.WriteHeader(http.StatusServiceUnavailable)
 					_, _ = w.Write([]byte(tc.errorBody))
 				} else {
 					// Slow response to ensure requests overlap
@@ -453,7 +453,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			// Phase 1: Trip the circuit
 			for i := uint32(0); i < cbConfig.FailureThreshold; i++ {
 				status := doRequest()
-				assert.Equal(t, http.StatusTooManyRequests, status)
+				assert.Equal(t, http.StatusServiceUnavailable, status)
 			}
 
 			// Verify circuit is open
@@ -529,8 +529,8 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 		if strings.Contains(string(body), "claude-sonnet-4-20250514") {
 			sonnetCalls.Add(1)
 			if sonnetShouldFail.Load() {
-				w.WriteHeader(http.StatusTooManyRequests)
-				_, _ = w.Write([]byte(anthropicRateLimitError))
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(anthropicOverloadedError))
 			} else {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte(anthropicSuccessResponse("claude-sonnet-4-20250514")))
@@ -578,7 +578,7 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 	// Phase 1: Trip the circuit for sonnet model
 	for i := uint32(0); i < cbConfig.FailureThreshold; i++ {
 		status := doRequest("claude-sonnet-4-20250514")
-		assert.Equal(t, http.StatusTooManyRequests, status)
+		assert.Equal(t, http.StatusServiceUnavailable, status)
 	}
 	//nolint:gosec // G115: test constant, no overflow risk
 	assert.Equal(t, int32(cbConfig.FailureThreshold), sonnetCalls.Load())

@@ -12,6 +12,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import { normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
@@ -21,20 +22,6 @@ import {
 	isActiveChatStatus,
 } from "./chatStore";
 import type { RetryState } from "./types";
-
-const normalizeChatDetailError = (
-	error: TypesGen.ChatStreamError | undefined,
-): ChatDetailError => {
-	const detail = error?.detail?.trim();
-	return {
-		message: error?.message.trim() || "Chat processing failed.",
-		kind: error?.kind?.trim() || "generic",
-		provider: error?.provider?.trim() || undefined,
-		retryable: error?.retryable,
-		statusCode: error?.status_code,
-		...(detail ? { detail } : {}),
-	};
-};
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
@@ -390,9 +377,9 @@ export const useChatStore = (
 		};
 
 		// Discard buffered parts without applying them. Used when
-		// stream state is about to be cleared (pending, waiting,
-		// retry) — flushing would re-populate the state that the
-		// event is about to clear.
+		// the stream is no longer active (pending, waiting, retry)
+		// so stale buffered parts are not applied after the
+		// status transition.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
@@ -508,7 +495,6 @@ export const useChatStore = (
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearStreamState();
 								store.clearRetryState();
 							}
 							if (nextStatus === "running") {
@@ -528,7 +514,10 @@ export const useChatStore = (
 							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 								continue;
 							}
-							const reason = normalizeChatDetailError(streamEvent.error);
+							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
+								kind: "generic",
+								message: "Chat processing failed.",
+							};
 							store.setChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();

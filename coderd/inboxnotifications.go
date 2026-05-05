@@ -115,7 +115,7 @@ func convertInboxNotificationResponse(ctx context.Context, logger slog.Logger, n
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
 // @Param format query string false "Define the output format for notifications title and body." enums(plaintext,markdown)
 // @Success 200 {object} codersdk.GetInboxNotificationResponse
-// @Router /notifications/inbox/watch [get]
+// @Router /api/v2/notifications/inbox/watch [get]
 func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
@@ -286,7 +286,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 // @Param read_status query string false "Filter notifications by read status. Possible values: read, unread, all"
 // @Param starting_before query string false "ID of the last notification from the current page. Notifications returned will be older than the associated one" format(uuid)
 // @Success 200 {object} codersdk.ListInboxNotificationsResponse
-// @Router /notifications/inbox [get]
+// @Router /api/v2/notifications/inbox [get]
 func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
@@ -372,7 +372,7 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 // @Tags Notifications
 // @Param id path string true "id of the notification"
 // @Success 200 {object} codersdk.Response
-// @Router /notifications/inbox/{id}/read-status [put]
+// @Router /api/v2/notifications/inbox/{id}/read-status [put]
 func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -440,7 +440,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 // @Security CoderSessionToken
 // @Tags Notifications
 // @Success 204
-// @Router /notifications/inbox/mark-all-as-read [put]
+// @Router /api/v2/notifications/inbox/mark-all-as-read [put]
 func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

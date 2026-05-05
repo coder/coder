@@ -3852,7 +3852,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
-			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).",
 			Flag:        "aibridge-circuit-breaker-enabled",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
@@ -4103,7 +4103,7 @@ type AIBridgeConfig struct {
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
-	// provider rate limits (429, 503, 529 overloaded).
+	// provider overload (503, 529).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
 	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
@@ -4139,18 +4139,27 @@ type AIBridgeProviderConfig struct {
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.
 	Name string `json:"name"`
-	// Key is the API key for authenticating with the upstream provider.
-	Key string `json:"-"`
+	// Keys holds one or more API keys for authenticating with the
+	// upstream provider. When multiple keys are configured, they
+	// form a key pool for automatic failover.
+	Keys []string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
+	// DumpDir is the directory path for dumping API requests and responses.
+	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
-	BedrockBaseURL         string `json:"-"`
-	BedrockRegion          string `json:"bedrock_region,omitempty"`
-	BedrockAccessKey       string `json:"-"`
-	BedrockAccessKeySecret string `json:"-"`
-	BedrockModel           string `json:"bedrock_model,omitempty"`
-	BedrockSmallFastModel  string `json:"bedrock_small_fast_model,omitempty"`
+	BedrockBaseURL string `json:"-"`
+	BedrockRegion  string `json:"bedrock_region,omitempty"`
+	// BedrockAccessKeys and BedrockAccessKeySecrets hold one or
+	// more AWS credential pairs for authenticating with Bedrock.
+	// When multiple pairs are configured, they form a key pool
+	// for automatic failover. The two slices must have the same
+	// length.
+	BedrockAccessKeys       []string `json:"-"`
+	BedrockAccessKeySecrets []string `json:"-"`
+	BedrockModel            string   `json:"bedrock_model,omitempty"`
+	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {
@@ -4423,7 +4432,6 @@ const (
 	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
-	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
@@ -4440,8 +4448,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentOAuth2:
 		return "OAuth2 Provider Functionality"
-	case ExperimentAgents:
-		return "Agents"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
@@ -4461,7 +4467,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
-	ExperimentAgents,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceBuildUpdates,
 }
@@ -4470,7 +4475,6 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-// TODO: Add ExperimentAgents to ExperimentsSafe once it is safe for general use.
 var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.

@@ -8,17 +8,21 @@ To successfully implement AI coding agents, identify 3-5 practical use cases whe
 
 Below are common scenarios where AI coding agents provide the most impact, along with the right tools for each use case:
 
-| Scenario                                       | Description                                                                                                               | Examples                                                                                                             | Tools                                                                                          |
-|------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| **Automating actions in the IDE**              | Supplement tedious development with agents                                                                                | Small refactors, generating unit tests, writing inline documentation, code search and navigation                     | [IDE Agents](./ide-agents.md) in Workspaces                                                    |
-| **Developer-led investigation and setup**      | Developers delegate research and initial implementation to AI, then take over in their preferred IDE to complete the work | Bug triage and analysis, exploring technical approaches, understanding legacy code, creating starter implementations | [Tasks](./tasks.md), to a full IDE with [Workspaces](../user-guides/workspace-access/index.md) |
-| **Prototyping & Business Applications**        | User-friendly interface for engineers and non-technical users to build and prototype within new or existing codebases     | Creating dashboards, building simple web apps, data analysis workflows, proof-of-concept development                 | [Tasks](./tasks.md)                                                                            |
-| **Full background jobs & long-running agents** | Agents that run independently without user interaction for extended periods of time                                       | Automated code reviews, scheduled data processing, continuous integration tasks, monitoring and alerting             | [Tasks](./tasks.md) API *(in development)*                                                     |
-| **External agents and chat clients**           | External AI agents and chat clients that need access to Coder workspaces for development environments and code sandboxing | ChatGPT, Claude Desktop, custom enterprise agents running tests, performing development tasks, code analysis         | [MCP Server](./mcp-server.md)                                                                  |
+| Scenario                                       | Description                                                                                                               | Examples                                                                                                             | Tools                                                                                                        |
+|------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| **Automating actions in the IDE**              | Supplement tedious development with agents                                                                                | Small refactors, generating unit tests, writing inline documentation, code search and navigation                     | [IDE Agents](./ide-agents.md) in Workspaces                                                                  |
+| **Developer-led investigation and setup**      | Developers delegate research and initial implementation to AI, then take over in their preferred IDE to complete the work | Bug triage and analysis, exploring technical approaches, understanding legacy code, creating starter implementations | [Coder Agents](./agents/index.md), to a full IDE with [Workspaces](../user-guides/workspace-access/index.md) |
+| **Prototyping & Business Applications**        | User-friendly interface for engineers and non-technical users to build and prototype within new or existing codebases     | Creating dashboards, building simple web apps, data analysis workflows, proof-of-concept development                 | [Coder Agents](./agents/index.md)                                                                            |
+| **Full background jobs & long-running agents** | Agents that run independently without user interaction for extended periods of time                                       | Automated code reviews, scheduled data processing, continuous integration tasks, monitoring and alerting             | [Coder Agents API](./agents/chats-api.md)                                                                    |
+| **External agents and chat clients**           | External AI agents and chat clients that need access to Coder workspaces for development environments and code sandboxing | ChatGPT, Claude Desktop, custom enterprise agents running tests, performing development tasks, code analysis         | [MCP Server](./mcp-server.md)                                                                                |
 
 ## Provide Agents with Proper Context
 
 While LLMs are trained on general knowledge, it's important to provide additional context to help agents understand your codebase and organization.
+
+For [Coder Agents](./agents/index.md), context comes from a few complementary places. Platform admins configure a [system prompt](./agents/platform-controls/index.md) that applies to every chat and register [MCP servers](./agents/platform-controls/mcp-servers.md) once for the whole deployment. Repos and workspace templates can ship reusable [skills](./agents/extending-agents.md) under `.agents/skills/`, which the agent discovers automatically when it attaches to the workspace. Developers don't need to manage memory files or wire up tools themselves.
+
+The rest of this section covers patterns for agents you run yourself inside a workspace, such as Claude Code or Codex.
 
 ### Memory
 
@@ -46,7 +50,7 @@ In internal testing, we have seen significant improvements in agent performance 
 
 LLMs and agents can be dangerous if not run with proper boundaries. Be sure not to give agents full permissions on behalf of a user, and instead use separate identities with limited scope whenever interacting autonomously.
 
-[Learn more about securing agents with Coder Tasks](./security.md)
+[Learn more about securing AI agents](./security.md)
 
 ## Keep it Simple
 

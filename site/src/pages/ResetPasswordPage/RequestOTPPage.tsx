@@ -6,7 +6,7 @@ import * as Yup from "yup";
 import { requestOneTimePassword } from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -26,7 +26,7 @@ const RequestOTPPage: FC = () => {
 
 			<main className="p-6 flex items-center justify-center flex-col min-h-full text-center">
 				<div>
-					<CustomLogo />
+					<ProductLogo />
 				</div>
 				{requestOTPMutation.isSuccess ? (
 					<RequestOTPSuccess

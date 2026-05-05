@@ -56,7 +56,7 @@ export const parseThresholdInteger = (value: string): number | null => {
  * Set a value inside a nested object, creating intermediate
  * objects along the way. The path is an array of string keys.
  */
-function deepSet(
+export function deepSet(
 	obj: Record<string, unknown>,
 	path: string[],
 	value: unknown,
@@ -80,7 +80,7 @@ function deepSet(
  * Get a value from a nested object using an array of string keys.
  * Returns `undefined` if any intermediate key is missing.
  */
-function deepGet(obj: unknown, path: string[]): unknown {
+export function deepGet(obj: unknown, path: string[]): unknown {
 	let current = obj;
 	for (const key of path) {
 		if (

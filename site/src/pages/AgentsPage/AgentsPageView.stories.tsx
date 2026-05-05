@@ -145,7 +145,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	children: [],
 	...overrides,
 });
@@ -161,9 +160,17 @@ const AgentsRouteElement = () => (
 			model_config_id: "",
 			is_malformed: false,
 		}}
+		titleGenerationModelOverrideData={{
+			context: "title_generation",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		onSaveTitleGenerationModel={fn()}
+		isSavingTitleGenerationModel={false}
+		isSaveTitleGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
@@ -207,7 +214,6 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	chatList: [],
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
-	logoUrl: "",
 	handleNewAgent: fn(),
 	isCreating: false,
 	isArchiving: false,
@@ -419,7 +425,11 @@ export const WithChatList: Story = {
 				id: "chat-3",
 				title: "Fix database migration issue",
 				status: "error",
-				last_error: "Connection timeout",
+				last_error: {
+					message: "Connection timeout",
+					kind: "generic",
+					retryable: false,
+				},
 				updated_at: todayTimestamp,
 			}),
 			buildChat({

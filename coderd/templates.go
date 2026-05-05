@@ -44,7 +44,7 @@ import (
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
-// @Router /templates/{template} [get]
+// @Router /api/v2/templates/{template} [get]
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -59,7 +59,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /templates/{template} [delete]
+// @Router /api/v2/templates/{template} [delete]
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		apiKey            = httpmw.APIKey(r)
@@ -177,7 +177,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 // @Param request body codersdk.CreateTemplateRequest true "Request body"
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} codersdk.Template
-// @Router /organizations/{organization}/templates [post]
+// @Router /api/v2/organizations/{organization}/templates [post]
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                                = r.Context()
@@ -528,7 +528,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.Template
-// @Router /organizations/{organization}/templates [get]
+// @Router /api/v2/organizations/{organization}/templates [get]
 func (api *API) templatesByOrganization() http.HandlerFunc {
 	// TODO: Should deprecate this endpoint and make it akin to /workspaces with
 	// 	a filter. There isn't a need to make the organization filter argument
@@ -549,7 +549,7 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 // @Produce json
 // @Tags Templates
 // @Success 200 {array} codersdk.Template
-// @Router /templates [get]
+// @Router /api/v2/templates [get]
 func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTemplatesWithFilterParams)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -613,7 +613,7 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param templatename path string true "Template name"
 // @Success 200 {object} codersdk.Template
-// @Router /organizations/{organization}/templates/{templatename} [get]
+// @Router /api/v2/organizations/{organization}/templates/{templatename} [get]
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -647,7 +647,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 // @Param template path string true "Template ID" format(uuid)
 // @Param request body codersdk.UpdateTemplateMeta true "Patch template settings request"
 // @Success 200 {object} codersdk.Template
-// @Router /templates/{template} [patch]
+// @Router /api/v2/templates/{template} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -998,7 +998,7 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.DAUsResponse
-// @Router /templates/{template}/daus [get]
+// @Router /api/v2/templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
@@ -1012,7 +1012,7 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.TemplateExample
-// @Router /organizations/{organization}/templates/examples [get]
+// @Router /api/v2/organizations/{organization}/templates/examples [get]
 // @Deprecated Use /templates/examples instead
 func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1043,7 +1043,7 @@ func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.R
 // @Produce json
 // @Tags Templates
 // @Success 200 {array} codersdk.TemplateExample
-// @Router /templates/examples [get]
+// @Router /api/v2/templates/examples [get]
 func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

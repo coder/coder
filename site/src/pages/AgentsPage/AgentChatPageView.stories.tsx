@@ -62,7 +62,6 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
 	children: [],
 	...overrides,
 });
@@ -91,6 +90,7 @@ const buildGitWatcher = (): ComponentProps<
 >["gitWatcher"] => ({
 	repositories: new Map(),
 	everDirty: new Set(),
+	hasReceivedChanges: true,
 	refresh: fn().mockReturnValue(true),
 });
 
@@ -135,6 +135,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
+		chatOwner: undefined as ComponentProps<
+			typeof AgentChatPageView
+		>["chatOwner"],
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -213,11 +216,67 @@ type Story = StoryObj<typeof AgentChatPageView>;
 /** Basic conversation view with a chat title, workspace, and no archive. */
 export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
+	},
 };
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
+};
+
+/** Shows an identity warning banner when viewing a chat owned by another user. */
+export const AdminViewingOtherUserChat: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chatOwner={{ id: "other-user-id", username: "OtherUser" }}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"This is not your chat. Prompting here will use @OtherUser's identity.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+	},
+};
+
+/** Shows the owner ID fallback while the owner profile is unavailable. */
+export const OtherUserChatOwnerFallback: Story = {
+	render: () => <StoryAgentChatPageView chatOwner={{ id: "other-user-id" }} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"This is not your chat. Prompting here will use owner other-user-id's identity.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+	},
+};
+
+/** Archived chats stay read-only without the identity warning banner. */
+export const ArchivedOtherUserChat: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			isArchived
+			isInputDisabled
+			chatOwner={{ id: "other-user-id", username: "OtherUser" }}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.getByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+	},
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
@@ -235,7 +294,7 @@ export const WithError: Story = {
 		<StoryAgentChatPageView
 			persistedError={{
 				kind: "overloaded",
-				message: "Anthropic is temporarily overloaded (HTTP 529).",
+				message: "Anthropic is temporarily overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -248,8 +307,9 @@ export const WithError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
+			canvas.getByText(/anthropic is temporarily overloaded\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 	},
@@ -950,6 +1010,87 @@ export const MessageOrderIsStillCorrect: Story = {
 				newer.getBoundingClientRect().top,
 			);
 		});
+	},
+};
+
+const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
+
+/**
+ * Regression guard for the StickyUserMessage push-up logic.
+ *
+ * `react-infinite-scroll-component` renders two wrapper divs between the
+ * scroll container and the message tree. The library applies `overflow:
+ * auto` to its inner wrapper, which used to make `position: sticky` on a
+ * user message resolve against that wrapper instead of the actual scroller.
+ * The fix forces both wrappers to `display: contents` so the sticky
+ * container's nearest scrolling ancestor is once again the
+ * `.overflow-y-auto` element.
+ *
+ * This story scrolls past the most recent user message and asserts the
+ * message is pinned within a few pixels of the scroll container's top.
+ */
+export const StickyUserMessagePinsOnScroll: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={stickyPinningStore} />,
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(stickyPinningStore, 40);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Each sticky user message is the element immediately following its
+		// `data-user-sentinel` marker. The push-up logic depends on the
+		// sticky container resolving against the real scroll container,
+		// which is the regression this story guards against.
+		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
+		expect(sentinels.length).toBeGreaterThan(0);
+		for (const sentinel of sentinels) {
+			expect(sentinel.closest("[data-testid='scroll-container']")).toBe(
+				scrollContainer,
+			);
+			const container = sentinel.nextElementSibling;
+			expect(container).not.toBeNull();
+			expect(window.getComputedStyle(container as Element).position).toBe(
+				"sticky",
+			);
+		}
+
+		// At the default `scrollTop = 0`, the inverse layout shows the
+		// newest messages at the bottom of the viewport. Older user
+		// messages whose sentinels have already scrolled above the
+		// scroller's top edge should be pinned by `position: sticky`. Pick
+		// a sentinel that is comfortably above the top edge so a tiny
+		// scroll offset cannot flip it on or off the boundary.
+		const scrollerRect = scrollContainer.getBoundingClientRect();
+		// Walk the sentinels in reverse DOM order so we land on the
+		// most recent user message whose sentinel has scrolled above
+		// the scroll container's top edge. That is the message the
+		// push-up logic actively pins at the top; earlier pinned
+		// messages will have been pushed out of view by it.
+		const pinnedSentinel = Array.from(sentinels)
+			.reverse()
+			.find(
+				(sentinel) =>
+					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
+			) as HTMLElement | undefined;
+		expect(pinnedSentinel).toBeDefined();
+		if (!pinnedSentinel) {
+			return;
+		}
+		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
+
+		// `position: sticky` should pin the user message container near
+		// the scroll container's top edge while the assistant response
+		// below it is on screen. Before the fix, the sticky container
+		// resolved against the InfiniteScroll wrapper rather than the
+		// real scroll container, so it scrolled out with its sentinel
+		// and ended up far above the viewport.
+		const pinnedRect = pinnedContainer.getBoundingClientRect();
+		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
+		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);
+		expect(pinnedRect.top - scrollerRect.top).toBeLessThan(40);
 	},
 };
 

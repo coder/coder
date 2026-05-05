@@ -1,11 +1,13 @@
 package chatd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -86,28 +88,14 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 	require.NoError(t, err)
 
 	// We need a chat provider + model config for inserting chats.
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "openai",
-		APIKey:               "test-key",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
-	require.NoError(t, err)
-	modelConfig, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+		IsDefault: true,
 	})
-	require.NoError(t, err)
 
 	now := time.Now().UTC()
 
@@ -115,38 +103,25 @@ func TestResolveUsageLimitStatus_OrgScoped(t *testing.T) {
 	// given org and inserts a single message with the specified cost.
 	insertChatWithSpend := func(t *testing.T, ownerID, orgID, modelCfgID uuid.UUID, costMicros int64) {
 		t.Helper()
-		tctx := testutil.Context(t, testutil.WaitLong)
-		c, err := db.InsertChat(tctx, database.InsertChatParams{
+		c := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    orgID,
 			OwnerID:           ownerID,
 			LastModelConfigID: modelCfgID,
 			Title:             "test chat",
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
-			MCPServerIDs:      []uuid.UUID{},
 		})
-		require.NoError(t, err)
-		_, err = db.InsertChatMessages(tctx, database.InsertChatMessagesParams{
-			ChatID:              c.ID,
-			CreatedBy:           []uuid.UUID{uuid.Nil},
-			ModelConfigID:       []uuid.UUID{modelCfgID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			Content:             []string{`[{"type":"text","text":"hello"}]`},
-			ContentVersion:      []int16{1},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{100},
-			OutputTokens:        []int64{50},
-			TotalTokens:         []int64{150},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{128000},
-			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{costMicros},
-			RuntimeMs:           []int64{500},
-			ProviderResponseID:  []string{uuid.NewString()},
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:             c.ID,
+			ModelConfigID:      uuid.NullUUID{UUID: modelCfgID, Valid: true},
+			Role:               database.ChatMessageRoleAssistant,
+			Content:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hello"}]`), Valid: true},
+			InputTokens:        sql.NullInt64{Int64: 100, Valid: true},
+			OutputTokens:       sql.NullInt64{Int64: 50, Valid: true},
+			TotalTokens:        sql.NullInt64{Int64: 150, Valid: true},
+			ContextLimit:       sql.NullInt64{Int64: 128000, Valid: true},
+			TotalCostMicros:    sql.NullInt64{Int64: costMicros, Valid: true},
+			RuntimeMs:          sql.NullInt64{Int64: 500, Valid: true},
+			ProviderResponseID: sql.NullString{String: uuid.NewString(), Valid: true},
 		})
-		require.NoError(t, err)
 	}
 
 	t.Run("OrgA_gets_orgA_limit", func(t *testing.T) {
