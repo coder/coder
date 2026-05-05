@@ -109,15 +109,6 @@ export const SelectContent: React.FC<
 	</SelectPrimitive.Portal>
 );
 
-export const SelectSeparator: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.Separator>
-> = ({ className, ...props }) => (
-	<SelectPrimitive.Separator
-		className={cn("-mx-1 my-1 h-px bg-border", className)}
-		{...props}
-	/>
-);
-
 export const SelectLabel: React.FC<
 	React.ComponentPropsWithRef<typeof SelectPrimitive.Label>
 > = ({ className, ...props }) => {

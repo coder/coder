@@ -1,7 +1,7 @@
+import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { useModelOverrideForm } from "../hooks/useModelOverrideForm";
 import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
 import { ModelSelector } from "./ChatElements/ModelSelector";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
@@ -72,7 +72,8 @@ export const SubagentModelOverrideSettings: FC<
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
 	const enabledModelOptions = enabledModelConfigs.map(toModelSelectorOption);
 
-	const { form, isFormDisabled, canSave } = useModelOverrideForm({
+	const form = useFormik({
+		enableReinitialize: true,
 		initialValues: {
 			model_config_id: modelOverrideData?.model_config_id ?? "",
 		},
@@ -88,12 +89,11 @@ export const SubagentModelOverrideSettings: FC<
 				},
 			);
 		},
-		isLoading,
-		isSaving,
-		disabled,
-		hasLoadedOverride: hasLoadedModelOverride,
-		isMalformedOverride,
 	});
+	const isFormDisabled =
+		disabled || isSaving || isLoading || !hasLoadedModelOverride;
+	const canSave =
+		hasLoadedModelOverride && !disabled && (form.dirty || isMalformedOverride);
 
 	const isUnavailableSavedModel =
 		form.values.model_config_id !== "" &&

@@ -1,3 +1,5 @@
+import { useFormik } from "formik";
+import { Select as SelectPrimitive } from "radix-ui";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -7,11 +9,9 @@ import {
 	SelectContent,
 	SelectGroup,
 	SelectItem,
-	SelectSeparator,
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { useModelOverrideForm } from "../hooks/useModelOverrideForm";
 import type { ModelSelectorOption } from "./ChatElements";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
@@ -204,8 +204,12 @@ const isDefaultModeOption = (
 	return value === "chat_default" || value === "deployment_default";
 };
 
-const selectorTriggerClassName =
-	"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]";
+// Local separator for use inside SelectContent. Defined here instead of
+// in the core Select component so the styling stays scoped to this
+// feature until a shared design lands.
+const SelectSeparator: FC = () => (
+	<SelectPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />
+);
 
 export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	context,
@@ -225,19 +229,19 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 }) => {
 	const hasLoadedOverride = overrideData !== undefined;
 	const isMalformedOverride = overrideData?.is_malformed ?? false;
-	const { form, isFormDisabled, canSave } = useModelOverrideForm({
+	const form = useFormik<PersonalOverrideFormValues>({
+		enableReinitialize: true,
 		initialValues: toFormValues(overrideData, context),
 		onSubmit: (values, { resetForm }) => {
 			onSave(toUpdateRequest(values), {
 				onSuccess: () => resetForm({ values }),
 			});
 		},
-		isLoading,
-		isSaving,
-		disabled,
-		hasLoadedOverride,
-		isMalformedOverride,
 	});
+	const isFormDisabled =
+		disabled || isSaving || isLoading || !hasLoadedOverride;
+	const canSave =
+		hasLoadedOverride && !disabled && (form.dirty || isMalformedOverride);
 	const defaultModeOptions = getDefaultModeOptions(context);
 	const isInvalidRootDeploymentDefault =
 		context === "root" && overrideData?.mode === "deployment_default";
@@ -285,7 +289,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 				>
 					<SelectTrigger
 						aria-label={`${title} behavior`}
-						className={selectorTriggerClassName}
+						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]"
 					>
 						<SelectValue placeholder="Select...">{selectionLabel}</SelectValue>
 					</SelectTrigger>

@@ -871,7 +871,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
-	const showUserAgentsItem = isPersonalModelOverridesEnabled;
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
@@ -1389,7 +1388,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							to="/agents/settings/general"
 							state={location.state}
 						/>
-						{showUserAgentsItem && (
+						{isPersonalModelOverridesEnabled && (
 							<SettingsNavItem
 								icon={BotIcon}
 								label="Agents"
