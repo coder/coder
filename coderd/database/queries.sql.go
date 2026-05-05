@@ -6992,6 +6992,22 @@ WHERE
         WHEN $4::jsonb IS NOT NULL THEN chats.labels @> $4::jsonb
         ELSE true
     END
+    -- Match chats whose linked diff URL (e.g. a pull request URL)
+    -- equals the given value, case-insensitively. The URL may live on
+    -- a delegated sub-agent's diff status, so we surface the root chat
+    -- when any descendant matches.
+    AND CASE
+        WHEN $5::text IS NOT NULL THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            JOIN chats c2 ON c2.id = cds.chat_id
+            WHERE cds.url IS NOT NULL
+              AND cds.url <> ''
+              AND LOWER(cds.url) = LOWER($5::text)
+              AND (c2.id = chats.id OR c2.root_chat_id = chats.id)
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -7008,11 +7024,11 @@ ORDER BY
     -pin_order DESC,
     updated_at DESC,
     id DESC
-OFFSET $5
+OFFSET $6
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($6 :: int, 0), 50)
+    COALESCE(NULLIF($7 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -7020,6 +7036,7 @@ type GetChatsParams struct {
 	Archived    sql.NullBool          `db:"archived" json:"archived"`
 	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	DiffUrl     sql.NullString        `db:"diff_url" json:"diff_url"`
 	OffsetOpt   int32                 `db:"offset_opt" json:"offset_opt"`
 	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
 }
@@ -7035,6 +7052,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,
+		arg.DiffUrl,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

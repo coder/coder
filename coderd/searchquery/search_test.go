@@ -1266,6 +1266,65 @@ func TestSearchChats(t *testing.T) {
 			Query:                 "archived:",
 			ExpectedErrorContains: "cannot start or end with ':'",
 		},
+		{
+			Name:  "DiffURL",
+			Query: `diff_url:"https://github.com/coder/coder/pull/123"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+				DiffUrl: sql.NullString{
+					String: "https://github.com/coder/coder/pull/123",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLPreservesValueCase",
+			Query: `diff_url:"https://github.com/Coder/Coder/pull/123"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+				DiffUrl: sql.NullString{
+					String: "https://github.com/Coder/Coder/pull/123",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLKeyCaseInsensitive",
+			Query: `Diff_URL:"https://github.com/coder/coder/pull/1"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+				DiffUrl: sql.NullString{
+					String: "https://github.com/coder/coder/pull/1",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLWithArchived",
+			Query: `archived:true diff_url:"https://gitlab.com/foo/bar/-/merge_requests/9"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: true, Valid: true},
+				DiffUrl: sql.NullString{
+					String: "https://gitlab.com/foo/bar/-/merge_requests/9",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:                  "DiffURLInvalidScheme",
+			Query:                 `diff_url:"ftp://example.com/x"`,
+			ExpectedErrorContains: "http or https scheme",
+		},
+		{
+			Name:                  "DiffURLMissingHost",
+			Query:                 `diff_url:"https:///pull/1"`,
+			ExpectedErrorContains: "must include a host",
+		},
+		{
+			Name:                  "DiffURLMalformed",
+			Query:                 `diff_url:"http://%41:8080/"`,
+			ExpectedErrorContains: "not a valid URL",
+		},
 	}
 
 	for _, c := range testCases {

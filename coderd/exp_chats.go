@@ -312,7 +312,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query"
+// @Param q query string false "Search query. Supports archived:bool and diff_url:<url> terms (quote URLs)."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -368,6 +368,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,
 		LabelFilter: labelFilter,
+		DiffUrl:     searchParams.DiffUrl,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32

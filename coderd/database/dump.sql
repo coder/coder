@@ -3851,6 +3851,8 @@ CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
+
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
