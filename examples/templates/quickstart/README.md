@@ -49,12 +49,12 @@ Files in your home directory persist across workspace restarts. Selected languag
 
 Select a preset to auto-fill languages and editors for common workflows:
 
-| Preset | Languages | Editors |
-|---|---|---|
-| **Web Development** | Python, Node.js | VS Code (Browser) |
-| **Backend (Go)** | Go | VS Code (Browser), JetBrains GoLand |
-| **Data Science** | Python | VS Code (Browser) |
-| **Full Stack** | Python, Node.js, Go | VS Code (Browser), Cursor |
+| Preset              | Languages           | Editors                             |
+|---------------------|---------------------|-------------------------------------|
+| **Web Development** | Python, Node.js     | VS Code (Browser)                   |
+| **Backend (Go)**    | Go                  | VS Code (Browser), JetBrains GoLand |
+| **Data Science**    | Python              | VS Code (Browser)                   |
+| **Full Stack**      | Python, Node.js, Go | VS Code (Browser), Cursor           |
 
 ## IDE Notes
 
