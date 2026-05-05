@@ -32,14 +32,13 @@ Before you begin, confirm the following:
 > [!IMPORTANT]
 > Configuring providers, models, and system prompts requires the
 > **Owner** role (Coder administrator). Non-admin users cannot access the
-> Admin panel or modify deployment-level Agents configuration.
+> admin Settings panel or modify deployment-level Agents configuration.
 
 To configure Coder Agents:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Click **Admin** to open the configuration dialog.
-1. Under the **Providers** tab, select a provider, enter your API key, and
-   save.
+1. Open **Settings** and select the **Providers** tab. Pick a provider, enter
+   your API key, and save.
 1. Switch to the **Models** tab, click **Add**, and configure at least one
    model with its identifier, display name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
@@ -181,7 +180,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from the **Admin** dialog on the Agents page
+Configure the system prompt from **Agents** > **Settings** > **Instructions**
 or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
@@ -210,8 +209,8 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing in the admin panel (Input Price, Output
-  Price) to track spend.
+- Setting per-model token pricing in the admin Settings panel (Input Price,
+  Output Price) to track spend.
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group

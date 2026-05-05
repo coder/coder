@@ -49,11 +49,12 @@ See [Models](../models.md) for setup instructions.
 ### System prompt
 
 Administrators can set a system prompt that applies to all agent sessions. This
-is useful for establishing organizational conventions — coding standards,
+is useful for establishing organizational conventions: coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-The system prompt configuration is only accessible to administrators in the
-dashboard. Developers do not see or interact with it.
+This setting is available under **Agents** > **Settings** > **Instructions**
+and is only accessible to administrators. Developers do not see or interact
+with it.
 
 ### Plan mode instructions
 
@@ -62,7 +63,7 @@ enters plan mode. These instructions supplement the built-in planning behavior
 and are useful for organization-specific planning requirements such as required
 plan sections, approval checkpoints, or review workflows.
 
-This setting is available under **Agents** > **Settings** > **Behavior**.
+This setting is available under **Agents** > **Settings** > **Instructions**.
 Developers do not edit it directly.
 
 The same value is exposed over the experimental chat configuration API:
@@ -128,7 +129,7 @@ Administrators can set a default autostop timer for agent-created workspaces
 that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
-This setting is available under **Agents** > **Settings** > **Behavior**.
+This setting is available under **Agents** > **Settings** > **Lifecycle**.
 The maximum configurable value is 30 days. When disabled, workspaces follow
 their template's autostop rules (or none, if the template does not define any).
 
@@ -163,7 +164,7 @@ Administrators can configure a retention period for archived conversations.
 When enabled, archived conversations and orphaned files older than the
 retention period are automatically purged. The default is 30 days.
 
-This setting is available under **Agents** > **Settings** > **Behavior**.
+This setting is available under **Agents** > **Settings** > **Lifecycle**.
 See [Data Retention](./chat-retention.md) for details.
 
 ### Advisor

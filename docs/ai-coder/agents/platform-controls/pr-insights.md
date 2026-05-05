@@ -2,8 +2,13 @@
 
 PR Insights tracks pull requests created by Coder Agents and surfaces
 analytics on PR activity, merge rates, and cost efficiency. The dashboard
-(under **Agents** > **Insights** > **PR Insights**) shows merge rates,
-cost per merged PR, per-model breakdowns, and individual PR status.
+shows merge rates, cost per merged PR, per-model breakdowns, and individual
+PR status.
+
+> [!NOTE]
+> The PR Insights dashboard is currently reachable only by navigating
+> directly to `/agents/settings/insights`. There is no sidebar link to it
+> today. The data is also available through the experimental API.
 
 ## How it works
 

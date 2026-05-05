@@ -69,7 +69,7 @@ variables (e.g. `ANTHROPIC_API_KEY`). With Coder Agents, credentials are
 configured once in the control plane:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Click **Admin** > **Providers**, select a provider, enter your API key,
+1. Open **Settings** > **Providers**, pick a provider, enter your API key,
    and save.
 1. Under **Models**, add at least one model and set it as the default.
 
