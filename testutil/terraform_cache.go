@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -85,17 +86,41 @@ func WriteTFCliConfig(t *testing.T, dir string) string {
 	return cliConfigPath
 }
 
-func runCmd(t *testing.T, dir string, args ...string) {
+// runCmd runs a command in the given directory. It retries transient
+// failures (e.g. provider registry 5xx) up to 'attempts' times with
+// a short backoff between each attempt.
+func runCmd(t *testing.T, dir string, attempts int, args ...string) {
 	t.Helper()
 
-	stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-	cmd := exec.Command(args[0], args[1:]...) //#nosec
-	cmd.Dir = dir
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to run %s: %s\nstdout: %s\nstderr: %s", strings.Join(args, " "), err, stdout.String(), stderr.String())
+	if attempts <= 0 {
+		attempts = 1
 	}
+
+	var lastErr error
+	var lastStdout, lastStderr string
+	for i := range attempts {
+		if i > 0 {
+			wait := time.Duration(i) * 2 * time.Second
+			t.Logf("retrying %q in %s (attempt %d/%d)",
+				strings.Join(args, " "), wait, i+1, attempts)
+			time.Sleep(wait)
+		}
+
+		stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+		cmd := exec.Command(args[0], args[1:]...) //#nosec
+		cmd.Dir = dir
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+		if err := cmd.Run(); err != nil {
+			lastErr = err
+			lastStdout = stdout.String()
+			lastStderr = stderr.String()
+			continue
+		}
+		return
+	}
+	t.Fatalf("failed to run %s after %d attempt(s): %s\nstdout: %s\nstderr: %s",
+		strings.Join(args, " "), attempts, lastErr, lastStdout, lastStderr)
 }
 
 // GetTestTFCacheDir returns a unique cache directory path based on the test name and template files.
@@ -152,7 +177,7 @@ func DownloadTFProviders(t *testing.T, rootDir string, testName string, template
 
 	// We need to run init because if a test uses modules in its template,
 	// the mirror command will fail without it.
-	runCmd(t, filesDir, "terraform", "init")
+	runCmd(t, filesDir, 3, "terraform", "init")
 	// Now, mirror the providers into `providersDir`. We use this explicit mirror
 	// instead of relying only on the standard Terraform plugin cache.
 	//
@@ -167,7 +192,7 @@ func DownloadTFProviders(t *testing.T, rootDir string, testName string, template
 	// > When a plugin cache directory is enabled, the terraform init command will
 	// > still use the configured or implied installation methods to obtain metadata
 	// > about which plugins are available
-	runCmd(t, filesDir, "terraform", "providers", "mirror", providersDir)
+	runCmd(t, filesDir, 3, "terraform", "providers", "mirror", providersDir)
 
 	return dir
 }
