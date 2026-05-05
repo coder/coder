@@ -208,8 +208,6 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	chatRetentionConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
 	chatConfigErr := errors.Join(chatRetentionConfigErr, chatDebugRetentionErr)
 
-	var lockAcquired bool
-
 	// Populated inside the tx; dispatched post-commit.
 	var archivedChats []database.AutoArchiveInactiveChatsRow
 
@@ -227,7 +225,6 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return nil
 		}
 
-		lockAcquired = true
 		var purgedWorkspaceAgentLogs int64
 		workspaceAgentLogsRetention := i.vals.Retention.WorkspaceAgentLogs.Value()
 		if workspaceAgentLogsRetention > 0 {
@@ -363,6 +360,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
 		}
 
+		// chatConfigErr is returned after the tx, so do not record this
+		// iteration as successful when only the deferred config read failed.
+		if i.iterationDuration != nil && chatConfigErr == nil {
+			duration := i.clk.Since(start)
+			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
+		}
+
 		return nil
 	}, database.DefaultTXOptions().WithID("db_purge"))
 	if err != nil {
@@ -373,11 +377,6 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	// the failed iteration metric.
 	if chatConfigErr != nil {
 		return xerrors.Errorf("chat config read failed this tick: %w", chatConfigErr)
-	}
-
-	if i.iterationDuration != nil && lockAcquired {
-		duration := i.clk.Since(start)
-		i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
 	}
 
 	// Dispatch audits and digests post-commit. Detached context for audit
