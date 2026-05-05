@@ -68,8 +68,11 @@ credentials.
 
 ## Authentication
 
-AI Gateway only accepts Coder-issued tokens for client authentication. The
-upstream provider keys you configured for AI Gateway (for example,
+AI Gateway accepts Coder-issued tokens for client authentication and also
+supports [Bring Your Own Key
+(BYOK)](../clients/index.md#bring-your-own-key-byok) for other clients.
+Coder Agents only uses the centralized key mode today. The upstream
+provider keys you configured for AI Gateway (for example,
 `CODER_AIBRIDGE_OPENAI_KEY`) are used by AI Gateway internally to call the
 upstream provider; they are not what Coder Agents sends.
 
@@ -93,9 +96,10 @@ initiated by that admin.
 
 > [!NOTE]
 > Coder Agents does not support Bring Your Own Key when routing through
-> AI Gateway today. The Agents
-> [User API keys](../../agents/models.md#user-api-keys-byok) feature is
-> independent of AI Gateway and applies to direct provider calls only.
+> AI Gateway today, but we plan to unify these authentication modes in a
+> future release. For now, the Agents [User API
+> keys](../../agents/models.md#user-api-keys-byok) feature is independent
+> of AI Gateway and applies to direct provider calls only.
 
 ## Identity and correlation headers
 
