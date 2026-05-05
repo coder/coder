@@ -341,15 +341,23 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (_ *anthropic.Message, outErr error) {
-	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+// newMessage routes between BYOK (single attempt) and centralized
+// failover.
+func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, error) {
 	// BYOK: single attempt, no failover.
 	if i.cfg.KeyPool == nil {
-		return svc.New(ctx, anthropic.MessageNewParams{}, i.withBody())
+		return i.newMessageWithKey(ctx, svc)
 	}
 	return i.newMessageWithKeyFailover(ctx, svc)
+}
+
+// newMessageWithKey performs a single upstream call.
+func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthropic.MessageService, extraOpts ...option.RequestOption) (_ *anthropic.Message, outErr error) {
+	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
+	defer tracing.EndSpanErr(span, &outErr)
+
+	opts := append([]option.RequestOption{i.withBody()}, extraOpts...)
+	return svc.New(ctx, anthropic.MessageNewParams{}, opts...)
 }
 
 // newMessageWithKeyFailover walks the centralized key pool,
@@ -368,8 +376,7 @@ func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, sv
 			return nil, err
 		}
 
-		msg, err := svc.New(ctx, anthropic.MessageNewParams{},
-			i.withBody(),
+		msg, err := i.newMessageWithKey(ctx, svc,
 			option.WithAPIKey(key.Value()),
 			// Disable SDK retries because the failover loop
 			// handles retries via key rotation.
