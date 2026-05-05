@@ -1275,6 +1275,12 @@
 									"description": "Automatic archiving of inactive conversations",
 									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
 									"state": ["beta"]
+								},
+								{
+									"title": "Advisor",
+									"description": "Optional advisor tool that gives agents inline strategic guidance during chat runs",
+									"path": "./ai-coder/agents/platform-controls/advisor.md",
+									"state": ["beta"]
 								}
 							]
 						},

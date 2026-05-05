@@ -166,6 +166,17 @@ retention period are automatically purged. The default is 30 days.
 This setting is available under **Agents** > **Settings** > **Behavior**.
 See [Data Retention](./chat-retention.md) for details.
 
+### Advisor
+
+Administrators can enable the **Advisor**, an optional tool that lets a root
+agent pause its current turn and request strategic guidance from a separate,
+single-step model call. It is intended for planning ambiguity, architectural
+tradeoffs, debugging strategy, and risk reduction.
+
+This setting is available under **Agents** > **Settings** > **Experiments**.
+The advisor is not available in plan mode or to subagents. See
+[Advisor](./advisor.md) for configuration details and limits.
+
 ## Where we are headed
 
 The controls above cover providers, models, system prompts, templates, MCP
