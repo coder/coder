@@ -1,5 +1,12 @@
 # Guide: Create a GitHub to Coder Tasks Workflow
 
+> [!WARNING]
+> Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.
+>
+> Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
+>
+> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
+
 ## Background
 
 Most software engineering organizations track and manage their codebase through GitHub, and use project management tools like Asana, Jira, or even GitHub's Projects to coordinate work. Across these systems, engineers are frequently performing the same repetitive workflows: triaging and addressing bugs, updating documentation, or implementing well-defined changes for example.
