@@ -111,13 +111,16 @@ When enabled, agents can use `spawn_agent` with
 `type=computer_use` to interact with a
 desktop environment using screenshots, mouse, and keyboard input.
 
-This setting is available under **Agents** > **Settings** > **Behavior**.
+This setting is available under **Agents** > **Settings** > **Experiments**.
 It requires:
 
 - The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
   module to be installed in the workspace template.
-- An Anthropic provider to be configured (computer use is an Anthropic
-  capability).
+- A computer-use provider (Anthropic or OpenAI) to be configured. Select the
+  provider from the **Computer use provider** dropdown in the same section.
+  Anthropic is the default; the selected provider must have an API key
+  configured under the **Providers** tab. The model used for the computer-use
+  subagent is fixed per provider and is not configurable from this UI.
 
 ### Workspace autostop fallback
 
