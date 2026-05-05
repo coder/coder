@@ -169,16 +169,16 @@ git worktree add /tmp/recordings-worktree recordings
 
 | Context | Embed | Why |
 |---|---|---|
-| **PR description** | GIF | Renders inline, reviewers see it immediately |
-| **GitHub issue** | GIF | Same reason |
-| **Linear ticket** | GIF + mp4/thumbnail links | Use `linear__save_comment` to post directly |
+| **PR description** | GIF embed | GitHub renders `![](url)` inline |
+| **GitHub issue** | GIF embed | Same reason |
+| **Linear ticket** | Plain links | Linear cannot render image embeds or `<details>` tags |
 | **Slack / async chat** | Thumbnail + mp4 link | GIFs autoplay and annoy people in chat |
 | **Archival / repo** | All three | Keep mp4 (lossless), GIF (preview), thumbnail (static reference) |
 
-### Embedding pattern
+### GitHub (PRs and issues)
 
-Upload all three files to the recordings branch, then embed the
-GIF and link the others:
+GitHub renders `![](url)` image embeds and `<details>` tags, so
+use an inline GIF with collapsible mp4/thumbnail links:
 
 ```markdown
 ## Demo
@@ -193,20 +193,29 @@ GIF and link the others:
 </details>
 ```
 
-### Posting to Linear
+### Linear tickets
 
-If the Coder Agent has Linear tools available, post the recording
-directly to a ticket using `linear__save_comment`:
+Linear does NOT render image embeds (`![](url)` shows as broken)
+and does NOT support `<details>` HTML tags. Use plain markdown
+links only:
+
+```markdown
+## Demo: <Feature Name>
+
+- [Recording (GIF)](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/recording.gif)
+- [Recording (mp4)](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/recording.mp4)
+- [Thumbnail](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/thumbnail.jpg)
+```
+
+If the Coder Agent has Linear tools, post directly with
+`linear__save_comment`:
 
 ```
 linear__save_comment(
   issueId: "TEAM-123",
-  body: "## Demo\n\n![<feature> demo](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/recording.gif)\n\n<details>\n<summary>Full recording and static thumbnail</summary>\n\n- [Full recording (mp4)](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/recording.mp4)\n- [Thumbnail](https://raw.githubusercontent.com/coder/coder/recordings/recordings/<feature>/thumbnail.jpg)\n</details>"
+  body: "## Demo: <Feature>\n\n- [Recording (GIF)](<gif-url>)\n- [Recording (mp4)](<mp4-url>)\n- [Thumbnail](<thumb-url>)"
 )
 ```
-
-The raw.githubusercontent.com URLs work directly in Linear
-markdown; no need to upload files separately.
 
 ## Common issues
 
