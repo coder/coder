@@ -1190,6 +1190,7 @@ func TestWriteUpstreamError(t *testing.T) {
 			assert.Equal(t, tc.expectStatus, w.Code, "status code")
 			assert.Equal(t, "application/json", w.Header().Get("Content-Type"), "Content-Type header")
 			assert.Equal(t, tc.expectRetryAfter, w.Header().Get("Retry-After"), "Retry-After header")
+			assert.Contains(t, w.Body.String(), `"type":"error"`, "outer error envelope")
 			if tc.expectBodyContains != "" {
 				assert.Contains(t, w.Body.String(), tc.expectBodyContains, "response body")
 			}

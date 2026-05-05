@@ -292,6 +292,7 @@ func TestBlockingInterception_AgenticLoopFailover(t *testing.T) {
 		expectedRequestCount int32
 		expectedSeenKeys     []string
 		expectedStatusCode   int
+		expectedRetryAfter   string
 		expectedKeyStates    []keypool.KeyState
 	}{
 		{
@@ -355,6 +356,7 @@ func TestBlockingInterception_AgenticLoopFailover(t *testing.T) {
 			expectedRequestCount: 3,
 			expectedSeenKeys:     []string{"k0", "k0", "k1"},
 			expectedStatusCode:   http.StatusTooManyRequests,
+			expectedRetryAfter:   "3",
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateTemporary,
 				keypool.KeyStateTemporary,
@@ -442,6 +444,7 @@ func TestBlockingInterception_AgenticLoopFailover(t *testing.T) {
 
 			assert.Equal(t, tc.expectedRequestCount, requestCount.Load(), "upstream request count")
 			assert.Equal(t, tc.expectedStatusCode, w.Code, "response status code")
+			assert.Equal(t, tc.expectedRetryAfter, w.Header().Get("Retry-After"), "Retry-After header")
 
 			seenKeysMu.Lock()
 			defer seenKeysMu.Unlock()
