@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -88,7 +90,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
 }
 
-func TestMaybeFinalizeTurnSummaryFinalizesPendingStatus(t *testing.T) {
+func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -146,8 +148,9 @@ func TestMaybeFinalizeTurnSummaryFinalizesPendingStatus(t *testing.T) {
 		},
 	}
 
+	dispatcher := &recordingWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{db: db}
+	server := &Server{db: db, webpushDispatcher: dispatcher}
 	server.maybeFinalizeTurnSummaryAndPush(
 		context.WithoutCancel(ctx),
 		chat,
@@ -166,4 +169,26 @@ func TestMaybeFinalizeTurnSummaryFinalizesPendingStatus(t *testing.T) {
 	fetched, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, sql.NullString{String: summary, Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, int32(0), dispatcher.dispatchCount.Load())
+}
+
+type recordingWebpushDispatcher struct {
+	dispatchCount atomic.Int32
+}
+
+func (d *recordingWebpushDispatcher) Dispatch(
+	_ context.Context,
+	_ uuid.UUID,
+	_ codersdk.WebpushMessage,
+) error {
+	d.dispatchCount.Add(1)
+	return nil
+}
+
+func (*recordingWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscription) error {
+	return nil
+}
+
+func (*recordingWebpushDispatcher) PublicKey() string {
+	return "test-vapid-public-key"
 }

@@ -8278,8 +8278,11 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 	}
 
 	switch status {
-	case database.ChatStatusWaiting, database.ChatStatusPending:
+	case database.ChatStatusWaiting:
 		p.finalizeSuccessfulTurnSummaryAndPush(ctx, chat, runResult, logger)
+
+	case database.ChatStatusPending:
+		p.finalizeSuccessfulTurnSummary(ctx, chat, runResult, logger)
 
 	case database.ChatStatusError:
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
@@ -8301,11 +8304,32 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 	}
 }
 
+func (p *Server) finalizeSuccessfulTurnSummary(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+) {
+	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(context.Context, string) {})
+}
+
 func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
 	ctx context.Context,
 	chat database.Chat,
 	runResult runChatResult,
 	logger slog.Logger,
+) {
+	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(finalizeCtx context.Context, summary string) {
+		p.dispatchSuccessfulTurnPush(finalizeCtx, chat, summary, logger)
+	})
+}
+
+func (p *Server) finalizeSuccessfulTurnSummaryWithAfterFunc(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+	afterFinalize func(context.Context, string),
 ) {
 	debugSvc := p.existingDebugService()
 	// This helper runs during processChat cleanup, while processChat is
@@ -8336,15 +8360,24 @@ func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
 			p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, summary, logger)
 		}
 
-		if !p.webpushConfigured() {
-			return
-		}
-		pushBody := "Agent has finished running."
-		if summary != "" {
-			pushBody = summary
-		}
-		p.dispatchPush(finalizeCtx, chat, pushBody, database.ChatStatusWaiting, logger)
+		afterFinalize(finalizeCtx, summary)
 	})
+}
+
+func (p *Server) dispatchSuccessfulTurnPush(
+	ctx context.Context,
+	chat database.Chat,
+	summary string,
+	logger slog.Logger,
+) {
+	if !p.webpushConfigured() {
+		return
+	}
+	pushBody := "Agent has finished running."
+	if summary != "" {
+		pushBody = summary
+	}
+	p.dispatchPush(ctx, chat, pushBody, database.ChatStatusWaiting, logger)
 }
 
 func (p *Server) maybeClearLastTurnSummaryAsync(
