@@ -82,9 +82,7 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 					)}
 				</span>
 				<div className="flex flex-col gap-1">
-					<span className="font-medium text-content-primary">
-						{copy.title}
-					</span>
+					<span className="font-medium text-content-primary">{copy.title}</span>
 					<span className="text-sm text-content-secondary">
 						{copy.description}
 					</span>
