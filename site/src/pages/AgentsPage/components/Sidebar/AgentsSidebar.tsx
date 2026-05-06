@@ -1606,7 +1606,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																className={
 																	layout === "narrow"
 																		? "mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
-																		: "flex w-full items-center justify-between border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																		: "flex w-full items-center justify-between border-0 bg-transparent pb-1 pl-5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																}
 															>
 																<span className="flex items-center gap-1.5">
@@ -1681,7 +1681,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	className={
 																		layout === "narrow"
 																			? "mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
-																			: "flex w-full items-center justify-between border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																			: "flex w-full items-center justify-between border-0 bg-transparent pb-1 pl-5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																	}
 																>
 																	<span className="flex items-center gap-1.5">
