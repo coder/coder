@@ -665,7 +665,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1.5 pr-0.5 py-1 text-content-secondary",
+								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-3 pr-0.5 py-1 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 								isChildNode &&
@@ -855,7 +855,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center gap-2 rounded-md pl-1.5 pr-0.5 py-1 text-content-secondary",
+								"group relative flex min-w-0 select-none items-center gap-2 rounded-md pl-3 pr-0.5 py-1 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
@@ -1468,7 +1468,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				inert={isSettingsPanel ? true : undefined}
 			>
 				<div className="hidden border-b border-border-default px-2 pb-3 pt-3 sm:block">
-					<div className="mb-2.5 flex items-center justify-between pl-1.5 pr-0.5">
+					<div className="mb-2.5 flex items-center justify-between pl-3 pr-0.5">
 						<div className="flex items-center gap-2">
 							<NavLink to="/workspaces" className="inline-flex">
 								<ProductLogo className="size-6" />
@@ -1617,7 +1617,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-1.5 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
@@ -1684,7 +1684,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-1.5 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
