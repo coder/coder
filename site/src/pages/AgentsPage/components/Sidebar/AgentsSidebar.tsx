@@ -888,7 +888,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																	<div
 																		key={child.id}
 																		className={cn(
-																			"flex items-center gap-1 border-l border-content-secondary/40 text-sm",
+																			"flex items-center gap-1 border-0 border-l border-solid border-content-secondary/40 text-sm",
 																			isLast && "border-transparent",
 																		)}
 																		>
