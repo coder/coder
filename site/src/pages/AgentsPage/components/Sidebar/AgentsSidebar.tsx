@@ -1594,7 +1594,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	{collapsedSections.has("Pinned") &&
 																		pinnedChats.some((c) => c.has_unread) && (
 																			<span
-																				className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+																				className="h-1.5 w-1.5 shrink-0 self-start mt-0.5 rounded-full bg-content-link"
 																				aria-hidden="true"
 																			/>
 																		)}
@@ -1661,7 +1661,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																		{collapsedSections.has(group) &&
 																			groupChats.some((c) => c.has_unread) && (
 																				<span
-																					className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+																					className="h-1.5 w-1.5 shrink-0 self-start mt-0.5 rounded-full bg-content-link"
 																					aria-hidden="true"
 																				/>
 																			)}
