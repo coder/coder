@@ -1182,9 +1182,7 @@ type sqlcQuerier interface {
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
 	// Insert a row for (provider, model), or replace its price columns if the
-	// pair already exists. Used by the startup seed loader so price corrections
-	// in newer Coder releases overwrite the existing values on upgrade. Rows
-	// absent from the seed are not touched.
+	// pair already exists.
 	UpsertAIModelPrice(ctx context.Context, arg UpsertAIModelPriceParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)

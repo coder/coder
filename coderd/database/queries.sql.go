@@ -1843,9 +1843,7 @@ type UpsertAIModelPriceParams struct {
 }
 
 // Insert a row for (provider, model), or replace its price columns if the
-// pair already exists. Used by the startup seed loader so price corrections
-// in newer Coder releases overwrite the existing values on upgrade. Rows
-// absent from the seed are not touched.
+// pair already exists.
 func (q *sqlQuerier) UpsertAIModelPrice(ctx context.Context, arg UpsertAIModelPriceParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAIModelPrice,
 		arg.Provider,

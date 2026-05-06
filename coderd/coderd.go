@@ -597,8 +597,7 @@ func New(options *Options) *API {
 	// Apply the embedded AI Bridge model price seed. Failure here means the
 	// embedded JSON is corrupted, which is a release-time bug worth crashing
 	// on rather than silently disabling cost tracking.
-	//nolint:gocritic // No user request context here, so use a system-restricted context.
-	if err := prices.Load(dbauthz.AsSystemRestricted(ctx), options.Database); err != nil {
+	if err := prices.Load(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
 		options.Logger.Fatal(ctx, "failed to load AI Bridge price seed", slog.Error(err))
 	}
 

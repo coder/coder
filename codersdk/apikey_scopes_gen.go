@@ -6,6 +6,9 @@ const (
 	APIKeyScopeAll APIKeyScope = "all"
 	// Deprecated: use codersdk.APIKeyScopeCoderApplicationConnect instead.
 	APIKeyScopeApplicationConnect                  APIKeyScope = "application_connect"
+	APIKeyScopeAiModelPriceAll                     APIKeyScope = "ai_model_price:*"
+	APIKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
+	APIKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
 	APIKeyScopeAiSeatAll                           APIKeyScope = "ai_seat:*"
 	APIKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
 	APIKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
