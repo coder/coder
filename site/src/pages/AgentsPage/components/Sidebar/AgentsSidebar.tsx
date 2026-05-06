@@ -598,53 +598,50 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		Item: typeof DropdownMenuItem | typeof ContextMenuItem;
 		Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
 	}) => (
-			<>
-				{!chat.archived && !isChildNode && (
-					<Item
-						onSelect={() =>
-							chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
-						}
-					>
-						{chat.pin_order > 0 ? "Unpin agent" : "Pin agent"}
-					</Item>
-				)}
-				{chat.archived ? (
-					<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
-						Unarchive agent
-					</Item>
-				) : (
-					<>
-						{onOpenRenameDialog && (
-							<Item onSelect={() => onOpenRenameDialog(chat)}>
-								Rename chat
-							</Item>
-						)}
-						{hasChildren && (
-							<Item onSelect={() => toggleExpanded(chatID)}>
-								{isExpanded ? "Hide subagents" : "Show subagents"}
-							</Item>
-						)}
-						<Item
-							disabled={isArchiving}
-							onSelect={() => onArchiveAgent(chat.id)}
-						>
-							Archive agent
+		<>
+			{!chat.archived && !isChildNode && (
+				<Item
+					onSelect={() =>
+						chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
+					}
+				>
+					{chat.pin_order > 0 ? "Unpin agent" : "Pin agent"}
+				</Item>
+			)}
+			{chat.archived ? (
+				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
+					Unarchive agent
+				</Item>
+			) : (
+				<>
+					{onOpenRenameDialog && (
+						<Item onSelect={() => onOpenRenameDialog(chat)}>Rename chat</Item>
+					)}
+					{hasChildren && (
+						<Item onSelect={() => toggleExpanded(chatID)}>
+							{isExpanded ? "Hide subagents" : "Show subagents"}
 						</Item>
-						{workspaceId && (
-							<>
-								<Separator />
-								<Item
-									className="text-content-destructive focus:text-content-destructive"
-									disabled={isArchiving}
-									onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
-								>
-									Archive & delete...
-								</Item>
-							</>
-						)}
-					</>
-				)}
-			</>
+					)}
+					<Item disabled={isArchiving} onSelect={() => onArchiveAgent(chat.id)}>
+						Archive agent
+					</Item>
+					{workspaceId && (
+						<>
+							<Separator />
+							<Item
+								className="text-content-destructive focus:text-content-destructive"
+								disabled={isArchiving}
+								onSelect={() =>
+									onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+								}
+							>
+								Archive & delete...
+							</Item>
+						</>
+					)}
+				</>
+			)}
+		</>
 	);
 
 	return (
@@ -858,136 +855,84 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</div>
 							</div>
 							{hasChildren && isExpanded && (
-								<div className="relative pl-3 pb-1">
+								<div className="pl-3 pb-1">
 									{(() => {
 										const children = childIDs
 											.map((id) => chatById.get(id))
 											.filter((c): c is Chat => c !== undefined);
-										const prChildren = children.filter(
-											(c) => getChatDiffStatus(c)?.url,
-										);
-										const subagentChildren = children.filter(
-											(c) => !getChatDiffStatus(c)?.url,
-										);
 										return (
-											<>
-												{prChildren.length > 0 && (
-													<div className="py-0.5">
-														<div className="mb-0.5 text-xs font-medium text-content-secondary">
-															{prChildren.length}{" "}
-															{prChildren.length === 1 ? "PR" : "PRs"}
-														</div>
-														{prChildren.map((child) => {
-															const ds = getChatDiffStatus(child);
-															const adds = ds?.additions ?? 0;
-															const dels = ds?.deletions ?? 0;
+											<div className="py-0.5">
+												<button
+													type="button"
+													onClick={() => toggleSection(`subagents-${chatID}`)}
+													className="mb-0.5 flex items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary hover:text-content-primary cursor-pointer"
+												>
+													<ChevronUpIcon
+														className={cn(
+															"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+															collapsedSections.has(`subagents-${chatID}`) &&
+																"rotate-180",
+														)}
+													/>
+													Subagents ({children.length})
+												</button>
+												{!collapsedSections.has(`subagents-${chatID}`) && (
+													<div className="ml-0.5">
+														{children.map((child, idx) => {
+															const childDiff = getChatDiffStatus(child);
+															const childIsRunning =
+																child.status === "running" ||
+																child.status === "pending";
+															const isLast = idx === children.length - 1;
 															return (
 																<div
 																	key={child.id}
-																	className="flex items-center gap-2 py-0.5 text-sm"
+																	className="flex items-center gap-1 text-sm"
 																>
-																	<span className="inline-flex shrink-0 items-center gap-2 tabular-nums">
-																		<span className="text-git-added-bright">
-																			+{adds}
-																		</span>
-																		<span className="text-git-deleted-bright">
-																			&minus;{dels}
-																		</span>
-																	</span>
+																	{/* Tree connector: vertical line + curved bottom */}
+																	<div
+																		className={cn(
+																			"w-2.5 shrink-0 self-stretch border-l border-content-secondary/30",
+																			isLast && "h-1/2",
+																		)}
+																	/>
 																	<NavLink
 																		to={{
 																			pathname: `/agents/${child.id}`,
 																			search: location.search,
 																		}}
-																		className="min-w-0 truncate text-content-secondary no-underline hover:text-content-primary"
+																		className="min-w-0 flex-1 truncate py-0.5 text-content-secondary no-underline hover:text-content-primary"
 																	>
-																		{ds?.pull_request_title || child.title}
+																		{child.title}
 																	</NavLink>
+																	{(() => {
+																		const prIcon = getPRIconConfig(childDiff);
+																		if (prIcon) {
+																			const PrIcon = prIcon.icon;
+																			return (
+																				<PrIcon
+																					className={cn(
+																						"h-3.5 w-3.5 shrink-0",
+																						prIcon.className,
+																					)}
+																				/>
+																			);
+																		}
+																		return null;
+																	})()}
+																	<div className="flex w-7 shrink-0 items-center justify-center">
+																		{childIsRunning ? (
+																			<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+																		) : child.has_unread ? (
+																			<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
+																		) : null}
+																	</div>
 																</div>
 															);
 														})}
 													</div>
 												)}
-												{subagentChildren.length > 0 && (
-													<div className="py-0.5">
-														<button
-															type="button"
-															onClick={() =>
-																toggleSection(`subagents-${chatID}`)
-															}
-															className="mb-0.5 flex items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary hover:text-content-primary cursor-pointer"
-														>
-															<ChevronUpIcon
-																className={cn(
-																	"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
-																	collapsedSections.has(
-																		`subagents-${chatID}`,
-																	) && "rotate-180",
-																)}
-															/>
-															Subagents ({subagentChildren.length})
-														</button>
-														{!collapsedSections.has(`subagents-${chatID}`) && (
-															<div className="relative ml-0.5 border-l border-content-secondary">
-																{subagentChildren.map((child, idx) => {
-																	const childConfig = getStatusConfig(
-																		child.status,
-																	);
-																	const ChildStatusIcon = childConfig.icon;
-																	const childDiff = getChatDiffStatus(child);
-																	const childHasStats =
-																		(childDiff?.additions ?? 0) > 0 ||
-																		(childDiff?.deletions ?? 0) > 0;
-																	const childIsRunning =
-																		child.status === "running" ||
-																		child.status === "pending";
-																	const isLast =
-																		idx === subagentChildren.length - 1;
-																		return (
-																			<div
-																				key={child.id}
-																				className="relative flex items-center gap-1 py-0.5 pl-4 text-sm before:absolute before:left-0 before:top-1/2 before:h-px before:w-2.5 before:bg-content-secondary"
-																			>
-																			<NavLink
-																				to={{
-																					pathname: `/agents/${child.id}`,
-																					search: location.search,
-																				}}
-																				className="min-w-0 flex-1 truncate text-content-secondary no-underline hover:text-content-primary"
-																			>
-																				{child.title}
-																			</NavLink>
-																			{(() => {
-																				const prIcon =
-																					getPRIconConfig(childDiff);
-																				if (prIcon) {
-																					const PrIcon = prIcon.icon;
-																					return (
-																						<PrIcon
-																							className={cn(
-																								"h-3.5 w-3.5 shrink-0",
-																								prIcon.className,
-																							)}
-																						/>
-																					);
-																				}
-																				return null;
-																			})()}
-																			<div className="flex w-7 shrink-0 items-center justify-center">
-																				{childIsRunning ? (
-																					<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
-																				) : child.has_unread ? (
-																					<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
-																				) : null}
-																			</div>
-																		</div>
-																	);
-																})}
-															</div>
-														)}
-													</div>
-												)}
-											</>
+											</div>
 										);
 									})()}
 								</div>
