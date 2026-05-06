@@ -1010,3 +1010,43 @@ func TestRun_Compaction(t *testing.T) {
 			"compaction must fire before dynamic tool exit")
 	})
 }
+
+// TestDefaultCompactionSummaryPrompt verifies that the default prompt
+// enforces the structured schema that prevents model-invented workarounds
+// from being promoted to standing policy across compaction cycles.
+func TestDefaultCompactionSummaryPrompt(t *testing.T) {
+	t.Parallel()
+
+	// Required structural sections.
+	for _, section := range []string{
+		"## INVARIANTS",
+		"## USER_DECISIONS",
+		"## COMPLETED_TASKS",
+		"## PENDING_TASKS",
+		"## STATE_SNAPSHOT",
+		"## MODEL_NOTES",
+	} {
+		require.Contains(t, defaultCompactionSummaryPrompt, section,
+			"prompt must include required section %q", section)
+	}
+
+	// Provenance requirement: USER_DECISIONS must demand a user quote.
+	require.Contains(t, defaultCompactionSummaryPrompt, "verbatim or close-paraphrase quote",
+		"prompt must require a user quote for USER_DECISIONS entries")
+
+	// TTL requirement: MODEL_NOTES must carry expiry instructions.
+	require.Contains(t, defaultCompactionSummaryPrompt, "EXPIRES: N",
+		"prompt must instruct the model to tag MODEL_NOTES with an expiry count")
+
+	// Anti-escalation guard: model notes must not become policy.
+	require.Contains(t, defaultCompactionSummaryPrompt, "NEVER escalate a model_note",
+		"prompt must forbid escalating model_notes to higher-authority sections")
+
+	// Anti-blanket-rule guard: must forbid \"All X via Y\" patterns.
+	require.Contains(t, defaultCompactionSummaryPrompt, `"All X via Y"`,
+		"prompt must prohibit blanket tool-avoidance rules")
+
+	// First-person guard: summaries must not attribute behavior to the current model.
+	require.Contains(t, defaultCompactionSummaryPrompt, "the previous model",
+		"prompt must require third-person attribution")
+}

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"unicode/utf8"
 
 	"github.com/aymanbagabas/go-udiff"
 	"github.com/google/uuid"
@@ -436,8 +437,14 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if combinedErr != nil {
+		var fe *fuzzyError
+		detail := ""
+		if errors.As(combinedErr, &fe) {
+			detail = fe.detail
+		}
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: combinedErr.Error(),
+			Detail:  detail,
 		})
 		return
 	}
@@ -1072,6 +1079,185 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 	return b.String()
 }
 
+// fuzzyError is returned by fuzzyReplace when the search fails. It
+// carries an optional detail string for the HTTP response's Detail
+// field, surfacing diagnostic information that helps the caller
+// correct the search string.
+type fuzzyError struct {
+	msg    string
+	detail string
+}
+
+func (e *fuzzyError) Error() string { return e.msg }
+
+// maxSearchLinesForDiagnostic caps the partial-match scanner to avoid
+// O(n×m) cost when the search string is very long.
+const maxSearchLinesForDiagnostic = 50
+
+// partialMatch holds the result of the best-effort partial-match
+// scan run after all three fuzzyReplace passes fail.
+type partialMatch struct {
+	fileLineStart int    // 0-based index of the matching window start in contentLines
+	matched       int    // number of search lines that matched (trimSpace comparison)
+	total         int    // len(searchLines)
+	diffIdx       int    // index within searchLines of first non-matching line; -1 if all match
+	searchLine    string // searchLines[diffIdx] stripped of line ending
+	fileLine      string // contentLines[fileLineStart+diffIdx] stripped of line ending
+}
+
+// findBestPartialMatch scans contentLines for the window of
+// len(searchLines) consecutive lines with the highest number of
+// trimSpace-equal lines. Used for diagnostic output only; never
+// called on the hot path.
+func findBestPartialMatch(contentLines, searchLines []string) partialMatch {
+	best := partialMatch{total: len(searchLines), diffIdx: -1}
+	if len(searchLines) == 0 || len(searchLines) > len(contentLines) {
+		return best
+	}
+	for i := 0; i <= len(contentLines)-len(searchLines); i++ {
+		matched := 0
+		firstDiff := -1
+		for j, sLine := range searchLines {
+			sContent, _ := splitEnding(sLine)
+			cContent, _ := splitEnding(contentLines[i+j])
+			if strings.TrimSpace(sContent) == strings.TrimSpace(cContent) {
+				matched++
+			} else if firstDiff == -1 {
+				firstDiff = j
+			}
+		}
+		if matched > best.matched {
+			best.matched = matched
+			best.fileLineStart = i
+			best.diffIdx = firstDiff
+			if firstDiff >= 0 {
+				sContent, _ := splitEnding(searchLines[firstDiff])
+				cContent, _ := splitEnding(contentLines[i+firstDiff])
+				best.searchLine = sContent
+				best.fileLine = cContent
+			}
+		}
+	}
+	return best
+}
+
+// unicodeCountHint returns a human-readable description of how the
+// Unicode codepoints in searchLine and fileLine differ. If no Unicode
+// codepoint count differs it falls back to a byte-length comparison.
+func unicodeCountHint(searchLine, fileLine string) string {
+	searchCounts := map[rune]int{}
+	fileCounts := map[rune]int{}
+	for _, r := range searchLine {
+		if r > 127 {
+			searchCounts[r]++
+		}
+	}
+	for _, r := range fileLine {
+		if r > 127 {
+			fileCounts[r]++
+		}
+	}
+	// Collect runes that appear in one but differ in count.
+	seen := map[rune]bool{}
+	var hints []string
+	for r, sc := range searchCounts {
+		if seen[r] {
+			continue
+		}
+		seen[r] = true
+		fc := fileCounts[r]
+		if sc != fc {
+			hints = append(hints, fmt.Sprintf("search has %d × U+%04X, file has %d", sc, r, fc))
+		}
+	}
+	for r, fc := range fileCounts {
+		if seen[r] {
+			continue
+		}
+		seen[r] = true
+		sc := searchCounts[r]
+		if sc != fc {
+			hints = append(hints, fmt.Sprintf("search has %d × U+%04X, file has %d", sc, r, fc))
+		}
+	}
+	if len(hints) > 0 {
+		return strings.Join(hints, "; ")
+	}
+	// Fallback: rune-length comparison.
+	sr := utf8.RuneCountInString(searchLine)
+	fr := utf8.RuneCountInString(fileLine)
+	if sr != fr {
+		return fmt.Sprintf("search line is %d chars, file line is %d chars", sr, fr)
+	}
+	return fmt.Sprintf("search line is %d bytes, file line is %d bytes", len(searchLine), len(fileLine))
+}
+
+// buildNotFoundDetail constructs the Detail string for a not-found
+// error. Returns "" when no useful partial match exists.
+func buildNotFoundDetail(contentLines, searchLines []string) string {
+	if len(searchLines) == 0 || len(searchLines) > maxSearchLinesForDiagnostic {
+		return ""
+	}
+	pm := findBestPartialMatch(contentLines, searchLines)
+	// diffIdx == -1 means findBestPartialMatch never updated best, so
+	// no window had any matching lines. Check if any individual search
+	// line appears anywhere in the file before giving up.
+	if pm.matched == 0 && pm.diffIdx == -1 {
+		// Check if any individual search line appears anywhere in the file.
+		for _, sLine := range searchLines {
+			sContent, _ := splitEnding(sLine)
+			for _, cLine := range contentLines {
+				cContent, _ := splitEnding(cLine)
+				if strings.TrimSpace(sContent) == strings.TrimSpace(cContent) {
+					// At least one line found; fall through to show the partial match.
+					goto showPartial
+				}
+			}
+		}
+		// No single search line found anywhere in the file.
+		return "No line of the search string was found anywhere in the file. The file may have changed since your last read."
+	}
+showPartial:
+	var b strings.Builder
+	_, _ = fmt.Fprintf(&b, "Closest match: file lines %d-%d, %d/%d search lines matched.",
+		pm.fileLineStart+1, pm.fileLineStart+pm.total, pm.matched, pm.total)
+	if pm.diffIdx >= 0 && pm.searchLine != "" {
+		hint := unicodeCountHint(pm.searchLine, pm.fileLine)
+		_, _ = fmt.Fprintf(&b, " First difference at search line %d: %s.",
+			pm.diffIdx+1, hint)
+		// Cap total detail at ~500 chars.
+		detail := b.String()
+		if len(detail) > 500 {
+			return detail[:497] + "..."
+		}
+	}
+	return b.String()
+}
+
+// byteMatchLineNumbers returns the 1-based line numbers of the start
+// of each non-overlapping occurrence of search in content.
+func byteMatchLineNumbers(content, search string) []int {
+	var nums []int
+	lineNum := 1
+	for i := 0; i < len(content); {
+		if strings.HasPrefix(content[i:], search) {
+			nums = append(nums, lineNum)
+			for _, c := range []byte(search) {
+				if c == '\n' {
+					lineNum++
+				}
+			}
+			i += len(search)
+			continue
+		}
+		if content[i] == '\n' {
+			lineNum++
+		}
+		i++
+	}
+	return nums
+}
+
 // fuzzyReplace attempts to find `search` inside `content` and replace it
 // with `replace`. It uses a cascading match strategy inspired by
 // openai/codex's apply_patch:
@@ -1150,11 +1336,20 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 		}
 		count := strings.Count(content, search)
 		if count > 1 {
-			return "", xerrors.Errorf("search string matches %d occurrences "+
-				"(expected exactly 1). Include more surrounding "+
-				"context to make the match unique, or set "+
-				"replace_all to true", count)
+			lineNums := byteMatchLineNumbers(content, search)
+			numStrs := make([]string, len(lineNums))
+			for i, n := range lineNums {
+				numStrs[i] = strconv.Itoa(n)
+			}
+			return "", &fuzzyError{
+				msg: fmt.Sprintf("search string matches %d occurrences "+
+					"(expected exactly 1). Include more surrounding "+
+					"context to make the match unique, or set "+
+					"replace_all to true", count),
+				detail: fmt.Sprintf("Matched at file lines: %s.", strings.Join(numStrs, ", ")),
+			}
 		}
+
 		// Exactly one match.
 		return strings.Replace(content, search, pass1Replace, 1), nil
 	}
@@ -1192,9 +1387,13 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 		return result, err
 	}
 
-	return "", xerrors.New("search string not found in file. Verify the search " +
+	// All three passes failed. Run the diagnostic scanner to build
+	// a detail string that helps the caller identify what's wrong.
+	const notFoundMsg = "search string not found in file. Verify the search " +
 		"string matches the file content exactly, including whitespace " +
-		"and indentation")
+		"and indentation"
+	detail := buildNotFoundDetail(contentLines, searchLines)
+	return "", &fuzzyError{msg: notFoundMsg, detail: detail}
 }
 
 // seekLines scans contentLines looking for a contiguous subsequence that matches
@@ -1219,12 +1418,13 @@ outer:
 	return 0, 0, false
 }
 
-// countLineMatches counts how many non-overlapping contiguous
-// subsequences of contentLines match searchLines according to eq.
-func countLineMatches(contentLines, searchLines []string, eq func(a, b string) bool) int {
-	count := 0
+// countLineMatches returns the 0-based start indices of all
+// non-overlapping contiguous subsequences of contentLines that match
+// searchLines according to eq.
+func countLineMatches(contentLines, searchLines []string, eq func(a, b string) bool) []int {
+	var positions []int
 	if len(searchLines) == 0 || len(searchLines) > len(contentLines) {
-		return count
+		return positions
 	}
 outer:
 	for i := 0; i <= len(contentLines)-len(searchLines); i++ {
@@ -1233,10 +1433,10 @@ outer:
 				continue outer
 			}
 		}
-		count++
+		positions = append(positions, i)
 		i += len(searchLines) - 1 // skip past this match
 	}
-	return count
+	return positions
 }
 
 // fuzzyReplaceLines handles fuzzy matching passes (2 and 3) for
@@ -1262,12 +1462,21 @@ func fuzzyReplaceLines(
 	}
 
 	if !replaceAll {
-		if count := countLineMatches(contentLines, searchLines, eq); count > 1 {
-			return "", true, xerrors.Errorf("search string matches %d occurrences "+
-				"(expected exactly 1). Include more surrounding "+
-				"context to make the match unique, or set "+
-				"replace_all to true", count)
+		positions := countLineMatches(contentLines, searchLines, eq)
+		if len(positions) > 1 {
+			numStrs := make([]string, len(positions))
+			for i, p := range positions {
+				numStrs[i] = strconv.Itoa(p + 1) // 1-based
+			}
+			return "", true, &fuzzyError{
+				msg: fmt.Sprintf("search string matches %d occurrences "+
+					"(expected exactly 1). Include more surrounding "+
+					"context to make the match unique, or set "+
+					"replace_all to true", len(positions)),
+				detail: fmt.Sprintf("Matched at file lines: %s.", strings.Join(numStrs, ", ")),
+			}
 		}
+
 		var b strings.Builder
 		for _, l := range contentLines[:start] {
 			_, _ = b.WriteString(l)

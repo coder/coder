@@ -3182,3 +3182,74 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, string(data))
 }
+
+// TestFuzzyReplace_Diagnostic_BoxDrawingCountMismatch is a regression
+// test for the failure mode documented in codagt-312/C-edit-files-gaps.md.
+// When a search string is otherwise correct but contains the wrong count of
+// a Unicode box-drawing character (U+2500), the not-found error must
+// include a Detail hint that names the specific codepoint and the count
+// discrepancy so the caller can correct the search string without guessing.
+func TestFuzzyReplace_Diagnostic_BoxDrawingCountMismatch(t *testing.T) {
+	t.Parallel()
+
+	// 37 and 32 U+2500 box-drawing dashes, matching the counts seen in the
+	// real production failure (file had 37, search used 32).
+	dashes37 := strings.Repeat("─", 37) // 37 × U+2500
+	dashes32 := strings.Repeat("─", 32) // 32 × U+2500
+
+	// File contains 37 box-drawing characters in the separator comment.
+	content := "import React from \"react\";\n" +
+		"\n" +
+		"function Comp() {\n" +
+		"  return (\n" +
+		"    <>\n" +
+		"      {/* " + dashes37 + " */}\n" +
+		"      <div />\n" +
+		"    </>\n" +
+		"  );\n" +
+		"}\n"
+
+	// Search uses 32 box-drawing characters instead of 37. Three of the
+	// four search lines match exactly; only the separator line differs.
+	search := "  return (\n" +
+		"    <>\n" +
+		"      {/* " + dashes32 + " */}\n" +
+		"      <div />\n"
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "box-drawing-mismatch")
+	require.NoError(t, afero.WriteFile(fs, path, []byte(content), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{{
+			Path: path,
+			Edits: []workspacesdk.FileEdit{{
+				Search:  search,
+				Replace: search, // replace equals search; we only care about the error
+			}},
+		}},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+	got := &codersdk.Error{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+	require.ErrorContains(t, got, "search string not found")
+
+	// The Detail field must identify the specific codepoint so that the
+	// caller can correct the count rather than concluding that Unicode is
+	// broken or that the tool cannot handle such characters.
+	require.Contains(t, got.Detail, "U+2500",
+		"Detail should identify the box-drawing codepoint; got Detail=%q", got.Detail)
+}

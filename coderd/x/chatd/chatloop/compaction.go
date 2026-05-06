@@ -27,22 +27,46 @@ const (
 	// failing the compaction.
 	compactionDebugCreateRunTimeout = 5 * time.Second
 
+	// defaultCompactionSummaryPrompt instructs the summarizing model to
+	// produce a structured document with typed sections. The schema
+	// separates user-stated decisions (which must include a quote) from
+	// model-inferred notes (which expire after N compaction cycles).
+	// This prevents model workarounds from being promoted to standing
+	// policy across compactions and model swaps.
 	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
-		"Summarize the conversation so a new assistant can seamlessly " +
+		"Summarize the conversation so a different model instance can seamlessly " +
 		"continue the work in progress.\n\n" +
-		"Include:\n" +
-		"- The user's overall goal and current task\n" +
-		"- Key decisions made and their rationale\n" +
-		"- Concrete technical details: file paths, function names, " +
-		"commands, APIs, and configurations\n" +
-		"- Errors encountered and how they were resolved\n" +
-		"- Current state of the work: what is DONE, what is IN PROGRESS, " +
-		"and what REMAINS to be done\n" +
-		"- The specific action the assistant was performing or about to " +
-		"perform when this summary was triggered\n\n" +
-		"Be dense and factual. Every sentence should convey essential " +
-		"context for continuation. Do not include pleasantries or " +
-		"conversational filler."
+		"Use EXACTLY these sections in this order:\n\n" +
+		"## INVARIANTS\n" +
+		"Verifiable, stable facts: file paths, package manager, framework, " +
+		"repo location, validation command, git author. " +
+		"Do NOT include tool-usage prescriptions here.\n\n" +
+		"## USER_DECISIONS\n" +
+		"ONLY things the user explicitly stated. " +
+		"Each entry MUST include a verbatim or close-paraphrase quote and a timestamp. " +
+		"If you cannot find a user quote for something, it does not belong here.\n\n" +
+		"## COMPLETED_TASKS\n" +
+		"What is provably done; include how it was verified " +
+		"(e.g., tests passed, grep confirmed).\n\n" +
+		"## PENDING_TASKS\n" +
+		"What remains. No line numbers unless from a command run in this session.\n\n" +
+		"## STATE_SNAPSHOT\n" +
+		"One-shot facts at compaction time (file sizes, build status, last commit). " +
+		"These will drift. Prefix each with \"at compaction time:\".\n\n" +
+		"## MODEL_NOTES\n" +
+		"Provisional observations from this session. Tag each (EXPIRES: N) where N " +
+		"is the number of compaction cycles it should survive without re-validation. " +
+		"Use N=3 for tool-failure observations, N=1 for highly session-specific details. " +
+		"If the previous summary had MODEL_NOTES, carry each forward only if you saw " +
+		"direct evidence of it in recent messages; otherwise decrement N by 1 and drop " +
+		"at 0. NEVER escalate a model_note to USER_DECISIONS or INVARIANTS.\n\n" +
+		"CRITICAL RULES:\n" +
+		"- Do NOT write \"All X via Y\" or \"Always use Y for X\" in any section unless " +
+		"the user explicitly said those words. Use MODEL_NOTES with N=1 instead.\n" +
+		"- Do NOT write in first person. Write \"the previous model\" not \"I\".\n" +
+		"- Do NOT broaden the scope of a model_note from the previous summary. " +
+		"If it said \"failed for path X\", do not write \"always fails for this task\".\n" +
+		"- Errors the previous model encountered are HISTORY, not POLICY."
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. The assistant was actively working when " +
 		"the context was compacted. Continue the work described below:"
