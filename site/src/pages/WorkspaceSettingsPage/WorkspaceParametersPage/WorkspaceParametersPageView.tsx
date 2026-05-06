@@ -21,7 +21,7 @@ import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
-type WorkspaceParametersPageViewExperimentalProps = {
+type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	autofillParameters: AutofillBuildParameter[];
 	parameters: PreviewParameter[];
@@ -37,8 +37,8 @@ type WorkspaceParametersPageViewExperimentalProps = {
 	templateVersionId: string | undefined;
 };
 
-export const WorkspaceParametersPageViewExperimental: FC<
-	WorkspaceParametersPageViewExperimentalProps
+export const WorkspaceParametersPageView: FC<
+	WorkspaceParametersPageViewProps
 > = ({
 	workspace,
 	autofillParameters,

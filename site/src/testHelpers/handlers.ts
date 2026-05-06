@@ -113,6 +113,16 @@ export const handlers = [
 			return HttpResponse.json([]);
 		},
 	),
+	http.post(
+		"/api/v2/templateversions/:templateVersionId/dynamic-parameters/evaluate",
+		() => {
+			return HttpResponse.json({
+				id: 0,
+				diagnostics: [],
+				parameters: [],
+			});
+		},
+	),
 	http.get("/api/v2/templateversions/:templateVersionId/external-auth", () => {
 		return HttpResponse.json([]);
 	}),

@@ -6,12 +6,10 @@ import type {
 	TemplateVersion,
 	Workspace,
 	WorkspaceBuild,
-	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { UpdateBuildParametersDialog } from "#/modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
-import { UpdateBuildParametersDialogExperimental } from "#/modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 
 type UseWorkspaceUpdateOptions = {
 	workspace: Workspace;
@@ -52,11 +50,10 @@ export const useWorkspaceUpdate = ({
 		setIsConfirmingUpdate(true);
 	};
 
-	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
+	const confirmUpdate = () => {
 		updateWorkspaceMutation.mutate({
-			buildParameters,
-			isDynamicParametersEnabled:
-				!workspace.template_use_classic_parameter_flow,
+			buildParameters: [],
+			isDynamicParametersEnabled: true,
 		});
 		setIsConfirmingUpdate(false);
 	};
@@ -76,14 +73,6 @@ export const useWorkspaceUpdate = ({
 				error: updateWorkspaceMutation.error,
 				onClose: () => {
 					updateWorkspaceMutation.reset();
-				},
-				onUpdate: (buildParameters: WorkspaceBuildParameter[]) => {
-					if (
-						updateWorkspaceMutation.error instanceof MissingBuildParameters ||
-						updateWorkspaceMutation.error instanceof ParameterValidationError
-					) {
-						confirmUpdate(buildParameters);
-					}
 				},
 			},
 		},
@@ -146,7 +135,6 @@ type MissingBuildParametersDialogProps = {
 	workspace: Workspace;
 	error: unknown;
 	onClose: () => void;
-	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 };
 
 const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
@@ -154,22 +142,14 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	error,
 	...dialogProps
 }) => {
-	const missedParameters =
-		error instanceof MissingBuildParameters ? error.parameters : [];
 	const versionId =
 		error instanceof ParameterValidationError ? error.versionId : undefined;
 	const isOpen =
 		error instanceof MissingBuildParameters ||
 		error instanceof ParameterValidationError;
 
-	return workspace.template_use_classic_parameter_flow ? (
+	return (
 		<UpdateBuildParametersDialog
-			missedParameters={missedParameters}
-			open={isOpen}
-			{...dialogProps}
-		/>
-	) : (
-		<UpdateBuildParametersDialogExperimental
 			validations={
 				error instanceof ParameterValidationError ? error.validations : []
 			}

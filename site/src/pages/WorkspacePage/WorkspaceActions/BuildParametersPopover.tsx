@@ -1,16 +1,8 @@
-import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { richParameters } from "#/api/queries/templates";
-import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
-import type {
-	TemplateVersionParameter,
-	Workspace,
-	WorkspaceBuildParameter,
-} from "#/api/typesGenerated";
+import type { TemplateVersionParameter, Workspace } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
-import { FormFields } from "#/components/Form/Form";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	HelpPopoverLink,
@@ -25,18 +17,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { docs } from "#/utils/docs";
-import { getFormHelpers } from "#/utils/formUtils";
-import {
-	type AutofillBuildParameter,
-	getInitialRichParameterValues,
-} from "#/utils/richParameters";
 
 interface BuildParametersPopoverProps {
 	workspace: Workspace;
 	disabled?: boolean;
-	onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 	label: string;
 }
 
@@ -44,19 +29,15 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 	workspace,
 	disabled,
 	label,
-	onSubmit,
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const build = workspace.latest_build;
 	const { data: templateVersionParameters } = useQuery(
 		richParameters(build.template_version_id),
 	);
-	const { data: buildParameters } = useQuery(
-		workspaceBuildParameters(build.id),
+	const ephemeralParameters = templateVersionParameters?.filter(
+		(p) => p.ephemeral,
 	);
-	const ephemeralParameters = templateVersionParameters
-		? templateVersionParameters.filter((p) => p.ephemeral)
-		: undefined;
 
 	return (
 		<Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -77,9 +58,6 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				<BuildParametersPopoverContent
 					workspace={workspace}
 					ephemeralParameters={ephemeralParameters}
-					buildParameters={buildParameters}
-					onSubmit={onSubmit}
-					setIsOpen={setIsOpen}
 				/>
 			</PopoverContent>
 		</Popover>
@@ -88,163 +66,68 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 
 interface BuildParametersPopoverContentProps {
 	workspace: Workspace;
-	ephemeralParameters?: TemplateVersionParameter[];
-	buildParameters?: WorkspaceBuildParameter[];
-	onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
-	setIsOpen: (newOpen: boolean) => void;
+	ephemeralParameters: TemplateVersionParameter[] | undefined;
 }
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 	workspace,
 	ephemeralParameters,
-	buildParameters,
-	onSubmit,
-	setIsOpen,
 }) => {
-	if (
-		!workspace.template_use_classic_parameter_flow &&
-		ephemeralParameters &&
-		ephemeralParameters.length > 0
-	) {
+	if (!ephemeralParameters) {
+		return <Loader />;
+	}
+
+	if (ephemeralParameters.length === 0) {
 		return (
-			<div className="flex flex-col gap-4 p-5">
-				<p className="m-0 text-sm text-content-secondary">
-					This workspace has ephemeral parameters which may use a temporary
-					value on workspace start. Configure the following parameters in
-					workspace settings.
-				</p>
-
-				<div>
-					<ul className="list-none pl-3 space-y-2">
-						{ephemeralParameters.map((param) => (
-							<li key={param.name}>
-								<p className="text-content-primary m-0 font-bold">
-									{param.display_name || param.name}
-								</p>
-								{param.description && (
-									<p className="m-0 text-sm text-content-secondary">
-										{param.description}
-									</p>
-								)}
-							</li>
-						))}
-					</ul>
-				</div>
-
-				<Link
-					href={`/@${workspace.owner_name}/${workspace.name}/settings/parameters`}
-					className="self-start"
-				>
-					Go to workspace parameters
-				</Link>
+			<div className="p-5 text-content-secondary">
+				<HelpPopoverTitle>Build Options</HelpPopoverTitle>
+				<HelpPopoverText>
+					This template has no ephemeral build options.
+				</HelpPopoverText>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink
+						href={docs(
+							"/admin/templates/extending-templates/parameters#ephemeral-parameters",
+						)}
+					>
+						Read the docs
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
 			</div>
 		);
 	}
 
 	return (
-		<>
-			{buildParameters && ephemeralParameters ? (
-				ephemeralParameters.length > 0 ? (
-					<div className="divide-y">
-						<div className="p-5 text-content-secondary">
-							<HelpPopoverTitle>Build Options</HelpPopoverTitle>
-							<HelpPopoverText>
-								These parameters only apply for a single workspace start.
-							</HelpPopoverText>
-						</div>
-						<div className="border-0 border-solid p-5">
-							<Form
-								onSubmit={(buildParameters) => {
-									onSubmit(buildParameters);
-									setIsOpen(false);
-								}}
-								ephemeralParameters={ephemeralParameters}
-								buildParameters={buildParameters.map(
-									(p): AutofillBuildParameter => ({
-										...p,
-										source: "active_build",
-									}),
-								)}
-							/>
-						</div>
-					</div>
-				) : (
-					<div className="p-5 text-content-secondary">
-						<HelpPopoverTitle>Build Options</HelpPopoverTitle>
-						<HelpPopoverText>
-							This template has no ephemeral build options.
-						</HelpPopoverText>
-						<HelpPopoverLinksGroup>
-							<HelpPopoverLink
-								href={docs(
-									"/admin/templates/extending-templates/parameters#ephemeral-parameters",
-								)}
-							>
-								Read the docs
-							</HelpPopoverLink>
-						</HelpPopoverLinksGroup>
-					</div>
-				)
-			) : (
-				<Loader />
-			)}
-		</>
-	);
-};
+		<div className="flex flex-col gap-4 p-5">
+			<p className="m-0 text-sm text-content-secondary">
+				This workspace has ephemeral parameters which may use a temporary value
+				on workspace start. Configure the following parameters in workspace
+				settings.
+			</p>
 
-interface FormProps {
-	ephemeralParameters: TemplateVersionParameter[];
-	buildParameters: AutofillBuildParameter[];
-	onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
-}
-
-const Form: FC<FormProps> = ({
-	ephemeralParameters,
-	buildParameters,
-	onSubmit,
-}) => {
-	const form = useFormik({
-		initialValues: {
-			rich_parameter_values: getInitialRichParameterValues(
-				ephemeralParameters,
-				buildParameters,
-			),
-		},
-		onSubmit: (values) => {
-			onSubmit(values.rich_parameter_values);
-		},
-	});
-	const getFieldHelpers = getFormHelpers(form);
-
-	return (
-		<form onSubmit={form.handleSubmit} data-testid="build-parameters-form">
-			<FormFields>
-				{ephemeralParameters.map((parameter, index) => {
-					return (
-						<RichParameterInput
-							{...getFieldHelpers(`rich_parameter_values[${index}].value`)}
-							key={parameter.name}
-							parameter={parameter}
-							size="small"
-							onChange={async (value) => {
-								await form.setFieldValue(`rich_parameter_values[${index}]`, {
-									name: parameter.name,
-									value: value,
-								});
-							}}
-						/>
-					);
-				})}
-			</FormFields>
-			<div className="pb-2 pt-6">
-				<Button
-					data-testid="build-parameters-submit"
-					type="submit"
-					className="w-full"
-				>
-					Build workspace
-				</Button>
+			<div>
+				<ul className="list-none pl-3 space-y-2">
+					{ephemeralParameters.map((param) => (
+						<li key={param.name}>
+							<p className="text-content-primary m-0 font-bold">
+								{param.display_name || param.name}
+							</p>
+							{param.description && (
+								<p className="m-0 text-sm text-content-secondary">
+									{param.description}
+								</p>
+							)}
+						</li>
+					))}
+				</ul>
 			</div>
-		</form>
+
+			<Link
+				href={`/@${workspace.owner_name}/${workspace.name}/settings/parameters`}
+				className="self-start"
+			>
+				Go to workspace parameters
+			</Link>
+		</div>
 	);
 };

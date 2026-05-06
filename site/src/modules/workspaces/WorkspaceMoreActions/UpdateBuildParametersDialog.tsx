@@ -1,141 +1,71 @@
-import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
-import { useFormik } from "formik";
 import type { FC } from "react";
-import * as Yup from "yup";
-import type {
-	TemplateVersionParameter,
-	WorkspaceBuildParameter,
-} from "#/api/typesGenerated";
+import { useNavigate } from "react-router";
+import type { FieldError } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
-import { FormFields, VerticalForm } from "#/components/Form/Form";
-import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
-import { getFormHelpers } from "#/utils/formUtils";
 import {
-	getInitialRichParameterValues,
-	useValidationSchemaForRichParameters,
-} from "#/utils/richParameters";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 
-type UpdateBuildParametersDialogProps = DialogProps & {
+type UpdateBuildParametersDialogProps = {
+	open: boolean;
 	onClose: () => void;
-	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
-	missedParameters: TemplateVersionParameter[];
+	validations: FieldError[];
+	workspaceOwnerName: string;
+	workspaceName: string;
+	templateVersionId: string | undefined;
 };
 
 export const UpdateBuildParametersDialog: FC<
 	UpdateBuildParametersDialogProps
-> = ({ missedParameters, onUpdate, ...dialogProps }) => {
-	const form = useFormik({
-		initialValues: {
-			rich_parameter_values: getInitialRichParameterValues(missedParameters),
-		},
-		validationSchema: Yup.object({
-			rich_parameter_values:
-				useValidationSchemaForRichParameters(missedParameters),
-		}),
-		onSubmit: (values) => {
-			onUpdate(values.rich_parameter_values);
-		},
-		enableReinitialize: true,
-	});
-	const getFieldHelpers = getFormHelpers(form);
+> = ({
+	validations,
+	open,
+	onClose,
+	workspaceOwnerName,
+	workspaceName,
+	templateVersionId,
+}) => {
+	const navigate = useNavigate();
+
+	const handleGoToParameters = () => {
+		onClose();
+		navigate(
+			`/@${workspaceOwnerName}/${workspaceName}/settings/parameters?templateVersionId=${templateVersionId}`,
+		);
+	};
 
 	return (
-		<Dialog
-			{...dialogProps}
-			scroll="body"
-			aria-labelledby="update-build-parameters-title"
-			maxWidth="xs"
-			data-testid="dialog"
-		>
-			<DialogTitle
-				id="update-build-parameters-title"
-				classes={{ root: classNames.root }}
-			>
-				Workspace parameters
-			</DialogTitle>
-			<DialogContent css={styles.content}>
-				<DialogContentText className="m-0">
-					This template has new parameters that must be configured to complete
-					the update
-				</DialogContentText>
-				<VerticalForm
-					css={styles.form}
-					onSubmit={form.handleSubmit}
-					id="updateParameters"
-				>
-					{missedParameters && (
-						<FormFields>
-							{missedParameters.map((parameter, index) => {
-								return (
-									<RichParameterInput
-										{...getFieldHelpers(
-											`rich_parameter_values[${index}].value`,
-										)}
-										key={parameter.name}
-										parameter={parameter}
-										onChange={async (value) => {
-											await form.setFieldValue(
-												`rich_parameter_values.${index}`,
-												{
-													name: parameter.name,
-													value: value,
-												},
-											);
-										}}
-									/>
-								);
-							})}
-						</FormFields>
-					)}
-				</VerticalForm>
+		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Update workspace parameters</DialogTitle>
+					<DialogDescription>
+						This template has{" "}
+						<strong className="text-content-primary">
+							{validations.length} parameter
+							{validations.length === 1 ? "" : "s"}
+						</strong>{" "}
+						that must be configured to complete the update.
+					</DialogDescription>
+					<DialogDescription>
+						Would you like to go to the workspace parameters page to review and
+						update these parameters before continuing?
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button onClick={onClose} variant="outline">
+						Cancel
+					</Button>
+					<Button onClick={handleGoToParameters}>
+						Go to workspace parameters
+					</Button>
+				</DialogFooter>
 			</DialogContent>
-			<DialogActions disableSpacing css={styles.dialogActions}>
-				<Button
-					variant="outline"
-					className="w-full"
-					type="button"
-					onClick={dialogProps.onClose}
-				>
-					Cancel
-				</Button>
-				<Button className="w-full" type="submit" form="updateParameters">
-					Update parameters
-				</Button>
-			</DialogActions>
 		</Dialog>
 	);
 };
-
-const classNames = {
-	root: css`
-		padding: 24px 40px;
-
-		& h2 {
-			font-size: 20px;
-			font-weight: 400;
-		}
-	`,
-};
-
-const styles = {
-	content: {
-		padding: "0 40px",
-	},
-
-	form: {
-		paddingTop: 32,
-	},
-
-	dialogActions: {
-		padding: 40,
-		flexDirection: "column",
-		gap: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

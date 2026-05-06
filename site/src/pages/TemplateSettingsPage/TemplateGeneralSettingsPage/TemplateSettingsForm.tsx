@@ -21,13 +21,11 @@ import {
 	HorizontalForm,
 } from "#/components/Form/Form";
 import { IconField } from "#/components/IconField/IconField";
-import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	StackLabel,
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
-import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -49,7 +47,6 @@ export const validationSchema = Yup.object({
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
-	use_classic_parameter_flow: Yup.boolean(),
 	disable_module_cache: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
@@ -94,7 +91,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			deprecation_message: template.deprecation_message,
 			disable_everyone_group_access: false,
 			max_port_share_level: template.max_port_share_level,
-			use_classic_parameter_flow: template.use_classic_parameter_flow,
 			cors_behavior: template.cors_behavior,
 			disable_module_cache: template.disable_module_cache,
 		},
@@ -221,47 +217,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 											<span>Premium license required to be enabled.</span>
 										</div>
 									)}
-								</StackLabelHelperText>
-							</StackLabel>
-						}
-					/>
-					<FormControlLabel
-						control={
-							<Checkbox
-								size="small"
-								id="use_classic_parameter_flow"
-								name="use_classic_parameter_flow"
-								checked={!form.values.use_classic_parameter_flow}
-								onChange={(event) =>
-									form.setFieldValue(
-										"use_classic_parameter_flow",
-										!event.currentTarget.checked,
-									)
-								}
-								disabled={false}
-							/>
-						}
-						label={
-							<StackLabel>
-								<span className="flex flex-row gap-2">
-									Enable dynamic parameters for workspace creation (recommended)
-								</span>
-								<StackLabelHelperText>
-									<div>
-										The dynamic workspace form allows you to design your
-										template with additional form types and identity-aware
-										conditional parameters. This is the default option for new
-										templates. The classic workspace creation flow will be
-										deprecated in a future release.
-									</div>
-									<Link
-										className="text-xs"
-										href={docs(
-											"/admin/templates/extending-templates/dynamic-parameters",
-										)}
-									>
-										Learn more
-									</Link>
 								</StackLabelHelperText>
 							</StackLabel>
 						}
