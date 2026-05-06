@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { Link } from "react-router";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
-import { pageTitle } from "#/utils/page";
+import { CoderIcon } from "../../components/Icons/CoderIcon";
+import { pageTitle } from "../../utils/page";
 import { LunarLander } from "./LunarLander";
 
 const CoderCupPage: FC = () => {
