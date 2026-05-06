@@ -608,7 +608,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<span
 													aria-busy={isRegeneratingThisChat}
 													className={cn(
-														"block flex-1 truncate text-[13px] text-content-primary",
+														"block flex-1 truncate text-sm text-content-primary",
 														isActive && "font-medium",
 														isRegeneratingThisChat && "animate-pulse",
 													)}
@@ -627,7 +627,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											<div className="flex min-w-0 items-center gap-1.5">
 												{hasLinkedDiffStatus && hasLineStats && (
 													<span
-														className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+														className="inline-flex shrink-0 items-center gap-0.5 text-sm leading-4 tabular-nums"
 														title={`${filesChangedLabel}, +${additions} -${deletions}`}
 													>
 														<span className="text-git-added-bright">
@@ -640,7 +640,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												)}
 												<div
 													className={cn(
-														"min-w-0 overflow-hidden text-[13px] leading-4",
+														"min-w-0 overflow-hidden text-sm leading-5",
 														errorReason
 															? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
 															: "truncate text-content-secondary",
@@ -654,7 +654,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</>
 								)}
 							</NavLink>
-							<div className="relative mt-1 flex shrink-0 items-center justify-end gap-1.5">
+							<div className="relative flex shrink-0 items-start justify-end gap-1.5 pt-1">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
@@ -663,7 +663,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								) : (
 									<>
 										{/* Single status indicator, priority: spinner > unread > error > time */}
-										<span className="flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										<span className="flex items-center justify-end pt-0.5 [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 											{isMainRunning || hasRunningChildren ? (
 												<div className="flex h-4 w-4 items-center justify-center">
 													{isMainRunning && hasRunningChildren ? (
@@ -692,7 +692,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											) : chat.status === "error" ? (
 												<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
 											) : (
-												<span className="text-xs text-content-secondary/50 tabular-nums">
+												<span className="text-sm text-content-secondary/50 tabular-nums">
 													{shortRelativeTime(chat.updated_at)}
 												</span>
 											)}
@@ -748,7 +748,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							<NavLink
 								to={{ pathname: `/agents/${chat.id}`, search: location.search }}
 								className={cn(
-									"min-w-0 flex-1 truncate py-1 text-[13px] text-content-primary no-underline",
+									"min-w-0 flex-1 truncate py-1 text-sm text-content-primary no-underline",
 									isActiveChat && "font-medium",
 								)}
 							>
@@ -763,7 +763,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 							<span
 								className={cn(
-									"shrink-0 truncate text-[13px]",
+									"shrink-0 truncate text-sm",
 									layout === "large" ? "w-[140px]" : "w-[100px]",
 									errorReason
 										? "text-content-destructive"
@@ -780,7 +780,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 							{hasLinkedDiffStatus && hasLineStats ? (
 								<span
-									className="inline-flex shrink-0 items-center gap-0.5 text-[13px] tabular-nums"
+									className="inline-flex shrink-0 items-center gap-0.5 text-sm tabular-nums"
 									title={`${filesChangedLabel}, +${additions} -${deletions}`}
 								>
 									<span className="text-git-added-bright">+{additions}</span>
@@ -890,7 +890,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											return (
 												<div
 													key={child.id}
-													className="flex items-center gap-2 py-0.5 text-[13px]"
+													className="flex items-center gap-2 py-0.5 text-sm"
 												>
 													<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
 														<span className="text-git-added-bright">
@@ -929,7 +929,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											return (
 												<div
 													key={child.id}
-													className="flex items-center gap-2 py-0.5 text-[13px]"
+													className="flex items-center gap-2 py-0.5 text-sm"
 												>
 													<NavLink
 														to={{
