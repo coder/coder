@@ -627,10 +627,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							Rename chat
 						</Item>
 					)}
-					{layout === "narrow" && hasChildren && (
+					{hasChildren && (
 						<Item onSelect={() => toggleExpanded(chatID)}>
 							<BoxesIcon className="h-3.5 w-3.5" />
-							Show subagents
+							{isExpanded ? "Hide subagents" : "Show subagents"}
 						</Item>
 					)}
 					<Separator />
