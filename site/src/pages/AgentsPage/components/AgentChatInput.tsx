@@ -3,9 +3,9 @@ import {
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
-	ImageIcon,
 	MicIcon,
 	MonitorIcon,
+	PaperclipIcon,
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
@@ -54,6 +54,10 @@ import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import {
+	chatAttachmentAcceptAttribute,
+	isChatAttachmentFile,
+} from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
 import {
 	AttachmentPreview,
@@ -118,9 +122,13 @@ interface AgentChatInputProps {
 		id: string;
 		name: string;
 		owner_name: string;
+		organization_id: string;
 	}>;
 	selectedWorkspaceId?: string | null;
 	onWorkspaceChange?: (id: string | null) => void;
+	// Organization ID of the current chat. When set, workspaces from
+	// other organizations are shown as disabled in the picker.
+	chatOrganizationId?: string;
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -149,7 +157,11 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
+	onTextPreview?: (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
@@ -290,6 +302,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	workspaceOptions,
 	selectedWorkspaceId,
 	onWorkspaceChange,
+	chatOrganizationId,
 	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
@@ -326,6 +339,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
 		null,
 	);
+	const [previewTextMediaType, setPreviewTextMediaType] = useState<
+		string | null
+	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
 		"main",
@@ -514,16 +530,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		onRemoveAttachment?.(file);
 	};
 
-	const handleTextPreview = (content: string, fileName: string) => {
+	const handleTextPreview = (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => {
 		if (onTextPreview) {
-			onTextPreview(content, fileName);
+			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
+			setPreviewTextMediaType(mediaType ?? null);
 		}
 	};
 
-	// Drag-and-drop support for image files.
+	// Drag-and-drop support for any chat-supported file type.
 	const [isDragging, setIsDragging] = useState(false);
 
 	const handleDragOver = (e: React.DragEvent) => {
@@ -543,11 +564,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const images = Array.from(e.dataTransfer.files).filter((f) =>
-			f.type.startsWith("image/"),
+		const attachable = Array.from(e.dataTransfer.files).filter(
+			isChatAttachmentFile,
 		);
-		if (images.length > 0) {
-			onAttach(images);
+		if (attachable.length > 0) {
+			onAttach(attachable);
 		}
 	};
 
@@ -720,8 +741,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			<div
 				ref={setComposerElement}
+				data-testid="chat-composer"
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -783,7 +805,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
 					aria-label="Chat message"
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
@@ -814,13 +836,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
-				{/* Hidden file input for image attachment */}
+				{/* Hidden file input for attaching any server-accepted file type. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
 						multiple
-						accept="image/*"
+						accept={chatAttachmentAcceptAttribute}
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
@@ -865,35 +887,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											<span>Back</span>
 										</button>
 										<Separator className="my-1" />
-										<Command loop>
-											<CommandInput
-												placeholder="Search workspaces..."
-												className="text-xs"
-											/>
-											<CommandList>
-												<CommandEmpty className="text-xs">
-													No workspaces found
-												</CommandEmpty>
-												<CommandGroup>
-													{workspaceOptions?.map((workspace) => (
-														<CommandItem
-															className="text-xs font-normal"
-															key={workspace.id}
-															value={workspace.name}
-															onSelect={() => {
-																onWorkspaceChange?.(workspace.id);
-																setPlusMenuOpen(false);
-															}}
-														>
-															{workspace.name}
-															{selectedWorkspaceId === workspace.id && (
-																<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-															)}
-														</CommandItem>
-													))}
-												</CommandGroup>
-											</CommandList>
-										</Command>
+										<WorkspacePickerList
+											workspaceOptions={workspaceOptions}
+											selectedWorkspaceId={selectedWorkspaceId}
+											chatOrganizationId={chatOrganizationId}
+											onSelect={(id) => {
+												onWorkspaceChange?.(id);
+												setPlusMenuOpen(false);
+											}}
+										/>
 									</div>
 								) : (
 									<>
@@ -906,8 +908,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												}}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 											>
-												<ImageIcon className="size-3.5 shrink-0" />
-												Attach image
+												<PaperclipIcon className="size-3.5 shrink-0" />
+												Attach file
 											</button>
 										)}
 										{onPlanModeToggle && (
@@ -966,36 +968,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														sideOffset={8}
 														className="w-64 p-0"
 													>
-														<Command loop>
-															<CommandInput
-																placeholder="Search workspaces..."
-																className="text-xs"
-															/>
-															<CommandList>
-																<CommandEmpty className="text-xs">
-																	No workspaces found
-																</CommandEmpty>
-																<CommandGroup>
-																	{workspaceOptions.map((workspace) => (
-																		<CommandItem
-																			className="text-xs font-normal"
-																			key={workspace.id}
-																			value={workspace.name}
-																			onSelect={() => {
-																				onWorkspaceChange(workspace.id);
-																				setWorkspacePickerOpen(false);
-																				setPlusMenuOpen(false);
-																			}}
-																		>
-																			{workspace.name}
-																			{selectedWorkspaceId === workspace.id && (
-																				<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-																			)}
-																		</CommandItem>
-																	))}
-																</CommandGroup>
-															</CommandList>
-														</Command>
+														<WorkspacePickerList
+															workspaceOptions={workspaceOptions}
+															selectedWorkspaceId={selectedWorkspaceId}
+															chatOrganizationId={chatOrganizationId}
+															onSelect={(id) => {
+																onWorkspaceChange(id);
+																setWorkspacePickerOpen(false);
+																setPlusMenuOpen(false);
+															}}
+														/>
 													</PopoverContent>
 												</Popover>
 											))}
@@ -1080,7 +1062,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							/>
 						)}
 						{planModeEnabled && (
-							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary md:inline-flex">
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
 								<PencilIcon className="size-3" />
 								Planning
 								{onPlanModeToggle && (
@@ -1099,7 +1081,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
 						{workspace && workspaceAgent && chatId && (
-							<span className="ml-1 md:ml-0">
+							<span className="ml-1 sm:ml-0">
 								<WorkspacePill
 									workspace={workspace}
 									agent={workspaceAgent}
@@ -1255,12 +1237,93 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<TextPreviewDialog
 					content={previewText}
 					fileName={previewTextFileName ?? undefined}
+					mediaType={previewTextMediaType ?? undefined}
 					onClose={() => {
 						setPreviewText(null);
 						setPreviewTextFileName(null);
+						setPreviewTextMediaType(null);
 					}}
 				/>
 			)}
 		</>
+	);
+};
+
+/**
+ * Shared workspace picker used by both the mobile and desktop
+ * "Attach workspace" menus. Workspaces from a different organization
+ * than the chat are rendered as disabled items with a tooltip.
+ */
+interface WorkspacePickerListProps {
+	workspaceOptions:
+		| ReadonlyArray<{
+				id: string;
+				name: string;
+				organization_id: string;
+		  }>
+		| undefined;
+	selectedWorkspaceId?: string | null;
+	chatOrganizationId?: string;
+	onSelect: (id: string) => void;
+}
+
+const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
+	workspaceOptions,
+	selectedWorkspaceId,
+	chatOrganizationId,
+	onSelect,
+}) => {
+	return (
+		<Command loop>
+			<CommandInput placeholder="Search workspaces..." className="text-xs" />
+			<CommandList>
+				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>
+				<CommandGroup>
+					{workspaceOptions?.map((workspace) => {
+						const isCrossOrg =
+							!!chatOrganizationId &&
+							workspace.organization_id !== chatOrganizationId;
+
+						const item = (
+							<CommandItem
+								className={cn(
+									"text-xs font-normal",
+									isCrossOrg &&
+										"cursor-not-allowed opacity-50 data-[disabled=true]:pointer-events-auto",
+								)}
+								key={workspace.id}
+								value={workspace.name}
+								disabled={isCrossOrg}
+								onSelect={() => {
+									if (!isCrossOrg) {
+										onSelect(workspace.id);
+									}
+								}}
+							>
+								{workspace.name}
+								{selectedWorkspaceId === workspace.id && (
+									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+								)}
+							</CommandItem>
+						);
+
+						if (isCrossOrg) {
+							return (
+								<Tooltip key={workspace.id}>
+									<TooltipTrigger asChild>
+										<div>{item}</div>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										Chat and workspace must be in the same organization
+									</TooltipContent>
+								</Tooltip>
+							);
+						}
+
+						return item;
+					})}
+				</CommandGroup>
+			</CommandList>
+		</Command>
 	);
 };

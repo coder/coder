@@ -6,8 +6,10 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	chatModelConfigs,
 	chatModels,
+	chatProviderConfigs,
 	createChat,
 	mcpServerConfigs,
+	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -18,14 +20,17 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	countConfiguredProviderConfigs,
+	getModelOptionsFromConfigs,
+} from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
@@ -34,6 +39,13 @@ const AgentCreatePage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(),
+	);
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -44,6 +56,25 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
 	);
+	const providerCount =
+		permissions.editDeploymentConfig &&
+		chatProviderConfigsQuery.isSuccess &&
+		chatModelsQuery.isSuccess
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					chatModelsQuery.data,
+				)
+			: undefined;
+	const modelCount =
+		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+			? catalogModelOptions.length
+			: undefined;
+	const agentSetupNotice =
+		providerCount !== undefined &&
+		modelCount !== undefined &&
+		(providerCount === 0 || modelCount === 0) ? (
+			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
+		) : undefined;
 
 	const handleCreateChat = async ({
 		message,
@@ -54,7 +85,6 @@ const AgentCreatePage: FC = () => {
 		organizationId,
 		planMode,
 	}: CreateChatOptions) => {
-		const modelConfigID = model || nilUUID;
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
 			content.push({ type: "text", text: message });
@@ -64,24 +94,27 @@ const AgentCreatePage: FC = () => {
 				content.push({ type: "file", file_id: fileID });
 			}
 		}
-		const createdChat = await createMutation.mutateAsync({
+		const createRequest: TypesGen.CreateChatRequest = {
 			organization_id: organizationId,
 			content,
 			workspace_id: workspaceId,
-			model_config_id: modelConfigID,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
-		});
+			...(model ? { model_config_id: model } : {}),
+		};
+		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		if (modelConfigID !== nilUUID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
-		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
+		if (model) {
+			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
 		navigate(buildAgentChatPath({ chatId: createdChat.id }));
 	};
+
+	const rootPersonalModelOverride = personalModelOverridesQuery.data?.enabled
+		? personalModelOverridesQuery.data.root
+		: undefined;
 
 	const handleChimeToggle = () => {
 		const next = !chimeEnabled;
@@ -120,9 +153,12 @@ const AgentCreatePage: FC = () => {
 				canCreateChat={permissions.createChat}
 				modelCatalog={chatModelsQuery.data}
 				modelOptions={catalogModelOptions}
+				agentSetupNotice={agentSetupNotice}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+				rootPersonalModelOverride={rootPersonalModelOverride}
+				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}
 				mcpServers={mcpServersQuery.data ?? []}
 				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 				workspaceCount={workspacesQuery.data?.count}

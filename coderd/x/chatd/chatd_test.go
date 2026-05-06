@@ -70,6 +70,35 @@ func openAIToolName(tool chattest.OpenAITool) string {
 	return cmp.Or(tool.Function.Name, tool.Name, tool.Type)
 }
 
+func mustChatLastErrorRawMessage(t testing.TB, payload codersdk.ChatError) pqtype.NullRawMessage {
+	t.Helper()
+
+	encoded, err := json.Marshal(payload)
+	require.NoError(t, err)
+	return pqtype.NullRawMessage{RawMessage: encoded, Valid: true}
+}
+
+func requireChatLastErrorPayload(t testing.TB, raw pqtype.NullRawMessage) codersdk.ChatError {
+	t.Helper()
+	require.True(t, raw.Valid, "last error should be set")
+
+	var payload codersdk.ChatError
+	require.NoError(t, json.Unmarshal(raw.RawMessage, &payload))
+	return payload
+}
+
+func chatLastErrorMessage(raw pqtype.NullRawMessage) string {
+	if !raw.Valid {
+		return ""
+	}
+
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
+		return payload.Message
+	}
+	return string(raw.RawMessage)
+}
+
 func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
 	messages := append([]chattest.OpenAIMessage(nil), req.Messages...)
 	tools := make([]string, 0, len(req.Tools))
@@ -867,7 +896,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 
 	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	requestsMu.Lock()
@@ -960,7 +989,7 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
 	require.NoError(t, err)
 	if storedChat.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", storedChat.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(storedChat.LastError))
 	}
 	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
 	require.ElementsMatch(t, []uuid.UUID{mcpConfig.ID}, storedChat.MCPServerIDs)
@@ -1044,7 +1073,7 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, exploreChat.ID)
 	require.NoError(t, err)
 	if storedChat.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", storedChat.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(storedChat.LastError))
 	}
 	require.Equal(t, database.ChatStatusWaiting, storedChat.Status)
 
@@ -1179,7 +1208,7 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	chatResult := waitForTerminalChat(ctx, t, db, exploreChat.ID)
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	exploreChat, err = db.GetChatByID(ctx, exploreChat.ID)
@@ -1208,7 +1237,7 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	chatResult = waitForTerminalChat(ctx, t, db, exploreChat.ID)
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "explore chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "explore chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	recordedChildRequests := childRequests()
@@ -1481,7 +1510,7 @@ func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -1953,7 +1982,7 @@ func TestSendMessageQueuesWhenWaitingWithQueuedBacklog(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -2418,7 +2447,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -3657,7 +3686,11 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		return chatResult.Status == database.ChatStatusError
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
-	require.Contains(t, chatResult.LastError.String, "Dynamic tool execution timed out")
+	persistedError := requireChatLastErrorPayload(t, chatResult.LastError)
+	require.Equal(t, codersdk.ChatError{
+		Message: "Dynamic tool execution timed out",
+		Kind:    codersdk.ChatErrorKindGeneric,
+	}, persistedError)
 	require.False(t, chatResult.WorkerID.Valid)
 }
 
@@ -3764,25 +3797,30 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	// Simulate a chat that failed with an error.
+	// Write a minimal structured last_error payload through the
+	// query layer, then verify it round-trips through storage.
 	errorMessage := "stream response: status 500: internal server error"
+	wantPayload := codersdk.ChatError{
+		Message: errorMessage,
+		Kind:    codersdk.ChatErrorKindGeneric,
+	}
 	chat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusError,
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{String: errorMessage, Valid: true},
+		LastError:   mustChatLastErrorRawMessage(t, wantPayload),
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusError, chat.Status)
-	require.Equal(t, sql.NullString{String: errorMessage, Valid: true}, chat.LastError)
+	require.Equal(t, wantPayload, requireChatLastErrorPayload(t, chat.LastError))
 
 	// Verify the error is persisted when re-read from the database.
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusError, fromDB.Status)
-	require.Equal(t, sql.NullString{String: errorMessage, Valid: true}, fromDB.LastError)
+	require.Equal(t, wantPayload, requireChatLastErrorPayload(t, fromDB.LastError))
 
 	// Verify the error is cleared when the chat transitions to a
 	// non-error status (e.g. pending after a retry).
@@ -3792,7 +3830,7 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusPending, chat.Status)
@@ -3949,7 +3987,7 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	var toolMessage *database.ChatMessage
@@ -4100,7 +4138,7 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 
 	require.Equal(t, database.ChatStatusRequiresAction, chatResult.Status,
 		"expected requires_action, got %s (last_error=%q)",
-		chatResult.Status, chatResult.LastError.String)
+		chatResult.Status, chatLastErrorMessage(chatResult.LastError))
 
 	// 2. Read the assistant message to find the tool-call ID.
 	var toolCallID string
@@ -4160,7 +4198,7 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 
 	// 5. Verify the chat completed successfully.
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	// 6. Verify the mock received exactly 2 streaming calls.
@@ -4264,7 +4302,7 @@ func TestDynamicToolNamedProposePlanRemainsAvailableOutsidePlanMode(t *testing.T
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	streamedCallsMu.Lock()
@@ -4381,7 +4419,7 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 
 	require.Equal(t, database.ChatStatusRequiresAction, chatResult.Status,
 		"expected requires_action, got %s (last_error=%q)",
-		chatResult.Status, chatResult.LastError.String)
+		chatResult.Status, chatLastErrorMessage(chatResult.LastError))
 
 	// 2. Verify the built-in tool (read_file) was already
 	//    executed by checking that a tool result message
@@ -4443,7 +4481,7 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	// 5. Verify the LLM received exactly 2 streaming calls.
@@ -4519,7 +4557,7 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 	require.Equal(t, database.ChatStatusRequiresAction, chatResult.Status,
 		"expected requires_action, got %s (last_error=%q)",
-		chatResult.Status, chatResult.LastError.String)
+		chatResult.Status, chatLastErrorMessage(chatResult.LastError))
 
 	// Find the tool call ID from the assistant message.
 	var toolCallID string
@@ -4842,7 +4880,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
 		if chatResult.LastError != nil {
-			lastError = *chatResult.LastError
+			lastError = chatResult.LastError.Message
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
@@ -5014,7 +5052,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
 		if chatResult.LastError != nil {
-			lastError = *chatResult.LastError
+			lastError = chatResult.LastError.Message
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
@@ -5138,7 +5176,7 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -5177,7 +5215,7 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	require.EqualValues(t, 1, dialCalls.Load())
@@ -6485,6 +6523,10 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
+	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(chattool.ComputerUseProviderAnthropic)
+	require.True(t, ok)
+	require.Equal(t, chattool.ComputerUseProviderAnthropic, computerUseModelProvider)
+
 	// Track tools and model from the Anthropic LLM calls (the
 	// computer use child chat). We use a raw HTTP handler because
 	// the chattest AnthropicRequest struct does not capture tools.
@@ -6532,7 +6574,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 					"id":          "msg-test",
 					"type":        "message",
 					"role":        "assistant",
-					"model":       chattool.ComputerUseModelName,
+					"model":       computerUseModelName,
 					"content":     []map[string]any{{"type": "text", "text": "Done."}},
 					"stop_reason": "end_turn",
 					"usage":       map[string]any{"input_tokens": 10, "output_tokens": 5},
@@ -6552,7 +6594,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 						"id":    "msg-test",
 						"type":  "message",
 						"role":  "assistant",
-						"model": chattool.ComputerUseModelName,
+						"model": computerUseModelName,
 					},
 				},
 				{
@@ -6713,9 +6755,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	childTools := calls[0].Tools
 
 	// 1. Verify the model is the computer use model.
-	require.Equal(t, chattool.ComputerUseModelName, childModel,
+	require.Equal(t, computerUseModelName, childModel,
 		"computer use subagent should use %s",
-		chattool.ComputerUseModelName)
+		computerUseModelName)
 
 	// 2. Verify the computer tool is present.
 	require.Contains(t, childTools, "computer",
@@ -7031,9 +7073,10 @@ func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
 
 	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
 	require.Equal(t, database.ChatStatusError, chatResult.Status)
-	require.True(t, chatResult.LastError.Valid, "LastError should be set")
-	require.NotEmpty(t, chatResult.LastError.String)
-	require.NotContains(t, chatResult.LastError.String, "panicked")
+	persistedError := requireChatLastErrorPayload(t, chatResult.LastError)
+	require.NotEmpty(t, persistedError.Message)
+	require.NotContains(t, persistedError.Message, "panicked")
+	require.Equal(t, codersdk.ChatErrorKindGeneric, persistedError.Kind)
 	require.NotEqual(t, database.ChatStatusRunning, chatResult.Status)
 	require.Zero(t, llmCalls.Load(), "missing user key should fail before any LLM request")
 }
@@ -7095,9 +7138,10 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 		return got.Status == database.ChatStatusError
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	require.True(t, chatResult.LastError.Valid, "LastError should be set")
-	require.Contains(t, chatResult.LastError.String, "chat processing panicked")
-	require.Contains(t, chatResult.LastError.String, "intentional test panic")
+	persistedError := requireChatLastErrorPayload(t, chatResult.LastError)
+	require.Contains(t, persistedError.Message, "chat processing panicked")
+	require.Contains(t, persistedError.Message, "intentional test panic")
+	require.Equal(t, codersdk.ChatErrorKindGeneric, persistedError.Kind)
 }
 
 // panicOnInTxDB wraps a database.Store and panics on the first InTx
@@ -7261,7 +7305,7 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	// The MCP tool (test-mcp__echo) should appear in the tool
@@ -7761,7 +7805,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	// The token should have been refreshed.
@@ -7869,7 +7913,7 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat should not fail", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat should not fail", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	// The LLM should have been called at least once.
@@ -7992,7 +8036,7 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
 	// Collect all tool results keyed by tool name. Each tool may
@@ -9281,7 +9325,7 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 	turn1Chat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, turn1Chat.Status,
-		"turn 1 must complete before turn 2 can be sent; last_error=%q", turn1Chat.LastError.String)
+		"turn 1 must complete before turn 2 can be sent; last_error=%q", chatLastErrorMessage(turn1Chat.LastError))
 
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:    chat.ID,

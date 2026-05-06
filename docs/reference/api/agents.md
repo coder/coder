@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/derp-map \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /derp-map`
+`GET /api/v2/derp-map`
 
 ### Responses
 
@@ -30,7 +30,7 @@ curl -X GET http://coder-server:8080/api/v2/tailnet \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /tailnet`
+`GET /api/v2/tailnet`
 
 ### Responses
 
@@ -52,7 +52,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/aws-instance-identity`
+`POST /api/v2/workspaceagents/aws-instance-identity`
 
 > Body parameter
 
@@ -100,7 +100,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/azure-instance-identity`
+`POST /api/v2/workspaceagents/azure-instance-identity`
 
 > Body parameter
 
@@ -148,7 +148,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/google-instance-identity`
+`POST /api/v2/workspaceagents/google-instance-identity`
 
 > Body parameter
 
@@ -195,7 +195,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /workspaceagents/me/app-status`
+`PATCH /api/v2/workspaceagents/me/app-status`
 
 > Body parameter
 
@@ -252,7 +252,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/me/external-auth`
+`GET /api/v2/workspaceagents/me/external-auth`
 
 ### Parameters
 
@@ -296,7 +296,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/me/gitauth`
+`GET /api/v2/workspaceagents/me/gitauth`
 
 ### Parameters
 
@@ -340,7 +340,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/me/gitsshkey`
+`GET /api/v2/workspaceagents/me/gitsshkey`
 
 ### Example responses
 
@@ -373,7 +373,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/me/log-source`
+`POST /api/v2/workspaceagents/me/log-source`
 
 > Body parameter
 
@@ -425,7 +425,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /workspaceagents/me/logs`
+`PATCH /api/v2/workspaceagents/me/logs`
 
 > Body parameter
 
@@ -484,7 +484,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/me/reinit`
+`GET /api/v2/workspaceagents/me/reinit`
 
 ### Parameters
 
@@ -524,7 +524,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}`
+`GET /api/v2/workspaceagents/{workspaceagent}`
 
 ### Parameters
 
@@ -675,7 +675,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/connection`
+`GET /api/v2/workspaceagents/{workspaceagent}/connection`
 
 ### Parameters
 
@@ -773,7 +773,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/containers`
+`GET /api/v2/workspaceagents/{workspaceagent}/containers`
 
 ### Parameters
 
@@ -882,7 +882,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}`
+`DELETE /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}`
 
 ### Parameters
 
@@ -910,7 +910,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/co
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
+`POST /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
 
 ### Parameters
 
@@ -955,7 +955,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/containers/watch`
+`GET /api/v2/workspaceagents/{workspaceagent}/containers/watch`
 
 ### Parameters
 
@@ -1063,7 +1063,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coo
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/coordinate`
+`GET /api/v2/workspaceagents/{workspaceagent}/coordinate`
 
 ### Parameters
 
@@ -1090,7 +1090,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/listening-ports`
+`GET /api/v2/workspaceagents/{workspaceagent}/listening-ports`
 
 ### Parameters
 
@@ -1133,7 +1133,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/logs`
+`GET /api/v2/workspaceagents/{workspaceagent}/logs`
 
 ### Parameters
 
@@ -1205,7 +1205,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/pty`
+`GET /api/v2/workspaceagents/{workspaceagent}/pty`
 
 ### Parameters
 
@@ -1232,7 +1232,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/startup-logs`
+`GET /api/v2/workspaceagents/{workspaceagent}/startup-logs`
 
 ### Parameters
 

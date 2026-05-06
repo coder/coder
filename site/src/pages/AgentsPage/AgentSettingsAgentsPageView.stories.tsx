@@ -109,6 +109,13 @@ const allModelConfigs: TypesGen.ChatModelConfig[] = [
 const makeArgs = (
 	overrides: Partial<AgentSettingsAgentsPageViewProps> = {},
 ): AgentSettingsAgentsPageViewProps => ({
+	adminOverridesData: { allow_users: false },
+	adminOverridesError: undefined,
+	onRetryAdminOverrides: fn(),
+	isRetryingAdminOverrides: false,
+	onSaveAdminOverrides: fn(),
+	isSavingAdminOverrides: false,
+	isSaveAdminOverridesError: false,
 	generalModelOverrideData: buildOverrideData("general"),
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
@@ -173,6 +180,7 @@ export const AllOverridesUnset: Story = {
 
 		const headings = await canvas.findAllByRole("heading", { level: 3 });
 		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
+			"Enable users to define their personal overrides",
 			"General model",
 			"Title generation model",
 			"Explore subagent model",
@@ -201,6 +209,51 @@ export const AllOverridesUnset: Story = {
 				within(section).getByRole("button", { name: "Save" }),
 			).toBeDisabled();
 		}
+	},
+};
+
+export const PersonalOverridesDisabled: Story = {
+	args: makeArgs({
+		adminOverridesData: { allow_users: false },
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable users to define their personal overrides",
+		});
+
+		expect(toggle).not.toBeChecked();
+	},
+};
+
+export const PersonalOverridesEnabled: Story = {
+	args: makeArgs({
+		adminOverridesData: { allow_users: true },
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable users to define their personal overrides",
+		});
+
+		expect(toggle).toBeChecked();
+	},
+};
+
+export const PersonalOverridesLoadError: Story = {
+	args: makeArgs({
+		adminOverridesData: undefined,
+		adminOverridesError: new Error("Failed to load personal model overrides."),
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			await canvas.findByText("Failed to load personal model overrides."),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Loading personal model override settings..."),
+		).not.toBeInTheDocument();
 	},
 };
 

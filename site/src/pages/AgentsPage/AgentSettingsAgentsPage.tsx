@@ -6,7 +6,11 @@ import {
 	useQueryClient,
 } from "react-query";
 import { API } from "#/api/api";
-import { chatModelConfigs } from "#/api/queries/chats";
+import {
+	chatModelConfigs,
+	chatPersonalModelOverridesAdminSettings,
+	updateChatPersonalModelOverridesAdminSettings,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -46,6 +50,10 @@ const AgentSettingsAgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 
+	const personalModelOverridesAdminSettingsQuery = useQuery({
+		...chatPersonalModelOverridesAdminSettings(),
+		enabled: canEditDeploymentConfig,
+	});
 	const generalModelOverrideQuery = useQuery({
 		...chatModelOverrideQuery(generalOverrideContext),
 		enabled: canEditDeploymentConfig,
@@ -59,6 +67,9 @@ const AgentSettingsAgentsPage: FC = () => {
 		enabled: canEditDeploymentConfig,
 	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const savePersonalModelOverridesAdminSettingsMutation = useMutation(
+		updateChatPersonalModelOverridesAdminSettings(queryClient),
+	);
 	const saveGeneralModelOverrideMutation = useMutation(
 		updateChatModelOverrideMutation(queryClient, generalOverrideContext),
 	);
@@ -75,6 +86,23 @@ const AgentSettingsAgentsPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
 			<AgentSettingsAgentsPageView
+				adminOverridesData={personalModelOverridesAdminSettingsQuery.data}
+				adminOverridesError={personalModelOverridesAdminSettingsQuery.error}
+				onRetryAdminOverrides={() => {
+					void personalModelOverridesAdminSettingsQuery.refetch();
+				}}
+				isRetryingAdminOverrides={
+					personalModelOverridesAdminSettingsQuery.isFetching
+				}
+				onSaveAdminOverrides={
+					savePersonalModelOverridesAdminSettingsMutation.mutate
+				}
+				isSavingAdminOverrides={
+					savePersonalModelOverridesAdminSettingsMutation.isPending
+				}
+				isSaveAdminOverridesError={
+					savePersonalModelOverridesAdminSettingsMutation.isError
+				}
 				generalModelOverrideData={generalModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}

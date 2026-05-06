@@ -3,50 +3,36 @@ package chaterror
 import (
 	"fmt"
 	"strings"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // terminalMessage produces the user-facing error description shown
-// when retries are exhausted. It includes HTTP status codes and
-// actionable remediation guidance.
+// when retries are exhausted. HTTP status codes are carried in the
+// classified payload's StatusCode field and rendered as a separate
+// footer chip by the UI, so they are intentionally omitted here to
+// avoid duplicating the same information in two places.
 func terminalMessage(classified ClassifiedError) string {
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
-	case KindOverloaded:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is temporarily overloaded (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
+	case codersdk.ChatErrorKindOverloaded:
 		return fmt.Sprintf("%s is temporarily overloaded.", subject)
 
-	case KindRateLimit:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is rate limiting requests (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
+	case codersdk.ChatErrorKindRateLimit:
 		return fmt.Sprintf("%s is rate limiting requests.", subject)
 
-	case KindTimeout:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is temporarily unavailable (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		if !classified.Retryable {
+	case codersdk.ChatErrorKindTimeout:
+		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The request timed out before it completed."
 		}
 		return fmt.Sprintf("%s is temporarily unavailable.", subject)
 
-	case KindStartupTimeout:
+	case codersdk.ChatErrorKindStartupTimeout:
 		return fmt.Sprintf(
 			"%s did not start responding in time.", subject,
 		)
 
-	case KindAuth:
+	case codersdk.ChatErrorKindAuth:
 		displayName := providerDisplayName(classified.Provider)
 		if displayName == "" {
 			displayName = "the AI provider"
@@ -57,7 +43,7 @@ func terminalMessage(classified ClassifiedError) string {
 			displayName,
 		)
 
-	case KindConfig:
+	case codersdk.ChatErrorKindConfig:
 		return fmt.Sprintf(
 			"%s rejected the model configuration."+
 				" Check the selected model and provider settings.",
@@ -65,13 +51,7 @@ func terminalMessage(classified ClassifiedError) string {
 		)
 
 	default:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s returned an unexpected error (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		if !classified.Retryable {
+		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
 		}
 		return fmt.Sprintf("%s returned an unexpected error.", subject)
@@ -85,17 +65,17 @@ func terminalMessage(classified ClassifiedError) string {
 func retryMessage(classified ClassifiedError) string {
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
-	case KindOverloaded:
+	case codersdk.ChatErrorKindOverloaded:
 		return fmt.Sprintf("%s is temporarily overloaded.", subject)
-	case KindRateLimit:
+	case codersdk.ChatErrorKindRateLimit:
 		return fmt.Sprintf("%s is rate limiting requests.", subject)
-	case KindTimeout:
+	case codersdk.ChatErrorKindTimeout:
 		return fmt.Sprintf("%s is temporarily unavailable.", subject)
-	case KindStartupTimeout:
+	case codersdk.ChatErrorKindStartupTimeout:
 		return fmt.Sprintf(
 			"%s did not start responding in time.", subject,
 		)
-	case KindAuth:
+	case codersdk.ChatErrorKindAuth:
 		displayName := providerDisplayName(classified.Provider)
 		if displayName == "" {
 			displayName = "the AI provider"
@@ -103,7 +83,7 @@ func retryMessage(classified ClassifiedError) string {
 		return fmt.Sprintf(
 			"Authentication with %s failed.", displayName,
 		)
-	case KindConfig:
+	case codersdk.ChatErrorKindConfig:
 		return fmt.Sprintf(
 			"%s rejected the model configuration.", subject,
 		)

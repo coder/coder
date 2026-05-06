@@ -107,7 +107,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
-// @Router /aibridge/interceptions [get]
+// @Router /api/v2/aibridge/interceptions [get]
 // @Deprecated Use /aibridge/sessions instead.
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -221,7 +221,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
 // @Success 200 {object} codersdk.AIBridgeListSessionsResponse
-// @Router /aibridge/sessions [get]
+// @Router /api/v2/aibridge/sessions [get]
 func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -346,7 +346,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // @Param before_id query string false "Thread pagination cursor (backward/newer)"
 // @Param limit query int false "Number of threads per page (default 50)"
 // @Success 200 {object} codersdk.AIBridgeSessionThreadsResponse
-// @Router /aibridge/sessions/{session_id} [get]
+// @Router /api/v2/aibridge/sessions/{session_id} [get]
 func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -533,7 +533,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 // @Produce json
 // @Tags AI Bridge
 // @Success 200 {array} string
-// @Router /aibridge/models [get]
+// @Router /api/v2/aibridge/models [get]
 func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -585,7 +585,7 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags AI Bridge
 // @Success 200 {array} string
-// @Router /aibridge/clients [get]
+// @Router /api/v2/aibridge/clients [get]
 func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

@@ -18,11 +18,13 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -73,6 +75,172 @@ func newTestMCPAgentTool(name string, configID uuid.UUID) fantasy.AgentTool {
 
 func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
+}
+
+func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		rawProvider  string
+		wantProvider string
+		wantErr      string
+	}{
+		{
+			name:         "DefaultAnthropic",
+			rawProvider:  "",
+			wantProvider: chattool.ComputerUseProviderAnthropic,
+		},
+		{
+			name:         "OpenAI",
+			rawProvider:  " openai ",
+			wantProvider: chattool.ComputerUseProviderOpenAI,
+		},
+		{
+			name:        "Unknown",
+			rawProvider: "bogus",
+			wantErr:     `unknown computer-use provider "bogus" configured in agents_computer_use_provider`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			server := &Server{db: db}
+
+			db.EXPECT().GetChatComputerUseProvider(gomock.Any()).DoAndReturn(
+				func(ctx context.Context) (string, error) {
+					_, ok := dbauthz.ActorFromContext(ctx)
+					require.True(t, ok, "config reads must have an actor")
+					return tt.rawProvider, nil
+				},
+			)
+
+			provider, modelProvider, modelName, err := server.computerUseProviderAndModelFromConfig(context.Background())
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantProvider, provider)
+
+			wantModelProvider, wantModelName, ok := chattool.DefaultComputerUseModel(tt.wantProvider)
+			require.True(t, ok)
+			require.Equal(t, wantModelProvider, modelProvider)
+			require.Equal(t, wantModelName, modelName)
+		})
+	}
+}
+
+func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{}
+	provider := chattool.ComputerUseProviderOpenAI
+	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
+	require.True(t, ok)
+
+	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
+		context.Background(),
+		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+		chatprovider.ProviderAPIKeys{},
+		provider,
+		modelProvider,
+		modelName,
+	)
+	require.Error(t, err)
+	require.Nil(t, model)
+	require.False(t, debugEnabled)
+	require.Empty(t, resolvedProvider)
+	require.Empty(t, resolvedModel)
+	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.5"`)
+	require.Contains(t, err.Error(), "OPENAI_API_KEY is not set")
+	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
+}
+
+func TestAppendComputerUseProviderTool(t *testing.T) {
+	t.Parallel()
+
+	providerTools, err := appendComputerUseProviderTool(
+		nil,
+		computerUseProviderToolOptions{
+			provider:      chattool.ComputerUseProviderOpenAI,
+			isComputerUse: true,
+			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		},
+	)
+	require.NoError(t, err)
+	require.Len(t, providerTools, 1)
+	require.True(t, openaicomputeruse.IsTool(providerTools[0].Definition))
+	require.Equal(t, "computer", providerTools[0].Definition.GetName())
+	require.Equal(t, "computer", providerTools[0].Runner.Info().Name)
+	require.NotNil(t, providerTools[0].ResultProviderMetadata)
+
+	metadata := providerTools[0].ResultProviderMetadata(
+		fantasy.NewImageResponse([]byte("png"), "image/png"),
+	)
+	require.NotNil(t, metadata)
+}
+
+func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
+	t.Parallel()
+
+	baseTools := []chatloop.ProviderTool{{
+		Definition: fantasy.ProviderDefinedTool{
+			ID:   "web_search",
+			Name: "web_search",
+		},
+	}}
+
+	tests := []struct {
+		name           string
+		isPlanModeTurn bool
+		isComputerUse  bool
+	}{
+		{name: "PlanMode", isPlanModeTurn: true, isComputerUse: true},
+		// Non-computer-use includes regular, master, general, and explore chats.
+		// Mode cannot be both ChatModeComputerUse and another chat mode.
+		{name: "NonComputerUseModes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			providerTools, err := appendComputerUseProviderTool(
+				baseTools,
+				computerUseProviderToolOptions{
+					provider:       chattool.ComputerUseProviderOpenAI,
+					isPlanModeTurn: tt.isPlanModeTurn,
+					isComputerUse:  tt.isComputerUse,
+				},
+			)
+			require.NoError(t, err)
+			require.Len(t, providerTools, 1)
+			require.Equal(t, "web_search", providerTools[0].Definition.GetName())
+		})
+	}
+}
+
+func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T) {
+	t.Parallel()
+
+	providerTools, err := appendComputerUseProviderTool(
+		nil,
+		computerUseProviderToolOptions{
+			provider:      chattool.ComputerUseProviderAnthropic,
+			isComputerUse: true,
+			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		},
+	)
+	require.NoError(t, err)
+	require.Len(t, providerTools, 1)
+	require.Equal(t, "computer", providerTools[0].Definition.GetName())
+	require.Nil(t, providerTools[0].ResultProviderMetadata)
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
@@ -1815,14 +1983,14 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	}
-
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -1858,14 +2026,14 @@ func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) 
 		ChatID: chatID,
 		Role:   codersdk.ChatMessageRoleAssistant,
 	}
-
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -1909,14 +2077,14 @@ func TestSubscribeQueriesDatabaseWhenDurableCacheMisses(t *testing.T) {
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	}
-
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 1,
@@ -1958,14 +2126,14 @@ func TestSubscribeFullRefreshStillUsesDatabaseCatchup(t *testing.T) {
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleUser,
 	}
-
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
@@ -1995,14 +2163,14 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 
 	chatID := uuid.New()
 	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
-
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return(nil, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -2032,12 +2200,13 @@ func TestSubscribeReplaysCurrentRetryPhaseInSnapshot(t *testing.T) {
 	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning}
 
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return(nil, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newBufferedSubscribeTestServer(t, db, chatID)
@@ -2073,6 +2242,8 @@ func TestSubscribeCapturesRetryPhaseAtSubscriptionBoundary(t *testing.T) {
 	server := newSubscribeTestServer(t, db)
 
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
@@ -2081,7 +2252,6 @@ func TestSubscribeCapturesRetryPhaseAtSubscriptionBoundary(t *testing.T) {
 			return nil, nil
 		}),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
@@ -2107,12 +2277,13 @@ func TestSubscribeDoesNotReplayRetryAfterStreamResumes(t *testing.T) {
 	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning}
 
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return(nil, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newBufferedSubscribeTestServer(t, db, chatID)
@@ -2142,20 +2313,21 @@ func TestSubscribeDoesNotReplayRetryAfterTerminalError(t *testing.T) {
 	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning}
 
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return(nil, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newBufferedSubscribeTestServer(t, db, chatID)
 
 	server.publishRetry(chatID, newTestRetryPayload())
 	server.publishError(chatID, chaterror.ClassifiedError{
-		Message:    "OpenAI is rate limiting requests (HTTP 429).",
-		Kind:       chaterror.KindRateLimit,
+		Message:    "OpenAI is rate limiting requests.",
+		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 429,
@@ -2182,12 +2354,13 @@ func TestSubscribeDoesNotReplayRetryAfterTerminalStatus(t *testing.T) {
 	chat := database.Chat{ID: chatID, Status: database.ChatStatusCompleted}
 
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return(nil, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newBufferedSubscribeTestServer(t, db, chatID)
@@ -2214,14 +2387,14 @@ func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
 
 	chatID := uuid.New()
 	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
-
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return(nil, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -2230,8 +2403,8 @@ func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
 	defer cancel()
 
 	classified := chaterror.ClassifiedError{
-		Message:    "OpenAI is rate limiting requests (HTTP 429).",
-		Kind:       chaterror.KindRateLimit,
+		Message:    "OpenAI is rate limiting requests.",
+		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 429,
@@ -2239,7 +2412,7 @@ func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
 	server.publishError(chatID, classified)
 
 	event := requireStreamErrorEvent(t, events)
-	require.Equal(t, chaterror.StreamErrorPayload(classified), event.Error)
+	require.Equal(t, chaterror.TerminalErrorPayload(classified), event.Error)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
@@ -2254,14 +2427,14 @@ func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
 
 	chatID := uuid.New()
 	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
-
 	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
 			ChatID:  chatID,
 			AfterID: 0,
 		}).Return(nil, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -2274,20 +2447,118 @@ func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
 	})
 
 	event := requireStreamErrorEvent(t, events)
-	require.Equal(t, &codersdk.ChatStreamError{Message: "legacy error only"}, event.Error)
+	require.Equal(t, &codersdk.ChatError{Message: "legacy error only"}, event.Error)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
 func newTestRetryPayload() *codersdk.ChatStreamRetry {
-	return &codersdk.ChatStreamRetry{
-		Attempt:    1,
-		DelayMs:    (1500 * time.Millisecond).Milliseconds(),
-		Error:      "OpenAI is rate limiting requests (HTTP 429).",
-		Kind:       chaterror.KindRateLimit,
+	payload := chaterror.StreamRetryPayload(1, 1500*time.Millisecond, chaterror.ClassifiedError{
+		Message:    "OpenAI is rate limiting requests.",
+		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
+		Retryable:  true,
 		StatusCode: 429,
-		RetryingAt: time.Unix(1_700_000_000, 0).UTC(),
+	})
+	if payload == nil {
+		panic("expected retry payload")
 	}
+	payload.RetryingAt = time.Unix(1_700_000_000, 0).UTC()
+	return payload
+}
+
+func TestSubscribeAuthorizedFallsBackToStaleRowWhenRefreshFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	staleChat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+
+	state := server.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	state.buffer = []codersdk.ChatStreamEvent{{
+		Type:   codersdk.ChatStreamEventTypeMessagePart,
+		ChatID: chatID,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: "assistant",
+			Part: codersdk.ChatMessageText("thinking"),
+		},
+	}}
+	state.mu.Unlock()
+
+	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{}, xerrors.New("refresh failed")),
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+	)
+
+	initialSnapshot, events, cancel, ok := server.SubscribeAuthorized(ctx, staleChat, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	require.Len(t, initialSnapshot, 2)
+	require.Equal(t, codersdk.ChatStreamEventTypeStatus, initialSnapshot[0].Type)
+	require.NotNil(t, initialSnapshot[0].Status)
+	require.Equal(t, codersdk.ChatStatusPending, initialSnapshot[0].Status.Status)
+	require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, initialSnapshot[1].Type)
+	require.NotNil(t, initialSnapshot[1].MessagePart)
+	require.Equal(t, "thinking", initialSnapshot[1].MessagePart.Part.Text)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{}, dbauthz.NotAuthorizedError{Err: xerrors.New("not authorized")})
+
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.False(t, ok)
+	require.Nil(t, snapshot)
+	require.Nil(t, events)
+	require.Nil(t, cancel)
+
+	_, exists := server.chatStreams.Load(chatID)
+	require.False(t, exists)
+}
+
+func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := newSubscribeTestServer(t, db)
+
+	chatID := uuid.New()
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{}, xerrors.New("transient lookup failure"))
+
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	require.NotNil(t, cancel)
+	require.Len(t, snapshot, 1)
+	require.Equal(t, codersdk.ChatStreamEventTypeError, snapshot[0].Type)
+	require.Equal(t, chatID, snapshot[0].ChatID)
+	require.Equal(t, "failed to load initial snapshot", snapshot[0].Error.Message)
+
+	_, open := <-events
+	require.False(t, open)
+
+	_, exists := server.chatStreams.Load(chatID)
+	require.False(t, exists)
 }
 
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {

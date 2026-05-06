@@ -1,4 +1,5 @@
 import { isApiErrorResponse } from "#/api/errors";
+import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
 
@@ -60,3 +61,40 @@ export async function probeAttachmentFailure(
 	const response = await fetch(src, { signal });
 	return classifyAttachmentFailureResponse(response);
 }
+
+// Filename extensions to list in the file-picker's `accept` attribute
+// alongside the MIME types. Browsers and operating systems do not always
+// map these extensions to a registered MIME type (Markdown is the common
+// offender), so including the extensions keeps the corresponding files
+// selectable. The server still classifies uploads by byte content.
+const chatAttachmentExtraExtensions = [
+	".md",
+	".markdown",
+	".csv",
+	".json",
+	".txt",
+] as const;
+
+/**
+ * `accept` attribute for the chat-attachment file input. Mirrors
+ * codersdk.AllChatAttachmentMediaTypes so the OS file picker advertises
+ * exactly what the server will accept.
+ */
+export const chatAttachmentAcceptAttribute = [
+	...ChatAttachmentMediaTypes,
+	...chatAttachmentExtraExtensions,
+].join(",");
+
+/**
+ * Returns true for files whose declared MIME type is on the server
+ * allowlist. Files whose type is unknown, either as an empty string or
+ * as application/octet-stream, also pass so dropped or pasted files can
+ * still reach the server, which remains the authority on attachment
+ * bytes.
+ */
+export const isChatAttachmentFile = (file: File): boolean => {
+	if (!file.type || file.type === "application/octet-stream") {
+		return true;
+	}
+	return ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
+};

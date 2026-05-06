@@ -33,6 +33,40 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 // this limit than to lower it.
 const MaxChatFileIDs = 20
 
+// ChatAttachmentMediaType is a media type that is allowed for durable
+// chat file storage. The set is intentionally narrow; byte-level
+// classification and inline-render rules live alongside the enforcement
+// helpers in coderd/chatfiles.
+type ChatAttachmentMediaType string
+
+const (
+	ChatAttachmentMediaTypeApplicationJSON ChatAttachmentMediaType = "application/json"
+	ChatAttachmentMediaTypeApplicationPDF  ChatAttachmentMediaType = "application/pdf"
+	ChatAttachmentMediaTypeImageGIF        ChatAttachmentMediaType = "image/gif"
+	ChatAttachmentMediaTypeImageJPEG       ChatAttachmentMediaType = "image/jpeg"
+	ChatAttachmentMediaTypeImagePNG        ChatAttachmentMediaType = "image/png"
+	ChatAttachmentMediaTypeImageWEBP       ChatAttachmentMediaType = "image/webp"
+	ChatAttachmentMediaTypeTextCSV         ChatAttachmentMediaType = "text/csv"
+	ChatAttachmentMediaTypeTextMarkdown    ChatAttachmentMediaType = "text/markdown"
+	ChatAttachmentMediaTypeTextPlain       ChatAttachmentMediaType = "text/plain"
+)
+
+// AllChatAttachmentMediaTypes enumerates every durable chat attachment
+// media type in the same lexical order the guts-generated TypeScript
+// list uses, so the frontend file picker and the backend enforcement
+// map stay in lockstep. Add new values in sorted order.
+var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
+	ChatAttachmentMediaTypeApplicationJSON,
+	ChatAttachmentMediaTypeApplicationPDF,
+	ChatAttachmentMediaTypeImageGIF,
+	ChatAttachmentMediaTypeImageJPEG,
+	ChatAttachmentMediaTypeImagePNG,
+	ChatAttachmentMediaTypeImageWEBP,
+	ChatAttachmentMediaTypeTextCSV,
+	ChatAttachmentMediaTypeTextMarkdown,
+	ChatAttachmentMediaTypeTextPlain,
+}
+
 // CompactionThresholdKey returns the user-config key for a specific
 // model configuration's compaction threshold.
 func CompactionThresholdKey(modelConfigID uuid.UUID) string {
@@ -75,7 +109,7 @@ type Chat struct {
 	Title             string             `json:"title"`
 	Status            ChatStatus         `json:"status"`
 	PlanMode          ChatPlanMode       `json:"plan_mode,omitempty"`
-	LastError         *string            `json:"last_error"`
+	LastError         *ChatError         `json:"last_error,omitempty"`
 	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
 	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
@@ -90,7 +124,7 @@ type Chat struct {
 	HasUnread bool `json:"has_unread"`
 	// LastInjectedContext holds the most recently persisted
 	// injected context parts (AGENTS.md files and skills). It
-	// is updated only when context changes — first workspace
+	// is updated only when context changes, on first workspace
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
@@ -607,6 +641,71 @@ type UpdateChatModelOverrideRequest struct {
 	ModelConfigID string `json:"model_config_id"`
 }
 
+// ChatPersonalModelOverrideContext identifies which chat context the user
+// personal model override applies to.
+type ChatPersonalModelOverrideContext string
+
+const (
+	ChatPersonalModelOverrideContextRoot    ChatPersonalModelOverrideContext = "root"
+	ChatPersonalModelOverrideContextGeneral ChatPersonalModelOverrideContext = "general"
+	ChatPersonalModelOverrideContextExplore ChatPersonalModelOverrideContext = "explore"
+)
+
+// ChatPersonalModelOverrideMode identifies how a user personal model override
+// should resolve the effective model.
+type ChatPersonalModelOverrideMode string
+
+const (
+	ChatPersonalModelOverrideModeDeploymentDefault ChatPersonalModelOverrideMode = "deployment_default"
+	ChatPersonalModelOverrideModeChatDefault       ChatPersonalModelOverrideMode = "chat_default"
+	ChatPersonalModelOverrideModeModel             ChatPersonalModelOverrideMode = "model"
+)
+
+// ChatPersonalModelOverride is a resolved user personal model override.
+type ChatPersonalModelOverride struct {
+	Context       ChatPersonalModelOverrideContext `json:"context"`
+	Mode          ChatPersonalModelOverrideMode    `json:"mode"`
+	ModelConfigID string                           `json:"model_config_id"`
+	IsSet         bool                             `json:"is_set"`
+	IsMalformed   bool                             `json:"is_malformed"`
+}
+
+// ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
+// defaults used when a personal override selects deployment_default.
+type ChatPersonalModelOverrideDeploymentDefaults struct {
+	General ChatModelOverrideResponse `json:"general"`
+	Explore ChatModelOverrideResponse `json:"explore"`
+}
+
+// UserChatPersonalModelOverridesResponse is the response body for user
+// personal model override settings.
+type UserChatPersonalModelOverridesResponse struct {
+	Enabled            bool                                        `json:"enabled"`
+	Root               ChatPersonalModelOverride                   `json:"root"`
+	General            ChatPersonalModelOverride                   `json:"general"`
+	Explore            ChatPersonalModelOverride                   `json:"explore"`
+	DeploymentDefaults ChatPersonalModelOverrideDeploymentDefaults `json:"deployment_defaults"`
+}
+
+// UpdateUserChatPersonalModelOverrideRequest is the request body for updating
+// a user personal model override.
+type UpdateUserChatPersonalModelOverrideRequest struct {
+	Mode          ChatPersonalModelOverrideMode `json:"mode"`
+	ModelConfigID string                        `json:"model_config_id"`
+}
+
+// ChatPersonalModelOverridesAdminSettings describes whether users may manage
+// personal model override settings.
+type ChatPersonalModelOverridesAdminSettings struct {
+	AllowUsers bool `json:"allow_users"`
+}
+
+// UpdateChatPersonalModelOverridesAdminSettingsRequest is the request body for
+// updating personal model override admin settings.
+type UpdateChatPersonalModelOverridesAdminSettingsRequest struct {
+	AllowUsers bool `json:"allow_users"`
+}
+
 // UserChatCustomPrompt is the request and response body for the
 // user chat custom prompt configuration endpoint.
 type UserChatCustomPrompt struct {
@@ -671,6 +770,18 @@ type AdvisorConfig struct {
 // runtime configuration. It is a type alias for AdvisorConfig because
 // the request and response shapes are currently identical.
 type UpdateAdvisorConfigRequest = AdvisorConfig
+
+// ChatComputerUseProviderResponse is the response for getting the computer use
+// provider setting.
+type ChatComputerUseProviderResponse struct {
+	Provider string `json:"provider"`
+}
+
+// UpdateChatComputerUseProviderRequest is the request to update the computer use
+// provider setting.
+type UpdateChatComputerUseProviderRequest struct {
+	Provider string `json:"provider"`
+}
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
 // that allows users to opt into chat debug logging.
@@ -834,6 +945,11 @@ const DefaultChatWorkspaceTTL = 0
 // auto-archival.
 const DefaultChatAutoArchiveDays int32 = 0
 
+// DefaultChatDebugRetentionDays is the default chat debug run retention
+// window, in days, applied when no site config row exists. Set the
+// config value to zero to disable the purge.
+const DefaultChatDebugRetentionDays int32 = 30
+
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
@@ -859,6 +975,18 @@ type ChatRetentionDaysResponse struct {
 // retention period.
 type UpdateChatRetentionDaysRequest struct {
 	RetentionDays int32 `json:"retention_days"`
+}
+
+// ChatDebugRetentionDaysResponse contains the current chat debug run
+// retention setting.
+type ChatDebugRetentionDaysResponse struct {
+	DebugRetentionDays int32 `json:"debug_retention_days"`
+}
+
+// UpdateChatDebugRetentionDaysRequest is a request to update the chat
+// debug run retention period.
+type UpdateChatDebugRetentionDaysRequest struct {
+	DebugRetentionDays int32 `json:"debug_retention_days"`
 }
 
 // ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
@@ -1314,15 +1442,43 @@ type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
 }
 
-// ChatStreamError represents an error event in the stream.
-type ChatStreamError struct {
+// ChatErrorKind classifies chat errors for consistent client rendering.
+type ChatErrorKind string
+
+const (
+	ChatErrorKindGeneric        ChatErrorKind = "generic"
+	ChatErrorKindOverloaded     ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit      ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout        ChatErrorKind = "timeout"
+	ChatErrorKindStartupTimeout ChatErrorKind = "startup_timeout"
+	ChatErrorKindAuth           ChatErrorKind = "auth"
+	ChatErrorKindConfig         ChatErrorKind = "config"
+	ChatErrorKindUsageLimit     ChatErrorKind = "usage_limit"
+)
+
+// AllChatErrorKinds contains every ChatErrorKind value.
+// Update this when adding new constants above.
+var AllChatErrorKinds = []ChatErrorKind{
+	ChatErrorKindGeneric,
+	ChatErrorKindOverloaded,
+	ChatErrorKindRateLimit,
+	ChatErrorKindTimeout,
+	ChatErrorKindStartupTimeout,
+	ChatErrorKindAuth,
+	ChatErrorKindConfig,
+	ChatErrorKindUsageLimit,
+}
+
+// ChatError represents a terminal chat error in persisted chat state or the
+// live stream.
+type ChatError struct {
 	// Message is the normalized, user-facing error message.
 	Message string `json:"message"`
 	// Detail is optional provider-specific context shown alongside the
 	// normalized error message when available.
 	Detail string `json:"detail,omitempty"`
 	// Kind classifies the error for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// Retryable reports whether the underlying error is transient.
@@ -1341,7 +1497,7 @@ type ChatStreamRetry struct {
 	// Error is the normalized error message from the failed attempt.
 	Error string `json:"error"`
 	// Kind classifies the retry reason for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// StatusCode is the best-effort upstream HTTP status code.
@@ -1463,7 +1619,7 @@ type ChatStreamEvent struct {
 	Message        *ChatMessage              `json:"message,omitempty"`
 	MessagePart    *ChatStreamMessagePart    `json:"message_part,omitempty"`
 	Status         *ChatStreamStatus         `json:"status,omitempty"`
-	Error          *ChatStreamError          `json:"error,omitempty"`
+	Error          *ChatError                `json:"error,omitempty"`
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
@@ -2138,6 +2294,68 @@ func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, overri
 	return nil
 }
 
+// GetChatPersonalModelOverridesAdminSettings returns the deployment-wide
+// personal model override admin settings.
+func (c *ExperimentalClient) GetChatPersonalModelOverridesAdminSettings(ctx context.Context) (ChatPersonalModelOverridesAdminSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/personal-model-overrides", nil)
+	if err != nil {
+		return ChatPersonalModelOverridesAdminSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatPersonalModelOverridesAdminSettings{}, ReadBodyAsError(res)
+	}
+	var resp ChatPersonalModelOverridesAdminSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatPersonalModelOverridesAdminSettings updates the deployment-wide
+// personal model override admin settings.
+func (c *ExperimentalClient) UpdateChatPersonalModelOverridesAdminSettings(ctx context.Context, req UpdateChatPersonalModelOverridesAdminSettingsRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/personal-model-overrides", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatPersonalModelOverrides fetches the user's personal model
+// override settings.
+func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Context) (UserChatPersonalModelOverridesResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-personal-model-overrides", nil)
+	if err != nil {
+		return UserChatPersonalModelOverridesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatPersonalModelOverridesResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatPersonalModelOverridesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatPersonalModelOverride updates the user's personal model
+// override for the requested context.
+func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
+	path := fmt.Sprintf(
+		"/api/experimental/chats/config/user-personal-model-overrides/%s",
+		url.PathEscape(string(override)),
+	)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetUserChatCustomPrompt fetches the user's custom chat prompt.
 func (c *ExperimentalClient) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
@@ -2206,6 +2424,34 @@ func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req Up
 	return nil
 }
 
+// GetChatComputerUseProvider returns the deployment-wide computer use provider.
+func (c *ExperimentalClient) GetChatComputerUseProvider(ctx context.Context) (ChatComputerUseProviderResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/computer-use-provider", nil)
+	if err != nil {
+		return ChatComputerUseProviderResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatComputerUseProviderResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatComputerUseProviderResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatComputerUseProvider updates the deployment-wide computer use
+// provider.
+func (c *ExperimentalClient) UpdateChatComputerUseProvider(ctx context.Context, req UpdateChatComputerUseProviderRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/computer-use-provider", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetChatWorkspaceTTL returns the configured chat workspace TTL.
 func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/workspace-ttl", nil)
@@ -2250,6 +2496,34 @@ func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRete
 // UpdateChatRetentionDays updates the chat retention period.
 func (c *ExperimentalClient) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/retention-days", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatDebugRetentionDays returns the configured chat debug run
+// retention period.
+func (c *ExperimentalClient) GetChatDebugRetentionDays(ctx context.Context) (ChatDebugRetentionDaysResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-retention-days", nil)
+	if err != nil {
+		return ChatDebugRetentionDaysResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugRetentionDaysResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugRetentionDaysResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDebugRetentionDays updates the chat debug run retention period.
+func (c *ExperimentalClient) UpdateChatDebugRetentionDays(ctx context.Context, req UpdateChatDebugRetentionDaysRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-retention-days", req)
 	if err != nil {
 		return err
 	}
@@ -2450,7 +2724,7 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 				}
 				_ = send(ChatStreamEvent{
 					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
+					Error: &ChatError{
 						Message: fmt.Sprintf("read chat stream: %v", err),
 					},
 				})

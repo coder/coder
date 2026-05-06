@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/external-auth \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /external-auth`
+`GET /api/v2/external-auth`
 
 ### Example responses
 
@@ -48,7 +48,7 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /external-auth/{externalauth}`
+`GET /api/v2/external-auth/{externalauth}`
 
 ### Parameters
 
@@ -110,7 +110,7 @@ curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /external-auth/{externalauth}`
+`DELETE /api/v2/external-auth/{externalauth}`
 
 ### Parameters
 
@@ -148,7 +148,7 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth}/device 
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /external-auth/{externalauth}/device`
+`GET /api/v2/external-auth/{externalauth}/device`
 
 ### Parameters
 
@@ -188,7 +188,7 @@ curl -X POST http://coder-server:8080/api/v2/external-auth/{externalauth}/device
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /external-auth/{externalauth}/device`
+`POST /api/v2/external-auth/{externalauth}/device`
 
 ### Parameters
 

@@ -7,6 +7,7 @@ import {
 	useId,
 	useState,
 } from "react";
+import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -55,6 +56,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onDeleteProvider,
 	onBack,
 }) => {
+	const navigate = useNavigate();
 	const { provider, providerConfig, baseURL, isEnvPreset } = providerState;
 
 	const apiKeyInputId = useId();
@@ -169,6 +171,17 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		isDirty &&
 		hasCredentialSource &&
 		(!requiresAPIKey || hasTypedAPIKey);
+	const canAddModel =
+		Boolean(providerConfig) &&
+		(providerState.hasEffectiveAPIKey ||
+			providerConfig?.allow_user_api_key === true);
+
+	const handleAddModel = () => {
+		const params = new URLSearchParams({ newModel: provider });
+		navigate(`/agents/settings/models?${params.toString()}`, {
+			state: { pushed: true },
+		});
+	};
 
 	const handleSubmit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -432,12 +445,24 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							) : (
 								<div />
 							)}
-							<Button size="lg" type="submit" disabled={!canSave}>
-								{isProviderMutationPending && (
-									<Spinner className="h-4 w-4" loading />
+							<div className="flex items-center gap-2">
+								{canAddModel && (
+									<Button size="lg" type="button" onClick={handleAddModel}>
+										Add model
+									</Button>
 								)}
-								{providerConfig ? "Save changes" : "Create provider config"}
-							</Button>
+								<Button
+									size="lg"
+									type="submit"
+									variant={canAddModel ? "outline" : undefined}
+									disabled={!canSave}
+								>
+									{isProviderMutationPending && (
+										<Spinner className="h-4 w-4" loading />
+									)}
+									{providerConfig ? "Save changes" : "Create provider config"}
+								</Button>
+							</div>
 						</div>
 					</div>
 				</form>

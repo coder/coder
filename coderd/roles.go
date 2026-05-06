@@ -22,7 +22,7 @@ import (
 // @Produce json
 // @Tags Members
 // @Success 200 {array} codersdk.AssignableRoles
-// @Router /users/roles [get]
+// @Router /api/v2/users/roles [get]
 func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	actorRoles := httpmw.UserAuthorization(r.Context())
@@ -58,7 +58,7 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 // @Tags Members
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.AssignableRoles
-// @Router /organizations/{organization}/members/roles [get]
+// @Router /api/v2/organizations/{organization}/members/roles [get]
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)

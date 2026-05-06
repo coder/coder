@@ -2,20 +2,26 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import {
 	assignableRole,
+	MockAgentsAccessRole,
 	MockAuditorRole,
+	MockOrganizationAdminRole,
+	MockOrganizationAuditorRole,
+	MockOrganizationTemplateAdminRole,
+	MockOrganizationUserAdminRole,
 	MockOwnerRole,
 	MockTemplateAdminRole,
 	MockUserAdminRole,
+	MockWorkspaceCreationBanRole,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { RoleSelector } from "./RoleSelector";
 
 const meta: Meta<typeof RoleSelector> = {
-	title: "pages/CreateUserPage/RoleSelector",
+	title: "modules/roles/RoleSelector",
 	component: RoleSelector,
 	args: {
 		onChange: action("change"),
-		selectedRoles: [],
+		selectedRoles: new Set(),
 	},
 };
 
@@ -38,33 +44,48 @@ const someNonAssignable = [
 
 export const Default: Story = {
 	args: {
-		roles: allAssignable,
+		availableRoles: allAssignable,
 	},
 };
 
 export const WithSelections: Story = {
 	args: {
-		roles: allAssignable,
-		selectedRoles: [MockUserAdminRole.name, MockAuditorRole.name],
+		availableRoles: allAssignable,
+		selectedRoles: new Set([MockUserAdminRole.name, MockAuditorRole.name]),
 	},
 };
 
 export const WithNonAssignableRoles: Story = {
 	args: {
-		roles: someNonAssignable,
+		availableRoles: someNonAssignable,
 	},
 };
 
 export const Loading: Story = {
 	args: {
-		roles: [],
+		availableRoles: [],
 		loading: true,
 	},
 };
 
 export const WithError: Story = {
 	args: {
-		roles: [],
+		availableRoles: [],
 		error: mockApiError({ message: "Failed to fetch assignable roles." }),
+	},
+};
+
+const orgMemberRoles = [
+	assignableRole(MockOrganizationAdminRole, true),
+	assignableRole(MockOrganizationUserAdminRole, true),
+	assignableRole(MockOrganizationTemplateAdminRole, true),
+	assignableRole(MockOrganizationAuditorRole, true),
+	assignableRole(MockAgentsAccessRole, true),
+	assignableRole(MockWorkspaceCreationBanRole, true),
+];
+
+export const OrganizationMemberRoles: Story = {
+	args: {
+		availableRoles: orgMemberRoles,
 	},
 };

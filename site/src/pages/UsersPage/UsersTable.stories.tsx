@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
-	MockAssignableSiteRoles,
 	MockAuditorRole,
-	MockAuthMethodsPasswordOnly,
 	MockGroup,
 	MockMemberRole,
 	MockTemplateAdminRole,
@@ -20,10 +18,7 @@ const mockGroupsByUserId = new Map([
 const meta: Meta<typeof UsersTable> = {
 	title: "pages/UsersPage/UsersTable",
 	component: UsersTable,
-	args: {
-		isNonInitialPage: false,
-		authMethods: MockAuthMethodsPasswordOnly,
-	},
+	args: {},
 };
 
 export default meta;
@@ -35,7 +30,6 @@ export const Example: Story = {
 			{ ...MockUserOwner, has_ai_seat: false },
 			{ ...MockUserMember, has_ai_seat: false },
 		],
-		roles: MockAssignableSiteRoles,
 		canEditUsers: false,
 		groupsByUserId: mockGroupsByUserId,
 	},
@@ -47,7 +41,6 @@ export const ExampleWithAISeatColumn: Story = {
 			{ ...MockUserOwner, has_ai_seat: true },
 			{ ...MockUserMember, has_ai_seat: false },
 		],
-		roles: MockAssignableSiteRoles,
 		canEditUsers: false,
 		groupsByUserId: mockGroupsByUserId,
 		showAISeatColumn: true,
@@ -90,7 +83,6 @@ export const Editable: Story = {
 				has_ai_seat: false,
 			},
 		],
-		roles: MockAssignableSiteRoles,
 		canEditUsers: true,
 		canViewActivity: true,
 		groupsByUserId: mockGroupsByUserId,
@@ -133,7 +125,6 @@ export const EditableWithAISeatColumn: Story = {
 				has_ai_seat: false,
 			},
 		],
-		roles: MockAssignableSiteRoles,
 		canEditUsers: true,
 		canViewActivity: true,
 		groupsByUserId: mockGroupsByUserId,
@@ -144,14 +135,12 @@ export const EditableWithAISeatColumn: Story = {
 export const Empty: Story = {
 	args: {
 		users: [],
-		roles: MockAssignableSiteRoles,
 	},
 };
 
 export const Loading: Story = {
 	args: {
 		users: [],
-		roles: MockAssignableSiteRoles,
 		isLoading: true,
 	},
 	parameters: {

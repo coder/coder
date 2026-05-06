@@ -206,6 +206,7 @@ export const TextAttachment: Story = {
 		expect(args.onTextPreview).toHaveBeenCalledWith(
 			"This is the pasted text content.\nIt has multiple lines.\nAnd should be displayed in a readable card format.",
 			"clipboard.txt",
+			"text/plain",
 		);
 	},
 };

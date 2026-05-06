@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -103,12 +104,34 @@ func allSubagentDefinitions() []subagentDefinition {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}
-				if !p.isAnthropicConfigured(ctx) || !p.isDesktopEnabled(ctx) {
-					return `type "computer_use" is unavailable because computer use is not configured`
+				if !p.isDesktopEnabled(ctx) {
+					return `type "computer_use" is unavailable because desktop access is not enabled`
+				}
+				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				if err != nil {
+					p.logger.Warn(ctx, "computer-use provider config is unavailable",
+						slog.F("chat_id", currentChat.ID),
+						slog.Error(err),
+					)
+					return `type "computer_use" is unavailable because its provider configuration could not be loaded`
 				}
 				return ""
 			},
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				configured, err := p.providerConfigured(ctx, provider)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				if !configured {
+					return childSubagentChatOptions{}, xerrors.Errorf(
+						`API key for computer-use provider %q is not configured`,
+						provider,
+					)
+				}
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,

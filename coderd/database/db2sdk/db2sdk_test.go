@@ -916,6 +916,17 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// field to codersdk.Chat, this test will fail until the
 	// converter is updated.
 	now := dbtime.Now()
+	lastErrorPayload := codersdk.ChatError{
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
+	}
+	lastErrorRaw, err := json.Marshal(lastErrorPayload)
+	require.NoError(t, err)
+
 	input := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
@@ -929,7 +940,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		Title:             "all-fields-test",
 		Status:            database.ChatStatusRunning,
 		ClientType:        database.ChatClientTypeUi,
-		LastError:         sql.NullString{String: "boom", Valid: true},
+		LastError:         pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,
@@ -969,6 +980,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	}
 
 	got := db2sdk.Chat(input, diffStatus, fileRows)
+
+	require.Equal(t, &lastErrorPayload, got.LastError)
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
@@ -1051,6 +1064,93 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 
 	result := db2sdk.Chat(chat, nil, nil)
 	require.Empty(t, result.Files)
+}
+
+func TestChat_LastErrorFallback(t *testing.T) {
+	t.Parallel()
+
+	const fallbackMessage = "The chat request failed unexpectedly."
+
+	tests := []struct {
+		name          string
+		raw           json.RawMessage
+		expectPayload *codersdk.ChatError
+	}{
+		{
+			name: "MalformedJSON",
+			raw:  json.RawMessage(`{`),
+			expectPayload: &codersdk.ChatError{
+				Message:   fallbackMessage,
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Retryable: false,
+			},
+		},
+		{
+			name: "MessageMissingPreservesMetadata",
+			raw:  json.RawMessage(`{"kind":"timeout","provider":"openai","status_code":504}`),
+			expectPayload: &codersdk.ChatError{
+				Message:    fallbackMessage,
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 504,
+			},
+		},
+		{
+			name: "WhitespaceMessageDefaultsKind",
+			raw:  json.RawMessage(`{"message":"  ","provider":"openai"}`),
+			expectPayload: &codersdk.ChatError{
+				Message:   fallbackMessage,
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Provider:  "openai",
+				Retryable: false,
+			},
+		},
+		{
+			name: "KindMissingDefaultsGeneric",
+			raw:  json.RawMessage(`{"message":"OpenAI returned an unexpected error.","provider":"openai","status_code":502}`),
+			expectPayload: &codersdk.ChatError{
+				Message:    "OpenAI returned an unexpected error.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 502,
+			},
+		},
+		{
+			name: "UsageLimitKindRoundTrips",
+			raw:  json.RawMessage(`{"message":"Usage limit reached.","kind":"usage_limit"}`),
+			expectPayload: &codersdk.ChatError{
+				Message:   "Usage limit reached.",
+				Kind:      codersdk.ChatErrorKindUsageLimit,
+				Retryable: false,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			chat := database.Chat{
+				ID:                uuid.New(),
+				OwnerID:           uuid.New(),
+				LastModelConfigID: uuid.New(),
+				Title:             "fallback payload",
+				Status:            database.ChatStatusError,
+				CreatedAt:         dbtime.Now(),
+				UpdatedAt:         dbtime.Now(),
+				LastError: pqtype.NullRawMessage{
+					RawMessage: tc.raw,
+					Valid:      true,
+				},
+			}
+
+			result := db2sdk.Chat(chat, nil, nil)
+			require.Equal(t, tc.expectPayload, result.LastError)
+		})
+	}
 }
 
 func TestChat_MultipleFiles(t *testing.T) {

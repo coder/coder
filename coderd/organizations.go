@@ -17,7 +17,7 @@ import (
 // @Produce json
 // @Tags Organizations
 // @Success 200 {object} []codersdk.Organization
-// @Router /organizations [get]
+// @Router /api/v2/organizations [get]
 func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organizations, err := api.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
@@ -43,7 +43,7 @@ func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 // @Tags Organizations
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} codersdk.Organization
-// @Router /organizations/{organization} [get]
+// @Router /api/v2/organizations/{organization} [get]
 func (*API) organization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)

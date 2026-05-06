@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/tasks \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /tasks`
+`GET /api/v2/tasks`
 
 ### Parameters
 
@@ -95,7 +95,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}`
+`POST /api/v2/tasks/{user}`
 
 > Body parameter
 
@@ -186,7 +186,7 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /tasks/{user}/{task}`
+`GET /api/v2/tasks/{user}/{task}`
 
 ### Parameters
 
@@ -264,7 +264,7 @@ curl -X DELETE http://coder-server:8080/api/v2/tasks/{user}/{task} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /tasks/{user}/{task}`
+`DELETE /api/v2/tasks/{user}/{task}`
 
 ### Parameters
 
@@ -292,7 +292,7 @@ curl -X PATCH http://coder-server:8080/api/v2/tasks/{user}/{task}/input \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /tasks/{user}/{task}/input`
+`PATCH /api/v2/tasks/{user}/{task}/input`
 
 > Body parameter
 
@@ -329,7 +329,7 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /tasks/{user}/{task}/logs`
+`GET /api/v2/tasks/{user}/{task}/logs`
 
 ### Parameters
 
@@ -376,7 +376,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}/{task}/pause`
+`POST /api/v2/tasks/{user}/{task}/pause`
 
 ### Parameters
 
@@ -622,7 +622,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}/{task}/resume`
+`POST /api/v2/tasks/{user}/{task}/resume`
 
 ### Parameters
 
@@ -868,7 +868,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/send \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}/{task}/send`
+`POST /api/v2/tasks/{user}/{task}/send`
 
 > Body parameter
 
@@ -905,7 +905,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/tasks/{task}/log
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/me/tasks/{task}/log-snapshot`
+`POST /api/v2/workspaceagents/me/tasks/{task}/log-snapshot`
 
 > Body parameter
 

@@ -28,7 +28,7 @@ import (
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {array} codersdk.ACLAvailable
-// @Router /templates/{template}/acl/available [get]
+// @Router /api/v2/templates/{template}/acl/available [get]
 func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx      = r.Context()
@@ -101,7 +101,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.TemplateACL
-// @Router /templates/{template}/acl [get]
+// @Router /api/v2/templates/{template}/acl [get]
 func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx      = r.Context()
@@ -187,7 +187,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 // @Param template path string true "Template ID" format(uuid)
 // @Param request body codersdk.UpdateTemplateACL true "Update template ACL request"
 // @Success 200 {object} codersdk.Response
-// @Router /templates/{template}/acl [patch]
+// @Router /api/v2/templates/{template}/acl [patch]
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -347,7 +347,7 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.InvalidatePresetsResponse
-// @Router /templates/{template}/prebuilds/invalidate [post]
+// @Router /api/v2/templates/{template}/prebuilds/invalidate [post]
 func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)

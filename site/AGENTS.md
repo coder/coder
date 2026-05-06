@@ -38,6 +38,13 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   (Table, Badge, icons, error handlers) and sibling files for local
   helpers. Duplicating existing components wastes effort and creates
   maintenance burden.
+- **Modifying core components is a cross-cutting change.** Treat new
+  exports or visual changes in `site/src/components/` differently from
+  feature-folder edits. They affect every consumer across the site, so
+  coordinate with design before extending them. When you need a small
+  variant of a shared primitive (for example, a separator with
+  feature-specific styling), define it locally in your feature folder
+  first and graduate it later if a shared design lands.
 - Keep component files under ~500 lines. When a file grows beyond that,
   extract logical sections into sub-components or a folder with an
   index file.
@@ -80,6 +87,18 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
   in code, comments, string literals, or documentation. Use commas,
   semicolons, or periods instead. Restructure the sentence if needed.
+- **Avoid unnecessary indirection.** Inline single-use module-level
+  constants, single-use aliases, and one-line helpers that just return a
+  single field at the call site. Do not create wrapper hooks that only
+  delegate to a library hook plus a couple of derived booleans. Inline
+  the call at each site instead. Indirection should pay for itself with
+  shared usage or non-trivial logic; otherwise it adds a layer reviewers
+  have to navigate without explaining anything.
+- **Re-evaluate helpers after upstream refactors.** When you change how
+  a value is computed (for example, by moving fallback logic into the
+  builder), check whether existing helpers that consumed that value have
+  collapsed to a pass-through. If a helper now just returns a single
+  field, delete it and inline the field access at the call sites.
 
 ## TypeScript Type Safety
 
