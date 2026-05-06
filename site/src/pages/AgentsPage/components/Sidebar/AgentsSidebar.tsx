@@ -944,13 +944,13 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
+								"group relative flex min-w-0 select-none items-stretch border-0 border-b border-solid border-border-default/30 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
 						>
 							{/* Chevron cell */}
-							<div className="flex w-8 shrink-0 items-center justify-center">
+							<div className="flex w-8 shrink-0 items-center justify-center border-0 border-r border-solid border-border-default/20">
 								{hasChildren ? (
 									<Button
 										variant="subtle"
@@ -968,7 +968,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							<NavLink
 								to={{ pathname: `/agents/${chat.id}`, search: location.search }}
 								className={cn(
-									"min-w-0 flex-1 truncate py-1.5 text-sm text-content-primary no-underline",
+									"min-w-0 flex-1 truncate px-2 py-1.5 text-sm text-content-primary no-underline",
 									isActiveChat && "font-medium",
 								)}
 							>
@@ -977,7 +977,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							{/* Subtitle cell */}
 							<span
 								className={cn(
-									"shrink-0 truncate px-2 text-sm",
+									"flex shrink-0 items-center truncate border-0 border-l border-solid border-border-default/20 px-3 text-sm",
 									layout === "large" ? "w-[160px]" : "w-[120px]",
 									errorReason
 										? "text-content-destructive"
@@ -990,7 +990,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							{/* PR stats cell */}
 							{hasLinkedDiffStatus && hasLineStats ? (
 								<span
-									className="inline-flex shrink-0 items-center gap-2 px-2 text-sm tabular-nums"
+									className="inline-flex shrink-0 items-center gap-2 border-0 border-l border-solid border-border-default/20 px-3 text-sm tabular-nums"
 									title={`${filesChangedLabel}, +${additions} -${deletions}`}
 								>
 									{(() => {
@@ -1015,7 +1015,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</span>
 							) : null}
 							{/* Status + Kebab cells */}
-							<div className="ml-auto flex shrink-0 items-center">
+							<div className="ml-auto flex shrink-0 items-center border-0 border-l border-solid border-border-default/20">
 								<div className="flex w-8 items-center justify-center">
 									{isArchivingThisChat ? (
 										<Spinner
@@ -1038,7 +1038,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<Button
 											size="icon"
 											variant="subtle"
-											className="h-6 w-8 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											className="h-6 w-8 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary"
 											aria-label={`Open actions for ${chat.title}`}
 										>
 											<EllipsisVerticalIcon className="h-3.5 w-3.5" />
@@ -1592,7 +1592,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-2 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className="flex w-full items-center justify-between border-0 bg-transparent pb-1 pl-2 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
@@ -1659,7 +1659,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-2 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className="flex w-full items-center justify-between border-0 bg-transparent pb-1 pl-2 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
