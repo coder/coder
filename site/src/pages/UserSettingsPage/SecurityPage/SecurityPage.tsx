@@ -4,8 +4,12 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import { authMethods, updatePassword } from "#/api/queries/users";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { Section } from "../Section";
 import { SecurityForm } from "./SecurityForm";
 import {
 	SingleSignOnSection,
@@ -71,9 +75,15 @@ export const SecurityPageView: FC<SecurityPageViewProps> = ({
 }) => {
 	return (
 		<div className="flex flex-col gap-12">
-			<Section title="Security" description="Update your account password">
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Update your account password.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 				<SecurityForm {...security.form} />
-			</Section>
+			</div>
 			{oidc && <SingleSignOnSection {...oidc.section} />}
 		</div>
 	);

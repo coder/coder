@@ -3,8 +3,11 @@ import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
-import { Section } from "../Section";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { useTokensData } from "./hooks";
 import { TokensPageView } from "./TokensPageView";
@@ -31,32 +34,35 @@ const TokensPage: FC = () => {
 
 	return (
 		<>
-			<Section
-				title="Tokens"
-				className={cn(
-					"[&_code]:bg-surface-secondary [&_code]:text-content-primary",
-					"[&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded-sm",
-				)}
-				description={
-					<>
-						Tokens are used to authenticate with the Coder API. You can create a
-						token with the Coder CLI using the <code>{cliCreateCommand}</code>{" "}
-						command.
-					</>
+			<SettingsHeader
+				actions={
+					<Button asChild variant="outline">
+						<RouterLink to="new">
+							<PlusIcon />
+							Add token
+						</RouterLink>
+					</Button>
 				}
-				layout="fluid"
 			>
-				<TokenActions />
-				<TokensPageView
-					tokens={tokens}
-					isLoading={isFetching}
-					hasLoaded={isFetched}
-					getTokensError={getTokensError}
-					onDelete={(token) => {
-						setTokenToDelete(token);
-					}}
-				/>
-			</Section>
+				<SettingsHeaderTitle>Tokens</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Tokens are used to authenticate with the Coder API. You can create a
+					token with the Coder CLI using the{" "}
+					<code className="bg-surface-secondary text-content-primary text-xs px-1 py-0.5 rounded-sm">
+						{cliCreateCommand}
+					</code>{" "}
+					command.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+			<TokensPageView
+				tokens={tokens}
+				isLoading={isFetching}
+				hasLoaded={isFetched}
+				getTokensError={getTokensError}
+				onDelete={(token) => {
+					setTokenToDelete(token);
+				}}
+			/>
 			<ConfirmDeleteDialog
 				queryKey={queryKey}
 				token={tokenToDelete}
@@ -65,16 +71,5 @@ const TokensPage: FC = () => {
 		</>
 	);
 };
-
-const TokenActions: FC = () => (
-	<div className="flex flex-row justify-end gap-4 mb-2">
-		<Button asChild variant="outline">
-			<RouterLink to="new">
-				<PlusIcon />
-				Add token
-			</RouterLink>
-		</Button>
-	</div>
-);
 
 export default TokensPage;
