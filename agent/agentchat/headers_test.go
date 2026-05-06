@@ -2,6 +2,7 @@ package agentchat_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -130,13 +131,25 @@ func TestExtractContext(t *testing.T) {
 				r.Header.Set(workspacesdk.CoderAncestorChatIDsHeader, tt.ancestors)
 			}
 
-			chatID, ancestorIDs, ok := agentchat.ExtractContext(r)
+			chatID, ancestorIDs, ok := extractContextForTest(r)
 
 			require.Equal(t, tt.wantOK, ok, "ok mismatch")
 			require.Equal(t, tt.wantChatID, chatID, "chatID mismatch")
 			require.Equal(t, tt.wantAncestorIDs, ancestorIDs, "ancestorIDs mismatch")
 		})
 	}
+}
+
+func extractContextForTest(r *http.Request) (uuid.UUID, []uuid.UUID, bool) {
+	var chatContext agentchat.Context
+	var ok bool
+	agentchat.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		chatContext, ok = agentchat.FromContext(r.Context())
+	})).ServeHTTP(httptest.NewRecorder(), r)
+	if !ok {
+		return uuid.Nil, nil, false
+	}
+	return chatContext.ID, chatContext.AncestorIDs, true
 }
 
 // mustMarshalJSON marshals v to a JSON string, failing the test on error.

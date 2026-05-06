@@ -32,8 +32,11 @@ func WithContext(ctx context.Context, chatID uuid.UUID, ancestorIDs []uuid.UUID)
 	if chatID == uuid.Nil {
 		return ctx
 	}
-	ancestors := make([]uuid.UUID, len(ancestorIDs))
-	copy(ancestors, ancestorIDs)
+	var ancestors []uuid.UUID
+	if len(ancestorIDs) > 0 {
+		ancestors = make([]uuid.UUID, len(ancestorIDs))
+		copy(ancestors, ancestorIDs)
+	}
 	return context.WithValue(ctx, chatContextKey{}, Context{
 		ID:          chatID,
 		AncestorIDs: ancestors,
@@ -52,9 +55,10 @@ func Fields(ctx context.Context) []slog.Field {
 // Middleware tags agent logs for requests that originate from
 // chatd. Agent log lines emitted while serving a request with Coder-Chat-Id,
 // or by background work started by such a request, should include chat_id.
+// Install after loggermw.Logger so access-log enrichment can run.
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		chatID, ancestorIDs, ok := ExtractContext(r)
+		chatID, ancestorIDs, ok := extractContext(r)
 		if !ok {
 			next.ServeHTTP(rw, r)
 			return

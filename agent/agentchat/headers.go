@@ -11,9 +11,9 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-// ExtractContext reads chat identity headers from the request.
+// extractContext reads chat identity headers from the request.
 // Returns zero values if headers are absent (non-chat request).
-func ExtractContext(r *http.Request) (chatID uuid.UUID, ancestorIDs []uuid.UUID, ok bool) {
+func extractContext(r *http.Request) (chatID uuid.UUID, ancestorIDs []uuid.UUID, ok bool) {
 	raw := r.Header.Get(workspacesdk.CoderChatIDHeader)
 	if raw == "" {
 		return uuid.Nil, nil, false

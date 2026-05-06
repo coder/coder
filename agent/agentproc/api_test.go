@@ -140,7 +140,7 @@ func newTestAPIWithOptions(t *testing.T, updateEnv func([]string) ([]string, err
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
-	return api.Routes()
+	return agentchat.Middleware(api.Routes())
 }
 
 func TestAccessLogIncludesChatID(t *testing.T) {
@@ -1089,7 +1089,7 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 	}, pathStore, nil)
 	defer api.Close()
 
-	routes := api.Routes()
+	routes := agentchat.Middleware(api.Routes())
 
 	body, err := json.Marshal(workspacesdk.StartProcessRequest{
 		Command: "echo hello",

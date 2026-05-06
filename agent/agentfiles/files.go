@@ -324,8 +324,8 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 
 	// Track edited path for git watch.
 	if api.pathStore != nil {
-		if chatID, ancestorIDs, ok := agentchat.ExtractContext(r); ok {
-			api.pathStore.AddPaths(append([]uuid.UUID{chatID}, ancestorIDs...), []string{path})
+		if chatContext, ok := agentchat.FromContext(ctx); ok {
+			api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), []string{path})
 		}
 	}
 
@@ -460,12 +460,12 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 
 	// Track edited paths for git watch.
 	if api.pathStore != nil {
-		if chatID, ancestorIDs, ok := agentchat.ExtractContext(r); ok {
+		if chatContext, ok := agentchat.FromContext(ctx); ok {
 			filePaths := make([]string, 0, len(req.Files))
 			for _, f := range req.Files {
 				filePaths = append(filePaths, f.Path)
 			}
-			api.pathStore.AddPaths(append([]uuid.UUID{chatID}, ancestorIDs...), filePaths)
+			api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), filePaths)
 		}
 	}
 
