@@ -916,7 +916,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								)}
 								{subagentChildren.length > 0 && (
 									<div className="py-0.5">
-										<div className="mb-0.5 text-sm font-medium text-content-secondary">
+										<div className="mb-0.5 flex items-center gap-1 text-sm font-medium text-content-secondary">
+											<ChevronUpIcon className="h-3.5 w-3.5 shrink-0" />
 											{subagentChildren.length} Subagents
 										</div>
 										<div className="relative border-l border-border-default/60 ml-1">
@@ -1396,7 +1397,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 px-2 py-3">
+						<div className="flex flex-col gap-2 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
