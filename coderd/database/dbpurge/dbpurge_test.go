@@ -61,6 +61,7 @@ func TestPurge(t *testing.T) {
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
+	mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
 	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
 	<-done // wait for doTick() to run.
@@ -139,10 +140,55 @@ func TestMetrics(t *testing.T) {
 		})
 		require.GreaterOrEqual(t, chats, 0)
 
+		chatDebugRuns := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "chat_debug_runs",
+		})
+		require.GreaterOrEqual(t, chatDebugRuns, 0)
+
 		chatFiles := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
 			"record_type": "chat_files",
 		})
 		require.GreaterOrEqual(t, chatFiles, 0)
+	})
+
+	t.Run("LockNotAcquiredSkipsIterationMetric", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(false, nil).AnyTimes()
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "lock contention should not record a successful purge iteration")
+
+		failedHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.Nil(t, failedHist, "lock contention should not record a failed purge iteration")
 	})
 
 	t.Run("FailedIteration", func(t *testing.T) {
@@ -158,6 +204,8 @@ func TestMetrics(t *testing.T) {
 		mDB := dbmock.NewMockStore(ctrl)
 		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			Return(xerrors.New("simulated database error")).
 			MinTimes(1)
@@ -181,9 +229,9 @@ func TestMetrics(t *testing.T) {
 		require.Nil(t, successHist, "should not have success=true metric on failure")
 	})
 
-	// A failed retention read must not block unrelated purges,
-	// but must skip the chat passes and surface as a failed
-	// iteration via the metric.
+	// A failed retention read must not block unrelated or chat debug
+	// purges, but must skip the conversation purge and auto-archive
+	// passes and surface as a failed iteration via the metric.
 	t.Run("FailedChatRetentionRead", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
@@ -198,12 +246,24 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).
 			Return(int32(0), xerrors.New("simulated retention read error")).
 			MinTimes(1)
-		// Both reads happen before the bail; InTx still runs
-		// so unrelated purges commit best-effort.
+		// All reads happen before the bail; InTx still runs so unrelated
+		// purges and chat debug purge commit best-effort.
 		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
 			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(7), nil).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceAgentStats(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
-			Return(nil).MinTimes(1)
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
@@ -242,6 +302,8 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
 			Return(int32(0), xerrors.New("simulated auto-archive read error")).
 			MinTimes(1)
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), nil).AnyTimes()
 		// InTx still runs so unrelated purges commit; chat
 		// passes inside the tx are skipped.
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -265,6 +327,59 @@ func TestMetrics(t *testing.T) {
 			"success": "true",
 		})
 		require.Nil(t, successHist, "should not have success=true metric on auto-archive read failure")
+	})
+
+	// Same contract as the other chat config reads, but debug retention
+	// read failures skip only debug purging.
+	t.Run("FailedChatDebugRetentionRead", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		reg := prometheus.NewRegistry()
+		clk := quartz.NewMock(t)
+		now := clk.Now()
+		clk.Set(now).MustWait(ctx)
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
+		mDB.EXPECT().GetChatAutoArchiveDays(gomock.Any(), codersdk.DefaultChatAutoArchiveDays).
+			Return(int32(0), nil).AnyTimes()
+		mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).
+			Return(int32(0), xerrors.New("simulated chat debug retention read error")).
+			MinTimes(1)
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceAgentStats(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldProvisionerDaemons(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
+			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
+				return f(mDB)
+			}).MinTimes(1)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		done := awaitDoTick(ctx, t, clk)
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		defer closer.Close()
+		testutil.TryReceive(ctx, t, done)
+
+		hist := promhelp.HistogramValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "false",
+		})
+		require.NotNil(t, hist)
+		require.Greater(t, hist.GetSampleCount(), uint64(0),
+			"failed chat debug retention read must record a failed iteration")
+
+		successHist := promhelp.MetricValue(t, reg, "coderd_dbpurge_iteration_duration_seconds", prometheus.Labels{
+			"success": "true",
+		})
+		require.Nil(t, successHist, "should not have success=true metric on chat debug retention read failure")
 	})
 }
 
@@ -1816,6 +1931,201 @@ func mockAuditorPtr(m *audit.MockAuditor) *atomic.Pointer[audit.Auditor] {
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
+func TestPurgeChatDebugRuns(t *testing.T) {
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	type chatDebugDeps struct {
+		user        database.User
+		org         database.Organization
+		modelConfig database.ChatModelConfig
+	}
+	// setupChatDebugDeps creates the user, organization, and chat model config dependencies needed for the chat debug retention test.
+	setupChatDebugDeps := func(t *testing.T, db database.Store) chatDebugDeps {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+		})
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:     "openai",
+			Model:        "test-model",
+			ContextLimit: 8192,
+		})
+		return chatDebugDeps{user: user, org: org, modelConfig: modelConfig}
+	}
+	createChat := func(ctx context.Context, t *testing.T, db database.Store, rawDB *sql.DB, deps chatDebugDeps, archived bool, updatedAt time.Time) database.Chat {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    deps.org.ID,
+			OwnerID:           deps.user.ID,
+			LastModelConfigID: deps.modelConfig.ID,
+			Title:             "debug-retention-test-chat",
+		})
+		if archived {
+			_, err := db.ArchiveChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+		}
+		_, err := rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
+		require.NoError(t, err)
+		return chat
+	}
+	createDebugRunWithStep := func(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, updatedAt time.Time, finished bool) database.ChatDebugRun {
+		t.Helper()
+		run, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+			ChatID:    chatID,
+			Kind:      string(codersdk.ChatDebugRunKindChatTurn),
+			Status:    string(codersdk.ChatDebugStatusInProgress),
+			Provider:  sql.NullString{String: "openai", Valid: true},
+			Model:     sql.NullString{String: "gpt-4o-mini", Valid: true},
+			StartedAt: sql.NullTime{Time: updatedAt.Add(-time.Minute), Valid: true},
+			UpdatedAt: sql.NullTime{Time: updatedAt, Valid: true},
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+			RunID:      run.ID,
+			ChatID:     run.ChatID,
+			StepNumber: 1,
+			Operation:  string(codersdk.ChatDebugStepOperationStream),
+			Status:     string(codersdk.ChatDebugStatusCompleted),
+			StartedAt:  sql.NullTime{Time: updatedAt.Add(-time.Minute), Valid: true},
+			UpdatedAt:  sql.NullTime{Time: updatedAt, Valid: true},
+			FinishedAt: sql.NullTime{Time: updatedAt, Valid: true},
+		})
+		require.NoError(t, err)
+		if finished {
+			run, err = db.UpdateChatDebugRun(ctx, database.UpdateChatDebugRunParams{
+				Status:     sql.NullString{String: string(codersdk.ChatDebugStatusCompleted), Valid: true},
+				FinishedAt: sql.NullTime{Time: updatedAt, Valid: true},
+				Now:        updatedAt,
+				ID:         run.ID,
+				ChatID:     run.ChatID,
+			})
+			require.NoError(t, err)
+		}
+		return run
+	}
+	countDebugSteps := func(ctx context.Context, t *testing.T, rawDB *sql.DB, runID uuid.UUID) int {
+		t.Helper()
+		var count int
+		err := rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_debug_steps WHERE run_id = $1", runID).Scan(&count)
+		require.NoError(t, err)
+		return count
+	}
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "DeletesOldRunsAndCascadedSteps",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				reg := prometheus.NewRegistry()
+				deps := setupChatDebugDeps(t, db)
+				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(7)))
+
+				chat := createChat(ctx, t, db, rawDB, deps, false, now)
+				oldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-8*24*time.Hour), true)
+				recentRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-6*24*time.Hour), true)
+				unfinishedOldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-9*24*time.Hour), false)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				chatDebugRuns := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+					"record_type": "chat_debug_runs",
+				})
+				require.Greater(t, chatDebugRuns, 0, "chat debug purge counter should record deleted runs")
+
+				_, err := db.GetChatDebugRunByID(ctx, oldRun.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "old finished run should be deleted")
+				require.Zero(t, countDebugSteps(ctx, t, rawDB, oldRun.ID), "old run steps should cascade")
+
+				_, err = db.GetChatDebugRunByID(ctx, unfinishedOldRun.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "old unfinished run should be deleted")
+				require.Zero(t, countDebugSteps(ctx, t, rawDB, unfinishedOldRun.ID), "old unfinished run steps should cascade")
+
+				_, err = db.GetChatDebugRunByID(ctx, recentRun.ID)
+				require.NoError(t, err, "recent run should remain")
+				require.Equal(t, 1, countDebugSteps(ctx, t, rawDB, recentRun.ID), "recent run step should remain")
+			},
+		},
+		{
+			name: "RetentionDisabledKeepsOldRuns",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDebugDeps(t, db)
+				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
+
+				chat := createChat(ctx, t, db, rawDB, deps, false, now)
+				oldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-90*24*time.Hour), true)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err := db.GetChatDebugRunByID(ctx, oldRun.ID)
+				require.NoError(t, err, "old run should remain when retention is disabled")
+				require.Equal(t, 1, countDebugSteps(ctx, t, rawDB, oldRun.ID), "old run step should remain")
+			},
+		},
+		{
+			name: "ChatCascadeDeletesDebugRows",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDebugDeps(t, db)
+				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
+				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
+
+				oldArchivedChat := createChat(ctx, t, db, rawDB, deps, true, now.Add(-31*24*time.Hour))
+				run := createDebugRunWithStep(ctx, t, db, oldArchivedChat.ID, now, true)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				_, err := db.GetChatByID(ctx, oldArchivedChat.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "old archived chat should be deleted")
+				_, err = db.GetChatDebugRunByID(ctx, run.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "chat deletion should cascade to debug runs")
+				require.Zero(t, countDebugSteps(ctx, t, rawDB, run.ID), "chat deletion should cascade to debug steps")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) { //nolint:paralleltest // subtests use LockIDDBPurge.
+			tt.run(t)
+		})
+	}
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldChatFiles(t *testing.T) {
 	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
@@ -1949,7 +2259,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				// Old archived chat should be gone.
 				_, err = db.GetChatByID(ctx, oldChat.ID)
-				require.Error(t, err, "old archived chat should be deleted")
+				require.ErrorIs(t, err, sql.ErrNoRows, "old archived chat should be deleted")
 
 				// Its messages should be gone too (CASCADE).
 				msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{

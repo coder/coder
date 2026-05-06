@@ -1503,6 +1503,28 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole,
 }
 
 func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.ProvisionerJob) error {
+	// System-restricted callers (e.g. instance-identity agent auth via
+	// AsSystemRestricted) have already passed an outer authz check before
+	// reaching the provisioner job. Skip the per-job RBAC fan-out through
+	// GetWorkspaceBuildByJobID -> GetWorkspaceByID, which serializes 2
+	// extra DB queries + 1 RBAC eval per call. Under saturated pgx pools
+	// this cascade can block agent auth past the HTTP write timeout (see
+	// incident report against v2.33.0-rc.3 with multi-agent
+	// instance-identity templates).
+	//
+	// We check the subject type directly rather than calling
+	// authorizeContext(ResourceSystem) so we do not record a site-scoped
+	// authz call on every provisioner-job lookup; tests like
+	// TestCreateUserWorkspace/AuthzStory assert that workspace creation
+	// only emits org-scoped authz calls. The same actor.Type check is
+	// already used elsewhere in this file (see GetChatDiffStatusesByChatIDs).
+	//
+	// If a future system actor needs the same fast-path, add its
+	// SubjectType here explicitly rather than broadening to a permission
+	// check.
+	if actor, ok := ActorFromContext(ctx); ok && actor.Type == rbac.SubjectTypeSystemRestricted {
+		return nil
+	}
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		// Authorized call to get workspace build. If we can read the build, we can
@@ -2088,6 +2110,13 @@ func (q *querier) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOld
 	return q.db.DeleteOldAuditLogs(ctx, arg)
 }
 
+func (q *querier) DeleteOldChatDebugRuns(ctx context.Context, arg database.DeleteOldChatDebugRunsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldChatDebugRuns(ctx, arg)
+}
+
 func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -2658,6 +2687,17 @@ func (q *querier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, erro
 		return false, ErrNoActor
 	}
 	return q.db.GetChatDebugLoggingAllowUsers(ctx)
+}
+
+func (q *querier) GetChatDebugRetentionDays(ctx context.Context, defaultDebugRetentionDays int32) (int32, error) {
+	// Chat debug retention is a deployment-wide config read by dbpurge.
+	// Only requires a valid actor in context. The HTTP GET handler
+	// allows any authenticated user; the PUT handler enforces admin
+	// access (policy.ActionUpdate on ResourceDeploymentConfig).
+	if _, ok := ActorFromContext(ctx); !ok {
+		return 0, ErrNoActor
+	}
+	return q.db.GetChatDebugRetentionDays(ctx, defaultDebugRetentionDays)
 }
 
 func (q *querier) GetChatDebugRunByID(ctx context.Context, id uuid.UUID) (database.ChatDebugRun, error) {
@@ -4443,6 +4483,17 @@ func (q *querier) GetUserSecretByUserIDAndName(ctx context.Context, arg database
 	}
 
 	return q.db.GetUserSecretByUserIDAndName(ctx, arg)
+}
+
+func (q *querier) GetUserSecretsTelemetrySummary(ctx context.Context) (database.GetUserSecretsTelemetrySummaryRow, error) {
+	// Telemetry queries are called from system contexts only. The
+	// query reads aggregate counts across all users' secrets, so
+	// authorize against the resource type rather than a per-user
+	// owner.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserSecret); err != nil {
+		return database.GetUserSecretsTelemetrySummaryRow{}, err
+	}
+	return q.db.GetUserSecretsTelemetrySummary(ctx)
 }
 
 func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
@@ -7493,6 +7544,13 @@ func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUse
 		return err
 	}
 	return q.db.UpsertChatDebugLoggingAllowUsers(ctx, allowUsers)
+}
+
+func (q *querier) UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatDebugRetentionDays(ctx, debugRetentionDays)
 }
 
 func (q *querier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {

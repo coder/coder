@@ -27,7 +27,7 @@ import {
 } from "../utils/modelOptions";
 import {
 	formatUsageLimitMessage,
-	isUsageLimitData,
+	isChatUsageLimitExceededResponse,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
@@ -464,7 +464,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					) : createError ? (
 						isApiError(createError) &&
 						createError.response?.status === 409 &&
-						isUsageLimitData(createError.response.data) ? (
+						isChatUsageLimitExceededResponse(createError.response.data) ? (
 							<Alert
 								severity="info"
 								actions={

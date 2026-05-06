@@ -1998,3 +1998,260 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	assert.Equal(t, int64(2), snapshot2.ChatDiffStatusSummary.Merged)
 	assert.Equal(t, int64(1), snapshot2.ChatDiffStatusSummary.Closed)
 }
+
+func TestUserSecretsTelemetry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Empty deployment should report a non-nil summary with zeros.
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		require.Equal(t, &telemetry.UserSecretsSummary{}, snap.UserSecretsSummary)
+	})
+
+	t.Run("ConfigurationBreakdown", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
+
+		// userA: env-only and file-only. dbgen.UserSecret defaults
+		// EnvName and FilePath to non-empty, so use mutators to clear
+		// them where the test wants empty values.
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userA.ID,
+			Name:   "a-env",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "A_ENV"
+			p.FilePath = ""
+		})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userA.ID,
+			Name:   "a-file",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/a.file"
+		})
+		// userB: both and neither.
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userB.ID,
+			Name:   "b-both",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "B_BOTH"
+			p.FilePath = "/home/coder/b.both"
+		})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userB.ID,
+			Name:   "b-neither",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = ""
+		})
+
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		// Each user has exactly two secrets, so every percentile and
+		// the max collapse to 2.
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  2,
+			TotalSecrets:      4,
+			EnvNameOnly:       1,
+			FilePathOnly:      1,
+			Both:              1,
+			Neither:           1,
+			SecretsPerUserMax: 2,
+			SecretsPerUserP25: 2,
+			SecretsPerUserP50: 2,
+			SecretsPerUserP75: 2,
+			SecretsPerUserP90: 2,
+		}, snap.UserSecretsSummary)
+	})
+
+	t.Run("PercentileDistribution", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Five users have secret counts 1, 2, 4, 8, 16 and five other
+		// users have zero secrets. Including the zero-secret users in
+		// the distribution gives a sorted vector of length 10:
+		//   [0, 0, 0, 0, 0, 1, 2, 4, 8, 16]
+		// percentile_disc(p) returns the value at the smallest
+		// 1-indexed position i where i/n >= p, so the buckets land at:
+		//   p25 -> position 3 -> 0
+		//   p50 -> position 5 -> 0
+		//   p75 -> position 8 -> 4
+		//   p90 -> position 9 -> 8
+		adopters := []int{1, 2, 4, 8, 16}
+		for _, n := range adopters {
+			u := dbgen.User(t, db, database.User{})
+			for i := 0; i < n; i++ {
+				_ = dbgen.UserSecret(t, db, database.UserSecret{
+					UserID: u.ID,
+					Name:   fmt.Sprintf("secret-%d", i),
+				}, func(p *database.CreateUserSecretParams) {
+					// Clear EnvName and FilePath so the unique
+					// (user_id, env_name) and (user_id, file_path)
+					// indexes don't collide across multiple secrets
+					// for the same user.
+					p.EnvName = ""
+					p.FilePath = ""
+				})
+			}
+		}
+		for i := 0; i < 5; i++ {
+			_ = dbgen.User(t, db, database.User{})
+		}
+
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  5,
+			TotalSecrets:      31,
+			EnvNameOnly:       0,
+			FilePathOnly:      0,
+			Both:              0,
+			Neither:           31,
+			SecretsPerUserMax: 16,
+			SecretsPerUserP25: 0,
+			SecretsPerUserP50: 0,
+			SecretsPerUserP75: 4,
+			SecretsPerUserP90: 8,
+		}, snap.UserSecretsSummary)
+	})
+
+	t.Run("FilterSkipsInactiveUsers", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Active user with two secrets contributes the only entries
+		// to UsersWithSecrets, TotalSecrets, and the percentile
+		// distribution.
+		active := dbgen.User(t, db, database.User{})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: active.ID,
+			Name:   "active-env",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "ACTIVE_ENV"
+			p.FilePath = ""
+		})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: active.ID,
+			Name:   "active-file",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/active.file"
+		})
+
+		// Soft-deleted user. user_secrets has ON DELETE CASCADE on
+		// users, but Coder soft-deletes by setting users.deleted, so
+		// the secret row persists. The summary should ignore it.
+		deleted := dbgen.User(t, db, database.User{Deleted: true})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: deleted.ID,
+			Name:   "deleted-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "DELETED_ENV"
+			p.FilePath = ""
+		})
+
+		// User secret owned by a dormant user should be excluded.
+		dormant := dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: dormant.ID,
+			Name:   "dormant-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "DORMANT_ENV"
+			p.FilePath = ""
+		})
+
+		// User secret owned by a suspended user should be excluded.
+		suspended := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: suspended.ID,
+			Name:   "suspended-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/suspended.file"
+		})
+
+		// System user. Only its UUID is needed. Tying a secret to it
+		// proves the is_system filter excludes it.
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: database.PrebuildsSystemUserID,
+			Name:   "prebuilds-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/prebuilds.file"
+		})
+
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  1,
+			TotalSecrets:      2,
+			EnvNameOnly:       1,
+			FilePathOnly:      1,
+			Both:              0,
+			Neither:           0,
+			SecretsPerUserMax: 2,
+			SecretsPerUserP25: 2,
+			SecretsPerUserP50: 2,
+			SecretsPerUserP75: 2,
+			SecretsPerUserP90: 2,
+		}, snap.UserSecretsSummary)
+	})
+
+	t.Run("OnlyOneReplicaCollects", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Seed one user with one secret so the summary would normally
+		// be populated. The user_secrets_summary aggregate has no
+		// natural per-row UUID for the telemetry server to dedupe on,
+		// so a telemetry lock elects a single replica per period.
+		u := dbgen.User(t, db, database.User{})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: u.ID,
+			Name:   "only-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = ""
+		})
+
+		clock := quartz.NewMock(t)
+		clock.Set(dbtime.Now())
+
+		// First snapshot claims the lock and reports the summary.
+		_, snap1 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  1,
+			TotalSecrets:      1,
+			EnvNameOnly:       0,
+			FilePathOnly:      0,
+			Both:              0,
+			Neither:           1,
+			SecretsPerUserMax: 1,
+			SecretsPerUserP25: 1,
+			SecretsPerUserP50: 1,
+			SecretsPerUserP75: 1,
+			SecretsPerUserP90: 1,
+		}, snap1.UserSecretsSummary)
+
+		// A second snapshot in the same period simulates a second
+		// replica racing to claim the lock; it should observe the
+		// unique violation and skip reporting.
+		_, snap2 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		require.Nil(t, snap2.UserSecretsSummary)
+	})
+}

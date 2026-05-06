@@ -1422,6 +1422,22 @@ export const updateChatRetentionDays = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatDebugRetentionDaysKey = ["chat-debug-retention-days"] as const;
+
+export const chatDebugRetentionDays = () => ({
+	queryKey: chatDebugRetentionDaysKey,
+	queryFn: () => API.experimental.getChatDebugRetentionDays(),
+});
+
+export const updateChatDebugRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatDebugRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDebugRetentionDaysKey,
+		});
+	},
+});
+
 const chatAutoArchiveDaysKey = ["chat-auto-archive-days"] as const;
 
 export const chatAutoArchiveDays = () => ({

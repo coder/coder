@@ -12103,6 +12103,63 @@ func TestChatRetentionDays(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
+func TestChatDebugRetentionDays(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	// Default value is DefaultChatDebugRetentionDays when nothing has
+	// been configured.
+	resp, err := adminClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "get default")
+	require.Equal(t, codersdk.DefaultChatDebugRetentionDays, resp.DebugRetentionDays, "default should match DefaultChatDebugRetentionDays")
+
+	// Admin can set debug retention days to 14.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: 14,
+	})
+	require.NoError(t, err, "admin set 14")
+
+	resp, err = adminClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "get after set")
+	require.Equal(t, int32(14), resp.DebugRetentionDays, "should return 14")
+
+	// Non-admin member can read the value.
+	memberResp, err := memberClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "member read")
+	require.Equal(t, int32(14), memberResp.DebugRetentionDays, "member sees same value")
+
+	// Non-admin member cannot write.
+	err = memberClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: 7})
+	requireSDKError(t, err, http.StatusForbidden)
+
+	// Admin can disable chat debug retention purge by setting 0.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: 0,
+	})
+	require.NoError(t, err, "admin set 0")
+
+	resp, err = adminClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "get after zero")
+	require.Equal(t, int32(0), resp.DebugRetentionDays, "should be 0 after disable")
+
+	// Validation: negative value is rejected.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: -1,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Validation: exceeding the 3650-day maximum is rejected.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: 3651, // chatDebugRetentionDaysMaximum + 1; keep in sync with coderd/exp_chats.go.
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+}
+
 func TestChatAutoArchiveDays(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -13413,4 +13470,190 @@ func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Erro
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, expectedStatus, sdkErr.StatusCode())
 	return sdkErr
+}
+
+// TestChatOwnerOnlyWriteHandlers verifies that only the chat owner can
+// call handlers that trigger chat processing. Org admins pass the RBAC
+// ActionUpdate check (org-level permission) but must still be blocked
+// because processing forwards the *owner's* credentials to external
+// services.
+func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
+	t.Parallel()
+
+	// setupOrgAdminAndOwnerChat creates an org-admin user and a chat
+	// owned by the first (site-admin) user. Returns both clients,
+	// the chat, and the DB handle.
+	setupOrgAdminAndOwnerChat := func(t *testing.T) (
+		ownerClient *codersdk.ExperimentalClient,
+		adminClient *codersdk.ExperimentalClient,
+		chat codersdk.Chat,
+		db database.Store,
+	) {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db = newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModelConfig(t, ownerClient)
+
+		// Create a chat owned by the first user.
+		var err error
+		chat, err = ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "owner chat for authz test",
+			}},
+		})
+		require.NoError(t, err)
+
+		// Create an org admin in the same org.
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(
+			t,
+			ownerClient.Client,
+			firstUser.OrganizationID,
+			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+		)
+		adminClient = codersdk.NewExperimentalClient(orgAdminRaw)
+		return ownerClient, adminClient, chat, db
+	}
+
+	t.Run("PostChatMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "org admin should not be able to send this",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("PatchChatMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		// Fetch the first user message to get a valid message ID.
+		messagesResult, err := ownerClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		_, err = adminClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "org admin should not be able to edit this",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, db := setupOrgAdminAndOwnerChat(t)
+
+		// Insert a queued message directly in the DB.
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		// Org admin tries to promote.
+		promoteRes, err := adminClient.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
+	})
+
+	t.Run("SubmitToolResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{
+				ToolCallID: "call_forbidden",
+				Output:     json.RawMessage(`"forbidden"`),
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("RegenerateChatTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.RegenerateChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("ProposeChatTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.ProposeChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	// Verify the owner can still operate normally.
+	t.Run("OwnerCanSendMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, _, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := ownerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "owner should succeed",
+			}},
+		})
+		// The message is accepted (no 403). It may fail downstream
+		// (e.g. no running LLM) but that is not a 403.
+		if err != nil {
+			var sdkErr *codersdk.Error
+			if xerrors.As(err, &sdkErr) {
+				require.NotEqual(t, http.StatusForbidden, sdkErr.StatusCode(),
+					"owner must not receive 403")
+			}
+		}
+	})
 }

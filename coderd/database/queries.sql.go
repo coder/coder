@@ -2993,6 +2993,37 @@ func (q *sqlQuerier) DeleteChatDebugDataByChatID(ctx context.Context, arg Delete
 	return result.RowsAffected()
 }
 
+const deleteOldChatDebugRuns = `-- name: DeleteOldChatDebugRuns :execrows
+WITH deletable AS (
+    SELECT id, chat_id
+    FROM chat_debug_runs
+    WHERE updated_at < $1::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT $2::int
+)
+DELETE FROM chat_debug_runs
+USING deletable
+WHERE chat_debug_runs.id = deletable.id
+    AND chat_debug_runs.chat_id = deletable.chat_id
+`
+
+type DeleteOldChatDebugRunsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// updated_at is the retention clock, so the window starts after the run
+// stops being written to.
+// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
+// older than the cutoff are also purged.
+func (q *sqlQuerier) DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatDebugRuns, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const finalizeStaleChatDebugRows = `-- name: FinalizeStaleChatDebugRows :one
 WITH finalized_runs AS (
     UPDATE chat_debug_runs
@@ -3236,6 +3267,8 @@ type InsertChatDebugRunParams struct {
 	FinishedAt          sql.NullTime          `db:"finished_at" json:"finished_at"`
 }
 
+// updated_at is the retention clock used by DeleteOldChatDebugRuns.
+// Set it on every write to keep retention semantics correct.
 func (q *sqlQuerier) InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error) {
 	row := q.db.QueryRowContext(ctx, insertChatDebugRun,
 		arg.ChatID,
@@ -3503,6 +3536,7 @@ type UpdateChatDebugRunParams struct {
 // write-once-finalize pattern where fields are set at creation
 // or finalization and never cleared back to NULL. The @now
 // parameter keeps updated_at under the caller's clock.
+// updated_at is also the retention clock used by DeleteOldChatDebugRuns.
 //
 // finished_at is enforced as write-once at the SQL level: once
 // populated it cannot be overwritten by a later call. Callers
@@ -20595,6 +20629,22 @@ func (q *sqlQuerier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, e
 	return allow_users, err
 }
 
+const getChatDebugRetentionDays = `-- name: GetChatDebugRetentionDays :one
+SELECT COALESCE(
+    (SELECT value::integer FROM site_configs
+     WHERE key = 'agents_chat_debug_retention_days'),
+    $1::integer
+) :: integer AS debug_retention_days
+`
+
+// Chat debug run retention window in days. 0 disables.
+func (q *sqlQuerier) GetChatDebugRetentionDays(ctx context.Context, defaultDebugRetentionDays int32) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getChatDebugRetentionDays, defaultDebugRetentionDays)
+	var debug_retention_days int32
+	err := row.Scan(&debug_retention_days)
+	return debug_retention_days, err
+}
+
 const getChatDesktopEnabled = `-- name: GetChatDesktopEnabled :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_desktop_enabled'), false) :: boolean AS enable_desktop
@@ -21024,6 +21074,18 @@ WHERE site_configs.key = 'agents_chat_debug_logging_allow_users'
 // allows users to opt into chat debug logging.
 func (q *sqlQuerier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatDebugLoggingAllowUsers, allowUsers)
+	return err
+}
+
+const upsertChatDebugRetentionDays = `-- name: UpsertChatDebugRetentionDays :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_chat_debug_retention_days', CAST($1 AS integer)::text)
+ON CONFLICT (key) DO UPDATE SET value = CAST($1 AS integer)::text
+WHERE site_configs.key = 'agents_chat_debug_retention_days'
+`
+
+func (q *sqlQuerier) UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error {
+	_, err := q.db.ExecContext(ctx, upsertChatDebugRetentionDays, debugRetentionDays)
 	return err
 }
 
@@ -24886,6 +24948,97 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+	)
+	return i, err
+}
+
+const getUserSecretsTelemetrySummary = `-- name: GetUserSecretsTelemetrySummary :one
+WITH active_users AS (
+    SELECT id AS user_id
+    FROM users
+    WHERE deleted = false
+      AND is_system = false
+      AND status = 'active'::user_status
+),
+per_user AS (
+    SELECT au.user_id, COUNT(us.id)::bigint AS n
+    FROM active_users au
+    LEFT JOIN user_secrets us ON us.user_id = au.user_id
+    GROUP BY au.user_id
+),
+secrets_filtered AS (
+    SELECT us.env_name, us.file_path
+    FROM user_secrets us
+    JOIN active_users au ON au.user_id = us.user_id
+)
+SELECT
+    COUNT(*) FILTER (WHERE n > 0)::bigint                                                       AS users_with_secrets,
+    (SELECT COUNT(*) FROM secrets_filtered)::bigint                                             AS total_secrets,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name != '' AND file_path = '' )::bigint    AS env_name_only,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name = ''  AND file_path != '')::bigint    AS file_path_only,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name != '' AND file_path != '')::bigint    AS both,
+    (SELECT COUNT(*) FROM secrets_filtered WHERE env_name = ''  AND file_path = '' )::bigint    AS neither,
+    COALESCE(MAX(n), 0)::bigint                                                                 AS secrets_per_user_max,
+    COALESCE(percentile_disc(0.25) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p25,
+    COALESCE(percentile_disc(0.50) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p50,
+    COALESCE(percentile_disc(0.75) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p75,
+    COALESCE(percentile_disc(0.90) WITHIN GROUP (ORDER BY n), 0)::bigint                        AS secrets_per_user_p90
+FROM per_user
+`
+
+type GetUserSecretsTelemetrySummaryRow struct {
+	UsersWithSecrets  int64 `db:"users_with_secrets" json:"users_with_secrets"`
+	TotalSecrets      int64 `db:"total_secrets" json:"total_secrets"`
+	EnvNameOnly       int64 `db:"env_name_only" json:"env_name_only"`
+	FilePathOnly      int64 `db:"file_path_only" json:"file_path_only"`
+	Both              int64 `db:"both" json:"both"`
+	Neither           int64 `db:"neither" json:"neither"`
+	SecretsPerUserMax int64 `db:"secrets_per_user_max" json:"secrets_per_user_max"`
+	SecretsPerUserP25 int64 `db:"secrets_per_user_p25" json:"secrets_per_user_p25"`
+	SecretsPerUserP50 int64 `db:"secrets_per_user_p50" json:"secrets_per_user_p50"`
+	SecretsPerUserP75 int64 `db:"secrets_per_user_p75" json:"secrets_per_user_p75"`
+	SecretsPerUserP90 int64 `db:"secrets_per_user_p90" json:"secrets_per_user_p90"`
+}
+
+// Returns deployment-wide aggregates for the telemetry snapshot.
+//
+// The denominator for both user-level counts and the per-user
+// distribution is active non-system users. Specifically:
+//
+//   - deleted = false: Coder soft-deletes by flipping users.deleted
+//     rather than removing rows, so secrets persist after delete but
+//     are unreachable.
+//   - status = 'active': dormant users (no recent activity) and
+//     suspended users (explicitly disabled) cannot use secrets, so
+//     they shouldn't dilute the percentile distribution as
+//     zero-secret entries.
+//   - is_system = false: internal subjects like the prebuilds user
+//     never use secrets in the normal flow.
+//
+// Status transitions move users in and out of this denominator, so a
+// snapshot's UsersWithSecrets can drop without any secret being
+// deleted.
+//
+// The percentile distribution is computed across all active non-system
+// users, including those with zero secrets, so the percentiles reflect
+// deployment-wide adoption rather than only the power-user subset.
+// percentile_disc returns an actual integer count from the underlying
+// values rather than interpolating between rows.
+func (q *sqlQuerier) GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretsTelemetrySummary)
+	var i GetUserSecretsTelemetrySummaryRow
+	err := row.Scan(
+		&i.UsersWithSecrets,
+		&i.TotalSecrets,
+		&i.EnvNameOnly,
+		&i.FilePathOnly,
+		&i.Both,
+		&i.Neither,
+		&i.SecretsPerUserMax,
+		&i.SecretsPerUserP25,
+		&i.SecretsPerUserP50,
+		&i.SecretsPerUserP75,
+		&i.SecretsPerUserP90,
 	)
 	return i, err
 }

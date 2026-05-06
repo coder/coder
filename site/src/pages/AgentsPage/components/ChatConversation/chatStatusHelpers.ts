@@ -1,4 +1,4 @@
-import type { ChatProviderFailureKind } from "../../utils/usageLimitMessage";
+import type * as TypesGen from "#/api/typesGenerated";
 
 const PROVIDER_STATUS_URLS: Record<string, string> = {
 	anthropic: "https://status.anthropic.com",
@@ -24,7 +24,7 @@ const normalizeProvider = (provider?: string): string | undefined => {
 };
 
 export const getErrorTitle = (
-	kind: ChatProviderFailureKind | (string & {}),
+	kind: TypesGen.ChatErrorKind,
 	mode: "retry" | "error",
 ): string => {
 	switch (kind) {
@@ -40,13 +40,15 @@ export const getErrorTitle = (
 			return "Authentication failed";
 		case "config":
 			return "Configuration error";
+		case "usage_limit":
+			return "Usage limit reached";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}
 };
 
 export const getProviderStatusURL = (
-	kind: ChatProviderFailureKind | (string & {}),
+	kind: TypesGen.ChatErrorKind,
 	provider?: string,
 ): string | undefined => {
 	if (kind !== "overloaded") {

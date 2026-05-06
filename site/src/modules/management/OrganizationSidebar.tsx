@@ -13,7 +13,7 @@ export const OrganizationSidebar: FC = () => {
 		useOrganizationSettings();
 
 	return (
-		<BaseSidebar className="pt-10">
+		<BaseSidebar>
 			<OrganizationSidebarView
 				activeOrganization={organization}
 				orgPermissions={organizationPermissions}

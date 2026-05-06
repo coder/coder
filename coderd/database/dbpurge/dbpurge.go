@@ -45,10 +45,13 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Chat batch sizes stay smaller than audit/connection log batches because
-	// chat_files rows carry bytea blobs.
+	// Chat and chat file batch sizes stay smaller than audit/connection
+	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
+	// Chat debug run deletions can cascade into steps with large JSONB
+	// payloads, so they use the same conservative batch size.
+	chatDebugRunsBatchSize = 1000
 	// chatAutoArchiveDigestMaxChats bounds how many chat titles a
 	// single digest body lists. Past the cap, surplus titles are
 	// summarized as "...and N more". 25 is a readable email-friendly
@@ -181,9 +184,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
 	// Read chat configs outside the tx so a corrupt value can't
-	// poison subsequent queries. On error we log and stash, then
-	// run unrelated purges best-effort and skip only chat work;
-	// purgeTick returns chatConfigErr after the tx so the failed
+	// poison subsequent queries. On config read errors, log and stash
+	// the error, then run unrelated purges best-effort. Retention and
+	// auto-archive errors skip only the conversation purge and
+	// auto-archive work. Debug retention errors skip only the debug
+	// purge. purgeTick returns chatConfigErr after the tx so the failed
 	// iteration is operator-visible via metric and logs.
 	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
 	if chatRetentionErr != nil {
@@ -195,7 +200,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		i.logger.Error(ctx, "failed to read chat auto-archive config: skipping chat purge and auto-archive this tick", slog.Error(chatAutoArchiveErr))
 	}
 
-	chatConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
+	chatDebugRetentionDays, chatDebugRetentionErr := db.GetChatDebugRetentionDays(ctx, codersdk.DefaultChatDebugRetentionDays)
+	if chatDebugRetentionErr != nil {
+		i.logger.Error(ctx, "failed to read chat debug retention config: skipping chat debug purge this tick", slog.Error(chatDebugRetentionErr))
+	}
+
+	chatRetentionConfigErr := errors.Join(chatRetentionErr, chatAutoArchiveErr)
+	chatConfigErr := errors.Join(chatRetentionConfigErr, chatDebugRetentionErr)
 
 	// Populated inside the tx; dispatched post-commit.
 	var archivedChats []database.AutoArchiveInactiveChatsRow
@@ -304,11 +315,24 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		var purgedChats, purgedChatFiles int64
-		if chatConfigErr == nil {
+		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
+		if chatRetentionConfigErr == nil {
 			purgedChats, purgedChatFiles, archivedChats, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays, chatAutoArchiveDays)
 			if err != nil {
 				return xerrors.Errorf("failed to purge chats: %w", err)
+			}
+		}
+		if chatDebugRetentionErr == nil && chatDebugRetentionDays > 0 {
+			deleteChatDebugRunsBefore := start.Add(-time.Duration(chatDebugRetentionDays) * 24 * time.Hour)
+			// updated_at is the retention clock, so the window starts after
+			// the run stops being written to. There is intentionally no
+			// finished_at guard, so abandoned in-flight rows can be purged.
+			purgedChatDebugRuns, err = tx.DeleteOldChatDebugRuns(ctx, database.DeleteOldChatDebugRunsParams{
+				BeforeTime: deleteChatDebugRunsBefore,
+				LimitCount: chatDebugRunsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old chat debug runs: %w", err)
 			}
 		}
 
@@ -320,14 +344,11 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("audit_logs", purgedAuditLogs),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
+			slog.F("chat_debug_runs", purgedChatDebugRuns),
 			slog.F("auto_archived_chats", len(archivedChats)),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
-		if i.iterationDuration != nil {
-			duration := i.clk.Since(start)
-			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
-		}
 		if i.recordsPurged != nil {
 			i.recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
 			i.recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
@@ -335,7 +356,15 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
+			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
+		}
+
+		// chatConfigErr is returned after the tx, so do not record this
+		// iteration as successful when only the deferred config read failed.
+		if i.iterationDuration != nil && chatConfigErr == nil {
+			duration := i.clk.Since(start)
+			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
 		}
 
 		return nil

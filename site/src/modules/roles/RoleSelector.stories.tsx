@@ -2,10 +2,16 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import {
 	assignableRole,
+	MockAgentsAccessRole,
 	MockAuditorRole,
+	MockOrganizationAdminRole,
+	MockOrganizationAuditorRole,
+	MockOrganizationTemplateAdminRole,
+	MockOrganizationUserAdminRole,
 	MockOwnerRole,
 	MockTemplateAdminRole,
 	MockUserAdminRole,
+	MockWorkspaceCreationBanRole,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { RoleSelector } from "./RoleSelector";
@@ -66,5 +72,20 @@ export const WithError: Story = {
 	args: {
 		availableRoles: [],
 		error: mockApiError({ message: "Failed to fetch assignable roles." }),
+	},
+};
+
+const orgMemberRoles = [
+	assignableRole(MockOrganizationAdminRole, true),
+	assignableRole(MockOrganizationUserAdminRole, true),
+	assignableRole(MockOrganizationTemplateAdminRole, true),
+	assignableRole(MockOrganizationAuditorRole, true),
+	assignableRole(MockAgentsAccessRole, true),
+	assignableRole(MockWorkspaceCreationBanRole, true),
+];
+
+export const OrganizationMemberRoles: Story = {
+	args: {
+		availableRoles: orgMemberRoles,
 	},
 };

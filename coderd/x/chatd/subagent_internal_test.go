@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -2719,7 +2718,7 @@ func setChatStatus(
 	if lastError != "" {
 		encodedLastError, err := json.Marshal(codersdk.ChatError{
 			Message: lastError,
-			Kind:    chaterror.KindGeneric,
+			Kind:    codersdk.ChatErrorKindGeneric,
 		})
 		require.NoError(t, err)
 		params.LastError = pqtype.NullRawMessage{RawMessage: encodedLastError, Valid: true}

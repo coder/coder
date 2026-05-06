@@ -15,7 +15,7 @@ export const normalizeChatErrorPayload = (
 			: undefined;
 	return {
 		message,
-		kind: error?.kind?.trim() || "generic",
+		kind: error?.kind ?? "generic",
 		provider: error?.provider?.trim() || undefined,
 		retryable: error?.retryable,
 		statusCode,

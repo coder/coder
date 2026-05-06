@@ -26,7 +26,7 @@ import type { RetryState } from "./types";
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
 	error: retry.error.trim() || "Retrying request shortly.",
-	kind: retry.kind?.trim() || "generic",
+	kind: retry.kind ?? "generic",
 	provider: retry.provider?.trim() || undefined,
 	delayMs: retry.delay_ms,
 	retryingAt: retry.retrying_at.trim() || undefined,

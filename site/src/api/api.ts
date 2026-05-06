@@ -3451,6 +3451,24 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/retention-days", req);
 	};
 
+	getChatDebugRetentionDays =
+		async (): Promise<TypesGen.ChatDebugRetentionDaysResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatDebugRetentionDaysResponse>(
+					"/api/experimental/chats/config/debug-retention-days",
+				);
+			return response.data;
+		};
+
+	updateChatDebugRetentionDays = async (
+		req: TypesGen.UpdateChatDebugRetentionDaysRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/debug-retention-days",
+			req,
+		);
+	};
+
 	getChatAutoArchiveDays =
 		async (): Promise<TypesGen.ChatAutoArchiveDaysResponse> => {
 			const response =

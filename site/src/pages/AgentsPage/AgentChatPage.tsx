@@ -93,7 +93,7 @@ import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
-	isUsageLimitData,
+	isChatUsageLimitExceededResponse,
 } from "./utils/usageLimitMessage";
 
 /** localStorage key controlling whether the right panel is visible. */
@@ -1088,7 +1088,7 @@ const AgentChatPage: FC = () => {
 		if (
 			isApiError(error) &&
 			error.response?.status === 409 &&
-			isUsageLimitData(error.response.data)
+			isChatUsageLimitExceededResponse(error.response.data)
 		) {
 			const reason: ChatDetailError = {
 				kind: "usage_limit",

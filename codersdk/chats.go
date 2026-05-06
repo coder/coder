@@ -124,7 +124,7 @@ type Chat struct {
 	HasUnread bool `json:"has_unread"`
 	// LastInjectedContext holds the most recently persisted
 	// injected context parts (AGENTS.md files and skills). It
-	// is updated only when context changes — first workspace
+	// is updated only when context changes, on first workspace
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
@@ -945,6 +945,11 @@ const DefaultChatWorkspaceTTL = 0
 // auto-archival.
 const DefaultChatAutoArchiveDays int32 = 0
 
+// DefaultChatDebugRetentionDays is the default chat debug run retention
+// window, in days, applied when no site config row exists. Set the
+// config value to zero to disable the purge.
+const DefaultChatDebugRetentionDays int32 = 30
+
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
@@ -970,6 +975,18 @@ type ChatRetentionDaysResponse struct {
 // retention period.
 type UpdateChatRetentionDaysRequest struct {
 	RetentionDays int32 `json:"retention_days"`
+}
+
+// ChatDebugRetentionDaysResponse contains the current chat debug run
+// retention setting.
+type ChatDebugRetentionDaysResponse struct {
+	DebugRetentionDays int32 `json:"debug_retention_days"`
+}
+
+// UpdateChatDebugRetentionDaysRequest is a request to update the chat
+// debug run retention period.
+type UpdateChatDebugRetentionDaysRequest struct {
+	DebugRetentionDays int32 `json:"debug_retention_days"`
 }
 
 // ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
@@ -1425,6 +1442,33 @@ type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
 }
 
+// ChatErrorKind classifies chat errors for consistent client rendering.
+type ChatErrorKind string
+
+const (
+	ChatErrorKindGeneric        ChatErrorKind = "generic"
+	ChatErrorKindOverloaded     ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit      ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout        ChatErrorKind = "timeout"
+	ChatErrorKindStartupTimeout ChatErrorKind = "startup_timeout"
+	ChatErrorKindAuth           ChatErrorKind = "auth"
+	ChatErrorKindConfig         ChatErrorKind = "config"
+	ChatErrorKindUsageLimit     ChatErrorKind = "usage_limit"
+)
+
+// AllChatErrorKinds contains every ChatErrorKind value.
+// Update this when adding new constants above.
+var AllChatErrorKinds = []ChatErrorKind{
+	ChatErrorKindGeneric,
+	ChatErrorKindOverloaded,
+	ChatErrorKindRateLimit,
+	ChatErrorKindTimeout,
+	ChatErrorKindStartupTimeout,
+	ChatErrorKindAuth,
+	ChatErrorKindConfig,
+	ChatErrorKindUsageLimit,
+}
+
 // ChatError represents a terminal chat error in persisted chat state or the
 // live stream.
 type ChatError struct {
@@ -1434,7 +1478,7 @@ type ChatError struct {
 	// normalized error message when available.
 	Detail string `json:"detail,omitempty"`
 	// Kind classifies the error for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// Retryable reports whether the underlying error is transient.
@@ -1453,7 +1497,7 @@ type ChatStreamRetry struct {
 	// Error is the normalized error message from the failed attempt.
 	Error string `json:"error"`
 	// Kind classifies the retry reason for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// StatusCode is the best-effort upstream HTTP status code.
@@ -2452,6 +2496,34 @@ func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRete
 // UpdateChatRetentionDays updates the chat retention period.
 func (c *ExperimentalClient) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/retention-days", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatDebugRetentionDays returns the configured chat debug run
+// retention period.
+func (c *ExperimentalClient) GetChatDebugRetentionDays(ctx context.Context) (ChatDebugRetentionDaysResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-retention-days", nil)
+	if err != nil {
+		return ChatDebugRetentionDaysResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugRetentionDaysResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugRetentionDaysResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDebugRetentionDays updates the chat debug run retention period.
+func (c *ExperimentalClient) UpdateChatDebugRetentionDays(ctx context.Context, req UpdateChatDebugRetentionDaysRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-retention-days", req)
 	if err != nil {
 		return err
 	}

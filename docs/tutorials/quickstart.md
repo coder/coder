@@ -257,48 +257,69 @@ advanced capabilities that Coder offers.
 
 ## Troubleshooting
 
-### Cannot connect to the Docker daemon on Linux
+### Cannot connect to the Docker daemon
+
+When creating a workspace from a Docker template, you may see an error like:
 
 ```text
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
-1. Install Docker for your system, if you haven't already done so:
+This means Docker is either not installed or not running on the machine where
+Coder is running. Docker must be running before you create a workspace from a
+Docker-based template.
+
+<div class="tabs">
+
+#### macOS
+
+1. If Docker Desktop is not installed,
+   [install it](https://docs.docker.com/desktop/setup/install/mac-install/) or
+   use Homebrew:
+
+   ```shell
+   brew install --cask docker-desktop
+   ```
+
+1. Open Docker Desktop and verify that it is running.
+
+#### Linux
+
+1. Install Docker, if you haven't already:
 
    ```shell
    curl -sSL https://get.docker.com | sh
    ```
 
-1. Set up the Docker daemon in rootless mode for your user to run Docker as a
-   non-privileged user:
+1. Start the Docker daemon:
 
    ```shell
-   dockerd-rootless-setuptool.sh install
+   sudo systemctl start docker
    ```
 
-   Depending on your system's dependencies, you might need to run other commands
-   before you retry this step. Read the output of this command for further
-   instructions.
-
-1. Assign your user to the Docker group:
+1. Assign your user to the `docker` group so Coder can access the daemon
+   without root:
 
    ```shell
    sudo usermod -aG docker $USER
+   newgrp docker
    ```
 
-1. Confirm that the user has been added:
+1. Confirm the group membership:
 
    ```console
    $ groups
    docker sudo users
    ```
 
-   - Ubuntu users might not see the group membership update. In that case, run
-     the following command or reboot the machine:
+#### Windows
 
-     ```shell
-     newgrp docker
-     ```
+1. If Docker Desktop is not installed,
+   [install it](https://docs.docker.com/desktop/install/windows-install/).
+
+1. Open Docker Desktop and verify that it is running.
+
+</div>
 
 ### Can't start Coder server: Address already in use
 

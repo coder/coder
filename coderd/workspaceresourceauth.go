@@ -148,7 +148,18 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	// Template version agents can share an instance ID with workspace build
 	// agents. Keep only workspace build agents before resolving ambiguity so
 	// template version agents do not force CODER_AGENT_NAME.
-	buildAgents := agents[:0]
+	//
+	// We attach the provisioner job to each candidate during the filter
+	// loop so the post-selection code below can read it directly from the
+	// chosen candidate instead of re-querying. The previous code re-fetched
+	// the resource and job for the surviving agent, firing the
+	// resource->job->build->workspace dbauthz cascade twice and saturating
+	// the pgx pool under load.
+	type instanceCandidate struct {
+		agent database.WorkspaceAgent
+		job   database.ProvisionerJob
+	}
+	buildCandidates := make([]instanceCandidate, 0, len(agents))
 	for _, candidate := range agents {
 		resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, candidate.ResourceID)
 		if err != nil {
@@ -167,40 +178,42 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			return
 		}
 		if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
-			buildAgents = append(buildAgents, candidate)
+			buildCandidates = append(buildCandidates, instanceCandidate{
+				agent: candidate,
+				job:   job,
+			})
 		}
 	}
-	agents = buildAgents
-	if len(agents) == 0 {
+	if len(buildCandidates) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
 		})
 		return
 	}
 
-	var agent database.WorkspaceAgent
+	var selected instanceCandidate
 	if agentName != "" {
-		for _, candidate := range agents {
-			if candidate.Name == agentName {
-				agent = candidate
+		for _, candidate := range buildCandidates {
+			if candidate.agent.Name == agentName {
+				selected = candidate
 				break
 			}
 		}
-		if agent.ID == uuid.Nil {
+		if selected.agent.ID == uuid.Nil {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No agent found with instance ID %q and name %q.", instanceID, agentName),
 			})
 			return
 		}
 	} else {
-		if len(agents) != 1 {
+		if len(buildCandidates) != 1 {
 			// Include agent names in the error message to help operators
 			// configure CODER_AGENT_NAME. The caller has already proven
 			// cloud instance identity, so agent names are not sensitive
 			// here.
-			names := make([]string, len(agents))
-			for i, candidate := range agents {
-				names[i] = candidate.Name
+			names := make([]string, len(buildCandidates))
+			for i, candidate := range buildCandidates {
+				names[i] = candidate.agent.Name
 			}
 			sort.Strings(names)
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -212,30 +225,10 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			})
 			return
 		}
-		agent = agents[0]
+		selected = buildCandidates[0]
 	}
-	resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, agent.ResourceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job resource.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(systemCtx, resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q jobs cannot be authenticated.", job.Type),
-		})
-		return
-	}
+	agent := selected.agent
+	job := selected.job
 	var jobData provisionerdserver.WorkspaceProvisionJob
 	err = json.Unmarshal(job.Input, &jobData)
 	if err != nil {

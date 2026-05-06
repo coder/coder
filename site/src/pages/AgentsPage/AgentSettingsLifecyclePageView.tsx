@@ -2,6 +2,7 @@ import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AutoArchiveSettings } from "./components/AutoArchiveSettings";
+import { DebugRetentionSettings } from "./components/DebugRetentionSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { WorkspaceAutostopSettings } from "./components/WorkspaceAutostopSettings";
@@ -29,6 +30,17 @@ export interface AgentSettingsLifecyclePageViewProps {
 	>;
 	isSavingRetentionDays: boolean;
 	isSaveRetentionDaysError: boolean;
+	debugRetentionDaysData: TypesGen.ChatDebugRetentionDaysResponse | undefined;
+	isDebugRetentionDaysLoading: boolean;
+	isDebugRetentionDaysLoadError: boolean;
+	onSaveDebugRetentionDays: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatDebugRetentionDaysRequest,
+		unknown
+	>;
+	isSavingDebugRetentionDays: boolean;
+	isSaveDebugRetentionDaysError: boolean;
 	autoArchiveDaysData: TypesGen.ChatAutoArchiveDaysResponse | undefined;
 	isAutoArchiveDaysLoading: boolean;
 	isAutoArchiveDaysLoadError: boolean;
@@ -57,6 +69,12 @@ export const AgentSettingsLifecyclePageView: FC<
 	onSaveRetentionDays,
 	isSavingRetentionDays,
 	isSaveRetentionDaysError,
+	debugRetentionDaysData,
+	isDebugRetentionDaysLoading,
+	isDebugRetentionDaysLoadError,
+	onSaveDebugRetentionDays,
+	isSavingDebugRetentionDays,
+	isSaveDebugRetentionDaysError,
 	autoArchiveDaysData,
 	isAutoArchiveDaysLoading,
 	isAutoArchiveDaysLoadError,
@@ -93,6 +111,14 @@ export const AgentSettingsLifecyclePageView: FC<
 				onSaveRetentionDays={onSaveRetentionDays}
 				isSavingRetentionDays={isSavingRetentionDays}
 				isSaveRetentionDaysError={isSaveRetentionDaysError}
+			/>
+			<DebugRetentionSettings
+				debugRetentionDaysData={debugRetentionDaysData}
+				isDebugRetentionDaysLoading={isDebugRetentionDaysLoading}
+				isDebugRetentionDaysLoadError={isDebugRetentionDaysLoadError}
+				onSaveDebugRetentionDays={onSaveDebugRetentionDays}
+				isSavingDebugRetentionDays={isSavingDebugRetentionDays}
+				isSaveDebugRetentionDaysError={isSaveDebugRetentionDaysError}
 			/>
 		</div>
 	);

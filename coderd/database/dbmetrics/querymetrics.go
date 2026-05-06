@@ -632,6 +632,14 @@ func (m queryMetricsStore) DeleteOldAuditLogs(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOldChatDebugRuns(ctx context.Context, arg database.DeleteOldChatDebugRunsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldChatDebugRuns(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldChatDebugRuns").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldChatDebugRuns").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOldChatFilesParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldChatFiles(ctx, arg)
@@ -1197,6 +1205,14 @@ func (m queryMetricsStore) GetChatDebugLoggingAllowUsers(ctx context.Context) (b
 	r0, r1 := m.s.GetChatDebugLoggingAllowUsers(ctx)
 	m.queryLatencies.WithLabelValues("GetChatDebugLoggingAllowUsers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDebugLoggingAllowUsers").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatDebugRetentionDays(ctx context.Context, defaultDebugRetentionDays int32) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatDebugRetentionDays(ctx, defaultDebugRetentionDays)
+	m.queryLatencies.WithLabelValues("GetChatDebugRetentionDays").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDebugRetentionDays").Inc()
 	return r0, r1
 }
 
@@ -2901,6 +2917,14 @@ func (m queryMetricsStore) GetUserSecretByUserIDAndName(ctx context.Context, arg
 	r0, r1 := m.s.GetUserSecretByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserSecretByUserIDAndName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSecretByUserIDAndName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserSecretsTelemetrySummary(ctx context.Context) (database.GetUserSecretsTelemetrySummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserSecretsTelemetrySummary(ctx)
+	m.queryLatencies.WithLabelValues("GetUserSecretsTelemetrySummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSecretsTelemetrySummary").Inc()
 	return r0, r1
 }
 
@@ -5373,6 +5397,14 @@ func (m queryMetricsStore) UpsertChatDebugLoggingAllowUsers(ctx context.Context,
 	r0 := m.s.UpsertChatDebugLoggingAllowUsers(ctx, allowUsers)
 	m.queryLatencies.WithLabelValues("UpsertChatDebugLoggingAllowUsers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatDebugLoggingAllowUsers").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatDebugRetentionDays(ctx, debugRetentionDays)
+	m.queryLatencies.WithLabelValues("UpsertChatDebugRetentionDays").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatDebugRetentionDays").Inc()
 	return r0
 }
 

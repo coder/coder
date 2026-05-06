@@ -1304,7 +1304,7 @@ export interface Chat {
 	/**
 	 * LastInjectedContext holds the most recently persisted
 	 * injected context parts (AGENTS.md files and skills). It
-	 * is updated only when context changes — first workspace
+	 * is updated only when context changes, on first workspace
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
@@ -1522,6 +1522,15 @@ export interface ChatDebugLoggingAdminSettings {
 
 // From codersdk/chats.go
 /**
+ * ChatDebugRetentionDaysResponse contains the current chat debug run
+ * retention setting.
+ */
+export interface ChatDebugRetentionDaysResponse {
+	readonly debug_retention_days: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatDebugRun is the detailed run response returned by the run-detail
  * endpoint. It includes the same summary fields as ChatDebugRunSummary
  * along with the full step history for the run.
@@ -1697,7 +1706,7 @@ export interface ChatError {
 	/**
 	 * Kind classifies the error for consistent client rendering.
 	 */
-	readonly kind?: string;
+	readonly kind?: ChatErrorKind;
 	/**
 	 * Provider identifies the upstream model provider when known.
 	 */
@@ -1711,6 +1720,28 @@ export interface ChatError {
 	 */
 	readonly status_code?: number;
 }
+
+// From codersdk/chats.go
+export type ChatErrorKind =
+	| "auth"
+	| "config"
+	| "generic"
+	| "overloaded"
+	| "rate_limit"
+	| "startup_timeout"
+	| "timeout"
+	| "usage_limit";
+
+export const ChatErrorKinds: ChatErrorKind[] = [
+	"auth",
+	"config",
+	"generic",
+	"overloaded",
+	"rate_limit",
+	"startup_timeout",
+	"timeout",
+	"usage_limit",
+];
 
 // From codersdk/chats.go
 /**
@@ -2480,7 +2511,7 @@ export interface ChatStreamRetry {
 	/**
 	 * Kind classifies the retry reason for consistent client rendering.
 	 */
-	readonly kind?: string;
+	readonly kind?: ChatErrorKind;
 	/**
 	 * Provider identifies the upstream model provider when known.
 	 */
@@ -3567,6 +3598,14 @@ export interface DebugProfileOptions {
  * auto-archival.
  */
 export const DefaultChatAutoArchiveDays = 0;
+
+// From codersdk/chats.go
+/**
+ * DefaultChatDebugRetentionDays is the default chat debug run retention
+ * window, in days, applied when no site config row exists. Set the
+ * config value to zero to disable the purge.
+ */
+export const DefaultChatDebugRetentionDays = 30;
 
 // From codersdk/chats.go
 /**
@@ -7916,6 +7955,15 @@ export interface UpdateChatComputerUseProviderRequest {
  */
 export interface UpdateChatDebugLoggingAllowUsersRequest {
 	readonly allow_users: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatDebugRetentionDaysRequest is a request to update the chat
+ * debug run retention period.
+ */
+export interface UpdateChatDebugRetentionDaysRequest {
+	readonly debug_retention_days: number;
 }
 
 // From codersdk/chats.go

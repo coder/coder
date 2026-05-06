@@ -146,6 +146,11 @@ type sqlcQuerier interface {
 	// connection events (connect, disconnect, open, close) which are handled
 	// separately by DeleteOldAuditLogConnectionEvents.
 	DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error)
+	// updated_at is the retention clock, so the window starts after the run
+	// stops being written to.
+	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
+	// older than the cutoff are also purged.
+	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
 	// TODO(cian): Add indexes on chats(archived, updated_at) and
 	// chat_files(created_at) for purge query performance.
 	// See: https://github.com/coder/internal/issues/1438
@@ -300,6 +305,8 @@ type sqlcQuerier interface {
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.
 	GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error)
+	// Chat debug run retention window in days. 0 disables.
+	GetChatDebugRetentionDays(ctx context.Context, defaultDebugRetentionDays int32) (int32, error)
 	GetChatDebugRunByID(ctx context.Context, id uuid.UUID) (ChatDebugRun, error)
 	// Returns the most recent debug runs for a chat, ordered newest-first.
 	// Callers must supply an explicit limit to avoid unbounded result sets.
@@ -717,6 +724,31 @@ type sqlcQuerier interface {
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error)
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
+	// Returns deployment-wide aggregates for the telemetry snapshot.
+	//
+	// The denominator for both user-level counts and the per-user
+	// distribution is active non-system users. Specifically:
+	//
+	//   * deleted = false: Coder soft-deletes by flipping users.deleted
+	//     rather than removing rows, so secrets persist after delete but
+	//     are unreachable.
+	//   * status = 'active': dormant users (no recent activity) and
+	//     suspended users (explicitly disabled) cannot use secrets, so
+	//     they shouldn't dilute the percentile distribution as
+	//     zero-secret entries.
+	//   * is_system = false: internal subjects like the prebuilds user
+	//     never use secrets in the normal flow.
+	//
+	// Status transitions move users in and out of this denominator, so a
+	// snapshot's UsersWithSecrets can drop without any secret being
+	// deleted.
+	//
+	// The percentile distribution is computed across all active non-system
+	// users, including those with zero secrets, so the percentiles reflect
+	// deployment-wide adoption rather than only the power-user subset.
+	// percentile_disc returns an actual integer count from the underlying
+	// values rather than interpolating between rows.
+	GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
@@ -821,6 +853,8 @@ type sqlcQuerier interface {
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
+	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
 	// The CTE atomically locks the parent run via UPDATE, bumps its
 	// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
@@ -1048,6 +1082,7 @@ type sqlcQuerier interface {
 	// write-once-finalize pattern where fields are set at creation
 	// or finalization and never cleared back to NULL. The @now
 	// parameter keeps updated_at under the caller's clock.
+	// updated_at is also the retention clock used by DeleteOldChatDebugRuns.
 	//
 	// finished_at is enforced as write-once at the SQL level: once
 	// populated it cannot be overwritten by a later call. Callers
@@ -1204,6 +1239,7 @@ type sqlcQuerier interface {
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
 	UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error
+	UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)

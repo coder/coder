@@ -107,6 +107,9 @@ const (
 	// cross-replica relay subscribers time to connect and
 	// snapshot the buffer before it is garbage-collected.
 	bufferRetainGracePeriod = 5 * time.Second
+	// chatStreamControlFetchTimeout bounds subscriber-owned
+	// control-path DB reads when the caller has no deadline.
+	chatStreamControlFetchTimeout = 5 * time.Second
 
 	// streamJanitorInterval is how often sweepIdleStreams runs.
 	// Worst-case retention is bufferRetainGracePeriod +
@@ -4244,6 +4247,31 @@ func (p *Server) heartbeatTick(ctx context.Context) {
 	}
 }
 
+// streamSubscriberControlFetchContext keeps a control-path lookup tied to the
+// requesting subscriber while applying a fallback timeout when the caller has
+// no deadline.
+func streamSubscriberControlFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, chatStreamControlFetchTimeout)
+}
+
+func subscribeWithInitialError(chatID uuid.UUID, message string) (
+	[]codersdk.ChatStreamEvent,
+	<-chan codersdk.ChatStreamEvent,
+	func(),
+	bool,
+) {
+	events := make(chan codersdk.ChatStreamEvent)
+	close(events)
+	return []codersdk.ChatStreamEvent{{
+		Type:   codersdk.ChatStreamEventTypeError,
+		ChatID: chatID,
+		Error:  &codersdk.ChatError{Message: message},
+	}}, events, func() {}, true
+}
+
 func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -4258,9 +4286,40 @@ func (p *Server) Subscribe(
 	if p == nil {
 		return nil, nil, nil, false
 	}
-	if ctx == nil {
-		ctx = context.Background()
+
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			return nil, nil, nil, false
+		}
+		p.logger.Warn(ctx, "failed to load chat for stream subscription",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
 	}
+	return p.SubscribeAuthorized(ctx, chat, requestHeader, afterMessageID)
+}
+
+// SubscribeAuthorized subscribes an already-authorized chat to merged stream
+// updates. The passed chat row proves authorization, but SubscribeAuthorized
+// still reloads the chat after the stream subscriptions are armed so the
+// initial status and relay setup use fresh state.
+func (p *Server) SubscribeAuthorized(
+	ctx context.Context,
+	chat database.Chat,
+	requestHeader http.Header,
+	afterMessageID int64,
+) (
+	[]codersdk.ChatStreamEvent,
+	<-chan codersdk.ChatStreamEvent,
+	func(),
+	bool,
+) {
+	if p == nil {
+		return nil, nil, nil, false
+	}
+	chatID := chat.ID
 
 	// Subscribe to the local stream for message_parts and same-replica
 	// persisted messages. Capture the current retry phase under the same
@@ -4326,6 +4385,34 @@ func (p *Server) Subscribe(
 		}
 	}
 
+	cancel := func() {
+		mergedCancel()
+		for _, cancelFn := range allCancels {
+			if cancelFn != nil {
+				cancelFn()
+			}
+		}
+	}
+
+	// Re-read the chat after the local/pubsub subscriptions are active so
+	// the initial status event and any enterprise relay setup use fresh
+	// state instead of the middleware-loaded row.
+	refreshCtx, refreshCancel := streamSubscriberControlFetchContext(ctx)
+	snapshotChat, err := func() (database.Chat, error) {
+		defer refreshCancel()
+		//nolint:gocritic // SubscribeAuthorized already validated the
+		// caller; this refresh only loads the latest status/worker for
+		// the already-authorized stream subscription.
+		return p.db.GetChatByID(dbauthz.AsChatd(refreshCtx), chatID)
+	}()
+	if err != nil {
+		p.logger.Warn(ctx, "failed to refresh chat for stream subscription; using stale state",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		snapshotChat = chat
+	}
+
 	// Build initial snapshot synchronously. The pubsub subscription
 	// is already active so no notifications can be lost during this
 	// window.
@@ -4377,8 +4464,12 @@ func (p *Server) Subscribe(
 		}
 	}
 
-	// Load initial queue.
-	queued, err := p.db.GetChatQueuedMessages(ctx, chatID)
+	// Load initial queue. Queue snapshots are intentionally not
+	// singleflighted because a chat-scoped key cannot distinguish the
+	// pre- and post-notification queue state.
+	queueCtx, queueCancel := streamSubscriberControlFetchContext(ctx)
+	queued, err := p.db.GetChatQueuedMessages(queueCtx, chatID)
+	queueCancel()
 	if err != nil {
 		p.logger.Error(ctx, "failed to load initial queued messages",
 			slog.Error(err),
@@ -4397,44 +4488,24 @@ func (p *Server) Subscribe(
 		})
 	}
 
-	// Get initial chat state to determine if we need a relay.
-	chat, chatErr := p.db.GetChatByID(ctx, chatID)
-
 	// Include the current chat status in the snapshot so the
 	// frontend can gate message_part processing correctly from
 	// the very first batch, without waiting for a separate REST
 	// query.
-	if chatErr != nil {
-		p.logger.Error(ctx, "failed to load initial chat state",
-			slog.Error(chatErr),
-			slog.F("chat_id", chatID),
-		)
-		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeError,
-			ChatID: chatID,
-			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
-		})
-	} else {
-		statusEvent := codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeStatus,
-			ChatID: chatID,
-			Status: &codersdk.ChatStreamStatus{
-				Status: codersdk.ChatStatus(chat.Status),
-			},
-		}
-		// Prepend so the frontend sees the current stream phases
-		// before any message_part events.
-		prefix := []codersdk.ChatStreamEvent{statusEvent}
-		if retryEvent != nil {
-			prefix = append(prefix, *retryEvent)
-			retryEvent = nil
-		}
-		initialSnapshot = append(prefix, initialSnapshot...)
+	statusEvent := codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeStatus,
+		ChatID: chatID,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatus(snapshotChat.Status),
+		},
 	}
-
+	// Prepend so the frontend sees the current stream phases
+	// before any message_part events.
+	prefix := []codersdk.ChatStreamEvent{statusEvent}
 	if retryEvent != nil {
-		initialSnapshot = append(initialSnapshot, *retryEvent)
+		prefix = append(prefix, *retryEvent)
 	}
+	initialSnapshot = append(prefix, initialSnapshot...)
 
 	// Track the highest durable message ID delivered to this subscriber,
 	// whether it came from the initial DB snapshot, the same-replica local
@@ -4444,18 +4515,17 @@ func (p *Server) Subscribe(
 		lastMessageID = messages[len(messages)-1].ID
 	}
 
-	// When an enterprise SubscribeFn is provided and the chat
-	// lookup succeeded, call it to get relay events (message_parts
-	// from remote replicas). OSS now owns pubsub subscription,
-	// message catch-up, queue updates, and status forwarding;
-	// enterprise only manages relay dialing.
+	// When an enterprise SubscribeFn is provided, call it to get relay events
+	// (message_parts from remote replicas). OSS owns pubsub subscription,
+	// message catch-up, queue updates, and status forwarding; enterprise only
+	// manages relay dialing.
 	var relayEvents <-chan codersdk.ChatStreamEvent
 	var statusNotifications chan StatusNotification
-	if p.subscribeFn != nil && chatErr == nil {
+	if p.subscribeFn != nil {
 		statusNotifications = make(chan StatusNotification, 10)
 		relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
 			ChatID:              chatID,
-			Chat:                chat,
+			Chat:                snapshotChat,
 			WorkerID:            p.workerID,
 			StatusNotifications: statusNotifications,
 			RequestHeader:       requestHeader,
@@ -4600,7 +4670,9 @@ func (p *Server) Subscribe(
 					}
 				}
 				if notify.QueueUpdate {
-					queuedMsgs, queueErr := p.db.GetChatQueuedMessages(mergedCtx, chatID)
+					queueCtx, queueCancel := streamSubscriberControlFetchContext(mergedCtx)
+					queuedMsgs, queueErr := p.db.GetChatQueuedMessages(queueCtx, chatID)
+					queueCancel()
 					if queueErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get queued messages after pubsub notification",
 							slog.F("chat_id", chatID),
@@ -4676,14 +4748,6 @@ func (p *Server) Subscribe(
 		}
 	}()
 
-	cancel := func() {
-		mergedCancel()
-		for _, cancelFn := range allCancels {
-			if cancelFn != nil {
-				cancelFn()
-			}
-		}
-	}
 	return initialSnapshot, mergedEvents, cancel, true
 }
 
@@ -5362,7 +5426,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			classified := chaterror.ClassifiedError{
 				Message: panicFailureReason(r),
-				Kind:    chaterror.KindGeneric,
+				Kind:    codersdk.ChatErrorKindGeneric,
 			}
 			lastErrorPayload = chaterror.TerminalErrorPayload(classified)
 			p.publishError(chat.ID, classified)
@@ -5886,17 +5950,16 @@ func (p *Server) appendRootChatTools(
 	}
 
 	tools = append(tools,
-		chattool.ListTemplates(opts.chat.OrganizationID, p.db, chattool.ListTemplatesOptions{
+		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID:            opts.chat.OwnerID,
 			AllowedTemplateIDs: p.chatTemplateAllowlist,
 		}),
-		chattool.ReadTemplate(opts.chat.OrganizationID, p.db, chattool.ReadTemplateOptions{
+		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
 			OwnerID:            opts.chat.OwnerID,
 			AllowedTemplateIDs: p.chatTemplateAllowlist,
 		}),
-		chattool.CreateWorkspace(opts.chat.OrganizationID, p.db, chattool.CreateWorkspaceOptions{
+		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
-			ChatID:                         opts.chat.ID,
 			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
@@ -5905,10 +5968,8 @@ func (p *Server) appendRootChatTools(
 			Logger:                         p.logger,
 			AllowedTemplateIDs:             p.chatTemplateAllowlist,
 		}),
-		chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:            p.db,
+		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			ChatID:        opts.chat.ID,
 			StartFn:       p.startWorkspaceFn,
 			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,
@@ -8014,7 +8075,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				lastErrorPayload, marshalErr := encodeChatLastErrorPayload(
 					chaterror.TerminalErrorPayload(chaterror.ClassifiedError{
 						Message: "Dynamic tool execution timed out",
-						Kind:    chaterror.KindGeneric,
+						Kind:    codersdk.ChatErrorKindGeneric,
 					}),
 				)
 				if marshalErr != nil {

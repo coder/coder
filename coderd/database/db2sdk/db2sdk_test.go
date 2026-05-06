@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -920,7 +919,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	lastErrorPayload := codersdk.ChatError{
 		Message:    "boom",
 		Detail:     "provider detail",
-		Kind:       chaterror.KindGeneric,
+		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 503,
@@ -1082,7 +1081,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 			raw:  json.RawMessage(`{`),
 			expectPayload: &codersdk.ChatError{
 				Message:   fallbackMessage,
-				Kind:      chaterror.KindGeneric,
+				Kind:      codersdk.ChatErrorKindGeneric,
 				Retryable: false,
 			},
 		},
@@ -1091,7 +1090,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 			raw:  json.RawMessage(`{"kind":"timeout","provider":"openai","status_code":504}`),
 			expectPayload: &codersdk.ChatError{
 				Message:    fallbackMessage,
-				Kind:       "timeout",
+				Kind:       codersdk.ChatErrorKindTimeout,
 				Provider:   "openai",
 				Retryable:  false,
 				StatusCode: 504,
@@ -1102,7 +1101,7 @@ func TestChat_LastErrorFallback(t *testing.T) {
 			raw:  json.RawMessage(`{"message":"  ","provider":"openai"}`),
 			expectPayload: &codersdk.ChatError{
 				Message:   fallbackMessage,
-				Kind:      chaterror.KindGeneric,
+				Kind:      codersdk.ChatErrorKindGeneric,
 				Provider:  "openai",
 				Retryable: false,
 			},
@@ -1112,10 +1111,19 @@ func TestChat_LastErrorFallback(t *testing.T) {
 			raw:  json.RawMessage(`{"message":"OpenAI returned an unexpected error.","provider":"openai","status_code":502}`),
 			expectPayload: &codersdk.ChatError{
 				Message:    "OpenAI returned an unexpected error.",
-				Kind:       chaterror.KindGeneric,
+				Kind:       codersdk.ChatErrorKindGeneric,
 				Provider:   "openai",
 				Retryable:  false,
 				StatusCode: 502,
+			},
+		},
+		{
+			name: "UsageLimitKindRoundTrips",
+			raw:  json.RawMessage(`{"message":"Usage limit reached.","kind":"usage_limit"}`),
+			expectPayload: &codersdk.ChatError{
+				Message:   "Usage limit reached.",
+				Kind:      codersdk.ChatErrorKindUsageLimit,
+				Retryable: false,
 			},
 		},
 	}
