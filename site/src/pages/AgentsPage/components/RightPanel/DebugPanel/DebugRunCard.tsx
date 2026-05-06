@@ -1,24 +1,34 @@
-import { ChevronDownIcon } from "lucide-react";
+import { saveAs } from "file-saver";
+import { ChevronDownIcon, DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
+import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { chatDebugRun } from "#/api/queries/chats";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { DebugStepCard } from "./DebugStepCard";
 import {
+	buildRunExportBlob,
 	clampContent,
 	coerceRunSummary,
 	compactDuration,
 	computeDurationMs,
+	debugExportFilename,
 	formatTokenSummary,
 	getRunKindLabel,
 	getStatusBadgeVariant,
@@ -29,6 +39,8 @@ interface DebugRunCardProps {
 	run: ChatDebugRunSummary;
 	chatId: string;
 	isVisible: boolean;
+	/** Override for the download function; used in tests. */
+	download?: (blob: Blob, filename: string) => void;
 }
 
 // Max characters shown in the run header label before truncation.
@@ -43,6 +55,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 	run,
 	chatId,
 	isVisible,
+	download = saveAs,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const runDetailQuery = useQuery({
@@ -168,6 +181,39 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 								<p className="text-sm text-content-secondary">
 									No steps recorded.
 								</p>
+							) : null}
+							{runDetailQuery.data ? (
+								<div className="flex justify-end pt-1">
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												variant="subtle"
+												size="icon"
+												aria-label="Export this run"
+												className="h-6 w-6"
+												onClick={(e) => {
+													e.stopPropagation();
+													try {
+														const blob = buildRunExportBlob(
+															chatId,
+															runDetailQuery.data as unknown as Record<
+																string,
+																unknown
+															>,
+														);
+														download(blob, debugExportFilename(chatId, run.id));
+													} catch (error) {
+														console.error(error);
+														toast.error("Failed to export run.");
+													}
+												}}
+											>
+												<DownloadIcon className="size-3.5" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Export this run</TooltipContent>
+									</Tooltip>
+								</div>
 							) : null}
 						</div>
 					)}

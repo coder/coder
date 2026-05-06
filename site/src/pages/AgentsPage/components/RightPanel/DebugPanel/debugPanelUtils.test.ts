@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	buildChatExportBlob,
+	buildRunExportBlob,
 	clampContent,
 	coerceRunSummary,
 	coerceStepRequest,
@@ -7,6 +9,7 @@ import {
 	coerceUsageRecord,
 	compactDuration,
 	computeDurationMs,
+	debugExportFilename,
 	exceedsClampThreshold,
 	extractTokenCounts,
 	formatTokenSummary,
@@ -1064,5 +1067,69 @@ describe("coerceStepRequest", () => {
 		});
 
 		expect(request.options).toEqual({ max_output_tokens: 512 });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Export helpers
+// ---------------------------------------------------------------------------
+
+describe("buildRunExportBlob", () => {
+	it("produces a JSON blob with the expected structure", async () => {
+		const run = { id: "run-abc", status: "completed", steps: [] };
+		const blob = buildRunExportBlob("chat-1", run);
+		expect(blob.type).toBe("application/json");
+
+		const text = await blob.text();
+		const parsed = JSON.parse(text);
+		expect(parsed.chatId).toBe("chat-1");
+		expect(parsed.runId).toBe("run-abc");
+		expect(parsed.run).toEqual(run);
+		expect(parsed.exportedAt).toBeTruthy();
+	});
+
+	it("falls back to 'unknown' when run.id is missing", async () => {
+		const blob = buildRunExportBlob("chat-1", {});
+		const parsed = JSON.parse(await blob.text());
+		expect(parsed.runId).toBe("unknown");
+	});
+});
+
+describe("buildChatExportBlob", () => {
+	it("wraps multiple runs in a chat-level envelope", async () => {
+		const runs = [
+			{ id: "r1", status: "completed" },
+			{ id: "r2", status: "error" },
+		];
+		const blob = buildChatExportBlob("chat-1", runs);
+		expect(blob.type).toBe("application/json");
+
+		const parsed = JSON.parse(await blob.text());
+		expect(parsed.chatId).toBe("chat-1");
+		expect(parsed.runs).toHaveLength(2);
+		expect(parsed.runs[0].id).toBe("r1");
+	});
+});
+
+describe("debugExportFilename", () => {
+	it("generates a chat-level filename without runId", () => {
+		const name = debugExportFilename("abcdef12-3456-7890-abcd-ef1234567890");
+		expect(name).toMatch(/^debug-chat-abcdef12_.*\.json$/);
+	});
+
+	it("generates a run-level filename with runId", () => {
+		const name = debugExportFilename(
+			"abcdef12-3456-7890-abcd-ef1234567890",
+			"deadbeef-1234-5678-9abc-def012345678",
+		);
+		expect(name).toMatch(/^debug-run-deadbeef_.*\.json$/);
+	});
+
+	it("replaces colons and dots in the timestamp", () => {
+		const name = debugExportFilename("chat-id");
+		expect(name).not.toContain(":");
+		// The only dot should be the one before the file extension.
+		const withoutExtension = name.replace(/\.json$/, "");
+		expect(withoutExtension).not.toContain(".");
 	});
 });

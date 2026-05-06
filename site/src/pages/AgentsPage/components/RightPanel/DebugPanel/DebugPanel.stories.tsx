@@ -1353,3 +1353,85 @@ export const BackendNormalizedShape: Story = {
 		expect(canvas.getByText("200")).toBeVisible();
 	},
 };
+
+export const ExportAllRuns: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					makeRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+				],
+			},
+			{
+				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				data: successfulRunDetail,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		// The "Export all" button should be visible when runs exist.
+		const exportButton = await canvas.findByRole("button", {
+			name: /Export all/i,
+		});
+		expect(exportButton).toBeVisible();
+		expect(exportButton).toBeEnabled();
+
+		// Click it. The button should remain in the DOM (the download
+		// is triggered via saveAs, which is mocked in tests).
+		await user.click(exportButton);
+
+		// The button should still be visible after the export completes.
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+	},
+};
+
+export const ExportSingleRun: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					makeRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+				],
+			},
+			{
+				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				data: successfulRunDetail,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		// Expand the run card to reveal the per-run export button.
+		const runTrigger = await canvas.findByRole("button", {
+			name: /Chat Turn/i,
+		});
+		await user.click(runTrigger);
+
+		// Wait for the detail to load, then find the per-run export button.
+		const runExport = await canvas.findByRole("button", {
+			name: /Export this run/i,
+		});
+		expect(runExport).toBeVisible();
+		await user.click(runExport);
+
+		// The button should remain visible after the export.
+		await waitFor(() => {
+			expect(runExport).toBeVisible();
+		});
+	},
+};

@@ -1282,3 +1282,74 @@ export const exceedsClampThreshold = (
 export const isActiveStatus = (status: string): boolean => {
 	return INFO_STATUSES.has(status.trim().toLowerCase());
 };
+
+// ---------------------------------------------------------------------------
+// Export helpers: assemble debug data into downloadable JSON blobs.
+// ---------------------------------------------------------------------------
+
+/** Shape of the exported JSON for a single debug run. */
+export interface DebugRunExport {
+	chatId: string;
+	runId: string;
+	exportedAt: string;
+	run: Record<string, unknown>;
+}
+
+/** Shape of the exported JSON for all debug runs in a chat. */
+export interface DebugChatExport {
+	chatId: string;
+	exportedAt: string;
+	runs: Record<string, unknown>[];
+}
+
+/**
+ * Build a JSON blob for a single debug run export.
+ * Accepts the raw API response object so the caller does not
+ * need to re-serialize. The `exportedAt` timestamp uses the
+ * ISO-8601 format for deterministic parsing.
+ */
+export const buildRunExportBlob = (
+	chatId: string,
+	run: Record<string, unknown>,
+): Blob => {
+	const payload: DebugRunExport = {
+		chatId,
+		runId: String(run.id ?? "unknown"),
+		exportedAt: new Date().toISOString(),
+		run,
+	};
+	return new Blob([JSON.stringify(payload, null, 2)], {
+		type: "application/json",
+	});
+};
+
+/**
+ * Build a JSON blob for all debug runs in a chat.
+ * Each element in `runs` should be the full detail response
+ * (with steps), not just the summary.
+ */
+export const buildChatExportBlob = (
+	chatId: string,
+	runs: Record<string, unknown>[],
+): Blob => {
+	const payload: DebugChatExport = {
+		chatId,
+		exportedAt: new Date().toISOString(),
+		runs,
+	};
+	return new Blob([JSON.stringify(payload, null, 2)], {
+		type: "application/json",
+	});
+};
+
+/**
+ * Generate a filesystem-safe filename for a debug export.
+ * Uses the chat/run ID prefix and a compact ISO timestamp.
+ */
+export const debugExportFilename = (chatId: string, runId?: string): string => {
+	const ts = new Date().toISOString().replace(/[:.]/g, "-");
+	const prefix = runId
+		? `debug-run-${runId.slice(0, 8)}`
+		: `debug-chat-${chatId.slice(0, 8)}`;
+	return `${prefix}_${ts}.json`;
+};
