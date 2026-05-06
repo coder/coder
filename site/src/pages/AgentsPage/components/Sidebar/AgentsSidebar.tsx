@@ -944,13 +944,16 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
+								"group relative grid min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
+								layout === "large"
+									? "grid-cols-[2rem_1fr_10rem_9rem_2rem_2rem]"
+									: "grid-cols-[2rem_1fr_7.5rem_7rem_2rem_2rem]",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
 						>
-							{/* Chevron cell */}
-							<div className="flex w-8 shrink-0 items-center justify-center self-stretch">
+							{/* Col 1: Chevron */}
+							<div className="flex items-center justify-center self-stretch">
 								{hasChildren ? (
 									<Button
 										variant="subtle"
@@ -964,21 +967,20 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</Button>
 								) : null}
 							</div>
-							{/* Title cell */}
+							{/* Col 2: Title */}
 							<NavLink
 								to={{ pathname: `/agents/${chat.id}`, search: location.search }}
 								className={cn(
-									"min-w-0 flex-1 truncate py-2 pr-3 text-sm text-content-primary no-underline",
+									"min-w-0 truncate py-2 text-sm text-content-primary no-underline",
 									isActiveChat && "font-medium",
 								)}
 							>
 								{chat.title}
 							</NavLink>
-							{/* Subtitle cell */}
+							{/* Col 3: Subtitle */}
 							<span
 								className={cn(
-									"shrink-0 truncate pr-3 text-sm",
-									layout === "large" ? "w-[160px]" : "w-[120px]",
+									"truncate px-2 text-sm",
 									errorReason
 										? "text-content-destructive"
 										: "text-content-secondary",
@@ -987,58 +989,65 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							>
 								{subtitle}
 							</span>
-							{/* PR stats cell */}
-							{hasLinkedDiffStatus && hasLineStats ? (
-								<span
-									className="inline-flex shrink-0 items-center gap-2 pr-2 text-sm tabular-nums"
-									title={`${filesChangedLabel}, +${additions} -${deletions}`}
-								>
-									{(() => {
-										const prIcon = getPRIconConfig(diffStatus);
-										if (prIcon) {
-											const PrIcon = prIcon.icon;
-											return (
-												<PrIcon
-													className={cn(
-														"h-3.5 w-3.5 shrink-0",
-														prIcon.className,
-													)}
-												/>
-											);
-										}
-										return null;
-									})()}
-									<span className="text-git-added-bright">+{additions}</span>
-									<span className="text-git-deleted-bright">
-										&minus;{deletions}
-									</span>
-								</span>
-							) : null}
-							{/* Status + Kebab cells */}
-							<div className="ml-auto flex shrink-0 items-center">
-								<div className="flex w-8 items-center justify-center">
-									{isArchivingThisChat ? (
-										<Spinner
-											className="h-3.5 w-3.5 text-content-secondary"
-											loading
-										/>
-									) : isMainRunning || hasRunningChildren ? (
-										<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
-									) : chat.has_unread && !isActiveChat ? (
-										<span
-											className="h-2.5 w-2.5 rounded-full bg-content-link"
-											data-testid={`unread-indicator-wide-${chat.id}`}
-										/>
-									) : chat.status === "error" ? (
-										<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
-									) : null}
-								</div>
+							{/* Col 4: PR stats (always rendered, may be empty) */}
+							<span
+								className="inline-flex items-center gap-2 truncate text-sm tabular-nums"
+								title={
+									hasLinkedDiffStatus && hasLineStats
+										? `${filesChangedLabel}, +${additions} -${deletions}`
+										: undefined
+								}
+							>
+								{hasLinkedDiffStatus && hasLineStats ? (
+									<>
+										{(() => {
+											const prIcon = getPRIconConfig(diffStatus);
+											if (prIcon) {
+												const PrIcon = prIcon.icon;
+												return (
+													<PrIcon
+														className={cn(
+															"h-3.5 w-3.5 shrink-0",
+															prIcon.className,
+														)}
+													/>
+												);
+											}
+											return null;
+										})()}
+										<span className="text-git-added-bright">+{additions}</span>
+										<span className="text-git-deleted-bright">
+											&minus;{deletions}
+										</span>
+									</>
+								) : null}
+							</span>
+							{/* Col 5: Status */}
+							<div className="flex items-center justify-center">
+								{isArchivingThisChat ? (
+									<Spinner
+										className="h-3.5 w-3.5 text-content-secondary"
+										loading
+									/>
+								) : isMainRunning || hasRunningChildren ? (
+									<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
+								) : chat.has_unread && !isActiveChat ? (
+									<span
+										className="h-2.5 w-2.5 rounded-full bg-content-link"
+										data-testid={`unread-indicator-wide-${chat.id}`}
+									/>
+								) : chat.status === "error" ? (
+									<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
+								) : null}
+							</div>
+							{/* Col 6: Kebab */}
+							<div className="flex items-center justify-center">
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
 										<Button
 											size="icon"
 											variant="subtle"
-											className="h-6 w-8 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary"
+											className="h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary"
 											aria-label={`Open actions for ${chat.title}`}
 										>
 											<EllipsisVerticalIcon className="h-3.5 w-3.5" />
@@ -1504,9 +1513,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 px-2 py-3">
+						<div className="flex flex-col gap-2 py-3">
 							{loadError ? (
-								<div className="space-y-3 px-1">
+								<div className="space-y-3 px-3">
 									<ErrorAlert error={loadError} />
 									{onRetryLoad && (
 										<Button size="sm" variant="outline" onClick={onRetryLoad}>
@@ -1515,7 +1524,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									)}
 								</div>
 							) : isLoading ? (
-								<>
+								<div className="px-2">
 									<Skeleton className="ml-2.5 h-3.5 w-16" />
 									<div className="flex flex-col gap-0.5">
 										{Array.from({ length: 6 }, (_, i) => (
@@ -1534,11 +1543,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											</div>
 										))}
 									</div>
-								</>
+								</div>
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
 									{visibleRootIDs.length === 0 ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary mx-2 p-4 text-center text-xs text-content-secondary">
 											<p className="m-0">
 												{normalizedSearch
 													? "No matching agents"
@@ -1563,9 +1572,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											</button>
 										</div>
 									) : (
-										<div>
-											{/* At narrow widths, show only the filter icon.
-								   At medium/large, show full search input with filter. */}
+										<div className="px-2">
 											{layout === "narrow" ? (
 												<div className="mb-2 flex justify-end pr-0.5">
 													{filterDropdown}
@@ -1592,8 +1599,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="flex w-full items-center justify-between border-0 bg-transparent pb-1 pl-0 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className="grid w-full grid-cols-[2rem_1fr_2rem] items-center border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
+																<span />
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
 																	{collapsedSections.has("Pinned") &&
@@ -1659,8 +1667,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="flex w-full items-center justify-between border-0 bg-transparent pb-1 pl-0 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className="grid w-full grid-cols-[2rem_1fr_2rem] items-center border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
+																	<span />
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
 																		{collapsedSections.has(group) &&
