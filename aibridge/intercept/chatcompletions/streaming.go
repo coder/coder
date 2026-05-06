@@ -492,11 +492,11 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 		// into known types (i.e. [shared.OverloadedError]).
 		// See https://github.com/openai/openai-go/blob/v2.7.0/packages/ssestream/ssestream.go#L171
 		// All it does is wrap the payload in an error - which is all we can return, currently.
-		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), "error", "error", http.StatusBadGateway, 0)
+		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
 	}
 	if lastErr != nil {
 		logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
-		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), "error", "error", http.StatusBadGateway, 0)
+		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
 	}
 	return nil
 }

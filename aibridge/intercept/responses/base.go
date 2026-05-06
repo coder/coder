@@ -201,16 +201,16 @@ func (i *responsesInterceptionBase) mapExhaustionError(err error) *responseError
 	case errors.As(err, &transient):
 		return newErrorResponse(
 			"all configured keys are rate-limited",
-			"rate_limit_error",
-			"rate_limit_exceeded",
+			intercept.OpenAIErrTypeRateLimit,
+			intercept.OpenAIErrCodeRateLimit,
 			http.StatusTooManyRequests,
 			transient.RetryAfter,
 		)
 	case errors.Is(err, keypool.ErrPermanentExhaustion):
 		return newErrorResponse(
 			"all configured keys failed authentication",
-			"api_error",
-			"server_error",
+			intercept.OpenAIErrTypeAPI,
+			intercept.OpenAIErrCodeServer,
 			http.StatusBadGateway,
 			0,
 		)

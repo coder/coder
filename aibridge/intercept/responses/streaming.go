@@ -122,7 +122,6 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		// successfully or we hit a non-recoverable error.
 		var stream *ssestream.Stream[responses.ResponseStreamEventUnion]
 		var startErr error
-	failover:
 		for {
 			respCopy = responseCopier{}
 			opts := i.requestOptions(&respCopy)
@@ -162,15 +161,15 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 				// retry with the next one.
 				if currentKey != nil && i.markKeyOnError(ctx, currentKey, upstreamErr) {
 					stream.Close()
-					continue failover
+					continue
 				}
 				// Non-key error: stop trying and let the
 				// existing handling below report it.
 				startErr = upstreamErr
-				break failover
+				break
 			}
 			// Stream started successfully: commit to this key.
-			break failover
+			break
 		}
 
 		// func scope to defer steam.Close()
