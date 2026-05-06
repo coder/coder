@@ -628,7 +628,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							disabled={isArchiving}
 							onSelect={() => onArchiveAgent(chat.id)}
 						>
-							Archive conversation
+							Archive agent
 						</Item>
 						{workspaceId && (
 							<>
