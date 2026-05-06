@@ -876,25 +876,22 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													/>
 													Subagents ({children.length})
 												</button>
-												{!collapsedSections.has(`subagents-${chatID}`) && (
-													<div className="ml-[5px] border-l border-content-secondary/40">
-														{children.map((child, idx) => {
-															const childDiff = getChatDiffStatus(child);
-															const childIsRunning =
-																child.status === "running" ||
-																child.status === "pending";
-															const isLast = idx === children.length - 1;
-															return (
-																<div
-																	key={child.id}
-																	className={cn(
-																		"flex items-center gap-1 text-sm",
-																		isLast &&
-																			"border-l border-transparent -ml-px",
-																	)}
-																>
-																	{/* Horizontal branch */}
-																	<div className="h-px w-2 shrink-0 bg-content-secondary/40" />
+													{!collapsedSections.has(`subagents-${chatID}`) && (
+														<div className="ml-[5px]">
+															{children.map((child, idx) => {
+																const childDiff = getChatDiffStatus(child);
+																const childIsRunning =
+																	child.status === "running" ||
+																	child.status === "pending";
+																const isLast = idx === children.length - 1;
+																return (
+																	<div
+																		key={child.id}
+																		className={cn(
+																			"flex items-center gap-1 border-l border-content-secondary/40 text-sm",
+																			isLast && "border-transparent",
+																		)}
+																	>
 																	<NavLink
 																		to={{
 																			pathname: `/agents/${child.id}`,
