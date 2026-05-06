@@ -688,7 +688,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<Button
 													size="icon"
 													variant="subtle"
-													className="h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary"
+													className="h-6 w-7 min-w-0 shrink-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary"
 													aria-label={`Open actions for ${chat.title}`}
 												>
 													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
