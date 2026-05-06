@@ -489,8 +489,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const { layout } = useSidebarWidth();
-	const subtitle = errorReason || modelName;
 	const diffStatus = getChatDiffStatus(chat);
+	const subtitle = errorReason || diffStatus?.pull_request_title || modelName;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
