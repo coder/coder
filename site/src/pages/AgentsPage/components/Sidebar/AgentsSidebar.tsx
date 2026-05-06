@@ -654,7 +654,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</>
 								)}
 							</NavLink>
-							<div className="relative flex shrink-0 items-start justify-end gap-1.5 pt-1">
+							<div className="relative flex shrink-0 items-start justify-end gap-1.5 py-1">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
@@ -663,7 +663,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								) : (
 									<>
 										{/* Single status indicator, priority: spinner > unread > error > time */}
-										<span className="flex items-center justify-end pt-0.5 [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										<span className="flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 											{isMainRunning || hasRunningChildren ? (
 												<div className="flex h-4 w-4 items-center justify-center">
 													{isMainRunning && hasRunningChildren ? (
