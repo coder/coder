@@ -896,36 +896,29 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																			isLast && "h-1/2",
 																		)}
 																	/>
-																	<NavLink
-																		to={{
-																			pathname: `/agents/${child.id}`,
-																			search: location.search,
-																		}}
-																		className="min-w-0 flex-1 truncate py-0.5 text-content-secondary no-underline hover:text-content-primary"
-																	>
-																		{child.title}
-																	</NavLink>
-																	{(() => {
-																		const prIcon = getPRIconConfig(childDiff);
-																		if (prIcon) {
-																			const PrIcon = prIcon.icon;
-																			return (
-																				<PrIcon
-																					className={cn(
-																						"h-3.5 w-3.5 shrink-0",
-																						prIcon.className,
-																					)}
-																				/>
-																			);
-																		}
-																		return null;
-																	})()}
-																	<div className="flex w-7 shrink-0 items-center justify-center">
-																		{childIsRunning ? (
-																			<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
-																		) : child.has_unread ? (
-																			<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
-																		) : null}
+																		<NavLink
+																			to={{
+																				pathname: `/agents/${child.id}`,
+																				search: location.search,
+																			}}
+																			className="min-w-0 flex-1 truncate py-0.5 text-content-secondary no-underline hover:text-content-primary [&[aria-current=page]]:text-content-primary [&[aria-current=page]]:font-medium"
+																		>
+																			{child.title}
+																		</NavLink>
+																		{(() => {
+																			const prIcon = getPRIconConfig(childDiff);
+																			if (prIcon) {
+																				const PrIcon = prIcon.icon;
+																				return <PrIcon className={cn("h-3.5 w-3.5 shrink-0", prIcon.className)} />;
+																			}
+																			return null;
+																		})()}
+																		<div className="flex w-7 shrink-0 items-center justify-center">
+																			{childIsRunning ? (
+																				<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+																			) : child.has_unread && activeChatId !== child.id ? (
+																				<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
+																			) : null}
 																	</div>
 																</div>
 															);
