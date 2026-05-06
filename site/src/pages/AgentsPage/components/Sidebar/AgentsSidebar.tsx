@@ -928,7 +928,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 															Subagents ({subagentChildren.length})
 														</button>
 														{!collapsedSections.has(`subagents-${chatID}`) && (
-															<div className="relative ml-0.5 border-l border-content-secondary/40">
+															<div className="relative ml-0.5 border-l border-content-secondary">
 																{subagentChildren.map((child, idx) => {
 																	const childConfig = getStatusConfig(
 																		child.status,
@@ -946,7 +946,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																		return (
 																			<div
 																				key={child.id}
-																				className="relative flex items-center gap-1 py-0.5 pl-4 text-sm before:absolute before:left-0 before:top-1/2 before:h-px before:w-2.5 before:bg-content-secondary/40"
+																				className="relative flex items-center gap-1 py-0.5 pl-4 text-sm before:absolute before:left-0 before:top-1/2 before:h-px before:w-2.5 before:bg-content-secondary"
 																			>
 																			<NavLink
 																				to={{
