@@ -308,6 +308,15 @@ const getActionSummary = (chat: Chat): string | undefined => {
 	if (chat.status === "running" || chat.status === "pending") {
 		return "Working...";
 	}
+	if (chat.status === "completed") {
+		return "Finished";
+	}
+	if (chat.status === "paused" || chat.status === "waiting") {
+		return "Paused";
+	}
+	if (chat.status === "requires_action") {
+		return "Needs input";
+	}
 	return undefined;
 };
 
