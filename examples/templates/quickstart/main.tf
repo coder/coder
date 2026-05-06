@@ -26,32 +26,6 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-# Verify Docker is reachable before attempting to provision containers.
-# This runs via the external provider (no Docker dependency) so it
-# evaluates before any docker_* resource and produces a friendlier
-# error than the raw provider failure.
-# TODO: Re-enable before merging. Removed during development because
-# the template import dry-run plan also triggers the precondition,
-# blocking import on provisioners without Docker.
-#
-# data "external" "docker_check" {
-#   count = data.coder_workspace.me.start_count
-#   program = [
-#     "sh", "-c",
-#     "if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then echo '{\"available\":\"true\"}'; else echo '{\"available\":\"false\"}'; fi",
-#   ]
-# }
-#
-# resource "terraform_data" "docker_available" {
-#   count = data.coder_workspace.me.start_count
-#   lifecycle {
-#     precondition {
-#       condition     = data.external.docker_check[0].result.available == "true"
-#       error_message = "Cannot connect to the Docker daemon. Make sure Docker is installed and the daemon is running. Check the logs for more information."
-#     }
-#   }
-# }
-
 # --- Parameters ---
 
 data "coder_parameter" "languages" {
