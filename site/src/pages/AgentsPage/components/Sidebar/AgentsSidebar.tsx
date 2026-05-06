@@ -1513,14 +1513,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div
-							className={cn(
-								"flex flex-col gap-2 py-3",
-								layout === "narrow" ? "px-2" : "px-0",
-							)}
-						>
+						<div className="flex flex-col gap-2 px-2 py-3">
 							{loadError ? (
-								<div className="space-y-3 px-2">
+								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
 									{onRetryLoad && (
 										<Button size="sm" variant="outline" onClick={onRetryLoad}>
@@ -1552,7 +1547,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
 									{visibleRootIDs.length === 0 ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary mx-2 p-4 text-center text-xs text-content-secondary">
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											<p className="m-0">
 												{normalizedSearch
 													? "No matching agents"
@@ -1577,7 +1572,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											</button>
 										</div>
 									) : (
-										<div className={layout === "narrow" ? undefined : "px-2"}>
+										<div>
 											{layout === "narrow" ? (
 												<div className="mb-2 flex justify-end pr-0.5">
 													{filterDropdown}
@@ -1597,7 +1592,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												</div>
 											)}
 											{visibleRootIDs.length > 0 && (
-												<div className="pb-2">
+												<div
+													className={
+														layout !== "narrow" ? "-mx-2 pb-2" : "pb-2"
+													}
+												>
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
 														<div className="[&:not(:first-child)]:mt-6">
