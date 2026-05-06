@@ -12,13 +12,14 @@ import (
 // tests can assert on what was logged. It requires a testing.TB
 // as it is only meant for use in tests.
 type FakeSink struct {
+	t       testing.TB
 	mu      sync.RWMutex
 	entries []slog.SinkEntry
 }
 
 // NewFakeSink returns a FakeSink ready for use.
-func NewFakeSink(_ testing.TB) *FakeSink {
-	return &FakeSink{}
+func NewFakeSink(t testing.TB) *FakeSink {
+	return &FakeSink{t: t}
 }
 
 // LogEntry implements slog.Sink. It appends the entry to the
@@ -27,6 +28,9 @@ func (s *FakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.entries = append(s.entries, e)
+	if s.t.Context().Err() == nil { // avoid log after test finished
+		s.t.Log(e.Message, e.Fields)
+	}
 }
 
 // Sync implements slog.Sink.
