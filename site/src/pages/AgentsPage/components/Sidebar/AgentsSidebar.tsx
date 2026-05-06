@@ -705,7 +705,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											<div className="flex min-w-0 items-center gap-1.5">
 												{hasLinkedDiffStatus && hasLineStats && (
 													<span
-														className="inline-flex shrink-0 items-center gap-0.5 text-sm leading-4 tabular-nums"
+														className="inline-flex shrink-0 items-center gap-1 text-sm leading-4 tabular-nums"
 														title={`${filesChangedLabel}, +${additions} -${deletions}`}
 													>
 														{(() => {
@@ -917,7 +917,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 							{hasLinkedDiffStatus && hasLineStats ? (
 								<span
-									className="inline-flex shrink-0 items-center gap-0.5 text-sm tabular-nums"
+									className="inline-flex shrink-0 items-center gap-1 text-sm tabular-nums"
 									title={`${filesChangedLabel}, +${additions} -${deletions}`}
 								>
 									{(() => {
