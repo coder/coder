@@ -96,6 +96,13 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						theme="light"
 						onSelect={() => onChangeTheme("light")}
 					/>
+					<ThemePreviewButton
+						displayName="Aurora"
+						active={currentTheme === "dark-aurora"}
+						theme="dark-aurora"
+						onSelect={() => onChangeTheme("dark-aurora")}
+						preview
+					/>
 				</div>
 			</Section>
 			<Section
@@ -139,7 +146,7 @@ function toTerminalFontName(value: string): TerminalFontName {
 		: "";
 }
 
-type ThemeMode = "dark" | "light";
+type ThemeMode = "dark" | "light" | "dark-aurora";
 
 interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
 	themes: [ThemeMode, ThemeMode];
@@ -249,8 +256,13 @@ const ThemePreview: FC<ThemePreviewProps> = ({
 	displayName,
 	theme,
 }) => {
+	// Variant themes (e.g. dark-aurora) only override the tokens that
+	// shift from the base mode, so the preview wrapper needs both the
+	// base mode class and the variant class for the cascade to resolve.
+	const classes =
+		theme === "dark" || theme === "light" ? theme : `dark ${theme}`;
 	return (
-		<div className={theme}>
+		<div className={classes}>
 			<div
 				className={cn(
 					"w-56 overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",

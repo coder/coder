@@ -1,6 +1,7 @@
 /** @deprecated MUI Theme type is deprecated. Migrate to Tailwind CSS theme system. */
 import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
+import aurora from "./aurora";
 import type { Branding } from "./branding";
 import dark from "./dark";
 import darkProtanDeuter from "./darkProtanDeuter";
@@ -41,6 +42,7 @@ export const CONCRETE_THEMES = [
 	"light-protan-deuter",
 	"dark-tritan",
 	"light-tritan",
+	"dark-aurora",
 ] as const;
 
 export type ConcreteThemeName = (typeof CONCRETE_THEMES)[number];
@@ -79,6 +81,7 @@ const theme = {
 	"light-protan-deuter": lightProtanDeuter,
 	"dark-tritan": darkTritan,
 	"light-tritan": lightTritan,
+	"dark-aurora": aurora,
 } satisfies Record<ConcreteThemeName, Theme>;
 
 export default theme;

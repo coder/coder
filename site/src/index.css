@@ -271,6 +271,71 @@
 		--syntax-boolean: 322 81% 67%;
 		--git-modified: 322 81% 72%;
 	}
+	/*
+	"Aurora" variant. Cosmic-indigo surfaces with mint-teal aurora
+	accents. Layered on top of the base `.dark` block, so we only
+	override tokens that should shift hue or saturation. Surfaces sit
+	on the indigo axis (deep purple-blue) instead of zinc, links and
+	active states use teal/cyan, and warnings shift to fuchsia/rose so
+	they contrast with the cool background instead of fighting the
+	default amber-on-zinc.
+	*/
+	.dark-aurora {
+		--content-primary: 250 100% 97%;
+		--content-secondary: 252 32% 76%;
+		--content-link: 175 84% 67%;
+		--content-success: 170 80% 67%;
+		--content-warning: 330 86% 76%;
+		--content-destructive: 351 95% 71%;
+		--content-disabled: 240 26% 35%;
+		--surface-primary: 245 52% 10%;
+		--surface-secondary: 244 38% 15%;
+		--surface-tertiary: 244 34% 22%;
+		--surface-quaternary: 240 28% 28%;
+		--surface-invert-primary: 250 100% 97%;
+		--surface-invert-secondary: 252 32% 76%;
+		--surface-destructive: 351 55% 16%;
+		--surface-green: 168 70% 11%;
+		--surface-grey: 240 41% 13%;
+		--surface-orange: 330 70% 18%;
+		--surface-sky: 188 90% 14%;
+		--surface-red: 351 55% 16%;
+		--surface-purple: 270 70% 19%;
+		--surface-magenta: 295 75% 18%;
+		--border-default: 245 35% 25%;
+		--border-purple: 270 92% 76%;
+		--border-success: 170 80% 67%;
+		--border-magenta: 295 100% 78%;
+		--border-warning: 330 86% 76%;
+		--border-destructive: 351 95% 71%;
+		--border-sky: 175 84% 67%;
+		--border-green: 158 64% 70%;
+		--border-secondary: 240 28% 35%;
+		--overlay-default: 240 56% 6% / 80%;
+		--highlight-purple: 270 100% 80%;
+		--highlight-green: 170 80% 80%;
+		--highlight-orange: 330 86% 76%;
+		--highlight-sky: 175 84% 80%;
+		--highlight-red: 351 95% 78%;
+		--highlight-magenta: 295 100% 78%;
+		--syntax-key: 175 84% 67%;
+		--syntax-string: 351 95% 80%;
+		--syntax-number: 158 64% 70%;
+		--syntax-boolean: 270 100% 80%;
+		--git-added: 170 80% 75%;
+		--git-deleted: 351 95% 78%;
+		--git-modified: 175 84% 67%;
+		--git-merged: 270 92% 76%;
+		--git-added-bright: 170 80% 67%;
+		--git-deleted-bright: 351 95% 71%;
+		--git-merged-bright: 270 92% 65%;
+		--surface-git-added: 165 90% 11%;
+		--surface-git-deleted: 351 55% 16%;
+		--surface-git-merged: 270 75% 22%;
+		--border: 245 35% 25%;
+		--input: 245 35% 25%;
+		--ring: 175 84% 67%;
+	}
 }
 
 @layer base {
