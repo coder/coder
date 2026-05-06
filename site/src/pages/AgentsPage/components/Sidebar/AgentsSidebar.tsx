@@ -660,15 +660,33 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										className="h-3.5 w-3.5 text-content-secondary"
 										loading
 									/>
+								) : isActiveChat ? (
+									/* Active chat: show kebab directly in flow */
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary"
+												aria-label={`Open actions for ${chat.title}`}
+											>
+												<EllipsisVerticalIcon className="h-3.5 w-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
+										>
+											{renderMenuItems({
+												Item: DropdownMenuItem,
+												Separator: DropdownMenuSeparator,
+											})}
+										</DropdownMenuContent>
+									</DropdownMenu>
 								) : (
 									<>
-										{/* Single status indicator, priority: spinner > unread > error > time */}
-										<span
-											className={cn(
-												"flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
-												isActiveChat && "hidden",
-											)}
-										>
+										{/* Status indicator with hover-overlay kebab */}
+										<span className="flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 											{isMainRunning || hasRunningChildren ? (
 												<div className="flex h-4 w-4 items-center justify-center">
 													{isMainRunning && hasRunningChildren ? (
@@ -688,7 +706,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 														</div>
 													)}
 												</div>
-											) : chat.has_unread && !isActiveChat ? (
+											) : chat.has_unread ? (
 												<span
 													className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link"
 													data-testid={`unread-indicator-${chat.id}`}
@@ -707,10 +725,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<Button
 													size="icon"
 													variant="subtle"
-													className={cn(
-														"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
-														isActiveChat ? "opacity-100" : "opacity-0",
-													)}
+													className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 													aria-label={`Open actions for ${chat.title}`}
 												>
 													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
