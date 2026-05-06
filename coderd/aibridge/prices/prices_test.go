@@ -4,11 +4,16 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridge/prices"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -122,5 +127,26 @@ func TestLoad(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(12345), got.InputPrice.Int64)
 		require.Equal(t, int64(67890), got.OutputPrice.Int64)
+	})
+
+	// Verifies the chain: AsAIBridged context -> dbauthz wrapper auth check
+	// -> subjectAibridged's permission grant. A missing or wrong action on
+	// the subject would surface as "unauthorized: rbac: forbidden" here, even
+	// though the unit tests above (which bypass dbauthz) would still pass.
+	t.Run("AuthorizedAsAIBridged", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		rawDB, _ := dbtestutil.NewDB(t)
+		authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		require.NoError(t, prices.Load(dbauthz.AsAIBridged(ctx), authzDB))
+
+		// Read back via the raw DB.
+		got, err := rawDB.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.True(t, got.InputPrice.Valid)
+		require.Equal(t, int64(2_500_000), got.InputPrice.Int64)
 	})
 }
