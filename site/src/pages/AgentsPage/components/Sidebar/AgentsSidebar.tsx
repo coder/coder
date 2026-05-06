@@ -667,9 +667,12 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											<div className="flex h-4 w-4 items-center justify-center">
 												{isMainRunning && hasRunningChildren ? (
 													<div className="relative h-4 w-4">
-														<Loader2Icon className="absolute inset-0 h-4 w-4 animate-spin text-content-link" />
 														<Loader2Icon
-															className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link/60"
+															className="absolute inset-0 h-4 w-4 animate-spin text-content-link/50"
+															style={{ animationDuration: "2s" }}
+														/>
+														<Loader2Icon
+															className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-primary"
 															style={{ animationDirection: "reverse" }}
 														/>
 													</div>
@@ -713,9 +716,12 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<div className="flex h-4 w-4 items-center justify-center">
 													{isMainRunning && hasRunningChildren ? (
 														<div className="relative h-4 w-4">
-															<Loader2Icon className="absolute inset-0 h-4 w-4 animate-spin text-content-link" />
 															<Loader2Icon
-																className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link/60"
+																className="absolute inset-0 h-4 w-4 animate-spin text-content-link/50"
+																style={{ animationDuration: "2s" }}
+															/>
+															<Loader2Icon
+																className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-primary"
 																style={{ animationDirection: "reverse" }}
 															/>
 														</div>
@@ -850,9 +856,12 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									/>
 								) : isMainRunning && hasRunningChildren ? (
 									<div className="relative h-4 w-4">
-										<Loader2Icon className="absolute inset-0 h-4 w-4 animate-spin text-content-link" />
 										<Loader2Icon
-											className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link/60"
+											className="absolute inset-0 h-4 w-4 animate-spin text-content-link/50"
+											style={{ animationDuration: "2s" }}
+										/>
+										<Loader2Icon
+											className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-primary"
 											style={{ animationDirection: "reverse" }}
 										/>
 									</div>
