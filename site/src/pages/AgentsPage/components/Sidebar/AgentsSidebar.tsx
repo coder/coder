@@ -669,147 +669,99 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-3 pr-0.5 py-1 text-content-secondary",
+								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] flex-col rounded-md py-1 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 								isChildNode &&
 									"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
 							)}
 						>
-							<NavLink
-								to={{
-									pathname: `/agents/${chat.id}`,
-									search: location.search,
-								}}
-								className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-							>
-								{({ isActive }) => (
-									<>
-										<div className="min-w-0 flex-1 overflow-hidden text-left">
-											<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-												<span
-													aria-busy={isRegeneratingThisChat}
-													className={cn(
-														"block flex-1 truncate text-sm text-content-primary",
-														isActive && "font-medium",
-														isRegeneratingThisChat && "animate-pulse",
-													)}
-												>
-													{chat.title}
-												</span>
-												{chat.has_unread && !isActiveChat && (
-													<span className="sr-only">(unread)</span>
-												)}
-												{isRegeneratingThisChat && (
-													<span className="sr-only" role="status">
-														Regenerating title…
-													</span>
-												)}
-											</div>
-											<div className="flex min-w-0 items-center gap-1.5">
-												{hasLinkedDiffStatus && hasLineStats && (
+							<div className="flex min-w-0 items-start gap-1.5 pl-3 pr-0.5">
+								<NavLink
+									to={{
+										pathname: `/agents/${chat.id}`,
+										search: location.search,
+									}}
+									className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+								>
+									{({ isActive }) => (
+										<>
+											<div className="min-w-0 flex-1 overflow-hidden text-left">
+												<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 													<span
-														className="inline-flex shrink-0 items-center gap-2 text-sm leading-4 tabular-nums"
-														title={`${filesChangedLabel}, +${additions} -${deletions}`}
+														aria-busy={isRegeneratingThisChat}
+														className={cn(
+															"block flex-1 truncate text-sm text-content-primary",
+															isActive && "font-medium",
+															isRegeneratingThisChat && "animate-pulse",
+														)}
 													>
-														{(() => {
-															const prIcon = getPRIconConfig(diffStatus);
-															if (prIcon) {
-																const PrIcon = prIcon.icon;
-																return (
-																	<PrIcon
-																		className={cn(
-																			"h-3.5 w-3.5 shrink-0",
-																			prIcon.className,
-																		)}
-																	/>
-																);
-															}
-															return null;
-														})()}
-														<span className="text-git-added-bright">
-															+{additions}
-														</span>
-														<span className="text-git-deleted-bright">
-															&minus;{deletions}
-														</span>
+														{chat.title}
 													</span>
-												)}
-												<div
-													className={cn(
-														"min-w-0 overflow-hidden text-sm leading-5",
-														errorReason
-															? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-															: "truncate text-content-secondary",
+													{chat.has_unread && !isActiveChat && (
+														<span className="sr-only">(unread)</span>
 													)}
-													title={subtitle}
-												>
-													{subtitle}
+													{isRegeneratingThisChat && (
+														<span className="sr-only" role="status">
+															Regenerating title…
+														</span>
+													)}
+												</div>
+												<div className="flex min-w-0 items-center gap-1.5">
+													{hasLinkedDiffStatus && hasLineStats && (
+														<span
+															className="inline-flex shrink-0 items-center gap-2 text-sm leading-4 tabular-nums"
+															title={`${filesChangedLabel}, +${additions} -${deletions}`}
+														>
+															{(() => {
+																const prIcon = getPRIconConfig(diffStatus);
+																if (prIcon) {
+																	const PrIcon = prIcon.icon;
+																	return (
+																		<PrIcon
+																			className={cn(
+																				"h-3.5 w-3.5 shrink-0",
+																				prIcon.className,
+																			)}
+																		/>
+																	);
+																}
+																return null;
+															})()}
+															<span className="text-git-added-bright">
+																+{additions}
+															</span>
+															<span className="text-git-deleted-bright">
+																&minus;{deletions}
+															</span>
+														</span>
+													)}
+													<div
+														className={cn(
+															"min-w-0 overflow-hidden text-sm leading-5",
+															errorReason
+																? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+																: "truncate text-content-secondary",
+														)}
+														title={subtitle}
+													>
+														{subtitle}
+													</div>
 												</div>
 											</div>
-										</div>
-									</>
-								)}
-							</NavLink>
-							<div className="flex w-7 shrink-0 items-center justify-center py-1">
-								{isArchivingThisChat ? (
-									<Spinner
-										className="h-3.5 w-3.5 text-content-secondary"
-										loading
-									/>
-								) : isActiveChat ? (
-									/* Active chat: show spinner if running, otherwise kebab */
-									<>
-										{(isMainRunning || hasRunningChildren) && (
-											<div className="flex h-4 w-4 items-center justify-center">
-												{isMainRunning && hasRunningChildren ? (
-													<div className="relative h-4 w-4">
-														<Loader2Icon
-															className="absolute inset-0 h-4 w-4 animate-spin text-content-link/50"
-															style={{ animationDuration: "2s" }}
-														/>
-														<Loader2Icon
-															className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-primary"
-															style={{ animationDirection: "reverse" }}
-														/>
-													</div>
-												) : isMainRunning ? (
-													<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
-												) : (
-													<div className="relative h-4 w-4">
-														<Loader2Icon className="absolute inset-0 h-4 w-4 text-content-secondary/40" />
-														<Loader2Icon className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link" />
-													</div>
-												)}
-											</div>
-										)}
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="h-6 w-7 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary"
-													aria-label={`Open actions for ${chat.title}`}
-												>
-													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent
-												align="end"
-												className="[&_[role=menuitem]]:text-[13px]"
-											>
-												{renderMenuItems({
-													Item: DropdownMenuItem,
-													Separator: DropdownMenuSeparator,
-												})}
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</>
-								) : (
-									<>
-										{/* Status indicator with hover-overlay kebab */}
-										<span className="flex h-4 w-4 items-center justify-center [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-											{isMainRunning || hasRunningChildren ? (
+										</>
+									)}
+								</NavLink>
+								<div className="flex w-7 shrink-0 items-center justify-center py-1">
+									{isArchivingThisChat ? (
+										<Spinner
+											className="h-3.5 w-3.5 text-content-secondary"
+											loading
+										/>
+									) : isActiveChat ? (
+										/* Active chat: show spinner if running, otherwise kebab */
+										<>
+											{(isMainRunning || hasRunningChildren) && (
 												<div className="flex h-4 w-4 items-center justify-center">
 													{isMainRunning && hasRunningChildren ? (
 														<div className="relative h-4 w-4">
@@ -831,44 +783,237 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 														</div>
 													)}
 												</div>
-											) : chat.has_unread ? (
-												<span
-													className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link"
-													data-testid={`unread-indicator-${chat.id}`}
-													aria-hidden="true"
-												/>
-											) : chat.status === "error" ? (
-												<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
-											) : (
-												<span className="text-xs text-content-secondary/50 tabular-nums">
-													{shortRelativeTime(chat.updated_at)}
-												</span>
 											)}
-										</span>
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="hidden h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
-													aria-label={`Open actions for ${chat.title}`}
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="h-6 w-7 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary"
+														aria-label={`Open actions for ${chat.title}`}
+													>
+														<EllipsisVerticalIcon className="h-3.5 w-3.5" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent
+													align="end"
+													className="[&_[role=menuitem]]:text-[13px]"
 												>
-													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent
-												align="end"
-												className="[&_[role=menuitem]]:text-[13px]"
-											>
-												{renderMenuItems({
-													Item: DropdownMenuItem,
-													Separator: DropdownMenuSeparator,
-												})}
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</>
-								)}
+													{renderMenuItems({
+														Item: DropdownMenuItem,
+														Separator: DropdownMenuSeparator,
+													})}
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</>
+									) : (
+										<>
+											{/* Status indicator with hover-overlay kebab */}
+											<span className="flex h-4 w-4 items-center justify-center [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+												{isMainRunning || hasRunningChildren ? (
+													<div className="flex h-4 w-4 items-center justify-center">
+														{isMainRunning && hasRunningChildren ? (
+															<div className="relative h-4 w-4">
+																<Loader2Icon
+																	className="absolute inset-0 h-4 w-4 animate-spin text-content-link/50"
+																	style={{ animationDuration: "2s" }}
+																/>
+																<Loader2Icon
+																	className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-primary"
+																	style={{ animationDirection: "reverse" }}
+																/>
+															</div>
+														) : isMainRunning ? (
+															<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
+														) : (
+															<div className="relative h-4 w-4">
+																<Loader2Icon className="absolute inset-0 h-4 w-4 text-content-secondary/40" />
+																<Loader2Icon className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link" />
+															</div>
+														)}
+													</div>
+												) : chat.has_unread ? (
+													<span
+														className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link"
+														data-testid={`unread-indicator-${chat.id}`}
+														aria-hidden="true"
+													/>
+												) : chat.status === "error" ? (
+													<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
+												) : (
+													<span className="text-xs text-content-secondary/50 tabular-nums">
+														{shortRelativeTime(chat.updated_at)}
+													</span>
+												)}
+											</span>
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="hidden h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
+														aria-label={`Open actions for ${chat.title}`}
+													>
+														<EllipsisVerticalIcon className="h-3.5 w-3.5" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent
+													align="end"
+													className="[&_[role=menuitem]]:text-[13px]"
+												>
+													{renderMenuItems({
+														Item: DropdownMenuItem,
+														Separator: DropdownMenuSeparator,
+													})}
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</>
+									)}
+								</div>
 							</div>
+							{hasChildren && isExpanded && (
+								<div className="relative pl-3 pb-1">
+									{(() => {
+										const children = childIDs
+											.map((id) => chatById.get(id))
+											.filter((c): c is Chat => c !== undefined);
+										const prChildren = children.filter(
+											(c) => getChatDiffStatus(c)?.url,
+										);
+										const subagentChildren = children.filter(
+											(c) => !getChatDiffStatus(c)?.url,
+										);
+										return (
+											<>
+												{prChildren.length > 0 && (
+													<div className="py-0.5">
+														<div className="mb-0.5 text-xs font-medium text-content-secondary">
+															{prChildren.length}{" "}
+															{prChildren.length === 1 ? "PR" : "PRs"}
+														</div>
+														{prChildren.map((child) => {
+															const ds = getChatDiffStatus(child);
+															const adds = ds?.additions ?? 0;
+															const dels = ds?.deletions ?? 0;
+															return (
+																<div
+																	key={child.id}
+																	className="flex items-center gap-2 py-0.5 text-sm"
+																>
+																	<span className="inline-flex shrink-0 items-center gap-2 tabular-nums">
+																		<span className="text-git-added-bright">
+																			+{adds}
+																		</span>
+																		<span className="text-git-deleted-bright">
+																			&minus;{dels}
+																		</span>
+																	</span>
+																	<NavLink
+																		to={{
+																			pathname: `/agents/${child.id}`,
+																			search: location.search,
+																		}}
+																		className="min-w-0 truncate text-content-secondary no-underline hover:text-content-primary"
+																	>
+																		{ds?.pull_request_title || child.title}
+																	</NavLink>
+																</div>
+															);
+														})}
+													</div>
+												)}
+												{subagentChildren.length > 0 && (
+													<div className="py-0.5">
+														<button
+															type="button"
+															onClick={() =>
+																toggleSection(`subagents-${chatID}`)
+															}
+															className="mb-0.5 flex items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary hover:text-content-primary cursor-pointer"
+														>
+															<ChevronUpIcon
+																className={cn(
+																	"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+																	collapsedSections.has(
+																		`subagents-${chatID}`,
+																	) && "rotate-180",
+																)}
+															/>
+															Subagents
+														</button>
+														{!collapsedSections.has(`subagents-${chatID}`) && (
+															<div className="relative ml-0.5">
+																{subagentChildren.map((child, idx) => {
+																	const childConfig = getStatusConfig(
+																		child.status,
+																	);
+																	const ChildStatusIcon = childConfig.icon;
+																	const childDiff = getChatDiffStatus(child);
+																	const childHasStats =
+																		(childDiff?.additions ?? 0) > 0 ||
+																		(childDiff?.deletions ?? 0) > 0;
+																	const childIsRunning =
+																		child.status === "running" ||
+																		child.status === "pending";
+																	const isLast =
+																		idx === subagentChildren.length - 1;
+																	return (
+																		<div
+																			key={child.id}
+																			className="relative flex items-center gap-1 py-0.5 pl-4 text-sm"
+																		>
+																			<span
+																				className={cn(
+																					"pointer-events-none absolute left-0 top-0 h-1/2 w-2.5 border-l border-b border-border-default/60 rounded-bl-md",
+																				)}
+																			/>
+																			{!isLast && (
+																				<span className="pointer-events-none absolute bottom-0 left-0 top-1/2 border-l border-border-default/60" />
+																			)}
+																			<NavLink
+																				to={{
+																					pathname: `/agents/${child.id}`,
+																					search: location.search,
+																				}}
+																				className="min-w-0 flex-1 truncate text-content-secondary no-underline hover:text-content-primary"
+																			>
+																				{child.title}
+																			</NavLink>
+																			{(() => {
+																				const prIcon =
+																					getPRIconConfig(childDiff);
+																				if (prIcon) {
+																					const PrIcon = prIcon.icon;
+																					return (
+																						<PrIcon
+																							className={cn(
+																								"h-3.5 w-3.5 shrink-0",
+																								prIcon.className,
+																							)}
+																						/>
+																					);
+																				}
+																				return null;
+																			})()}
+																			<div className="flex w-7 shrink-0 items-center justify-center">
+																				{childIsRunning ? (
+																					<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+																				) : child.has_unread ? (
+																					<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
+																				) : null}
+																			</div>
+																		</div>
+																	);
+																})}
+															</div>
+														)}
+													</div>
+												)}
+											</>
+										);
+									})()}
+								</div>
+							)}
 						</div>
 					) : (
 						<div
@@ -1028,138 +1173,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					})}
 				</ContextMenuContent>
 			</ContextMenu>
-
-			{hasChildren && isExpanded && (
-				<div className="relative pl-3">
-					{(() => {
-						const children = childIDs
-							.map((id) => chatById.get(id))
-							.filter((c): c is Chat => c !== undefined);
-						const prChildren = children.filter(
-							(c) => getChatDiffStatus(c)?.url,
-						);
-						const subagentChildren = children.filter(
-							(c) => !getChatDiffStatus(c)?.url,
-						);
-						return (
-							<>
-								{prChildren.length > 0 && (
-									<div className="py-0.5">
-										<div className="mb-0.5 text-xs font-medium text-content-secondary">
-											{prChildren.length}{" "}
-											{prChildren.length === 1 ? "PR" : "PRs"}
-										</div>
-										{prChildren.map((child) => {
-											const ds = getChatDiffStatus(child);
-											const adds = ds?.additions ?? 0;
-											const dels = ds?.deletions ?? 0;
-											return (
-												<div
-													key={child.id}
-													className="flex items-center gap-2 py-0.5 text-sm"
-												>
-													<span className="inline-flex shrink-0 items-center gap-2 tabular-nums">
-														<span className="text-git-added-bright">
-															+{adds}
-														</span>
-														<span className="text-git-deleted-bright">
-															&minus;{dels}
-														</span>
-													</span>
-													<NavLink
-														to={{
-															pathname: `/agents/${child.id}`,
-															search: location.search,
-														}}
-														className="min-w-0 truncate text-content-primary no-underline hover:underline"
-													>
-														{ds?.pull_request_title || child.title}
-													</NavLink>
-												</div>
-											);
-										})}
-									</div>
-								)}
-									{subagentChildren.length > 0 && (
-										<div className="py-0.5">
-											<button
-												type="button"
-												onClick={() => toggleSection(`subagents-${chatID}`)}
-												className="mb-0.5 flex items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary hover:text-content-primary cursor-pointer"
-											>
-													<ChevronUpIcon
-														className={cn(
-															"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
-															collapsedSections.has(`subagents-${chatID}`) && "rotate-180",
-														)}
-													/>
-												Subagents
-											</button>
-											{!collapsedSections.has(`subagents-${chatID}`) && (
-											<div className="relative ml-0.5">
-											{subagentChildren.map((child, idx) => {
-												const childConfig = getStatusConfig(child.status);
-												const ChildStatusIcon = childConfig.icon;
-												const childDiff = getChatDiffStatus(child);
-												const childAdds = childDiff?.additions ?? 0;
-												const childDels = childDiff?.deletions ?? 0;
-												const childHasStats = childAdds > 0 || childDels > 0;
-												const childIsRunning =
-													child.status === "running" ||
-													child.status === "pending";
-												const isLast = idx === subagentChildren.length - 1;
-												return (
-													<div
-														key={child.id}
-															className="relative flex items-center gap-1 py-0.5 pl-4 text-sm"
-														>
-															{/* Curved tree connector */}
-															<span
-																className={cn(
-																	"pointer-events-none absolute left-0 top-0 h-1/2 w-2.5 border-l border-b border-border-default/60 rounded-bl-md",
-																)}
-															/>
-															{/* Vertical line continuing to next sibling */}
-															{!isLast && (
-																<span className="pointer-events-none absolute bottom-0 left-0 top-1/2 border-l border-border-default/60" />
-															)}
-															<NavLink
-																to={{
-																	pathname: `/agents/${child.id}`,
-																	search: location.search,
-																}}
-																className="min-w-0 flex-1 truncate text-content-secondary no-underline hover:text-content-primary"
-															>
-																{child.title}
-															</NavLink>
-															{/* PR icon + status indicator aligned to right */}
-															{(() => {
-																const prIcon = getPRIconConfig(childDiff);
-																if (prIcon) {
-																	const PrIcon = prIcon.icon;
-																	return <PrIcon className={cn("h-3.5 w-3.5 shrink-0", prIcon.className)} />;
-																}
-																return null;
-															})()}
-															<div className="flex w-7 shrink-0 items-center justify-center">
-																{childIsRunning ? (
-																	<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
-																) : child.has_unread ? (
-																	<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
-																) : null}
-															</div>
-														</div>
-												);
-											})}
-											</div>
-											)}
-										</div>
-								)}
-							</>
-						);
-					})()}
-				</div>
-			)}
 			{hasChildren && isExpanded && !isChildNode && layout !== "narrow" && (
 				<div className="ml-4 mt-1 space-y-1 border-l border-border-default/60 pl-2.5 text-xs text-content-secondary">
 					<div className="flex gap-2">
