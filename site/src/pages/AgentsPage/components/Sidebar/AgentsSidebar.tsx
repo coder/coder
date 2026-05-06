@@ -889,13 +889,22 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																	key={child.id}
 																	className="flex items-center gap-1 text-sm"
 																>
-																	{/* Tree connector: vertical line + curved bottom */}
-																	<div
-																		className={cn(
-																			"w-2.5 shrink-0 self-stretch border-l border-content-secondary/30",
-																			isLast && "h-1/2",
-																		)}
-																	/>
+																		{/* Tree connector */}
+																		<svg
+																			className="shrink-0 text-content-secondary/40"
+																			width="12"
+																			height="100%"
+																			viewBox="0 0 12 24"
+																			preserveAspectRatio="none"
+																			fill="none"
+																			stroke="currentColor"
+																			strokeWidth="1"
+																			aria-hidden="true"
+																			style={{ minHeight: 24 }}
+																		>
+																			{/* Vertical line from top to middle, then curve to right */}
+																			<path d={isLast ? "M0.5 0 V8 Q0.5 12 4.5 12 H12" : "M0.5 0 V8 Q0.5 12 4.5 12 H12 M0.5 12 V24"} />
+																		</svg>
 																		<NavLink
 																			to={{
 																				pathname: `/agents/${child.id}`,
