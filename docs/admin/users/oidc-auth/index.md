@@ -140,6 +140,16 @@ CODER_DISABLE_PASSWORD_AUTH=true
 > SCIM is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
+> [!IMPORTANT]
+> Coder's SCIM 2.0 implementation is not a fully certified or guaranteed
+> implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
+> It is intended to cover common user provisioning and deprovisioning flows
+> with the major identity providers (Okta, Microsoft Entra ID, etc.). Specific
+> attributes, endpoints, or behaviors required by your IdP may not be
+> supported, and compatibility may change between releases. If you depend on
+> a specific SCIM behavior, [contact us](https://coder.com/contact) before
+> rolling it out broadly.
+
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
 [suspended](../index.md#suspend-a-user) and are not deleted.
