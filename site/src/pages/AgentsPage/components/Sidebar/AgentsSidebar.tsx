@@ -991,7 +991,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							</span>
 							{/* Col 4: PR stats (always rendered, may be empty) */}
 							<span
-								className="inline-flex items-center gap-2 truncate text-sm tabular-nums"
+								className="inline-flex items-center gap-2 truncate pl-3 text-sm tabular-nums"
 								title={
 									hasLinkedDiffStatus && hasLineStats
 										? `${filesChangedLabel}, +${additions} -${deletions}`
