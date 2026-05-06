@@ -15679,7 +15679,11 @@ const docTemplate = `{
                 },
                 "kind": {
                     "description": "Kind classifies the error for consistent client rendering.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatErrorKind"
+                        }
+                    ]
                 },
                 "message": {
                     "description": "Message is the normalized, user-facing error message.",
@@ -15698,6 +15702,29 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.ChatErrorKind": {
+            "type": "string",
+            "enum": [
+                "generic",
+                "overloaded",
+                "rate_limit",
+                "timeout",
+                "startup_timeout",
+                "auth",
+                "config",
+                "usage_limit"
+            ],
+            "x-enum-varnames": [
+                "ChatErrorKindGeneric",
+                "ChatErrorKindOverloaded",
+                "ChatErrorKindRateLimit",
+                "ChatErrorKindTimeout",
+                "ChatErrorKindStartupTimeout",
+                "ChatErrorKindAuth",
+                "ChatErrorKindConfig",
+                "ChatErrorKindUsageLimit"
+            ]
         },
         "codersdk.ChatFileMetadata": {
             "type": "object",
@@ -16266,7 +16293,11 @@ const docTemplate = `{
                 },
                 "kind": {
                     "description": "Kind classifies the retry reason for consistent client rendering.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatErrorKind"
+                        }
+                    ]
                 },
                 "provider": {
                     "description": "Provider identifies the upstream model provider when known.",
