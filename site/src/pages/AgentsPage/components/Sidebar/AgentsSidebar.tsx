@@ -877,7 +877,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													Subagents ({children.length})
 												</button>
 												{!collapsedSections.has(`subagents-${chatID}`) && (
-													<div className="ml-0.5">
+													<div className="ml-[5px]">
 														{children.map((child, idx) => {
 															const childDiff = getChatDiffStatus(child);
 															const childIsRunning =
@@ -889,22 +889,21 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																	key={child.id}
 																	className="flex items-center gap-1 text-sm"
 																>
-																		{/* Tree connector */}
-																		<svg
-																			className="shrink-0 text-content-secondary/40"
-																			width="12"
-																			height="100%"
-																			viewBox="0 0 12 24"
-																			preserveAspectRatio="none"
-																			fill="none"
-																			stroke="currentColor"
-																			strokeWidth="1"
-																			aria-hidden="true"
-																			style={{ minHeight: 24 }}
-																		>
-																			{/* Vertical line from top to middle, then curve to right */}
-																			<path d={isLast ? "M0.5 0 V8 Q0.5 12 4.5 12 H12" : "M0.5 0 V8 Q0.5 12 4.5 12 H12 M0.5 12 V24"} />
-																		</svg>
+																			{/* Tree connector */}
+																			<svg
+																				className="shrink-0 text-content-secondary/40"
+																				width="8"
+																				height="100%"
+																				viewBox="0 0 8 24"
+																				preserveAspectRatio="none"
+																				fill="none"
+																				stroke="currentColor"
+																				strokeWidth="1.5"
+																				aria-hidden="true"
+																				style={{ minHeight: 24 }}
+																			>
+																				<path d={isLast ? "M0.5 0 V9 Q0.5 12 3.5 12 H8" : "M0.5 0 V9 Q0.5 12 3.5 12 H8 M0.5 12 V24"} />
+																			</svg>
 																		<NavLink
 																			to={{
 																				pathname: `/agents/${child.id}`,
