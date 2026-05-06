@@ -9,7 +9,7 @@ const CoderCupPage: FC = () => {
 		<div className="relative w-screen h-screen bg-black overflow-hidden">
 			<title>{pageTitle("Codernauts")}</title>
 
-			{/* Coder logo — links back to the main app */}
+			{/* Coder logo - links back to the main app */}
 			<Link
 				to="/workspaces"
 				className="absolute top-3 left-3 z-10 opacity-60 hover:opacity-100 transition-opacity"

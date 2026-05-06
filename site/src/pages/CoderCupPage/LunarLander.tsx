@@ -188,7 +188,7 @@ function subdivide(pts: Point[], roughness: number, depth: number): Point[] {
 }
 
 function generateTerrain(w: number, h: number): Terrain {
-	// -- landing pads (sorted left→right) --
+	// -- landing pads (sorted left to right) --
 	const padDefs = [
 		{ mult: 2, relW: 0.06 },
 		{ mult: 5, relW: 0.025 },
@@ -282,7 +282,7 @@ function generateTerrain(w: number, h: number): Terrain {
 }
 
 // ---------------------------------------------------------------------------
-// Codernauts — little astronauts stranded on the landing pads
+// Codernauts - little astronauts stranded on the landing pads
 // ---------------------------------------------------------------------------
 
 function shuffle<T>(arr: T[]): T[] {
@@ -301,7 +301,7 @@ function createCodernauts(
 	const nauts: Codernaut[] = [];
 
 	// Determine capacity of each non-station pad based on its
-	// relative width: wide ≥ 0.05 → 5, mid ≥ 0.03 → 3–4, small → 2.
+	// relative width: wide >= 0.05 -> 5, mid >= 0.03 -> 3-4, small -> 2.
 	interface PadSlot {
 		pi: number;
 		cap: number;
@@ -481,8 +481,8 @@ function drawCodernaut(
 	// -- Arms (thicker) --
 	const armLen = 3.8;
 	if (naut.waving) {
-		// Both arms wave diagonally outward — well clear of the
-		// head — for a frantic "help me!" gesture. The base angle
+		// Both arms wave diagonally outward, well clear of the
+		// head, for a frantic "help me!" gesture. The base angle
 		// is ~60° from vertical so the hands stay to the sides.
 		const wave1 = Math.sin(naut.wavePhase) * 0.35;
 		const wave2 = Math.sin(naut.wavePhase + 1.8) * 0.35;
@@ -693,7 +693,7 @@ function drawLander(
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard — instrument panels at the bottom of the screen
+// Dashboard - instrument panels at the bottom of the screen
 // ---------------------------------------------------------------------------
 
 // Height reserved for the dashboard strip.
@@ -711,7 +711,7 @@ interface DashboardState {
 
 // --- 7-segment digit renderer -----------------------------------------------
 //
-// Segments labelled a–g in the standard layout:
+// Segments labelled a-g in the standard layout:
 //   aaa
 //  f   b
 //   ggg
@@ -719,7 +719,7 @@ interface DashboardState {
 //   ddd
 //
 // Each segment is a short line drawn at the appropriate position
-// within a character cell of size (cw × ch).
+// within a character cell of size (cw x ch).
 
 const SEG_PATTERNS: Record<string, string> = {
 	"0": "abcdef",
@@ -767,7 +767,7 @@ function draw7Seg(
 			continue;
 		}
 
-		// Percent — draw as small slash with two dots.
+		// Percent - draw as small slash with two dots.
 		if (char === "%") {
 			ctx.beginPath();
 			ctx.arc(x + 2, y + 3, 1.5, 0, Math.PI * 2);
@@ -1156,7 +1156,7 @@ function tryLanding(
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Disembark animation — Codernauts walking into the base
+// Disembark animation - Codernauts walking into the base
 // ---------------------------------------------------------------------------
 
 function updateDisembarks(anims: DisembarkAnim[], dt: number) {
@@ -1184,7 +1184,7 @@ function updateDisembarks(anims: DisembarkAnim[], dt: number) {
 }
 
 // ---------------------------------------------------------------------------
-// Tooltip — comic-style speech bubble on hover
+// Tooltip - comic-style speech bubble on hover
 // ---------------------------------------------------------------------------
 
 function drawTooltip(
@@ -1248,7 +1248,7 @@ function drawTooltip(
 // ---------------------------------------------------------------------------
 
 // Simple vector font: each letter is an array of polylines
-// defined in a 0–1 normalised coordinate space (width × height).
+// defined in a 0-1 normalised coordinate space (width x height).
 const VECTOR_FONT: Record<string, number[][][]> = {
 	A: [
 		[
@@ -1916,7 +1916,7 @@ export const LunarLander: FC = () => {
 					my >= btnY &&
 					my <= btnY + btnH
 				) {
-					// Yes — travel to another base with this Codernaut.
+					// Yes - travel to another base with this Codernaut.
 					const target = dialogTarget;
 					dialogVisible = false;
 					const entry = ROSTER.find((r) => r.name === target);
@@ -1956,14 +1956,14 @@ export const LunarLander: FC = () => {
 			);
 			if (!name) return;
 
-			// Saved — show bubble over the base.
+			// Saved - show bubble over the base.
 			if (savedNames.has(name)) {
 				savedBubbleTimer = 2.5;
 				savedBubbleName = name;
 				return;
 			}
 
-			// On screen — make them wave.
+			// On screen - make them wave.
 			const onScreen = codernauts.find(
 				(c) => c.name === name && !c.aboard && !c.saved,
 			);
@@ -1976,7 +1976,7 @@ export const LunarLander: FC = () => {
 				return;
 			}
 
-			// Another base — show confirmation dialog.
+			// Another base - show confirmation dialog.
 			dialogTarget = name;
 			dialogVisible = true;
 		}
