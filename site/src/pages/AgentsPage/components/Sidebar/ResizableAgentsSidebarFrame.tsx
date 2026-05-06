@@ -11,12 +11,11 @@ import { cn } from "#/utils/cn";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
+	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
 	loadPersistedLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
-
-const KEYBOARD_RESIZE_STEP = 16;
 
 interface ResizableAgentsSidebarFrameProps {
 	children: ReactNode;
@@ -27,31 +26,45 @@ export const ResizableAgentsSidebarFrame = ({
 	children,
 	className,
 }: ResizableAgentsSidebarFrameProps) => {
-	const [width, setWidth] = useState(loadInitialWidth);
-	const [maxWidth, setMaxWidth] = useState(getLeftSidebarMaxWidth);
+	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
+	const maxWidth = getLeftSidebarMaxWidth();
+	const widthRef = useRef(width);
 	const isDragging = useRef(false);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 
+	const setVisualWidth = (nextWidth: number): number => {
+		const clampedWidth = clampLeftSidebarWidth(nextWidth);
+		widthRef.current = clampedWidth;
+		setWidth(clampedWidth);
+		return clampedWidth;
+	};
+
+	const setUserWidth = (nextWidth: number) => {
+		const clampedWidth = setVisualWidth(nextWidth);
+		persistLeftSidebarWidth(clampedWidth);
+	};
+
+	useEffect(() => {
+		widthRef.current = width;
+	}, [width]);
+
 	useEffect(() => {
 		const handleResize = () => {
-			setMaxWidth(getLeftSidebarMaxWidth());
-			setWidth((currentWidth) => clampLeftSidebarWidth(currentWidth));
+			const clampedWidth = clampLeftSidebarWidth(widthRef.current);
+			widthRef.current = clampedWidth;
+			setWidth(clampedWidth);
 		};
 
-		addEventListener("resize", handleResize);
-		return () => removeEventListener("resize", handleResize);
+		window.addEventListener("resize", handleResize);
+		return () => window.removeEventListener("resize", handleResize);
 	}, []);
-
-	useEffect(() => {
-		persistLeftSidebarWidth(width);
-	}, [width]);
 
 	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		e.preventDefault();
 		isDragging.current = true;
 		startX.current = e.clientX;
-		startWidth.current = width;
+		startWidth.current = widthRef.current;
 		e.currentTarget.setPointerCapture?.(e.pointerId);
 	};
 
@@ -61,10 +74,10 @@ export const ResizableAgentsSidebarFrame = ({
 		}
 
 		const rawWidth = startWidth.current + (e.clientX - startX.current);
-		setWidth(clampLeftSidebarWidth(rawWidth));
+		setUserWidth(rawWidth);
 	};
 
-	const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+	const handlePointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
 		if (!isDragging.current) {
 			return;
 		}
@@ -79,23 +92,19 @@ export const ResizableAgentsSidebarFrame = ({
 		switch (e.key) {
 			case "ArrowLeft":
 				e.preventDefault();
-				setWidth((currentWidth) =>
-					clampLeftSidebarWidth(currentWidth - KEYBOARD_RESIZE_STEP),
-				);
+				setUserWidth(widthRef.current - LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP);
 				break;
 			case "ArrowRight":
 				e.preventDefault();
-				setWidth((currentWidth) =>
-					clampLeftSidebarWidth(currentWidth + KEYBOARD_RESIZE_STEP),
-				);
+				setUserWidth(widthRef.current + LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP);
 				break;
 			case "Home":
 				e.preventDefault();
-				setWidth(LEFT_SIDEBAR_MIN_WIDTH);
+				setUserWidth(LEFT_SIDEBAR_MIN_WIDTH);
 				break;
 			case "End":
 				e.preventDefault();
-				setWidth(maxWidth);
+				setUserWidth(getLeftSidebarMaxWidth());
 				break;
 		}
 	};
@@ -125,15 +134,11 @@ export const ResizableAgentsSidebarFrame = ({
 				data-testid="agents-left-sidebar-resize-handle"
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
-				onPointerUp={handlePointerUp}
-				onPointerCancel={handlePointerUp}
+				onPointerUp={handlePointerEnd}
+				onPointerCancel={handlePointerEnd}
 				onKeyDown={handleKeyDown}
-				className="absolute top-0 right-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-none sm:block"
+				className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-none sm:block"
 			/>
 		</div>
 	);
 };
-
-function loadInitialWidth(): number {
-	return clampLeftSidebarWidth(loadPersistedLeftSidebarWidth());
-}

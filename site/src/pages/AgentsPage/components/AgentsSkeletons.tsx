@@ -1,4 +1,4 @@
-import type { CSSProperties, FC } from "react";
+import { type CSSProperties, type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -30,7 +30,7 @@ function getRightPanelState(): { open: boolean; width: number } {
  * immediately instead of a fullscreen spinner.
  */
 export const AgentsPageSkeleton: FC = () => {
-	const leftSidebarWidth = loadPersistedLeftSidebarWidth();
+	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row">

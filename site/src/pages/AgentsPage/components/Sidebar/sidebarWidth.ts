@@ -1,6 +1,8 @@
 export const LEFT_SIDEBAR_STORAGE_KEY = "agents.left-sidebar-width";
 export const LEFT_SIDEBAR_MIN_WIDTH = 240;
 export const LEFT_SIDEBAR_DEFAULT_WIDTH = 320;
+// One rem gives keyboard users a predictable, fine-grained step.
+export const LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP = 16;
 const LEFT_SIDEBAR_MAX_WIDTH = 520;
 const LEFT_SIDEBAR_MAX_WIDTH_RATIO = 0.5;
 
@@ -9,7 +11,7 @@ export function getLeftSidebarMaxWidth(): number {
 		LEFT_SIDEBAR_MIN_WIDTH,
 		Math.min(
 			LEFT_SIDEBAR_MAX_WIDTH,
-			Math.floor(innerWidth * LEFT_SIDEBAR_MAX_WIDTH_RATIO),
+			Math.floor(window.innerWidth * LEFT_SIDEBAR_MAX_WIDTH_RATIO),
 		),
 	);
 }
@@ -40,12 +42,12 @@ export function loadPersistedLeftSidebarWidth(): number {
 	if (
 		Number.isNaN(parsed) ||
 		parsed < LEFT_SIDEBAR_MIN_WIDTH ||
-		parsed > getLeftSidebarMaxWidth()
+		parsed > LEFT_SIDEBAR_MAX_WIDTH
 	) {
 		return clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
 	}
 
-	return parsed;
+	return clampLeftSidebarWidth(parsed);
 }
 
 export function persistLeftSidebarWidth(width: number): void {
