@@ -661,28 +661,50 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										loading
 									/>
 								) : isActiveChat ? (
-									/* Active chat: show kebab directly in flow */
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												className="h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary"
-												aria-label={`Open actions for ${chat.title}`}
+									/* Active chat: show spinner if running, otherwise kebab */
+									<>
+										{(isMainRunning || hasRunningChildren) && (
+											<div className="flex h-4 w-4 items-center justify-center">
+												{isMainRunning && hasRunningChildren ? (
+													<div className="relative h-4 w-4">
+														<Loader2Icon className="absolute inset-0 h-4 w-4 animate-spin text-content-link" />
+														<Loader2Icon
+															className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link/60"
+															style={{ animationDirection: "reverse" }}
+														/>
+													</div>
+												) : isMainRunning ? (
+													<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
+												) : (
+													<div className="relative h-4 w-4">
+														<Loader2Icon className="absolute inset-0 h-4 w-4 text-content-secondary/40" />
+														<Loader2Icon className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link" />
+													</div>
+												)}
+											</div>
+										)}
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													className="h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary"
+													aria-label={`Open actions for ${chat.title}`}
+												>
+													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent
+												align="end"
+												className="[&_[role=menuitem]]:text-[13px]"
 											>
-												<EllipsisVerticalIcon className="h-3.5 w-3.5" />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent
-											align="end"
-											className="[&_[role=menuitem]]:text-[13px]"
-										>
-											{renderMenuItems({
-												Item: DropdownMenuItem,
-												Separator: DropdownMenuSeparator,
-											})}
-										</DropdownMenuContent>
-									</DropdownMenu>
+												{renderMenuItems({
+													Item: DropdownMenuItem,
+													Separator: DropdownMenuSeparator,
+												})}
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</>
 								) : (
 									<>
 										{/* Status indicator with hover-overlay kebab */}
