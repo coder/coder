@@ -214,7 +214,6 @@ const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
 };
 
-
 /**
  * Returns the icon and className to use for a PR state, or undefined
  * if there is no PR linked. Only overrides the icon when the chat
@@ -568,7 +567,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const { layout } = useSidebarWidth();
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
 	const diffStatus = getChatDiffStatus(chat);
-	const subtitle = errorReason || lastTurnSummary || getActionSummary(chat) || modelName;
+	const subtitle =
+		errorReason || lastTurnSummary || getActionSummary(chat) || modelName;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -712,7 +712,14 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 															const prIcon = getPRIconConfig(diffStatus);
 															if (prIcon) {
 																const PrIcon = prIcon.icon;
-																return <PrIcon className={cn("h-3.5 w-3.5 shrink-0", prIcon.className)} />;
+																return (
+																	<PrIcon
+																		className={cn(
+																			"h-3.5 w-3.5 shrink-0",
+																			prIcon.className,
+																		)}
+																	/>
+																);
 															}
 															return null;
 														})()}
@@ -839,7 +846,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<Button
 													size="icon"
 													variant="subtle"
-														className="hidden h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
+													className="hidden h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
 													aria-label={`Open actions for ${chat.title}`}
 												>
 													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
@@ -924,7 +931,14 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										const prIcon = getPRIconConfig(diffStatus);
 										if (prIcon) {
 											const PrIcon = prIcon.icon;
-											return <PrIcon className={cn("h-3.5 w-3.5 shrink-0", prIcon.className)} />;
+											return (
+												<PrIcon
+													className={cn(
+														"h-3.5 w-3.5 shrink-0",
+														prIcon.className,
+													)}
+												/>
+											);
 										}
 										return null;
 									})()}
@@ -1012,7 +1026,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+				<div className="relative pl-3">
 					{(() => {
 						const children = childIDs
 							.map((id) => chatById.get(id))
@@ -1040,7 +1054,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													key={child.id}
 													className="flex items-center gap-2 py-0.5 text-sm"
 												>
-													<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
+													<span className="inline-flex shrink-0 items-center gap-2 tabular-nums">
 														<span className="text-git-added-bright">
 															+{adds}
 														</span>
@@ -1066,10 +1080,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									<div className="py-0.5">
 										<div className="mb-0.5 flex items-center gap-1 text-sm font-medium text-content-secondary">
 											<ChevronUpIcon className="h-3.5 w-3.5 shrink-0" />
-											{subagentChildren.length} Subagents
+											Subagents
 										</div>
-										<div className="relative border-l border-border-default/60 ml-1">
-											{subagentChildren.map((child) => {
+										<div className="relative ml-0.5">
+											{subagentChildren.map((child, idx) => {
 												const childConfig = getStatusConfig(child.status);
 												const ChildStatusIcon = childConfig.icon;
 												const childDiff = getChatDiffStatus(child);
@@ -1079,11 +1093,22 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												const childIsRunning =
 													child.status === "running" ||
 													child.status === "pending";
+												const isLast = idx === subagentChildren.length - 1;
 												return (
 													<div
 														key={child.id}
-														className="relative flex items-center gap-2 py-0.5 pl-3 text-sm before:absolute before:left-0 before:top-1/2 before:h-px before:w-3 before:bg-border-default/60"
+														className="relative flex items-center gap-2 py-0.5 pl-4 text-sm"
 													>
+														{/* Curved tree connector */}
+														<span
+															className={cn(
+																"pointer-events-none absolute left-0 top-0 h-1/2 w-2.5 border-l border-b border-border-default/60 rounded-bl-md",
+															)}
+														/>
+														{/* Vertical line continuing to next sibling */}
+														{!isLast && (
+															<span className="pointer-events-none absolute bottom-0 left-0 top-1/2 border-l border-border-default/60" />
+														)}
 														<NavLink
 															to={{
 																pathname: `/agents/${child.id}`,
