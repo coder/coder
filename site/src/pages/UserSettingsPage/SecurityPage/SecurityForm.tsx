@@ -7,6 +7,11 @@ import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { PasswordField } from "#/components/PasswordField/PasswordField";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers } from "#/utils/formUtils";
 
@@ -64,34 +69,44 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 	}
 
 	return (
-		<Form onSubmit={form.handleSubmit}>
-			<FormFields>
-				{Boolean(error) && <ErrorAlert error={error} />}
-				<FormField
-					field={getFieldHelpers("old_password")}
-					label="Old Password"
-					type="password"
-					autoComplete="current-password"
-				/>
-				<PasswordField
-					field={getFieldHelpers("password")}
-					label="New Password"
-					autoComplete="new-password"
-				/>
-				<FormField
-					field={getFieldHelpers("confirm_password")}
-					label="Confirm Password"
-					type="password"
-					autoComplete="new-password"
-				/>
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle hierarchy="secondary">
+					Password
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update your account password.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+			<Form onSubmit={form.handleSubmit}>
+				<FormFields>
+					{Boolean(error) && <ErrorAlert error={error} />}
+					<FormField
+						field={getFieldHelpers("old_password")}
+						label="Old Password"
+						type="password"
+						autoComplete="current-password"
+					/>
+					<PasswordField
+						field={getFieldHelpers("password")}
+						label="New Password"
+						autoComplete="new-password"
+					/>
+					<FormField
+						field={getFieldHelpers("confirm_password")}
+						label="Confirm Password"
+						type="password"
+						autoComplete="new-password"
+					/>
 
-				<div>
-					<Button disabled={isLoading} type="submit">
-						<Spinner loading={isLoading} />
-						Update password
-					</Button>
-				</div>
-			</FormFields>
-		</Form>
+					<div>
+						<Button disabled={isLoading} type="submit">
+							<Spinner loading={isLoading} />
+							Update password
+						</Button>
+					</div>
+				</FormFields>
+			</Form>
+		</>
 	);
 };

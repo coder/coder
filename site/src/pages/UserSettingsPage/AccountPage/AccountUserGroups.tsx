@@ -27,7 +27,9 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 	return (
 		<div>
 			<SettingsHeader>
-				<SettingsHeaderTitle>Your groups</SettingsHeaderTitle>
+				<SettingsHeaderTitle hierarchy="secondary">
+					Your groups
+				</SettingsHeaderTitle>
 				{groups && (
 					<SettingsHeaderDescription>
 						You are in{" "}

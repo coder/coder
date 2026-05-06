@@ -102,7 +102,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 
 			<div>
 				<SettingsHeader>
-					<SettingsHeaderTitle>
+					<SettingsHeaderTitle hierarchy="secondary">
 						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
 						<Spinner loading={isUpdating} size="sm" />
 					</SettingsHeaderTitle>

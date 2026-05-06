@@ -140,7 +140,9 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 	return (
 		<div id="sso-section" data-testid="sso-section">
 			<SettingsHeader>
-				<SettingsHeaderTitle>Single Sign On</SettingsHeaderTitle>
+				<SettingsHeaderTitle hierarchy="secondary">
+					Single Sign On
+				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Authenticate in Coder using one-click.
 				</SettingsHeaderDescription>
