@@ -1341,7 +1341,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<FeatureStageBadge
 								contentType="beta"
 								size="sm"
-								className="py-0.5"
+								className="flex items-center py-0.5 leading-normal"
 							/>
 						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
