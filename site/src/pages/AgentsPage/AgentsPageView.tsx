@@ -1,4 +1,4 @@
-import { type FC, type RefObject, useRef } from "react";
+import { type FC, type ReactNode, type RefObject, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
@@ -9,6 +9,13 @@ import {
 	isSettingsView,
 	sidebarViewFromPath,
 } from "./components/Sidebar/AgentsSidebar";
+import { SidebarResizeHandle } from "./components/Sidebar/SidebarResizeHandle";
+import {
+	SIDEBAR_MAX_WIDTH_RATIO,
+	SIDEBAR_MIN_WIDTH,
+	SidebarWidthProvider,
+	useSidebarWidth,
+} from "./components/Sidebar/useSidebarWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -75,6 +82,52 @@ interface AgentsPageViewProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
 }
+
+interface SidebarPanelProps {
+	children: ReactNode;
+	isSidebarCollapsed: boolean;
+	agentId: string | undefined;
+	isSettingsDetail: boolean;
+	isAnalytics: boolean;
+}
+
+const SidebarPanel: FC<SidebarPanelProps> = ({
+	children,
+	isSidebarCollapsed,
+	agentId,
+	isSettingsDetail,
+	isAnalytics,
+}) => {
+	const { width, setWidth } = useSidebarWidth();
+	const maxWidth = Math.max(
+		SIDEBAR_MIN_WIDTH,
+		Math.floor(window.innerWidth * SIDEBAR_MAX_WIDTH_RATIO),
+	);
+
+	return (
+		<div
+			data-testid="agents-sidebar-panel"
+			className={cn(
+				"relative sm:h-full sm:min-h-0 sm:border-b-0",
+				agentId
+					? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
+					: isSettingsDetail || isAnalytics
+						? "hidden sm:block shrink-0"
+						: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+				isSidebarCollapsed && "sm:hidden",
+			)}
+			style={{ width: `${width}px` }}
+		>
+			{children}
+			<SidebarResizeHandle
+				width={width}
+				setWidth={setWidth}
+				minWidth={SIDEBAR_MIN_WIDTH}
+				maxWidth={maxWidth}
+			/>
+		</div>
+	);
+};
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	agentId,
@@ -156,67 +209,63 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	};
 
 	return (
-		<div
-			data-testid="agents-page-layout"
-			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
-		>
-			<title>{pageTitle("Agents")}</title>
+		<SidebarWidthProvider>
 			<div
-				data-testid="agents-sidebar-panel"
-				className={cn(
-					"sm:h-full sm:w-[320px] sm:min-h-0 sm:border-b-0",
-					agentId
-						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-						: isSettingsDetail || isAnalytics
-							? "hidden sm:block shrink-0"
-							: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
-					isSidebarCollapsed && "sm:hidden",
-				)}
+				data-testid="agents-page-layout"
+				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 			>
-				<AgentsSidebar
-					chats={chatList}
-					chatErrorReasons={sidebarChatErrorReasons}
-					modelOptions={catalogModelOptions}
-					modelConfigs={modelConfigs}
-					onArchiveAgent={requestArchiveAgent}
-					onUnarchiveAgent={requestUnarchiveAgent}
-					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-					onPinAgent={requestPinAgent}
-					onUnpinAgent={requestUnpinAgent}
-					onReorderPinnedAgent={requestReorderPinnedAgent}
-					onRenameTitle={onRenameTitle}
-					onProposeTitle={onProposeTitle}
-					regeneratingTitleChatIds={regeneratingTitleChatIds}
-					onBeforeNewAgent={handleNewAgent}
-					isCreating={isCreating}
-					isArchiving={isArchiving}
-					archivingChatId={archivingChatId}
-					isLoading={isChatsLoading}
-					loadError={chatsLoadError}
-					onRetryLoad={onRetryChatsLoad}
-					hasNextPage={hasNextPage}
-					onLoadMore={onLoadMore}
-					isFetchingNextPage={isFetchingNextPage}
-					archivedFilter={archivedFilter}
-					onArchivedFilterChange={onArchivedFilterChange}
-					onCollapse={onCollapseSidebar}
-					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
-					isAdmin={isAgentsAdmin}
-				/>
+				<title>{pageTitle("Agents")}</title>
+				<SidebarPanel
+					isSidebarCollapsed={isSidebarCollapsed}
+					agentId={agentId}
+					isSettingsDetail={isSettingsDetail}
+					isAnalytics={isAnalytics}
+				>
+					<AgentsSidebar
+						chats={chatList}
+						chatErrorReasons={sidebarChatErrorReasons}
+						modelOptions={catalogModelOptions}
+						modelConfigs={modelConfigs}
+						onArchiveAgent={requestArchiveAgent}
+						onUnarchiveAgent={requestUnarchiveAgent}
+						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+						onPinAgent={requestPinAgent}
+						onUnpinAgent={requestUnpinAgent}
+						onReorderPinnedAgent={requestReorderPinnedAgent}
+						onRenameTitle={onRenameTitle}
+						onProposeTitle={onProposeTitle}
+						regeneratingTitleChatIds={regeneratingTitleChatIds}
+						onBeforeNewAgent={handleNewAgent}
+						isCreating={isCreating}
+						isArchiving={isArchiving}
+						archivingChatId={archivingChatId}
+						isLoading={isChatsLoading}
+						loadError={chatsLoadError}
+						onRetryLoad={onRetryChatsLoad}
+						hasNextPage={hasNextPage}
+						onLoadMore={onLoadMore}
+						isFetchingNextPage={isFetchingNextPage}
+						archivedFilter={archivedFilter}
+						onArchivedFilterChange={onArchivedFilterChange}
+						onCollapse={onCollapseSidebar}
+						isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
+						isAdmin={isAgentsAdmin}
+					/>
+				</SidebarPanel>
+				<div
+					data-testid="agents-main-panel"
+					className={cn(
+						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+						isSettingsIndex ? "hidden sm:flex" : "flex",
+						!agentId &&
+							!isSettingsDetail &&
+							sidebarView.panel === "chats" &&
+							"contents sm:flex sm:flex-1 sm:flex-col",
+					)}
+				>
+					<Outlet context={outletContextValue} />
+				</div>
 			</div>
-			<div
-				data-testid="agents-main-panel"
-				className={cn(
-					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					isSettingsIndex ? "hidden sm:flex" : "flex",
-					!agentId &&
-						!isSettingsDetail &&
-						sidebarView.panel === "chats" &&
-						"contents sm:flex sm:flex-1 sm:flex-col",
-				)}
-			>
-				<Outlet context={outletContextValue} />
-			</div>
-		</div>
+		</SidebarWidthProvider>
 	);
 };

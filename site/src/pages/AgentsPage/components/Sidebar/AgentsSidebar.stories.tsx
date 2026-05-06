@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -12,6 +13,7 @@ import {
 } from "#/testHelpers/storybook";
 import type { ModelSelectorOption } from "../ChatElements";
 import { AgentsSidebar } from "./AgentsSidebar";
+import { SidebarWidthProvider } from "./useSidebarWidth";
 
 // Probe element used by the archived-filter preservation story to surface the
 // search string of whatever child route the sidebar's NavLink ends up at.
@@ -93,7 +95,15 @@ const settingsRouting = [
 const meta: Meta<typeof AgentsSidebar> = {
 	title: "pages/AgentsPage/AgentsSidebar",
 	component: AgentsSidebar,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [
+		withAuthProvider,
+		withDashboardProvider,
+		(Story: () => ReactNode) => (
+			<SidebarWidthProvider>
+				<Story />
+			</SidebarWidthProvider>
+		),
+	],
 	args: {
 		chatErrorReasons: {},
 		modelOptions: defaultModelOptions,

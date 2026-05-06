@@ -18,6 +18,7 @@ import {
 } from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { AgentsSidebar } from "./AgentsSidebar";
+import { SidebarWidthProvider } from "./useSidebarWidth";
 
 // ---- IntersectionObserver mock ----
 
@@ -94,7 +95,7 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 				<TooltipProvider>
 					<MemoryRouter initialEntries={["/agents"]}>
 						<DashboardContext.Provider value={dashboardValue}>
-							{children}
+							<SidebarWidthProvider>{children}</SidebarWidthProvider>
 						</DashboardContext.Provider>
 					</MemoryRouter>
 				</TooltipProvider>
