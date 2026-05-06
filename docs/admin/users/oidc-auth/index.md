@@ -148,7 +148,9 @@ CODER_DISABLE_PASSWORD_AUTH=true
 > attributes, endpoints, or behaviors required by your IdP may not be
 > supported, and compatibility may change between releases. If you depend on
 > a specific SCIM behavior, [contact us](https://coder.com/contact) before
-> rolling it out broadly.
+> rolling it out broadly. See
+> [coder/coder#15830](https://github.com/coder/coder/issues/15830) for
+> tracked gaps and ongoing work.
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
