@@ -66,7 +66,8 @@ func TestConvert(t *testing.T) {
 	var upstream map[string]upstreamProvider
 	require.NoError(t, json.Unmarshal([]byte(upstreamJSON), &upstream))
 
-	rows := convert(upstream, []string{"anthropic", "openai"})
+	rows, err := convert(upstream, []string{"anthropic", "openai"})
+	require.NoError(t, err)
 
 	// Filtered: alibaba dropped, four rows from the two allowed providers.
 	require.Len(t, rows, 4)
@@ -111,10 +112,12 @@ func TestConvertMissingProvider(t *testing.T) {
 			"gpt-4o": {Cost: &upstreamCost{Input: floatPtr(2.5)}},
 		}},
 	}
-	// "anthropic" not present in upstream. Should be skipped without panic.
-	rows := convert(upstream, []string{"anthropic", "openai"})
-	require.Len(t, rows, 1)
-	require.Equal(t, "openai", rows[0].Provider)
+	// "anthropic" is configured but absent from upstream. The function must
+	// surface that loudly so we don't ship a partial seed file.
+	rows, err := convert(upstream, []string{"anthropic", "openai"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "anthropic")
+	require.Nil(t, rows)
 }
 
 func floatPtr(v float64) *float64 { return &v }

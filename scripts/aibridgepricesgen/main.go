@@ -73,7 +73,10 @@ func run() error {
 	if err != nil {
 		return xerrors.Errorf("fetch %s: %w", sourceURL, err)
 	}
-	rows := convert(upstream, supportedProviders)
+	rows, err := convert(upstream, supportedProviders)
+	if err != nil {
+		return err
+	}
 	if err := write(os.Stdout, rows); err != nil {
 		return err
 	}
@@ -111,14 +114,18 @@ func fetch() (map[string]upstreamProvider, error) {
 }
 
 // convert flattens the upstream map into table-shaped rows for the configured
-// providers. Providers absent from the upstream payload are reported to
-// stderr but don't fail the run.
-func convert(upstream map[string]upstreamProvider, providers []string) []priceRow {
-	var rows []priceRow
+// providers. If any configured provider is absent from the upstream payload,
+// every missing provider is reported and the function returns an error so the
+// caller doesn't ship an incomplete seed.
+func convert(upstream map[string]upstreamProvider, providers []string) ([]priceRow, error) {
+	var (
+		rows    []priceRow
+		missing []string
+	)
 	for _, providerID := range providers {
 		provider, ok := upstream[providerID]
 		if !ok {
-			_, _ = fmt.Fprintf(os.Stderr, "warning: provider %q missing from upstream\n", providerID)
+			missing = append(missing, providerID)
 			continue
 		}
 		for modelID, m := range provider.Models {
@@ -132,6 +139,9 @@ func convert(upstream map[string]upstreamProvider, providers []string) []priceRo
 			rows = append(rows, row)
 		}
 	}
+	if len(missing) > 0 {
+		return nil, xerrors.Errorf("providers missing from upstream: %v", missing)
+	}
 
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Provider != rows[j].Provider {
@@ -139,7 +149,7 @@ func convert(upstream map[string]upstreamProvider, providers []string) []priceRo
 		}
 		return rows[i].Model < rows[j].Model
 	})
-	return rows
+	return rows, nil
 }
 
 // toMicros scales a price into integer micro-units (1 unit = 1,000,000),
