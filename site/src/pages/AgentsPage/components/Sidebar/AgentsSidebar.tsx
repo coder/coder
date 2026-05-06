@@ -876,44 +876,62 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													/>
 													Subagents ({children.length})
 												</button>
-													{!collapsedSections.has(`subagents-${chatID}`) && (
-														<div className="ml-[5px]">
-																{children.map((child, idx) => {
-																	const childDiff = getChatDiffStatus(child);
-																	const childIsRunning = child.status === "running" || child.status === "pending";
-																	const isLast = idx === children.length - 1;
-																	return (
-																		<div key={child.id} className="relative flex items-center gap-1 pl-3 text-sm">
-																				{/* Vertical line above the curve */}
-																				<div className="absolute left-0 top-0 h-[calc(50%-3px)] w-px bg-surface-quaternary" />
-																				{/* Curved corner */}
-																				<div className="absolute left-0 top-[calc(50%-3px)] h-[6px] w-2.5 border-0 border-b border-l border-solid border-surface-quaternary rounded-bl-[4px]" />
-																				{/* Vertical line below (hidden for last child) */}
-																				{!isLast && <div className="absolute left-0 top-1/2 bottom-0 w-px bg-surface-quaternary" />}
-																			<NavLink
-																				to={{ pathname: `/agents/${child.id}`, search: location.search }}
-																				className="min-w-0 flex-1 truncate py-0.5 text-content-secondary no-underline hover:text-content-primary [&[aria-current=page]]:text-content-primary [&[aria-current=page]]:font-medium"
-																			>
-																				{child.title}
-																			</NavLink>
-																			{(() => {
-																				const prIcon = getPRIconConfig(childDiff);
-																				if (prIcon) {
-																					const PrIcon = prIcon.icon;
-																					return <PrIcon className={cn("h-3.5 w-3.5 shrink-0", prIcon.className)} />;
-																				}
-																				return null;
-																			})()}
-																			<div className="flex w-7 shrink-0 items-center justify-center">
-																				{childIsRunning ? (
-																					<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
-																				) : child.has_unread && activeChatId !== child.id ? (
-																					<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
-																				) : null}
-																			</div>
-																		</div>
-																	);
-																})}
+												{!collapsedSections.has(`subagents-${chatID}`) && (
+													<div className="ml-[5px]">
+														{children.map((child, idx) => {
+															const childDiff = getChatDiffStatus(child);
+															const childIsRunning =
+																child.status === "running" ||
+																child.status === "pending";
+															const isLast = idx === children.length - 1;
+															return (
+																<div
+																	key={child.id}
+																	className="relative flex items-center gap-1 pl-3 text-sm"
+																>
+																	{/* Vertical line above the curve */}
+																	<div className="absolute left-0 top-0 h-[calc(50%-3px)] w-px bg-surface-quaternary" />
+																	{/* Curved corner */}
+																	<div className="absolute left-0 top-[calc(50%-3px)] h-[6px] w-2.5 border-0 border-b border-l border-solid border-surface-quaternary rounded-bl-[4px]" />
+																	{/* Vertical line below (hidden for last child) */}
+																	{!isLast && (
+																		<div className="absolute left-0 top-1/2 bottom-0 w-px bg-surface-quaternary" />
+																	)}
+																	<NavLink
+																		to={{
+																			pathname: `/agents/${child.id}`,
+																			search: location.search,
+																		}}
+																		className="min-w-0 flex-1 truncate py-0.5 text-content-secondary no-underline hover:text-content-primary [&[aria-current=page]]:text-content-primary [&[aria-current=page]]:font-medium"
+																	>
+																		{child.title}
+																	</NavLink>
+																	{(() => {
+																		const prIcon = getPRIconConfig(childDiff);
+																		if (prIcon) {
+																			const PrIcon = prIcon.icon;
+																			return (
+																				<PrIcon
+																					className={cn(
+																						"h-3.5 w-3.5 shrink-0",
+																						prIcon.className,
+																					)}
+																				/>
+																			);
+																		}
+																		return null;
+																	})()}
+																	<div className="flex w-7 shrink-0 items-center justify-center">
+																		{childIsRunning ? (
+																			<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+																		) : child.has_unread &&
+																			activeChatId !== child.id ? (
+																			<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
+																		) : null}
+																	</div>
+																</div>
+															);
+														})}
 													</div>
 												)}
 											</div>
@@ -954,13 +972,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							>
 								{chat.title}
 							</NavLink>
-							{chat.has_unread && !isActiveChat && (
-								<span
-									className="h-2 w-2 shrink-0 rounded-full bg-content-link"
-									data-testid={`unread-indicator-${chat.id}`}
-									aria-hidden="true"
-								/>
-							)}
 							<span
 								className={cn(
 									"shrink-0 truncate text-sm",
@@ -973,11 +984,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							>
 								{subtitle}
 							</span>
-							{layout === "large" && (
-								<span className="w-[50px] shrink-0 text-right text-xs text-content-secondary tabular-nums">
-									{getFakeMessageCount(chat)} 💬
-								</span>
-							)}
 							{hasLinkedDiffStatus && hasLineStats ? (
 								<span
 									className="inline-flex shrink-0 items-center gap-2 text-sm tabular-nums"
@@ -1003,39 +1009,16 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										&minus;{deletions}
 									</span>
 								</span>
-							) : (
-								<div className="w-[70px] shrink-0" />
-							)}
-							{layout === "large" && (
-								<span className="w-[60px] shrink-0 text-right text-xs text-content-secondary tabular-nums">
-									{formatCostDollars(getFakeCostMicros(chat))}
-								</span>
-							)}
-							{/* Single status indicator, priority: spinner > unread > error > time */}
-							<div className="flex h-5 w-5 shrink-0 items-center justify-center">
+							) : null}
+							{/* Status indicator */}
+							<div className="flex w-7 shrink-0 items-center justify-center">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
 										loading
 									/>
-								) : isMainRunning && hasRunningChildren ? (
-									<div className="relative h-4 w-4">
-										<Loader2Icon
-											className="absolute inset-0 h-4 w-4 animate-spin text-content-link/50"
-											style={{ animationDuration: "2s" }}
-										/>
-										<Loader2Icon
-											className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-primary"
-											style={{ animationDirection: "reverse" }}
-										/>
-									</div>
-								) : isMainRunning ? (
+								) : isMainRunning || hasRunningChildren ? (
 									<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
-								) : !isMainRunning && hasRunningChildren ? (
-									<div className="relative h-4 w-4">
-										<Loader2Icon className="absolute inset-0 h-4 w-4 text-content-secondary/40" />
-										<Loader2Icon className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link" />
-									</div>
 								) : chat.has_unread && !isActiveChat ? (
 									<span
 										className="h-2.5 w-2.5 rounded-full bg-content-link"
@@ -1043,18 +1026,15 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									/>
 								) : chat.status === "error" ? (
 									<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
-								) : (
-									<span className="text-[11px] text-content-secondary/50 tabular-nums">
-										{shortRelativeTime(chat.updated_at)}
-									</span>
-								)}
+								) : null}
 							</div>
+							{/* Kebab */}
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
 									<Button
 										size="icon"
 										variant="subtle"
-										className="h-6 w-6 shrink-0 p-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+										className="h-6 w-7 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 										aria-label={`Open actions for ${chat.title}`}
 									>
 										<EllipsisVerticalIcon className="h-3.5 w-3.5" />
@@ -1236,6 +1216,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const normalizedSearch = "";
 	const { layout } = useSidebarWidth();
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+
+	// Collapse all expanded children when switching to table layout.
+	const prevLayoutRef = useRef(layout);
+	useEffect(() => {
+		if (prevLayoutRef.current === "narrow" && layout !== "narrow") {
+			setExpandedById({});
+		}
+		prevLayoutRef.current = layout;
+	}, [layout]);
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 	const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
 		new Set(),
