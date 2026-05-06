@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -918,7 +919,10 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 
 func TestWorkspaceAgentClientCoordinate_DLPDenied(t *testing.T) {
 	t.Parallel()
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	connLogger := connectionlog.NewFake()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -962,6 +966,33 @@ func TestWorkspaceAgentClientCoordinate_DLPDenied(t *testing.T) {
 	require.ErrorAs(t, apiErr, &sdkErr)
 	require.Contains(t, sdkErr.Message, "data loss prevention policy")
 	require.Contains(t, sdkErr.Detail, `"strict"`)
+
+	// The denial should have produced a connection_logs row typed `ssh`,
+	// status disconnected, code 403, with the policy name in the
+	// disconnect_reason text. The connection logger is best-effort, so
+	// give it a moment to flush before asserting.
+	require.Eventually(t, func() bool {
+		logs := connLogger.ConnectionLogs()
+		for _, l := range logs {
+			if l.Type != database.ConnectionTypeSsh {
+				continue
+			}
+			if l.WorkspaceID != ao.WorkspaceTable.ID {
+				continue
+			}
+			if l.ConnectionStatus != database.ConnectionStatusDisconnected {
+				continue
+			}
+			if !l.Code.Valid || l.Code.Int32 != http.StatusForbidden {
+				continue
+			}
+			if !l.DisconnectReason.Valid || !strings.Contains(l.DisconnectReason.String, `"strict"`) {
+				continue
+			}
+			return true
+		}
+		return false
+	}, testutil.WaitShort, testutil.IntervalFast, "expected ssh denial entry in connection log")
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {

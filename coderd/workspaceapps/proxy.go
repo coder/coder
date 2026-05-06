@@ -2,6 +2,7 @@ package workspaceapps
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,8 +23,10 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -119,6 +123,10 @@ type ServerOptions struct {
 	// Database is used to look up DLP policies attached to workspace agents
 	// when gating dashboard traffic.
 	Database database.Store
+
+	// ConnectionLogger is used to record DLP-denied requests to the
+	// connection_logs table. Optional: when nil, denials are not audited.
+	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
 }
 
 // Server serves workspace apps endpoints, including:
@@ -156,6 +164,60 @@ func (s *Server) Close() error {
 	// necessary).
 
 	return nil
+}
+
+// logDLPDenial records a Path B DLP denial in the connection log. The
+// workspace + agent identity that connection_logs needs is loaded from
+// the database under a system-restricted context — the user has already
+// authorized at the workspace level by reaching this handler.
+//
+// Errors looking up the agent are tolerated: we still emit a log row
+// keyed by the IDs we have, with empty workspace/agent names. Auditing
+// is best-effort and must never block the deny response.
+func (s *Server) logDLPDenial(
+	ctx context.Context,
+	r *http.Request,
+	token *SignedToken,
+	dlp *database.TemplateVersionDlpPolicy,
+	connType database.ConnectionType,
+	reason string,
+	slugOrPort sql.NullString,
+) {
+	if s.ConnectionLogger == nil {
+		return
+	}
+	ptr := s.ConnectionLogger.Load()
+	if ptr == nil {
+		return
+	}
+	connLogger := *ptr
+	if connLogger == nil || dlp == nil {
+		return
+	}
+
+	params := dlppolicy.DenialParams{
+		WorkspaceID: token.WorkspaceID,
+		Type:        connType,
+		Reason:      reason,
+		UserID:      uuid.NullUUID{UUID: token.UserID, Valid: token.UserID != uuid.Nil},
+		IP:          dlppolicy.IPFromRequest(r),
+		UserAgent:   sql.NullString{String: r.UserAgent(), Valid: r.UserAgent() != ""},
+		SlugOrPort:  slugOrPort,
+	}
+
+	// Best-effort enrichment with workspace + agent names. If the lookup
+	// fails, fall through with the IDs we already have.
+	row, err := s.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), token.AgentID)
+	if err == nil {
+		params.OrganizationID = row.WorkspaceTable.OrganizationID
+		params.WorkspaceOwnerID = row.WorkspaceTable.OwnerID
+		params.WorkspaceName = row.WorkspaceTable.Name
+		params.AgentName = row.WorkspaceAgent.Name
+	} else {
+		s.Logger.Warn(ctx, "lookup workspace for dlp denial audit", slog.Error(err))
+	}
+
+	dlppolicy.LogDenial(ctx, s.Logger, connLogger, params)
 }
 
 func (s *Server) Attach(r chi.Router) {
@@ -667,6 +729,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}
 	if dlp != nil {
 		if isPort && !dlp.PortForwardingAccess {
+			s.logDLPDenial(ctx, r, &appToken, dlp,
+				database.ConnectionTypePortForwarding,
+				fmt.Sprintf("DLP policy %q denied port_forwarding_access", dlp.Name),
+				sql.NullString{String: slugOrPort, Valid: slugOrPort != ""},
+			)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusForbidden,
 				Title:       "Blocked by DLP Policy",
@@ -675,6 +742,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			return
 		}
 		if !isPort && !slices.Contains(dlp.AllowedApplications, slugOrPort) {
+			s.logDLPDenial(ctx, r, &appToken, dlp,
+				database.ConnectionTypeWorkspaceApp,
+				fmt.Sprintf("DLP policy %q does not allow application %q", dlp.Name, slugOrPort),
+				sql.NullString{String: slugOrPort, Valid: slugOrPort != ""},
+			)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusForbidden,
 				Title:       "Blocked by DLP Policy",
@@ -789,6 +861,11 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dlp != nil && !dlp.WebTerminalAccess {
+		s.logDLPDenial(ctx, r, appToken, dlp,
+			database.ConnectionTypeReconnectingPty,
+			fmt.Sprintf("DLP policy %q denied web_terminal_access", dlp.Name),
+			sql.NullString{},
+		)
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "The web terminal is blocked by a data loss prevention policy.",
 			Detail:  fmt.Sprintf("DLP policy %q denies web terminal access for this workspace agent.", dlp.Name),

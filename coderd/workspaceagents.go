@@ -1345,6 +1345,18 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 	if dlp != nil && !dlp.SshAccess {
+		dlppolicy.LogDenial(ctx, api.Logger, *api.ConnectionLogger.Load(), dlppolicy.DenialParams{
+			OrganizationID:   waws.WorkspaceTable.OrganizationID,
+			WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
+			WorkspaceID:      waws.WorkspaceTable.ID,
+			WorkspaceName:    waws.WorkspaceTable.Name,
+			AgentName:        waws.WorkspaceAgent.Name,
+			Type:             database.ConnectionTypeSsh,
+			Reason:           fmt.Sprintf("DLP policy %q denied ssh_access", dlp.Name),
+			UserID:           uuid.NullUUID{UUID: httpmw.APIKey(r).UserID, Valid: true},
+			IP:               dlppolicy.IPFromRequest(r),
+			UserAgent:        sql.NullString{String: r.UserAgent(), Valid: r.UserAgent() != ""},
+		})
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "CLI access to this workspace is blocked by a data loss prevention policy.",
 			Detail:  fmt.Sprintf("DLP policy %q denies CLI peering. ssh, port-forward, cp, and speedtest are all blocked when ssh_access is false.", dlp.Name),

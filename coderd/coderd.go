@@ -914,6 +914,7 @@ func New(options *Options) *API {
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 		Database:            options.Database,
+		ConnectionLogger:    &api.ConnectionLogger,
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
