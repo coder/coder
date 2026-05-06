@@ -492,6 +492,8 @@ interface ChatTreeContextValue {
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	readonly collapsedSections: ReadonlySet<string>;
+	readonly toggleSection: (key: string) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -548,6 +550,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
+		collapsedSections,
+		toggleSection,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -1076,13 +1080,25 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										})}
 									</div>
 								)}
-								{subagentChildren.length > 0 && (
-									<div className="py-0.5">
-										<div className="mb-0.5 flex items-center gap-1 text-sm font-medium text-content-secondary">
-											<ChevronUpIcon className="h-3.5 w-3.5 shrink-0" />
-											Subagents
-										</div>
-										<div className="relative ml-0.5">
+									{subagentChildren.length > 0 && (
+										<div className="py-0.5">
+											<button
+												type="button"
+												onClick={() => toggleSection(`subagents-${chatID}`)}
+												className="mb-0.5 flex items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary hover:text-content-primary cursor-pointer"
+											>
+												<span
+													className={cn(
+														"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+														collapsedSections.has(`subagents-${chatID}`) && "rotate-180",
+													)}
+												>
+													<ChevronUpIcon className="h-3.5 w-3.5" />
+												</span>
+												Subagents
+											</button>
+											{!collapsedSections.has(`subagents-${chatID}`) && (
+											<div className="relative ml-0.5">
 											{subagentChildren.map((child, idx) => {
 												const childConfig = getStatusConfig(child.status);
 												const ChildStatusIcon = childConfig.icon;
@@ -1134,8 +1150,9 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													</div>
 												);
 											})}
+											</div>
+											)}
 										</div>
-									</div>
 								)}
 							</>
 						);
@@ -1493,6 +1510,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog: onRenameTitle ? setChatPendingRename : undefined,
+		collapsedSections,
+		toggleSection,
 	};
 
 	const subNavTitle =
