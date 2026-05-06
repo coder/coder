@@ -678,8 +678,8 @@ func nodesEqual(a, b *proto.Node) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	aClone := gProto.Clone(a).(*proto.Node)
-	bClone := gProto.Clone(b).(*proto.Node)
+	//nolint:forcetypeassert
+	aClone, bClone := gProto.Clone(a).(*proto.Node), gProto.Clone(b).(*proto.Node)
 	aClone.AsOf = nil
 	bClone.AsOf = nil
 	return gProto.Equal(aClone, bClone)
