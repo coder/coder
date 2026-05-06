@@ -272,6 +272,45 @@ const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
 	return chat.diff_status;
 };
 
+/**
+ * Synthesizes a short action summary from available chat metadata.
+ * Priority: PR state description > file change summary > status text.
+ */
+const getActionSummary = (chat: Chat): string | undefined => {
+	const ds = getChatDiffStatus(chat);
+	if (ds) {
+		const state = ds.pull_request_state;
+		const fileCount = ds.changed_files;
+		const fileWord = fileCount === 1 ? "file" : "files";
+		if (state === "merged") {
+			return `PR merged. ${fileCount} ${fileWord} changed`;
+		}
+		if (state === "closed") {
+			return "PR closed";
+		}
+		if (ds.approved) {
+			return "PR approved, ready to merge";
+		}
+		if (ds.changes_requested) {
+			return "Changes requested on PR";
+		}
+		if (state === "open" && ds.pull_request_draft) {
+			return `Draft PR opened. ${fileCount} ${fileWord} changed`;
+		}
+		if (state === "open") {
+			return `PR opened. ${fileCount} ${fileWord} changed`;
+		}
+		// Has diff status but no PR yet (branch pushed).
+		if (fileCount > 0) {
+			return `${fileCount} ${fileWord} changed`;
+		}
+	}
+	if (chat.status === "running" || chat.status === "pending") {
+		return "Working...";
+	}
+	return undefined;
+};
+
 const getParentChatID = (chat: Chat): string | undefined => {
 	return asNonEmptyString(chat.parent_chat_id);
 };
@@ -490,7 +529,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			: undefined;
 	const { layout } = useSidebarWidth();
 	const diffStatus = getChatDiffStatus(chat);
-	const subtitle = errorReason || diffStatus?.pull_request_title || modelName;
+	const subtitle = errorReason || getActionSummary(chat) || modelName;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
