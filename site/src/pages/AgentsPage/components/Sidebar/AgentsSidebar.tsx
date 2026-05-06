@@ -598,67 +598,53 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		Item: typeof DropdownMenuItem | typeof ContextMenuItem;
 		Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
 	}) => (
-		<>
-			{!chat.archived && !isChildNode && (
-				<Item
-					onSelect={() =>
-						chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
-					}
-				>
-					{chat.pin_order > 0 ? (
-						<>
-							<PinOffIcon className="h-3.5 w-3.5" />
-							Unpin agent
-						</>
-					) : (
-						<>
-							<PinIcon className="h-3.5 w-3.5" />
-							Pin agent
-						</>
-					)}
-				</Item>
-			)}
-			{chat.archived ? (
-				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
-					<ArchiveRestoreIcon className="h-3.5 w-3.5" />
-					Unarchive agent
-				</Item>
-			) : (
-				<>
-					{onOpenRenameDialog && (
-						<Item onSelect={() => onOpenRenameDialog(chat)}>
-							<SquarePenIcon className="h-3.5 w-3.5" />
-							Rename chat
-						</Item>
-					)}
-					{hasChildren && (
-						<Item onSelect={() => toggleExpanded(chatID)}>
-							<BoxesIcon className="h-3.5 w-3.5" />
-							{isExpanded ? "Hide subagents" : "Show subagents"}
-						</Item>
-					)}
-					<Separator />
+			<>
+				{!chat.archived && !isChildNode && (
 					<Item
-						className="text-content-destructive focus:text-content-destructive"
-						disabled={isArchiving}
-						onSelect={() => onArchiveAgent(chat.id)}
+						onSelect={() =>
+							chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
+						}
 					>
-						<ArchiveIcon className="h-3.5 w-3.5" />
-						Archive agent
+						{chat.pin_order > 0 ? "Unpin agent" : "Pin agent"}
 					</Item>
-					{workspaceId && (
+				)}
+				{chat.archived ? (
+					<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
+						Unarchive agent
+					</Item>
+				) : (
+					<>
+						{onOpenRenameDialog && (
+							<Item onSelect={() => onOpenRenameDialog(chat)}>
+								Rename chat
+							</Item>
+						)}
+						{hasChildren && (
+							<Item onSelect={() => toggleExpanded(chatID)}>
+								{isExpanded ? "Hide subagents" : "Show subagents"}
+							</Item>
+						)}
 						<Item
-							className="text-content-destructive focus:text-content-destructive"
 							disabled={isArchiving}
-							onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
+							onSelect={() => onArchiveAgent(chat.id)}
 						>
-							<Trash2Icon className="h-3.5 w-3.5" />
-							Archive & delete workspace
+							Archive conversation
 						</Item>
-					)}
-				</>
-			)}
-		</>
+						{workspaceId && (
+							<>
+								<Separator />
+								<Item
+									className="text-content-destructive focus:text-content-destructive"
+									disabled={isArchiving}
+									onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
+								>
+									Archive & delete...
+								</Item>
+							</>
+						)}
+					</>
+				)}
+			</>
 	);
 
 	return (
