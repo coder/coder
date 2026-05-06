@@ -1592,7 +1592,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											{/* At narrow widths, show only the filter icon.
 								   At medium/large, show full search input with filter. */}
 											{layout === "narrow" ? (
-												<div className="mb-2 flex justify-end pr-3">
+												<div className="mb-2 flex justify-end pr-0.5">
 													{filterDropdown}
 												</div>
 											) : (
