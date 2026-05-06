@@ -4,7 +4,7 @@
  * To change who appears in the game, edit the entries below.
  */
 
-export interface RosterEntry {
+interface RosterEntry {
 	name: string;
 	role: string;
 }
