@@ -840,8 +840,6 @@ resource "docker_container" "workspace" {
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
     # Set on the container so the agent process reads it directly.
-    # coder_agent.env vars are injected into subprocesses, not the
-    # agent itself.
     "CODER_AGENT_EXP_MCP_CONFIG_FILES=~/.mcp.json,.mcp.json",
   ]
   host {
