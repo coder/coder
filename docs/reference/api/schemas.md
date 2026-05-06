@@ -2197,6 +2197,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -2320,6 +2321,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -2358,6 +2360,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_injected_context` | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)   | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
 | `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -3731,6 +3734,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_turn_summary": "string",
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
@@ -3777,9 +3781,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                       |
-|------------------------------------------------------------------------------------------------|
-| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `title_change` |
+| Value(s)                                                                                                         |
+|------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ConnectionLatency
 
