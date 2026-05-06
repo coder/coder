@@ -603,6 +603,33 @@ resource "coder_agent" "dev" {
     trap cleanup EXIT
     coder exp sync start agent-startup
 
+    # Write a sane ~/.tmux.conf for TUI apps (Claude Code, Codex, vim, etc.)
+    # running inside the web terminal. Without this, tmux defaults strip
+    # truecolor, block synchronized output (DECSET 2026), and don't pass
+    # through OSC 11/52, which causes the rendering glitches we see when
+    # running TUI agents under tmux + xterm.js.
+    # Only writes the file if it doesn't already exist so user customizations
+    # are preserved.
+    if [ ! -f ~/.tmux.conf ]; then
+      cat > ~/.tmux.conf <<'TMUXCONF'
+# Managed by Coder dogfood template. Delete this file to opt out.
+# Use a tmux-aware terminfo entry inside panes.
+set -g default-terminal "tmux-256color"
+# Advertise modern features to apps so they emit truecolor + synchronized
+# output + OSC 8 hyperlinks + focus events. Requires tmux >= 3.2.
+set -as terminal-features "xterm*:RGB:sync:hyperlinks:focus"
+set -as terminal-features "screen*:RGB:sync:hyperlinks:focus"
+# Allow apps inside tmux to talk directly to the outer terminal
+# (OSC 11 background queries, OSC 52 clipboard, etc.).
+set -g allow-passthrough on
+# Forward focus events so TUIs can pause animations when unfocused.
+set -g focus-events on
+# Reduce the escape-time so vim/etc. don't have a lag on Esc.
+set -sg escape-time 10
+TMUXCONF
+      echo "Wrote ~/.tmux.conf for better TUI rendering inside tmux."
+    fi
+
     # Authenticate GitHub CLI. `gh api user` is used instead of `gh auth
     # status` because the latter exits non-zero when a stale token exists
     # in ~/.config/gh/hosts.yml, even when a valid GITHUB_TOKEN is already
