@@ -27,7 +27,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CoinsIcon,
-	EllipsisIcon,
+	EllipsisVerticalIcon,
 	FilterIcon,
 	FlaskConicalIcon,
 	KeyIcon,
@@ -704,7 +704,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 													aria-label={`Open actions for ${chat.title}`}
 												>
-													<EllipsisIcon className="h-3.5 w-3.5" />
+													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
 												</Button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent
@@ -838,7 +838,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										className="h-6 w-6 shrink-0 p-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 										aria-label={`Open actions for ${chat.title}`}
 									>
-										<EllipsisIcon className="h-3.5 w-3.5" />
+										<EllipsisVerticalIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent
@@ -1119,6 +1119,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
+	const { layout } = useSidebarWidth();
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 	const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
@@ -1336,7 +1337,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<NavLink to="/workspaces" className="inline-flex">
 								<ProductLogo className="size-6" />
 							</NavLink>
-							<FeatureStageBadge contentType="beta" size="sm" />
+							<FeatureStageBadge
+								contentType="beta"
+								size="sm"
+								className="text-[10px] px-1.5 py-0.5"
+							/>
 						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
@@ -1448,19 +1453,26 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										</div>
 									) : (
 										<div>
-											{/* Search + filter bar */}
-											<div className="mb-2 flex items-center gap-1.5 px-2">
-												<div className="relative flex-1">
-													<SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-secondary" />
-													<input
-														type="text"
-														placeholder="Search chats..."
-														className="h-8 w-full rounded-md border border-border bg-transparent pl-8 pr-2 text-xs text-content-primary placeholder:text-content-secondary focus:border-content-link focus:outline-none"
-														readOnly
-													/>
+											{/* At narrow widths, show only the filter icon.
+								   At medium/large, show full search input with filter. */}
+											{layout === "narrow" ? (
+												<div className="mb-2 flex justify-end px-0.5">
+													{filterDropdown}
 												</div>
-												{filterDropdown}
-											</div>
+											) : (
+												<div className="mb-2 flex items-center gap-1.5 px-2">
+													<div className="relative flex-1">
+														<SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-secondary" />
+														<input
+															type="text"
+															placeholder="Search chats..."
+															className="h-8 w-full rounded-md border border-border bg-transparent pl-8 pr-2 text-xs text-content-primary placeholder:text-content-secondary focus:border-content-link focus:outline-none"
+															readOnly
+														/>
+													</div>
+													{filterDropdown}
+												</div>
+											)}
 											{visibleRootIDs.length > 0 && (
 												<div className="pb-2">
 													{/* ── Pinned section ── */}
