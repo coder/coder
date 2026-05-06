@@ -1,10 +1,10 @@
 import {
 	BookOpenIcon,
 	BotIcon,
-	BrainCircuitIcon,
 	ClipboardListIcon,
 	FileIcon,
 	FilePenIcon,
+	LightbulbIcon,
 	MonitorIcon,
 	PlayIcon,
 	PlusCircleIcon,
@@ -107,7 +107,7 @@ export const ToolIcon: React.FC<{
 		case "propose_plan":
 			return <ClipboardListIcon className={base} />;
 		case "advisor":
-			return <BrainCircuitIcon className={base} />;
+			return <LightbulbIcon className={base} />;
 		case "computer":
 			return <MonitorIcon className={base} />;
 		case "read_skill":

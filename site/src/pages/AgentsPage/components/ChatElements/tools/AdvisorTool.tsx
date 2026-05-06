@@ -1,6 +1,7 @@
 import { CircleAlertIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { cn } from "#/utils/cn";
 import { Response } from "../Response";
 import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
@@ -44,19 +45,6 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	const isRunning = status === "running";
 	const showLimitReached = resultType === "limit_reached";
 	const showError = isError || resultType === "error";
-	const hasAdvice = resultType === "advice" && adviceText.length > 0;
-	const hasMetadata =
-		advisorModelText.length > 0 || remainingUses !== undefined;
-
-	const headerStatus = isRunning
-		? RUNNING_MESSAGE
-		: showLimitReached
-			? "Limit reached"
-			: showError
-				? "Request failed"
-				: hasAdvice
-					? "Guidance ready"
-					: "No guidance";
 
 	return (
 		<ToolCollapsible
@@ -64,21 +52,44 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 			hasContent
 			defaultExpanded
 			headerClassName="items-start"
-			header={
+			header={(expanded) => (
 				<>
-					<ToolIcon name="advisor" isError={showError} isRunning={isRunning} />
 					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-						<div className="flex min-w-0 items-center gap-2">
+						<div className="flex min-w-0 items-center gap-2 leading-4">
+							<ToolIcon
+								name="advisor"
+								isError={showError}
+								isRunning={isRunning}
+							/>
 							<ToolLabel
 								name="advisor"
 								args={{ question: questionText }}
 								result={resultType ? { type: resultType } : undefined}
 							/>
-							<span className="text-2xs text-content-secondary">
-								{headerStatus}
-							</span>
+							{isRunning && (
+								<span className="shrink-0 rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
+									{RUNNING_MESSAGE}
+								</span>
+							)}
+							{advisorModelText && (
+								<span className="min-w-0 truncate rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
+									{advisorModelText}
+								</span>
+							)}
+							{remainingUses !== undefined && (
+								<span className="shrink-0 rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
+									{remainingUses.toLocaleString("en-US")} uses left
+								</span>
+							)}
 						</div>
-						<span className="block truncate text-sm text-content-primary">
+						<span
+							className={cn(
+								"ml-6 block whitespace-normal break-words text-[13px]",
+								"font-normal leading-5 text-content-primary",
+								"[overflow-wrap:anywhere]",
+								!expanded && "line-clamp-2",
+							)}
+						>
 							{questionText}
 						</span>
 					</div>
@@ -90,7 +101,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 						<LoaderIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 					) : null}
 				</>
-			}
+			)}
 		>
 			<ScrollArea
 				className="mt-1.5 rounded-md border border-solid border-border-default bg-surface-primary"
@@ -100,9 +111,8 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 			>
 				<div className="space-y-3 px-3 py-2">
 					{isRunning ? (
-						<div className="flex items-center gap-2 text-sm text-content-secondary">
-							<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" />
-							<span>{RUNNING_MESSAGE}</span>
+						<div role="status" className="text-sm text-content-secondary">
+							Reviewing context and preparing guidance.
 						</div>
 					) : showLimitReached ? (
 						<div
@@ -131,29 +141,16 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 							</div>
 						</div>
 					) : (
-						<div className="space-y-3">
-							<Response>{adviceText || EMPTY_ADVICE_MESSAGE}</Response>
-							{hasMetadata && (
-								<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-solid border-border-default pt-2 text-2xs text-content-secondary">
-									{advisorModelText && (
-										<span>
-											Advisor model:{" "}
-											<span className="font-medium text-content-primary">
-												{advisorModelText}
-											</span>
-										</span>
-									)}
-									{remainingUses !== undefined && (
-										<span>
-											Remaining uses:{" "}
-											<span className="font-medium text-content-primary">
-												{remainingUses.toLocaleString("en-US")}
-											</span>
-										</span>
-									)}
-								</div>
-							)}
-						</div>
+						<section className="space-y-2" aria-label="Advisor advice">
+							<div>
+								<span className="inline-flex rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
+									Advice
+								</span>
+							</div>
+							<Response className="[&_h1]:mb-2 [&_h1]:mt-3 [&_h1]:text-[15px] [&_h2]:mb-1.5 [&_h2]:mt-3 [&_h2]:text-sm [&_h3]:mb-1 [&_h3]:mt-2.5 [&_h3]:text-[13px] [&_h4]:mt-2 [&_h4]:text-[13px] [&_h5]:text-xs [&_h6]:text-xs">
+								{adviceText || EMPTY_ADVICE_MESSAGE}
+							</Response>
+						</section>
 					)}
 				</div>
 			</ScrollArea>
