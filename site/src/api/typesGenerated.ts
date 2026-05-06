@@ -3788,8 +3788,9 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/parameters.go
 export interface DynamicParametersRequest {
 	/**
-	 * ID identifies the request. The response contains the same
-	 * ID so that the client can match it to the request.
+	 * ID identifies the request for response ordering. Websocket response
+	 * IDs are monotonically increasing and may exceed the request ID when
+	 * server-side events trigger additional renders.
 	 */
 	readonly id: number;
 	readonly inputs: Record<string, string>;

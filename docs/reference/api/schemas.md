@@ -6407,12 +6407,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                  |
-|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `id`               | integer | false    |              | ID identifies the request. The response contains the same ID so that the client can match it to the request. |
-| `inputs`           | object  | false    |              |                                                                                                              |
-| » `[any property]` | string  | false    |              |                                                                                                              |
-| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                           |
+| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                            |
+|--------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `id`               | integer | false    |              | ID identifies the request for response ordering. Websocket response IDs are monotonically increasing and may exceed the request ID when server-side events trigger additional renders. |
+| `inputs`           | object  | false    |              |                                                                                                                                                                                        |
+| » `[any property]` | string  | false    |              |                                                                                                                                                                                        |
+| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                                                                                                     |
 
 ## codersdk.DynamicParametersResponse
 

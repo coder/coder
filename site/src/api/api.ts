@@ -3207,11 +3207,10 @@ class ExperimentalApiMethods {
 	promoteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<TypesGen.ChatMessage> => {
-		const response = await this.axios.post<TypesGen.ChatMessage>(
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
-		return response.data;
 	};
 
 	getChatDiffContents = async (

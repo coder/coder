@@ -760,10 +760,13 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck and need recovery. This covers:
+-- Find chats that appear stuck and need recovery:
 --   1. Running chats whose heartbeat has expired (worker crash).
---   2. Chats awaiting client action (requires_action) past the
---      timeout threshold (client disappeared).
+--   2. requires_action chats past the timeout threshold (client
+--      disappeared).
+--   3. Waiting chats with a non-empty queue and stale updated_at
+--      (deferred-promote stranding when the worker dies before its
+--      post-cancel cleanup runs).
 SELECT
     *
 FROM
@@ -772,7 +775,13 @@ WHERE
     (status = 'running'::chat_status
         AND heartbeat_at < @stale_threshold::timestamptz)
     OR (status = 'requires_action'::chat_status
-        AND updated_at < @stale_threshold::timestamptz);
+        AND updated_at < @stale_threshold::timestamptz)
+    OR (status = 'waiting'::chat_status
+        AND updated_at < @stale_threshold::timestamptz
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
+            WHERE cqm.chat_id = chats.id
+        ));
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -916,7 +925,7 @@ RETURNING *;
 -- name: GetChatQueuedMessages :many
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY id ASC;
+ORDER BY created_at ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -929,10 +938,21 @@ DELETE FROM chat_queued_messages
 WHERE id = (
     SELECT cqm.id FROM chat_queued_messages cqm
     WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.id ASC
+    ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
 RETURNING *;
+
+-- name: ReorderChatQueuedMessageToFront :execrows
+-- Mutates only created_at on the target row; ids are unchanged so
+-- consumers can keep tracking queued messages by id.
+UPDATE chat_queued_messages AS target
+SET created_at = (
+    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
+    FROM chat_queued_messages AS inner_cqm
+    WHERE inner_cqm.chat_id = @chat_id
+)
+WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
 SELECT

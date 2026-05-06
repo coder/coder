@@ -191,6 +191,68 @@ export const restoreOptimisticRequestSnapshot = (
 	});
 };
 
+/**
+ * Runs the optimistic queued-message promotion flow.
+ *
+ * The promote endpoint returns 202 Accepted with no message body, so the
+ * actual user message is delivered via SSE or the messages REST endpoint.
+ * Suppress the promoted ID so the transient reordered queue published by
+ * the running-case backend does not flash the message back into the
+ * visible queue. Roll back queue, status, and suppression on API error.
+ *
+ * @internal Exported for testing.
+ */
+export const runPromoteQueuedMessage = async (params: {
+	id: number;
+	store: Pick<
+		ChatStore,
+		| "batch"
+		| "clearStreamError"
+		| "clearStreamState"
+		| "getSnapshot"
+		| "setChatStatus"
+		| "setQueuedMessages"
+		| "setStreamError"
+		| "setStreamState"
+		| "suppressQueuedMessageID"
+		| "unsuppressQueuedMessageID"
+	>;
+	promoteQueuedMessage: (id: number) => Promise<void>;
+	agentId: string | undefined;
+	clearChatErrorReason: (chatID: string) => void;
+	handleUsageLimitError: (error: unknown) => void;
+}): Promise<void> => {
+	const {
+		id,
+		store,
+		promoteQueuedMessage,
+		agentId,
+		clearChatErrorReason,
+		handleUsageLimitError,
+	} = params;
+	const previousSnapshot = store.getSnapshot();
+	store.batch(() => {
+		store.suppressQueuedMessageID(id);
+		store.setQueuedMessages(
+			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
+		);
+		store.clearStreamState();
+		store.clearStreamError();
+		store.setChatStatus("pending");
+	});
+	if (agentId) {
+		clearChatErrorReason(agentId);
+	}
+	try {
+		await promoteQueuedMessage(id);
+	} catch (error) {
+		store.unsuppressQueuedMessageID(id);
+		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+		handleUsageLimitError(error);
+		throw error;
+	}
+};
+
 export async function submitEditAndScroll({
 	editMessage,
 	editArgs,
@@ -1139,30 +1201,15 @@ const AgentChatPage: FC = () => {
 		}
 	};
 
-	const handlePromoteQueuedMessage = async (id: number) => {
-		const previousSnapshot = store.getSnapshot();
-		store.setQueuedMessages(
-			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
-		);
-		store.clearStreamState();
-		if (agentId) {
-			clearChatErrorReason(agentId);
-		}
-		store.clearStreamError();
-		store.setChatStatus("pending");
-		try {
-			const promotedMessage = await promoteQueuedMessage(id);
-			// Insert the promoted message into the store and cache
-			// immediately so it appears in the timeline without
-			// waiting for the WebSocket to deliver it.
-			store.upsertDurableMessage(promotedMessage);
-			upsertCacheMessages([promotedMessage]);
-		} catch (error) {
-			restoreOptimisticRequestSnapshot(store, previousSnapshot);
-			handleUsageLimitError(error);
-			throw error;
-		}
-	};
+	const handlePromoteQueuedMessage = (id: number) =>
+		runPromoteQueuedMessage({
+			id,
+			store,
+			promoteQueuedMessage,
+			agentId,
+			clearChatErrorReason,
+			handleUsageLimitError,
+		});
 
 	const editing = useConversationEditingState({
 		chatID: agentId,

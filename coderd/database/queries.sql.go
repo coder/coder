@@ -6877,7 +6877,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
 SELECT id, chat_id, content, created_at, model_config_id FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY id ASC
+ORDER BY created_at ASC, id ASC
 `
 
 func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
@@ -7380,12 +7380,21 @@ WHERE
         AND heartbeat_at < $1::timestamptz)
     OR (status = 'requires_action'::chat_status
         AND updated_at < $1::timestamptz)
+    OR (status = 'waiting'::chat_status
+        AND updated_at < $1::timestamptz
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
+            WHERE cqm.chat_id = chats.id
+        ))
 `
 
-// Find chats that appear stuck and need recovery. This covers:
+// Find chats that appear stuck and need recovery:
 //  1. Running chats whose heartbeat has expired (worker crash).
-//  2. Chats awaiting client action (requires_action) past the
-//     timeout threshold (client disappeared).
+//  2. requires_action chats past the timeout threshold (client
+//     disappeared).
+//  3. Waiting chats with a non-empty queue and stale updated_at
+//     (deferred-promote stranding when the worker dies before its
+//     post-cancel cleanup runs).
 func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getStaleChats, staleThreshold)
 	if err != nil {
@@ -8015,7 +8024,7 @@ DELETE FROM chat_queued_messages
 WHERE id = (
     SELECT cqm.id FROM chat_queued_messages cqm
     WHERE cqm.chat_id = $1
-    ORDER BY cqm.id ASC
+    ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
 RETURNING id, chat_id, content, created_at, model_config_id
@@ -8032,6 +8041,31 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.ModelConfigID,
 	)
 	return i, err
+}
+
+const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :execrows
+UPDATE chat_queued_messages AS target
+SET created_at = (
+    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
+    FROM chat_queued_messages AS inner_cqm
+    WHERE inner_cqm.chat_id = $1
+)
+WHERE target.id = $2 AND target.chat_id = $1
+`
+
+type ReorderChatQueuedMessageToFrontParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	TargetID int64     `db:"target_id" json:"target_id"`
+}
+
+// Mutates only created_at on the target row; ids are unchanged so
+// consumers can keep tracking queued messages by id.
+func (q *sqlQuerier) ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, reorderChatQueuedMessageToFront, arg.ChatID, arg.TargetID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const resolveUserChatSpendLimit = `-- name: ResolveUserChatSpendLimit :one

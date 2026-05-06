@@ -739,9 +739,12 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil {
-			// lots of reasons this could happen, most usually, the peer has disconnected.
-			m.logger.Debug(m.ctx, "failed to enqueue node update", slog.Error(err))
+		for _, chunk := range update.Chunked() {
+			if err := m.c.Enqueue(chunk); err != nil {
+				// lots of reasons this could happen, most usually, the peer has disconnected.
+				m.logger.Debug(m.ctx, "failed to enqueue chunk", slog.Error(err))
+				break
+			}
 		}
 	}
 }
