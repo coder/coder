@@ -96,6 +96,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		// override is applied to baselineResolved to produce the expected
 		// templateMetaUpdate. Allows each case to express only its delta.
 		override func(*templateMetaUpdate)
+		base     func(template database.Template)
 		// validErrFields, if non-empty, asserts the resolver produced a
 		// validation error for each named field.
 		validErrFields []string
@@ -128,6 +129,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			// Empty string is treated as "do not clear" because the UI
 			// disallows clearing the name. Resolver must keep the
 			// existing name.
+			// This is a unique case to just the `name` field.
 			expected: expected{override: func(*templateMetaUpdate) {}},
 		},
 		{
@@ -180,11 +182,22 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			}},
 		},
 		{
-			name: "AllowUserAutostop",
+			name: "AllowUserAutostop/true",
 			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: ptr.Ref(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowUserAutostop = true
 			}},
+		},
+		{
+			name: "AllowUserAutostop/true",
+			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: ptr.Ref(false)},
+			expected: expected{
+				base: func(update database.Template) {
+					update.AllowUserAutostop = true
+				},
+				override: func(r *templateMetaUpdate) {
+					r.allowUserAutostop = false
+				}},
 		},
 		{
 			name: "AllowUserCancelWorkspaceJobs",
@@ -398,6 +411,9 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			t.Parallel()
 
 			tpl := baselineTemplate()
+			if tc.expected.base != nil {
+				tc.expected.base(tpl)
+			}
 			schedOpts := baselineScheduleOpts()
 			got, validErrs := resolveTemplateMetaUpdate(tpl, schedOpts, tc.req)
 

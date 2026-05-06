@@ -85,7 +85,8 @@ func resolveTemplateMetaUpdate(
 		corsBehavior:                   template.CorsBehavior,
 	}
 
-	// Users should not be able to clear the template name in the UI.
+	// Users should not be able to clear the template name. This is the only field
+	// that treats a zero value as omitted.
 	if out.name == "" {
 		out.name = template.Name
 	}
