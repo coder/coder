@@ -888,7 +888,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		if err != nil {
 			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
 				c.clearCachedWorkspaceState()
-				return nil, c.externalAgentError(ctx, agent, err)
+				return nil, err
 			}
 			// Surface the dial timeout sentinel only when the
 			// parent context is still alive. If the parent was
@@ -897,10 +897,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				return nil, c.externalAgentError(ctx, agent, errChatDialTimeout)
 			}
-			if ctx.Err() != nil {
-				return nil, err
-			}
-			return nil, c.externalAgentError(ctx, agent, err)
+			return nil, err
 		}
 		agentConn := dialResult.Conn
 		agentRelease := dialResult.Release
