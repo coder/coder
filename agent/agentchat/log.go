@@ -32,11 +32,8 @@ func WithContext(ctx context.Context, chatID uuid.UUID, ancestorIDs []uuid.UUID)
 	if chatID == uuid.Nil {
 		return ctx
 	}
-	var ancestors []uuid.UUID
-	if len(ancestorIDs) > 0 {
-		ancestors = make([]uuid.UUID, len(ancestorIDs))
-		copy(ancestors, ancestorIDs)
-	}
+	ancestors := make([]uuid.UUID, len(ancestorIDs))
+	copy(ancestors, ancestorIDs)
 	return context.WithValue(ctx, chatContextKey{}, Context{
 		ID:          chatID,
 		AncestorIDs: ancestors,

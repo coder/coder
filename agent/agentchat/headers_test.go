@@ -44,7 +44,7 @@ func TestExtractContext(t *testing.T) {
 			setChatID:       true,
 			setAncestors:    false,
 			wantChatID:      validID,
-			wantAncestorIDs: nil,
+			wantAncestorIDs: []uuid.UUID{},
 			wantOK:          true,
 		},
 		{
@@ -76,7 +76,7 @@ func TestExtractContext(t *testing.T) {
 			ancestors:       `{this is not json}`,
 			setAncestors:    true,
 			wantChatID:      validID,
-			wantAncestorIDs: nil,
+			wantAncestorIDs: []uuid.UUID{},
 			wantOK:          true,
 		},
 		{
@@ -113,7 +113,7 @@ func TestExtractContext(t *testing.T) {
 			ancestors:       "",
 			setAncestors:    true,
 			wantChatID:      validID,
-			wantAncestorIDs: nil,
+			wantAncestorIDs: []uuid.UUID{},
 			wantOK:          true,
 		},
 	}
