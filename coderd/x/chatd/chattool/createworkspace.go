@@ -593,19 +593,20 @@ func templateHasExternalAgent(
 	return version.HasExternalAgent.Valid && version.HasExternalAgent.Bool, nil
 }
 
-func externalAgentReadyResult(
+// externalAgentReadyError returns the external-agent-specific error
+// message when agent belongs to an external resource, or the empty
+// string otherwise. Errors looking up the resource are treated as
+// non-external so the caller falls back to the dial error.
+func externalAgentReadyError(
 	ctx context.Context,
 	db database.Store,
 	agent database.WorkspaceAgent,
-) map[string]any {
+) string {
 	isExternal, err := IsExternalWorkspaceAgent(ctx, db, agent)
 	if err != nil || !isExternal {
-		return nil
+		return ""
 	}
-	return map[string]any{
-		"agent_status": "not_ready",
-		"agent_error":  ExternalAgentUnavailableMessage(agent),
-	}
+	return ExternalAgentUnavailableMessage(agent)
 }
 
 // waitForAgentReady waits for the workspace agent to become
@@ -629,7 +630,6 @@ func waitForAgentReady(
 		defer ticker.Stop()
 
 		var lastErr error
-		externalChecked := false
 		for {
 			attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
 			conn, release, err := agentConnFn(attemptCtx, agentID)
@@ -640,17 +640,20 @@ func waitForAgentReady(
 				break
 			}
 			lastErr = err
-			if !externalChecked {
-				externalChecked = true
-				if externalResult := externalAgentReadyResult(ctx, db, agent); externalResult != nil {
-					return externalResult
-				}
-			}
 
 			select {
 			case <-agentCtx.Done():
 				result["agent_status"] = "not_ready"
-				result["agent_error"] = lastErr.Error()
+				// External agents may need user action on a different
+				// host. Surface that guidance instead of the raw dial
+				// error after the retry window has elapsed. The retry
+				// loop itself is unchanged, so a Connecting external
+				// agent still gets the full window to come online.
+				if msg := externalAgentReadyError(ctx, db, agent); msg != "" {
+					result["agent_error"] = msg
+				} else {
+					result["agent_error"] = lastErr.Error()
+				}
 				return result
 			case <-ticker.C:
 			}

@@ -79,6 +79,81 @@ func TestWaitForAgentReady(t *testing.T) {
 		require.NotEmpty(t, result["agent_error"])
 	})
 
+	t.Run("ExternalAgentTimeoutMessage", func(t *testing.T) {
+		// External agent retry loop should still run for the full
+		// window. When it eventually times out, the error message
+		// should be the external-agent-specific guidance, not the
+		// raw dial error.
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := newCreateWorkspaceMockStore(ctrl)
+		agentID := uuid.New()
+		resourceID := uuid.New()
+		agent := database.WorkspaceAgent{
+			ID:         agentID,
+			ResourceID: resourceID,
+		}
+
+		db.EXPECT().
+			GetWorkspaceResourceByID(gomock.Any(), resourceID).
+			Return(database.WorkspaceResource{
+				ID:   resourceID,
+				Type: ExternalAgentResourceType,
+			}, nil)
+
+		attempts := 0
+		connFn := func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			attempts++
+			require.Equal(t, agentID, id)
+			return nil, nil, context.DeadlineExceeded
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		result := waitForAgentReady(ctx, db, agent, connFn)
+		require.GreaterOrEqual(t, attempts, 1)
+		require.Equal(t, "not_ready", result["agent_status"])
+		require.Equal(t, ExternalAgentUnavailableMessage(agent), result["agent_error"])
+	})
+
+	t.Run("ExternalAgentEventuallyConnects", func(t *testing.T) {
+		// External agent that fails the first dial but succeeds on
+		// the second attempt must not be short-circuited; the user
+		// may have just started the agent on their host.
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := newCreateWorkspaceMockStore(ctrl)
+		agentID := uuid.New()
+		resourceID := uuid.New()
+		agent := database.WorkspaceAgent{
+			ID:         agentID,
+			ResourceID: resourceID,
+		}
+
+		// Mock returns Ready lifecycle so phase 2 exits cleanly.
+		db.EXPECT().
+			GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+			Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			}, nil)
+
+		attempts := 0
+		connFn := func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			attempts++
+			require.Equal(t, agentID, id)
+			if attempts == 1 {
+				return nil, nil, context.DeadlineExceeded
+			}
+			return nil, func() {}, nil
+		}
+
+		result := waitForAgentReady(context.Background(), db, agent, connFn)
+		require.Equal(t, 2, attempts, "second attempt must run for Connecting external agents")
+		require.NotContains(t, result, "agent_status", "successful late connect must not surface not_ready")
+		require.NotContains(t, result, "agent_error")
+	})
+
 	t.Run("AgentConnectsButStartupFails", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
