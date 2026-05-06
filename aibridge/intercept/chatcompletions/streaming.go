@@ -288,7 +288,8 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// Mid-stream error or logical error: events have
 			// already streamed for this iteration, so the
 			// error is relayed as an SSE event.
-			if respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr); respErr != nil {
+			streamErr := stream.Err()
+			if respErr := i.mapStreamError(ctx, logger, streamErr, lastErr); respErr != nil {
 				interceptionErr = respErr
 				payload, err := i.marshalErr(respErr)
 				if err != nil {
@@ -296,6 +297,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				} else if err := events.Send(streamCtx, payload); err != nil {
 					logger.Warn(ctx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
 				}
+			} else if streamErr != nil {
+				// Unrecoverable (e.g., broken pipe, context
+				// canceled): can't relay to the client, but record
+				// the error so it isn't silently swallowed.
+				interceptionErr = streamErr
 			}
 		} else {
 			// Pre-stream failure of this iteration. For
@@ -304,8 +310,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			if currentKey != nil && i.markKeyOnError(ctx, currentKey, stream.Err()) {
 				continue
 			}
-			// Non-key error: relay it.
-			respErr := getErrorResponse(stream.Err())
+			// Non-key error: relay it. Use mapStreamError so that
+			// unknown upstream errors (TCP reset, DNS failure, TLS
+			// error, deadline exceeded) are wrapped in a generic
+			// response instead of producing a silent HTTP 200.
+			respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr)
 			if respErr != nil {
 				interceptionErr = respErr
 				if events.IsStreaming() {
@@ -483,11 +492,11 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 		// into known types (i.e. [shared.OverloadedError]).
 		// See https://github.com/openai/openai-go/blob/v2.7.0/packages/ssestream/ssestream.go#L171
 		// All it does is wrap the payload in an error - which is all we can return, currently.
-		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), "error", "error", 0, 0)
+		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), "error", "error", http.StatusBadGateway, 0)
 	}
 	if lastErr != nil {
 		logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
-		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), "error", "error", 0, 0)
+		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), "error", "error", http.StatusBadGateway, 0)
 	}
 	return nil
 }

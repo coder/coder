@@ -63,6 +63,9 @@ type responsesInterceptionBase struct {
 // calls. BYOK auth is set here. Centralized auth is set
 // per-attempt by the failover loop.
 func (i *responsesInterceptionBase) newResponsesService() responses.ResponseService {
+	// TODO(ssncferreira): validate auth is configured per
+	// https://github.com/coder/aibridge/issues/266.
+
 	var opts []option.RequestOption
 	// BYOK auth.
 	if i.cfg.KeyPool == nil {
@@ -180,7 +183,7 @@ func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *key
 		return false
 	}
 	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.StatusCode, apiErr.Response,
+		ctx, key, apiErr.Response,
 		i.logger, i.providerName,
 	)
 }

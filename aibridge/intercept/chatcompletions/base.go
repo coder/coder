@@ -52,6 +52,9 @@ type interceptionBase struct {
 // calls. BYOK auth is set here. Centralized auth is set
 // per-attempt by the failover loop.
 func (i *interceptionBase) newCompletionsService() openai.ChatCompletionService {
+	// TODO(ssncferreira): validate auth is configured per
+	// https://github.com/coder/aibridge/issues/266.
+
 	var opts []option.RequestOption
 	// BYOK auth.
 	if i.cfg.KeyPool == nil {
@@ -226,7 +229,7 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 		return false
 	}
 	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.StatusCode, apiErr.Response,
+		ctx, key, apiErr.Response,
 		i.logger, i.providerName,
 	)
 }
@@ -298,7 +301,7 @@ func getErrorResponse(err error) *responseError {
 	if !errors.As(err, &apiErr) {
 		return nil
 	}
-	return newErrorResponse(apiErr.Message, apiErr.Type, apiErr.Code, apiErr.StatusCode, 0)
+	return newErrorResponse(apiErr.Message, apiErr.Type, apiErr.Code, apiErr.StatusCode, keypool.ParseRetryAfter(apiErr.Response))
 }
 
 var _ error = &responseError{}

@@ -265,15 +265,22 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (_ *openai.ChatCompletion, outErr error) {
-	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+// newChatCompletion routes between BYOK (single attempt) and
+// centralized failover.
+func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, error) {
 	// BYOK: single attempt, no failover.
 	if i.cfg.KeyPool == nil {
-		return svc.New(ctx, i.req.ChatCompletionNewParams, opts...)
+		return i.newChatCompletionWithKey(ctx, svc, opts)
 	}
 	return i.newChatCompletionWithKeyFailover(ctx, svc, opts)
+}
+
+// newChatCompletionWithKey performs a single upstream call.
+func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (_ *openai.ChatCompletion, outErr error) {
+	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
+	defer tracing.EndSpanErr(span, &outErr)
+
+	return svc.New(ctx, i.req.ChatCompletionNewParams, opts...)
 }
 
 // newChatCompletionWithKeyFailover walks the centralized key
@@ -299,15 +306,13 @@ func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Cont
 			// handles retries via key rotation.
 			option.WithMaxRetries(0),
 		)
-		completion, err := svc.New(ctx, i.req.ChatCompletionNewParams, requestOpts...)
-		if err == nil {
-			return completion, nil
+		completion, err := i.newChatCompletionWithKey(ctx, svc, requestOpts)
+		// Key-specific failure: try the next key.
+		if i.markKeyOnError(ctx, key, err) {
+			continue
 		}
-		// Mark the key based on the upstream response.
-		if !i.markKeyOnError(ctx, key, err) {
-			// Not a key-specific failure: return without
-			// trying another key.
-			return nil, err
-		}
+		// Either success (completion, nil) or a non-key error
+		// (nil, err): nothing to retry, return as-is.
+		return completion, err
 	}
 }

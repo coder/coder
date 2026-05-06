@@ -144,16 +144,23 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	return errors.Join(upstreamErr, err)
 }
 
-func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (_ *responses.Response, outErr error) {
-	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
-	defer tracing.EndSpanErr(span, &outErr)
-
+// newResponse routes between BYOK (single attempt) and
+// centralized failover.
+func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
 	// BYOK: single attempt, no failover.
 	if i.cfg.KeyPool == nil {
-		// The body is overridden by option.WithRequestBody(reqPayload) in requestOptions
-		return srv.New(ctx, responses.ResponseNewParams{}, opts...)
+		return i.newResponseWithKey(ctx, srv, opts)
 	}
 	return i.newResponseWithKeyFailover(ctx, srv, opts)
+}
+
+// newResponseWithKey performs a single upstream call.
+func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (_ *responses.Response, outErr error) {
+	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
+	defer tracing.EndSpanErr(span, &outErr)
+
+	// The body is overridden by option.WithRequestBody(reqPayload) in requestOptions
+	return srv.New(ctx, responses.ResponseNewParams{}, opts...)
 }
 
 // newResponseWithKeyFailover walks the centralized key pool,
@@ -179,16 +186,13 @@ func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Co
 			// handles retries via key rotation.
 			option.WithMaxRetries(0),
 		)
-		// The body is overridden by option.WithRequestBody(reqPayload) in requestOptions
-		response, err := srv.New(ctx, responses.ResponseNewParams{}, requestOpts...)
-		if err == nil {
-			return response, nil
+		response, err := i.newResponseWithKey(ctx, srv, requestOpts)
+		// Key-specific failure: try the next key.
+		if i.markKeyOnError(ctx, key, err) {
+			continue
 		}
-		// Mark the key based on the upstream response.
-		if !i.markKeyOnError(ctx, key, err) {
-			// Not a key-specific failure: return without
-			// trying another key.
-			return nil, err
-		}
+		// Either success (response, nil) or a non-key error
+		// (nil, err): nothing to retry, return as-is.
+		return response, err
 	}
 }
