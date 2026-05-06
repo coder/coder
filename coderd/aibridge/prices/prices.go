@@ -7,7 +7,8 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
-	"fmt"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -37,7 +38,7 @@ type seedRow struct {
 func Load(ctx context.Context, db database.Store) error {
 	rows, err := parseSeed(seedJSON)
 	if err != nil {
-		return fmt.Errorf("parse embedded price seed: %w", err)
+		return xerrors.Errorf("parse embedded price seed: %w", err)
 	}
 
 	return db.InTx(func(tx database.Store) error {
@@ -51,7 +52,7 @@ func Load(ctx context.Context, db database.Store) error {
 				CacheWritePrice: nullInt64(r.CacheWritePrice),
 			})
 			if err != nil {
-				return fmt.Errorf("upsert %s/%s: %w", r.Provider, r.Model, err)
+				return xerrors.Errorf("upsert %s/%s: %w", r.Provider, r.Model, err)
 			}
 		}
 		return nil

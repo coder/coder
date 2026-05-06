@@ -18,6 +18,8 @@ import (
 	"os"
 	"sort"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -61,7 +63,7 @@ type priceRow struct {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "aibridgepricesgen: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -69,13 +71,13 @@ func main() {
 func run() error {
 	upstream, err := fetch()
 	if err != nil {
-		return fmt.Errorf("fetch %s: %w", sourceURL, err)
+		return xerrors.Errorf("fetch %s: %w", sourceURL, err)
 	}
 	rows := convert(upstream, supportedProviders)
 	if err := write(os.Stdout, rows); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "aibridgepricesgen: wrote %d prices for %d provider(s)\n", len(rows), len(supportedProviders))
+	_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: wrote %d prices for %d provider(s)\n", len(rows), len(supportedProviders))
 	return nil
 }
 
@@ -93,17 +95,17 @@ func fetch() (map[string]upstreamProvider, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
+		return nil, xerrors.Errorf("status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
+		return nil, xerrors.Errorf("read body: %w", err)
 	}
 
 	var data map[string]upstreamProvider
 	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, fmt.Errorf("parse: %w", err)
+		return nil, xerrors.Errorf("parse: %w", err)
 	}
 	return data, nil
 }
@@ -116,7 +118,7 @@ func convert(upstream map[string]upstreamProvider, providers []string) []priceRo
 	for _, providerID := range providers {
 		provider, ok := upstream[providerID]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "warning: provider %q missing from upstream\n", providerID)
+			_, _ = fmt.Fprintf(os.Stderr, "warning: provider %q missing from upstream\n", providerID)
 			continue
 		}
 		for modelID, m := range provider.Models {
@@ -148,7 +150,7 @@ func toMicros(price *float64) *int64 {
 		return nil
 	}
 	if *price < 0 {
-		fmt.Fprintf(os.Stderr, "warning: negative price %f, treating as missing\n", *price)
+		_, _ = fmt.Fprintf(os.Stderr, "warning: negative price %f, treating as missing\n", *price)
 		return nil
 	}
 	micros := int64(math.Round(*price * 1_000_000))
@@ -159,7 +161,7 @@ func write(w io.Writer, rows []priceRow) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(rows); err != nil {
-		return fmt.Errorf("encode: %w", err)
+		return xerrors.Errorf("encode: %w", err)
 	}
 	return nil
 }
