@@ -4394,7 +4394,6 @@ const (
 	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
-	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
@@ -4411,8 +4410,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentOAuth2:
 		return "OAuth2 Provider Functionality"
-	case ExperimentAgents:
-		return "Agents"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
@@ -4432,7 +4429,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
-	ExperimentAgents,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceBuildUpdates,
 }
@@ -4441,7 +4437,6 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-// TODO: Add ExperimentAgents to ExperimentsSafe once it is safe for general use.
 var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
