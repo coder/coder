@@ -944,7 +944,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center gap-2 rounded-md pl-3 pr-0.5 py-1 text-content-secondary",
+								"group relative flex min-w-0 select-none items-center gap-2 border-0 border-b border-solid border-border-default/30 pl-3 pr-0.5 py-0.5 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
@@ -1587,7 +1587,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
@@ -1621,7 +1621,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	>
 																		<div
 																			ref={pinnedContainerRef}
-																			className="flex flex-col gap-0.5"
+																			className="flex flex-col"
 																		>
 																			{sortedPinnedChats.map((chat) => (
 																				<SortableChatTreeNode
@@ -1654,7 +1654,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
@@ -1677,7 +1677,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	</span>
 																</button>
 																{!collapsedSections.has(group) && (
-																	<div className="flex flex-col gap-0.5">
+																	<div className="flex flex-col">
 																		{groupChats.map((chat) => (
 																			<ChatTreeNode
 																				key={chat.id}
