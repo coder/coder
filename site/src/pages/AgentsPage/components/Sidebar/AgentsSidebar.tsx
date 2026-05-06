@@ -587,7 +587,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md px-1.5 py-1 text-content-secondary",
+								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md py-1 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 								isChildNode &&
@@ -726,7 +726,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center gap-2 rounded-md px-1.5 py-1 text-content-secondary",
+								"group relative flex min-w-0 select-none items-center gap-2 rounded-md py-1 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
@@ -1335,8 +1335,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				aria-hidden={isSettingsPanel}
 				inert={isSettingsPanel ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default pb-3 pt-3 sm:block">
-					<div className="mb-2.5 flex items-center justify-between px-2">
+				<div className="hidden border-b border-border-default px-2 pb-3 pt-3 sm:block">
+					<div className="mb-2.5 flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<NavLink to="/workspaces" className="inline-flex">
 								<ProductLogo className="size-6" />
@@ -1397,7 +1397,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 px-2 py-3">
+						<div className="flex flex-col gap-2 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
@@ -1414,7 +1414,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										{Array.from({ length: 6 }, (_, i) => (
 											<div
 												key={i}
-												className="flex items-start gap-2 rounded-md px-1.5 py-1"
+												className="flex items-start gap-2 rounded-md py-1"
 											>
 												<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
 												<div className="min-w-0 flex-1 space-y-1.5">
@@ -1839,7 +1839,7 @@ type SettingsNavItemProps = {
 
 const navItemClassName = (active: boolean, disabled: boolean | undefined) =>
 	cn(
-		"flex w-full items-center gap-2.5 rounded-md border-0 px-1.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
+		"flex w-full items-center gap-2.5 rounded-md border-0 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
 		active
 			? "bg-surface-quaternary/25 text-content-primary font-medium"
 			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
