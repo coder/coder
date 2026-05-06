@@ -1482,7 +1482,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="mb-1 flex w-full items-center justify-between px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary"
+																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
@@ -1545,7 +1545,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="mb-1 flex w-full items-center justify-between px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary"
+																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
