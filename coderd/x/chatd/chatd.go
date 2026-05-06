@@ -800,8 +800,11 @@ func (c *turnWorkspaceContext) externalAgentPreflightError(
 	chatSnapshot database.Chat,
 	agent database.WorkspaceAgent,
 ) error {
-	status := agent.Status(c.server.clock.Now(), c.server.agentInactiveDisconnectTimeout)
-	if status.Status == database.WorkspaceAgentStatusConnected {
+	// Mirror the cache-hit gate: only short-circuit on clearly offline
+	// states (Disconnected/Timeout). Connecting is allowed through so
+	// an external agent the user just started can still connect inside
+	// the normal dial window.
+	if !isAgentUnreachable(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout) {
 		return nil
 	}
 
