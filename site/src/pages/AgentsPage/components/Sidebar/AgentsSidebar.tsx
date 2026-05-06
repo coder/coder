@@ -946,10 +946,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							className={cn(
 								"group relative grid min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
 								layout === "large"
-									? "grid-cols-[2rem_1fr_10rem_9rem_2rem_2rem]"
-									: "grid-cols-[2rem_1fr_7.5rem_7rem_2rem_2rem]",
+									? "grid-cols-[2rem_1fr_9rem_8rem_2rem_2rem]"
+									: "grid-cols-[2rem_1fr_auto_auto_2rem_2rem]",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
-								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
+								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary",
 							)}
 						>
 							{/* Col 1: Chevron */}
@@ -1513,9 +1513,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 py-3">
+						<div className="flex flex-col gap-2 px-2 py-3">
 							{loadError ? (
-								<div className="space-y-3 px-3">
+								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
 									{onRetryLoad && (
 										<Button size="sm" variant="outline" onClick={onRetryLoad}>
@@ -1524,7 +1524,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									)}
 								</div>
 							) : isLoading ? (
-								<div className="px-2">
+								<>
 									<Skeleton className="ml-2.5 h-3.5 w-16" />
 									<div className="flex flex-col gap-0.5">
 										{Array.from({ length: 6 }, (_, i) => (
@@ -1543,11 +1543,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											</div>
 										))}
 									</div>
-								</div>
+								</>
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
 									{visibleRootIDs.length === 0 ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary mx-2 p-4 text-center text-xs text-content-secondary">
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											<p className="m-0">
 												{normalizedSearch
 													? "No matching agents"
@@ -1572,7 +1572,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											</button>
 										</div>
 									) : (
-										<div className="px-2">
+										<div>
 											{layout === "narrow" ? (
 												<div className="mb-2 flex justify-end pr-0.5">
 													{filterDropdown}
@@ -1592,16 +1592,23 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												</div>
 											)}
 											{visibleRootIDs.length > 0 && (
-												<div className="pb-2">
+												<div
+													className={
+														layout !== "narrow" ? "-mx-2 pb-2" : "pb-2"
+													}
+												>
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
 														<div className="[&:not(:first-child)]:mt-6">
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="grid w-full grid-cols-[2rem_1fr_2rem] items-center border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className={
+																	layout === "narrow"
+																		? "mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																		: "flex w-full items-center justify-between border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																}
 															>
-																<span />
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
 																	{collapsedSections.has("Pinned") &&
@@ -1634,7 +1641,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	>
 																		<div
 																			ref={pinnedContainerRef}
-																			className="flex flex-col [&>*:first-child]:border-0 [&>*:first-child]:border-t [&>*:first-child]:border-solid [&>*:first-child]:border-border-default/30"
+																			className={
+																				layout === "narrow"
+																					? "flex flex-col gap-0.5"
+																					: "flex flex-col [&>*:first-child]:border-0 [&>*:first-child]:border-t [&>*:first-child]:border-solid [&>*:first-child]:border-border-default/30"
+																			}
 																		>
 																			{sortedPinnedChats.map((chat) => (
 																				<SortableChatTreeNode
@@ -1667,9 +1678,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="grid w-full grid-cols-[2rem_1fr_2rem] items-center border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className={
+																		layout === "narrow"
+																			? "mb-1 flex w-full items-center justify-between border-0 bg-transparent pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																			: "flex w-full items-center justify-between border-0 bg-transparent pb-1 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	}
 																>
-																	<span />
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
 																		{collapsedSections.has(group) &&
@@ -1691,7 +1705,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	</span>
 																</button>
 																{!collapsedSections.has(group) && (
-																	<div className="flex flex-col [&>*:first-child]:border-0 [&>*:first-child]:border-t [&>*:first-child]:border-solid [&>*:first-child]:border-border-default/30">
+																	<div
+																		className={
+																			layout === "narrow"
+																				? "flex flex-col gap-0.5"
+																				: "flex flex-col [&>*:first-child]:border-0 [&>*:first-child]:border-t [&>*:first-child]:border-solid [&>*:first-child]:border-border-default/30"
+																		}
+																	>
 																		{groupChats.map((chat) => (
 																			<ChatTreeNode
 																				key={chat.id}
