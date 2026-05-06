@@ -1494,11 +1494,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																			/>
 																		)}
 																</span>
-																{collapsedSections.has("Pinned") ? (
-																	<ChevronDownIcon className="h-4 w-4 shrink-0" />
-																) : (
-																	<ChevronUpIcon className="h-4 w-4 shrink-0" />
-																)}
+																<span
+																	className={cn(
+																		"h-4 w-4 shrink-0 transition-transform duration-200",
+																		collapsedSections.has("Pinned") &&
+																			"rotate-180",
+																	)}
+																>
+																	<ChevronUpIcon className="h-4 w-4" />
+																</span>
 															</button>
 															{!collapsedSections.has("Pinned") && (
 																<DndContext
@@ -1557,11 +1561,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																				/>
 																			)}
 																	</span>
-																	{collapsedSections.has(group) ? (
-																		<ChevronDownIcon className="h-4 w-4 shrink-0" />
-																	) : (
-																		<ChevronUpIcon className="h-4 w-4 shrink-0" />
-																	)}
+																	<span
+																		className={cn(
+																			"h-4 w-4 shrink-0 transition-transform duration-200",
+																			collapsedSections.has(group) &&
+																				"rotate-180",
+																		)}
+																	>
+																		<ChevronUpIcon className="h-4 w-4" />
+																	</span>
 																</button>
 																{!collapsedSections.has(group) && (
 																	<div className="flex flex-col gap-0.5">
