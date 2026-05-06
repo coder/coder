@@ -1332,8 +1332,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				aria-hidden={isSettingsPanel}
 				inert={isSettingsPanel ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-3 pb-3 pt-3 sm:block">
-					<div className="mb-2.5 flex items-center justify-between">
+				<div className="hidden border-b border-border-default pb-3 pt-3 sm:block">
+					<div className="mb-2.5 flex items-center justify-between px-3">
 						<div className="flex items-center gap-2">
 							<NavLink to="/workspaces" className="inline-flex">
 								<ProductLogo className="size-6" />
@@ -1394,7 +1394,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 py-3">
+						<div className="flex flex-col gap-2 px-1 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
