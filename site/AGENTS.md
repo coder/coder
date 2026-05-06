@@ -301,4 +301,3 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   internally (e.g., `new Date()`, `Date.now()`). This makes the
   component deterministic and testable in Storybook without mocking
   globals.
-
