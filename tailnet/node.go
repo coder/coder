@@ -57,12 +57,12 @@ func (u *nodeUpdater) updateLoop() {
 			u.logger.Debug(context.Background(), "closing nodeUpdater updateLoop")
 			return
 		}
+		u.dirty = false
 		u.phase = configuring
 		u.Broadcast()
 
 		callback := u.callback
 		if callback == nil {
-			u.dirty = false
 			u.logger.Debug(context.Background(), "skipped sending node; no node callback")
 			continue
 		}
@@ -71,7 +71,6 @@ func (u *nodeUpdater) updateLoop() {
 		// the node without this, and we can save ourselves from churn in the tailscale/wireguard
 		// layer.
 		node := u.nodeLocked()
-		u.dirty = false
 		if node.PreferredDERP == 0 {
 			u.logger.Debug(context.Background(), "skipped sending node; no PreferredDERP", slog.F("node", node))
 			continue
