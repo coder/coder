@@ -708,8 +708,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													size="icon"
 													variant="subtle"
 													className={cn(
-														"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
-														isActiveChat && "opacity-100",
+														"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+														isActiveChat ? "opacity-100" : "opacity-0",
 													)}
 													aria-label={`Open actions for ${chat.title}`}
 												>
