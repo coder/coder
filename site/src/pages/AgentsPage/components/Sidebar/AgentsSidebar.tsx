@@ -916,49 +916,51 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								)}
 								{subagentChildren.length > 0 && (
 									<div className="py-0.5">
-										<div className="mb-0.5 text-xs font-medium text-content-secondary">
+										<div className="mb-0.5 text-sm font-medium text-content-secondary">
 											{subagentChildren.length} Subagents
 										</div>
-										{subagentChildren.map((child) => {
-											const childConfig = getStatusConfig(child.status);
-											const ChildStatusIcon = childConfig.icon;
-											const childDiff = getChatDiffStatus(child);
-											const childAdds = childDiff?.additions ?? 0;
-											const childDels = childDiff?.deletions ?? 0;
-											const childHasStats = childAdds > 0 || childDels > 0;
-											return (
-												<div
-													key={child.id}
-													className="flex items-center gap-2 py-0.5 text-sm"
-												>
-													<NavLink
-														to={{
-															pathname: `/agents/${child.id}`,
-															search: location.search,
-														}}
-														className="min-w-0 flex-1 truncate text-content-primary no-underline hover:underline"
+										<div className="relative border-l border-border-default/60 ml-1">
+											{subagentChildren.map((child) => {
+												const childConfig = getStatusConfig(child.status);
+												const ChildStatusIcon = childConfig.icon;
+												const childDiff = getChatDiffStatus(child);
+												const childAdds = childDiff?.additions ?? 0;
+												const childDels = childDiff?.deletions ?? 0;
+												const childHasStats = childAdds > 0 || childDels > 0;
+												const childIsRunning =
+													child.status === "running" ||
+													child.status === "pending";
+												return (
+													<div
+														key={child.id}
+														className="relative flex items-center gap-2 py-0.5 pl-3 text-sm before:absolute before:left-0 before:top-1/2 before:h-px before:w-3 before:bg-border-default/60"
 													>
-														{child.title}
-													</NavLink>
-													{childHasStats && (
-														<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
-															<span className="text-git-added-bright">
-																+{childAdds}
-															</span>
-															<span className="text-git-deleted-bright">
-																&minus;{childDels}
-															</span>
-														</span>
-													)}
-													<ChildStatusIcon
-														className={cn(
-															"h-3.5 w-3.5 shrink-0",
-															childConfig.className,
+														<NavLink
+															to={{
+																pathname: `/agents/${child.id}`,
+																search: location.search,
+															}}
+															className="min-w-0 flex-1 truncate text-content-primary no-underline hover:underline"
+														>
+															{child.title}
+														</NavLink>
+														{childHasStats && (
+															<ChildStatusIcon
+																className={cn(
+																	"h-3.5 w-3.5 shrink-0",
+																	childConfig.className,
+																)}
+															/>
 														)}
-													/>
-												</div>
-											);
-										})}
+														{childIsRunning ? (
+															<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+														) : child.has_unread ? (
+															<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
+														) : null}
+													</div>
+												);
+											})}
+										</div>
 									</div>
 								)}
 							</>
@@ -966,7 +968,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					})()}
 				</div>
 			)}
-			{hasChildren && isExpanded && !isChildNode && (
+			{hasChildren && isExpanded && !isChildNode && layout !== "narrow" && (
 				<div className="ml-4 mt-1 space-y-1 border-l border-border-default/60 pl-2.5 text-xs text-content-secondary">
 					<div className="flex gap-2">
 						<span className="w-16 shrink-0 font-medium">Created</span>
