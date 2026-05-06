@@ -111,7 +111,7 @@ func TestConvertMissingProvider(t *testing.T) {
 			"gpt-4o": {Cost: &upstreamCost{Input: floatPtr(2.5)}},
 		}},
 	}
-	// "anthropic" not present in upstream — should be skipped without panic.
+	// "anthropic" not present in upstream. Should be skipped without panic.
 	rows := convert(upstream, []string{"anthropic", "openai"})
 	require.Len(t, rows, 1)
 	require.Equal(t, "openai", rows[0].Provider)
