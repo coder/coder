@@ -884,8 +884,12 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																	const isLast = idx === children.length - 1;
 																	return (
 																		<div key={child.id} className="relative flex items-center gap-1 pl-3 text-sm">
-																			<div className={cn("absolute left-0 w-px bg-content-secondary/40", isLast ? "top-0 h-1/2" : "inset-y-0")} />
-																			<div className="absolute left-0 top-1/2 h-px w-2.5 -translate-y-px bg-content-secondary/40" />
+																				{/* Vertical line above the curve */}
+																				<div className="absolute left-0 top-0 h-[calc(50%-3px)] w-px bg-content-secondary/40" />
+																				{/* Curved corner */}
+																				<div className="absolute left-0 top-[calc(50%-3px)] h-[6px] w-2.5 border-0 border-b border-l border-solid border-content-secondary/40 rounded-bl-[4px]" />
+																				{/* Vertical line below (hidden for last child) */}
+																				{!isLast && <div className="absolute left-0 top-1/2 bottom-0 w-px bg-content-secondary/40" />}
 																			<NavLink
 																				to={{ pathname: `/agents/${child.id}`, search: location.search }}
 																				className="min-w-0 flex-1 truncate py-0.5 text-content-secondary no-underline hover:text-content-primary [&[aria-current=page]]:text-content-primary [&[aria-current=page]]:font-medium"
