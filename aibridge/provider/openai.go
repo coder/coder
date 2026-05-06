@@ -231,7 +231,7 @@ func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig
 			h.Set("Authorization", "Bearer "+key)
 		},
 		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
-			return keypool.MarkKeyOnStatus(ctx, key, resp.StatusCode, resp, logger, name)
+			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
 		},
 		BuildExhaustedResponse: func(err error) *http.Response {
 			return chatcompletions.MapExhaustionError(err).ToResponse()

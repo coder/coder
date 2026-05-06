@@ -232,7 +232,7 @@ func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverCon
 			h.Set("X-Api-Key", key)
 		},
 		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
-			return keypool.MarkKeyOnStatus(ctx, key, resp.StatusCode, resp, logger, name)
+			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
 		},
 		BuildExhaustedResponse: func(err error) *http.Response {
 			return messages.MapExhaustionError(err).ToResponse()
