@@ -358,7 +358,6 @@ These files may be gitignored, read manually if not auto-loaded.
 2. **OAuth2 errors** → Return RFC-compliant format
 3. **Race conditions** → Use unique test identifiers
 4. **Missing newlines** → Ensure files end with newline
-5. **SSR/Node checks in site/** → Remove `typeof window`, `typeof document`, etc.; Coder is a pure SPA
 
 ---
 
