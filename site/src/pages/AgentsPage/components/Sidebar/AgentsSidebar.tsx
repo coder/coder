@@ -891,8 +891,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																			"flex items-center gap-1 border-l border-content-secondary/40 text-sm",
 																			isLast && "border-transparent",
 																		)}
-																	>
-																	<NavLink
+																		>
+																			{/* Horizontal branch */}
+																			<div className="h-px w-2 shrink-0 bg-content-secondary/40" />
+																			<NavLink
 																		to={{
 																			pathname: `/agents/${child.id}`,
 																			search: location.search,
