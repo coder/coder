@@ -654,7 +654,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</>
 								)}
 							</NavLink>
-							<div className="relative flex shrink-0 items-center justify-end gap-1 py-1">
+							<div className="relative flex shrink-0 items-center justify-end py-1">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
