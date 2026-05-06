@@ -949,7 +949,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									? "grid-cols-[2rem_1fr_9rem_8rem_2rem_2rem]"
 									: "grid-cols-[2rem_1fr_7rem_6rem_2rem_2rem]",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
-								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary",
+								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:border-transparent",
 							)}
 						>
 							{/* Col 1: Chevron */}
