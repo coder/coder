@@ -26,6 +26,7 @@ import {
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	ChevronUpIcon,
 	CoinsIcon,
 	EllipsisVerticalIcon,
 	FilterIcon,
@@ -1340,7 +1341,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<FeatureStageBadge
 								contentType="beta"
 								size="sm"
-								className="text-[10px] px-1.5 py-0.5"
+								className="py-0.5"
 							/>
 						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
@@ -1478,18 +1479,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
 														<div className="[&:not(:first-child)]:mt-3">
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<button
-																	type="button"
-																	onClick={() => toggleSection("Pinned")}
-																	className="flex items-center gap-1 text-xs font-medium text-content-secondary hover:text-content-primary"
-																>
-																	{collapsedSections.has("Pinned") ? (
-																		<ChevronRightIcon className="h-3 w-3" />
-																	) : (
-																		<ChevronDownIcon className="h-3 w-3" />
-																	)}
-																	<span>Pinned ({pinnedChats.length})</span>
+															<button
+																type="button"
+																onClick={() => toggleSection("Pinned")}
+																className="mb-1 flex w-full items-center justify-between px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary"
+															>
+																<span className="flex items-center gap-1.5">
+																	Pinned ({pinnedChats.length})
 																	{collapsedSections.has("Pinned") &&
 																		pinnedChats.some((c) => c.has_unread) && (
 																			<span
@@ -1497,8 +1493,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																				aria-hidden="true"
 																			/>
 																		)}
-																</button>
-															</div>
+																</span>
+																{collapsedSections.has("Pinned") ? (
+																	<ChevronDownIcon className="h-4 w-4 shrink-0" />
+																) : (
+																	<ChevronUpIcon className="h-4 w-4 shrink-0" />
+																)}
+															</button>
 															{!collapsedSections.has("Pinned") && (
 																<DndContext
 																	sensors={sensors}
@@ -1541,20 +1542,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																key={group}
 																className="[&:not(:first-child)]:mt-3"
 															>
-																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																	<button
-																		type="button"
-																		onClick={() => toggleSection(group)}
-																		className="flex items-center gap-1 text-xs font-medium text-content-secondary hover:text-content-primary"
-																	>
-																		{collapsedSections.has(group) ? (
-																			<ChevronRightIcon className="h-3 w-3" />
-																		) : (
-																			<ChevronDownIcon className="h-3 w-3" />
-																		)}
-																		<span>
-																			{group} ({groupChats.length})
-																		</span>
+																<button
+																	type="button"
+																	onClick={() => toggleSection(group)}
+																	className="mb-1 flex w-full items-center justify-between px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary"
+																>
+																	<span className="flex items-center gap-1.5">
+																		{group} ({groupChats.length})
 																		{collapsedSections.has(group) &&
 																			groupChats.some((c) => c.has_unread) && (
 																				<span
@@ -1562,8 +1556,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																					aria-hidden="true"
 																				/>
 																			)}
-																	</button>
-																</div>
+																	</span>
+																	{collapsedSections.has(group) ? (
+																		<ChevronDownIcon className="h-4 w-4 shrink-0" />
+																	) : (
+																		<ChevronUpIcon className="h-4 w-4 shrink-0" />
+																	)}
+																</button>
 																{!collapsedSections.has(group) && (
 																	<div className="flex flex-col gap-0.5">
 																		{groupChats.map((chat) => (
