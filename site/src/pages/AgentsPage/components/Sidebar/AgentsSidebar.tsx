@@ -663,7 +663,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								) : (
 									<>
 										{/* Single status indicator, priority: spinner > unread > error > time */}
-										<span className="flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										<span className="flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden group-has-[[aria-current=page]]:hidden">
 											{isMainRunning || hasRunningChildren ? (
 												<div className="flex h-4 w-4 items-center justify-center">
 													{isMainRunning && hasRunningChildren ? (
@@ -702,7 +702,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<Button
 													size="icon"
 													variant="subtle"
-													className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+													className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-has-[[aria-current=page]]:opacity-100"
 													aria-label={`Open actions for ${chat.title}`}
 												>
 													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
