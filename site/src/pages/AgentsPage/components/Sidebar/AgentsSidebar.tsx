@@ -587,7 +587,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md px-2 text-content-secondary",
+								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md px-1.5 py-1 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 								isChildNode &&
@@ -726,7 +726,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center gap-2 rounded-md px-2 text-content-secondary",
+								"group relative flex min-w-0 select-none items-center gap-2 rounded-md px-1.5 py-1 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
@@ -1397,7 +1397,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 py-3">
+						<div className="flex flex-col gap-2 px-2 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
@@ -1414,7 +1414,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										{Array.from({ length: 6 }, (_, i) => (
 											<div
 												key={i}
-												className="flex items-start gap-2 rounded-md px-2 py-1"
+												className="flex items-start gap-2 rounded-md px-1.5 py-1"
 											>
 												<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
 												<div className="min-w-0 flex-1 space-y-1.5">
@@ -1460,11 +1460,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											{/* At narrow widths, show only the filter icon.
 								   At medium/large, show full search input with filter. */}
 											{layout === "narrow" ? (
-												<div className="mb-2 flex justify-end px-2">
+												<div className="mb-2 flex justify-end">
 													{filterDropdown}
 												</div>
 											) : (
-												<div className="mb-2 flex items-center gap-1.5 px-2">
+												<div className="mb-2 flex items-center gap-1.5">
 													<div className="relative flex-1">
 														<SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-secondary" />
 														<input
@@ -1485,7 +1485,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-2 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
@@ -1552,7 +1552,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-2 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
@@ -1839,7 +1839,7 @@ type SettingsNavItemProps = {
 
 const navItemClassName = (active: boolean, disabled: boolean | undefined) =>
 	cn(
-		"flex w-full items-center gap-2.5 rounded-md border-0 px-2 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
+		"flex w-full items-center gap-2.5 rounded-md border-0 px-1.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
 		active
 			? "bg-surface-quaternary/25 text-content-primary font-medium"
 			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
