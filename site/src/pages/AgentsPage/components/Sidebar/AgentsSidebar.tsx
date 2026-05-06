@@ -947,7 +947,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								"group relative grid min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
 								layout === "large"
 									? "grid-cols-[2rem_1fr_9rem_8rem_2rem_2rem]"
-									: "grid-cols-[2rem_1fr_auto_auto_2rem_2rem]",
+									: "grid-cols-[2rem_1fr_7rem_6rem_2rem_2rem]",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary",
 							)}
