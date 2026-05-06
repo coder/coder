@@ -1394,7 +1394,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 px-2 py-3">
+						<div className="flex flex-col gap-2 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
@@ -1411,7 +1411,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										{Array.from({ length: 6 }, (_, i) => (
 											<div
 												key={i}
-												className="flex items-start gap-2 rounded-md px-2 py-1"
+												className="flex items-start gap-2 rounded-md px-3 py-1"
 											>
 												<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
 												<div className="min-w-0 flex-1 space-y-1.5">
@@ -1457,11 +1457,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											{/* At narrow widths, show only the filter icon.
 								   At medium/large, show full search input with filter. */}
 											{layout === "narrow" ? (
-												<div className="mb-2 flex justify-end px-0.5">
+												<div className="mb-2 flex justify-end px-3">
 													{filterDropdown}
 												</div>
 											) : (
-												<div className="mb-2 flex items-center gap-1.5 px-2">
+												<div className="mb-2 flex items-center gap-1.5 px-3">
 													<div className="relative flex-1">
 														<SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-secondary" />
 														<input
