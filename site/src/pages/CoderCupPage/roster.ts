@@ -1,8 +1,7 @@
 /**
- * Codernaut roster — parsed from codernauts.csv.
+ * Codernaut roster.
  *
- * To change who appears in the game, edit codernauts.csv in this
- * directory (columns: name, role) and mirror the changes here.
+ * To change who appears in the game, edit the entries below.
  */
 
 export interface RosterEntry {

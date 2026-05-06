@@ -310,9 +310,7 @@ function createCodernauts(
 	for (let pi = 0; pi < pads.length; pi++) {
 		const pad = pads[pi];
 		if (pad.isStation) continue;
-		const rel =
-			pad.width /
-			((typeof window !== "undefined" ? window.innerWidth : 1200) || 1200);
+		const rel = pad.width / (window.innerWidth || 1200);
 		let cap: number;
 		if (rel >= 0.05) cap = 5;
 		else if (rel >= 0.03) cap = 3 + Math.round(Math.random());
