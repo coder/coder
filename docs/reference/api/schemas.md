@@ -2133,7 +2133,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "last_error": {
         "detail": "string",
-        "kind": "string",
+        "kind": "generic",
         "message": "string",
         "provider": "string",
         "retryable": true,
@@ -2197,6 +2197,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -2256,7 +2257,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "last_error": {
     "detail": "string",
-    "kind": "string",
+    "kind": "generic",
     "message": "string",
     "provider": "string",
     "retryable": true,
@@ -2320,6 +2321,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -2358,6 +2360,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_injected_context` | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)   | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
 | `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2494,7 +2497,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "detail": "string",
-  "kind": "string",
+  "kind": "generic",
   "message": "string",
   "provider": "string",
   "retryable": true,
@@ -2504,14 +2507,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description                                                                                               |
-|---------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
-| `detail`      | string  | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available. |
-| `kind`        | string  | false    |              | Kind classifies the error for consistent client rendering.                                                |
-| `message`     | string  | false    |              | Message is the normalized, user-facing error message.                                                     |
-| `provider`    | string  | false    |              | Provider identifies the upstream model provider when known.                                               |
-| `retryable`   | boolean | false    |              | Retryable reports whether the underlying error is transient.                                              |
-| `status_code` | integer | false    |              | Status code is the best-effort upstream HTTP status code.                                                 |
+| Name          | Type                                             | Required | Restrictions | Description                                                                                               |
+|---------------|--------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
+| `detail`      | string                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available. |
+| `kind`        | [codersdk.ChatErrorKind](#codersdkchaterrorkind) | false    |              | Kind classifies the error for consistent client rendering.                                                |
+| `message`     | string                                           | false    |              | Message is the normalized, user-facing error message.                                                     |
+| `provider`    | string                                           | false    |              | Provider identifies the upstream model provider when known.                                               |
+| `retryable`   | boolean                                          | false    |              | Retryable reports whether the underlying error is transient.                                              |
+| `status_code` | integer                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                 |
+
+## codersdk.ChatErrorKind
+
+```json
+"generic"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                             |
+|------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -3226,7 +3243,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "error": {
     "detail": "string",
-    "kind": "string",
+    "kind": "generic",
     "message": "string",
     "provider": "string",
     "retryable": true,
@@ -3433,7 +3450,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "attempt": 0,
     "delay_ms": 0,
     "error": "string",
-    "kind": "string",
+    "kind": "generic",
     "provider": "string",
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
@@ -3550,7 +3567,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "attempt": 0,
   "delay_ms": 0,
   "error": "string",
-  "kind": "string",
+  "kind": "generic",
   "provider": "string",
   "retrying_at": "2019-08-24T14:15:22Z",
   "status_code": 0
@@ -3559,15 +3576,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description                                                       |
-|---------------|---------|----------|--------------|-------------------------------------------------------------------|
-| `attempt`     | integer | false    |              | Attempt is the 1-indexed retry attempt number.                    |
-| `delay_ms`    | integer | false    |              | Delay ms is the backoff delay in milliseconds before the retry.   |
-| `error`       | string  | false    |              | Error is the normalized error message from the failed attempt.    |
-| `kind`        | string  | false    |              | Kind classifies the retry reason for consistent client rendering. |
-| `provider`    | string  | false    |              | Provider identifies the upstream model provider when known.       |
-| `retrying_at` | string  | false    |              | Retrying at is the timestamp when the retry will be attempted.    |
-| `status_code` | integer | false    |              | Status code is the best-effort upstream HTTP status code.         |
+| Name          | Type                                             | Required | Restrictions | Description                                                       |
+|---------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------|
+| `attempt`     | integer                                          | false    |              | Attempt is the 1-indexed retry attempt number.                    |
+| `delay_ms`    | integer                                          | false    |              | Delay ms is the backoff delay in milliseconds before the retry.   |
+| `error`       | string                                           | false    |              | Error is the normalized error message from the failed attempt.    |
+| `kind`        | [codersdk.ChatErrorKind](#codersdkchaterrorkind) | false    |              | Kind classifies the retry reason for consistent client rendering. |
+| `provider`    | string                                           | false    |              | Provider identifies the upstream model provider when known.       |
+| `retrying_at` | string                                           | false    |              | Retrying at is the timestamp when the retry will be attempted.    |
+| `status_code` | integer                                          | false    |              | Status code is the best-effort upstream HTTP status code.         |
 
 ## codersdk.ChatStreamStatus
 
@@ -3653,7 +3670,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "last_error": {
       "detail": "string",
-      "kind": "string",
+      "kind": "generic",
       "message": "string",
       "provider": "string",
       "retryable": true,
@@ -3717,6 +3734,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_turn_summary": "string",
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
@@ -3763,9 +3781,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                       |
-|------------------------------------------------------------------------------------------------|
-| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `title_change` |
+| Value(s)                                                                                                         |
+|------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ConnectionLatency
 
@@ -6389,12 +6407,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                  |
-|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `id`               | integer | false    |              | ID identifies the request. The response contains the same ID so that the client can match it to the request. |
-| `inputs`           | object  | false    |              |                                                                                                              |
-| » `[any property]` | string  | false    |              |                                                                                                              |
-| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                           |
+| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                            |
+|--------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `id`               | integer | false    |              | ID identifies the request for response ordering. Websocket response IDs are monotonically increasing and may exceed the request ID when server-side events trigger additional renders. |
+| `inputs`           | object  | false    |              |                                                                                                                                                                                        |
+| » `[any property]` | string  | false    |              |                                                                                                                                                                                        |
+| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                                                                                                     |
 
 ## codersdk.DynamicParametersResponse
 
@@ -17548,19 +17566,21 @@ None
 
 ### Properties
 
-| Name          | Type                         | Required | Restrictions | Description                                        |
-|---------------|------------------------------|----------|--------------|----------------------------------------------------|
-| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
-| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port (see Hostname and Port methods)  |
-| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
-| `opaque`      | string                       | false    |              | encoded opaque data                                |
-| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
-| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
-| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
-| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
-| `scheme`      | string                       | false    |              |                                                    |
-| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                            |
+|--------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `forceQuery` | boolean | false    |              | Forcequery indicates whether the original URL contained a query ('?') character. When set, the String method will include a trailing '?', even when RawQuery is empty. |
+| `fragment`   | string  | false    |              | fragment for references (without '#')                                                                                                                                  |
+| `host`       | string  | false    |              | "host" or "host:port" (see Hostname and Port methods)                                                                                                                  |
+| `omitHost`   | boolean | false    |              | Omithost indicates the URL has an empty host (authority). When set, the String method will not include the host when it is empty.                                      |
+| `opaque`     | string  | false    |              | encoded opaque data                                                                                                                                                    |
+| `path`       | string  | false    |              | path (relative paths may omit leading slash)                                                                                                                           |
+|`rawFragment`|string|false||Rawfragment is an optional field containing an encoded fragment hint. See the EscapedFragment method for more details.
+In general, code should call EscapedFragment instead of reading RawFragment.|
+|`rawPath`|string|false||Rawpath is an optional field containing an encoded path hint. See the EscapedPath method for more details.
+In general, code should call EscapedPath instead of reading RawPath.|
+|`rawQuery`|string|false||Rawquery contains the encoded query values, without the initial '?'. Use URL.Query to decode the query.|
+|`scheme`|string|false|||
+|`user`|[url.Userinfo](#urluserinfo)|false||username and password information|
 
 ## serpent.ValueSource
 

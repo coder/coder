@@ -248,7 +248,7 @@ func (p *Server) maybeGenerateChatTitle(
 			return
 		}
 
-		_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+		_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
 			ID:    chat.ID,
 			Title: title,
 		})

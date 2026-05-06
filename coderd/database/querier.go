@@ -591,10 +591,13 @@ type sqlcQuerier interface {
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
-	// Find chats that appear stuck and need recovery. This covers:
+	// Find chats that appear stuck and need recovery:
 	//   1. Running chats whose heartbeat has expired (worker crash).
-	//   2. Chats awaiting client action (requires_action) past the
-	//      timeout threshold (client disappeared).
+	//   2. requires_action chats past the timeout threshold (client
+	//      disappeared).
+	//   3. Waiting chats with a non-empty queue and stale updated_at
+	//      (deferred-promote stranding when the worker dies before its
+	//      post-cancel cleanup runs).
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)
@@ -1012,6 +1015,9 @@ type sqlcQuerier interface {
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
+	// Mutates only created_at on the target row; ids are unchanged so
+	// consumers can keep tracking queued messages by id.
+	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
 	// Resolves the effective spend limit for a user using the hierarchy:
 	// 1. Individual user override (highest priority, applies globally across
 	//    all organizations since it lives on the users table)
@@ -1114,6 +1120,16 @@ type sqlcQuerier interface {
 	// Updates the last read message ID for a chat. This is used to track
 	// which messages the owner has seen, enabling unread indicators.
 	UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error
+	// Updates the cached last completed turn summary for sidebar display.
+	// Empty or whitespace-only summaries are stored as NULL here so direct
+	// query callers cannot accidentally persist blank sidebar text.
+	// This intentionally preserves updated_at. The staleness guard relies on
+	// every new-turn query, such as UpdateChatStatus and AcquireChats, bumping
+	// updated_at. Future chat-field updates that do not bump updated_at can let
+	// stale summaries persist. If this query ever bumps updated_at, later
+	// goroutine summary writes will be rejected as stale.
+	// Two summary workers using the same freshness marker are last-write-wins.
+	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)

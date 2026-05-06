@@ -162,8 +162,9 @@ type PreviewParameterValidation struct {
 }
 
 type DynamicParametersRequest struct {
-	// ID identifies the request. The response contains the same
-	// ID so that the client can match it to the request.
+	// ID identifies the request for response ordering. Websocket response
+	// IDs are monotonically increasing and may exceed the request ID when
+	// server-side events trigger additional renders.
 	ID     int               `json:"id"`
 	Inputs map[string]string `json:"inputs"`
 	// OwnerID if uuid.Nil, it defaults to `codersdk.Me`

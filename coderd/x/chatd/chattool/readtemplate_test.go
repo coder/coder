@@ -62,7 +62,7 @@ func TestReadTemplate_IncludesPresets(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
+	tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 		OwnerID: user.ID,
 	})
 
@@ -162,7 +162,7 @@ func TestReadTemplate_NoPresets(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
+	tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 		OwnerID: user.ID,
 	})
 

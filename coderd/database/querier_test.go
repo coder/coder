@@ -11448,6 +11448,111 @@ func TestChatLabels(t *testing.T) {
 	})
 }
 
+func TestUpdateChatLastTurnSummary(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "summary-chat",
+	})
+	require.NoError(t, err)
+
+	affected, err := db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: "resolved the issue", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "resolved the issue", Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: " \n\t ", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	fetched, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, fetched.LastTurnSummary.Valid)
+	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: "fresh summary", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	advancedUpdatedAt := chat.UpdatedAt.Add(time.Second)
+	_, err = db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusRunning,
+		UpdatedAt: advancedUpdatedAt,
+	})
+	require.NoError(t, err)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: "stale summary", Valid: true},
+	})
+	require.NoError(t, err)
+	require.Zero(t, affected)
+
+	fetched, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "fresh summary", Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
+}
+
 func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	t.Parallel()
 

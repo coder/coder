@@ -10,12 +10,12 @@ import { docs } from "#/utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
+	"quickstart",
 	"docker",
 	"kubernetes",
 	"aws-linux",
-	"aws-windows",
 	"gcp-linux",
-	"gcp-windows",
+	"azure-linux",
 ];
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {

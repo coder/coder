@@ -112,6 +112,7 @@ const makeChat = (
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -2027,6 +2028,57 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe("22222222-2222-4222-8222-222222222222");
 	});
 
+	it("merges last_turn_summary when watched updated_at equals cached updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: "Previous summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Updated summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBe("Updated summary");
+	});
+
+	it("applies summary_change even when event updated_at is older", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Fixed the issue",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBe("Fixed the issue");
+	});
+
+	it("clears last_turn_summary on summary updates with matching updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: "Previous summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBeNull();
+	});
+
 	it("compares updated_at values as instants instead of strings", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "pending",
@@ -2214,6 +2266,25 @@ describe("mergeWatchedChatSummary", () => {
 				activeChatId: "chat-2",
 			}).has_unread,
 		).toBe(true);
+	});
+
+	it("preserves has_unread for summary changes on inactive chats", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Updated summary",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(false);
 	});
 
 	it("preserves has_unread for the active chat", () => {

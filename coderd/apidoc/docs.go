@@ -15497,6 +15497,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_turn_summary": {
+                    "type": "string"
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -15679,7 +15682,11 @@ const docTemplate = `{
                 },
                 "kind": {
                     "description": "Kind classifies the error for consistent client rendering.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatErrorKind"
+                        }
+                    ]
                 },
                 "message": {
                     "description": "Message is the normalized, user-facing error message.",
@@ -15698,6 +15705,29 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.ChatErrorKind": {
+            "type": "string",
+            "enum": [
+                "generic",
+                "overloaded",
+                "rate_limit",
+                "timeout",
+                "startup_timeout",
+                "auth",
+                "config",
+                "usage_limit"
+            ],
+            "x-enum-varnames": [
+                "ChatErrorKindGeneric",
+                "ChatErrorKindOverloaded",
+                "ChatErrorKindRateLimit",
+                "ChatErrorKindTimeout",
+                "ChatErrorKindStartupTimeout",
+                "ChatErrorKindAuth",
+                "ChatErrorKindConfig",
+                "ChatErrorKindUsageLimit"
+            ]
         },
         "codersdk.ChatFileMetadata": {
             "type": "object",
@@ -16266,7 +16296,11 @@ const docTemplate = `{
                 },
                 "kind": {
                     "description": "Kind classifies the retry reason for consistent client rendering.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatErrorKind"
+                        }
+                    ]
                 },
                 "provider": {
                     "description": "Provider identifies the upstream model provider when known.",
@@ -16326,6 +16360,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "status_change",
+                "summary_change",
                 "title_change",
                 "created",
                 "deleted",
@@ -16334,6 +16369,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
+                "ChatWatchEventKindSummaryChange",
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
@@ -17840,7 +17876,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
-                    "description": "ID identifies the request. The response contains the same\nID so that the client can match it to the request.",
+                    "description": "ID identifies the request for response ordering. Websocket response\nIDs are monotonically increasing and may exceed the request ID when\nserver-side events trigger additional renders.",
                     "type": "integer"
                 },
                 "inputs": {
@@ -26384,19 +26420,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "forceQuery": {
-                    "description": "append a query ('?') even if RawQuery is empty",
+                    "description": "ForceQuery indicates whether the original URL contained a query ('?') character.\nWhen set, the String method will include a trailing '?', even when RawQuery is empty.",
                     "type": "boolean"
                 },
                 "fragment": {
-                    "description": "fragment for references, without '#'",
+                    "description": "fragment for references (without '#')",
                     "type": "string"
                 },
                 "host": {
-                    "description": "host or host:port (see Hostname and Port methods)",
+                    "description": "\"host\" or \"host:port\" (see Hostname and Port methods)",
                     "type": "string"
                 },
                 "omitHost": {
-                    "description": "do not emit empty host (authority)",
+                    "description": "OmitHost indicates the URL has an empty host (authority).\nWhen set, the String method will not include the host when it is empty.",
                     "type": "boolean"
                 },
                 "opaque": {
@@ -26408,15 +26444,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rawFragment": {
-                    "description": "encoded fragment hint (see EscapedFragment method)",
+                    "description": "RawFragment is an optional field containing an encoded fragment hint.\nSee the EscapedFragment method for more details.\n\nIn general, code should call EscapedFragment instead of reading RawFragment.",
                     "type": "string"
                 },
                 "rawPath": {
-                    "description": "encoded path hint (see EscapedPath method)",
+                    "description": "RawPath is an optional field containing an encoded path hint.\nSee the EscapedPath method for more details.\n\nIn general, code should call EscapedPath instead of reading RawPath.",
                     "type": "string"
                 },
                 "rawQuery": {
-                    "description": "encoded query values, without '?'",
+                    "description": "RawQuery contains the encoded query values, without the initial '?'.\nUse URL.Query to decode the query.",
                     "type": "string"
                 },
                 "scheme": {

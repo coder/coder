@@ -710,7 +710,7 @@ func classifyStartupTimeout(
 		err = errStartupTimeout
 	}
 	return chaterror.WithClassification(err, chaterror.ClassifiedError{
-		Kind:      chaterror.KindStartupTimeout,
+		Kind:      codersdk.ChatErrorKindStartupTimeout,
 		Provider:  provider,
 		Retryable: true,
 	})

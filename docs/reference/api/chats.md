@@ -76,7 +76,7 @@ Experimental: this endpoint is subject to change.
     },
     "last_error": {
       "detail": "string",
-      "kind": "string",
+      "kind": "generic",
       "message": "string",
       "provider": "string",
       "retryable": true,
@@ -140,6 +140,7 @@ Experimental: this endpoint is subject to change.
       }
     ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_turn_summary": "string",
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
@@ -212,7 +213,7 @@ Status Code **200**
 | `»» [any property]`               | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `» last_error`                    | [codersdk.ChatError](schemas.md#codersdkchaterror)                     | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» detail`                       | string                                                                 | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                  |
-| `»» kind`                         | string                                                                 | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
+| `»» kind`                         | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)             | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
 | `»» message`                      | string                                                                 | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                      |
 | `»» provider`                     | string                                                                 | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                |
 | `»» retryable`                    | boolean                                                                | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                               |
@@ -261,6 +262,7 @@ Status Code **200**
 | `»» type`                         | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» url`                          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `» last_model_config_id`          | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
+| `» last_turn_summary`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `» mcp_server_ids`                | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» organization_id`               | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
@@ -279,6 +281,7 @@ Status Code **200**
 | Property      | Value(s)                                                                                                     |
 |---------------|--------------------------------------------------------------------------------------------------------------|
 | `client_type` | `api`, `ui`                                                                                                  |
+| `kind`        | `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit`         |
 | `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
 | `plan_mode`   | `plan`                                                                                                       |
 | `status`      | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting`                           |
@@ -403,7 +406,7 @@ Experimental: this endpoint is subject to change.
       },
       "last_error": {
         "detail": "string",
-        "kind": "string",
+        "kind": "generic",
         "message": "string",
         "provider": "string",
         "retryable": true,
@@ -467,6 +470,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -526,7 +530,7 @@ Experimental: this endpoint is subject to change.
   },
   "last_error": {
     "detail": "string",
-    "kind": "string",
+    "kind": "generic",
     "message": "string",
     "provider": "string",
     "retryable": true,
@@ -590,6 +594,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -800,7 +805,7 @@ Experimental: this endpoint is subject to change.
     },
     "last_error": {
       "detail": "string",
-      "kind": "string",
+      "kind": "generic",
       "message": "string",
       "provider": "string",
       "retryable": true,
@@ -864,6 +869,7 @@ Experimental: this endpoint is subject to change.
       }
     ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_turn_summary": "string",
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
@@ -977,7 +983,7 @@ Experimental: this endpoint is subject to change.
       },
       "last_error": {
         "detail": "string",
-        "kind": "string",
+        "kind": "generic",
         "message": "string",
         "provider": "string",
         "retryable": true,
@@ -1041,6 +1047,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -1100,7 +1107,7 @@ Experimental: this endpoint is subject to change.
   },
   "last_error": {
     "detail": "string",
-    "kind": "string",
+    "kind": "generic",
     "message": "string",
     "provider": "string",
     "retryable": true,
@@ -1164,6 +1171,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -1358,7 +1366,7 @@ Experimental: this endpoint is subject to change.
       },
       "last_error": {
         "detail": "string",
-        "kind": "string",
+        "kind": "generic",
         "message": "string",
         "provider": "string",
         "retryable": true,
@@ -1422,6 +1430,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -1481,7 +1490,7 @@ Experimental: this endpoint is subject to change.
   },
   "last_error": {
     "detail": "string",
-    "kind": "string",
+    "kind": "generic",
     "message": "string",
     "provider": "string",
     "retryable": true,
@@ -1545,6 +1554,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -2135,7 +2145,7 @@ Experimental: this endpoint is subject to change.
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "error": {
     "detail": "string",
-    "kind": "string",
+    "kind": "generic",
     "message": "string",
     "provider": "string",
     "retryable": true,
@@ -2342,7 +2352,7 @@ Experimental: this endpoint is subject to change.
     "attempt": 0,
     "delay_ms": 0,
     "error": "string",
-    "kind": "string",
+    "kind": "generic",
     "provider": "string",
     "retrying_at": "2019-08-24T14:15:22Z",
     "status_code": 0
@@ -2518,7 +2528,7 @@ Experimental: this endpoint is subject to change.
       },
       "last_error": {
         "detail": "string",
-        "kind": "string",
+        "kind": "generic",
         "message": "string",
         "provider": "string",
         "retryable": true,
@@ -2582,6 +2592,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -2641,7 +2652,7 @@ Experimental: this endpoint is subject to change.
   },
   "last_error": {
     "detail": "string",
-    "kind": "string",
+    "kind": "generic",
     "message": "string",
     "provider": "string",
     "retryable": true,
@@ -2705,6 +2716,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],

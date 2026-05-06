@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -6096,7 +6097,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
 		event := waitForChatWatchStatusChangeEvent(ctx, t, conn, chat.ID)
 		require.Equal(t, modelConfigB.ID, event.Chat.LastModelConfigID)
@@ -8163,30 +8164,30 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var promoted codersdk.ChatMessage
-		err = json.NewDecoder(promoteRes.Body).Decode(&promoted)
-		require.NoError(t, err)
-		require.NotZero(t, promoted.ID)
-		require.Equal(t, chat.ID, promoted.ChatID)
-		require.Equal(t, codersdk.ChatMessageRoleUser, promoted.Role)
-
-		foundPromotedText := false
-		for _, part := range promoted.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText &&
-				part.Text == queuedText {
-				foundPromotedText = true
-				break
-			}
-		}
-		require.True(t, foundPromotedText)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
+		require.NotEmpty(t, resp.Message)
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		for _, queued := range messagesResult.QueuedMessages {
 			require.NotEqual(t, queuedMessage.ID, queued.ID)
 		}
+
+		foundPromoted := false
+		for _, msg := range messagesResult.Messages {
+			if msg.Role != codersdk.ChatMessageRoleUser {
+				continue
+			}
+			for _, part := range msg.Content {
+				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
+					foundPromoted = true
+				}
+			}
+		}
+		require.True(t, foundPromoted, "promoted message must appear in chat history")
 
 		queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -8246,23 +8247,26 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 
-		var promoted codersdk.ChatMessage
-		err = json.NewDecoder(promoteRes.Body).Decode(&promoted)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
+		require.NotEmpty(t, resp.Message)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		require.NotZero(t, promoted.ID)
-		require.Equal(t, chat.ID, promoted.ChatID)
-		require.Equal(t, codersdk.ChatMessageRoleUser, promoted.Role)
-
-		foundPromotedText := false
-		for _, part := range promoted.Content {
-			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
-				foundPromotedText = true
-				break
+		foundPromoted := false
+		for _, msg := range messagesResult.Messages {
+			if msg.Role != codersdk.ChatMessageRoleUser {
+				continue
+			}
+			for _, part := range msg.Content {
+				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
+					foundPromoted = true
+				}
 			}
 		}
-		require.True(t, foundPromotedText)
+		require.True(t, foundPromoted, "promoted message must appear in chat history")
 
 		queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -8391,6 +8395,212 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		var promoteSDKErr *codersdk.Error
 		require.ErrorAs(t, promoteErr, &promoteSDKErr)
 		require.Contains(t, promoteSDKErr.Message, "archived")
+	})
+
+	t.Run("WhileRequiresAction", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const dynamicToolName = "my_dynamic_tool"
+		dynamicTools := []mcp.Tool{{
+			Name:        dynamicToolName,
+			Description: "a test dynamic tool",
+			InputSchema: mcp.ToolInputSchema{Type: "object"},
+		}}
+		dtJSON, err := json.Marshal(dynamicTools)
+		require.NoError(t, err)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "promote queued requires-action route test",
+			DynamicTools:      pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
+		})
+		require.NoError(t, err)
+
+		const pendingToolCallID = "call_pending"
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: pendingToolCallID,
+			ToolName:   dynamicToolName,
+			Args:       json.RawMessage(`{"x":1}`),
+		}})
+		require.NoError(t, err)
+
+		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Content:             []string{string(assistantContent.RawMessage)},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusRequiresAction,
+		})
+		require.NoError(t, err)
+
+		const queuedText = "queued message for requires-action promote"
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(queuedText),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		promoteRes, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
+		require.NotEmpty(t, resp.Message)
+
+		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		require.NoError(t, err)
+
+		var (
+			syntheticID int64
+			promotedID  int64
+		)
+		for _, msg := range messages {
+			parts, parseErr := chatprompt.ParseContent(msg)
+			require.NoError(t, parseErr)
+			for _, part := range parts {
+				if msg.Role == database.ChatMessageRoleTool &&
+					part.Type == codersdk.ChatMessagePartTypeToolResult &&
+					part.ToolCallID == pendingToolCallID &&
+					part.IsError {
+					syntheticID = msg.ID
+				}
+				if msg.Role == database.ChatMessageRoleUser &&
+					part.Type == codersdk.ChatMessagePartTypeText &&
+					part.Text == queuedText {
+					promotedID = msg.ID
+				}
+			}
+		}
+		require.NotZero(t, syntheticID,
+			"expected a synthetic error tool result for the pending tool call")
+		require.NotZero(t, promotedID,
+			"expected the promoted user message in chat history")
+		require.Less(t, syntheticID, promotedID,
+			"synthetic tool result must precede the promoted user message")
+
+		queuedRemaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		for _, qm := range queuedRemaining {
+			require.NotEqual(t, queuedMessage.ID, qm.ID)
+		}
+	})
+
+	t.Run("WhileRunning", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "promote queued running route test",
+		})
+		require.NoError(t, err)
+
+		// Simulate an active worker by setting status to running.
+		// We do not start a real worker; the running-case behavior
+		// (reorder + set waiting + clear worker) does not depend on
+		// one. The deferred auto-promote is exercised by the
+		// chatd-package tests where a real worker is involved.
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		})
+		require.NoError(t, err)
+
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("running-promote"),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		promoteRes, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
+		require.NotEmpty(t, resp.Message)
+
+		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, after.Status,
+			"running-case promote must transition chat to waiting")
+		require.False(t, after.WorkerID.Valid,
+			"running-case promote must clear WorkerID")
+
+		queuedRemaining, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Len(t, queuedRemaining, 1)
+		require.Equal(t, queuedMessage.ID, queuedRemaining[0].ID,
+			"queued message ID must stay stable across reorder")
 	})
 }
 
@@ -13470,4 +13680,190 @@ func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Erro
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, expectedStatus, sdkErr.StatusCode())
 	return sdkErr
+}
+
+// TestChatOwnerOnlyWriteHandlers verifies that only the chat owner can
+// call handlers that trigger chat processing. Org admins pass the RBAC
+// ActionUpdate check (org-level permission) but must still be blocked
+// because processing forwards the *owner's* credentials to external
+// services.
+func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
+	t.Parallel()
+
+	// setupOrgAdminAndOwnerChat creates an org-admin user and a chat
+	// owned by the first (site-admin) user. Returns both clients,
+	// the chat, and the DB handle.
+	setupOrgAdminAndOwnerChat := func(t *testing.T) (
+		ownerClient *codersdk.ExperimentalClient,
+		adminClient *codersdk.ExperimentalClient,
+		chat codersdk.Chat,
+		db database.Store,
+	) {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db = newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModelConfig(t, ownerClient)
+
+		// Create a chat owned by the first user.
+		var err error
+		chat, err = ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "owner chat for authz test",
+			}},
+		})
+		require.NoError(t, err)
+
+		// Create an org admin in the same org.
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(
+			t,
+			ownerClient.Client,
+			firstUser.OrganizationID,
+			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+		)
+		adminClient = codersdk.NewExperimentalClient(orgAdminRaw)
+		return ownerClient, adminClient, chat, db
+	}
+
+	t.Run("PostChatMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "org admin should not be able to send this",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("PatchChatMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		// Fetch the first user message to get a valid message ID.
+		messagesResult, err := ownerClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		_, err = adminClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "org admin should not be able to edit this",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, db := setupOrgAdminAndOwnerChat(t)
+
+		// Insert a queued message directly in the DB.
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		// Org admin tries to promote.
+		promoteRes, err := adminClient.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
+	})
+
+	t.Run("SubmitToolResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{
+				ToolCallID: "call_forbidden",
+				Output:     json.RawMessage(`"forbidden"`),
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("RegenerateChatTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.RegenerateChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("ProposeChatTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.ProposeChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	// Verify the owner can still operate normally.
+	t.Run("OwnerCanSendMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, _, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := ownerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "owner should succeed",
+			}},
+		})
+		// The message is accepted (no 403). It may fail downstream
+		// (e.g. no running LLM) but that is not a 403.
+		if err != nil {
+			var sdkErr *codersdk.Error
+			if xerrors.As(err, &sdkErr) {
+				require.NotEqual(t, http.StatusForbidden, sdkErr.StatusCode(),
+					"owner must not receive 403")
+			}
+		}
+	})
 }

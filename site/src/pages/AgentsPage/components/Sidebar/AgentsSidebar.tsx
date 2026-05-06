@@ -31,6 +31,10 @@ import {
 	EllipsisVerticalIcon,
 	FilterIcon,
 	FlaskConicalIcon,
+	GitMergeIcon,
+	GitPullRequestArrowIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
 	KeyIcon,
 	LayoutTemplateIcon,
 	Loader2Icon,
@@ -103,6 +107,7 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
@@ -209,12 +214,36 @@ const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
 };
 
-const asNonEmptyString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") {
+
+/**
+ * Returns the icon and className to use for a PR state, or undefined
+ * if there is no PR linked. Only overrides the icon when the chat
+ * is not actively executing (pending/running/paused/error).
+ */
+const getPRIconConfig = (
+	diffStatus: ChatDiffStatus | undefined,
+): { icon: typeof CheckIcon; className: string } | undefined => {
+	const state = diffStatus?.pull_request_state;
+	if (!state) {
 		return undefined;
 	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
+	if (state === "merged") {
+		return { icon: GitMergeIcon, className: "text-git-merged-bright" };
+	}
+	if (state === "closed") {
+		return {
+			icon: GitPullRequestClosedIcon,
+			className: "text-git-deleted-bright",
+		};
+	}
+	// state === "open"
+	if (diffStatus?.pull_request_draft) {
+		return {
+			icon: GitPullRequestDraftIcon,
+			className: "text-content-secondary",
+		};
+	}
+	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
 };
 
 const getModelDisplayName = (
@@ -537,8 +566,9 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const { layout } = useSidebarWidth();
+	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
 	const diffStatus = getChatDiffStatus(chat);
-	const subtitle = errorReason || getActionSummary(chat) || modelName;
+	const subtitle = errorReason || lastTurnSummary || getActionSummary(chat) || modelName;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;

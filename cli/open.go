@@ -645,7 +645,6 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 		agent.Name,
 		url.PathEscape(app.Slug),
 	)
-	// The frontend leaves the returns a relative URL for the terminal, but we don't have that luxury.
 	if app.Command != "" {
 		u.Path = fmt.Sprintf(
 			"%s/@%s/%s.%s/terminal",
@@ -655,11 +654,8 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 			agent.Name,
 		)
 		q := u.Query()
-		q.Set("command", app.Command)
+		q.Set("app", app.Slug)
 		u.RawQuery = q.Encode()
-		// encodeURIComponent replaces spaces with %20 but url.QueryEscape replaces them with +.
-		// We replace them with %20 to match the TypeScript implementation.
-		u.RawQuery = strings.ReplaceAll(u.RawQuery, "+", "%20")
 	}
 
 	if appsHost != "" && app.Subdomain && app.SubdomainName != "" {

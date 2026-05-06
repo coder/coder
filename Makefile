@@ -104,20 +104,45 @@ CLIDOCGEN_INPUTS := \
 	scripts/clidocgen/command.tpl \
 	$(CLIDOC_SRC_FILES)
 
+# Helper binaries that import repo packages need their compile-time inputs on
+# the binary target. Most generated outputs keep these binaries as order-only
+# prereqs, so stale binaries otherwise survive source changes.
+RBAC_GO_FILES := \
+	$(wildcard coderd/rbac/*.go) \
+	$(wildcard coderd/rbac/policy/*.go)
+
+DBDUMP_INPUTS := \
+	$(wildcard coderd/database/migrations/*.go) \
+	$(wildcard coderd/database/migrations/*.sql)
+
+# Exclude generated RBAC files to avoid cycles with typegen outputs. The
+# output rules still order generated RBAC prerequisites where needed.
+TYPEGEN_RBAC_GO_FILES := \
+	$(filter-out coderd/rbac/%_gen.go,$(wildcard coderd/rbac/*.go)) \
+	$(wildcard coderd/rbac/policy/*.go)
+
+TYPEGEN_INPUTS := \
+	$(wildcard scripts/typegen/*.go) \
+	$(wildcard scripts/typegen/*.gotmpl) \
+	$(wildcard scripts/typegen/*.tstmpl) \
+	$(TYPEGEN_RBAC_GO_FILES) \
+	$(wildcard coderd/util/strings/*.go) \
+	codersdk/countries.go
+
 # Helper binary targets. Built with go build -o to avoid caching
 # link-stage executables in GOCACHE. Each binary is a real Make
 # target so parallel -j builds serialize correctly instead of
 # racing on the same output path.
 
-_gen/bin/apitypings: $(wildcard scripts/apitypings/*.go) | _gen
+_gen/bin/apitypings: $(wildcard scripts/apitypings/*.go) $(wildcard codersdk/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apitypings
 
-_gen/bin/auditdocgen: $(wildcard scripts/auditdocgen/*.go) | _gen
+_gen/bin/auditdocgen: $(wildcard scripts/auditdocgen/*.go) $(wildcard enterprise/audit/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/auditdocgen
 
-_gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) | _gen
+_gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/check-scopes
 
@@ -127,7 +152,7 @@ _gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
 
-_gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) | _gen
+_gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) $(DBDUMP_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./coderd/database/gen/dump
 
@@ -139,7 +164,7 @@ _gen/bin/gensite: $(wildcard scripts/gensite/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/gensite
 
-_gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) | _gen
+_gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
 
@@ -155,7 +180,7 @@ _gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) $(wildcard co
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/modeloptionsgen
 
-_gen/bin/typegen: $(wildcard scripts/typegen/*.go) | _gen
+_gen/bin/typegen: $(TYPEGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/typegen
 
@@ -1035,7 +1060,7 @@ gen/mark-fresh:
 
 # Runs migrations to output a dump of the database schema after migrations are
 # applied.
-coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql) | _gen/bin/dbdump
+coderd/database/dump.sql: coderd/database/gen/dump/main.go $(DBDUMP_INPUTS) | _gen/bin/dbdump
 	_gen/bin/dbdump
 	touch "$@"
 
@@ -1153,7 +1178,10 @@ enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged
 		--go-drpc_opt=paths=source_relative \
 		./enterprise/aibridged/proto/aibridged.proto
 
-site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') | _gen _gen/bin/apitypings
+site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) \
+		$(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') \
+		$(wildcard coderd/healthcheck/health/*.go) \
+		$(wildcard codersdk/healthsdk/*.go) | _gen _gen/bin/apitypings
 	$(call atomic_write,_gen/bin/apitypings,./scripts/biome_format.sh)
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
