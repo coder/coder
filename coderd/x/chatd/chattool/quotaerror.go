@@ -3,6 +3,7 @@ package chattool
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -48,12 +49,11 @@ type quotaErrorResult struct {
 	Error string `json:"error"`
 	// Title is a short user-facing summary.
 	Title string `json:"title"`
-	// Message is a user-facing explanation of why the action failed.
-	Message string `json:"message"`
-	// NextSteps gives the model recovery guidance to relay to the user.
-	NextSteps []string           `json:"next_steps"`
-	BuildID   string             `json:"build_id,omitempty"`
-	Quota     *quotaErrorDetails `json:"quota,omitempty"`
+	// Message explains the failure and inlines the recovery guidance
+	// the model should relay to the user.
+	Message string             `json:"message"`
+	BuildID string             `json:"build_id,omitempty"`
+	Quota   *quotaErrorDetails `json:"quota,omitempty"`
 }
 
 type quotaErrorDetails struct {
@@ -67,21 +67,23 @@ func newQuotaError(
 	action buildFailureAction,
 	quota *quotaErrorDetails,
 ) quotaErrorResult {
-	message := "Coder could not create this workspace because your workspace quota is full."
+	verb := "create"
 	if action == buildFailureActionStart {
-		message = "Coder could not start this workspace because your workspace quota is full."
+		verb = "start"
 	}
+	message := fmt.Sprintf(
+		"Coder could not %s this workspace because your workspace quota is "+
+			"full. Delete a workspace you no longer need to free quota, or "+
+			"ask an administrator to raise your group quota allowance.",
+		verb,
+	)
 
 	r := quotaErrorResult{
 		ErrorCode: codersdk.InsufficientQuota,
 		Error:     msg,
 		Title:     workspaceQuotaErrorTitle,
 		Message:   message,
-		NextSteps: []string{
-			"Delete a workspace you no longer need to free quota.",
-			"Ask an administrator to raise your group quota allowance.",
-		},
-		Quota: quota,
+		Quota:     quota,
 	}
 	if buildID != uuid.Nil {
 		r.BuildID = buildID.String()
