@@ -708,6 +708,14 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 														className="inline-flex shrink-0 items-center gap-0.5 text-sm leading-4 tabular-nums"
 														title={`${filesChangedLabel}, +${additions} -${deletions}`}
 													>
+														{(() => {
+															const prIcon = getPRIconConfig(diffStatus);
+															if (prIcon) {
+																const PrIcon = prIcon.icon;
+																return <PrIcon className={cn("h-3.5 w-3.5 shrink-0", prIcon.className)} />;
+															}
+															return null;
+														})()}
 														<span className="text-git-added-bright">
 															+{additions}
 														</span>
@@ -912,6 +920,14 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									className="inline-flex shrink-0 items-center gap-0.5 text-sm tabular-nums"
 									title={`${filesChangedLabel}, +${additions} -${deletions}`}
 								>
+									{(() => {
+										const prIcon = getPRIconConfig(diffStatus);
+										if (prIcon) {
+											const PrIcon = prIcon.icon;
+											return <PrIcon className={cn("h-3.5 w-3.5 shrink-0", prIcon.className)} />;
+										}
+										return null;
+									})()}
 									<span className="text-git-added-bright">+{additions}</span>
 									<span className="text-git-deleted-bright">
 										&minus;{deletions}
