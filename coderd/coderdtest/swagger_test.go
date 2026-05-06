@@ -21,7 +21,7 @@ func TestEndpointsDocumented(t *testing.T) {
 	require.NotEmpty(t, swaggerComments, "swagger comments must be present")
 
 	_, _, api := coderdtest.NewWithAPI(t, nil)
-	coderdtest.VerifySwaggerDefinitions(t, api.APIHandler, swaggerComments)
+	coderdtest.VerifySwaggerDefinitions(t, api.APIHandler, swaggerComments, coderdtest.WithSwaggerRoutePrefix("/api/v2"))
 }
 
 func TestSDKFieldsFormatted(t *testing.T) {

@@ -12,7 +12,7 @@ curl -X POST http://coder-server:8080/api/v2/files \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /files`
+`POST /api/v2/files`
 
 > Body parameter
 
@@ -58,7 +58,7 @@ curl -X GET http://coder-server:8080/api/v2/files/{fileID} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /files/{fileID}`
+`GET /api/v2/files/{fileID}`
 
 ### Parameters
 

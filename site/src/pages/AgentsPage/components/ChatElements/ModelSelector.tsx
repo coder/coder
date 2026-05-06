@@ -58,18 +58,6 @@ const formatContextLimit = (tokens: number): string => {
 	return `${k}K context window`;
 };
 
-const getOptionLabel = (option: ModelSelectorOption): string => {
-	const displayName = option.displayName.trim();
-	if (displayName) {
-		return displayName;
-	}
-	const model = option.model.trim();
-	if (model) {
-		return model;
-	}
-	return option.id;
-};
-
 export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
 	value,
@@ -113,7 +101,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 			onOpenChange={onOpenChange}
 		>
 			<SelectTrigger
-				aria-label={selectedModel ? getOptionLabel(selectedModel) : placeholder}
+				aria-label={selectedModel ? selectedModel.displayName : placeholder}
 				className={cn(
 					"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
 					className,
@@ -121,7 +109,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 				onTouchStart={onTriggerTouchStart}
 			>
 				<SelectValue placeholder={placeholder}>
-					{selectedModel ? getOptionLabel(selectedModel) : placeholder}
+					{selectedModel ? selectedModel.displayName : placeholder}
 				</SelectValue>
 			</SelectTrigger>
 			<SelectContent
@@ -172,7 +160,7 @@ const ModelOptionItem: FC<ModelOptionItemProps> = ({
 	providerLabel,
 	isSelected,
 }) => {
-	const label = getOptionLabel(option);
+	const label = option.displayName;
 	const contextInfo =
 		option.contextLimit != null && option.contextLimit > 0
 			? formatContextLimit(option.contextLimit)

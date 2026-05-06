@@ -183,6 +183,38 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		}
 		resp.Output = "key action performed"
 
+	case "key_down":
+		if action.Text == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Missing \"text\" for key_down action.",
+			})
+			return
+		}
+		if err := a.desktop.KeyDown(ctx, *action.Text); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Key down failed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resp.Output = "key_down action performed"
+
+	case "key_up":
+		if action.Text == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Missing \"text\" for key_up action.",
+			})
+			return
+		}
+		if err := a.desktop.KeyUp(ctx, *action.Text); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Key up failed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resp.Output = "key_up action performed"
+
 	case "type":
 		if action.Text == nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

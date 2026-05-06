@@ -271,6 +271,18 @@ func TestIsCompatibleUploadMediaType(t *testing.T) {
 			want:     true,
 		},
 		{
+			name:     "OctetStreamMatchesPNG",
+			declared: "application/octet-stream",
+			stored:   "image/png",
+			want:     true,
+		},
+		{
+			name:     "OctetStreamMatchesJSON",
+			declared: "application/octet-stream",
+			stored:   "application/json",
+			want:     true,
+		},
+		{
 			name:     "TextPlainRefinesToMarkdown",
 			declared: "text/plain",
 			stored:   "text/markdown",

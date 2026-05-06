@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerdaemons`
+`GET /api/v2/organizations/{organization}/provisionerdaemons`
 
 ### Parameters
 

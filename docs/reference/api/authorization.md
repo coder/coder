@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/auth/scopes \
   -H 'Accept: application/json'
 ```
 
-`GET /auth/scopes`
+`GET /api/v2/auth/scopes`
 
 ### Example responses
 
@@ -42,7 +42,7 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /authcheck`
+`POST /api/v2/authcheck`
 
 > Body parameter
 
@@ -109,7 +109,7 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
   -H 'Accept: application/json'
 ```
 
-`POST /users/login`
+`POST /api/v2/users/login`
 
 > Body parameter
 
@@ -152,7 +152,7 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
   -H 'Content-Type: application/json'
 ```
 
-`POST /users/otp/change-password`
+`POST /api/v2/users/otp/change-password`
 
 > Body parameter
 
@@ -186,7 +186,7 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
   -H 'Content-Type: application/json'
 ```
 
-`POST /users/otp/request`
+`POST /api/v2/users/otp/request`
 
 > Body parameter
 
@@ -220,7 +220,7 @@ curl -X POST http://coder-server:8080/api/v2/users/validate-password \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/validate-password`
+`POST /api/v2/users/validate-password`
 
 > Body parameter
 
@@ -267,7 +267,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/convert-login`
+`POST /api/v2/users/{user}/convert-login`
 
 > Body parameter
 

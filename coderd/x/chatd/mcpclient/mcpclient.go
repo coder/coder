@@ -49,6 +49,18 @@ const connectTimeout = 10 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+// UserOIDCTokenSource resolves the OIDC access token for the calling
+// user. Implementations attempt to refresh tokens that are expired
+// or close to expiring and MUST return ("", nil) when the user has
+// no OIDC link or a refresh attempt failed for any reason. A
+// non-nil error is reserved for unexpected infrastructure failures
+// (e.g. database errors) and skips header construction entirely.
+// The empty-token-on-refresh-failure behavior matches
+// provisionerdserver.ObtainOIDCAccessToken.
+type UserOIDCTokenSource interface {
+	OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error)
+}
+
 // ConnectAll connects to all configured MCP servers, discovers
 // their tools, and returns them as fantasy.AgentTool values.
 // Tools are sorted by their prefixed name so callers
@@ -60,6 +72,8 @@ func ConnectAll(
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
 	tokens []database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
 ) ([]fantasy.AgentTool, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
@@ -95,7 +109,7 @@ func ConnectAll(
 
 		eg.Go(func() error {
 			serverTools, mcpClient, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID,
+				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc,
 			)
 			if connectErr != nil {
 				logger.Warn(ctx,
@@ -159,8 +173,10 @@ func connectOne(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
 ) ([]fantasy.AgentTool, *client.Client, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID)
+	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
 	tr, err := createTransport(cfg, headers)
 	if err != nil {
@@ -285,6 +301,8 @@ func buildAuthHeaders(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
 	// Using map[string]string rather than http.Header because
 	// the mcp-go transport options accept map[string]string.
@@ -347,6 +365,40 @@ func buildAuthHeaders(
 				}
 			}
 		}
+	case "user_oidc":
+		// Forward the calling user's OIDC access token from
+		// user_links as Authorization: Bearer <token>. The token
+		// source is responsible for refreshing tokens that are
+		// expired or close to expiring before returning them.
+		if oidcSrc == nil || userID == uuid.Nil {
+			logger.Warn(ctx,
+				"user_oidc auth requested but no token source available",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		token, err := oidcSrc.OIDCAccessToken(ctx, userID)
+		if err != nil {
+			logger.Warn(ctx,
+				"failed to obtain user OIDC token for MCP server",
+				slog.F("server_slug", cfg.Slug),
+				slog.Error(err),
+			)
+			break
+		}
+		if token == "" {
+			// The user has no OIDC link, or a non-fatal refresh
+			// failure occurred. Fall through with no header and let
+			// the upstream MCP server decide how to respond
+			// (typically 401). Logged at debug so password and
+			// GitHub users don't generate noise for every chat turn.
+			logger.Debug(ctx,
+				"no user OIDC token available for MCP server",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		headers["Authorization"] = "Bearer " + token
 	case "none", "":
 		// No auth headers needed.
 	}

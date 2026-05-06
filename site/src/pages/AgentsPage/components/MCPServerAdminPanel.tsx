@@ -69,6 +69,7 @@ const AUTH_TYPE_OPTIONS = [
 	{ value: "oauth2", label: "OAuth2" },
 	{ value: "api_key", label: "API Key" },
 	{ value: "custom_headers", label: "Custom Headers" },
+	{ value: "user_oidc", label: "User OIDC Identity" },
 ] as const;
 
 const AVAILABILITY_OPTIONS = [
@@ -898,6 +899,22 @@ const ServerForm: FC<ServerFormProps> = ({
 											<PlusIcon className="h-4 w-4" />
 											Add header
 										</Button>
+									</div>
+								)}
+
+								{form.values.authType === "user_oidc" && (
+									<div className="space-y-2 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4 text-xs text-content-secondary">
+										<p className="m-0">
+											The calling user's OIDC access token is forwarded to this
+											MCP server in the <code>Authorization</code> header.
+											Tokens are refreshed transparently before each request.
+										</p>
+										<p className="m-0">
+											Users who did not log in via OIDC (for example, password
+											or GitHub login) will see requests sent without an
+											authorization header. Configure no other fields for this
+											auth type.
+										</p>
 									</div>
 								)}
 							</CollapsibleContent>

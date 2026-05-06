@@ -44,15 +44,15 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 	const dispatch = (): void => {
 		const event = {
 			matches: desktop,
-			media: "(min-width: 768px)",
+			media: "(min-width: 640px)",
 		} as MediaQueryListEvent;
 		for (const listener of listeners) {
 			listener(event);
 		}
 	};
 
-	const matchMedia = ((query: string): MediaQueryList => {
-		const isDesktopQuery = /\(\s*min-width\s*:\s*768px\s*\)/.test(query);
+	const matchMedia = (query: string): MediaQueryList => {
+		const isDesktopQuery = /\(\s*min-width\s*:\s*640px\s*\)/.test(query);
 		return {
 			matches: isDesktopQuery ? desktop : false,
 			media: query,
@@ -94,7 +94,7 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 				}
 			},
 		};
-	}) as typeof window.matchMedia;
+	};
 
 	return {
 		matchMedia,

@@ -19,7 +19,11 @@ import {
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockUserMember,
+	MockUserOwner,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -122,7 +126,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 
 const baseChatFields = {
 	organization_id: "test-org-id",
-	owner_id: "owner-id",
+	owner_id: MockUserOwner.id,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
@@ -133,7 +137,7 @@ const baseChatFields = {
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
+	last_turn_summary: null,
 	children: [],
 } as const;
 
@@ -1093,6 +1097,17 @@ export const WithMessageHistory: Story = {
 			{ diffUrl: undefined },
 		),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Markdown rendering showcase"),
+		).toBeVisible();
+		await waitFor(() =>
+			expect(
+				canvas.queryByText(/^This is not your chat/),
+			).not.toBeInTheDocument(),
+		);
+	},
 };
 
 /** Skeleton placeholder when no query data is available yet. */
@@ -1110,6 +1125,102 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+export const AdminViewingOtherUserChat: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					owner_id: "other-user-id",
+					title: "Other user's chat",
+					status: "completed",
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{ diffUrl: undefined },
+			),
+			{
+				key: ["user", "other-user-id"],
+				data: {
+					...MockUserMember,
+					id: "other-user-id",
+					username: "OtherUser",
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = await canvas.findByText(
+			"This is not your chat. Prompting here will use @OtherUser's identity.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+	},
+};
+
+export const ArchivedOtherUserChat: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				archived: true,
+				owner_id: "other-user-id",
+				title: "Archived other user's chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+		expect(
+			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Persisted structured errors rehydrate the failed callout after refresh. */
+export const PersistedStructuredError: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Persisted provider error",
+				status: "error",
+				last_error: {
+					message: "Anthropic returned an unexpected error.",
+					detail:
+						"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
+					kind: "generic",
+					provider: "anthropic",
+					retryable: false,
+					status_code: 400,
+				},
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic returned an unexpected error\./i),
+		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
+		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };
 

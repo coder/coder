@@ -32,13 +32,13 @@ import {
 	unpinChat,
 	updateChatTitle,
 	updateInfiniteChatsCache,
+	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
@@ -67,7 +67,6 @@ const AgentsPage: FC = () => {
 	const location = useLocation();
 	const { agentId } = useParams();
 	const { permissions } = useAuthenticated();
-	const { appearance } = useDashboard();
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
@@ -120,10 +119,13 @@ const AgentsPage: FC = () => {
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently — react-query
+	// subscribe to the same queries independently, and react-query
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(),
+	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
@@ -531,7 +533,7 @@ const AgentsPage: FC = () => {
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
+						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
@@ -621,7 +623,6 @@ const AgentsPage: FC = () => {
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
 				isCreating={false}
 				isArchiving={isArchiving}
@@ -646,6 +647,9 @@ const AgentsPage: FC = () => {
 				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				isPersonalModelOverridesEnabled={
+					personalModelOverridesQuery.data?.enabled
+				}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}

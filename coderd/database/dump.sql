@@ -1061,44 +1061,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	PERFORM pg_notify('tailnet_coordinator_heartbeat', NEW.id::text);
-	RETURN NULL;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_peer_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_peer_update', OLD.id::text);
-		RETURN NULL;
-	END IF;
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_peer_update', NEW.id::text);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_tunnel_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_tunnel_update', NEW.src_id || ',' || NEW.dst_id);
-		RETURN NULL;
-	ELSIF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_tunnel_update', OLD.src_id || ',' || OLD.dst_id);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
     first_used_at timestamp with time zone NOT NULL,
@@ -1476,7 +1438,7 @@ CREATE TABLE chats (
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    last_error text,
+    last_error jsonb,
     mode chat_mode,
     mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     labels jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -1489,6 +1451,7 @@ CREATE TABLE chats (
     organization_id uuid NOT NULL,
     plan_mode chat_plan_mode,
     client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
+    last_turn_summary text,
     CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
     CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
@@ -1796,7 +1759,7 @@ CREATE TABLE mcp_server_configs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
-    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
+    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
 );
@@ -2477,7 +2440,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text])))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -3825,6 +3788,8 @@ CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (
 
 CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs USING btree (updated_at) WHERE (finished_at IS NULL);
 
+CREATE INDEX idx_chat_debug_runs_updated_at ON chat_debug_runs USING btree (updated_at);
+
 CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING btree (chat_id, assistant_message_id) WHERE (assistant_message_id IS NOT NULL);
 
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
@@ -4100,12 +4065,6 @@ CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
-
-CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
-
-CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
-
-CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 

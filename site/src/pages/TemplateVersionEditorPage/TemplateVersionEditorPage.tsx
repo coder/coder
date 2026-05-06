@@ -187,18 +187,16 @@ const TemplateVersionEditorPage: FC = () => {
 					isPublishing={publishVersionMutation.isPending}
 					publishingError={publishVersionMutation.error}
 					publishedVersion={lastSuccessfulPublishedVersion}
-					onCreateWorkspace={() => {
+					createWorkspaceUrl={(() => {
 						const params = new URLSearchParams();
 						const publishedVersion = lastSuccessfulPublishedVersion;
 						if (publishedVersion) {
 							params.set("version", publishedVersion.id);
 						}
-						navigate(
-							`${getLink(
-								linkToTemplate(organizationName, templateName),
-							)}/workspace?${params.toString()}`,
-						);
-					}}
+						return `${getLink(
+							linkToTemplate(organizationName, templateName),
+						)}/workspace?${params.toString()}`;
+					})()}
 					isBuilding={
 						createTemplateVersionMutation.isPending ||
 						uploadFileMutation.isPending ||

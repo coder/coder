@@ -50,13 +50,14 @@ DO UPDATE SET
 	updated_at = now() at time zone 'utc'
 RETURNING *;
 
--- name: UpdateTailnetPeerStatusByCoordinator :exec
+-- name: UpdateTailnetPeerStatusByCoordinator :many
 UPDATE
 	tailnet_peers
 SET
 	status = $2
 WHERE
-	coordinator_id = $1;
+	coordinator_id = $1
+RETURNING id;
 
 -- name: DeleteTailnetPeer :one
 DELETE
@@ -91,10 +92,11 @@ FROM tailnet_tunnels
 WHERE coordinator_id = $1 and src_id = $2 and dst_id = $3
 RETURNING coordinator_id, src_id, dst_id;
 
--- name: DeleteAllTailnetTunnels :exec
+-- name: DeleteAllTailnetTunnels :many
 DELETE
 FROM tailnet_tunnels
-WHERE coordinator_id = $1 and src_id = $2;
+WHERE coordinator_id = $1 and src_id = $2
+RETURNING src_id, dst_id;
 
 -- For PG Coordinator HTMLDebug
 

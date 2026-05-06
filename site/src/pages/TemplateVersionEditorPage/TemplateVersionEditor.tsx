@@ -89,7 +89,7 @@ interface TemplateVersionEditorProps {
 	onCancelPublish: () => void;
 	publishingError?: unknown;
 	publishedVersion?: TemplateVersion;
-	onCreateWorkspace: () => void;
+	createWorkspaceUrl: string | undefined;
 	isAskingPublishParameters: boolean;
 	isPromptingMissingVariables: boolean;
 	isPublishing: boolean;
@@ -117,7 +117,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	isPublishing,
 	publishingError,
 	publishedVersion,
-	onCreateWorkspace,
+	createWorkspaceUrl,
 	buildLogs,
 	resources,
 	isPromptingMissingVariables,
@@ -307,8 +307,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								prominent
 								dismissible
 								actions={
-									<Button size="sm" onClick={onCreateWorkspace}>
-										Create a workspace
+									<Button asChild size="sm">
+										<RouterLink to={createWorkspaceUrl ?? ""}>
+											Create a workspace
+										</RouterLink>
 									</Button>
 								}
 							>

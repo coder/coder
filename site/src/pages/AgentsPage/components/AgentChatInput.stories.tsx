@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { withProxyProvider } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -25,6 +26,7 @@ const defaultModelOptions = [
 const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
+	decorators: [withProxyProvider()],
 	args: {
 		onSend: fn(),
 		onContentChange: fn(),
@@ -93,7 +95,7 @@ export const MobileEnterInsertsNewline: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const originalMatchMedia = window.matchMedia;
-		window.matchMedia = ((query: string) =>
+		window.matchMedia = (query: string) =>
 			({
 				matches: query === "(max-width: 639px)",
 				media: query,
@@ -103,7 +105,7 @@ export const MobileEnterInsertsNewline: Story = {
 				dispatchEvent: () => true,
 				addListener: () => undefined,
 				removeListener: () => undefined,
-			}) as MediaQueryList) as typeof window.matchMedia;
+			}) as MediaQueryList;
 
 		try {
 			const canvas = within(canvasElement);
@@ -650,6 +652,10 @@ export const PlanningIndicator: Story = {
 		planModeEnabled: true,
 		onPlanModeToggle: fn(),
 	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Planning")).toBeVisible();
@@ -714,6 +720,7 @@ export const DetailPageWorkspacePicker: Story = {
 				id: "ws-detail",
 				name: "agents-workspace",
 				owner_name: "mike",
+				organization_id: "org-1",
 			},
 		],
 		selectedWorkspaceId: "ws-detail",
@@ -804,7 +811,12 @@ export const OverflowBadges: Story = {
 			pagerdutyMCP.id,
 		],
 		workspaceOptions: [
-			{ id: "ws-1", name: "my-long-workspace-name", owner_name: "admin" },
+			{
+				id: "ws-1",
+				name: "my-long-workspace-name",
+				owner_name: "admin",
+				organization_id: "org-1",
+			},
 		],
 		selectedWorkspaceId: "ws-1",
 		onWorkspaceChange: fn(),

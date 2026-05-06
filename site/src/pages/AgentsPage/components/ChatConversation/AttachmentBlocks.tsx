@@ -26,12 +26,13 @@ import {
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
-import { useExpiredFileIds } from "./ExpiredFileIdsContext";
+import { useFileProbes } from "./FileProbeContext";
 import type { RenderBlock } from "./types";
 
 export type PreviewTextAttachment = {
 	content: string;
 	fileName?: string;
+	mediaType?: string;
 };
 
 type FileAttachmentBlock = Extract<RenderBlock, { type: "file" }>;
@@ -278,6 +279,7 @@ const InlineTextAttachmentButton: FC<{
 const RemoteTextAttachmentButton: FC<{
 	fileId: string;
 	fileName?: string;
+	mediaType?: string;
 	frameHref?: string | null;
 	downloadName: string;
 	onPreview?: (attachment: PreviewTextAttachment) => void | Promise<void>;
@@ -285,12 +287,13 @@ const RemoteTextAttachmentButton: FC<{
 }> = ({
 	fileId,
 	fileName,
+	mediaType,
 	frameHref,
 	downloadName,
 	onPreview,
 	showStatus = false,
 }) => {
-	const { hasExpired, markExpired } = useExpiredFileIds();
+	const { hasExpired, markExpired } = useFileProbes();
 	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
@@ -337,7 +340,7 @@ const RemoteTextAttachmentButton: FC<{
 					return;
 				}
 				if (content !== null) {
-					void onPreview?.({ content, fileName });
+					void onPreview?.({ content, fileName, mediaType });
 					return;
 				}
 
@@ -372,7 +375,7 @@ const RemoteTextAttachmentButton: FC<{
 					return;
 				}
 				setContent(result.content);
-				void onPreview?.({ content: result.content, fileName });
+				void onPreview?.({ content: result.content, fileName, mediaType });
 			}}
 		/>
 	);
@@ -411,7 +414,15 @@ const RemoteImageBlock: FC<{
 	displayName: string;
 	onImageClick?: (src: string) => void;
 }> = ({ fileId, href, displayName, onImageClick }) => {
-	const { hasExpired, markExpired } = useExpiredFileIds();
+	const {
+		hasExpired,
+		markExpired,
+		isPending,
+		markPending,
+		clearPending,
+		getProbeResult,
+		setProbeResult,
+	} = useFileProbes();
 	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
 		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
@@ -426,10 +437,12 @@ const RemoteImageBlock: FC<{
 			/>
 		);
 	}
-	if (failureState.kind !== "idle") {
+	const sharedResult = fileId ? getProbeResult(fileId) : undefined;
+	const effectiveFailure = sharedResult ?? failureState;
+	if (effectiveFailure.kind !== "idle") {
 		return (
 			<AttachmentFallbackTile
-				state={failureState}
+				state={effectiveFailure}
 				labels={imageAttachmentFailureLabels}
 			/>
 		);
@@ -461,7 +474,13 @@ const RemoteImageBlock: FC<{
 						setFailureState({ kind: "expired" });
 						return;
 					}
+					// Dedup: skip probe, context will propagate the result.
+					if (isPending(fileId)) {
+						setFailureState({ kind: "failed" });
+						return;
+					}
 
+					markPending(fileId);
 					const controller = probeRequest.start();
 					// Optimistically swap to the generic failure tile. The
 					// probe will either upgrade it to "expired" or fill in
@@ -471,22 +490,27 @@ const RemoteImageBlock: FC<{
 
 					void probeAttachmentFailure(href, controller.signal)
 						.then((reason) => {
-							if (!probeRequest.clear(controller)) {
-								return;
-							}
+							clearPending(fileId);
+							// Context writes stay above the clear() guard so
+							// siblings get the result even if this block unmounted.
 							if (reason.kind === "expired") {
 								markExpired(fileId);
 							}
-							setFailureState(reason);
+							setProbeResult(fileId, reason);
+							if (probeRequest.clear(controller)) {
+								setFailureState(reason);
+							}
 						})
 						.catch((error) => {
-							if (!probeRequest.clear(controller)) {
-								return;
-							}
+							clearPending(fileId);
 							if (isAbortError(error)) {
 								return;
 							}
-							setFailureState(attachmentFailureFromError(error));
+							const failure = attachmentFailureFromError(error);
+							setProbeResult(fileId, failure);
+							if (probeRequest.clear(controller)) {
+								setFailureState(failure);
+							}
 						});
 				}}
 			/>
@@ -560,6 +584,7 @@ export const AttachmentBlock: FC<{
 				<RemoteTextAttachmentButton
 					fileId={block.file_id}
 					fileName={displayName}
+					mediaType={block.media_type}
 					frameHref={framePreview ? href : undefined}
 					downloadName={downloadName}
 					onPreview={onTextFileClick}
@@ -578,7 +603,11 @@ export const AttachmentBlock: FC<{
 				isPlaceholder={!revealedInlineText}
 				onPreview={() => {
 					setRevealedInlineText(true);
-					void onTextFileClick?.({ content, fileName: displayName });
+					void onTextFileClick?.({
+						content,
+						fileName: displayName,
+						mediaType: block.media_type,
+					});
 				}}
 			/>
 		);

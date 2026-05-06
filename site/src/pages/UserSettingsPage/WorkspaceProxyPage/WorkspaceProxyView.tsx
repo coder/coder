@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -61,25 +60,46 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
-						<Cond condition={hasLoaded && proxies?.length === 0}>
-							<TableEmpty message="No workspace proxies found" />
-						</Cond>
-						<Cond>
-							{proxies?.map((proxy) => (
-								<ProxyRow
-									latency={proxyLatencies?.[proxy.id]}
-									key={proxy.id}
-									proxy={proxy}
-								/>
-							))}
-						</Cond>
-					</ChooseOne>
+					<ProxiesTableBody
+						proxies={proxies}
+						proxyLatencies={proxyLatencies}
+						isLoading={isLoading}
+						hasLoaded={hasLoaded}
+					/>
 				</TableBody>
 			</Table>
 		</div>
+	);
+};
+
+interface ProxiesTableBodyProps {
+	proxies?: readonly Region[];
+	proxyLatencies?: Record<string, ProxyLatencyReport>;
+	isLoading: boolean;
+	hasLoaded: boolean;
+}
+
+const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
+	proxies,
+	proxyLatencies,
+	isLoading,
+	hasLoaded,
+}) => {
+	if (isLoading) {
+		return <TableLoader />;
+	}
+	if (hasLoaded && proxies?.length === 0) {
+		return <TableEmpty message="No workspace proxies found" />;
+	}
+	return (
+		<>
+			{proxies?.map((proxy) => (
+				<ProxyRow
+					latency={proxyLatencies?.[proxy.id]}
+					key={proxy.id}
+					proxy={proxy}
+				/>
+			))}
+		</>
 	);
 };

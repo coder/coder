@@ -44,7 +44,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
+import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -592,7 +592,10 @@ const ChatMessageItem = memo<{
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage)) && (
 						<div
-							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							className={cn(
+								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
+								isUser && "w-full justify-end",
+							)}
 							data-testid="message-actions"
 						>
 							{displayState.hasCopyableContent && (
@@ -639,6 +642,7 @@ const ChatMessageItem = memo<{
 					<TextPreviewDialog
 						content={previewText.content}
 						fileName={previewText.fileName}
+						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
@@ -1055,7 +1059,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<ExpiredFileIdsProvider>
+			<FileProbeProvider>
 				<div
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
@@ -1103,7 +1107,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						);
 					})}
 				</div>
-			</ExpiredFileIdsProvider>
+			</FileProbeProvider>
 		);
 	},
 );

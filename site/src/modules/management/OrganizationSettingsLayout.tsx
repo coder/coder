@@ -91,7 +91,7 @@ const OrganizationSettingsLayout: FC = () => {
 				organizationPermissions,
 			}}
 		>
-			<div className="flex flex-col flex-1 min-h-0">
+			<div>
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
@@ -122,11 +122,9 @@ const OrganizationSettingsLayout: FC = () => {
 					</BreadcrumbList>
 				</Breadcrumb>
 				<div className="h-px border-none bg-border" />
-				<div className="flex flex-col flex-1 min-h-0 pl-10">
-					<Suspense fallback={<Loader />}>
-						<Outlet />
-					</Suspense>
-				</div>
+				<Suspense fallback={<Loader />}>
+					<Outlet />
+				</Suspense>
 			</div>
 		</OrganizationSettingsContext.Provider>
 	);

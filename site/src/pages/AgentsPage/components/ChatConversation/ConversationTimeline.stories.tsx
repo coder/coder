@@ -235,6 +235,13 @@ const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
 	parsedMessages: buildMessages(messages),
 });
 
+const LONG_USER_MESSAGE = [
+	"This is a deliberately long user message that should stay pinned to the",
+	"right edge while the bubble stops short of filling the entire timeline",
+	"column. It gives the Storybook test enough content to exercise the",
+	"maximum width cap.",
+].join(" ");
+
 const findAttachmentTile = async (
 	canvas: ReturnType<typeof within>,
 	label: string,
@@ -290,6 +297,38 @@ const meta: Meta<typeof ConversationTimeline> = {
 };
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
+
+/**
+ * User bubbles should stay right-aligned, shrink to fit short content,
+ * and cap long content so the timeline keeps some breathing room.
+ */
+export const UserMessageBubbleAlignment: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: LONG_USER_MESSAGE,
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const messageText = canvas.getByText(/deliberately long user message/i);
+		const userRow = messageText.closest('[data-role="user"]');
+		expect(userRow).not.toBeNull();
+
+		const bubble = userRow?.firstElementChild;
+		expect(bubble).not.toBeNull();
+
+		await userEvent.hover(userRow?.parentElement as HTMLElement);
+		const actions = await canvas.findByTestId("message-actions");
+
+		const rowRect = (userRow as HTMLElement).getBoundingClientRect();
+		const bubbleRect = (bubble as HTMLElement).getBoundingClientRect();
+		const actionsRect = actions.getBoundingClientRect();
+
+		expect(bubbleRect.width).toBeLessThanOrEqual(rowRect.width * 0.81);
+		expect(Math.abs(rowRect.right - bubbleRect.right)).toBeLessThanOrEqual(2);
+		expect(Math.abs(rowRect.right - actionsRect.right)).toBeLessThanOrEqual(2);
+	},
+};
 
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
@@ -432,6 +471,7 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(2);
 		fireEvent.error(images[0]);
+		fireEvent.error(images[1]);
 		await waitFor(() =>
 			expect(
 				canvas.getAllByRole("img", { name: "Image expired" }),
@@ -441,6 +481,49 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/** Duplicate file IDs with a non-expired probe reuse the first result. */
+export const UserMessageWithRepeatedFailedImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			id: 1,
+			text: "First reference to the failed upload",
+			files: [buildImageAttachmentPart("storybook-failed-image")],
+		}),
+		buildUserMessage({
+			id: 2,
+			text: "Second reference to the same failed upload",
+			files: [buildImageAttachmentPart("storybook-failed-image")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(2);
+		fireEvent.error(images[0]);
+		fireEvent.error(images[1]);
+		await waitFor(() =>
+			expect(
+				canvas.getAllByRole("img", { name: "Image failed to load" }),
+			).toHaveLength(2),
+		);
+		expect(getAttachmentFetchCount("storybook-failed-image")).toBe(1);
+		expect(
+			canvas.queryByRole("button", { name: "View Attached image" }),
+		).not.toBeInTheDocument();
+
+		const tiles = await waitFor(() => {
+			const t = canvas.getAllByRole("img", { name: "Image failed to load" });
+			for (const tile of t) {
+				expect(tile).toHaveAttribute("data-state");
+			}
+			return t;
+		});
+		for (const tile of tiles) {
+			await hoverAndExpectTooltip(tile, FAILED_ATTACHMENT_API_MESSAGE);
+		}
 	},
 };
 
