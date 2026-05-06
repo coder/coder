@@ -914,6 +914,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 							contents: fileContent.content,
 						}}
 						options={fileContentOptions}
+						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
 			) : (

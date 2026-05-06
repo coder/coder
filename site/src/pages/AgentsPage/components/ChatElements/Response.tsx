@@ -3,7 +3,7 @@ import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import type { ComponentPropsWithRef, CSSProperties, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -31,14 +31,6 @@ const chatRehypePlugins = [
 	defaultRehypePlugins.harden,
 ];
 
-const fileViewerCSS =
-	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
-
-const fileViewerTheme = {
-	light: "github-light",
-	dark: "github-dark-high-contrast",
-} as const;
-
 type HastNode = {
 	type?: string;
 	value?: string;
@@ -58,8 +50,6 @@ type MarkdownComponentProps = {
 	disabled?: boolean;
 	className?: string;
 };
-
-type FileViewerThemeType = "light" | "dark";
 
 /**
  * Recursively extracts text from a HAST node tree. This is plain
@@ -85,6 +75,30 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 		(classToken): classToken is string => typeof classToken === "string",
 	);
 };
+
+const fileViewerTheme = {
+	light: "github-light",
+	dark: "github-dark-high-contrast",
+} as const;
+
+type FileViewerThemeType = keyof typeof fileViewerTheme;
+
+const markdownFileViewerCSS = [
+	":host { background-color: transparent !important; }",
+	"pre, [data-code], [data-line], [data-diffs-header] { background-color: transparent !important; }",
+	"[data-code] { padding-block: 8px !important; overflow: auto clip !important; scrollbar-width: none !important; }",
+	"[data-code]::-webkit-scrollbar { width: 0 !important; height: 0 !important; }",
+	"[data-disable-line-numbers][data-file] { --diffs-grid-number-column-width: 0px !important; }",
+	"[data-disable-line-numbers] [data-column-number] { min-width: 0 !important; padding: 0 !important; }",
+	"[data-line] { min-height: 20px !important; padding-inline: 12px !important; }",
+].join(" ");
+
+const markdownFileViewerStyle = {
+	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
+	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
+	"--diffs-font-size": "12px",
+	"--diffs-line-height": "20px",
+} as CSSProperties;
 
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,
@@ -185,14 +199,12 @@ const createComponents = (
 		td: ({ children }: MarkdownComponentProps) => (
 			<td className="px-4 py-2">{children}</td>
 		),
-		// Inline code only — fenced blocks are handled by the pre override.
+		// Inline code only, fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
 			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
 				{children}
 			</code>
 		),
-		// Fenced code blocks: extract language and content from the HAST
-		// node directly (plain data), then render with FileViewer.
 		pre: ({ node }: MarkdownComponentProps) => {
 			const codeChild = node?.children?.[0];
 			if (codeChild?.tagName === "code") {
@@ -200,11 +212,11 @@ const createComponents = (
 				const langClass = classes.find((c: string) =>
 					c.startsWith("language-"),
 				);
-				const lang = langClass ? langClass.replace("language-", "") : "text";
+				const lang = langClass?.replace(/^language-/, "") ?? "text";
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
 					return (
-						<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs">
+						<div className="my-4 overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 							<FileViewer
 								file={{
 									name: `block.${lang}`,
@@ -218,22 +230,23 @@ const createComponents = (
 									disableFileHeader: true,
 									disableLineNumbers: true,
 									theme: viewerTheme,
-									unsafeCSS: fileViewerCSS,
+									unsafeCSS: markdownFileViewerCSS,
 								}}
+								style={markdownFileViewerStyle}
 							/>
 						</div>
 					);
 				}
 			}
-			return <pre>{node?.children?.map?.(() => null)}</pre>;
+			return <pre>{getHastText(node)}</pre>;
 		},
 	};
 };
 
 // Precompute component maps for both themes at module scope so
-// every Response instance shares the same stable references.
-// This prevents Streamdown from discarding its cached render
-// tree on each parent re-render.
+// every Response instance shares the same stable references. This
+// prevents Streamdown from discarding its cached render tree on each
+// parent re-render.
 const componentsByTheme: Record<FileViewerThemeType, Components> = {
 	light: createComponents("light", fileViewerTheme.light),
 	dark: createComponents("dark", fileViewerTheme.dark),

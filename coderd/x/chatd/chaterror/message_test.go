@@ -7,6 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // TestTerminalMessage covers the per-provider "temporarily
@@ -18,7 +19,7 @@ func TestTerminalMessage(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		kind       string
+		kind       codersdk.ChatErrorKind
 		provider   string
 		retryable  bool
 		statusCode int
@@ -26,42 +27,42 @@ func TestTerminalMessage(t *testing.T) {
 	}{
 		{
 			name:      "Timeout_Retryable_Anthropic",
-			kind:      chaterror.KindTimeout,
+			kind:      codersdk.ChatErrorKindTimeout,
 			provider:  "anthropic",
 			retryable: true,
 			want:      "Anthropic is temporarily unavailable.",
 		},
 		{
 			name:      "Timeout_Retryable_OpenAI",
-			kind:      chaterror.KindTimeout,
+			kind:      codersdk.ChatErrorKindTimeout,
 			provider:  "openai",
 			retryable: true,
 			want:      "OpenAI is temporarily unavailable.",
 		},
 		{
 			name:      "Timeout_Retryable_UnknownProvider",
-			kind:      chaterror.KindTimeout,
+			kind:      codersdk.ChatErrorKindTimeout,
 			provider:  "",
 			retryable: true,
 			want:      "The AI provider is temporarily unavailable.",
 		},
 		{
 			name:      "Timeout_NotRetryable_NoStatus",
-			kind:      chaterror.KindTimeout,
+			kind:      codersdk.ChatErrorKindTimeout,
 			provider:  "",
 			retryable: false,
 			want:      "The request timed out before it completed.",
 		},
 		{
 			name:      "StartupTimeout_Anthropic",
-			kind:      chaterror.KindStartupTimeout,
+			kind:      codersdk.ChatErrorKindStartupTimeout,
 			provider:  "anthropic",
 			retryable: true,
 			want:      "Anthropic did not start responding in time.",
 		},
 		{
 			name:      "StartupTimeout_OpenAI",
-			kind:      chaterror.KindStartupTimeout,
+			kind:      codersdk.ChatErrorKindStartupTimeout,
 			provider:  "openai",
 			retryable: true,
 			want:      "OpenAI did not start responding in time.",
@@ -70,7 +71,7 @@ func TestTerminalMessage(t *testing.T) {
 			// Generic fallback reserved for genuinely
 			// unclassified non-retryable failures.
 			name:      "Generic_NotRetryable_NoStatus",
-			kind:      chaterror.KindGeneric,
+			kind:      codersdk.ChatErrorKindGeneric,
 			provider:  "",
 			retryable: false,
 			want:      "The chat request failed unexpectedly.",

@@ -20,7 +20,7 @@ template allowlist.
 
 To configure the allowlist:
 
-1. Navigate to **Agents** > **Settings** > **Templates**.
+1. Navigate to **Agents** > **Settings** > **Manage Agents** > **Templates**.
 2. Select the templates you want agents to be able to use.
 3. Click **Save**.
 

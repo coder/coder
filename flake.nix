@@ -94,7 +94,7 @@
         # 3. Update the sha256 and run again
         # 4. Nix will fail with the correct vendorHash
         # 5. Update the vendorHash
-        sqlc-custom = unstablePkgs.buildGo125Module {
+        sqlc-custom = unstablePkgs.buildGo126Module {
           pname = "sqlc";
           version = "coder-fork-aab4e865a51df0c43e1839f81a9d349b41d14f05";
 
@@ -242,7 +242,7 @@
         # slim bundle into it's own derivation.
         buildFat =
           osArch:
-          unstablePkgs.buildGo125Module {
+          unstablePkgs.buildGo126Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!

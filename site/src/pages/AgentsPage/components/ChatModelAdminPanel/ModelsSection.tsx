@@ -7,7 +7,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -85,15 +85,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	onDeleteModel,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
-	const navigate = useNavigate();
 	const location = useLocation();
-
-	// Whether the current form entry was pushed by an in-app click
-	// (as opposed to a direct-entry URL like a bookmark or shared link).
-	// When true, navigate(-1) is safe; otherwise we fall back to
-	// clearing params with replace to avoid leaving the app.
-	const canGoBack =
-		(location.state as { pushed?: boolean } | null)?.pushed === true;
 
 	// Derive the current view from URL search params so that
 	// browser back/forward navigation works as expected.
@@ -140,23 +132,15 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		});
 	};
 
-	// Navigate back to the list after a destructive or
-	// completion action (create/delete) where the form entry
-	// is stale. Uses navigate(-1) when safe, otherwise clears
-	// the params with replace.
 	const exitModelView = () => {
-		if (canGoBack) {
-			navigate(-1);
-		} else {
-			setSearchParams(
-				(prev) => {
-					const next = new URLSearchParams(prev);
-					clearModelViewParams(next);
-					return next;
-				},
-				{ replace: true },
-			);
-		}
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				clearModelViewParams(next);
+				return next;
+			},
+			{ replace: true },
+		);
 	};
 
 	// When the form is open it takes over the full panel.
@@ -277,7 +261,14 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					{addableProviders.length > 0 && addButton}
 					{addableProviders.length === 0 && (
 						<p className="m-0 text-xs text-content-secondary">
-							Connect a provider first to add models.
+							Connect a{" "}
+							<Link
+								to="/agents/settings/providers"
+								className="underline transition-colors hover:text-content-primary"
+							>
+								provider
+							</Link>{" "}
+							first to add models.
 						</p>
 					)}
 				</div>

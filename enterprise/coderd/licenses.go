@@ -62,7 +62,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Tags Enterprise
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
 // @Success 201 {object} codersdk.License
-// @Router /licenses [post]
+// @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -165,7 +165,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Success 201 {object} codersdk.Response
-// @Router /licenses/refresh-entitlements [post]
+// @Router /api/v2/licenses/refresh-entitlements [post]
 func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -231,7 +231,7 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {array} codersdk.License
-// @Router /licenses [get]
+// @Router /api/v2/licenses [get]
 func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	licenses, err := api.Database.GetLicenses(ctx)
@@ -273,7 +273,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param id path string true "License ID" format(number)
 // @Success 200
-// @Router /licenses/{id} [delete]
+// @Router /api/v2/licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx     = r.Context()

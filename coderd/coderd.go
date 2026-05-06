@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	_ "embed"
 	"errors"
 	"expvar"
 	"flag"
@@ -116,6 +117,9 @@ import (
 // See https://github.com/swaggo/http-swagger/issues/78
 var globalHTTPSwaggerHandler http.HandlerFunc
 
+//go:embed swagger_request_interceptor.js
+var swaggerRequestInterceptor string
+
 func init() {
 	globalHTTPSwaggerHandler = httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
@@ -131,16 +135,11 @@ func init() {
 		// So remove authenticating via a cookie, and rely on the authorization
 		// header passed in.
 		httpSwagger.UIConfig(map[string]string{
-			// Pulled from https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/
-			// 'withCredentials' should disable fetch sending browser credentials, but
-			// for whatever reason it does not.
-			// So this `requestInterceptor` ensures browser credentials are
-			// omitted from all requests.
-			"requestInterceptor": `(a => {
-				a.credentials = "omit";
-				return a;
-			})`,
-			"withCredentials": "false",
+			// The interceptor source lives in swagger_request_interceptor.js so
+			// it can be edited as real JavaScript.
+			// See https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/.
+			"requestInterceptor": swaggerRequestInterceptor,
+			"withCredentials":    "false",
 		}))
 }
 
@@ -311,7 +310,7 @@ type Options struct {
 // @license.name AGPL-3.0
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
 
-// @BasePath /api/v2
+// @BasePath /
 
 // @securitydefinitions.apiKey Authorization
 // @in header
@@ -1202,8 +1201,14 @@ func New(options *Options) *API {
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
 				r.Get("/model-override/{context}", api.getChatModelOverride)
 				r.Put("/model-override/{context}", api.putChatModelOverride)
+				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
+				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
+				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
+				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
+				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
+				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
 				r.Get("/debug-logging", api.getChatDebugLogging)
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
@@ -1219,6 +1224,8 @@ func New(options *Options) *API {
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
 				r.Get("/retention-days", api.getChatRetentionDays)
 				r.Put("/retention-days", api.putChatRetentionDays)
+				r.Get("/debug-retention-days", api.getChatDebugRetentionDays)
+				r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
 				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
 				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
 				r.Get("/template-allowlist", api.getChatTemplateAllowlist)

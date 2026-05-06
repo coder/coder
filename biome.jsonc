@@ -99,7 +99,7 @@
 							// "@mui/material/Snackbar": "Use components/GlobalSnackbar instead.",
 							// "@mui/material/Stack": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>).",
 							// "@mui/material/styles": "Use Tailwind CSS instead.",
-							// "@mui/material/SvgIcon": "Use lucide-react icons instead.",
+							"@mui/material/SvgIcon": "Use lucide-react icons instead.",
 							"@mui/material/Switch": "Use shadcn/ui Switch component instead.",
 							"@mui/material/Table": "Import from components/Table/Table instead.",
 							"@mui/material/TableRow": "Import from components/Table/Table instead.",

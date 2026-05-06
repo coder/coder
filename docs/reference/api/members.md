@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members`
+`GET /api/v2/organizations/{organization}/members`
 
 ### Parameters
 
@@ -113,7 +113,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members/roles`
+`GET /api/v2/organizations/{organization}/members/roles`
 
 ### Parameters
 
@@ -212,7 +212,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /organizations/{organization}/members/roles`
+`PUT /api/v2/organizations/{organization}/members/roles`
 
 > Body parameter
 
@@ -345,7 +345,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/members/roles`
+`POST /api/v2/organizations/{organization}/members/roles`
 
 > Body parameter
 
@@ -477,7 +477,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}/members/roles/{roleName}`
+`DELETE /api/v2/organizations/{organization}/members/roles/{roleName}`
 
 ### Parameters
 
@@ -572,7 +572,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members/{user}`
+`GET /api/v2/organizations/{organization}/members/{user}`
 
 ### Parameters
 
@@ -638,7 +638,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/members/{user}`
+`POST /api/v2/organizations/{organization}/members/{user}`
 
 ### Parameters
 
@@ -685,7 +685,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}/members/{user}`
+`DELETE /api/v2/organizations/{organization}/members/{user}`
 
 ### Parameters
 
@@ -714,7 +714,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /organizations/{organization}/members/{user}/roles`
+`PUT /api/v2/organizations/{organization}/members/{user}/roles`
 
 > Body parameter
 
@@ -773,7 +773,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/paginated-members`
+`GET /api/v2/organizations/{organization}/paginated-members`
 
 ### Parameters
 
@@ -886,7 +886,7 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/roles`
+`GET /api/v2/users/roles`
 
 ### Example responses
 

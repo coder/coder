@@ -63,11 +63,11 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
 	const webPush = controlledWebPush ?? internalWebPush;
 	const [isDesktop, setIsDesktop] = useState<boolean>(() => {
-		return window.matchMedia("(min-width: 768px)").matches;
+		return window.matchMedia("(min-width: 640px)").matches;
 	});
 
 	useEffect(() => {
-		const mediaQuery = window.matchMedia("(min-width: 768px)");
+		const mediaQuery = window.matchMedia("(min-width: 640px)");
 		const onMediaChange = (event: MediaQueryListEvent) => {
 			setIsDesktop(event.matches);
 		};
@@ -115,21 +115,21 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	};
 
 	return (
-		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 md:order-none md:px-4 md:py-0.5">
+		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-none sm:px-4 sm:py-0.5">
 			{mobileBack ? (
 				<Button
 					asChild
 					variant="subtle"
 					size="icon"
 					aria-label={mobileBack.label}
-					className="h-7 w-7 shrink-0 md:hidden"
+					className="h-7 w-7 shrink-0 sm:hidden"
 				>
 					<Link to={mobileBack.to}>
 						<ArrowLeftIcon />
 					</Link>
 				</Button>
 			) : (
-				<div className="inline-flex shrink-0 items-center gap-2 md:hidden">
+				<div className="inline-flex shrink-0 items-center gap-2 sm:hidden">
 					<NavLink to="/workspaces" className="inline-flex">
 						<ProductLogo className="size-6" />
 					</NavLink>
@@ -142,14 +142,14 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					size="icon"
 					onClick={onExpandSidebar}
 					aria-label="Expand sidebar"
-					className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+					className="hidden h-7 w-7 min-w-0 shrink-0 sm:inline-flex"
 				>
 					<PanelLeftIcon />
 				</Button>
 			)}
 			<div className="min-w-0 flex-1" />
 			{children && isDesktop && (
-				<div className="hidden items-center gap-2 md:flex">{children}</div>
+				<div className="hidden items-center gap-2 sm:flex">{children}</div>
 			)}
 			{/* Mobile: meatball menu with all actions */}
 			{!mobileBack && !isDesktop && (
@@ -159,7 +159,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 							variant="subtle"
 							size="icon"
 							aria-label="More options"
-							className="h-7 w-7 text-content-secondary hover:text-content-primary md:hidden"
+							className="h-7 w-7 text-content-secondary hover:text-content-primary sm:hidden"
 						>
 							<EllipsisIcon />
 						</Button>

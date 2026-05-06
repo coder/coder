@@ -4765,7 +4765,6 @@ func TestPatchChat(t *testing.T) {
 					client := newChatClient(t)
 					firstUser := coderdtest.CreateFirstUser(t, client.Client)
 					_ = createChatModelConfig(t, client)
-
 					chat := createChat(ctx, t, client, firstUser.OrganizationID, "boundary baseline")
 					waitChatSettled(ctx, t, client, chat.ID)
 
@@ -5882,7 +5881,7 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -5933,7 +5932,7 @@ func TestQueuedMessageWithoutOverrideCapturesEnqueueTimeModel(t *testing.T) {
 		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-		LastError:   sql.NullString{},
+		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
 
@@ -6059,7 +6058,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -6081,7 +6080,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7564,7 +7563,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7604,8 +7603,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Valid: true},
 			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
 			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-
-			LastError: sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7646,8 +7644,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-
-			LastError: sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -7711,7 +7708,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -8237,7 +8234,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
+			LastError:   pqtype.NullRawMessage{},
 		})
 		require.NoError(t, err)
 
@@ -8652,6 +8649,54 @@ widgets,3
 `)))
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
+	t.Run("Success/OctetStreamPNG", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/octet-stream", "test.png", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, uploaded.ID)
+
+		got, contentType, err := client.GetChatFile(ctx, uploaded.ID)
+		require.NoError(t, err)
+		require.Equal(t, "image/png", contentType)
+		require.Equal(t, data, got)
+	})
+
+	t.Run("Success/OctetStreamMarkdown", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := []byte(`# Markdown upload
+
+This arrived as octet-stream.
+`)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/octet-stream", "notes.md", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, uploaded.ID)
+
+		got, contentType, err := client.GetChatFile(ctx, uploaded.ID)
+		require.NoError(t, err)
+		require.Equal(t, "text/markdown", contentType)
+		require.Equal(t, data, got)
+	})
+
+	t.Run("OctetStreamRejectsUnsupportedBytes", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/octet-stream", "payload.zip", bytes.NewReader([]byte("PK")))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Unsupported file type")
 	})
 
 	t.Run("UnsupportedContentType", func(t *testing.T) {
@@ -9555,6 +9600,39 @@ func createDisabledChatModelConfig(
 	return updated
 }
 
+func enableUserChatProviderKey(
+	t testing.TB,
+	adminClient *codersdk.ExperimentalClient,
+	userClient *codersdk.ExperimentalClient,
+	providerName string,
+) codersdk.ChatProviderConfig {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providers, err := adminClient.ListChatProviders(ctx)
+	require.NoError(t, err)
+
+	var provider codersdk.ChatProviderConfig
+	for _, candidate := range providers {
+		if candidate.Provider == providerName && candidate.Source == codersdk.ChatProviderConfigSourceDatabase {
+			provider = candidate
+			break
+		}
+	}
+	require.NotEqual(t, uuid.Nil, provider.ID)
+
+	updated, err := adminClient.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+		AllowUserAPIKey: ptr.Ref(true),
+	})
+	require.NoError(t, err)
+
+	_, err = userClient.UpsertUserChatProviderKey(ctx, updated.ID, codersdk.CreateUserChatProviderKeyRequest{
+		APIKey: "test-user-api-key-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+	return updated
+}
+
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestChatSystemPrompt(t *testing.T) {
 	t.Parallel()
@@ -10313,6 +10391,537 @@ func TestChatModelOverrides(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // Subtests share coderdtest instances.
+func TestChatPersonalModelOverridesAdminSettings(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	resp, err := adminClient.GetChatPersonalModelOverridesAdminSettings(ctx)
+	require.NoError(t, err)
+	require.False(t, resp.AllowUsers)
+
+	err = adminClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+		AllowUsers: true,
+	})
+	require.NoError(t, err)
+	resp, err = adminClient.GetChatPersonalModelOverridesAdminSettings(ctx)
+	require.NoError(t, err)
+	require.True(t, resp.AllowUsers)
+
+	err = adminClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+		AllowUsers: false,
+	})
+	require.NoError(t, err)
+	resp, err = adminClient.GetChatPersonalModelOverridesAdminSettings(ctx)
+	require.NoError(t, err)
+	require.False(t, resp.AllowUsers)
+
+	err = memberClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+		AllowUsers: true,
+	})
+	requireSDKError(t, err, http.StatusForbidden)
+
+	_, err = memberClient.GetChatPersonalModelOverridesAdminSettings(ctx)
+	requireSDKError(t, err, http.StatusNotFound)
+}
+
+//nolint:tparallel,paralleltest // Subtests share coderdtest instances.
+func TestUserChatPersonalModelOverrides(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, member := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	noKeyClientRaw, noKeyUser := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	noKeyClient := codersdk.NewExperimentalClient(noKeyClientRaw)
+
+	defaultModelConfig := createChatModelConfig(t, adminClient)
+	provider := enableUserChatProviderKey(t, adminClient, memberClient, "openai")
+	modelConfig := createAdditionalChatModelConfig(
+		t,
+		adminClient,
+		"openai",
+		"gpt-4o-personal-"+uuid.NewString(),
+	)
+	err := adminClient.UpdateChatModelOverride(ctx, codersdk.ChatModelOverrideContextGeneral, codersdk.UpdateChatModelOverrideRequest{
+		ModelConfigID: modelConfig.ID.String(),
+	})
+	require.NoError(t, err)
+	err = adminClient.UpdateChatModelOverride(ctx, codersdk.ChatModelOverrideContextExplore, codersdk.UpdateChatModelOverrideRequest{
+		ModelConfigID: defaultModelConfig.ID.String(),
+	})
+	require.NoError(t, err)
+
+	disabledModelConfig := createDisabledChatModelConfig(
+		t,
+		adminClient,
+		"openai",
+		"gpt-4o-personal-disabled-"+uuid.NewString(),
+	)
+	disabledProvider, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider:             "anthropic",
+		Enabled:              ptr.Ref(false),
+		CentralAPIKeyEnabled: ptr.Ref(false),
+		AllowUserAPIKey:      ptr.Ref(true),
+	})
+	require.NoError(t, err)
+	disabledProviderModelConfig := createAdditionalChatModelConfig(
+		t,
+		adminClient,
+		"anthropic",
+		"claude-personal-disabled-provider-"+uuid.NewString(),
+	)
+	require.NotEqual(t, uuid.Nil, provider.ID)
+	require.NotEqual(t, uuid.Nil, disabledProvider.ID)
+
+	personalOverride := func(
+		resp codersdk.UserChatPersonalModelOverridesResponse,
+		overrideContext codersdk.ChatPersonalModelOverrideContext,
+	) codersdk.ChatPersonalModelOverride {
+		t.Helper()
+		switch overrideContext {
+		case codersdk.ChatPersonalModelOverrideContextRoot:
+			return resp.Root
+		case codersdk.ChatPersonalModelOverrideContextGeneral:
+			return resp.General
+		case codersdk.ChatPersonalModelOverrideContextExplore:
+			return resp.Explore
+		default:
+			t.Fatalf("unexpected personal model override context %q", overrideContext)
+			return codersdk.ChatPersonalModelOverride{}
+		}
+	}
+	assertOverride := func(
+		resp codersdk.UserChatPersonalModelOverridesResponse,
+		overrideContext codersdk.ChatPersonalModelOverrideContext,
+		mode codersdk.ChatPersonalModelOverrideMode,
+		modelConfigID string,
+		isSet bool,
+		isMalformed bool,
+	) {
+		t.Helper()
+		override := personalOverride(resp, overrideContext)
+		require.Equal(t, overrideContext, override.Context)
+		require.Equal(t, mode, override.Mode)
+		require.Equal(t, modelConfigID, override.ModelConfigID)
+		require.Equal(t, isSet, override.IsSet)
+		require.Equal(t, isMalformed, override.IsMalformed)
+	}
+	assertDeploymentDefault := func(
+		resp codersdk.UserChatPersonalModelOverridesResponse,
+		overrideContext codersdk.ChatModelOverrideContext,
+		modelConfigID string,
+		isMalformed bool,
+	) {
+		t.Helper()
+		var override codersdk.ChatModelOverrideResponse
+		switch overrideContext {
+		case codersdk.ChatModelOverrideContextGeneral:
+			override = resp.DeploymentDefaults.General
+		case codersdk.ChatModelOverrideContextExplore:
+			override = resp.DeploymentDefaults.Explore
+		default:
+			t.Fatalf("unexpected deployment model override context %q", overrideContext)
+		}
+		require.Equal(t, overrideContext, override.Context)
+		require.Equal(t, modelConfigID, override.ModelConfigID)
+		require.Equal(t, isMalformed, override.IsMalformed)
+	}
+	upsertRaw := func(
+		overrideContext codersdk.ChatPersonalModelOverrideContext,
+		value string,
+	) {
+		t.Helper()
+		err := db.UpsertUserChatPersonalModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertUserChatPersonalModelOverrideParams{
+			UserID: member.ID,
+			Key:    chatd.ChatPersonalModelOverrideKey(overrideContext),
+			Value:  value,
+		})
+		require.NoError(t, err)
+	}
+	getRawFor := func(userID uuid.UUID, overrideContext codersdk.ChatPersonalModelOverrideContext) string {
+		t.Helper()
+		raw, err := db.GetUserChatPersonalModelOverride(dbauthz.AsSystemRestricted(ctx), database.GetUserChatPersonalModelOverrideParams{
+			UserID: userID,
+			Key:    chatd.ChatPersonalModelOverrideKey(overrideContext),
+		})
+		if stderrors.Is(err, sql.ErrNoRows) {
+			return ""
+		}
+		require.NoError(t, err)
+		return raw
+	}
+	getRaw := func(overrideContext codersdk.ChatPersonalModelOverrideContext) string {
+		t.Helper()
+		return getRawFor(member.ID, overrideContext)
+	}
+
+	t.Run("GETDisabledReturnsMissingDefaults", func(t *testing.T) {
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		require.False(t, resp.Enabled)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", false, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", false, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", false, false)
+	})
+
+	upsertRaw(codersdk.ChatPersonalModelOverrideContextRoot, string(codersdk.ChatPersonalModelOverrideModeChatDefault))
+	upsertRaw(codersdk.ChatPersonalModelOverrideContextGeneral, string(codersdk.ChatPersonalModelOverrideModeDeploymentDefault))
+	upsertRaw(codersdk.ChatPersonalModelOverrideContextExplore, "model:"+modelConfig.ID.String())
+
+	t.Run("GETDisabledReturnsSavedValues", func(t *testing.T) {
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		require.False(t, resp.Enabled)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeModel, modelConfig.ID.String(), true, false)
+	})
+
+	t.Run("GETIncludesDeploymentDefaults", func(t *testing.T) {
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextGeneral, modelConfig.ID.String(), false)
+		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextExplore, defaultModelConfig.ID.String(), false)
+	})
+
+	t.Run("PUTDisabledReturns403AndPreservesRows", func(t *testing.T) {
+		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode:          codersdk.ChatPersonalModelOverrideModeModel,
+			ModelConfigID: modelConfig.ID.String(),
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, string(codersdk.ChatPersonalModelOverrideModeChatDefault), getRaw(codersdk.ChatPersonalModelOverrideContextRoot))
+	})
+
+	err = adminClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+		AllowUsers: true,
+	})
+	require.NoError(t, err)
+
+	contexts := []codersdk.ChatPersonalModelOverrideContext{
+		codersdk.ChatPersonalModelOverrideContextRoot,
+		codersdk.ChatPersonalModelOverrideContextGeneral,
+		codersdk.ChatPersonalModelOverrideContextExplore,
+	}
+
+	t.Run("PUTRejectsUnknownMode", func(t *testing.T) {
+		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
+		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode: codersdk.ChatPersonalModelOverrideMode("banana"),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Invalid personal model override mode.")
+		require.Equal(t, rawBefore, getRaw(codersdk.ChatPersonalModelOverrideContextGeneral))
+	})
+
+	t.Run("PUTChatDefaultRoundTrips", func(t *testing.T) {
+		for _, overrideContext := range contexts {
+			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+				Mode: codersdk.ChatPersonalModelOverrideModeChatDefault,
+			})
+			require.NoError(t, err)
+		}
+
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		require.True(t, resp.Enabled)
+		for _, overrideContext := range contexts {
+			assertOverride(resp, overrideContext, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, false)
+		}
+	})
+
+	t.Run("PUTChatDefaultRejectsNonEmptyModelConfigID", func(t *testing.T) {
+		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextRoot)
+		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode:          codersdk.ChatPersonalModelOverrideModeChatDefault,
+			ModelConfigID: modelConfig.ID.String(),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "model_config_id must be empty")
+		require.Equal(t, rawBefore, getRaw(codersdk.ChatPersonalModelOverrideContextRoot))
+	})
+
+	t.Run("PUTDeploymentDefaultRoundTripsForAgentContexts", func(t *testing.T) {
+		for _, overrideContext := range []codersdk.ChatPersonalModelOverrideContext{
+			codersdk.ChatPersonalModelOverrideContextGeneral,
+			codersdk.ChatPersonalModelOverrideContextExplore,
+		} {
+			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+				Mode: codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
+			})
+			require.NoError(t, err)
+		}
+
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true, false)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextExplore, codersdk.ChatPersonalModelOverrideModeDeploymentDefault, "", true, false)
+	})
+
+	t.Run("PUTDeploymentDefaultRejectsNonEmptyModelConfigID", func(t *testing.T) {
+		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
+		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode:          codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
+			ModelConfigID: modelConfig.ID.String(),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "model_config_id must be empty")
+		require.Equal(t, rawBefore, getRaw(codersdk.ChatPersonalModelOverrideContextGeneral))
+	})
+
+	t.Run("PUTDeploymentDefaultRejectsRoot", func(t *testing.T) {
+		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode: codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("PUTModelRoundTrips", func(t *testing.T) {
+		for _, overrideContext := range contexts {
+			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+				Mode:          codersdk.ChatPersonalModelOverrideModeModel,
+				ModelConfigID: modelConfig.ID.String(),
+			})
+			require.NoError(t, err)
+		}
+
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		for _, overrideContext := range contexts {
+			assertOverride(resp, overrideContext, codersdk.ChatPersonalModelOverrideModeModel, modelConfig.ID.String(), true, false)
+		}
+	})
+
+	t.Run("PUTModelRejectsInvalidModels", func(t *testing.T) {
+		cases := []struct {
+			name                 string
+			client               *codersdk.ExperimentalClient
+			userID               uuid.UUID
+			modelConfigID        string
+			wantMessageSubstring string
+		}{
+			{
+				name:                 "Nil",
+				client:               memberClient,
+				userID:               member.ID,
+				modelConfigID:        uuid.Nil.String(),
+				wantMessageSubstring: "Invalid model_config_id",
+			},
+			{
+				name:                 "Empty",
+				client:               memberClient,
+				userID:               member.ID,
+				modelConfigID:        "",
+				wantMessageSubstring: "model_config_id is required",
+			},
+			{
+				name:                 "Malformed",
+				client:               memberClient,
+				userID:               member.ID,
+				modelConfigID:        "not-a-uuid",
+				wantMessageSubstring: "Invalid model_config_id",
+			},
+			{
+				name:          "Unknown",
+				client:        memberClient,
+				userID:        member.ID,
+				modelConfigID: uuid.NewString(),
+				wantMessageSubstring: "Invalid model_config_id: model config " +
+					"not found or disabled.",
+			},
+			{
+				name:          "Disabled",
+				client:        memberClient,
+				userID:        member.ID,
+				modelConfigID: disabledModelConfig.ID.String(),
+				wantMessageSubstring: "Invalid model_config_id: model config " +
+					"not found or disabled.",
+			},
+			{
+				name:                 "ProviderDisabled",
+				client:               memberClient,
+				userID:               member.ID,
+				modelConfigID:        disabledProviderModelConfig.ID.String(),
+				wantMessageSubstring: "provider is not enabled",
+			},
+			{
+				name:          "CredentialUnavailable",
+				client:        noKeyClient,
+				userID:        noKeyUser.ID,
+				modelConfigID: modelConfig.ID.String(),
+				wantMessageSubstring: "Invalid model_config_id: provider " +
+					"credentials unavailable for this model.",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				rawBefore := getRawFor(tc.userID, codersdk.ChatPersonalModelOverrideContextGeneral)
+				err := tc.client.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+					Mode:          codersdk.ChatPersonalModelOverrideModeModel,
+					ModelConfigID: tc.modelConfigID,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Contains(t, sdkErr.Message, tc.wantMessageSubstring)
+				rawAfter := getRawFor(tc.userID, codersdk.ChatPersonalModelOverrideContextGeneral)
+				require.Equal(t, rawBefore, rawAfter)
+			})
+		}
+	})
+
+	t.Run("GETMalformedStoredValueFallsBackToContextDefault", func(t *testing.T) {
+		upsertRaw(codersdk.ChatPersonalModelOverrideContextRoot, "model:not-a-uuid")
+
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, true)
+	})
+
+	t.Run("GETRootDeploymentDefaultIsMalformed", func(t *testing.T) {
+		upsertRaw(
+			codersdk.ChatPersonalModelOverrideContextRoot,
+			string(codersdk.ChatPersonalModelOverrideModeDeploymentDefault),
+		)
+
+		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
+		require.NoError(t, err)
+		assertOverride(resp, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.ChatPersonalModelOverrideModeChatDefault, "", true, true)
+	})
+}
+
+//nolint:tparallel,paralleltest // Subtests share coderdtest instances.
+func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	defaultModel := createChatModelConfig(t, adminClient)
+	_ = enableUserChatProviderKey(t, adminClient, adminClient, defaultModel.Provider)
+	overrideModel := createAdditionalChatModelConfig(
+		t,
+		adminClient,
+		defaultModel.Provider,
+		"gpt-4o-root-personal-"+uuid.NewString(),
+	)
+	disabledModel := createDisabledChatModelConfig(
+		t,
+		adminClient,
+		defaultModel.Provider,
+		"gpt-4o-root-personal-disabled-"+uuid.NewString(),
+	)
+	memberClientRaw, member := coderdtest.CreateAnotherUser(
+		t,
+		adminClient.Client,
+		firstUser.OrganizationID,
+		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+	)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	createChat := func(
+		client *codersdk.ExperimentalClient,
+		text string,
+		modelConfigID *uuid.UUID,
+	) codersdk.Chat {
+		t.Helper()
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: text,
+			}},
+			ModelConfigID: modelConfigID,
+		})
+		require.NoError(t, err)
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.LastModelConfigID, storedChat.LastModelConfigID)
+		return chat
+	}
+	upsertRootRaw := func(userID uuid.UUID, value string) {
+		t.Helper()
+		err := db.UpsertUserChatPersonalModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertUserChatPersonalModelOverrideParams{
+			UserID: userID,
+			Key:    chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot),
+			Value:  value,
+		})
+		require.NoError(t, err)
+	}
+
+	err := adminClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+		AllowUsers: true,
+	})
+	require.NoError(t, err)
+	err = adminClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+		Mode:          codersdk.ChatPersonalModelOverrideModeModel,
+		ModelConfigID: overrideModel.ID.String(),
+	})
+	require.NoError(t, err)
+
+	t.Run("ExplicitModelConfigWins", func(t *testing.T) {
+		chat := createChat(adminClient, "explicit model config wins", ptr.Ref(defaultModel.ID))
+		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
+	})
+
+	t.Run("FlagOffIgnoresSavedRootModel", func(t *testing.T) {
+		err := adminClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+			AllowUsers: false,
+		})
+		require.NoError(t, err)
+
+		chat := createChat(adminClient, "flag off uses default", nil)
+		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
+	})
+
+	t.Run("ChatDefaultUsesDefaultModel", func(t *testing.T) {
+		err := adminClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+			AllowUsers: true,
+		})
+		require.NoError(t, err)
+		err = adminClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode: codersdk.ChatPersonalModelOverrideModeChatDefault,
+		})
+		require.NoError(t, err)
+
+		chat := createChat(adminClient, "chat default uses default", nil)
+		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
+	})
+
+	t.Run("MalformedRootFallsBackToDefault", func(t *testing.T) {
+		upsertRootRaw(firstUser.UserID, "garbage")
+		chat := createChat(adminClient, "malformed root falls back", nil)
+		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
+	})
+
+	t.Run("RootModelOverrideUsesSavedModel", func(t *testing.T) {
+		err := adminClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode:          codersdk.ChatPersonalModelOverrideModeModel,
+			ModelConfigID: overrideModel.ID.String(),
+		})
+		require.NoError(t, err)
+
+		chat := createChat(adminClient, "root model override uses saved model", nil)
+		require.Equal(t, overrideModel.ID, chat.LastModelConfigID)
+	})
+
+	t.Run("UnavailableRootModelFallsBackToDefault", func(t *testing.T) {
+		upsertRootRaw(firstUser.UserID, "model:"+disabledModel.ID.String())
+		chat := createChat(adminClient, "disabled root model falls back", nil)
+		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
+
+		upsertRootRaw(member.ID, "model:"+overrideModel.ID.String())
+		chat = createChat(memberClient, "missing user key falls back", nil)
+		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
+	})
+}
+
 func TestChatDesktopEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -10414,6 +11023,139 @@ func TestChatDesktopEnabled(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+}
+
+func TestChatComputerUseProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsAnthropicWhenUnset", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", resp.Provider)
+	})
+
+	t.Run("AdminCanSetAnthropic", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "anthropic",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", resp.Provider)
+	})
+
+	t.Run("AdminCanSetOpenAI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "openai", resp.Provider)
+	})
+
+	t.Run("AdminCanSwitchProviders", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		require.NoError(t, err)
+
+		err = adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "anthropic",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", resp.Provider)
+	})
+
+	t.Run("InvalidProviderRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		for _, provider := range []string{"", "invalid"} {
+			err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+				Provider: provider,
+			})
+			requireSDKError(t, err, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("NonAdminCanRead", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		require.NoError(t, err)
+
+		resp, err := memberClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "openai", resp.Provider)
+	})
+
+	t.Run("NonAdminWriteFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		err := memberClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: "openai",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("UnauthenticatedReadFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+
+		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
+		_, err := anonClient.GetChatComputerUseProvider(ctx)
+		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 }
 
@@ -11357,6 +12099,63 @@ func TestChatRetentionDays(t *testing.T) {
 	// Validation: exceeding the 3650-day maximum is rejected.
 	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
 		RetentionDays: 3651, // retentionDaysMaximum + 1; keep in sync with coderd/exp_chats.go.
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+}
+
+func TestChatDebugRetentionDays(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	// Default value is DefaultChatDebugRetentionDays when nothing has
+	// been configured.
+	resp, err := adminClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "get default")
+	require.Equal(t, codersdk.DefaultChatDebugRetentionDays, resp.DebugRetentionDays, "default should match DefaultChatDebugRetentionDays")
+
+	// Admin can set debug retention days to 14.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: 14,
+	})
+	require.NoError(t, err, "admin set 14")
+
+	resp, err = adminClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "get after set")
+	require.Equal(t, int32(14), resp.DebugRetentionDays, "should return 14")
+
+	// Non-admin member can read the value.
+	memberResp, err := memberClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "member read")
+	require.Equal(t, int32(14), memberResp.DebugRetentionDays, "member sees same value")
+
+	// Non-admin member cannot write.
+	err = memberClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: 7})
+	requireSDKError(t, err, http.StatusForbidden)
+
+	// Admin can disable chat debug retention purge by setting 0.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: 0,
+	})
+	require.NoError(t, err, "admin set 0")
+
+	resp, err = adminClient.GetChatDebugRetentionDays(ctx)
+	require.NoError(t, err, "get after zero")
+	require.Equal(t, int32(0), resp.DebugRetentionDays, "should be 0 after disable")
+
+	// Validation: negative value is rejected.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: -1,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Validation: exceeding the 3650-day maximum is rejected.
+	err = adminClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
+		DebugRetentionDays: 3651, // chatDebugRetentionDaysMaximum + 1; keep in sync with coderd/exp_chats.go.
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
 }
@@ -12671,4 +13470,190 @@ func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Erro
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, expectedStatus, sdkErr.StatusCode())
 	return sdkErr
+}
+
+// TestChatOwnerOnlyWriteHandlers verifies that only the chat owner can
+// call handlers that trigger chat processing. Org admins pass the RBAC
+// ActionUpdate check (org-level permission) but must still be blocked
+// because processing forwards the *owner's* credentials to external
+// services.
+func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
+	t.Parallel()
+
+	// setupOrgAdminAndOwnerChat creates an org-admin user and a chat
+	// owned by the first (site-admin) user. Returns both clients,
+	// the chat, and the DB handle.
+	setupOrgAdminAndOwnerChat := func(t *testing.T) (
+		ownerClient *codersdk.ExperimentalClient,
+		adminClient *codersdk.ExperimentalClient,
+		chat codersdk.Chat,
+		db database.Store,
+	) {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db = newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModelConfig(t, ownerClient)
+
+		// Create a chat owned by the first user.
+		var err error
+		chat, err = ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "owner chat for authz test",
+			}},
+		})
+		require.NoError(t, err)
+
+		// Create an org admin in the same org.
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(
+			t,
+			ownerClient.Client,
+			firstUser.OrganizationID,
+			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+		)
+		adminClient = codersdk.NewExperimentalClient(orgAdminRaw)
+		return ownerClient, adminClient, chat, db
+	}
+
+	t.Run("PostChatMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "org admin should not be able to send this",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("PatchChatMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		// Fetch the first user message to get a valid message ID.
+		messagesResult, err := ownerClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		_, err = adminClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "org admin should not be able to edit this",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, db := setupOrgAdminAndOwnerChat(t)
+
+		// Insert a queued message directly in the DB.
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		// Org admin tries to promote.
+		promoteRes, err := adminClient.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
+	})
+
+	t.Run("SubmitToolResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{
+				ToolCallID: "call_forbidden",
+				Output:     json.RawMessage(`"forbidden"`),
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("RegenerateChatTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.RegenerateChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("ProposeChatTitle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.ProposeChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	// Verify the owner can still operate normally.
+	t.Run("OwnerCanSendMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, _, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := ownerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "owner should succeed",
+			}},
+		})
+		// The message is accepted (no 403). It may fail downstream
+		// (e.g. no running LLM) but that is not a 403.
+		if err != nil {
+			var sdkErr *codersdk.Error
+			if xerrors.As(err, &sdkErr) {
+				require.NotEqual(t, http.StatusForbidden, sdkErr.StatusCode(),
+					"owner must not receive 403")
+			}
+		}
+	})
 }

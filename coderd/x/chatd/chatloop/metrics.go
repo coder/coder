@@ -145,7 +145,7 @@ func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror
 	if m == nil {
 		return
 	}
-	m.StreamRetriesTotal.WithLabelValues(provider, model, classified.Kind).Inc()
+	m.StreamRetriesTotal.WithLabelValues(provider, model, string(classified.Kind)).Inc()
 }
 
 // RecordToolError increments tool_errors_total for the given

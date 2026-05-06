@@ -49,9 +49,7 @@ func TestStartWorkspace(t *testing.T) {
 			Title:             "test-no-workspace",
 		})
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:     db,
-			ChatID: chat.ID,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called")
 				return codersdk.WorkspaceBuild{}, nil
@@ -96,10 +94,8 @@ func TestStartWorkspace(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			AgentConnFn: agentConnFn,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for already-running workspace")
@@ -178,10 +174,8 @@ func TestStartWorkspace(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			AgentConnFn: agentConnFn,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for already-running workspace")
@@ -231,10 +225,8 @@ func TestStartWorkspace(t *testing.T) {
 			Title:             "test-running-no-agent",
 		})
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				t.Fatal("AgentConnFn should not be called when no agents exist")
 				return nil, func() {}, nil
@@ -293,10 +285,8 @@ func TestStartWorkspace(t *testing.T) {
 			Title:             "test-running-selection-error",
 		})
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				t.Fatal("AgentConnFn should not be called when agent selection fails")
 				return nil, func() {}, nil
@@ -369,10 +359,8 @@ func TestStartWorkspace(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			StartFn:     startFn,
 			AgentConnFn: agentConnFn,
 			WorkspaceMu: &sync.Mutex{},
@@ -432,10 +420,8 @@ func TestStartWorkspace(t *testing.T) {
 			}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			StartFn: startFn,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
@@ -496,10 +482,8 @@ func TestStartWorkspace(t *testing.T) {
 			return codersdk.WorkspaceBuild{ID: buildResp.Build.ID}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			StartFn: startFn,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
@@ -543,10 +527,8 @@ func TestStartWorkspace(t *testing.T) {
 			Title:             "test-start-workspace-manual-update-required",
 		})
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(400, codersdk.Response{
 					Message: "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values.",
@@ -610,10 +592,8 @@ func TestStartWorkspace(t *testing.T) {
 			Title:             "test-start-workspace-responder-error-without-validations",
 		})
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(502, codersdk.Response{
 					Message: "workspace start failed",
@@ -677,10 +657,8 @@ func TestStartWorkspace(t *testing.T) {
 		}
 
 		var onChatUpdatedCalled atomic.Bool
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			AgentConnFn: agentConnFn,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for an in-progress build")
@@ -761,10 +739,8 @@ func TestStartWorkspace(t *testing.T) {
 		jobRead := make(chan struct{}, 1)
 		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
 			},
@@ -856,10 +832,8 @@ func TestStartWorkspace(t *testing.T) {
 		jobRead := make(chan struct{}, 2)
 		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			StartFn: startFn,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
@@ -934,9 +908,7 @@ func TestStartWorkspace(t *testing.T) {
 			Title:             "test-deleted-workspace",
 		})
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:     db,
-			ChatID: chat.ID,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for deleted workspace")
 				return codersdk.WorkspaceBuild{}, nil

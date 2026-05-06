@@ -51,6 +51,13 @@ variable "CODER_DOGFOOD_ANTHROPIC_API_KEY" {
   sensitive   = true
 }
 
+variable "CODER_DOGFOOD_OPENAI_API_KEY" {
+  type        = string
+  description = "The API key that workspaces will use to authenticate with the OpenAI API."
+  default     = ""
+  sensitive   = true
+}
+
 resource "coderd_template" "dogfood" {
   name            = var.CODER_TEMPLATE_NAME
   display_name    = "Write Coder on Coder"
@@ -67,6 +74,10 @@ resource "coderd_template" "dogfood" {
         {
           name  = "anthropic_api_key"
           value = var.CODER_DOGFOOD_ANTHROPIC_API_KEY
+        },
+        {
+          name  = "openai_api_key"
+          value = var.CODER_DOGFOOD_OPENAI_API_KEY
         }
       ]
     }

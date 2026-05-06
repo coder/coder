@@ -27,7 +27,7 @@ import (
 // @Produce json
 // @Param request body codersdk.DynamicParametersRequest true "Initial parameter values"
 // @Success 200 {object} codersdk.DynamicParametersResponse
-// @Router /templateversions/{templateversion}/dynamic-parameters/evaluate [post]
+// @Router /api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate [post]
 func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req codersdk.DynamicParametersRequest
@@ -44,7 +44,7 @@ func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter,
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 101
-// @Router /templateversions/{templateversion}/dynamic-parameters [get]
+// @Router /api/v2/templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {
 	apikey := httpmw.APIKey(r)
 	userID := apikey.UserID

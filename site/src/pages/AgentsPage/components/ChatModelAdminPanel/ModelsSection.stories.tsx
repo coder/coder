@@ -150,6 +150,21 @@ export const HidesPricingWarningForExplicitZeroPricing: Story = {
 	},
 };
 
+export const LinksToProvidersFromEmptyState: Story = {
+	args: {
+		providerStates: [providerStateWithoutAPIKey],
+		modelConfigs: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const providerLink = canvas.getByRole("link", { name: /provider/i });
+
+		await expect(canvas.getByText("No models configured yet.")).toBeVisible();
+		await expect(providerLink).toBeVisible();
+		expect(providerLink).toHaveAttribute("href", "/agents/settings/providers");
+	},
+};
+
 export const ShowsExplicitRowActions: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

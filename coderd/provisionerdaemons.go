@@ -28,7 +28,7 @@ import (
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
 // @Success 200 {array} codersdk.ProvisionerDaemon
-// @Router /organizations/{organization}/provisionerdaemons [get]
+// @Router /api/v2/organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()

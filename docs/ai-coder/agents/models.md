@@ -32,15 +32,14 @@ models, internal gateways, or third-party proxies like LiteLLM.
 ### Add a provider
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Click **Admin** in the top bar to open the configuration dialog.
-1. Select the **Providers** tab.
+1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
 1. Click the provider you want to configure.
 1. Enter the **API key** for the provider, if required.
 1. Optionally set a **Base URL** to override the default endpoint. This is
    useful for enterprise proxies, regional endpoints, or self-hosted models.
 1. Click **Save**.
 
-<img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the admin dialog">
+<img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the Agents settings">
 
 <small>The providers list shows all supported providers and their configuration
 status.</small>
@@ -130,7 +129,7 @@ generation parameters, and provider-specific options.
 
 ### Add a model
 
-1. Open the **Admin** dialog and select the **Models** tab.
+1. Open **Settings** > **Manage Agents** and select the **Models** tab.
 1. Click **Add** and select the provider for the new model.
 1. Enter the **Model Identifier** — the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
@@ -141,7 +140,7 @@ generation parameters, and provider-specific options.
 1. Configure any provider-specific options (see below).
 1. Click **Save**.
 
-<img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the admin dialog">
+<img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the Agents settings">
 
 <small>The models list shows all configured models grouped by provider.</small>
 
@@ -246,6 +245,42 @@ The model selector uses the following precedence to pre-select a model:
 Developers cannot add their own providers or models. If no models are
 configured, the chat interface displays a message directing developers to
 contact an administrator.
+
+## Model overrides
+
+Beyond the chat-level model picker, Coder Agents supports two override
+layers:
+
+- **Subagent overrides** (admin, deployment-wide): Pin specific subagent
+  contexts to a particular model. Configure them at **Agents** >
+  **Settings** > **Manage Agents** > **Agents**.
+- **Personal overrides** (per user, opt-in by admin): Let users override
+  the model for their own root chats and delegated subagents. Admins
+  enable the toggle on the same admin page; once on, each user sees an
+  **Agents** tab in their personal **Agents** > **Settings**.
+
+The configurable contexts:
+
+| Context              | Layer        | Applies to                                                                     |
+|----------------------|--------------|--------------------------------------------------------------------------------|
+| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`). |
+| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                       |
+| **Title generation** | Admin only   | Automatic title generation for new chats.                                      |
+| **Root**             | User only    | The user's own root chats.                                                     |
+
+Resolution order, evaluated per chat or subagent:
+
+1. Personal override (when the admin gate is on and a model is set).
+1. Admin subagent override.
+1. The chat's selected model (or the deployment default for new chats).
+
+If a referenced model is later disabled or deleted, that layer is skipped
+and resolution falls through to the next.
+
+> [!NOTE]
+> Both override layers are experimental and may change between releases.
+> The same values are available through the experimental chat
+> configuration API under `/api/experimental/chats/config/`.
 
 ## User API keys (BYOK)
 
