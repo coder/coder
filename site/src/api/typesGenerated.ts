@@ -6529,6 +6529,12 @@ export interface RequestOneTimePasscodeRequest {
 // From codersdk/workspaces.go
 export interface ResolveAutostartResponse {
 	readonly parameter_mismatch: boolean;
+	/**
+	 * SecretMismatch is true when the active template version declares
+	 * `coder_secret` requirements that the workspace owner's secrets do not
+	 * satisfy.
+	 */
+	readonly secret_mismatch: boolean;
 }
 
 // From codersdk/audit.go
