@@ -944,38 +944,41 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center gap-2 border-0 border-b border-solid border-border-default/30 pl-3 pr-0.5 py-0.5 text-content-secondary",
+								"group relative flex min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
 						>
-							{hasChildren ? (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={() => toggleExpanded(chatID)}
-									className="h-5 w-5 shrink-0 p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5"
-									aria-label={isExpanded ? "Collapse" : "Expand"}
-									aria-expanded={isExpanded}
-								>
-									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-								</Button>
-							) : (
-								<div className="w-5 shrink-0" />
-							)}
+							{/* Chevron cell */}
+							<div className="flex w-8 shrink-0 items-center justify-center">
+								{hasChildren ? (
+									<Button
+										variant="subtle"
+										size="icon"
+										onClick={() => toggleExpanded(chatID)}
+										className="h-5 w-5 shrink-0 p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5"
+										aria-label={isExpanded ? "Collapse" : "Expand"}
+										aria-expanded={isExpanded}
+									>
+										{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+									</Button>
+								) : null}
+							</div>
+							{/* Title cell */}
 							<NavLink
 								to={{ pathname: `/agents/${chat.id}`, search: location.search }}
 								className={cn(
-									"min-w-0 flex-1 truncate py-1 text-sm text-content-primary no-underline",
+									"min-w-0 flex-1 truncate py-1.5 text-sm text-content-primary no-underline",
 									isActiveChat && "font-medium",
 								)}
 							>
 								{chat.title}
 							</NavLink>
+							{/* Subtitle cell */}
 							<span
 								className={cn(
-									"shrink-0 truncate text-sm",
-									layout === "large" ? "w-[140px]" : "w-[100px]",
+									"shrink-0 truncate px-2 text-sm",
+									layout === "large" ? "w-[160px]" : "w-[120px]",
 									errorReason
 										? "text-content-destructive"
 										: "text-content-secondary",
@@ -984,9 +987,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							>
 								{subtitle}
 							</span>
+							{/* PR stats cell */}
 							{hasLinkedDiffStatus && hasLineStats ? (
 								<span
-									className="inline-flex shrink-0 items-center gap-2 text-sm tabular-nums"
+									className="inline-flex shrink-0 items-center gap-2 px-2 text-sm tabular-nums"
 									title={`${filesChangedLabel}, +${additions} -${deletions}`}
 								>
 									{(() => {
@@ -1010,46 +1014,47 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</span>
 								</span>
 							) : null}
-							{/* Status indicator */}
-							<div className="flex w-7 shrink-0 items-center justify-center">
-								{isArchivingThisChat ? (
-									<Spinner
-										className="h-3.5 w-3.5 text-content-secondary"
-										loading
-									/>
-								) : isMainRunning || hasRunningChildren ? (
-									<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
-								) : chat.has_unread && !isActiveChat ? (
-									<span
-										className="h-2.5 w-2.5 rounded-full bg-content-link"
-										data-testid={`unread-indicator-wide-${chat.id}`}
-									/>
-								) : chat.status === "error" ? (
-									<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
-								) : null}
-							</div>
-							{/* Kebab */}
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="h-6 w-7 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
+							{/* Status + Kebab cells */}
+							<div className="ml-auto flex shrink-0 items-center">
+								<div className="flex w-8 items-center justify-center">
+									{isArchivingThisChat ? (
+										<Spinner
+											className="h-3.5 w-3.5 text-content-secondary"
+											loading
+										/>
+									) : isMainRunning || hasRunningChildren ? (
+										<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
+									) : chat.has_unread && !isActiveChat ? (
+										<span
+											className="h-2.5 w-2.5 rounded-full bg-content-link"
+											data-testid={`unread-indicator-wide-${chat.id}`}
+										/>
+									) : chat.status === "error" ? (
+										<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
+									) : null}
+								</div>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											className="h-6 w-8 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											aria-label={`Open actions for ${chat.title}`}
+										>
+											<EllipsisVerticalIcon className="h-3.5 w-3.5" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent
+										align="end"
+										className="[&_[role=menuitem]]:text-[13px]"
 									>
-										<EllipsisVerticalIcon className="h-3.5 w-3.5" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="[&_[role=menuitem]]:text-[13px]"
-								>
-									{renderMenuItems({
-										Item: DropdownMenuItem,
-										Separator: DropdownMenuSeparator,
-									})}
-								</DropdownMenuContent>
-							</DropdownMenu>
+										{renderMenuItems({
+											Item: DropdownMenuItem,
+											Separator: DropdownMenuSeparator,
+										})}
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</div>
 						</div>
 					)}
 				</ContextMenuTrigger>
@@ -1587,7 +1592,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-2 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
@@ -1654,7 +1659,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-3 pr-0.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className="flex w-full items-center justify-between border-0 border-b border-solid border-border-default/30 bg-transparent pb-1 pl-2 pr-0 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
