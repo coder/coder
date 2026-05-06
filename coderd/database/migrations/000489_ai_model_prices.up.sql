@@ -3,7 +3,7 @@ CREATE TABLE ai_model_prices (
     provider          TEXT        NOT NULL,
     model             TEXT        NOT NULL,
     -- Prices per million tokens, in micro-units (1 unit = 1,000,000).
-    -- A NULL column is treated as zero.
+    -- A NULL column means the price is unknown for this dimension; an explicit zero means "free".
     input_price       BIGINT      CHECK (input_price >= 0),
     output_price      BIGINT      CHECK (output_price >= 0),
     cache_read_price  BIGINT      CHECK (cache_read_price >= 0),
