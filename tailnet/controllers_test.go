@@ -582,10 +582,6 @@ func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {
 	f.callback = callback
 }
 
-func (*fakeCoordinatee) Node() *tailnet.Node {
-	return nil
-}
-
 func TestNewBasicDERPController_Mainline(t *testing.T) {
 	t.Parallel()
 	fs := make(chan *tailcfg.DERPMap)
@@ -1279,8 +1275,6 @@ func (f *fakeTailnetConn) SetAllPeersLost() {
 }
 
 func (*fakeTailnetConn) SetNodeCallback(func(*tailnet.Node)) {}
-
-func (*fakeTailnetConn) Node() *tailnet.Node { return nil }
 
 func (*fakeTailnetConn) SetDERPMap(*tailcfg.DERPMap) {}
 

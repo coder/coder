@@ -90,9 +90,6 @@ type Coordinatee interface {
 	// SetTunnelDestination indicates to tailnet that the peer id is a
 	// destination.
 	SetTunnelDestination(id uuid.UUID)
-	// Node returns the current node, or nil if it has not been set
-	// yet. Used to synchronously re-send the node on reconnect.
-	Node() *Node
 }
 
 const LoggerName = "coord"
