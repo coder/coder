@@ -30,10 +30,6 @@ import {
 	EllipsisIcon,
 	FilterIcon,
 	FlaskConicalIcon,
-	GitMergeIcon,
-	GitPullRequestArrowIcon,
-	GitPullRequestClosedIcon,
-	GitPullRequestDraftIcon,
 	KeyIcon,
 	LayoutTemplateIcon,
 	Loader2Icon,
@@ -210,37 +206,6 @@ type ChatTree = {
 
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
-};
-
-/**
- * Returns the icon and className to use for a PR state, or undefined
- * if there is no PR linked. Only overrides the icon when the chat
- * is not actively executing (pending/running/paused/error).
- */
-const getPRIconConfig = (
-	diffStatus: ChatDiffStatus | undefined,
-): { icon: typeof CheckIcon; className: string } | undefined => {
-	const state = diffStatus?.pull_request_state;
-	if (!state) {
-		return undefined;
-	}
-	if (state === "merged") {
-		return { icon: GitMergeIcon, className: "text-git-merged-bright" };
-	}
-	if (state === "closed") {
-		return {
-			icon: GitPullRequestClosedIcon,
-			className: "text-git-deleted-bright",
-		};
-	}
-	// state === "open"
-	if (diffStatus?.pull_request_draft) {
-		return {
-			icon: GitPullRequestDraftIcon,
-			className: "text-content-secondary",
-		};
-	}
-	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
 };
 
 const asNonEmptyString = (value: unknown): string | undefined => {
@@ -513,9 +478,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		visibleChatIDs.has(childID),
 	);
 	const hasChildren = childIDs.length > 0;
-	const isDelegated = Boolean(getParentChatID(chat));
-	const isDelegatedExecuting =
-		isDelegated && (chat.status === "pending" || chat.status === "running");
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
 		modelConfigs,
@@ -528,13 +490,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const { layout } = useSidebarWidth();
 	const subtitle = errorReason || modelName;
 	const diffStatus = getChatDiffStatus(chat);
-	const baseConfig = getStatusConfig(chat.status);
-	const prConfig =
-		chat.status === "waiting" || chat.status === "completed"
-			? getPRIconConfig(diffStatus)
-			: undefined;
-	const config = prConfig ?? baseConfig;
-	const StatusIcon = config.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -638,45 +593,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
 							)}
 						>
-							<div
-								className={cn(
-									"group/icon relative mt-1.5 h-5 w-5 shrink-0",
-									hasChildren && "cursor-pointer",
-								)}
-							>
-								<div
-									className={cn(
-										"flex h-5 w-5 items-center justify-center rounded-md",
-										hasChildren &&
-											"[@media(hover:hover)]:group-hover/icon:invisible",
-									)}
-								>
-									<StatusIcon
-										data-testid={
-											isDelegatedExecuting
-												? `agents-tree-executing-${chat.id}`
-												: undefined
-										}
-										className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-									/>
-								</div>
-								{hasChildren && (
-									<Button
-										variant="subtle"
-										size="icon"
-										onClick={() => toggleExpanded(chatID)}
-										className={cn(
-											"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-											"[@media(hover:hover)]:group-hover/icon:visible",
-										)}
-										data-testid={`agents-tree-toggle-${chat.id}`}
-										aria-label={isExpanded ? "Collapse" : "Expand"}
-										aria-expanded={isExpanded}
-									>
-										{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-									</Button>
-								)}
-							</div>
 							<NavLink
 								to={{
 									pathname: `/agents/${chat.id}`,
@@ -737,7 +653,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</>
 								)}
 							</NavLink>
-							<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+							<div className="relative mt-1 flex shrink-0 items-center justify-end gap-1.5">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
@@ -745,15 +661,39 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									/>
 								) : (
 									<>
-										<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-											{chat.has_unread && !isActiveChat ? (
+										{/* Single status indicator, priority: spinner > unread > error > time */}
+										<span className="flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+											{isMainRunning || hasRunningChildren ? (
+												<div className="flex h-4 w-4 items-center justify-center">
+													{isMainRunning && hasRunningChildren ? (
+														<div className="relative h-4 w-4">
+															<Loader2Icon className="absolute inset-0 h-4 w-4 animate-spin text-content-link" />
+															<Loader2Icon
+																className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link/60"
+																style={{ animationDirection: "reverse" }}
+															/>
+														</div>
+													) : isMainRunning ? (
+														<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
+													) : (
+														<div className="relative h-4 w-4">
+															<Loader2Icon className="absolute inset-0 h-4 w-4 text-content-secondary/40" />
+															<Loader2Icon className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link" />
+														</div>
+													)}
+												</div>
+											) : chat.has_unread && !isActiveChat ? (
 												<span
-													className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+													className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link"
 													data-testid={`unread-indicator-${chat.id}`}
 													aria-hidden="true"
 												/>
+											) : chat.status === "error" ? (
+												<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
 											) : (
-												shortRelativeTime(chat.updated_at)
+												<span className="text-xs text-content-secondary/50 tabular-nums">
+													{shortRelativeTime(chat.updated_at)}
+												</span>
 											)}
 										</span>
 										<DropdownMenu>
@@ -842,9 +782,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									className="inline-flex shrink-0 items-center gap-0.5 text-[13px] tabular-nums"
 									title={`${filesChangedLabel}, +${additions} -${deletions}`}
 								>
-									<StatusIcon
-										className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-									/>
 									<span className="text-git-added-bright">+{additions}</span>
 									<span className="text-git-deleted-bright">
 										&minus;{deletions}
@@ -858,6 +795,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									{formatCostDollars(getFakeCostMicros(chat))}
 								</span>
 							)}
+							{/* Single status indicator, priority: spinner > unread > error > time */}
 							<div className="flex h-5 w-5 shrink-0 items-center justify-center">
 								{isArchivingThisChat ? (
 									<Spinner
@@ -868,19 +806,28 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									<div className="relative h-4 w-4">
 										<Loader2Icon className="absolute inset-0 h-4 w-4 animate-spin text-content-link" />
 										<Loader2Icon
-											className="absolute inset-0 h-3 w-3 m-0.5 animate-spin text-content-link/60"
+											className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link/60"
 											style={{ animationDirection: "reverse" }}
 										/>
 									</div>
+								) : isMainRunning ? (
+									<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
 								) : !isMainRunning && hasRunningChildren ? (
 									<div className="relative h-4 w-4">
 										<Loader2Icon className="absolute inset-0 h-4 w-4 text-content-secondary/40" />
-										<Loader2Icon className="absolute inset-0 h-3 w-3 m-0.5 animate-spin text-content-link" />
+										<Loader2Icon className="absolute inset-0 m-0.5 h-3 w-3 animate-spin text-content-link" />
 									</div>
-								) : (
-									<StatusIcon
-										className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+								) : chat.has_unread && !isActiveChat ? (
+									<span
+										className="h-2.5 w-2.5 rounded-full bg-content-link"
+										data-testid={`unread-indicator-wide-${chat.id}`}
 									/>
+								) : chat.status === "error" ? (
+									<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
+								) : (
+									<span className="text-[11px] text-content-secondary/50 tabular-nums">
+										{shortRelativeTime(chat.updated_at)}
+									</span>
 								)}
 							</div>
 							<DropdownMenu>
