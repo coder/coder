@@ -506,6 +506,17 @@ coder:
     wildcardHost: ""
     # coder.httproute.annotations -- The HTTPRoute annotations.
     annotations: {}
+    # coder.httproute.httpsRedirect -- Create an HTTPRoute object to request redirect to https
+    httpsRedirect:
+      # coder.httproute.httpsRedirect.enable -- Whether to create the redirect HTTPRoute object.
+      enable: false
+      # coder.httproute.httpsRedirect.annotations -- The redirect HTTPRoute annotations.
+      annotations: {}
+      # coder.httproute.httpsRedirect.parentRefs -- the parentRefs to bind the route to
+      # - kind: ListenerSet
+      #   name: coder
+      #   port: 80
+      parentRefs: []
 
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.
