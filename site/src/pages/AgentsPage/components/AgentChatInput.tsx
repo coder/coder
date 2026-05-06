@@ -145,7 +145,8 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
-	onEditLastUserMessage?: () => void;
+	// Newest-first list of non-empty user prompts for local history cycling.
+	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -312,7 +313,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
-	onEditLastUserMessage,
+	userPromptHistory = [],
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -351,6 +352,40 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const mcpPopupRef = useRef<Window | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
+	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
+	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
+	const isApplyingCycleValueRef = useRef(false);
+	const applyingCycleValueRef = useRef<string | null>(null);
+	const currentCycleValueRef = useRef<string | null>(null);
+	const previousRemountKeyRef = useRef(remountKey);
+
+	const resetPromptCycle = () => {
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		isApplyingCycleValueRef.current = false;
+		applyingCycleValueRef.current = null;
+		currentCycleValueRef.current = null;
+	};
+
+	const applyCycleValue = (text: string) => {
+		const editor = internalRef.current;
+		if (!editor) return;
+		isApplyingCycleValueRef.current = true;
+		applyingCycleValueRef.current = text;
+		currentCycleValueRef.current = text;
+		editor.setValue(text);
+		editor.focus();
+	};
+
+	useEffect(() => {
+		if (previousRemountKeyRef.current === remountKey) return;
+		previousRemountKeyRef.current = remountKey;
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		isApplyingCycleValueRef.current = false;
+		applyingCycleValueRef.current = null;
+		currentCycleValueRef.current = null;
+	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
@@ -368,9 +403,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 	}, [speech.transcript, speech.isRecording, preRecordingValue]);
 
-	// Forward the internal ref to the parent-supplied inputRef
-	// so both point to the same ChatMessageInputRef instance.
-	useImperativeHandle(inputRef, () => internalRef.current!, []);
+	// Forward a stable delegating handle to the parent-supplied inputRef.
+	useImperativeHandle(
+		inputRef,
+		() => ({
+			setValue: (text) => internalRef.current?.setValue(text),
+			insertText: (text) => internalRef.current?.insertText(text),
+			clear: () => internalRef.current?.clear(),
+			focus: () => internalRef.current?.focus(),
+			getValue: () => internalRef.current?.getValue() ?? "",
+			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
+			getContentParts: () => internalRef.current?.getContentParts() ?? [],
+		}),
+		[],
+	);
 
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
@@ -511,6 +557,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
+			resetPromptCycle();
 			onAttach(Array.from(e.target.files));
 		}
 		// Reset so the same file can be selected again.
@@ -518,6 +565,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const handleFilePaste = (file: File) => {
+		resetPromptCycle();
 		onAttach?.([file]);
 	};
 
@@ -526,6 +574,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (content === undefined) return;
 		const editor = internalRef.current;
 		if (!editor) return;
+		resetPromptCycle();
 		editor.insertText(content);
 		onRemoveAttachment?.(file);
 	};
@@ -563,6 +612,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		setIsDragging(false);
+		resetPromptCycle();
 		if (!onAttach || !e.dataTransfer.files.length) return;
 		const attachable = Array.from(e.dataTransfer.files).filter(
 			isChatAttachmentFile,
@@ -587,6 +637,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		serializedEditorState: string,
 		hasRefs: boolean,
 	) => {
+		let shouldResetCycle =
+			cycleIndex !== null && content !== currentCycleValueRef.current;
+		if (isApplyingCycleValueRef.current) {
+			shouldResetCycle =
+				content !== applyingCycleValueRef.current &&
+				cycleIndex !== null &&
+				content !== currentCycleValueRef.current;
+			isApplyingCycleValueRef.current = false;
+			applyingCycleValueRef.current = null;
+		}
+		if (shouldResetCycle) {
+			resetPromptCycle();
+		}
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
@@ -650,6 +713,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 
 		onSend(text);
+		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
@@ -690,18 +754,84 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			}
 		}
 	};
+	const restoreCycleDraft = () => {
+		const savedDraft = cycleSavedDraft ?? "";
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		applyCycleValue(savedDraft);
+	};
+
 	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
-		if (
-			e.key !== "ArrowUp" ||
+		const isPromptCyclingSuppressed =
 			editingQueuedMessageID !== null ||
 			isEditingHistoryMessage ||
-			!onEditLastUserMessage ||
-			!isComposerEffectivelyEmpty
-		) {
+			isDisabled ||
+			isLoading;
+		if (isPromptCyclingSuppressed) {
 			return;
 		}
+
+		if (e.key === "Escape") {
+			if (cycleIndex === null || isStreaming) {
+				return;
+			}
+			e.preventDefault();
+			restoreCycleDraft();
+			return;
+		}
+
+		if (e.key !== "ArrowUp" && e.key !== "ArrowDown") {
+			return;
+		}
+
+		if (cycleIndex === null) {
+			if (e.key !== "ArrowUp" || !isComposerEffectivelyEmpty) {
+				return;
+			}
+			const latestPrompt = userPromptHistory[0];
+			if (latestPrompt === undefined) {
+				return;
+			}
+			e.preventDefault();
+			setCycleIndex(0);
+			setCycleSavedDraft(internalRef.current?.getValue() ?? "");
+			applyCycleValue(latestPrompt);
+			return;
+		}
+
 		e.preventDefault();
-		onEditLastUserMessage();
+		if (e.key === "ArrowDown") {
+			if (cycleIndex === 0) {
+				restoreCycleDraft();
+				return;
+			}
+			const nextIndex = cycleIndex - 1;
+			const nextPrompt = userPromptHistory[nextIndex];
+			if (nextPrompt === undefined) {
+				restoreCycleDraft();
+				return;
+			}
+			setCycleIndex(nextIndex);
+			applyCycleValue(nextPrompt);
+			return;
+		}
+
+		const lastIndex = userPromptHistory.length - 1;
+		if (lastIndex < 0) {
+			restoreCycleDraft();
+			return;
+		}
+		const nextIndex = Math.min(cycleIndex + 1, lastIndex);
+		if (nextIndex === cycleIndex) {
+			return;
+		}
+		const nextPrompt = userPromptHistory[nextIndex];
+		if (nextPrompt === undefined) {
+			restoreCycleDraft();
+			return;
+		}
+		setCycleIndex(nextIndex);
+		applyCycleValue(nextPrompt);
 	};
 
 	const sendButtonLabel =
@@ -804,6 +934,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
+					onPaste={resetPromptCycle}
 					aria-label="Chat message"
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
@@ -819,7 +950,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
-				 * is the user's free-form message — we don't silently
+				 * is the user's free-form message, we don't silently
 				 * mutate it. Instead we surface a warning so the user
 				 * can make an informed decision. This guards against
 				 * social engineering attacks where a user is tricked
@@ -903,6 +1034,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											<button
 												type="button"
 												onClick={() => {
+													resetPromptCycle();
 													setPlusMenuOpen(false);
 													fileInputRef.current?.click();
 												}}
@@ -1074,7 +1206,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}{" "}
-						{/* Badge row — all badges and the pill always
+						{/* Badge row, all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
 						 * hide and reorder via CSS. The pill is invisible
@@ -1107,7 +1239,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								);
 							})}
-							{/* Pill — always in the DOM so it permanently
+							{/* Pill, always in the DOM so it permanently
 							 * reserves layout space. Invisible when nothing
 							 * overflows. CSS order keeps it before order-1
 							 * (overflow) badges. */}
