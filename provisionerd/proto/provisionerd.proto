@@ -76,6 +76,7 @@ message FailedJob {
     TemplateDryRun template_dry_run = 5;
   }
   string error_code = 6;
+  repeated provisioner.Diagnostic diagnostics = 7;
 }
 
 // CompletedJob is sent when the provisioner daemon completes a job.

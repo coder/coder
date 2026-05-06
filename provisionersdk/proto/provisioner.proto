@@ -463,6 +463,19 @@ message PlanRequest {
   repeated UserSecretValue user_secrets = 7;
 }
 
+// Diagnostic represents a structured diagnostic from Terraform (error
+// or warning). Surfaced in the UI instead of raw "exit status 1".
+message Diagnostic {
+  enum Severity {
+    UNKNOWN = 0;
+    ERROR = 1;
+    WARNING = 2;
+  }
+  Severity severity = 1;
+  string summary = 2;
+  string detail = 3;
+}
+
 // PlanComplete indicates a request to plan completed.
 message PlanComplete {
   string error = 1;
@@ -471,6 +484,7 @@ message PlanComplete {
   int32 dailyCost = 4;
   repeated ResourceReplacement resource_replacements = 5;
   int32 ai_task_count = 6;
+  repeated Diagnostic diagnostics = 7;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -484,6 +498,7 @@ message ApplyComplete {
   bytes state = 1;
   string error = 2;
   repeated Timing timings = 3;
+  repeated Diagnostic diagnostics = 4;
 }
 
 enum GraphSource {

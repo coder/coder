@@ -5961,6 +5961,18 @@ export interface ProvisionerJob {
 	readonly available_workers?: readonly string[];
 	readonly metadata: ProvisionerJobMetadata;
 	readonly logs_overflowed: boolean;
+	readonly diagnostics?: readonly ProvisionerJobDiagnostic[];
+}
+
+// From codersdk/provisionerdaemons.go
+/**
+ * ProvisionerJobDiagnostic represents a structured diagnostic from
+ * Terraform (error or warning) captured during plan or apply.
+ */
+export interface ProvisionerJobDiagnostic {
+	readonly severity: string;
+	readonly summary: string;
+	readonly detail?: string;
 }
 
 // From codersdk/provisionerdaemons.go

@@ -204,6 +204,15 @@ type ProvisionerJob struct {
 	AvailableWorkers []uuid.UUID            `json:"available_workers,omitempty" format:"uuid" table:"available workers"`
 	Metadata         ProvisionerJobMetadata `json:"metadata" table:"metadata,recursive_inline"`
 	LogsOverflowed   bool                   `json:"logs_overflowed" table:"logs overflowed"`
+	Diagnostics      []ProvisionerJobDiagnostic `json:"diagnostics,omitempty" table:"-"`
+}
+
+// ProvisionerJobDiagnostic represents a structured diagnostic from
+// Terraform (error or warning) captured during plan or apply.
+type ProvisionerJobDiagnostic struct {
+	Severity string `json:"severity" enums:"error,warning,unknown"`
+	Summary  string `json:"summary"`
+	Detail   string `json:"detail,omitempty"`
 }
 
 // ProvisionerJobLog represents the provisioner log entry annotated with source and level.

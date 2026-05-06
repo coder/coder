@@ -183,7 +183,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 							)}
 
 							{workspace.latest_build.job.error && (
-								<BuildErrorAlert error={workspace.latest_build.job.error} />
+								<BuildErrorAlert error={workspace.latest_build.job.error} diagnostics={workspace.latest_build.job.diagnostics} />
 							)}
 
 							{transitionStats !== undefined && (

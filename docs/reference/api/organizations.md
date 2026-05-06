@@ -300,6 +300,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
+    "diagnostics": [
+      {
+        "detail": "string",
+        "severity": "error",
+        "summary": "string"
+      }
+    ],
     "error": "string",
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -354,6 +361,10 @@ Status Code **200**
 | `» canceled_at`                 | string(date-time)                                                            | false    |              |             |
 | `» completed_at`                | string(date-time)                                                            | false    |              |             |
 | `» created_at`                  | string(date-time)                                                            | false    |              |             |
+| `» diagnostics`                 | array                                                                        | false    |              |             |
+| `»» detail`                     | string                                                                       | false    |              |             |
+| `»» severity`                   | string                                                                       | false    |              |             |
+| `»» summary`                    | string                                                                       | false    |              |             |
 | `» error`                       | string                                                                       | false    |              |             |
 | `» error_code`                  | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |             |
 | `» file_id`                     | string(uuid)                                                                 | false    |              |             |
@@ -388,6 +399,7 @@ Status Code **200**
 
 | Property                     | Value(s)                                                                 |
 |------------------------------|--------------------------------------------------------------------------|
+| `severity`                   | `error`, `unknown`, `warning`                                            |
 | `error_code`                 | `REQUIRED_TEMPLATE_VARIABLES`                                            |
 | `workspace_build_transition` | `delete`, `start`, `stop`                                                |
 | `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
@@ -427,6 +439,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   "canceled_at": "2019-08-24T14:15:22Z",
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
+  "diagnostics": [
+    {
+      "detail": "string",
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
   "error": "string",
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",

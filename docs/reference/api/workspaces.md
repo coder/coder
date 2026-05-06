@@ -98,6 +98,13 @@ of the template will be used.
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -464,6 +471,13 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -797,6 +811,13 @@ of the template will be used.
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -1108,6 +1129,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           "canceled_at": "2019-08-24T14:15:22Z",
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
+          "diagnostics": [
+            {
+              "detail": "string",
+              "severity": "error",
+              "summary": "string"
+            }
+          ],
           "error": "string",
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -1400,6 +1428,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -1969,6 +2004,13 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",

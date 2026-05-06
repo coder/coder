@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import type { ProvisionerJobDiagnostic } from "#/api/typesGenerated";
 import {
 	Alert,
 	AlertDescription,
@@ -7,13 +8,9 @@ import {
 
 interface BuildErrorAlertProps {
 	error: string;
+	diagnostics?: readonly ProvisionerJobDiagnostic[];
 	title?: string;
 }
-
-// Terraform prefixes error messages with this boilerplate. Strip it so
-// users see only the actionable message from the template author.
-const terraformBoilerplatePrefix =
-	"terraform plan: exit status 1\n\nCoder encountered an error with your template, which may be related to an issue with the template's Terraform code, or a problem with the provisioner. Check the plan logs for more details.\n\nDiagnostics:\n";
 
 // Match URLs so we can render them as clickable links. Non-global so we
 // can use it with string.split() which needs a non-global regex to
@@ -22,52 +19,57 @@ const urlPattern = /(https?:\/\/[^\s)]+)/;
 
 /**
  * Renders a build error with multi-line formatting and clickable URLs.
- * Strips terraform boilerplate so template authors can write clear,
- * actionable error messages in preconditions.
+ * When structured diagnostics are available, renders them directly.
+ * Falls back to string parsing for older API responses.
  */
 export const BuildErrorAlert: FC<BuildErrorAlertProps> = ({
 	error,
+	diagnostics,
 	title = "Workspace build failed",
 }) => {
-	let message = error;
-	if (message.startsWith(terraformBoilerplatePrefix)) {
-		message = message.slice(terraformBoilerplatePrefix.length);
+	// Prefer structured diagnostics when available.
+	if (diagnostics && diagnostics.length > 0) {
+		return (
+			<Alert severity="error" prominent>
+				<AlertTitle>{title}</AlertTitle>
+				<AlertDescription>
+					<div className="flex flex-col gap-3">
+						{diagnostics.map((diag, i) => (
+							<div key={i} className="flex flex-col gap-1">
+								<p className="m-0 font-medium">
+									{linkify(diag.summary)}
+								</p>
+								{diag.detail && (
+									<div className="flex flex-col gap-1">
+										{splitIntoParagraphs(diag.detail).map(
+											(para, pi) => (
+												<p key={pi} className="m-0">
+													{linkify(para)}
+												</p>
+											),
+										)}
+									</div>
+								)}
+							</div>
+						))}
+					</div>
+				</AlertDescription>
+			</Alert>
+		);
 	}
 
-	// Split on real newlines and escaped newlines (from JSON encoding).
-	// Group into paragraphs separated by blank lines so the rendered
-	// output preserves the visual structure the template author intended.
-	const lines = message.split(/\n|\\n/);
-	const paragraphs: string[][] = [];
-	let current: string[] = [];
-	for (const line of lines) {
-		const trimmed = line.trim();
-		if (trimmed.length === 0) {
-			if (current.length > 0) {
-				paragraphs.push(current);
-				current = [];
-			}
-		} else {
-			current.push(trimmed);
-		}
-	}
-	if (current.length > 0) {
-		paragraphs.push(current);
-	}
-
+	// Fallback: parse the error string for older API responses that
+	// don't include structured diagnostics.
+	const paragraphs = splitIntoParagraphs(error);
 	return (
 		<Alert severity="error" prominent>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDescription>
 				<div className="flex flex-col gap-3">
-					{paragraphs.map((para, pi) => (
-						<div key={pi} className="flex flex-col gap-1">
-							{para.map((line, li) => (
-								<p key={li} className="m-0">
-									{linkify(line)}
-								</p>
-							))}
-						</div>
+					{paragraphs.map((para, i) => (
+						<p key={i} className="m-0">
+							{linkify(para)}
+						</p>
 					))}
 				</div>
 			</AlertDescription>
@@ -76,7 +78,31 @@ export const BuildErrorAlert: FC<BuildErrorAlertProps> = ({
 };
 
 /**
- * Replace URLs in a line with anchor elements.
+ * Split text into paragraphs on blank lines, trimming each line.
+ */
+function splitIntoParagraphs(text: string): string[] {
+	const lines = text.split(/\n|\\n/);
+	const paragraphs: string[] = [];
+	let current: string[] = [];
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (trimmed.length === 0) {
+			if (current.length > 0) {
+				paragraphs.push(current.join(" "));
+				current = [];
+			}
+		} else {
+			current.push(trimmed);
+		}
+	}
+	if (current.length > 0) {
+		paragraphs.push(current.join(" "));
+	}
+	return paragraphs;
+}
+
+/**
+ * Replace URLs in text with anchor elements.
  */
 function linkify(text: string): React.ReactNode {
 	const parts = text.split(urlPattern);

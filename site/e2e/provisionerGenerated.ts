@@ -524,6 +524,23 @@ export interface PlanRequest {
   userSecrets: UserSecretValue[];
 }
 
+/**
+ * Diagnostic represents a structured diagnostic from Terraform (error
+ * or warning). Surfaced in the UI instead of raw "exit status 1".
+ */
+export interface Diagnostic {
+  severity: Diagnostic_Severity;
+  summary: string;
+  detail: string;
+}
+
+export enum Diagnostic_Severity {
+  UNKNOWN = 0,
+  ERROR = 1,
+  WARNING = 2,
+  UNRECOGNIZED = -1,
+}
+
 /** PlanComplete indicates a request to plan completed. */
 export interface PlanComplete {
   error: string;
@@ -532,6 +549,7 @@ export interface PlanComplete {
   dailyCost: number;
   resourceReplacements: ResourceReplacement[];
   aiTaskCount: number;
+  diagnostics: Diagnostic[];
 }
 
 /**
@@ -547,6 +565,7 @@ export interface ApplyComplete {
   state: Uint8Array;
   error: string;
   timings: Timing[];
+  diagnostics: Diagnostic[];
 }
 
 export interface GraphRequest {
@@ -1557,6 +1576,21 @@ export const PlanRequest = {
   },
 };
 
+export const Diagnostic = {
+  encode(message: Diagnostic, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.severity !== 0) {
+      writer.uint32(8).int32(message.severity);
+    }
+    if (message.summary !== "") {
+      writer.uint32(18).string(message.summary);
+    }
+    if (message.detail !== "") {
+      writer.uint32(26).string(message.detail);
+    }
+    return writer;
+  },
+};
+
 export const PlanComplete = {
   encode(message: PlanComplete, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.error !== "") {
@@ -1576,6 +1610,9 @@ export const PlanComplete = {
     }
     if (message.aiTaskCount !== 0) {
       writer.uint32(48).int32(message.aiTaskCount);
+    }
+    for (const v of message.diagnostics) {
+      Diagnostic.encode(v!, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },
@@ -1600,6 +1637,9 @@ export const ApplyComplete = {
     }
     for (const v of message.timings) {
       Timing.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    for (const v of message.diagnostics) {
+      Diagnostic.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     return writer;
   },

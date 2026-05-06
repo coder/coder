@@ -2103,6 +2103,7 @@ CASE
 END) STORED NOT NULL,
     logs_length integer DEFAULT 0 NOT NULL,
     logs_overflowed boolean DEFAULT false NOT NULL,
+    diagnostics jsonb,
     CONSTRAINT max_provisioner_logs_length CHECK ((logs_length <= 1048576))
 );
 

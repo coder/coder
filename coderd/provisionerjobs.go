@@ -413,6 +413,14 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		}
 	}
 
+	// Unmarshal structured diagnostics if present.
+	if provisionerJob.Diagnostics.Valid && len(provisionerJob.Diagnostics.RawMessage) > 0 {
+		var diags []codersdk.ProvisionerJobDiagnostic
+		if err := json.Unmarshal(provisionerJob.Diagnostics.RawMessage, &diags); err == nil {
+			job.Diagnostics = diags
+		}
+	}
+
 	return job
 }
 

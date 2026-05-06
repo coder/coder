@@ -213,7 +213,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 									)}
 								{build.job.status === "failed" &&
 									build.job.error && (
-										<BuildErrorAlert error={build.job.error} />
+										<BuildErrorAlert error={build.job.error} diagnostics={build.job.diagnostics} />
 									)}
 								{build?.job?.logs_overflowed && (
 									<Alert

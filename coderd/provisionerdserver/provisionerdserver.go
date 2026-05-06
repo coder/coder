@@ -1236,12 +1236,42 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		Valid:  failJob.ErrorCode != "",
 	}
 
+	var diagsJSON pqtype.NullRawMessage
+	if len(failJob.Diagnostics) > 0 {
+		type dbDiagnostic struct {
+			Severity string `json:"severity"`
+			Summary  string `json:"summary"`
+			Detail   string `json:"detail,omitempty"`
+		}
+		dbDiags := make([]dbDiagnostic, 0, len(failJob.Diagnostics))
+		for _, d := range failJob.Diagnostics {
+			sev := "unknown"
+			switch d.Severity {
+			case sdkproto.Diagnostic_ERROR:
+				sev = "error"
+			case sdkproto.Diagnostic_WARNING:
+				sev = "warning"
+			}
+			dbDiags = append(dbDiags, dbDiagnostic{
+				Severity: sev,
+				Summary:  d.Summary,
+				Detail:   d.Detail,
+			})
+		}
+		raw, err := json.Marshal(dbDiags)
+		if err == nil {
+			diagsJSON = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+		}
+		}
+
+
 	err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:          jobID,
 		CompletedAt: job.CompletedAt,
 		UpdatedAt:   s.timeNow(),
 		Error:       job.Error,
 		ErrorCode:   job.ErrorCode,
+		Diagnostics: diagsJSON,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update provisioner job: %w", err)

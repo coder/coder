@@ -4997,7 +4997,8 @@ type ProvisionerJob struct {
 	// Total length of provisioner logs
 	LogsLength int32 `db:"logs_length" json:"logs_length"`
 	// Whether the provisioner logs overflowed in length
-	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
+	LogsOverflowed bool                  `db:"logs_overflowed" json:"logs_overflowed"`
+	Diagnostics    pqtype.NullRawMessage `db:"diagnostics" json:"diagnostics"`
 }
 
 type ProvisionerJobLog struct {

@@ -226,7 +226,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	lockFilePath := e.files.TerraformLockFile()
 	preInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
 
-		outWriter, doneOut, _ := e.provisionLogWriter(logr)
+	outWriter, doneOut, _ := e.provisionLogWriter(logr)
 
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
@@ -315,29 +315,23 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		args = append(args, "-var", variable)
 	}
 
-		outWriter, doneOut, diags := e.provisionLogWriter(logr)
-		errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
-		defer func() {
-			_ = outWriter.Close()
-			_ = errWriter.Close()
-			<-doneOut
-			<-doneErr
-		}()
+	outWriter, doneOut, diags := e.provisionLogWriter(logr)
+	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 
-		err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	// Close writers and drain log goroutines so all diagnostics
-	// are collected before we inspect them.
-	_ = outWriter.Close()
-	_ = errWriter.Close()
+	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	// execWriteOutput closes the writers. Drain the log goroutines to ensure
+	// all diagnostics are collected before we inspect them.
 	<-doneOut
 	<-doneErr
-		if err != nil {
-			if summary := diags.Summary(); summary != "" {
-				return nil, xerrors.Errorf("terraform plan: %s", summary)
-			}
-			return nil, xerrors.Errorf("terraform plan: %w", err)
+	if err != nil {
+		if summary := diags.Summary(); summary != "" {
+			return &proto.PlanComplete{
+				Error:       "terraform plan: " + summary,
+				Diagnostics: diags.Errors(),
+			}, nil
 		}
-
+		return nil, xerrors.Errorf("terraform plan: %w", err)
+	}
 
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
@@ -380,14 +374,13 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("convert plan state: %w", err)
 	}
 
-	msg := &proto.PlanComplete{
+	return &proto.PlanComplete{
 		Plan:                 planJSON,
 		DailyCost:            state.DailyCost,
 		ResourceReplacements: resReps,
 		AiTaskCount:          state.AITaskCount,
-	}
-
-	return msg, nil
+		Diagnostics:          diags.Errors(),
+	}, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
@@ -542,30 +535,29 @@ func (e *executor) apply(
 		e.files.PlanFilePath(),
 	}
 
-		outWriter, doneOut, diags := e.provisionLogWriter(logr)
-		errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
-		defer func() {
-			_ = outWriter.Close()
-			_ = errWriter.Close()
-			<-doneOut
-			<-doneErr
-		}()
+	outWriter, doneOut, diags := e.provisionLogWriter(logr)
+	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 
-		// `terraform apply`
-		err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
-	// Close writers and drain log goroutines so all diagnostics
-	// are collected before we inspect them.
-	_ = outWriter.Close()
-	_ = errWriter.Close()
+	// `terraform apply`
+	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	// execWriteOutput closes the writers. Drain the log goroutines to ensure
+	// all diagnostics are collected before we inspect them.
 	<-doneOut
 	<-doneErr
-		if err != nil {
-			if summary := diags.Summary(); summary != "" {
-				return nil, xerrors.Errorf("terraform apply: %s", summary)
-			}
-			return nil, xerrors.Errorf("terraform apply: %w", err)
+	if err != nil {
+		stateData, _ := os.ReadFile(e.files.StateFilePath())
+		if summary := diags.Summary(); summary != "" {
+			return &proto.ApplyComplete{
+				State:       stateData,
+				Error:       "terraform apply: " + summary,
+				Diagnostics: diags.Errors(),
+			}, nil
 		}
-
+		return &proto.ApplyComplete{
+			State: stateData,
+			Error: xerrors.Errorf("terraform apply: %w", err).Error(),
+		}, nil
+	}
 
 	statefilePath := e.files.StateFilePath()
 	stateContent, err := os.ReadFile(statefilePath)
@@ -574,7 +566,8 @@ func (e *executor) apply(
 	}
 
 	return &proto.ApplyComplete{
-		State: stateContent,
+		State:       stateContent,
+		Diagnostics: diags.Errors(),
 	}, nil
 }
 
@@ -670,9 +663,7 @@ func (e *executor) provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any,
 	return w, done, collector
 }
 
-
 func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- any, collector *diagnosticCollector) {
-
 	defer close(done)
 
 	errCount := 0
@@ -708,36 +699,56 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
 			sink.ProvisionLog(logLevel, diagLine)
 		}
-		// Capture error diagnostics so callers can include them
-		// in error messages. Use a newline between the summary
-		// and the detail to preserve the multi-line structure of
-		// messages like precondition failures.
-		if log.Diagnostic.Severity == "error" {
-			summary := log.Diagnostic.Summary
-			if log.Diagnostic.Detail != "" {
-				summary += ":\n" + log.Diagnostic.Detail
+		collector.add(log.Diagnostic)
+	}
+}
+
+// diagnosticCollector captures terraform diagnostics during plan/apply so
+// they can be included in structured error responses instead of the generic
+// "exit status 1".
+type diagnosticCollector struct {
+	diagnostics []*proto.Diagnostic
+}
+
+func (d *diagnosticCollector) add(diag *tfjson.Diagnostic) {
+	severity := proto.Diagnostic_UNKNOWN
+	switch diag.Severity {
+	case "error":
+		severity = proto.Diagnostic_ERROR
+	case "warning":
+		severity = proto.Diagnostic_WARNING
+	}
+	d.diagnostics = append(d.diagnostics, &proto.Diagnostic{
+		Severity: severity,
+		Summary:  diag.Summary,
+		Detail:   diag.Detail,
+	})
+}
+
+// Summary returns a human-readable string from the last error diagnostic
+// for backward-compatible error messages.
+func (d *diagnosticCollector) Summary() string {
+	for i := len(d.diagnostics) - 1; i >= 0; i-- {
+		diag := d.diagnostics[i]
+		if diag.Severity == proto.Diagnostic_ERROR {
+			if diag.Detail != "" {
+				return diag.Summary + ":\n" + diag.Detail
 			}
-			collector.errors = append(collector.errors, summary)
+			return diag.Summary
 		}
 	}
+	return ""
 }
 
-// diagnosticCollector captures terraform error diagnostics during
-// plan/apply so they can be included in error messages instead of
-// the generic "exit status 1".
-type diagnosticCollector struct {
-	errors []string
-}
-
-// Summary returns the most relevant error diagnostic collected
-// during the terraform operation.
-func (d *diagnosticCollector) Summary() string {
-	if len(d.errors) == 0 {
-		return ""
+// Errors returns all error-severity diagnostics.
+func (d *diagnosticCollector) Errors() []*proto.Diagnostic {
+	var errs []*proto.Diagnostic
+	for _, diag := range d.diagnostics {
+		if diag.Severity == proto.Diagnostic_ERROR {
+			errs = append(errs, diag)
+		}
 	}
-	// Return the last error diagnostic, which is typically the
-	// most relevant (e.g. the resource that actually failed).
-	return d.errors[len(d.errors)-1]
+	return errs
 }
 
 

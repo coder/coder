@@ -75,6 +75,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 						{error instanceof JobError && error.job.error && (
 							<BuildErrorAlert
 								error={error.job.error}
+								diagnostics={error.job.diagnostics}
 								title="Template import failed"
 							/>
 						)}

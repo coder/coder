@@ -7207,6 +7207,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -7876,6 +7883,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "canceled_at": "2019-08-24T14:15:22Z",
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
+  "diagnostics": [
+    {
+      "detail": "string",
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
   "error": "string",
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -7914,30 +7928,31 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                | Type                                                               | Required | Restrictions | Description |
-|---------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `available_workers` | array of string                                                    | false    |              |             |
-| `canceled_at`       | string                                                             | false    |              |             |
-| `completed_at`      | string                                                             | false    |              |             |
-| `created_at`        | string                                                             | false    |              |             |
-| `error`             | string                                                             | false    |              |             |
-| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
-| `file_id`           | string                                                             | false    |              |             |
-| `id`                | string                                                             | false    |              |             |
-| `initiator_id`      | string                                                             | false    |              |             |
-| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
-| `logs_overflowed`   | boolean                                                            | false    |              |             |
-| `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
-| `organization_id`   | string                                                             | false    |              |             |
-| `queue_position`    | integer                                                            | false    |              |             |
-| `queue_size`        | integer                                                            | false    |              |             |
-| `started_at`        | string                                                             | false    |              |             |
-| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus)     | false    |              |             |
-| `tags`              | object                                                             | false    |              |             |
-| » `[any property]`  | string                                                             | false    |              |             |
-| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)         | false    |              |             |
-| `worker_id`         | string                                                             | false    |              |             |
-| `worker_name`       | string                                                             | false    |              |             |
+| Name                | Type                                                                            | Required | Restrictions | Description |
+|---------------------|---------------------------------------------------------------------------------|----------|--------------|-------------|
+| `available_workers` | array of string                                                                 | false    |              |             |
+| `canceled_at`       | string                                                                          | false    |              |             |
+| `completed_at`      | string                                                                          | false    |              |             |
+| `created_at`        | string                                                                          | false    |              |             |
+| `diagnostics`       | array of [codersdk.ProvisionerJobDiagnostic](#codersdkprovisionerjobdiagnostic) | false    |              |             |
+| `error`             | string                                                                          | false    |              |             |
+| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                                  | false    |              |             |
+| `file_id`           | string                                                                          | false    |              |             |
+| `id`                | string                                                                          | false    |              |             |
+| `initiator_id`      | string                                                                          | false    |              |             |
+| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)                    | false    |              |             |
+| `logs_overflowed`   | boolean                                                                         | false    |              |             |
+| `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata)              | false    |              |             |
+| `organization_id`   | string                                                                          | false    |              |             |
+| `queue_position`    | integer                                                                         | false    |              |             |
+| `queue_size`        | integer                                                                         | false    |              |             |
+| `started_at`        | string                                                                          | false    |              |             |
+| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus)                  | false    |              |             |
+| `tags`              | object                                                                          | false    |              |             |
+| » `[any property]`  | string                                                                          | false    |              |             |
+| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)                      | false    |              |             |
+| `worker_id`         | string                                                                          | false    |              |             |
+| `worker_name`       | string                                                                          | false    |              |             |
 
 #### Enumerated Values
 
@@ -7945,6 +7960,30 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------|----------------------------------------------------------------------|
 | `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                        |
 | `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
+
+## codersdk.ProvisionerJobDiagnostic
+
+```json
+{
+  "detail": "string",
+  "severity": "error",
+  "summary": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `detail`   | string | false    |              |             |
+| `severity` | string | false    |              |             |
+| `summary`  | string | false    |              |             |
+
+#### Enumerated Values
+
+| Property   | Value(s)                      |
+|------------|-------------------------------|
+| `severity` | `error`, `unknown`, `warning` |
 
 ## codersdk.ProvisionerJobInput
 
@@ -8559,6 +8598,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -10129,6 +10175,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
+    "diagnostics": [
+      {
+        "detail": "string",
+        "severity": "error",
+        "summary": "string"
+      }
+    ],
     "error": "string",
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -11538,6 +11591,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -12719,6 +12779,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
+    "diagnostics": [
+      {
+        "detail": "string",
+        "severity": "error",
+        "summary": "string"
+      }
+    ],
     "error": "string",
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -13556,6 +13623,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "canceled_at": "2019-08-24T14:15:22Z",
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
+          "diagnostics": [
+            {
+              "detail": "string",
+              "severity": "error",
+              "summary": "string"
+            }
+          ],
           "error": "string",
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -15396,19 +15470,21 @@ None
 
 ### Properties
 
-| Name          | Type                         | Required | Restrictions | Description                                        |
-|---------------|------------------------------|----------|--------------|----------------------------------------------------|
-| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
-| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port (see Hostname and Port methods)  |
-| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
-| `opaque`      | string                       | false    |              | encoded opaque data                                |
-| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
-| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
-| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
-| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
-| `scheme`      | string                       | false    |              |                                                    |
-| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                            |
+|--------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `forceQuery` | boolean | false    |              | Forcequery indicates whether the original URL contained a query ('?') character. When set, the String method will include a trailing '?', even when RawQuery is empty. |
+| `fragment`   | string  | false    |              | fragment for references (without '#')                                                                                                                                  |
+| `host`       | string  | false    |              | "host" or "host:port" (see Hostname and Port methods)                                                                                                                  |
+| `omitHost`   | boolean | false    |              | Omithost indicates the URL has an empty host (authority). When set, the String method will not include the host when it is empty.                                      |
+| `opaque`     | string  | false    |              | encoded opaque data                                                                                                                                                    |
+| `path`       | string  | false    |              | path (relative paths may omit leading slash)                                                                                                                           |
+|`rawFragment`|string|false||Rawfragment is an optional field containing an encoded fragment hint. See the EscapedFragment method for more details.
+In general, code should call EscapedFragment instead of reading RawFragment.|
+|`rawPath`|string|false||Rawpath is an optional field containing an encoded path hint. See the EscapedPath method for more details.
+In general, code should call EscapedPath instead of reading RawPath.|
+|`rawQuery`|string|false||Rawquery contains the encoded query values, without the initial '?'. Use URL.Query to decode the query.|
+|`scheme`|string|false|||
+|`user`|[url.Userinfo](#urluserinfo)|false||username and password information|
 
 ## serpent.ValueSource
 

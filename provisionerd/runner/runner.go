@@ -974,8 +974,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		)
 
 		return nil, &proto.FailedJob{
-			JobId: r.job.JobId,
-			Error: planComplete.Error,
+			JobId:       r.job.JobId,
+			Error:       planComplete.Error,
+			Diagnostics: planComplete.Diagnostics,
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
 					Timings: timings,
@@ -1024,8 +1025,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		)
 
 		return nil, &proto.FailedJob{
-			JobId: r.job.JobId,
-			Error: applyComplete.Error,
+			JobId:       r.job.JobId,
+			Error:       applyComplete.Error,
+			Diagnostics: applyComplete.Diagnostics,
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
 					State:   applyComplete.State,

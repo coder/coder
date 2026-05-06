@@ -408,6 +408,13 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
@@ -654,6 +661,13 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
       "error": "string",
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
