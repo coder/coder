@@ -95,7 +95,7 @@ export const MobileEnterInsertsNewline: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const originalMatchMedia = window.matchMedia;
-		window.matchMedia = ((query: string) =>
+		window.matchMedia = (query: string) =>
 			({
 				matches: query === "(max-width: 639px)",
 				media: query,
@@ -105,7 +105,7 @@ export const MobileEnterInsertsNewline: Story = {
 				dispatchEvent: () => true,
 				addListener: () => undefined,
 				removeListener: () => undefined,
-			}) as MediaQueryList) as typeof window.matchMedia;
+			}) as MediaQueryList;
 
 		try {
 			const canvas = within(canvasElement);

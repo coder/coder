@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import type { FC } from "react";
 import { Pill } from "#/components/Pill/Pill";
@@ -17,7 +16,7 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
 		<Stack direction="row" spacing={1}>
 			{roles.length > 0 ? (
-				<Pill css={isUUID(roles[0]) ? styles.errorPill : styles.pill}>
+				<Pill className="w-fit" type={isUUID(roles[0]) ? "error" : "muted"}>
 					{roles[0]}
 				</Pill>
 			) : (
@@ -37,14 +36,16 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill data-testid="overflow-pill">+{roles.length} more</Pill>
+				<Pill type="muted" className="w-fit" data-testid="overflow-pill">
+					+{roles.length} more
+				</Pill>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">
 				<ul className="flex flex-col gap-2 list-none my-0 pl-0">
 					{roles.map((role) => (
 						<li key={role}>
-							<Pill css={isUUID(role) ? styles.errorPill : styles.pill}>
+							<Pill className="w-fit" type={isUUID(role) ? "error" : "muted"}>
 								{role}
 							</Pill>
 						</li>
@@ -54,18 +55,3 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 		</Tooltip>
 	);
 };
-
-const styles = {
-	pill: (theme) => ({
-		backgroundColor: theme.experimental.pillDefault.background,
-		borderColor: theme.experimental.pillDefault.outline,
-		color: theme.experimental.pillDefault.text,
-		width: "fit-content",
-	}),
-	errorPill: (theme) => ({
-		backgroundColor: theme.roles.error.background,
-		borderColor: theme.roles.error.outline,
-		color: theme.roles.error.text,
-		width: "fit-content",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

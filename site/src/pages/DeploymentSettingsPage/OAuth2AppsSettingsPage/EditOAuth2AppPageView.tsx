@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import Divider from "@mui/material/Divider";
 import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -143,7 +143,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							onCancel={() => setShowDelete(false)}
 						/>
 
-						<dl css={styles.dataList}>
+						<dl className="grid [grid-template-columns:max-content_auto] [&>dd]:ml-2.5 [&>dt]:font-bold">
 							<dt>Client ID</dt>
 							<dd>
 								<CopyableValue value={app.id} side="right">
@@ -311,16 +311,3 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 		</TableRow>
 	);
 };
-
-const styles = {
-	dataList: {
-		display: "grid",
-		gridTemplateColumns: "max-content auto",
-		"& > dt": {
-			fontWeight: "bold",
-		},
-		"& > dd": {
-			marginLeft: 10,
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;

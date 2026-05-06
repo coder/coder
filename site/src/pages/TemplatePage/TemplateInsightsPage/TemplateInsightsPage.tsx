@@ -38,6 +38,7 @@ import {
 	DateRangePicker as DailyPicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -452,7 +453,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 								<div key={usage.slug} className="flex items-center gap-6">
 									<div className="flex items-center gap-2">
 										<div className="flex justify-center items-center w-5 h-5">
-											<img
+											<ExternalImage
 												src={usage.icon}
 												alt=""
 												className="h-full w-full object-contain"

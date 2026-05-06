@@ -1,6 +1,6 @@
 import TextField from "@mui/material/TextField";
 import { useId, useState } from "react";
-import { Alert } from "../../Alert/Alert";
+import { Alert } from "#/components/Alert/Alert";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 interface DeleteDialogProps {
