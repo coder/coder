@@ -1087,14 +1087,12 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												onClick={() => toggleSection(`subagents-${chatID}`)}
 												className="mb-0.5 flex items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary hover:text-content-primary cursor-pointer"
 											>
-												<span
-													className={cn(
-														"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
-														collapsedSections.has(`subagents-${chatID}`) && "rotate-180",
-													)}
-												>
-													<ChevronUpIcon className="h-3.5 w-3.5" />
-												</span>
+													<ChevronUpIcon
+														className={cn(
+															"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+															collapsedSections.has(`subagents-${chatID}`) && "rotate-180",
+														)}
+													/>
 												Subagents
 											</button>
 											{!collapsedSections.has(`subagents-${chatID}`) && (
