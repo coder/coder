@@ -1583,7 +1583,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												<div className="pb-2">
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
-														<div className="[&:not(:first-child)]:mt-3">
+														<div className="[&:not(:first-child)]:mt-6">
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
@@ -1649,7 +1649,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														return (
 															<div
 																key={group}
-																className="[&:not(:first-child)]:mt-3"
+																className="[&:not(:first-child)]:mt-6"
 															>
 																<button
 																	type="button"
