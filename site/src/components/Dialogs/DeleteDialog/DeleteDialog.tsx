@@ -1,6 +1,5 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { type FC, type FormEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import { Alert } from "../../Alert/Alert";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
@@ -18,7 +17,7 @@ interface DeleteDialogProps {
 	confirmText?: string;
 }
 
-export const DeleteDialog: FC<DeleteDialogProps> = ({
+export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 	isOpen,
 	onCancel,
 	onConfirm,
@@ -38,7 +37,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	const [isFocused, setIsFocused] = useState(false);
 
 	const deletionConfirmed = name === userConfirmationText;
-	const onSubmit = (event: FormEvent) => {
+	const onSubmit = (event: React.SubmitEvent) => {
 		event.preventDefault();
 		if (deletionConfirmed) {
 			onConfirm();
@@ -107,13 +106,3 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	callout: (theme) => ({
-		backgroundColor: theme.roles.danger.background,
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: theme.shape.borderRadius,
-		color: theme.roles.danger.text,
-		padding: "8px 16px",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
