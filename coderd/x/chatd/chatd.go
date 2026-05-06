@@ -139,12 +139,15 @@ const (
 var (
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
 	errChatAgentDisconnected   = xerrors.New(
-		"workspace agent is disconnected and cannot execute tools. " +
-			"The workspace may need to be restarted from the Coder dashboard",
+		"workspace agent is no longer connected and cannot execute tools. " +
+			"Use stop_workspace to stop the workspace, then start_workspace " +
+			"to start it again",
 	)
 	errChatDialTimeout = xerrors.New(
 		"connection to the workspace agent timed out. " +
-			"The workspace may need to be restarted from the Coder dashboard",
+			"The agent may still be reachable on the next attempt. Retry " +
+			"the tool call once; if it times out again, tell the user " +
+			"the agent likely failed to start or is unreachable",
 	)
 	errChatExternalAgentUnavailable = xerrors.New("external workspace agent unavailable")
 )
@@ -187,6 +190,7 @@ type Server struct {
 	instructionLookupTimeout       time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
+	stopWorkspaceFn                chattool.StopWorkspaceFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	providerAPIKeys                chatprovider.ProviderAPIKeys
@@ -786,6 +790,40 @@ func isAgentUnreachable(now time.Time, agent database.WorkspaceAgent, inactiveTi
 		status.Status == database.WorkspaceAgentStatusTimeout
 }
 
+// isAgentDisconnected reports whether the given agent row is
+// disconnected according to database heartbeat state. Timeout is
+// intentionally excluded because an agent that never connected is a
+// weaker signal than an agent lifecycle that connected and then died.
+func isAgentDisconnected(now time.Time, agent database.WorkspaceAgent, inactiveTimeout time.Duration) bool {
+	status := agent.Status(now, inactiveTimeout)
+	return status.Status == database.WorkspaceAgentStatusDisconnected
+}
+
+func (c *turnWorkspaceContext) latestWorkspaceAgentDisconnected(
+	ctx context.Context,
+	workspaceID uuid.UUID,
+) (bool, error) {
+	agentID, err := c.latestWorkspaceAgentID(ctx, workspaceID)
+	if err != nil {
+		if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
+			return false, err
+		}
+		c.server.logger.Warn(ctx, "failed to resolve latest agent for timeout classification", slog.Error(err))
+		return false, nil
+	}
+
+	agent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
+	if err != nil {
+		c.server.logger.Warn(ctx, "failed to load latest agent for timeout classification",
+			slog.F("agent_id", agentID),
+			slog.Error(err),
+		)
+		return false, nil
+	}
+
+	return isAgentDisconnected(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout), nil
+}
+
 func (c *turnWorkspaceContext) externalAgentError(
 	ctx context.Context,
 	agent database.WorkspaceAgent,
@@ -855,7 +893,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 					// next tool call.
 				} else if isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
 					c.clearCachedWorkspaceState()
-					return nil, c.externalAgentError(ctx, freshAgent, errChatAgentDisconnected)
+					continue
 				}
 			}
 			return currentConn, nil
@@ -898,6 +936,14 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			// canceled (e.g. ErrInterrupted), its error must
 			// propagate unchanged so the chatloop can detect it.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
+				c.clearCachedWorkspaceState()
+				disconnected, statusErr := c.latestWorkspaceAgentDisconnected(ctx, chatSnapshot.WorkspaceID.UUID)
+				if statusErr != nil {
+					return nil, statusErr
+				}
+				if disconnected {
+					return nil, c.externalAgentError(ctx, agent, errChatAgentDisconnected)
+				}
 				return nil, c.externalAgentError(ctx, agent, errChatDialTimeout)
 			}
 			return nil, err
@@ -3752,6 +3798,7 @@ type Config struct {
 	InstructionLookupTimeout       time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
+	StopWorkspace                  chattool.StopWorkspaceFn
 	Pubsub                         pubsub.Pubsub
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AlwaysEnableDebugLogs          bool
@@ -3820,6 +3867,7 @@ func New(cfg Config) *Server {
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
+		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         cfg.Pubsub,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
@@ -5899,7 +5947,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
-		"create_workspace", "start_workspace", "propose_plan", "spawn_agent",
+		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "ask_user_question":
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "close_agent",
@@ -5979,6 +6027,7 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"read_template":     false,
 		"create_workspace":  false,
 		"start_workspace":   false,
+		"stop_workspace":    false,
 		"propose_plan":      false,
 		"spawn_agent":       false,
 		"wait_agent":        false,
@@ -6194,6 +6243,13 @@ func (p *Server) appendRootChatTools(
 			OwnerID:       opts.chat.OwnerID,
 			StartFn:       p.startWorkspaceFn,
 			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:   opts.workspaceMu,
+			OnChatUpdated: onChatUpdated,
+			Logger:        p.logger,
+		}),
+		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
+			OwnerID:       opts.chat.OwnerID,
+			StopFn:        p.stopWorkspaceFn,
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
 			Logger:        p.logger,

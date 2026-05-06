@@ -11,3 +11,6 @@ var InsertAgentChatTestModelConfig = insertAgentChatTestModelConfig
 // stubbing the entire DB layer. The proper fix is to extract a pure
 // request builder; tracked in CODAGT-292.
 var ChatStartWorkspace = (*API).chatStartWorkspace
+
+// ChatStopWorkspace exposes chatStopWorkspace for external tests.
+var ChatStopWorkspace = (*API).chatStopWorkspace
