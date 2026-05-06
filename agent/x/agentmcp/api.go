@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -52,6 +53,7 @@ func (api *API) Routes() http.Handler {
 // independent of config changes.
 func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := api.logger.With(agentchat.Fields(ctx)...)
 
 	// Check config freshness and reload if changed.
 	var reloaded bool
@@ -61,11 +63,11 @@ func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 			// Categorize the error for operator debugging.
 			switch {
 			case errors.Is(err, context.Canceled):
-				api.logger.Warn(ctx, "mcp reload canceled by caller", slog.Error(err))
+				logger.Warn(ctx, "mcp reload canceled by caller", slog.Error(err))
 			case errors.Is(err, context.DeadlineExceeded):
-				api.logger.Warn(ctx, "mcp reload timed out", slog.Error(err))
+				logger.Warn(ctx, "mcp reload timed out", slog.Error(err))
 			default:
-				api.logger.Warn(ctx, "mcp reload failed", slog.Error(err))
+				logger.Warn(ctx, "mcp reload failed", slog.Error(err))
 			}
 			// Fall through to return whatever tools we have.
 		} else {
@@ -78,7 +80,7 @@ func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	// refreshes tools as part of the reload.
 	if r.URL.Query().Get("refresh") == "true" && !reloaded {
 		if err := api.manager.RefreshTools(ctx); err != nil {
-			api.logger.Warn(ctx, "failed to refresh MCP tools", slog.Error(err))
+			logger.Warn(ctx, "failed to refresh MCP tools", slog.Error(err))
 		}
 	}
 

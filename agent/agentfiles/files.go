@@ -18,7 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -86,6 +86,8 @@ func (api *API) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) streamFile(ctx context.Context, rw http.ResponseWriter, path string, offset, limit int64) (HTTPResponseCode, error) {
+	logger := api.logger.With(agentchat.Fields(ctx)...)
+
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
@@ -131,7 +133,7 @@ func (api *API) streamFile(ctx context.Context, rw http.ResponseWriter, path str
 	reader := io.NewSectionReader(f, offset, bytesToRead)
 	_, err = io.Copy(rw, reader)
 	if err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil {
-		api.logger.Error(ctx, "workspace agent read file", slog.Error(err))
+		logger.Error(ctx, "workspace agent read file", slog.Error(err))
 	}
 
 	return 0, nil
@@ -322,7 +324,7 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 
 	// Track edited path for git watch.
 	if api.pathStore != nil {
-		if chatID, ancestorIDs, ok := agentgit.ExtractChatContext(r); ok {
+		if chatID, ancestorIDs, ok := agentchat.ExtractContext(r); ok {
 			api.pathStore.AddPaths(append([]uuid.UUID{chatID}, ancestorIDs...), []string{path})
 		}
 	}
@@ -458,7 +460,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 
 	// Track edited paths for git watch.
 	if api.pathStore != nil {
-		if chatID, ancestorIDs, ok := agentgit.ExtractChatContext(r); ok {
+		if chatID, ancestorIDs, ok := agentchat.ExtractContext(r); ok {
 			filePaths := make([]string, 0, len(req.Files))
 			for _, f := range req.Files {
 				filePaths = append(filePaths, f.Path)
@@ -565,6 +567,8 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 // On failure the temp file is cleaned up and the original is
 // untouched.
 func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader) (int, error) {
+	logger := api.logger.With(agentchat.Fields(ctx)...)
+
 	dir := filepath.Dir(path)
 	tmpName := filepath.Join(dir, fmt.Sprintf(".%s.tmp.%s", filepath.Base(path), uuid.New().String()[:8]))
 
@@ -579,7 +583,7 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 
 	cleanup := func() {
 		if err := api.filesystem.Remove(tmpName); err != nil {
-			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(err))
+			logger.Warn(ctx, "unable to clean up temp file", slog.Error(err))
 		}
 	}
 
@@ -601,7 +605,7 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	// no window where the target has wrong permissions.
 	if mode != nil {
 		if err := api.filesystem.Chmod(tmpName, *mode); err != nil {
-			api.logger.Warn(ctx, "unable to set file permissions",
+			logger.Warn(ctx, "unable to set file permissions",
 				slog.F("path", path),
 				slog.Error(err),
 			)

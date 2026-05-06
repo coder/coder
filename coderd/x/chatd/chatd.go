@@ -905,6 +905,12 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			})
 
 			c.mu.Unlock()
+			c.server.logger.Debug(ctx, "set chat headers on agent conn",
+				slog.F("chat_id", chatSnapshot.ID),
+				slog.F("ancestor_chat_ids", ancestorIDs),
+				slog.F("workspace_id", chatSnapshot.WorkspaceID.UUID),
+				slog.F("agent_id", dialResult.AgentID),
+			)
 			return agentConn, nil
 		}
 		currentConn = c.conn

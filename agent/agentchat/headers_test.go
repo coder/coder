@@ -1,4 +1,4 @@
-package agentgit_test
+package agentchat_test
 
 import (
 	"encoding/json"
@@ -8,11 +8,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-func TestExtractChatContext(t *testing.T) {
+func TestExtractContext(t *testing.T) {
 	t.Parallel()
 
 	validID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
@@ -130,7 +130,7 @@ func TestExtractChatContext(t *testing.T) {
 				r.Header.Set(workspacesdk.CoderAncestorChatIDsHeader, tt.ancestors)
 			}
 
-			chatID, ancestorIDs, ok := agentgit.ExtractChatContext(r)
+			chatID, ancestorIDs, ok := agentchat.ExtractContext(r)
 
 			require.Equal(t, tt.wantOK, ok, "ok mismatch")
 			require.Equal(t, tt.wantChatID, chatID, "chatID mismatch")
