@@ -702,7 +702,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</>
 								)}
 							</NavLink>
-							<div className="relative flex shrink-0 items-center justify-end py-1">
+							<div className="flex w-7 shrink-0 items-center justify-center py-1">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
@@ -739,7 +739,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<Button
 													size="icon"
 													variant="subtle"
-													className="h-6 w-7 min-w-0 shrink-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary"
+													className="h-6 w-7 min-w-0 shrink-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary"
 													aria-label={`Open actions for ${chat.title}`}
 												>
 													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
@@ -759,7 +759,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								) : (
 									<>
 										{/* Status indicator with hover-overlay kebab */}
-										<span className="flex items-center justify-end [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										<span className="flex h-4 w-4 items-center justify-center [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 											{isMainRunning || hasRunningChildren ? (
 												<div className="flex h-4 w-4 items-center justify-center">
 													{isMainRunning && hasRunningChildren ? (
@@ -791,7 +791,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											) : chat.status === "error" ? (
 												<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
 											) : (
-												<span className="text-sm text-content-secondary/50 tabular-nums">
+												<span className="text-xs text-content-secondary/50 tabular-nums">
 													{shortRelativeTime(chat.updated_at)}
 												</span>
 											)}
@@ -801,7 +801,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<Button
 													size="icon"
 													variant="subtle"
-													className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+													className="absolute inset-0 flex h-full w-full min-w-0 items-center justify-center rounded-none p-0 text-content-secondary hover:text-content-primary opacity-0 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 													aria-label={`Open actions for ${chat.title}`}
 												>
 													<EllipsisVerticalIcon className="h-3.5 w-3.5" />
@@ -1562,7 +1562,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											{/* At narrow widths, show only the filter icon.
 								   At medium/large, show full search input with filter. */}
 											{layout === "narrow" ? (
-												<div className="mb-2 flex justify-end">
+												<div className="mb-2 flex justify-end px-1.5">
 													{filterDropdown}
 												</div>
 											) : (
@@ -1601,7 +1601,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																</span>
 																<span
 																	className={cn(
-																		"h-4 w-4 shrink-0 transition-transform duration-200",
+																		"h-4 w-7 shrink-0 flex items-center justify-center transition-transform duration-200",
 																		collapsedSections.has("Pinned") &&
 																			"rotate-180",
 																	)}
@@ -1668,7 +1668,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	</span>
 																	<span
 																		className={cn(
-																			"h-4 w-4 shrink-0 transition-transform duration-200",
+																			"h-4 w-7 shrink-0 flex items-center justify-center transition-transform duration-200",
 																			collapsedSections.has(group) &&
 																				"rotate-180",
 																		)}
