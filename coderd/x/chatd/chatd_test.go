@@ -8770,7 +8770,9 @@ func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {
 // TestPromoteQueuedWhileRequiresAction guards against the
 // stops-dead failure mode: promoting on requires_action without
 // closing pending dynamic tool calls leaves the assistant turn
-// with unresolved tool_call parts that the LLM API rejects.
+// with unresolved tool_call parts that the LLM API rejects. It
+// also asserts the synthetic tool-result row is published to live
+// SSE subscribers before the promoted user message.
 func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 	t.Parallel()
 
@@ -8875,6 +8877,10 @@ func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
+	// Subscribe before promoting to capture published events.
+	_, events, subCancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	defer subCancel()
 	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedResult.QueuedMessage.ID,
@@ -8882,6 +8888,37 @@ func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatMessageRoleUser, promoteResult.PromotedMessage.Role)
+
+	// Synthetic row must publish before the promoted user message.
+	var (
+		syntheticPublishedAt int
+		userPublishedAt      int
+		messagesSeen         int
+	)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case ev := <-events:
+			if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
+				return false
+			}
+			messagesSeen++
+			switch ev.Message.Role {
+			case codersdk.ChatMessageRoleTool:
+				if syntheticPublishedAt == 0 {
+					syntheticPublishedAt = messagesSeen
+				}
+			case codersdk.ChatMessageRoleUser:
+				if ev.Message.ID == promoteResult.PromotedMessage.ID {
+					userPublishedAt = messagesSeen
+				}
+			}
+			return syntheticPublishedAt > 0 && userPublishedAt > 0
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+	require.Less(t, syntheticPublishedAt, userPublishedAt,
+		"synthetic tool-result must be published before the promoted user message")
 
 	queuedAfter, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -9061,6 +9098,9 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
+	_, events, subCancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	defer subCancel()
 	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedResult.QueuedMessage.ID,
@@ -9070,6 +9110,33 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 	require.NotZero(t, promoteResult.PromotedMessage.ID,
 		"requires_action promotion is synchronous and returns the inserted message")
 
+	// Only the dynamic tool's synth row publishes; the built-in's
+	// pre-existing result is not republished.
+	var (
+		syntheticPublishCount int
+		userPublished         bool
+	)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case ev := <-events:
+			if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
+				return false
+			}
+			switch ev.Message.Role {
+			case codersdk.ChatMessageRoleTool:
+				syntheticPublishCount++
+			case codersdk.ChatMessageRoleUser:
+				if ev.Message.ID == promoteResult.PromotedMessage.ID {
+					userPublished = true
+				}
+			}
+			return userPublished
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+	require.Equal(t, 1, syntheticPublishCount,
+		"only the dynamic tool's synthetic result must be published; the built-in's pre-existing result must not be republished")
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
@@ -10312,27 +10379,11 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 }
 
 // TestFinishActiveChatExternalWaitingInsertsSyntheticResults
-// guards against a regression of the "stops dead" failure mode this
-// PR exists to fix.
-//
-// Race interleaving:
-//  1. Worker is mid-stream; persistStep wrote an assistant message
-//     with an unresolved dynamic tool call.
-//  2. PromoteQueued's deferred path commits: status=Waiting,
-//     worker_id cleared. A queued message sits at the front.
-//  3. The control notification cancels the worker, but before the
-//     cancellation arrives the chatloop completed naturally with
-//     status=RequiresAction.
-//  4. finishActiveChat reads latestChat.Status=Waiting and local
-//     status=RequiresAction. Without the new external-Waiting case,
-//     the default branch wrote RequiresAction, dropping the promote
-//     and stranding the queue. With the fix, finishActiveChat
-//     inserts synthetic tool-result messages for the unresolved tool
-//     calls and auto-promotes the queued message into a user message.
-//
-// The next chatloop run then loads
-// [..., assistant_with_tool_call, synth_tool_result, user_message]
-// which the LLM accepts.
+// asserts the cleanup TX inserts synthetic tool-result rows when
+// PromoteQueued's deferred path set Status=Waiting while the
+// worker concluded with RequiresAction. Without it, the next
+// chatloop run would feed the LLM an assistant turn with
+// unresolved tool_call parts and the API would reject it.
 func TestFinishActiveChatExternalWaitingInsertsSyntheticResults(t *testing.T) {
 	t.Parallel()
 
@@ -10418,13 +10469,15 @@ func TestFinishActiveChatExternalWaitingInsertsSyntheticResults(t *testing.T) {
 	require.NoError(t, err)
 
 	// Drive the cleanup path with the local-RequiresAction outcome.
-	updated, promoted, finishErr := chatd.FinishActiveChatForTest(
+	updated, promoted, syntheticToolResults, finishErr := chatd.FinishActiveChatForTest(
 		ctx, server, latestChat, database.ChatStatusRequiresAction, "",
 	)
 	require.NoError(t, finishErr)
 	require.NotNil(t, promoted, "queued message must be auto-promoted into history")
 	require.Equal(t, database.ChatStatusPending, updated.Status,
 		"chat must end Pending so the run loop picks it up")
+	require.Len(t, syntheticToolResults, 1,
+		"cleanup TX must return the inserted synthetic tool-result row so the post-TX caller can publish it")
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -10472,13 +10525,9 @@ func TestFinishActiveChatExternalWaitingInsertsSyntheticResults(t *testing.T) {
 		"promoted user message must follow the synthetic tool result")
 }
 
-// TestPromoteQueuedFallsThroughOnStaleHeartbeat covers the
-// promote-time half of the deferred-promote recovery story: when
-// the running chat's heartbeat is older than InFlightChatStaleAfter,
-// the worker is unlikely to run the post-cancel cleanup that drives
-// the deferred promote. PromoteQueued falls through to the
-// synchronous path and inserts the user message directly so the
-// chat does not strand in Waiting.
+// TestPromoteQueuedFallsThroughOnStaleHeartbeat asserts a stale
+// heartbeat takes the synchronous path so the chat does not strand
+// in Waiting waiting on a worker that will not return.
 func TestPromoteQueuedFallsThroughOnStaleHeartbeat(t *testing.T) {
 	t.Parallel()
 
@@ -10550,13 +10599,9 @@ func TestPromoteQueuedFallsThroughOnStaleHeartbeat(t *testing.T) {
 		"worker_id is cleared by the synchronous promote")
 }
 
-// TestRecoverStaleChatsRecoversWaitingWithQueue covers the residual
-// recovery hole: a chat that PromoteQueued's deferred path moved to
-// Waiting whose worker died before finishActiveChat ran. The
-// extended GetStaleChats query picks up Waiting chats with a
-// non-empty queue and a stale updated_at, and recoverStaleChats
-// auto-promotes the front-of-queue message and sets the chat to
-// Pending so any replica can pick it up.
+// TestRecoverStaleChatsRecoversWaitingWithQueue asserts a Waiting
+// chat with a non-empty queue and stale updated_at gets recovered
+// to Pending, closing the post-promote-stranding hole.
 func TestRecoverStaleChatsRecoversWaitingWithQueue(t *testing.T) {
 	t.Parallel()
 
@@ -10639,11 +10684,9 @@ func TestRecoverStaleChatsRecoversWaitingWithQueue(t *testing.T) {
 }
 
 // TestRecoverStaleChatsWaitingWithUnresolvedToolCallInsertsSyntheticResults
-// covers the worker-died-before-cleanup half of the deferred-promote
-// stranding: the chat sits in Waiting with a non-empty queue and the
-// last assistant has an unresolved dynamic tool call. Without
-// inserting synthetic tool results before promoting, stale recovery
-// would reintroduce the stops-dead bug this PR exists to fix.
+// asserts stale recovery closes pending dynamic tool calls before
+// promoting, so the recovery path does not stop the chat dead by
+// feeding the LLM unresolved tool_call parts.
 func TestRecoverStaleChatsWaitingWithUnresolvedToolCallInsertsSyntheticResults(t *testing.T) {
 	t.Parallel()
 
@@ -10785,13 +10828,10 @@ func TestRecoverStaleChatsWaitingWithUnresolvedToolCallInsertsSyntheticResults(t
 	require.Less(t, synthIdx, promotedUserIdx)
 }
 
-// TestInsertSyntheticToolResultsTxSkipsAlreadyHandledCalls covers
-// DEREM-3: when a dynamic tool name collides with a built-in, the
-// chatloop dispatches it as the built-in and persists a real
-// tool-result. The raw chat.DynamicTools blob still lists the
-// colliding name, so without dedup the helper would insert a second
-// (synthetic) result for the same call ID and the LLM would reject
-// the next turn.
+// TestInsertSyntheticToolResultsTxSkipsAlreadyHandledCalls asserts
+// the helper skips tool calls already handled (e.g. when a dynamic
+// tool name collides with a built-in the chatloop dispatched).
+// Without dedup the LLM would see two results for the same call ID.
 func TestInsertSyntheticToolResultsTxSkipsAlreadyHandledCalls(t *testing.T) {
 	t.Parallel()
 
@@ -10903,9 +10943,10 @@ func TestInsertSyntheticToolResultsTxSkipsAlreadyHandledCalls(t *testing.T) {
 	chatRow, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 
-	require.NoError(t, chatd.InsertSyntheticToolResultsTxForTest(
+	_, err = chatd.InsertSyntheticToolResultsTxForTest(
 		ctx, db, chatRow, "synth reason",
-	))
+	)
+	require.NoError(t, err)
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -10957,10 +10998,9 @@ func nullRawMessage(raw []byte) pqtype.NullRawMessage {
 }
 
 // TestInsertSyntheticToolResultsTxReturnsNilWhenNoAssistantMessage
-// covers AMREM-5: a deferred promote can race a worker that fails
-// before persisting any assistant content. The cleanup TX must still
-// advance, so the helper short-circuits with no error when there is
-// no assistant message to inspect.
+// asserts the helper short-circuits cleanly when no assistant
+// message exists yet, so a deferred promote racing a worker that
+// fails before any persist does not roll back the cleanup TX.
 func TestInsertSyntheticToolResultsTxReturnsNilWhenNoAssistantMessage(t *testing.T) {
 	t.Parallel()
 
@@ -10989,17 +11029,16 @@ func TestInsertSyntheticToolResultsTxReturnsNilWhenNoAssistantMessage(t *testing
 
 	// No assistant message persisted. The helper must return nil so
 	// the caller's transaction can still advance.
-	require.NoError(t, chatd.InsertSyntheticToolResultsTxForTest(
+	_, err = chatd.InsertSyntheticToolResultsTxForTest(
 		ctx, db, chat, "no assistant",
-	))
+	)
+	require.NoError(t, err)
 }
 
-// TestRecoverStaleChatsWaitingPropagatesSynthError covers DEREM-15:
-// when synthetic tool result insertion fails during stale recovery,
-// the branch must propagate the error so the chat stays in Waiting
-// for the next recovery tick instead of promoting despite incomplete
-// history (which would reach Pending and reach the LLM as broken
-// history, reintroducing the stops-dead bug via the recovery path).
+// TestRecoverStaleChatsWaitingPropagatesSynthError asserts stale
+// recovery rolls back when synth-result insertion fails, leaving
+// the chat Waiting for the next tick instead of promoting on top
+// of incomplete history.
 func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
 	t.Parallel()
 
@@ -11040,20 +11079,11 @@ func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
 
 	insertUserTextMessage(t, db, chat.ID, user.ID, model.ID, "user input")
 
-	// Persist an assistant message with malformed content so
-	// chatprompt.ParseContent fails inside the helper. This is the
-	// closest deterministic injection of a synth-results error
-	// without mocking the store. Force a parse failure by setting an
-	// unsupported ContentVersion; the bytes are valid JSON so the
-	// jsonb column accepts the row, but ParseContent returns an
-	// "unsupported content version" error inside
-	// insertSyntheticToolResultsTx.
-	//
-	// Load-bearing assumption: chat_messages.content_version has no
-	// CHECK constraint today. If a future migration restricts the
-	// allowed versions, InsertChatMessages will reject this row and
-	// the test will fail at the insert site. Switch to a mock store
-	// in that case.
+	// Inject a synth-results error via an unsupported
+	// ContentVersion: the row is valid JSON so the insert
+	// succeeds, but chatprompt.ParseContent rejects it inside the
+	// helper. Brittle if a future migration adds a content_version
+	// CHECK constraint; switch to a mock store at that point.
 	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 		ChatID:              chat.ID,
 		CreatedBy:           []uuid.UUID{uuid.Nil},

@@ -20,7 +20,8 @@ func WaitUntilIdleForTest(server *Server) {
 
 // FinishActiveChatForTest exposes the unexported cleanup TX so tests
 // can drive the post-run state machine deterministically. Returns the
-// resulting chat, the promoted message (if any), and the cleanup
+// resulting chat, the promoted message (if any), the synthetic
+// tool-result rows the cleanup TX inserted (if any), and the cleanup
 // error. The lastError string is encoded into a structured payload
 // the same way runChat does, so callers do not need to know about
 // the structured-error wrapper.
@@ -30,7 +31,7 @@ func FinishActiveChatForTest(
 	chat database.Chat,
 	status database.ChatStatus,
 	lastError string,
-) (database.Chat, *database.ChatMessage, error) {
+) (database.Chat, *database.ChatMessage, []database.ChatMessage, error) {
 	logger := server.logger.With(slog.F("chat_id", chat.ID))
 	var encoded pqtype.NullRawMessage
 	if lastError != "" {
@@ -39,14 +40,14 @@ func FinishActiveChatForTest(
 			Message: lastError,
 		})
 		if err != nil {
-			return database.Chat{}, nil, err
+			return database.Chat{}, nil, nil, err
 		}
 	}
 	result, err := server.finishActiveChat(ctx, logger, chat, status, encoded)
 	if err != nil {
-		return database.Chat{}, nil, err
+		return database.Chat{}, nil, nil, err
 	}
-	return result.updatedChat, result.promotedMessage, nil
+	return result.updatedChat, result.promotedMessage, result.syntheticToolResults, nil
 }
 
 // RecoverStaleChatsForTest exposes the unexported stale-recovery loop
@@ -64,6 +65,6 @@ func InsertSyntheticToolResultsTxForTest(
 	store database.Store,
 	chat database.Chat,
 	reason string,
-) error {
+) ([]database.ChatMessage, error) {
 	return insertSyntheticToolResultsTx(ctx, store, chat, reason)
 }
