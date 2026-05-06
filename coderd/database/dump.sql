@@ -223,7 +223,10 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:*',
     'ai_seat:*',
     'ai_seat:create',
-    'ai_seat:read'
+    'ai_seat:read',
+    'ai_model_price:*',
+    'ai_model_price:read',
+    'ai_model_price:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1077,7 +1080,7 @@ CREATE TABLE ai_model_prices (
     CONSTRAINT ai_model_prices_output_price_check CHECK ((output_price >= 0))
 );
 
-COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost. Seeded from upstream pricing data on startup. A missing row means the model has no pricing available and recorded interceptions for that model will have a NULL cost.';
+COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
 
 CREATE SEQUENCE ai_model_prices_id_seq
     START WITH 1

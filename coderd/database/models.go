@@ -227,6 +227,9 @@ const (
 	ApiKeyScopeAiSeat                              APIKeyScope = "ai_seat:*"
 	ApiKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
 	ApiKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
+	ApiKeyScopeAiModelPrice                        APIKeyScope = "ai_model_price:*"
+	ApiKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
+	ApiKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -473,7 +476,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChat,
 		ApiKeyScopeAiSeat,
 		ApiKeyScopeAiSeatCreate,
-		ApiKeyScopeAiSeatRead:
+		ApiKeyScopeAiSeatRead,
+		ApiKeyScopeAiModelPrice,
+		ApiKeyScopeAiModelPriceRead,
+		ApiKeyScopeAiModelPriceUpdate:
 		return true
 	}
 	return false
@@ -689,6 +695,9 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiSeat,
 		ApiKeyScopeAiSeatCreate,
 		ApiKeyScopeAiSeatRead,
+		ApiKeyScopeAiModelPrice,
+		ApiKeyScopeAiModelPriceRead,
+		ApiKeyScopeAiModelPriceUpdate,
 	}
 }
 
@@ -4307,7 +4316,7 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
-// Per-model token prices used by AI Bridge to compute interception cost. Seeded from upstream pricing data on startup. A missing row means the model has no pricing available and recorded interceptions for that model will have a NULL cost.
+// Per-model token prices used by AI Bridge to compute interception cost.
 type AiModelPrice struct {
 	ID              int64         `db:"id" json:"id"`
 	Provider        string        `db:"provider" json:"provider"`

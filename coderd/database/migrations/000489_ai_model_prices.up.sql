@@ -14,3 +14,7 @@ CREATE TABLE ai_model_prices (
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
+
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_model_price:*';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_model_price:read';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_model_price:update';
