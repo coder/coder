@@ -950,11 +950,11 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																		>
 																			<span
 																				className={cn(
-																					"pointer-events-none absolute left-0 top-0 h-1/2 w-2.5 border-l border-b border-border-default/60 rounded-bl-md",
+																					"pointer-events-none absolute left-0 top-0 h-1/2 w-2.5 border-l border-b border-content-secondary/25 rounded-bl-md",
 																				)}
 																			/>
 																			{!isLast && (
-																				<span className="pointer-events-none absolute bottom-0 left-0 top-1/2 border-l border-border-default/60" />
+																				<span className="pointer-events-none absolute bottom-0 left-0 top-1/2 border-l border-content-secondary/25" />
 																			)}
 																			<NavLink
 																				to={{
