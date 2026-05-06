@@ -587,7 +587,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+								"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md px-3 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 								isChildNode &&
@@ -726,7 +726,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative flex min-w-0 select-none items-center gap-2 rounded-md px-1.5 text-content-secondary",
+								"group relative flex min-w-0 select-none items-center gap-2 rounded-md px-3 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary",
 							)}
@@ -1332,7 +1332,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				aria-hidden={isSettingsPanel}
 				inert={isSettingsPanel ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
+				<div className="hidden border-b border-border-default px-3 pb-3 pt-3 sm:block">
 					<div className="mb-2.5 flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<NavLink to="/workspaces" className="inline-flex">
@@ -1482,7 +1482,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															<button
 																type="button"
 																onClick={() => toggleSection("Pinned")}
-																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-3 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 															>
 																<span className="flex items-center gap-1.5">
 																	Pinned ({pinnedChats.length})
@@ -1549,7 +1549,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<button
 																	type="button"
 																	onClick={() => toggleSection(group)}
-																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-1.5 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
+																	className="mb-1 flex w-full items-center justify-between border-0 bg-transparent px-3 text-sm font-normal leading-6 text-content-secondary hover:text-content-primary cursor-pointer"
 																>
 																	<span className="flex items-center gap-1.5">
 																		{group} ({groupChats.length})
@@ -1836,7 +1836,7 @@ type SettingsNavItemProps = {
 
 const navItemClassName = (active: boolean, disabled: boolean | undefined) =>
 	cn(
-		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
+		"flex w-full items-center gap-2.5 rounded-md border-0 px-3 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
 		active
 			? "bg-surface-quaternary/25 text-content-primary font-medium"
 			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
