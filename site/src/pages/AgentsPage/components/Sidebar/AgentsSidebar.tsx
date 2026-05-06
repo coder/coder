@@ -925,7 +925,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 																	) && "rotate-180",
 																)}
 															/>
-															Subagents
+															Subagents ({subagentChildren.length})
 														</button>
 														{!collapsedSections.has(`subagents-${chatID}`) && (
 															<div className="relative ml-0.5">
