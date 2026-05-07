@@ -71,6 +71,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestPrebuilds(),
 			r.scaletestBridge(),
 			r.scaletestLLMMock(),
+			r.scaletestAgentFake(),
 		},
 	}
 
@@ -1051,7 +1052,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 		{
 			Flag:        "no-wait-for-agents",
 			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
-			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
+			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly. This is REQUIRED for templates whose workspaces use coder_external_agent resources, since external agents never connect on their own; pair with "coder exp scaletest agentfake" to drive those agents.`,
 			Value:       serpent.BoolOf(&noWaitForAgents),
 		},
 		{
