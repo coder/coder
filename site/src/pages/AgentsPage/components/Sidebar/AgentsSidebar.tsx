@@ -1041,7 +1041,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								) : null}
 							</div>
 							{/* Col 6: Kebab */}
-							<div className="flex items-center justify-center">
+							<div className="flex items-center justify-center pr-2">
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
 										<Button
@@ -1579,7 +1579,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											{visibleRootIDs.length > 0 && (
 												<div
 													className={
-														layout !== "narrow" ? "-ml-2 pb-2" : "pb-2"
+														layout !== "narrow" ? "-mx-2 pb-2" : "pb-2"
 													}
 												>
 													{/* ── Pinned section ── */}
