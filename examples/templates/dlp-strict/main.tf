@@ -9,8 +9,10 @@
 //     /api/v2/workspaceagents/.../coordinate (ssh_access=false).
 //   - Dashboard web terminal: 403 (web_terminal_access=false).
 //   - Dashboard Ports tab: 403 (port_forwarding_access=false).
-//   - Dashboard Desktop button: 403 (desktop_access=false).
 //   - "helloworld" coder_app: 403 (slug not in allowed_applications).
+//
+// The dashboard Desktop button is allowed (desktop_access=true) and connects
+// to the noVNC server installed by the portabledesktop module below.
 //
 // The "code-server" coder_app continues to load because its slug is in
 // allowed_applications and the dashboard app proxy is not gated by
@@ -42,14 +44,16 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-// Strict policy. Every gate is denied; only the "code-server" coder_app slug
-// is allowed to load through the dashboard app proxy. The "helloworld" app
+// Strict policy. ssh, web terminal, and port forwarding are all denied.
+// desktop access is allowed so users still have a graphical entry point via
+// the portabledesktop noVNC server. Through the dashboard app proxy, only
+// the "code-server" coder_app slug is allowed to load. The "helloworld" app
 // is intentionally still defined so its blocked load can be observed.
 resource "coder_dlp_policy" "policy" {
   ssh_access             = false
   web_terminal_access    = false
   port_forwarding_access = false
-  desktop_access         = false
+  desktop_access         = true
   allowed_applications   = ["code-server"]
 }
 
@@ -84,8 +88,7 @@ resource "coder_agent" "main" {
 }
 
 // portabledesktop: installs the noVNC server the dashboard's Desktop button
-// connects to. Lets a user click the gated button and observe the 403 from
-// the desktop_access denial.
+// connects to. Reachable because desktop_access=true on the policy above.
 module "portabledesktop" {
   source   = "dev.registry.coder.com/coder/portabledesktop/coder"
   version  = "0.1.0"
