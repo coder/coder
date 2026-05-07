@@ -198,8 +198,8 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	};
 
 	return (
-		<div className="flex flow-row items-start gap-12 justify-evenly">
-			<div className="grow flex flex-col gap-5 max-w-screen-md">
+		<div className="flex flex-col-reverse gap-12 md:flex-row md:items-start md:justify-around">
+			<div className="flex flex-col grow gap-5 max-w-screen-sm">
 				{Boolean(error) && <ErrorAlert error={error} />}
 				{diagnostics.length > 0 && <Diagnostics diagnostics={diagnostics} />}
 				<div className="flex flex-col gap-9">
@@ -317,7 +317,7 @@ const TestHelpPopover: React.FC = () => {
 				</HelpPopoverText>
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink href={docs("/admin/templates/open-in-coder")}>
-						Templates – Open in Coder
+						Templates &ndash; Open in Coder
 					</HelpPopoverLink>
 				</HelpPopoverLinksGroup>
 			</HelpPopoverContent>
