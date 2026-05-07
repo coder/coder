@@ -430,10 +430,19 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 
 	ownerID := uuid.New()
 	orgID := uuid.New()
+	chatID := uuid.New()
 	templateID := uuid.New()
 	workspaceID := uuid.New()
 	jobID := uuid.New()
 	buildID := uuid.New()
+
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{ID: chatID}, nil)
+
+	db.EXPECT().
+		UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).
+		Return(database.Chat{ID: chatID}, nil)
 
 	db.EXPECT().
 		GetAuthorizationUserRoles(gomock.Any(), ownerID).
@@ -499,9 +508,8 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 		}, nil
 	}
 
-	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID:     ownerID,
-		ChatID:      uuid.Nil,
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},
 		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
@@ -628,9 +636,8 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 		}).
 		Return(int64(40), nil)
 
-	tool := CreateWorkspace(orgID, db, CreateWorkspaceOptions{
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
 		OwnerID: ownerID,
-		ChatID:  chatID,
 		CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 			t.Fatal("CreateFn should not be called when an existing build is in progress")
 			return codersdk.Workspace{}, nil

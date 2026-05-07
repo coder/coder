@@ -749,10 +749,8 @@ func TestStartWorkspace(t *testing.T) {
 		jobRead := make(chan struct{}, 1)
 		wrappedDB := &jobInterceptStore{Store: authzDB, jobRead: jobRead}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
 			},
@@ -857,10 +855,8 @@ func TestStartWorkspace(t *testing.T) {
 		jobRead := make(chan struct{}, 2)
 		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			StartFn: startFn,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
