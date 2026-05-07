@@ -31,7 +31,7 @@ type seedRow struct {
 	CacheWritePrice *int64 `json:"cache_write_price"`
 }
 
-// Seed applies the embedded price seed to ai_model_prices, replacing the
+// Seed applies the embedded price seed to ai_model_prices table, replacing the
 // price columns of any existing (provider, model) row and inserting new ones.
 // Rows already in the table that no longer appear in the seed are left
 // untouched, so historical entries persist across upstream model deprecations.
