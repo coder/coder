@@ -1149,7 +1149,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 
 					{/* Filter by section */}
-					<div className="px-3 py-2.5">
+					<div className="px-3 pt-2.5 pb-3">
 						<span className="mb-1.5 block text-xs font-medium text-content-secondary">
 							Filter by
 						</span>
