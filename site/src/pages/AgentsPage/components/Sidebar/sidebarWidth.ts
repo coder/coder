@@ -3,8 +3,8 @@ export const LEFT_SIDEBAR_MIN_WIDTH = 240;
 export const LEFT_SIDEBAR_DEFAULT_WIDTH = 320;
 // One rem gives keyboard users a predictable, fine-grained step.
 export const LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP = 16;
-const LEFT_SIDEBAR_MAX_WIDTH = 520;
-const LEFT_SIDEBAR_MAX_WIDTH_RATIO = 0.5;
+const LEFT_SIDEBAR_MAX_WIDTH = 660;
+const LEFT_SIDEBAR_MAX_WIDTH_RATIO = 0.7;
 
 export function getLeftSidebarMaxWidth(): number {
 	return Math.max(
