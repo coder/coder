@@ -738,38 +738,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, hasEveryoneGroup := template.GroupACL[template.OrganizationID.String()]
-
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
-		if resolved.name == template.Name &&
-			resolved.description == template.Description &&
-			resolved.displayName == template.DisplayName &&
-			resolved.icon == template.Icon &&
-			resolved.allowUserAutostart == template.AllowUserAutostart &&
-			resolved.allowUserAutostop == template.AllowUserAutostop &&
-			resolved.allowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
-			resolved.defaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
-			resolved.activityBumpMillis == time.Duration(template.ActivityBump).Milliseconds() &&
-			resolved.autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
-			resolved.autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
-			resolved.autostopRequirementWeeks == scheduleOpts.AutostopRequirement.Weeks &&
-			resolved.failureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
-			resolved.timeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
-			resolved.timeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
-			resolved.requireActiveVersion == template.RequireActiveVersion &&
-			resolved.deprecationMessage == template.Deprecated &&
-			resolved.classicTemplateFlow == template.UseClassicParameterFlow &&
-			resolved.disableModuleCache == template.DisableModuleCache &&
-			maxPortShareLevel == template.MaxPortSharingLevel &&
-			resolved.corsBehavior == template.CorsBehavior &&
-			// This condition is a bit tricky. If the request is disabling group access, and group access
-			// is already revoked, it is a no-op
-			(req.DisableEveryoneGroupAccess == nil || !*req.DisableEveryoneGroupAccess ||
-				(req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess && hasEveryoneGroup)) {
-			return nil
-		}
-
 		if template.MaxPortSharingLevel != maxPortShareLevel {
 			switch maxPortShareLevel {
 			case database.AppSharingLevelOwner:
@@ -832,40 +802,29 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			updateWorkspaceLastUsedAt = workspacestats.UpdateTemplateWorkspacesLastUsedAt
 		}
 
-		if defaultTTL != time.Duration(template.DefaultTTL) ||
-			activityBump != time.Duration(template.ActivityBump) ||
-			resolved.autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
-			resolved.autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
-			resolved.autostopRequirementWeeks != scheduleOpts.AutostopRequirement.Weeks ||
-			failureTTL != time.Duration(template.FailureTTL) ||
-			inactivityTTL != time.Duration(template.TimeTilDormant) ||
-			timeTilDormantAutoDelete != time.Duration(template.TimeTilDormantAutoDelete) ||
-			resolved.allowUserAutostart != template.AllowUserAutostart ||
-			resolved.allowUserAutostop != template.AllowUserAutostop {
-			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
-				// Some of these values are enterprise-only, but the
-				// TemplateScheduleStore will handle avoiding setting them if
-				// unlicensed.
-				UserAutostartEnabled: resolved.allowUserAutostart,
-				UserAutostopEnabled:  resolved.allowUserAutostop,
-				DefaultTTL:           defaultTTL,
-				ActivityBump:         activityBump,
-				AutostopRequirement: schedule.TemplateAutostopRequirement{
-					DaysOfWeek: resolved.autostopRequirementDaysOfWeekParsed,
-					Weeks:      resolved.autostopRequirementWeeks,
-				},
-				AutostartRequirement: schedule.TemplateAutostartRequirement{
-					DaysOfWeek: resolved.autostartRequirementDaysOfWeekParsed,
-				},
-				FailureTTL:                failureTTL,
-				TimeTilDormant:            inactivityTTL,
-				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
-				UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
-				UpdateWorkspaceDormantAt:  resolved.updateWorkspaceDormantAtIntent,
-			})
-			if err != nil {
-				return xerrors.Errorf("set template schedule options: %w", err)
-			}
+		updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
+			// Some of these values are enterprise-only, but the
+			// TemplateScheduleStore will handle avoiding setting them if
+			// unlicensed.
+			UserAutostartEnabled: resolved.allowUserAutostart,
+			UserAutostopEnabled:  resolved.allowUserAutostop,
+			DefaultTTL:           defaultTTL,
+			ActivityBump:         activityBump,
+			AutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: resolved.autostopRequirementDaysOfWeekParsed,
+				Weeks:      resolved.autostopRequirementWeeks,
+			},
+			AutostartRequirement: schedule.TemplateAutostartRequirement{
+				DaysOfWeek: resolved.autostartRequirementDaysOfWeekParsed,
+			},
+			FailureTTL:                failureTTL,
+			TimeTilDormant:            inactivityTTL,
+			TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
+			UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
+			UpdateWorkspaceDormantAt:  resolved.updateWorkspaceDormantAtIntent,
+		})
+		if err != nil {
+			return xerrors.Errorf("set template schedule options: %w", err)
 		}
 
 		return nil
@@ -891,11 +850,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if updated.UpdatedAt.IsZero() {
-		aReq.New = template
-		rw.WriteHeader(http.StatusNotModified)
-		return
-	}
 	aReq.New = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated))
