@@ -235,7 +235,7 @@ func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverCon
 			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
 		},
 		BuildExhaustedResponse: func(err error) *http.Response {
-			return messages.MapExhaustionError(err).ToResponse()
+			return messages.ProcessKeyPoolError(err).ToResponse()
 		},
 	}
 }

@@ -189,8 +189,8 @@ func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *key
 	)
 }
 
-// processKeyPoolError translates a keypool exhaustion error
-// into a developer-facing responseError shaped for the OpenAI
+// ProcessKeyPoolError translates a keypool exhaustion error
+// into a developer-facing ResponseError shaped for the OpenAI
 // API. Returns nil if err is not an exhaustion error.
 func ProcessKeyPoolError(err error) *ResponseError {
 	var transient *keypool.TransientKeyPoolError

@@ -234,7 +234,7 @@ func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig
 			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
 		},
 		BuildExhaustedResponse: func(err error) *http.Response {
-			return chatcompletions.MapExhaustionError(err).ToResponse()
+			return chatcompletions.ProcessKeyPoolError(err).ToResponse()
 		},
 	}
 }
