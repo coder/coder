@@ -69,8 +69,9 @@ func TestConvert(t *testing.T) {
 	rows, err := convert(upstream, []string{"anthropic", "openai"})
 	require.NoError(t, err)
 
-	// Filtered: alibaba dropped, four rows from the two allowed providers.
-	require.Len(t, rows, 4)
+	// alibaba is dropped (not a supported provider) and gpt-no-prices is
+	// dropped (no per-token pricing), leaving three priced rows.
+	require.Len(t, rows, 3)
 
 	// Sorted (provider, model).
 	require.Equal(t, "anthropic", rows[0].Provider)
@@ -79,8 +80,6 @@ func TestConvert(t *testing.T) {
 	require.Equal(t, "claude-sonnet-4-7", rows[1].Model)
 	require.Equal(t, "openai", rows[2].Provider)
 	require.Equal(t, "gpt-4o", rows[2].Model)
-	require.Equal(t, "openai", rows[3].Provider)
-	require.Equal(t, "gpt-no-prices", rows[3].Model)
 
 	// All four prices populated for Anthropic Sonnet.
 	sonnet := rows[1]
@@ -95,13 +94,6 @@ func TestConvert(t *testing.T) {
 	require.Equal(t, int64(10_000_000), *gpt.OutputPrice)
 	require.Equal(t, int64(1_250_000), *gpt.CacheReadPrice)
 	require.Nil(t, gpt.CacheWritePrice)
-
-	// Model with no cost block at all retains its row, all prices nil.
-	empty := rows[3]
-	require.Nil(t, empty.InputPrice)
-	require.Nil(t, empty.OutputPrice)
-	require.Nil(t, empty.CacheReadPrice)
-	require.Nil(t, empty.CacheWritePrice)
 }
 
 func TestConvertMissingProvider(t *testing.T) {

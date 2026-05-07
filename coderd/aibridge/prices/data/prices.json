@@ -185,14 +185,6 @@
   },
   {
     "provider": "openai",
-    "model": "chatgpt-image-latest",
-    "input_price": null,
-    "output_price": null,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
     "model": "gpt-3.5-turbo",
     "input_price": 500000,
     "output_price": 1500000,
@@ -468,30 +460,6 @@
     "model": "gpt-5.5-pro",
     "input_price": 30000000,
     "output_price": 180000000,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-image-1",
-    "input_price": null,
-    "output_price": null,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-image-1-mini",
-    "input_price": null,
-    "output_price": null,
-    "cache_read_price": null,
-    "cache_write_price": null
-  },
-  {
-    "provider": "openai",
-    "model": "gpt-image-1.5",
-    "input_price": null,
-    "output_price": null,
     "cache_read_price": null,
     "cache_write_price": null
   },

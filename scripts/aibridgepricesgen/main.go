@@ -61,6 +61,12 @@ type priceRow struct {
 	CacheWritePrice *int64 `json:"cache_write_price"`
 }
 
+// hasPricing reports whether the row has at least one non-nil price.
+func (r priceRow) hasPricing() bool {
+	return r.InputPrice != nil || r.OutputPrice != nil ||
+		r.CacheReadPrice != nil || r.CacheWritePrice != nil
+}
+
 func main() {
 	if err := run(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: %v\n", err)
@@ -138,6 +144,9 @@ func convert(upstream map[string]upstreamProvider, providers []string) ([]priceR
 				row.OutputPrice = toMicros(m.Cost.Output)
 				row.CacheReadPrice = toMicros(m.Cost.CacheRead)
 				row.CacheWritePrice = toMicros(m.Cost.CacheWrite)
+			}
+			if !row.hasPricing() {
+				continue
 			}
 			rows = append(rows, row)
 		}
