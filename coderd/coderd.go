@@ -593,10 +593,9 @@ func New(options *Options) *API {
 		options.Logger.Fatal(ctx, "failed to reconcile system role permissions", slog.Error(err))
 	}
 
-	// Apply the embedded AI Bridge model price seed.
 	//nolint:gocritic // Startup seeder needs to run as aibridge context.
-	if err := prices.Load(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
-		options.Logger.Error(ctx, "failed to load AI Bridge price seed; cost tracking may use stale prices", slog.Error(err))
+	if err := prices.Seed(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
+		options.Logger.Error(ctx, "failed to seed AI Bridge prices; cost tracking may use stale prices", slog.Error(err))
 	}
 
 	// AGPL uses a no-op build usage checker as there are no license

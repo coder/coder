@@ -1,5 +1,5 @@
-// Package prices loads the embedded AI Bridge model price seed into the
-// ai_model_prices table at server startup.
+// Package prices seeds the ai_model_prices table from an embedded JSON
+// price book at server startup.
 package prices
 
 import (
@@ -28,21 +28,21 @@ type seedRow struct {
 	CacheWritePrice *int64 `json:"cache_write_price"`
 }
 
-// Load applies the embedded price seed to ai_model_prices, replacing the
+// Seed applies the embedded price seed to ai_model_prices, replacing the
 // price columns of any existing (provider, model) row and inserting new ones.
 // Rows already in the table that no longer appear in the seed are left
 // untouched, so historical entries persist across upstream model deprecations.
 //
 // The whole batch runs inside a single transaction: either every row lands or
-// none do, so a failure mid-load can't leave the table half-updated.
-func Load(ctx context.Context, db database.Store) error {
-	return LoadFromBytes(ctx, db, seedJSON)
+// none do, so a failure mid-seed can't leave the table half-updated.
+func Seed(ctx context.Context, db database.Store) error {
+	return SeedFromBytes(ctx, db, seedJSON)
 }
 
-// LoadFromBytes applies an arbitrary JSON seed. Most callers should use Load,
-// which applies the seed embedded in this binary; LoadFromBytes is exposed
+// SeedFromBytes applies an arbitrary JSON seed. Most callers should use Seed,
+// which applies the seed embedded in this binary; SeedFromBytes is exposed
 // for tests that need to inject a deterministic seed.
-func LoadFromBytes(ctx context.Context, db database.Store, data []byte) error {
+func SeedFromBytes(ctx context.Context, db database.Store, data []byte) error {
 	rows, err := parseSeed(data)
 	if err != nil {
 		return xerrors.Errorf("parse price seed: %w", err)

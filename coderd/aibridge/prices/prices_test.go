@@ -39,7 +39,7 @@ const testSeedJSON = `[
   }
 ]`
 
-func TestLoad(t *testing.T) {
+func TestSeedFromBytes(t *testing.T) {
 	t.Parallel()
 
 	t.Run("SeedsFreshDatabase", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestLoad(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, _ := dbtestutil.NewDB(t)
 
-		require.NoError(t, prices.LoadFromBytes(ctx, db, []byte(testSeedJSON)))
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
 		// Spot-check a fully-populated row.
 		opus, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
@@ -78,13 +78,13 @@ func TestLoad(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, _ := dbtestutil.NewDB(t)
 
-		require.NoError(t, prices.LoadFromBytes(ctx, db, []byte(testSeedJSON)))
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 		first, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
 		require.NoError(t, err)
 
-		require.NoError(t, prices.LoadFromBytes(ctx, db, []byte(testSeedJSON)))
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 		second, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
@@ -104,7 +104,7 @@ func TestLoad(t *testing.T) {
 
 		// Pre-seed with deliberately wrong values for all four price columns.
 		// cache_write_price is set to a non-NULL value here even though the
-		// embedded seed leaves it NULL for OpenAI; Load must replace it with
+		// embedded seed leaves it NULL for OpenAI; Seed must replace it with
 		// NULL to keep the table in sync with the seed.
 		require.NoError(t, db.UpsertAIModelPrice(ctx, database.UpsertAIModelPriceParams{
 			Provider:        "openai",
@@ -115,7 +115,7 @@ func TestLoad(t *testing.T) {
 			CacheWritePrice: sql.NullInt64{Int64: 4, Valid: true},
 		}))
 
-		require.NoError(t, prices.LoadFromBytes(ctx, db, []byte(testSeedJSON)))
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
 		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
 			Provider: "openai", Model: "gpt-4o",
@@ -133,7 +133,7 @@ func TestLoad(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		// Insert a row for a (provider, model) the seed doesn't cover. After
-		// Load it should still be there with its values intact.
+		// Seed it should still be there with its values intact.
 		require.NoError(t, db.UpsertAIModelPrice(ctx, database.UpsertAIModelPriceParams{
 			Provider:    "test-provider",
 			Model:       "test-model-not-in-seed",
@@ -141,7 +141,7 @@ func TestLoad(t *testing.T) {
 			OutputPrice: sql.NullInt64{Int64: 67890, Valid: true},
 		}))
 
-		require.NoError(t, prices.LoadFromBytes(ctx, db, []byte(testSeedJSON)))
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
 		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
 			Provider: "test-provider", Model: "test-model-not-in-seed",
@@ -161,7 +161,7 @@ func TestLoad(t *testing.T) {
 		rawDB, _ := dbtestutil.NewDB(t)
 		authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 
-		require.NoError(t, prices.LoadFromBytes(dbauthz.AsAIBridged(ctx), authzDB, []byte(testSeedJSON)))
+		require.NoError(t, prices.SeedFromBytes(dbauthz.AsAIBridged(ctx), authzDB, []byte(testSeedJSON)))
 
 		// Read back via the raw DB.
 		got, err := rawDB.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
@@ -173,13 +173,13 @@ func TestLoad(t *testing.T) {
 	})
 }
 
-// TestLoadEmbeddedSeed exercises the real embedded prices.json so we catch a
-// corrupted, empty, or unparseable seed file at test time rather than at
-// server startup. Intentionally makes no assertions about specific prices,
-// since those drift whenever the seed is regenerated from upstream.
-func TestLoadEmbeddedSeed(t *testing.T) {
+// TestSeed exercises the real embedded prices.json so we catch a corrupted,
+// empty, or unparseable seed file at test time rather than at server startup.
+// Intentionally makes no assertions about specific prices, since those drift
+// whenever the seed is regenerated from upstream.
+func TestSeed(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	db, _ := dbtestutil.NewDB(t)
-	require.NoError(t, prices.Load(ctx, db))
+	require.NoError(t, prices.Seed(ctx, db))
 }
