@@ -215,9 +215,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
 	sh -s -- -y --default-toolchain stable --profile minimal
 ENV PATH=$CARGO_HOME/bin:$PATH
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.14.5.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.15.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.14.5/terraform_1.14.5_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
