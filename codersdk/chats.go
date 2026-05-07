@@ -944,7 +944,7 @@ type ChatDebugStep struct {
 }
 
 // DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
-// Zero means disabled — the template's own autostop setting applies.
+// Zero means disabled, so the template's own autostop setting applies.
 const DefaultChatWorkspaceTTL = 0
 
 // DefaultChatAutoArchiveDays is the default auto-archive window, in
@@ -961,7 +961,7 @@ const DefaultChatDebugRetentionDays int32 = 30
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
 	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	// Zero means disabled — the template's own autostop setting applies.
+	// Zero means disabled, so the template's own autostop setting applies.
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
@@ -969,7 +969,7 @@ type ChatWorkspaceTTLResponse struct {
 // workspace TTL setting.
 type UpdateChatWorkspaceTTLRequest struct {
 	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	// Zero means disabled — the template's own autostop setting applies.
+	// Zero means disabled, so the template's own autostop setting applies.
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 

@@ -1409,6 +1409,26 @@
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
 
+## codersdk.AdvisorConfig
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                  |
+|---------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled toggles the advisor runtime. When false, advisor is not attached to new chats.                                                                                                                                                                                                                                       |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.                                                                                                                                                                                                                                   |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat run. 0 means unlimited.                                                                                                                                                                                                                             |
+| `model_config_id`   | string  | false    |              | Model config ID selects a specific chat model config to power the advisor. uuid.Nil means reuse the outer chat model. The runtime must fall back to the outer chat model when this ID cannot be resolved (e.g. the referenced model config was soft-deleted or its provider was disabled after the admin saved this config). |
+
 ## codersdk.AgentConnectionTiming
 
 ```json
@@ -2388,6 +2408,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 
+## codersdk.ChatAutoArchiveDaysResponse
+
+```json
+{
+  "auto_archive_days": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `auto_archive_days` | integer | false    |              |             |
+
 ## codersdk.ChatBusyBehavior
 
 ```json
@@ -2416,6 +2450,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------|
 | `api`, `ui` |
 
+## codersdk.ChatComputerUseProviderResponse
+
+```json
+{
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `provider` | string | false    |              |             |
+
 ## codersdk.ChatConfig
 
 ```json
@@ -2431,6 +2479,288 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer | false    |              |             |
 | `debug_logging_enabled` | boolean | false    |              |             |
+
+## codersdk.ChatDebugLoggingAdminSettings
+
+```json
+{
+  "allow_users": true,
+  "forced_by_deployment": true
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `allow_users`          | boolean | false    |              |             |
+| `forced_by_deployment` | boolean | false    |              |             |
+
+## codersdk.ChatDebugRetentionDaysResponse
+
+```json
+{
+  "debug_retention_days": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `debug_retention_days` | integer | false    |              |             |
+
+## codersdk.ChatDebugRun
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "finished_at": "2019-08-24T14:15:22Z",
+  "history_tip_message_id": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "chat_turn",
+  "model": "string",
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "provider": "string",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "in_progress",
+  "steps": [
+    {
+      "assistant_message_id": 0,
+      "attempts": [
+        {
+          "property1": null,
+          "property2": null
+        }
+      ],
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "error": {
+        "property1": null,
+        "property2": null
+      },
+      "finished_at": "2019-08-24T14:15:22Z",
+      "history_tip_message_id": 0,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "normalized_request": {
+        "property1": null,
+        "property2": null
+      },
+      "normalized_response": {
+        "property1": null,
+        "property2": null
+      },
+      "operation": "stream",
+      "run_id": "dded282c-8ebd-44cf-8ba5-9a234973d1ec",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "in_progress",
+      "step_number": 0,
+      "updated_at": "2019-08-24T14:15:22Z",
+      "usage": {
+        "property1": null,
+        "property2": null
+      }
+    }
+  ],
+  "summary": {
+    "property1": null,
+    "property2": null
+  },
+  "trigger_message_id": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                     | Type                                                      | Required | Restrictions | Description |
+|--------------------------|-----------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`                | string                                                    | false    |              |             |
+| `finished_at`            | string                                                    | false    |              |             |
+| `history_tip_message_id` | integer                                                   | false    |              |             |
+| `id`                     | string                                                    | false    |              |             |
+| `kind`                   | [codersdk.ChatDebugRunKind](#codersdkchatdebugrunkind)    | false    |              |             |
+| `model`                  | string                                                    | false    |              |             |
+| `model_config_id`        | string                                                    | false    |              |             |
+| `parent_chat_id`         | string                                                    | false    |              |             |
+| `provider`               | string                                                    | false    |              |             |
+| `root_chat_id`           | string                                                    | false    |              |             |
+| `started_at`             | string                                                    | false    |              |             |
+| `status`                 | [codersdk.ChatDebugStatus](#codersdkchatdebugstatus)      | false    |              |             |
+| `steps`                  | array of [codersdk.ChatDebugStep](#codersdkchatdebugstep) | false    |              |             |
+| `summary`                | object                                                    | false    |              |             |
+| » `[any property]`       | any                                                       | false    |              |             |
+| `trigger_message_id`     | integer                                                   | false    |              |             |
+| `updated_at`             | string                                                    | false    |              |             |
+
+## codersdk.ChatDebugRunKind
+
+```json
+"chat_turn"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                  |
+|-----------------------------------------------------------|
+| `chat_turn`, `compaction`, `quickgen`, `title_generation` |
+
+## codersdk.ChatDebugRunSummary
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "finished_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "chat_turn",
+  "model": "string",
+  "provider": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "in_progress",
+  "summary": {
+    "property1": null,
+    "property2": null
+  },
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name               | Type                                                   | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`          | string                                                 | false    |              |             |
+| `finished_at`      | string                                                 | false    |              |             |
+| `id`               | string                                                 | false    |              |             |
+| `kind`             | [codersdk.ChatDebugRunKind](#codersdkchatdebugrunkind) | false    |              |             |
+| `model`            | string                                                 | false    |              |             |
+| `provider`         | string                                                 | false    |              |             |
+| `started_at`       | string                                                 | false    |              |             |
+| `status`           | [codersdk.ChatDebugStatus](#codersdkchatdebugstatus)   | false    |              |             |
+| `summary`          | object                                                 | false    |              |             |
+| » `[any property]` | any                                                    | false    |              |             |
+| `updated_at`       | string                                                 | false    |              |             |
+
+## codersdk.ChatDebugStatus
+
+```json
+"in_progress"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                           |
+|----------------------------------------------------|
+| `completed`, `error`, `in_progress`, `interrupted` |
+
+## codersdk.ChatDebugStep
+
+```json
+{
+  "assistant_message_id": 0,
+  "attempts": [
+    {
+      "property1": null,
+      "property2": null
+    }
+  ],
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "error": {
+    "property1": null,
+    "property2": null
+  },
+  "finished_at": "2019-08-24T14:15:22Z",
+  "history_tip_message_id": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "normalized_request": {
+    "property1": null,
+    "property2": null
+  },
+  "normalized_response": {
+    "property1": null,
+    "property2": null
+  },
+  "operation": "stream",
+  "run_id": "dded282c-8ebd-44cf-8ba5-9a234973d1ec",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "in_progress",
+  "step_number": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "usage": {
+    "property1": null,
+    "property2": null
+  }
+}
+```
+
+### Properties
+
+| Name                     | Type                                                               | Required | Restrictions | Description |
+|--------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `assistant_message_id`   | integer                                                            | false    |              |             |
+| `attempts`               | array of object                                                    | false    |              |             |
+| » `[any property]`       | any                                                                | false    |              |             |
+| `chat_id`                | string                                                             | false    |              |             |
+| `error`                  | object                                                             | false    |              |             |
+| » `[any property]`       | any                                                                | false    |              |             |
+| `finished_at`            | string                                                             | false    |              |             |
+| `history_tip_message_id` | integer                                                            | false    |              |             |
+| `id`                     | string                                                             | false    |              |             |
+| `metadata`               | object                                                             | false    |              |             |
+| » `[any property]`       | any                                                                | false    |              |             |
+| `normalized_request`     | object                                                             | false    |              |             |
+| » `[any property]`       | any                                                                | false    |              |             |
+| `normalized_response`    | object                                                             | false    |              |             |
+| » `[any property]`       | any                                                                | false    |              |             |
+| `operation`              | [codersdk.ChatDebugStepOperation](#codersdkchatdebugstepoperation) | false    |              |             |
+| `run_id`                 | string                                                             | false    |              |             |
+| `started_at`             | string                                                             | false    |              |             |
+| `status`                 | [codersdk.ChatDebugStatus](#codersdkchatdebugstatus)               | false    |              |             |
+| `step_number`            | integer                                                            | false    |              |             |
+| `updated_at`             | string                                                             | false    |              |             |
+| `usage`                  | object                                                             | false    |              |             |
+| » `[any property]`       | any                                                                | false    |              |             |
+
+## codersdk.ChatDebugStepOperation
+
+```json
+"stream"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| `generate`, `stream` |
+
+## codersdk.ChatDesktopEnabledResponse
+
+```json
+{
+  "enable_desktop": true
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `enable_desktop` | boolean | false    |              |             |
 
 ## codersdk.ChatDiffContents
 
@@ -3032,6 +3362,689 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `model`        | string | false    |              |             |
 | `provider`     | string | false    |              |             |
 
+## codersdk.ChatModelAnthropicProviderOptions
+
+```json
+{
+  "allowed_domains": [
+    "string"
+  ],
+  "blocked_domains": [
+    "string"
+  ],
+  "disable_parallel_tool_use": true,
+  "effort": "string",
+  "send_reasoning": true,
+  "thinking": {
+    "budget_tokens": 0
+  },
+  "web_search_enabled": true
+}
+```
+
+### Properties
+
+| Name                        | Type                                                                                     | Required | Restrictions | Description |
+|-----------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `allowed_domains`           | array of string                                                                          | false    |              |             |
+| `blocked_domains`           | array of string                                                                          | false    |              |             |
+| `disable_parallel_tool_use` | boolean                                                                                  | false    |              |             |
+| `effort`                    | string                                                                                   | false    |              |             |
+| `send_reasoning`            | boolean                                                                                  | false    |              |             |
+| `thinking`                  | [codersdk.ChatModelAnthropicThinkingOptions](#codersdkchatmodelanthropicthinkingoptions) | false    |              |             |
+| `web_search_enabled`        | boolean                                                                                  | false    |              |             |
+
+## codersdk.ChatModelAnthropicThinkingOptions
+
+```json
+{
+  "budget_tokens": 0
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `budget_tokens` | integer | false    |              |             |
+
+## codersdk.ChatModelCallConfig
+
+```json
+{
+  "cost": {
+    "cache_read_price_per_million_tokens": 0,
+    "cache_write_price_per_million_tokens": 0,
+    "input_price_per_million_tokens": 0,
+    "output_price_per_million_tokens": 0
+  },
+  "frequency_penalty": 0,
+  "max_output_tokens": 0,
+  "presence_penalty": 0,
+  "provider_options": {
+    "anthropic": {
+      "allowed_domains": [
+        "string"
+      ],
+      "blocked_domains": [
+        "string"
+      ],
+      "disable_parallel_tool_use": true,
+      "effort": "string",
+      "send_reasoning": true,
+      "thinking": {
+        "budget_tokens": 0
+      },
+      "web_search_enabled": true
+    },
+    "google": {
+      "cached_content": "string",
+      "safety_settings": [
+        {
+          "category": "string",
+          "threshold": "string"
+        }
+      ],
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_budget": 0
+      },
+      "threshold": "string",
+      "web_search_enabled": true
+    },
+    "openai": {
+      "allowed_domains": [
+        "string"
+      ],
+      "include": [
+        "string"
+      ],
+      "instructions": "string",
+      "log_probs": true,
+      "logit_bias": {
+        "property1": 0,
+        "property2": 0
+      },
+      "max_completion_tokens": 0,
+      "max_tool_calls": 0,
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "parallel_tool_calls": true,
+      "prediction": {
+        "property1": null,
+        "property2": null
+      },
+      "prompt_cache_key": "string",
+      "reasoning_effort": "string",
+      "reasoning_summary": "string",
+      "safety_identifier": "string",
+      "search_context_size": "string",
+      "service_tier": "string",
+      "store": true,
+      "strict_json_schema": true,
+      "structured_outputs": true,
+      "text_verbosity": "string",
+      "top_log_probs": 0,
+      "user": "string",
+      "web_search_enabled": true
+    },
+    "openaicompat": {
+      "reasoning_effort": "string",
+      "user": "string"
+    },
+    "openrouter": {
+      "extra_body": {
+        "property1": null,
+        "property2": null
+      },
+      "include_usage": true,
+      "log_probs": true,
+      "logit_bias": {
+        "property1": 0,
+        "property2": 0
+      },
+      "parallel_tool_calls": true,
+      "provider": {
+        "allow_fallbacks": true,
+        "data_collection": "string",
+        "ignore": [
+          "string"
+        ],
+        "only": [
+          "string"
+        ],
+        "order": [
+          "string"
+        ],
+        "quantizations": [
+          "string"
+        ],
+        "require_parameters": true,
+        "sort": "string"
+      },
+      "reasoning": {
+        "effort": "string",
+        "enabled": true,
+        "exclude": true,
+        "max_tokens": 0
+      },
+      "user": "string"
+    },
+    "vercel": {
+      "extra_body": {
+        "property1": null,
+        "property2": null
+      },
+      "logit_bias": {
+        "property1": 0,
+        "property2": 0
+      },
+      "logprobs": true,
+      "parallel_tool_calls": true,
+      "providerOptions": {
+        "models": [
+          "string"
+        ],
+        "order": [
+          "string"
+        ]
+      },
+      "reasoning": {
+        "effort": "string",
+        "enabled": true,
+        "exclude": true,
+        "max_tokens": 0
+      },
+      "top_logprobs": 0,
+      "user": "string"
+    }
+  },
+  "temperature": 0,
+  "top_k": 0,
+  "top_p": 0
+}
+```
+
+### Properties
+
+| Name                | Type                                                                   | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `cost`              | [codersdk.ModelCostConfig](#codersdkmodelcostconfig)                   | false    |              |             |
+| `frequency_penalty` | number                                                                 | false    |              |             |
+| `max_output_tokens` | integer                                                                | false    |              |             |
+| `presence_penalty`  | number                                                                 | false    |              |             |
+| `provider_options`  | [codersdk.ChatModelProviderOptions](#codersdkchatmodelprovideroptions) | false    |              |             |
+| `temperature`       | number                                                                 | false    |              |             |
+| `top_k`             | integer                                                                | false    |              |             |
+| `top_p`             | number                                                                 | false    |              |             |
+
+## codersdk.ChatModelConfig
+
+```json
+{
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "cost": {
+      "cache_read_price_per_million_tokens": 0,
+      "cache_write_price_per_million_tokens": 0,
+      "input_price_per_million_tokens": 0,
+      "output_price_per_million_tokens": 0
+    },
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "disable_parallel_tool_use": true,
+        "effort": "string",
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_effort": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "reasoning_effort": "string",
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "provider": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `compression_threshold` | integer                                                      | false    |              |             |
+| `context_limit`         | integer                                                      | false    |              |             |
+| `created_at`            | string                                                       | false    |              |             |
+| `display_name`          | string                                                       | false    |              |             |
+| `enabled`               | boolean                                                      | false    |              |             |
+| `id`                    | string                                                       | false    |              |             |
+| `is_default`            | boolean                                                      | false    |              |             |
+| `model`                 | string                                                       | false    |              |             |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
+| `provider`              | string                                                       | false    |              |             |
+| `updated_at`            | string                                                       | false    |              |             |
+
+## codersdk.ChatModelGoogleProviderOptions
+
+```json
+{
+  "cached_content": "string",
+  "safety_settings": [
+    {
+      "category": "string",
+      "threshold": "string"
+    }
+  ],
+  "thinking_config": {
+    "include_thoughts": true,
+    "thinking_budget": 0
+  },
+  "threshold": "string",
+  "web_search_enabled": true
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                                    | Required | Restrictions | Description |
+|----------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `cached_content`     | string                                                                                  | false    |              |             |
+| `safety_settings`    | array of [codersdk.ChatModelGoogleSafetySetting](#codersdkchatmodelgooglesafetysetting) | false    |              |             |
+| `thinking_config`    | [codersdk.ChatModelGoogleThinkingConfig](#codersdkchatmodelgooglethinkingconfig)        | false    |              |             |
+| `threshold`          | string                                                                                  | false    |              |             |
+| `web_search_enabled` | boolean                                                                                 | false    |              |             |
+
+## codersdk.ChatModelGoogleSafetySetting
+
+```json
+{
+  "category": "string",
+  "threshold": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `category`  | string | false    |              |             |
+| `threshold` | string | false    |              |             |
+
+## codersdk.ChatModelGoogleThinkingConfig
+
+```json
+{
+  "include_thoughts": true,
+  "thinking_budget": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `include_thoughts` | boolean | false    |              |             |
+| `thinking_budget`  | integer | false    |              |             |
+
+## codersdk.ChatModelOpenAICompatProviderOptions
+
+```json
+{
+  "reasoning_effort": "string",
+  "user": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `reasoning_effort` | string | false    |              |             |
+| `user`             | string | false    |              |             |
+
+## codersdk.ChatModelOpenAIProviderOptions
+
+```json
+{
+  "allowed_domains": [
+    "string"
+  ],
+  "include": [
+    "string"
+  ],
+  "instructions": "string",
+  "log_probs": true,
+  "logit_bias": {
+    "property1": 0,
+    "property2": 0
+  },
+  "max_completion_tokens": 0,
+  "max_tool_calls": 0,
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "parallel_tool_calls": true,
+  "prediction": {
+    "property1": null,
+    "property2": null
+  },
+  "prompt_cache_key": "string",
+  "reasoning_effort": "string",
+  "reasoning_summary": "string",
+  "safety_identifier": "string",
+  "search_context_size": "string",
+  "service_tier": "string",
+  "store": true,
+  "strict_json_schema": true,
+  "structured_outputs": true,
+  "text_verbosity": "string",
+  "top_log_probs": 0,
+  "user": "string",
+  "web_search_enabled": true
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description |
+|-------------------------|-----------------|----------|--------------|-------------|
+| `allowed_domains`       | array of string | false    |              |             |
+| `include`               | array of string | false    |              |             |
+| `instructions`          | string          | false    |              |             |
+| `log_probs`             | boolean         | false    |              |             |
+| `logit_bias`            | object          | false    |              |             |
+| » `[any property]`      | integer         | false    |              |             |
+| `max_completion_tokens` | integer         | false    |              |             |
+| `max_tool_calls`        | integer         | false    |              |             |
+| `metadata`              | object          | false    |              |             |
+| » `[any property]`      | any             | false    |              |             |
+| `parallel_tool_calls`   | boolean         | false    |              |             |
+| `prediction`            | object          | false    |              |             |
+| » `[any property]`      | any             | false    |              |             |
+| `prompt_cache_key`      | string          | false    |              |             |
+| `reasoning_effort`      | string          | false    |              |             |
+| `reasoning_summary`     | string          | false    |              |             |
+| `safety_identifier`     | string          | false    |              |             |
+| `search_context_size`   | string          | false    |              |             |
+| `service_tier`          | string          | false    |              |             |
+| `store`                 | boolean         | false    |              |             |
+| `strict_json_schema`    | boolean         | false    |              |             |
+| `structured_outputs`    | boolean         | false    |              |             |
+| `text_verbosity`        | string          | false    |              |             |
+| `top_log_probs`         | integer         | false    |              |             |
+| `user`                  | string          | false    |              |             |
+| `web_search_enabled`    | boolean         | false    |              |             |
+
+## codersdk.ChatModelOpenRouterProvider
+
+```json
+{
+  "allow_fallbacks": true,
+  "data_collection": "string",
+  "ignore": [
+    "string"
+  ],
+  "only": [
+    "string"
+  ],
+  "order": [
+    "string"
+  ],
+  "quantizations": [
+    "string"
+  ],
+  "require_parameters": true,
+  "sort": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type            | Required | Restrictions | Description |
+|----------------------|-----------------|----------|--------------|-------------|
+| `allow_fallbacks`    | boolean         | false    |              |             |
+| `data_collection`    | string          | false    |              |             |
+| `ignore`             | array of string | false    |              |             |
+| `only`               | array of string | false    |              |             |
+| `order`              | array of string | false    |              |             |
+| `quantizations`      | array of string | false    |              |             |
+| `require_parameters` | boolean         | false    |              |             |
+| `sort`               | string          | false    |              |             |
+
+## codersdk.ChatModelOpenRouterProviderOptions
+
+```json
+{
+  "extra_body": {
+    "property1": null,
+    "property2": null
+  },
+  "include_usage": true,
+  "log_probs": true,
+  "logit_bias": {
+    "property1": 0,
+    "property2": 0
+  },
+  "parallel_tool_calls": true,
+  "provider": {
+    "allow_fallbacks": true,
+    "data_collection": "string",
+    "ignore": [
+      "string"
+    ],
+    "only": [
+      "string"
+    ],
+    "order": [
+      "string"
+    ],
+    "quantizations": [
+      "string"
+    ],
+    "require_parameters": true,
+    "sort": "string"
+  },
+  "reasoning": {
+    "effort": "string",
+    "enabled": true,
+    "exclude": true,
+    "max_tokens": 0
+  },
+  "user": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                         | Required | Restrictions | Description |
+|-----------------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `extra_body`          | object                                                                       | false    |              |             |
+| » `[any property]`    | any                                                                          | false    |              |             |
+| `include_usage`       | boolean                                                                      | false    |              |             |
+| `log_probs`           | boolean                                                                      | false    |              |             |
+| `logit_bias`          | object                                                                       | false    |              |             |
+| » `[any property]`    | integer                                                                      | false    |              |             |
+| `parallel_tool_calls` | boolean                                                                      | false    |              |             |
+| `provider`            | [codersdk.ChatModelOpenRouterProvider](#codersdkchatmodelopenrouterprovider) | false    |              |             |
+| `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)     | false    |              |             |
+| `user`                | string                                                                       | false    |              |             |
+
+## codersdk.ChatModelOverrideContext
+
+```json
+"general"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                 |
+|------------------------------------------|
+| `explore`, `general`, `title_generation` |
+
+## codersdk.ChatModelOverrideResponse
+
+```json
+{
+  "context": "general",
+  "is_malformed": true,
+  "model_config_id": "string"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                   | Required | Restrictions | Description |
+|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `context`         | [codersdk.ChatModelOverrideContext](#codersdkchatmodeloverridecontext) | false    |              |             |
+| `is_malformed`    | boolean                                                                | false    |              |             |
+| `model_config_id` | string                                                                 | false    |              |             |
+
 ## codersdk.ChatModelProvider
 
 ```json
@@ -3059,6 +4072,162 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `provider`           | string                                                                                     | false    |              |             |
 | `unavailable_reason` | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
 
+## codersdk.ChatModelProviderOptions
+
+```json
+{
+  "anthropic": {
+    "allowed_domains": [
+      "string"
+    ],
+    "blocked_domains": [
+      "string"
+    ],
+    "disable_parallel_tool_use": true,
+    "effort": "string",
+    "send_reasoning": true,
+    "thinking": {
+      "budget_tokens": 0
+    },
+    "web_search_enabled": true
+  },
+  "google": {
+    "cached_content": "string",
+    "safety_settings": [
+      {
+        "category": "string",
+        "threshold": "string"
+      }
+    ],
+    "thinking_config": {
+      "include_thoughts": true,
+      "thinking_budget": 0
+    },
+    "threshold": "string",
+    "web_search_enabled": true
+  },
+  "openai": {
+    "allowed_domains": [
+      "string"
+    ],
+    "include": [
+      "string"
+    ],
+    "instructions": "string",
+    "log_probs": true,
+    "logit_bias": {
+      "property1": 0,
+      "property2": 0
+    },
+    "max_completion_tokens": 0,
+    "max_tool_calls": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "parallel_tool_calls": true,
+    "prediction": {
+      "property1": null,
+      "property2": null
+    },
+    "prompt_cache_key": "string",
+    "reasoning_effort": "string",
+    "reasoning_summary": "string",
+    "safety_identifier": "string",
+    "search_context_size": "string",
+    "service_tier": "string",
+    "store": true,
+    "strict_json_schema": true,
+    "structured_outputs": true,
+    "text_verbosity": "string",
+    "top_log_probs": 0,
+    "user": "string",
+    "web_search_enabled": true
+  },
+  "openaicompat": {
+    "reasoning_effort": "string",
+    "user": "string"
+  },
+  "openrouter": {
+    "extra_body": {
+      "property1": null,
+      "property2": null
+    },
+    "include_usage": true,
+    "log_probs": true,
+    "logit_bias": {
+      "property1": 0,
+      "property2": 0
+    },
+    "parallel_tool_calls": true,
+    "provider": {
+      "allow_fallbacks": true,
+      "data_collection": "string",
+      "ignore": [
+        "string"
+      ],
+      "only": [
+        "string"
+      ],
+      "order": [
+        "string"
+      ],
+      "quantizations": [
+        "string"
+      ],
+      "require_parameters": true,
+      "sort": "string"
+    },
+    "reasoning": {
+      "effort": "string",
+      "enabled": true,
+      "exclude": true,
+      "max_tokens": 0
+    },
+    "user": "string"
+  },
+  "vercel": {
+    "extra_body": {
+      "property1": null,
+      "property2": null
+    },
+    "logit_bias": {
+      "property1": 0,
+      "property2": 0
+    },
+    "logprobs": true,
+    "parallel_tool_calls": true,
+    "providerOptions": {
+      "models": [
+        "string"
+      ],
+      "order": [
+        "string"
+      ]
+    },
+    "reasoning": {
+      "effort": "string",
+      "enabled": true,
+      "exclude": true,
+      "max_tokens": 0
+    },
+    "top_logprobs": 0,
+    "user": "string"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                           | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic`    | [codersdk.ChatModelAnthropicProviderOptions](#codersdkchatmodelanthropicprovideroptions)       | false    |              |             |
+| `google`       | [codersdk.ChatModelGoogleProviderOptions](#codersdkchatmodelgoogleprovideroptions)             | false    |              |             |
+| `openai`       | [codersdk.ChatModelOpenAIProviderOptions](#codersdkchatmodelopenaiprovideroptions)             | false    |              |             |
+| `openaicompat` | [codersdk.ChatModelOpenAICompatProviderOptions](#codersdkchatmodelopenaicompatprovideroptions) | false    |              |             |
+| `openrouter`   | [codersdk.ChatModelOpenRouterProviderOptions](#codersdkchatmodelopenrouterprovideroptions)     | false    |              |             |
+| `vercel`       | [codersdk.ChatModelVercelProviderOptions](#codersdkchatmodelvercelprovideroptions)             | false    |              |             |
+
 ## codersdk.ChatModelProviderUnavailableReason
 
 ```json
@@ -3072,6 +4241,94 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                   |
 |------------------------------------------------------------|
 | `fetch_failed`, `missing_api_key`, `user_api_key_required` |
+
+## codersdk.ChatModelReasoningOptions
+
+```json
+{
+  "effort": "string",
+  "enabled": true,
+  "exclude": true,
+  "max_tokens": 0
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+|--------------|---------|----------|--------------|-------------|
+| `effort`     | string  | false    |              |             |
+| `enabled`    | boolean | false    |              |             |
+| `exclude`    | boolean | false    |              |             |
+| `max_tokens` | integer | false    |              |             |
+
+## codersdk.ChatModelVercelGatewayProviderOptions
+
+```json
+{
+  "models": [
+    "string"
+  ],
+  "order": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type            | Required | Restrictions | Description |
+|----------|-----------------|----------|--------------|-------------|
+| `models` | array of string | false    |              |             |
+| `order`  | array of string | false    |              |             |
+
+## codersdk.ChatModelVercelProviderOptions
+
+```json
+{
+  "extra_body": {
+    "property1": null,
+    "property2": null
+  },
+  "logit_bias": {
+    "property1": 0,
+    "property2": 0
+  },
+  "logprobs": true,
+  "parallel_tool_calls": true,
+  "providerOptions": {
+    "models": [
+      "string"
+    ],
+    "order": [
+      "string"
+    ]
+  },
+  "reasoning": {
+    "effort": "string",
+    "enabled": true,
+    "exclude": true,
+    "max_tokens": 0
+  },
+  "top_logprobs": 0,
+  "user": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                             | Required | Restrictions | Description |
+|-----------------------|--------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `extra_body`          | object                                                                                           | false    |              |             |
+| » `[any property]`    | any                                                                                              | false    |              |             |
+| `logit_bias`          | object                                                                                           | false    |              |             |
+| » `[any property]`    | integer                                                                                          | false    |              |             |
+| `logprobs`            | boolean                                                                                          | false    |              |             |
+| `parallel_tool_calls` | boolean                                                                                          | false    |              |             |
+| `providerOptions`     | [codersdk.ChatModelVercelGatewayProviderOptions](#codersdkchatmodelvercelgatewayprovideroptions) | false    |              |             |
+| `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)                         | false    |              |             |
+| `top_logprobs`        | integer                                                                                          | false    |              |             |
+| `user`                | string                                                                                           | false    |              |             |
 
 ## codersdk.ChatModelsResponse
 
@@ -3101,6 +4358,94 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------|-------------------------------------------------------------------|----------|--------------|-------------|
 | `providers` | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider) | false    |              |             |
 
+## codersdk.ChatPersonalModelOverride
+
+```json
+{
+  "context": "root",
+  "is_malformed": true,
+  "is_set": true,
+  "mode": "deployment_default",
+  "model_config_id": "string"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                                   | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `context`         | [codersdk.ChatPersonalModelOverrideContext](#codersdkchatpersonalmodeloverridecontext) | false    |              |             |
+| `is_malformed`    | boolean                                                                                | false    |              |             |
+| `is_set`          | boolean                                                                                | false    |              |             |
+| `mode`            | [codersdk.ChatPersonalModelOverrideMode](#codersdkchatpersonalmodeloverridemode)       | false    |              |             |
+| `model_config_id` | string                                                                                 | false    |              |             |
+
+## codersdk.ChatPersonalModelOverrideContext
+
+```json
+"root"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                     |
+|------------------------------|
+| `explore`, `general`, `root` |
+
+## codersdk.ChatPersonalModelOverrideDeploymentDefaults
+
+```json
+{
+  "explore": {
+    "context": "general",
+    "is_malformed": true,
+    "model_config_id": "string"
+  },
+  "general": {
+    "context": "general",
+    "is_malformed": true,
+    "model_config_id": "string"
+  }
+}
+```
+
+### Properties
+
+| Name      | Type                                                                     | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `explore` | [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+| `general` | [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+
+## codersdk.ChatPersonalModelOverrideMode
+
+```json
+"deployment_default"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                      |
+|-----------------------------------------------|
+| `chat_default`, `deployment_default`, `model` |
+
+## codersdk.ChatPersonalModelOverridesAdminSettings
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `allow_users` | boolean | false    |              |             |
+
 ## codersdk.ChatPlanMode
 
 ```json
@@ -3114,6 +4459,70 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s) |
 |----------|
 | `plan`   |
+
+## codersdk.ChatPlanModeInstructionsResponse
+
+```json
+{
+  "plan_mode_instructions": "string"
+}
+```
+
+### Properties
+
+| Name                     | Type   | Required | Restrictions | Description |
+|--------------------------|--------|----------|--------------|-------------|
+| `plan_mode_instructions` | string | false    |              |             |
+
+## codersdk.ChatProviderConfig
+
+```json
+{
+  "allow_central_api_key_fallback": true,
+  "allow_user_api_key": true,
+  "base_url": "string",
+  "central_api_key_enabled": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "has_api_key": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "provider": "string",
+  "source": "database",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                             | Type                                                                   | Required | Restrictions | Description |
+|----------------------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `allow_central_api_key_fallback` | boolean                                                                | false    |              |             |
+| `allow_user_api_key`             | boolean                                                                | false    |              |             |
+| `base_url`                       | string                                                                 | false    |              |             |
+| `central_api_key_enabled`        | boolean                                                                | false    |              |             |
+| `created_at`                     | string                                                                 | false    |              |             |
+| `display_name`                   | string                                                                 | false    |              |             |
+| `enabled`                        | boolean                                                                | false    |              |             |
+| `has_api_key`                    | boolean                                                                | false    |              |             |
+| `id`                             | string                                                                 | false    |              |             |
+| `provider`                       | string                                                                 | false    |              |             |
+| `source`                         | [codersdk.ChatProviderConfigSource](#codersdkchatproviderconfigsource) | false    |              |             |
+| `updated_at`                     | string                                                                 | false    |              |             |
+
+## codersdk.ChatProviderConfigSource
+
+```json
+"database"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                              |
+|---------------------------------------|
+| `database`, `env_preset`, `supported` |
 
 ## codersdk.ChatQueuedMessage
 
@@ -3632,6 +5041,40 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
 
+## codersdk.ChatSystemPromptResponse
+
+```json
+{
+  "default_system_prompt": "string",
+  "include_default_system_prompt": true,
+  "system_prompt": "string"
+}
+```
+
+### Properties
+
+| Name                            | Type    | Required | Restrictions | Description |
+|---------------------------------|---------|----------|--------------|-------------|
+| `default_system_prompt`         | string  | false    |              |             |
+| `include_default_system_prompt` | boolean | false    |              |             |
+| `system_prompt`                 | string  | false    |              |             |
+
+## codersdk.ChatTemplateAllowlist
+
+```json
+{
+  "template_ids": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type            | Required | Restrictions | Description |
+|----------------|-----------------|----------|--------------|-------------|
+| `template_ids` | array of string | false    |              |             |
+
 ## codersdk.ChatWatchEvent
 
 ```json
@@ -3798,6 +5241,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                                                                         |
 |------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+
+## codersdk.ChatWorkspaceTTLResponse
+
+```json
+{
+  "workspace_ttl_ms": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                                                                                 |
+|--------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `workspace_ttl_ms` | integer | false    |              | Workspace ttl ms is the workspace TTL in milliseconds. Zero means disabled, so the template's own autostop setting applies. |
 
 ## codersdk.ConnectionLatency
 
@@ -4253,6 +5710,215 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
 | `warnings`       | array of string                                          | false    |              |             |
 
+## codersdk.CreateChatModelConfigRequest
+
+```json
+{
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "display_name": "string",
+  "enabled": true,
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "cost": {
+      "cache_read_price_per_million_tokens": 0,
+      "cache_write_price_per_million_tokens": 0,
+      "input_price_per_million_tokens": 0,
+      "output_price_per_million_tokens": 0
+    },
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "disable_parallel_tool_use": true,
+        "effort": "string",
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_effort": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "reasoning_effort": "string",
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `compression_threshold` | integer                                                      | false    |              |             |
+| `context_limit`         | integer                                                      | false    |              |             |
+| `display_name`          | string                                                       | false    |              |             |
+| `enabled`               | boolean                                                      | false    |              |             |
+| `is_default`            | boolean                                                      | false    |              |             |
+| `model`                 | string                                                       | false    |              |             |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
+| `provider`              | string                                                       | false    |              |             |
+
+## codersdk.CreateChatProviderConfigRequest
+
+```json
+{
+  "allow_central_api_key_fallback": true,
+  "allow_user_api_key": true,
+  "api_key": "string",
+  "base_url": "string",
+  "central_api_key_enabled": true,
+  "display_name": "string",
+  "enabled": true,
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name                             | Type    | Required | Restrictions | Description |
+|----------------------------------|---------|----------|--------------|-------------|
+| `allow_central_api_key_fallback` | boolean | false    |              |             |
+| `allow_user_api_key`             | boolean | false    |              |             |
+| `api_key`                        | string  | false    |              |             |
+| `base_url`                       | string  | false    |              |             |
+| `central_api_key_enabled`        | boolean | false    |              |             |
+| `display_name`                   | string  | false    |              |             |
+| `enabled`                        | boolean | false    |              |             |
+| `provider`                       | string  | false    |              |             |
+
 ## codersdk.CreateChatRequest
 
 ```json
@@ -4682,6 +6348,20 @@ This is required on creation to enable a user-flow of validating a template work
 | `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
 | `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
 | `token_name` | string                                                              | false    |              |                                 |
+
+## codersdk.CreateUserChatProviderKeyRequest
+
+```json
+{
+  "api_key": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `api_key` | string | false    |              |             |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -7739,6 +9419,26 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
 
+## codersdk.ModelCostConfig
+
+```json
+{
+  "cache_read_price_per_million_tokens": 0,
+  "cache_write_price_per_million_tokens": 0,
+  "input_price_per_million_tokens": 0,
+  "output_price_per_million_tokens": 0
+}
+```
+
+### Properties
+
+| Name                                   | Type   | Required | Restrictions | Description |
+|----------------------------------------|--------|----------|--------------|-------------|
+| `cache_read_price_per_million_tokens`  | number | false    |              |             |
+| `cache_write_price_per_million_tokens` | number | false    |              |             |
+| `input_price_per_million_tokens`       | number | false    |              |             |
+| `output_price_per_million_tokens`      | number | false    |              |             |
+
 ## codersdk.NotificationMethodsResponse
 
 ```json
@@ -9812,6 +11512,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `collect_db_metrics`       | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
+## codersdk.ProposeChatTitleResponse
+
+```json
+{
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `title` | string | false    |              |             |
+
 ## codersdk.ProvisionerConfig
 
 ```json
@@ -11158,6 +12872,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |---------------|--------------------------------------------------------|----------|--------------|-------------|
 | `usage_stats` | [codersdk.UsageStatsConfig](#codersdkusagestatsconfig) | false    |              |             |
 
+## codersdk.SubmitToolResultsRequest
+
+```json
+{
+  "results": [
+    {
+      "is_error": true,
+      "output": [
+        0
+      ],
+      "tool_call_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.ToolResult](#codersdktoolresult) | false    |              |             |
+
 ## codersdk.SupportConfig
 
 ```json
@@ -12486,6 +14222,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------|---------|----------|--------------|-------------|
 | `max_token_lifetime` | integer | false    |              |             |
 
+## codersdk.ToolResult
+
+```json
+{
+  "is_error": true,
+  "output": [
+    0
+  ],
+  "tool_call_id": "string"
+}
+```
+
+### Properties
+
+| Name           | Type             | Required | Restrictions | Description |
+|----------------|------------------|----------|--------------|-------------|
+| `is_error`     | boolean          | false    |              |             |
+| `output`       | array of integer | false    |              |             |
+| `tool_call_id` | string           | false    |              |             |
+
 ## codersdk.TraceConfig
 
 ```json
@@ -12536,6 +14292,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------|--------|----------|--------------|-------------|
 | `id` | string | true     |              |             |
 
+## codersdk.UpdateAdvisorConfigRequest
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                  |
+|---------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled toggles the advisor runtime. When false, advisor is not attached to new chats.                                                                                                                                                                                                                                       |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.                                                                                                                                                                                                                                   |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat run. 0 means unlimited.                                                                                                                                                                                                                             |
+| `model_config_id`   | string  | false    |              | Model config ID selects a specific chat model config to power the advisor. uuid.Nil means reuse the outer chat model. The runtime must fall back to the outer chat model when this ID cannot be resolved (e.g. the referenced model config was soft-deleted or its provider was disabled after the admin saved this config). |
+
 ## codersdk.UpdateAppearanceConfig
 
 ```json
@@ -12565,6 +14341,325 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
+
+## codersdk.UpdateChatAutoArchiveDaysRequest
+
+```json
+{
+  "auto_archive_days": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `auto_archive_days` | integer | false    |              |             |
+
+## codersdk.UpdateChatComputerUseProviderRequest
+
+```json
+{
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `provider` | string | false    |              |             |
+
+## codersdk.UpdateChatDebugLoggingAllowUsersRequest
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `allow_users` | boolean | false    |              |             |
+
+## codersdk.UpdateChatDebugRetentionDaysRequest
+
+```json
+{
+  "debug_retention_days": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `debug_retention_days` | integer | false    |              |             |
+
+## codersdk.UpdateChatDesktopEnabledRequest
+
+```json
+{
+  "enable_desktop": true
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `enable_desktop` | boolean | false    |              |             |
+
+## codersdk.UpdateChatModelConfigRequest
+
+```json
+{
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "display_name": "string",
+  "enabled": true,
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "cost": {
+      "cache_read_price_per_million_tokens": 0,
+      "cache_write_price_per_million_tokens": 0,
+      "input_price_per_million_tokens": 0,
+      "output_price_per_million_tokens": 0
+    },
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "disable_parallel_tool_use": true,
+        "effort": "string",
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_effort": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "reasoning_effort": "string",
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `compression_threshold` | integer                                                      | false    |              |             |
+| `context_limit`         | integer                                                      | false    |              |             |
+| `display_name`          | string                                                       | false    |              |             |
+| `enabled`               | boolean                                                      | false    |              |             |
+| `is_default`            | boolean                                                      | false    |              |             |
+| `model`                 | string                                                       | false    |              |             |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
+| `provider`              | string                                                       | false    |              |             |
+
+## codersdk.UpdateChatModelOverrideRequest
+
+```json
+{
+  "model_config_id": "string"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+|-------------------|--------|----------|--------------|-------------|
+| `model_config_id` | string | false    |              |             |
+
+## codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `allow_users` | boolean | false    |              |             |
+
+## codersdk.UpdateChatPlanModeInstructionsRequest
+
+```json
+{
+  "plan_mode_instructions": "string"
+}
+```
+
+### Properties
+
+| Name                     | Type   | Required | Restrictions | Description |
+|--------------------------|--------|----------|--------------|-------------|
+| `plan_mode_instructions` | string | false    |              |             |
+
+## codersdk.UpdateChatProviderConfigRequest
+
+```json
+{
+  "allow_central_api_key_fallback": true,
+  "allow_user_api_key": true,
+  "api_key": "string",
+  "base_url": "string",
+  "central_api_key_enabled": true,
+  "display_name": "string",
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name                             | Type    | Required | Restrictions | Description |
+|----------------------------------|---------|----------|--------------|-------------|
+| `allow_central_api_key_fallback` | boolean | false    |              |             |
+| `allow_user_api_key`             | boolean | false    |              |             |
+| `api_key`                        | string  | false    |              |             |
+| `base_url`                       | string  | false    |              |             |
+| `central_api_key_enabled`        | boolean | false    |              |             |
+| `display_name`                   | string  | false    |              |             |
+| `enabled`                        | boolean | false    |              |             |
 
 ## codersdk.UpdateChatRequest
 
@@ -12607,6 +14702,36 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name             | Type    | Required | Restrictions | Description |
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
+
+## codersdk.UpdateChatSystemPromptRequest
+
+```json
+{
+  "include_default_system_prompt": true,
+  "system_prompt": "string"
+}
+```
+
+### Properties
+
+| Name                            | Type    | Required | Restrictions | Description |
+|---------------------------------|---------|----------|--------------|-------------|
+| `include_default_system_prompt` | boolean | false    |              |             |
+| `system_prompt`                 | string  | false    |              |             |
+
+## codersdk.UpdateChatWorkspaceTTLRequest
+
+```json
+{
+  "workspace_ttl_ms": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                                                                                 |
+|--------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `workspace_ttl_ms` | integer | false    |              | Workspace ttl ms is the workspace TTL in milliseconds. Zero means disabled, so the template's own autostop setting applies. |
 
 ## codersdk.UpdateCheckResponse
 
@@ -12782,6 +14907,36 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------|--------------------------------------------------------|----------|--------------|-------------|
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
 | `theme_preference` | string                                                 | true     |              |             |
+
+## codersdk.UpdateUserChatDebugLoggingRequest
+
+```json
+{
+  "debug_logging_enabled": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `debug_logging_enabled` | boolean | false    |              |             |
+
+## codersdk.UpdateUserChatPersonalModelOverrideRequest
+
+```json
+{
+  "mode": "deployment_default",
+  "model_config_id": "string"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                             | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `mode`            | [codersdk.ChatPersonalModelOverrideMode](#codersdkchatpersonalmodeloverridemode) | false    |              |             |
+| `model_config_id` | string                                                                           | false    |              |             |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -13278,6 +15433,111 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------------|--------------------------------------------------------|----------|--------------|-------------|
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
 | `theme_preference` | string                                                 | false    |              |             |
+
+## codersdk.UserChatCustomPrompt
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `custom_prompt` | string | false    |              |             |
+
+## codersdk.UserChatDebugLoggingSettings
+
+```json
+{
+  "debug_logging_enabled": true,
+  "forced_by_deployment": true,
+  "user_toggle_allowed": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `debug_logging_enabled` | boolean | false    |              |             |
+| `forced_by_deployment`  | boolean | false    |              |             |
+| `user_toggle_allowed`   | boolean | false    |              |             |
+
+## codersdk.UserChatPersonalModelOverridesResponse
+
+```json
+{
+  "deployment_defaults": {
+    "explore": {
+      "context": "general",
+      "is_malformed": true,
+      "model_config_id": "string"
+    },
+    "general": {
+      "context": "general",
+      "is_malformed": true,
+      "model_config_id": "string"
+    }
+  },
+  "enabled": true,
+  "explore": {
+    "context": "root",
+    "is_malformed": true,
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string"
+  },
+  "general": {
+    "context": "root",
+    "is_malformed": true,
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string"
+  },
+  "root": {
+    "context": "root",
+    "is_malformed": true,
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                                         | Required | Restrictions | Description |
+|-----------------------|--------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `deployment_defaults` | [codersdk.ChatPersonalModelOverrideDeploymentDefaults](#codersdkchatpersonalmodeloverridedeploymentdefaults) | false    |              |             |
+| `enabled`             | boolean                                                                                                      | false    |              |             |
+| `explore`             | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
+| `general`             | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
+| `root`                | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
+
+## codersdk.UserChatProviderConfig
+
+```json
+{
+  "display_name": "string",
+  "has_central_api_key_fallback": true,
+  "has_user_api_key": true,
+  "provider": "string",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
+}
+```
+
+### Properties
+
+| Name                           | Type    | Required | Restrictions | Description |
+|--------------------------------|---------|----------|--------------|-------------|
+| `display_name`                 | string  | false    |              |             |
+| `has_central_api_key_fallback` | boolean | false    |              |             |
+| `has_user_api_key`             | boolean | false    |              |             |
+| `provider`                     | string  | false    |              |             |
+| `provider_id`                  | string  | false    |              |             |
 
 ## codersdk.UserLatency
 

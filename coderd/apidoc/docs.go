@@ -145,6 +145,544 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/config/advisor": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat advisor config",
+                "operationId": "get-chat-advisor-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AdvisorConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat advisor config",
+                "operationId": "update-chat-advisor-config",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAdvisorConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/auto-archive-days": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat auto archive days",
+                "operationId": "get-chat-auto-archive-days",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutoArchiveDaysResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat auto archive days",
+                "operationId": "update-chat-auto-archive-days",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatAutoArchiveDaysRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/computer-use-provider": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat computer use provider",
+                "operationId": "get-chat-computer-use-provider",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatComputerUseProviderResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat computer use provider",
+                "operationId": "update-chat-computer-use-provider",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatComputerUseProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/debug-logging": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat debug logging",
+                "operationId": "get-chat-debug-logging",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDebugLoggingAdminSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat debug logging",
+                "operationId": "update-chat-debug-logging",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatDebugLoggingAllowUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/debug-retention-days": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat debug retention days",
+                "operationId": "get-chat-debug-retention-days",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDebugRetentionDaysResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat debug retention days",
+                "operationId": "update-chat-debug-retention-days",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatDebugRetentionDaysRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/desktop-enabled": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat desktop enabled",
+                "operationId": "get-chat-desktop-enabled",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDesktopEnabledResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat desktop enabled",
+                "operationId": "update-chat-desktop-enabled",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatDesktopEnabledRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/model-override/{context}": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat model override",
+                "operationId": "get-chat-model-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat model override",
+                "operationId": "update-chat-model-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/personal-model-overrides": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat personal model overrides admin settings",
+                "operationId": "get-chat-personal-model-overrides-admin-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPersonalModelOverridesAdminSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat personal model overrides admin settings",
+                "operationId": "update-chat-personal-model-overrides-admin-settings",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/plan-mode-instructions": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat plan mode instructions",
+                "operationId": "get-chat-plan-mode-instructions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPlanModeInstructionsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat plan mode instructions",
+                "operationId": "update-chat-plan-mode-instructions",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatPlanModeInstructionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/config/retention-days": {
             "get": {
                 "produces": [
@@ -205,6 +743,369 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            }
+        },
+        "/api/experimental/chats/config/system-prompt": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat system prompt",
+                "operationId": "get-chat-system-prompt",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatSystemPromptResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat system prompt",
+                "operationId": "update-chat-system-prompt",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatSystemPromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/template-allowlist": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat template allowlist",
+                "operationId": "get-chat-template-allowlist",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatTemplateAllowlist"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat template allowlist",
+                "operationId": "update-chat-template-allowlist",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatTemplateAllowlist"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/user-debug-logging": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get user chat debug logging",
+                "operationId": "get-user-chat-debug-logging",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatDebugLoggingSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user chat debug logging",
+                "operationId": "update-user-chat-debug-logging",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserChatDebugLoggingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/user-personal-model-overrides": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get user chat personal model overrides",
+                "operationId": "get-user-chat-personal-model-overrides",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatPersonalModelOverridesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/user-personal-model-overrides/{context}": {
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user chat personal model override",
+                "operationId": "update-user-chat-personal-model-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserChatPersonalModelOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/user-prompt": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get user chat custom prompt",
+                "operationId": "get-user-chat-custom-prompt",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPrompt"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update user chat custom prompt",
+                "operationId": "update-user-chat-custom-prompt",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPrompt"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPrompt"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/config/workspace-ttl": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat workspace TTL",
+                "operationId": "get-chat-workspace-ttl",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatWorkspaceTTLResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat workspace TTL",
+                "operationId": "update-chat-workspace-ttl",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatWorkspaceTTLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/experimental/chats/files": {
@@ -339,6 +1240,149 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/model-configs": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat model configs",
+                "operationId": "list-chat-model-configs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatModelConfig"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat model config",
+                "operationId": "create-chat-model-config",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatModelConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/model-configs/{modelConfig}": {
+            "delete": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat model config",
+                "operationId": "delete-chat-model-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model config ID",
+                        "name": "modelConfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat model config",
+                "operationId": "update-chat-model-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model config ID",
+                        "name": "modelConfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/models": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -356,6 +1400,254 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatModelsResponse"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/providers": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat providers",
+                "operationId": "list-chat-providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProviderConfig"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat provider",
+                "operationId": "create-chat-provider",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProviderConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProviderConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/providers/{providerConfig}": {
+            "delete": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat provider",
+                "operationId": "delete-chat-provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider config ID",
+                        "name": "providerConfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat provider",
+                "operationId": "update-chat-provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider config ID",
+                        "name": "providerConfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProviderConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProviderConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/user-provider-configs": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List user chat provider configs",
+                "operationId": "list-user-chat-provider-configs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserChatProviderConfig"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/user-provider-configs/{providerConfig}": {
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Upsert user chat provider key",
+                "operationId": "upsert-user-chat-provider-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider config ID",
+                        "name": "providerConfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateUserChatProviderKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatProviderConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete user chat provider key",
+                "operationId": "delete-user-chat-provider-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider config ID",
+                        "name": "providerConfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -458,6 +1750,89 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/{chat}/debug/runs": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat debug runs",
+                "operationId": "get-chat-debug-runs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatDebugRunSummary"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/{chat}/debug/runs/{debugRun}": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat debug run",
+                "operationId": "get-chat-debug-run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug run ID",
+                        "name": "debugRun",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDebugRun"
+                        }
                     }
                 },
                 "security": [
@@ -694,6 +2069,80 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/queue/{queuedMessage}": {
+            "delete": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat queued message",
+                "operationId": "delete-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/{chat}/queue/{queuedMessage}/promote": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Promote chat queued message",
+                "operationId": "promote-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/stream": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -799,6 +2248,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/title/propose": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Propose chat title",
+                "operationId": "propose-chat-title",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProposeChatTitleResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/title/regenerate": {
             "post": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -826,6 +2311,48 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/{chat}/tool-results": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Submit chat tool results",
+                "operationId": "submit-chat-tool-results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.SubmitToolResultsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -14900,6 +16427,28 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AdvisorConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled toggles the advisor runtime. When false, advisor is not\nattached to new chats.",
+                    "type": "boolean"
+                },
+                "max_output_tokens": {
+                    "description": "MaxOutputTokens caps the advisor model response tokens. 0 means\nuse the runtime default.",
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "description": "MaxUsesPerRun caps how many times the advisor can be invoked per\nchat run. 0 means unlimited.",
+                    "type": "integer"
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID selects a specific chat model config to power the\nadvisor. uuid.Nil means reuse the outer chat model. The runtime\nmust fall back to the outer chat model when this ID cannot be\nresolved (e.g. the referenced model config was soft-deleted or\nits provider was disabled after the admin saved this config).",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.AgentConnectionTiming": {
             "type": "object",
             "properties": {
@@ -15564,6 +17113,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAutoArchiveDaysResponse": {
+            "type": "object",
+            "properties": {
+                "auto_archive_days": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
@@ -15586,6 +17143,14 @@ const docTemplate = `{
                 "ChatClientTypeAPI"
             ]
         },
+        "codersdk.ChatComputerUseProviderResponse": {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatConfig": {
             "type": "object",
             "properties": {
@@ -15593,6 +17158,251 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "debug_logging_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatDebugLoggingAdminSettings": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                },
+                "forced_by_deployment": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatDebugRetentionDaysResponse": {
+            "type": "object",
+            "properties": {
+                "debug_retention_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatDebugRun": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "finished_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "history_tip_message_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.ChatDebugRunKind"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "parent_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "root_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatDebugStatus"
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatDebugStep"
+                    }
+                },
+                "summary": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "trigger_message_id": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatDebugRunKind": {
+            "type": "string",
+            "enum": [
+                "chat_turn",
+                "title_generation",
+                "quickgen",
+                "compaction"
+            ],
+            "x-enum-varnames": [
+                "ChatDebugRunKindChatTurn",
+                "ChatDebugRunKindTitleGeneration",
+                "ChatDebugRunKindQuickgen",
+                "ChatDebugRunKindCompaction"
+            ]
+        },
+        "codersdk.ChatDebugRunSummary": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "finished_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.ChatDebugRunKind"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatDebugStatus"
+                },
+                "summary": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatDebugStatus": {
+            "type": "string",
+            "enum": [
+                "in_progress",
+                "completed",
+                "error",
+                "interrupted"
+            ],
+            "x-enum-varnames": [
+                "ChatDebugStatusInProgress",
+                "ChatDebugStatusCompleted",
+                "ChatDebugStatusError",
+                "ChatDebugStatusInterrupted"
+            ]
+        },
+        "codersdk.ChatDebugStep": {
+            "type": "object",
+            "properties": {
+                "assistant_message_id": {
+                    "type": "integer"
+                },
+                "attempts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "error": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "finished_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "history_tip_message_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "normalized_request": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "normalized_response": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operation": {
+                    "$ref": "#/definitions/codersdk.ChatDebugStepOperation"
+                },
+                "run_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatDebugStatus"
+                },
+                "step_number": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "usage": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "codersdk.ChatDebugStepOperation": {
+            "type": "string",
+            "enum": [
+                "stream",
+                "generate"
+            ],
+            "x-enum-varnames": [
+                "ChatDebugStepOperationStream",
+                "ChatDebugStepOperationGenerate"
+            ]
+        },
+        "codersdk.ChatDesktopEnabledResponse": {
+            "type": "object",
+            "properties": {
+                "enable_desktop": {
                     "type": "boolean"
                 }
             }
@@ -16105,6 +17915,360 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatModelAnthropicProviderOptions": {
+            "type": "object",
+            "properties": {
+                "allowed_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "blocked_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "disable_parallel_tool_use": {
+                    "type": "boolean"
+                },
+                "effort": {
+                    "type": "string"
+                },
+                "send_reasoning": {
+                    "type": "boolean"
+                },
+                "thinking": {
+                    "$ref": "#/definitions/codersdk.ChatModelAnthropicThinkingOptions"
+                },
+                "web_search_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatModelAnthropicThinkingOptions": {
+            "type": "object",
+            "properties": {
+                "budget_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatModelCallConfig": {
+            "type": "object",
+            "properties": {
+                "cost": {
+                    "$ref": "#/definitions/codersdk.ModelCostConfig"
+                },
+                "frequency_penalty": {
+                    "type": "number"
+                },
+                "max_output_tokens": {
+                    "type": "integer"
+                },
+                "presence_penalty": {
+                    "type": "number"
+                },
+                "provider_options": {
+                    "$ref": "#/definitions/codersdk.ChatModelProviderOptions"
+                },
+                "temperature": {
+                    "type": "number"
+                },
+                "top_k": {
+                    "type": "integer"
+                },
+                "top_p": {
+                    "type": "number"
+                }
+            }
+        },
+        "codersdk.ChatModelConfig": {
+            "type": "object",
+            "properties": {
+                "compression_threshold": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatModelGoogleProviderOptions": {
+            "type": "object",
+            "properties": {
+                "cached_content": {
+                    "type": "string"
+                },
+                "safety_settings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelGoogleSafetySetting"
+                    }
+                },
+                "thinking_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelGoogleThinkingConfig"
+                },
+                "threshold": {
+                    "type": "string"
+                },
+                "web_search_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatModelGoogleSafetySetting": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "threshold": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelGoogleThinkingConfig": {
+            "type": "object",
+            "properties": {
+                "include_thoughts": {
+                    "type": "boolean"
+                },
+                "thinking_budget": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenAICompatProviderOptions": {
+            "type": "object",
+            "properties": {
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenAIProviderOptions": {
+            "type": "object",
+            "properties": {
+                "allowed_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "log_probs": {
+                    "type": "boolean"
+                },
+                "logit_bias": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "max_completion_tokens": {
+                    "type": "integer"
+                },
+                "max_tool_calls": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "parallel_tool_calls": {
+                    "type": "boolean"
+                },
+                "prediction": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "prompt_cache_key": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "reasoning_summary": {
+                    "type": "string"
+                },
+                "safety_identifier": {
+                    "type": "string"
+                },
+                "search_context_size": {
+                    "type": "string"
+                },
+                "service_tier": {
+                    "type": "string"
+                },
+                "store": {
+                    "type": "boolean"
+                },
+                "strict_json_schema": {
+                    "type": "boolean"
+                },
+                "structured_outputs": {
+                    "type": "boolean"
+                },
+                "text_verbosity": {
+                    "type": "string"
+                },
+                "top_log_probs": {
+                    "type": "integer"
+                },
+                "user": {
+                    "type": "string"
+                },
+                "web_search_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenRouterProvider": {
+            "type": "object",
+            "properties": {
+                "allow_fallbacks": {
+                    "type": "boolean"
+                },
+                "data_collection": {
+                    "type": "string"
+                },
+                "ignore": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "only": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "order": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "quantizations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "require_parameters": {
+                    "type": "boolean"
+                },
+                "sort": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenRouterProviderOptions": {
+            "type": "object",
+            "properties": {
+                "extra_body": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "include_usage": {
+                    "type": "boolean"
+                },
+                "log_probs": {
+                    "type": "boolean"
+                },
+                "logit_bias": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "parallel_tool_calls": {
+                    "type": "boolean"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenRouterProvider"
+                },
+                "reasoning": {
+                    "$ref": "#/definitions/codersdk.ChatModelReasoningOptions"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOverrideContext": {
+            "type": "string",
+            "enum": [
+                "general",
+                "explore",
+                "title_generation"
+            ],
+            "x-enum-varnames": [
+                "ChatModelOverrideContextGeneral",
+                "ChatModelOverrideContextExplore",
+                "ChatModelOverrideContextTitleGeneration"
+            ]
+        },
+        "codersdk.ChatModelOverrideResponse": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "$ref": "#/definitions/codersdk.ChatModelOverrideContext"
+                },
+                "is_malformed": {
+                    "type": "boolean"
+                },
+                "model_config_id": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatModelProvider": {
             "type": "object",
             "properties": {
@@ -16125,6 +18289,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatModelProviderOptions": {
+            "type": "object",
+            "properties": {
+                "anthropic": {
+                    "$ref": "#/definitions/codersdk.ChatModelAnthropicProviderOptions"
+                },
+                "google": {
+                    "$ref": "#/definitions/codersdk.ChatModelGoogleProviderOptions"
+                },
+                "openai": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenAIProviderOptions"
+                },
+                "openaicompat": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenAICompatProviderOptions"
+                },
+                "openrouter": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenRouterProviderOptions"
+                },
+                "vercel": {
+                    "$ref": "#/definitions/codersdk.ChatModelVercelProviderOptions"
+                }
+            }
+        },
         "codersdk.ChatModelProviderUnavailableReason": {
             "type": "string",
             "enum": [
@@ -16138,6 +18325,74 @@ const docTemplate = `{
                 "ChatModelProviderUnavailableReasonUserAPIKeyRequired"
             ]
         },
+        "codersdk.ChatModelReasoningOptions": {
+            "type": "object",
+            "properties": {
+                "effort": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exclude": {
+                    "type": "boolean"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatModelVercelGatewayProviderOptions": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "order": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatModelVercelProviderOptions": {
+            "type": "object",
+            "properties": {
+                "extra_body": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "logit_bias": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "logprobs": {
+                    "type": "boolean"
+                },
+                "parallel_tool_calls": {
+                    "type": "boolean"
+                },
+                "providerOptions": {
+                    "$ref": "#/definitions/codersdk.ChatModelVercelGatewayProviderOptions"
+                },
+                "reasoning": {
+                    "$ref": "#/definitions/codersdk.ChatModelReasoningOptions"
+                },
+                "top_logprobs": {
+                    "type": "integer"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatModelsResponse": {
             "type": "object",
             "properties": {
@@ -16149,6 +18404,71 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatPersonalModelOverride": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideContext"
+                },
+                "is_malformed": {
+                    "type": "boolean"
+                },
+                "is_set": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideMode"
+                },
+                "model_config_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatPersonalModelOverrideContext": {
+            "type": "string",
+            "enum": [
+                "root",
+                "general",
+                "explore"
+            ],
+            "x-enum-varnames": [
+                "ChatPersonalModelOverrideContextRoot",
+                "ChatPersonalModelOverrideContextGeneral",
+                "ChatPersonalModelOverrideContextExplore"
+            ]
+        },
+        "codersdk.ChatPersonalModelOverrideDeploymentDefaults": {
+            "type": "object",
+            "properties": {
+                "explore": {
+                    "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                },
+                "general": {
+                    "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                }
+            }
+        },
+        "codersdk.ChatPersonalModelOverrideMode": {
+            "type": "string",
+            "enum": [
+                "deployment_default",
+                "chat_default",
+                "model"
+            ],
+            "x-enum-varnames": [
+                "ChatPersonalModelOverrideModeDeploymentDefault",
+                "ChatPersonalModelOverrideModeChatDefault",
+                "ChatPersonalModelOverrideModeModel"
+            ]
+        },
+        "codersdk.ChatPersonalModelOverridesAdminSettings": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ChatPlanMode": {
             "type": "string",
             "enum": [
@@ -16156,6 +18476,71 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ChatPlanModePlan"
+            ]
+        },
+        "codersdk.ChatPlanModeInstructionsResponse": {
+            "type": "object",
+            "properties": {
+                "plan_mode_instructions": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatProviderConfig": {
+            "type": "object",
+            "properties": {
+                "allow_central_api_key_fallback": {
+                    "type": "boolean"
+                },
+                "allow_user_api_key": {
+                    "type": "boolean"
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "central_api_key_enabled": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "has_api_key": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.ChatProviderConfigSource"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProviderConfigSource": {
+            "type": "string",
+            "enum": [
+                "database",
+                "env_preset",
+                "supported"
+            ],
+            "x-enum-varnames": [
+                "ChatProviderConfigSourceDatabase",
+                "ChatProviderConfigSourceEnvPreset",
+                "ChatProviderConfigSourceSupported"
             ]
         },
         "codersdk.ChatQueuedMessage": {
@@ -16352,6 +18737,31 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatSystemPromptResponse": {
+            "type": "object",
+            "properties": {
+                "default_system_prompt": {
+                    "type": "string"
+                },
+                "include_default_system_prompt": {
+                    "type": "boolean"
+                },
+                "system_prompt": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatTemplateAllowlist": {
+            "type": "object",
+            "properties": {
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.ChatWatchEvent": {
             "type": "object",
             "properties": {
@@ -16389,6 +18799,15 @@ const docTemplate = `{
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired"
             ]
+        },
+        "codersdk.ChatWorkspaceTTLResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_ttl_ms": {
+                    "description": "WorkspaceTTLMillis is the workspace TTL in milliseconds.\nZero means disabled, so the template's own autostop setting applies.",
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -16617,6 +19036,64 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.CreateChatModelConfigRequest": {
+            "type": "object",
+            "properties": {
+                "compression_threshold": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateChatProviderConfigRequest": {
+            "type": "object",
+            "properties": {
+                "allow_central_api_key_fallback": {
+                    "type": "boolean"
+                },
+                "allow_user_api_key": {
+                    "type": "boolean"
+                },
+                "api_key": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "central_api_key_enabled": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "provider": {
+                    "type": "string"
                 }
             }
         },
@@ -17102,6 +19579,14 @@ const docTemplate = `{
                     }
                 },
                 "token_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateUserChatProviderKeyRequest": {
+            "type": "object",
+            "properties": {
+                "api_key": {
                     "type": "string"
                 }
             }
@@ -18909,6 +21394,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ModelCostConfig": {
+            "type": "object",
+            "properties": {
+                "cache_read_price_per_million_tokens": {
+                    "type": "number"
+                },
+                "cache_write_price_per_million_tokens": {
+                    "type": "number"
+                },
+                "input_price_per_million_tokens": {
+                    "type": "number"
+                },
+                "output_price_per_million_tokens": {
+                    "type": "number"
+                }
+            }
+        },
         "codersdk.NotificationMethodsResponse": {
             "type": "object",
             "properties": {
@@ -20686,6 +23188,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ProposeChatTitleResponse": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ProvisionerConfig": {
             "type": "object",
             "properties": {
@@ -21890,6 +24400,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SubmitToolResultsRequest": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ToolResult"
+                    }
+                }
+            }
+        },
         "codersdk.SupportConfig": {
             "type": "object",
             "properties": {
@@ -23080,6 +25601,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ToolResult": {
+            "type": "object",
+            "properties": {
+                "is_error": {
+                    "type": "boolean"
+                },
+                "output": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "tool_call_id": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TraceConfig": {
             "type": "object",
             "properties": {
@@ -23122,6 +25660,28 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateAdvisorConfigRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled toggles the advisor runtime. When false, advisor is not\nattached to new chats.",
+                    "type": "boolean"
+                },
+                "max_output_tokens": {
+                    "description": "MaxOutputTokens caps the advisor model response tokens. 0 means\nuse the runtime default.",
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "description": "MaxUsesPerRun caps how many times the advisor can be invoked per\nchat run. 0 means unlimited.",
+                    "type": "integer"
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID selects a specific chat model config to power the\nadvisor. uuid.Nil means reuse the outer chat model. The runtime\nmust fall back to the outer chat model when this ID cannot be\nresolved (e.g. the referenced model config was soft-deleted or\nits provider was disabled after the admin saved this config).",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.UpdateAppearanceConfig": {
             "type": "object",
             "properties": {
@@ -23144,6 +25704,125 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.BannerConfig"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.UpdateChatAutoArchiveDaysRequest": {
+            "type": "object",
+            "properties": {
+                "auto_archive_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UpdateChatComputerUseProviderRequest": {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatDebugLoggingAllowUsersRequest": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateChatDebugRetentionDaysRequest": {
+            "type": "object",
+            "properties": {
+                "debug_retention_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UpdateChatDesktopEnabledRequest": {
+            "type": "object",
+            "properties": {
+                "enable_desktop": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateChatModelConfigRequest": {
+            "type": "object",
+            "properties": {
+                "compression_threshold": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatModelOverrideRequest": {
+            "type": "object",
+            "properties": {
+                "model_config_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "allow_users": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateChatPlanModeInstructionsRequest": {
+            "type": "object",
+            "properties": {
+                "plan_mode_instructions": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatProviderConfigRequest": {
+            "type": "object",
+            "properties": {
+                "allow_central_api_key_fallback": {
+                    "type": "boolean"
+                },
+                "allow_user_api_key": {
+                    "type": "boolean"
+                },
+                "api_key": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "central_api_key_enabled": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -23184,6 +25863,26 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "retention_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UpdateChatSystemPromptRequest": {
+            "type": "object",
+            "properties": {
+                "include_default_system_prompt": {
+                    "type": "boolean"
+                },
+                "system_prompt": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatWorkspaceTTLRequest": {
+            "type": "object",
+            "properties": {
+                "workspace_ttl_ms": {
+                    "description": "WorkspaceTTLMillis is the workspace TTL in milliseconds.\nZero means disabled, so the template's own autostop setting applies.",
                     "type": "integer"
                 }
             }
@@ -23366,6 +26065,25 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
                 "theme_preference": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateUserChatDebugLoggingRequest": {
+            "type": "object",
+            "properties": {
+                "debug_logging_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateUserChatPersonalModelOverrideRequest": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideMode"
+                },
+                "model_config_id": {
                     "type": "string"
                 }
             }
@@ -23786,6 +26504,69 @@ const docTemplate = `{
                 },
                 "theme_preference": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserChatCustomPrompt": {
+            "type": "object",
+            "properties": {
+                "custom_prompt": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UserChatDebugLoggingSettings": {
+            "type": "object",
+            "properties": {
+                "debug_logging_enabled": {
+                    "type": "boolean"
+                },
+                "forced_by_deployment": {
+                    "type": "boolean"
+                },
+                "user_toggle_allowed": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UserChatPersonalModelOverridesResponse": {
+            "type": "object",
+            "properties": {
+                "deployment_defaults": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideDeploymentDefaults"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "explore": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverride"
+                },
+                "general": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverride"
+                },
+                "root": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverride"
+                }
+            }
+        },
+        "codersdk.UserChatProviderConfig": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "has_central_api_key_fallback": {
+                    "type": "boolean"
+                },
+                "has_user_api_key": {
+                    "type": "boolean"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

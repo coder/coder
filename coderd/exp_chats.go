@@ -3111,6 +3111,16 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Delete chat queued message
+// @ID delete-chat-queued-message
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param queuedMessage path integer true "Queued message ID"
+// @Success 204
+// @Router /api/experimental/chats/{chat}/queue/{queuedMessage} [delete]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3146,6 +3156,16 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Promote chat queued message
+// @ID promote-chat-queued-message
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param queuedMessage path integer true "Queued message ID"
+// @Success 204
+// @Router /api/experimental/chats/{chat}/queue/{queuedMessage}/promote [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -3506,6 +3526,16 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
 }
 
+// @Summary Propose chat title
+// @ID propose-chat-title
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.ProposeChatTitleResponse
+// @Router /api/experimental/chats/{chat}/title/propose [post]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4343,6 +4373,15 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 	return id, nil
 }
 
+// @Summary Get chat system prompt
+// @ID get-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatSystemPromptResponse
+// @Router /api/experimental/chats/config/system-prompt [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4365,6 +4404,15 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Update chat system prompt
+// @ID update-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatSystemPromptRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/system-prompt [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -4414,6 +4462,15 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat plan mode instructions
+// @ID get-chat-plan-mode-instructions
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatPlanModeInstructionsResponse
+// @Router /api/experimental/chats/config/plan-mode-instructions [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4437,6 +4494,16 @@ func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat plan mode instructions
+// @ID update-chat-plan-mode-instructions
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatPlanModeInstructionsRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/plan-mode-instructions [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -4505,6 +4572,16 @@ func readChatModelOverrideContext(
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat model override
+// @ID get-chat-model-override
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param context path string true "Override context"
+// @Success 200 {object} codersdk.ChatModelOverrideResponse
+// @Router /api/experimental/chats/config/model-override/{context} [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4539,6 +4616,17 @@ func (api *API) getChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat model override
+// @ID update-chat-model-override
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param context path string true "Override context"
+// @Param request body codersdk.UpdateChatModelOverrideRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/model-override/{context} [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -4608,6 +4696,15 @@ func readChatPersonalModelOverrideContext(
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat personal model overrides admin settings
+// @ID get-chat-personal-model-overrides-admin-settings
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatPersonalModelOverridesAdminSettings
+// @Router /api/experimental/chats/config/personal-model-overrides [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatPersonalModelOverridesAdminSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4630,6 +4727,16 @@ func (api *API) getChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat personal model overrides admin settings
+// @ID update-chat-personal-model-overrides-admin-settings
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/personal-model-overrides [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -4652,6 +4759,15 @@ func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get user chat personal model overrides
+// @ID get-user-chat-personal-model-overrides
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.UserChatPersonalModelOverridesResponse
+// @Router /api/experimental/chats/config/user-personal-model-overrides [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *http.Request) {
@@ -4718,6 +4834,17 @@ func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *htt
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update user chat personal model override
+// @ID update-user-chat-personal-model-override
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param context path string true "Override context"
+// @Param request body codersdk.UpdateUserChatPersonalModelOverrideRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/user-personal-model-overrides/{context} [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -4820,6 +4947,15 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat desktop enabled
+// @ID get-chat-desktop-enabled
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatDesktopEnabledResponse
+// @Router /api/experimental/chats/config/desktop-enabled [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4837,6 +4973,16 @@ func (api *API) getChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat desktop enabled
+// @ID update-chat-desktop-enabled
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatDesktopEnabledRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/desktop-enabled [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -4863,6 +5009,15 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat computer use provider
+// @ID get-chat-computer-use-provider
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatComputerUseProviderResponse
+// @Router /api/experimental/chats/config/computer-use-provider [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4880,6 +5035,16 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat computer use provider
+// @ID update-chat-computer-use-provider
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatComputerUseProviderRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/computer-use-provider [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -4919,6 +5084,15 @@ func (api *API) deploymentChatDebugLoggingEnabled() bool {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat debug logging
+// @ID get-chat-debug-logging
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatDebugLoggingAdminSettings
+// @Router /api/experimental/chats/config/debug-logging [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4942,6 +5116,16 @@ func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat debug logging
+// @ID update-chat-debug-logging
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatDebugLoggingAllowUsersRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/debug-logging [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -4964,6 +5148,15 @@ func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get user chat debug logging
+// @ID get-user-chat-debug-logging
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.UserChatDebugLoggingSettings
+// @Router /api/experimental/chats/config/user-debug-logging [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
@@ -5005,6 +5198,16 @@ func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update user chat debug logging
+// @ID update-user-chat-debug-logging
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateUserChatDebugLoggingRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/user-debug-logging [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -5049,6 +5252,15 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat advisor config
+// @ID get-chat-advisor-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.AdvisorConfig
+// @Router /api/experimental/chats/config/advisor [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5076,6 +5288,16 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat advisor config
+// @ID update-chat-advisor-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateAdvisorConfigRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/advisor [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -5143,6 +5365,15 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get chat workspace TTL
+// @ID get-chat-workspace-ttl
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatWorkspaceTTLResponse
+// @Router /api/experimental/chats/config/workspace-ttl [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5174,6 +5405,16 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat workspace TTL
+// @ID update-chat-workspace-ttl
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatWorkspaceTTLRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/workspace-ttl [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -5293,6 +5534,15 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 // getChatDebugRetentionDays returns the deployment-wide chat debug run
 // retention window. Any authenticated user can read it; writes require admin.
 //
+// @Summary Get chat debug retention days
+// @ID get-chat-debug-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatDebugRetentionDaysResponse
+// @Router /api/experimental/chats/config/debug-retention-days [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5315,6 +5565,16 @@ const chatDebugRetentionDaysMaximum = 3650 // ~10 years
 
 // putChatDebugRetentionDays updates the deployment-wide chat debug run
 // retention window. Admin-only.
+//
+// @Summary Update chat debug retention days
+// @ID update-chat-debug-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatDebugRetentionDaysRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/debug-retention-days [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -5345,6 +5605,15 @@ func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Reques
 // window. Any authenticated user can read it (same as retention
 // days); writes require admin.
 //
+// @Summary Get chat auto archive days
+// @ID get-chat-auto-archive-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatAutoArchiveDaysResponse
+// @Router /api/experimental/chats/config/auto-archive-days [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5367,6 +5636,16 @@ const autoArchiveDaysMaximum = 3650 // ~10 years
 
 // putChatAutoArchiveDays updates the deployment-wide auto-archive
 // window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
+//
+// @Summary Update chat auto archive days
+// @ID update-chat-auto-archive-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatAutoArchiveDaysRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/auto-archive-days [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -5394,6 +5673,15 @@ func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get chat template allowlist
+// @ID get-chat-template-allowlist
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatTemplateAllowlist
+// @Router /api/experimental/chats/config/template-allowlist [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
@@ -5429,6 +5717,16 @@ func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat template allowlist
+// @ID update-chat-template-allowlist
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.ChatTemplateAllowlist true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/template-allowlist [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -5529,6 +5827,15 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Get user chat custom prompt
+// @ID get-user-chat-custom-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.UserChatCustomPrompt
+// @Router /api/experimental/chats/config/user-prompt [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -5555,6 +5862,17 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update user chat custom prompt
+// @ID update-user-chat-custom-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body codersdk.UserChatCustomPrompt true "Request body"
+// @Success 200 {object} codersdk.UserChatCustomPrompt
+// @Router /api/experimental/chats/config/user-prompt [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -6240,6 +6558,16 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 	return result
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List chat providers
+// @ID list-chat-providers
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatProviderConfig
+// @Router /api/experimental/chats/providers [get]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	//nolint:gocritic // System context required to read enabled chat providers.
@@ -6358,6 +6686,18 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Create chat provider
+// @ID create-chat-provider
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body codersdk.CreateChatProviderConfigRequest true "Request body"
+// @Success 201 {object} codersdk.ChatProviderConfig
+// @Router /api/experimental/chats/providers [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -6492,6 +6832,19 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat provider
+// @ID update-chat-provider
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param providerConfig path string true "Provider config ID" format(uuid)
+// @Param request body codersdk.UpdateChatProviderConfigRequest true "Request body"
+// @Success 200 {object} codersdk.ChatProviderConfig
+// @Router /api/experimental/chats/providers/{providerConfig} [patch]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
@@ -6639,6 +6992,16 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 	)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Delete chat provider
+// @ID delete-chat-provider
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param providerConfig path string true "Provider config ID" format(uuid)
+// @Success 204
+// @Router /api/experimental/chats/providers/{providerConfig} [delete]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -6688,6 +7051,16 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List user chat provider configs
+// @ID list-user-chat-provider-configs
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.UserChatProviderConfig
+// @Router /api/experimental/chats/user-provider-configs [get]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -6741,6 +7114,19 @@ func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Upsert user chat provider key
+// @ID upsert-user-chat-provider-key
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param providerConfig path string true "Provider config ID" format(uuid)
+// @Param request body codersdk.CreateUserChatProviderKeyRequest true "Request body"
+// @Success 200 {object} codersdk.UserChatProviderConfig
+// @Router /api/experimental/chats/user-provider-configs/{providerConfig} [put]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -6826,6 +7212,16 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 	)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Delete user chat provider key
+// @ID delete-user-chat-provider-key
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param providerConfig path string true "Provider config ID" format(uuid)
+// @Success 204
+// @Router /api/experimental/chats/user-provider-configs/{providerConfig} [delete]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -6851,6 +7247,16 @@ func (api *API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List chat model configs
+// @ID list-chat-model-configs
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatModelConfig
+// @Router /api/experimental/chats/model-configs [get]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -6883,6 +7289,18 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Create chat model config
+// @ID create-chat-model-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body codersdk.CreateChatModelConfigRequest true "Request body"
+// @Success 201 {object} codersdk.ChatModelConfig
+// @Router /api/experimental/chats/model-configs [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -7036,6 +7454,19 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat model config
+// @ID update-chat-model-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param modelConfig path string true "Model config ID" format(uuid)
+// @Param request body codersdk.UpdateChatModelConfigRequest true "Request body"
+// @Success 200 {object} codersdk.ChatModelConfig
+// @Router /api/experimental/chats/model-configs/{modelConfig} [patch]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -7223,6 +7654,16 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Delete chat model config
+// @ID delete-chat-model-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param modelConfig path string true "Model config ID" format(uuid)
+// @Success 204
+// @Router /api/experimental/chats/model-configs/{modelConfig} [delete]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -7974,6 +8415,17 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Submit chat tool results
+// @ID submit-chat-tool-results
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param request body codersdk.SubmitToolResultsRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/{chat}/tool-results [post]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -8076,6 +8528,16 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 // getChatDebugRuns returns a list of debug run summaries for a chat.
 // EXPERIMENTAL
 //
+// @Summary Get chat debug runs
+// @ID get-chat-debug-runs
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {array} codersdk.ChatDebugRunSummary
+// @Router /api/experimental/chats/{chat}/debug/runs [get]
+// @Description Experimental: this endpoint is subject to change.
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -8111,6 +8573,17 @@ func (api *API) getChatDebugRuns(rw http.ResponseWriter, r *http.Request) {
 
 // getChatDebugRun returns a single debug run with its steps.
 // EXPERIMENTAL
+//
+// @Summary Get chat debug run
+// @ID get-chat-debug-run
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param debugRun path string true "Debug run ID" format(uuid)
+// @Success 200 {object} codersdk.ChatDebugRun
+// @Router /api/experimental/chats/{chat}/debug/runs/{debugRun} [get]
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {

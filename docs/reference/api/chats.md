@@ -622,6 +622,1127 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get chat advisor config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/advisor \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/advisor`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AdvisorConfig](schemas.md#codersdkadvisorconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat advisor config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/advisor \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/advisor`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                 | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateAdvisorConfigRequest](schemas.md#codersdkupdateadvisorconfigrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat auto archive days
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/auto-archive-days \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/auto-archive-days`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "auto_archive_days": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                 |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatAutoArchiveDaysResponse](schemas.md#codersdkchatautoarchivedaysresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat auto archive days
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/auto-archive-days \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/auto-archive-days`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "auto_archive_days": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                             | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatAutoArchiveDaysRequest](schemas.md#codersdkupdatechatautoarchivedaysrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat computer use provider
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/computer-use-provider \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/computer-use-provider`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "provider": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatComputerUseProviderResponse](schemas.md#codersdkchatcomputeruseproviderresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat computer use provider
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/computer-use-provider \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/computer-use-provider`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "provider": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                     | Required | Description  |
+|--------|------|----------------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatComputerUseProviderRequest](schemas.md#codersdkupdatechatcomputeruseproviderrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat debug logging
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/debug-logging \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/debug-logging`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "allow_users": true,
+  "forced_by_deployment": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                     |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDebugLoggingAdminSettings](schemas.md#codersdkchatdebugloggingadminsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat debug logging
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/debug-logging \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/debug-logging`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                           | Required | Description  |
+|--------|------|----------------------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatDebugLoggingAllowUsersRequest](schemas.md#codersdkupdatechatdebugloggingallowusersrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat debug retention days
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/debug-retention-days \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/debug-retention-days`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "debug_retention_days": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDebugRetentionDaysResponse](schemas.md#codersdkchatdebugretentiondaysresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat debug retention days
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/debug-retention-days \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/debug-retention-days`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "debug_retention_days": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                   | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatDebugRetentionDaysRequest](schemas.md#codersdkupdatechatdebugretentiondaysrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat desktop enabled
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/desktop-enabled \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/desktop-enabled`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "enable_desktop": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                               |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDesktopEnabledResponse](schemas.md#codersdkchatdesktopenabledresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat desktop enabled
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/desktop-enabled \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/desktop-enabled`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "enable_desktop": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                           | Required | Description  |
+|--------|------|------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatDesktopEnabledRequest](schemas.md#codersdkupdatechatdesktopenabledrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat model override
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/model-override/{context} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/model-override/{context}`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name      | In   | Type   | Required | Description      |
+|-----------|------|--------|----------|------------------|
+| `context` | path | string | true     | Override context |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "context": "general",
+  "is_malformed": true,
+  "model_config_id": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelOverrideResponse](schemas.md#codersdkchatmodeloverrideresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat model override
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/model-override/{context} \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/model-override/{context}`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "model_config_id": "string"
+}
+```
+
+### Parameters
+
+| Name      | In   | Type                                                                                         | Required | Description      |
+|-----------|------|----------------------------------------------------------------------------------------------|----------|------------------|
+| `context` | path | string                                                                                       | true     | Override context |
+| `body`    | body | [codersdk.UpdateChatModelOverrideRequest](schemas.md#codersdkupdatechatmodeloverriderequest) | true     | Request body     |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat personal model overrides admin settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/personal-model-overrides \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/personal-model-overrides`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatPersonalModelOverridesAdminSettings](schemas.md#codersdkchatpersonalmodeloverridesadminsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat personal model overrides admin settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/personal-model-overrides \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/personal-model-overrides`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                                                     | Required | Description  |
+|--------|------|------------------------------------------------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest](schemas.md#codersdkupdatechatpersonalmodeloverridesadminsettingsrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat plan mode instructions
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/plan-mode-instructions \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/plan-mode-instructions`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "plan_mode_instructions": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatPlanModeInstructionsResponse](schemas.md#codersdkchatplanmodeinstructionsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat plan mode instructions
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/plan-mode-instructions \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/plan-mode-instructions`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "plan_mode_instructions": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                       | Required | Description  |
+|--------|------|------------------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatPlanModeInstructionsRequest](schemas.md#codersdkupdatechatplanmodeinstructionsrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat system prompt
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/system-prompt \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/system-prompt`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "default_system_prompt": "string",
+  "include_default_system_prompt": true,
+  "system_prompt": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatSystemPromptResponse](schemas.md#codersdkchatsystempromptresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat system prompt
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/system-prompt \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/system-prompt`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "include_default_system_prompt": true,
+  "system_prompt": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatSystemPromptRequest](schemas.md#codersdkupdatechatsystempromptrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat template allowlist
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/template-allowlist \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/template-allowlist`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "template_ids": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                     |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatTemplateAllowlist](schemas.md#codersdkchattemplateallowlist) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat template allowlist
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/template-allowlist \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/template-allowlist`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "template_ids": [
+    "string"
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                       | Required | Description  |
+|--------|------|----------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.ChatTemplateAllowlist](schemas.md#codersdkchattemplateallowlist) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user chat debug logging
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/user-debug-logging \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/user-debug-logging`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "debug_logging_enabled": true,
+  "forced_by_deployment": true,
+  "user_toggle_allowed": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserChatDebugLoggingSettings](schemas.md#codersdkuserchatdebugloggingsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update user chat debug logging
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/user-debug-logging \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/user-debug-logging`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "debug_logging_enabled": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                               | Required | Description  |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateUserChatDebugLoggingRequest](schemas.md#codersdkupdateuserchatdebugloggingrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user chat personal model overrides
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/user-personal-model-overrides \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/user-personal-model-overrides`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "deployment_defaults": {
+    "explore": {
+      "context": "general",
+      "is_malformed": true,
+      "model_config_id": "string"
+    },
+    "general": {
+      "context": "general",
+      "is_malformed": true,
+      "model_config_id": "string"
+    }
+  },
+  "enabled": true,
+  "explore": {
+    "context": "root",
+    "is_malformed": true,
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string"
+  },
+  "general": {
+    "context": "root",
+    "is_malformed": true,
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string"
+  },
+  "root": {
+    "context": "root",
+    "is_malformed": true,
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string"
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                       |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserChatPersonalModelOverridesResponse](schemas.md#codersdkuserchatpersonalmodeloverridesresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update user chat personal model override
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/user-personal-model-overrides/{context} \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/user-personal-model-overrides/{context}`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "mode": "deployment_default",
+  "model_config_id": "string"
+}
+```
+
+### Parameters
+
+| Name      | In   | Type                                                                                                                 | Required | Description      |
+|-----------|------|----------------------------------------------------------------------------------------------------------------------|----------|------------------|
+| `context` | path | string                                                                                                               | true     | Override context |
+| `body`    | body | [codersdk.UpdateUserChatPersonalModelOverrideRequest](schemas.md#codersdkupdateuserchatpersonalmodeloverriderequest) | true     | Request body     |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user chat custom prompt
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/user-prompt \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/user-prompt`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserChatCustomPrompt](schemas.md#codersdkuserchatcustomprompt) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update user chat custom prompt
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/user-prompt \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/user-prompt`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                     | Required | Description  |
+|--------|------|--------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UserChatCustomPrompt](schemas.md#codersdkuserchatcustomprompt) | true     | Request body |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserChatCustomPrompt](schemas.md#codersdkuserchatcustomprompt) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat workspace TTL
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/config/workspace-ttl \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/config/workspace-ttl`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "workspace_ttl_ms": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatWorkspaceTTLResponse](schemas.md#codersdkchatworkspacettlresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat workspace TTL
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/config/workspace-ttl \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/config/workspace-ttl`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "workspace_ttl_ms": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateChatWorkspaceTTLRequest](schemas.md#codersdkupdatechatworkspacettlrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Upload chat file
 
 ### Code samples
@@ -689,6 +1810,1091 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List chat model configs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/model-configs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/model-configs`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "compression_threshold": 0,
+    "context_limit": 0,
+    "created_at": "2019-08-24T14:15:22Z",
+    "display_name": "string",
+    "enabled": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "is_default": true,
+    "model": "string",
+    "model_config": {
+      "cost": {
+        "cache_read_price_per_million_tokens": 0,
+        "cache_write_price_per_million_tokens": 0,
+        "input_price_per_million_tokens": 0,
+        "output_price_per_million_tokens": 0
+      },
+      "frequency_penalty": 0,
+      "max_output_tokens": 0,
+      "presence_penalty": 0,
+      "provider_options": {
+        "anthropic": {
+          "allowed_domains": [
+            "string"
+          ],
+          "blocked_domains": [
+            "string"
+          ],
+          "disable_parallel_tool_use": true,
+          "effort": "string",
+          "send_reasoning": true,
+          "thinking": {
+            "budget_tokens": 0
+          },
+          "web_search_enabled": true
+        },
+        "google": {
+          "cached_content": "string",
+          "safety_settings": [
+            {
+              "category": "string",
+              "threshold": "string"
+            }
+          ],
+          "thinking_config": {
+            "include_thoughts": true,
+            "thinking_budget": 0
+          },
+          "threshold": "string",
+          "web_search_enabled": true
+        },
+        "openai": {
+          "allowed_domains": [
+            "string"
+          ],
+          "include": [
+            "string"
+          ],
+          "instructions": "string",
+          "log_probs": true,
+          "logit_bias": {
+            "property1": 0,
+            "property2": 0
+          },
+          "max_completion_tokens": 0,
+          "max_tool_calls": 0,
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "parallel_tool_calls": true,
+          "prediction": {
+            "property1": null,
+            "property2": null
+          },
+          "prompt_cache_key": "string",
+          "reasoning_effort": "string",
+          "reasoning_summary": "string",
+          "safety_identifier": "string",
+          "search_context_size": "string",
+          "service_tier": "string",
+          "store": true,
+          "strict_json_schema": true,
+          "structured_outputs": true,
+          "text_verbosity": "string",
+          "top_log_probs": 0,
+          "user": "string",
+          "web_search_enabled": true
+        },
+        "openaicompat": {
+          "reasoning_effort": "string",
+          "user": "string"
+        },
+        "openrouter": {
+          "extra_body": {
+            "property1": null,
+            "property2": null
+          },
+          "include_usage": true,
+          "log_probs": true,
+          "logit_bias": {
+            "property1": 0,
+            "property2": 0
+          },
+          "parallel_tool_calls": true,
+          "provider": {
+            "allow_fallbacks": true,
+            "data_collection": "string",
+            "ignore": [
+              "string"
+            ],
+            "only": [
+              "string"
+            ],
+            "order": [
+              "string"
+            ],
+            "quantizations": [
+              "string"
+            ],
+            "require_parameters": true,
+            "sort": "string"
+          },
+          "reasoning": {
+            "effort": "string",
+            "enabled": true,
+            "exclude": true,
+            "max_tokens": 0
+          },
+          "user": "string"
+        },
+        "vercel": {
+          "extra_body": {
+            "property1": null,
+            "property2": null
+          },
+          "logit_bias": {
+            "property1": 0,
+            "property2": 0
+          },
+          "logprobs": true,
+          "parallel_tool_calls": true,
+          "providerOptions": {
+            "models": [
+              "string"
+            ],
+            "order": [
+              "string"
+            ]
+          },
+          "reasoning": {
+            "effort": "string",
+            "enabled": true,
+            "exclude": true,
+            "max_tokens": 0
+          },
+          "top_logprobs": 0,
+          "user": "string"
+        }
+      },
+      "temperature": 0,
+      "top_k": 0,
+      "top_p": 0
+    },
+    "provider": "string",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatModelConfig](schemas.md#codersdkchatmodelconfig) |
+
+<h3 id="list-chat-model-configs-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                                       | Type                                                                                                       | Required | Restrictions | Description |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`                             | array                                                                                                      | false    |              |             |
+| `» compression_threshold`                  | integer                                                                                                    | false    |              |             |
+| `» context_limit`                          | integer                                                                                                    | false    |              |             |
+| `» created_at`                             | string(date-time)                                                                                          | false    |              |             |
+| `» display_name`                           | string                                                                                                     | false    |              |             |
+| `» enabled`                                | boolean                                                                                                    | false    |              |             |
+| `» id`                                     | string(uuid)                                                                                               | false    |              |             |
+| `» is_default`                             | boolean                                                                                                    | false    |              |             |
+| `» model`                                  | string                                                                                                     | false    |              |             |
+| `» model_config`                           | [codersdk.ChatModelCallConfig](schemas.md#codersdkchatmodelcallconfig)                                     | false    |              |             |
+| `»» cost`                                  | [codersdk.ModelCostConfig](schemas.md#codersdkmodelcostconfig)                                             | false    |              |             |
+| `»»» cache_read_price_per_million_tokens`  | number                                                                                                     | false    |              |             |
+| `»»» cache_write_price_per_million_tokens` | number                                                                                                     | false    |              |             |
+| `»»» input_price_per_million_tokens`       | number                                                                                                     | false    |              |             |
+| `»»» output_price_per_million_tokens`      | number                                                                                                     | false    |              |             |
+| `»» frequency_penalty`                     | number                                                                                                     | false    |              |             |
+| `»» max_output_tokens`                     | integer                                                                                                    | false    |              |             |
+| `»» presence_penalty`                      | number                                                                                                     | false    |              |             |
+| `»» provider_options`                      | [codersdk.ChatModelProviderOptions](schemas.md#codersdkchatmodelprovideroptions)                           | false    |              |             |
+| `»»» anthropic`                            | [codersdk.ChatModelAnthropicProviderOptions](schemas.md#codersdkchatmodelanthropicprovideroptions)         | false    |              |             |
+| `»»»» allowed_domains`                     | array                                                                                                      | false    |              |             |
+| `»»»» blocked_domains`                     | array                                                                                                      | false    |              |             |
+| `»»»» disable_parallel_tool_use`           | boolean                                                                                                    | false    |              |             |
+| `»»»» effort`                              | string                                                                                                     | false    |              |             |
+| `»»»» send_reasoning`                      | boolean                                                                                                    | false    |              |             |
+| `»»»» thinking`                            | [codersdk.ChatModelAnthropicThinkingOptions](schemas.md#codersdkchatmodelanthropicthinkingoptions)         | false    |              |             |
+| `»»»»» budget_tokens`                      | integer                                                                                                    | false    |              |             |
+| `»»»» web_search_enabled`                  | boolean                                                                                                    | false    |              |             |
+| `»»» google`                               | [codersdk.ChatModelGoogleProviderOptions](schemas.md#codersdkchatmodelgoogleprovideroptions)               | false    |              |             |
+| `»»»» cached_content`                      | string                                                                                                     | false    |              |             |
+| `»»»» safety_settings`                     | array                                                                                                      | false    |              |             |
+| `»»»»» category`                           | string                                                                                                     | false    |              |             |
+| `»»»»» threshold`                          | string                                                                                                     | false    |              |             |
+| `»»»» thinking_config`                     | [codersdk.ChatModelGoogleThinkingConfig](schemas.md#codersdkchatmodelgooglethinkingconfig)                 | false    |              |             |
+| `»»»»» include_thoughts`                   | boolean                                                                                                    | false    |              |             |
+| `»»»»» thinking_budget`                    | integer                                                                                                    | false    |              |             |
+| `»»»» threshold`                           | string                                                                                                     | false    |              |             |
+| `»»»» web_search_enabled`                  | boolean                                                                                                    | false    |              |             |
+| `»»» openai`                               | [codersdk.ChatModelOpenAIProviderOptions](schemas.md#codersdkchatmodelopenaiprovideroptions)               | false    |              |             |
+| `»»»» allowed_domains`                     | array                                                                                                      | false    |              |             |
+| `»»»» include`                             | array                                                                                                      | false    |              |             |
+| `»»»» instructions`                        | string                                                                                                     | false    |              |             |
+| `»»»» log_probs`                           | boolean                                                                                                    | false    |              |             |
+| `»»»» logit_bias`                          | object                                                                                                     | false    |              |             |
+| `»»»»» [any property]`                     | integer(int64)                                                                                             | false    |              |             |
+| `»»»» max_completion_tokens`               | integer                                                                                                    | false    |              |             |
+| `»»»» max_tool_calls`                      | integer                                                                                                    | false    |              |             |
+| `»»»» metadata`                            | object                                                                                                     | false    |              |             |
+| `»»»»» [any property]`                     | any                                                                                                        | false    |              |             |
+| `»»»» parallel_tool_calls`                 | boolean                                                                                                    | false    |              |             |
+| `»»»» prediction`                          | object                                                                                                     | false    |              |             |
+| `»»»»» [any property]`                     | any                                                                                                        | false    |              |             |
+| `»»»» prompt_cache_key`                    | string                                                                                                     | false    |              |             |
+| `»»»» reasoning_effort`                    | string                                                                                                     | false    |              |             |
+| `»»»» reasoning_summary`                   | string                                                                                                     | false    |              |             |
+| `»»»» safety_identifier`                   | string                                                                                                     | false    |              |             |
+| `»»»» search_context_size`                 | string                                                                                                     | false    |              |             |
+| `»»»» service_tier`                        | string                                                                                                     | false    |              |             |
+| `»»»» store`                               | boolean                                                                                                    | false    |              |             |
+| `»»»» strict_json_schema`                  | boolean                                                                                                    | false    |              |             |
+| `»»»» structured_outputs`                  | boolean                                                                                                    | false    |              |             |
+| `»»»» text_verbosity`                      | string                                                                                                     | false    |              |             |
+| `»»»» top_log_probs`                       | integer                                                                                                    | false    |              |             |
+| `»»»» user`                                | string                                                                                                     | false    |              |             |
+| `»»»» web_search_enabled`                  | boolean                                                                                                    | false    |              |             |
+| `»»» openaicompat`                         | [codersdk.ChatModelOpenAICompatProviderOptions](schemas.md#codersdkchatmodelopenaicompatprovideroptions)   | false    |              |             |
+| `»»»» reasoning_effort`                    | string                                                                                                     | false    |              |             |
+| `»»»» user`                                | string                                                                                                     | false    |              |             |
+| `»»» openrouter`                           | [codersdk.ChatModelOpenRouterProviderOptions](schemas.md#codersdkchatmodelopenrouterprovideroptions)       | false    |              |             |
+| `»»»» extra_body`                          | object                                                                                                     | false    |              |             |
+| `»»»»» [any property]`                     | any                                                                                                        | false    |              |             |
+| `»»»» include_usage`                       | boolean                                                                                                    | false    |              |             |
+| `»»»» log_probs`                           | boolean                                                                                                    | false    |              |             |
+| `»»»» logit_bias`                          | object                                                                                                     | false    |              |             |
+| `»»»»» [any property]`                     | integer(int64)                                                                                             | false    |              |             |
+| `»»»» parallel_tool_calls`                 | boolean                                                                                                    | false    |              |             |
+| `»»»» provider`                            | [codersdk.ChatModelOpenRouterProvider](schemas.md#codersdkchatmodelopenrouterprovider)                     | false    |              |             |
+| `»»»»» allow_fallbacks`                    | boolean                                                                                                    | false    |              |             |
+| `»»»»» data_collection`                    | string                                                                                                     | false    |              |             |
+| `»»»»» ignore`                             | array                                                                                                      | false    |              |             |
+| `»»»»» only`                               | array                                                                                                      | false    |              |             |
+| `»»»»» order`                              | array                                                                                                      | false    |              |             |
+| `»»»»» quantizations`                      | array                                                                                                      | false    |              |             |
+| `»»»»» require_parameters`                 | boolean                                                                                                    | false    |              |             |
+| `»»»»» sort`                               | string                                                                                                     | false    |              |             |
+| `»»»» reasoning`                           | [codersdk.ChatModelReasoningOptions](schemas.md#codersdkchatmodelreasoningoptions)                         | false    |              |             |
+| `»»»»» effort`                             | string                                                                                                     | false    |              |             |
+| `»»»»» enabled`                            | boolean                                                                                                    | false    |              |             |
+| `»»»»» exclude`                            | boolean                                                                                                    | false    |              |             |
+| `»»»»» max_tokens`                         | integer                                                                                                    | false    |              |             |
+| `»»»» user`                                | string                                                                                                     | false    |              |             |
+| `»»» vercel`                               | [codersdk.ChatModelVercelProviderOptions](schemas.md#codersdkchatmodelvercelprovideroptions)               | false    |              |             |
+| `»»»» extra_body`                          | object                                                                                                     | false    |              |             |
+| `»»»»» [any property]`                     | any                                                                                                        | false    |              |             |
+| `»»»» logit_bias`                          | object                                                                                                     | false    |              |             |
+| `»»»»» [any property]`                     | integer(int64)                                                                                             | false    |              |             |
+| `»»»» logprobs`                            | boolean                                                                                                    | false    |              |             |
+| `»»»» parallel_tool_calls`                 | boolean                                                                                                    | false    |              |             |
+| `»»»» providerOptions`                     | [codersdk.ChatModelVercelGatewayProviderOptions](schemas.md#codersdkchatmodelvercelgatewayprovideroptions) | false    |              |             |
+| `»»»»» models`                             | array                                                                                                      | false    |              |             |
+| `»»»»» order`                              | array                                                                                                      | false    |              |             |
+| `»»»» reasoning`                           | [codersdk.ChatModelReasoningOptions](schemas.md#codersdkchatmodelreasoningoptions)                         | false    |              |             |
+| `»»»» top_logprobs`                        | integer                                                                                                    | false    |              |             |
+| `»»»» user`                                | string                                                                                                     | false    |              |             |
+| `»» temperature`                           | number                                                                                                     | false    |              |             |
+| `»» top_k`                                 | integer                                                                                                    | false    |              |             |
+| `»» top_p`                                 | number                                                                                                     | false    |              |             |
+| `» provider`                               | string                                                                                                     | false    |              |             |
+| `» updated_at`                             | string(date-time)                                                                                          | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create chat model config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/model-configs \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/model-configs`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "display_name": "string",
+  "enabled": true,
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "cost": {
+      "cache_read_price_per_million_tokens": 0,
+      "cache_write_price_per_million_tokens": 0,
+      "input_price_per_million_tokens": 0,
+      "output_price_per_million_tokens": 0
+    },
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "disable_parallel_tool_use": true,
+        "effort": "string",
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_effort": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "reasoning_effort": "string",
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "provider": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                     | Required | Description  |
+|--------|------|------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.CreateChatModelConfigRequest](schemas.md#codersdkcreatechatmodelconfigrequest) | true     | Request body |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "cost": {
+      "cache_read_price_per_million_tokens": 0,
+      "cache_write_price_per_million_tokens": 0,
+      "input_price_per_million_tokens": 0,
+      "output_price_per_million_tokens": 0
+    },
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "disable_parallel_tool_use": true,
+        "effort": "string",
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_effort": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "reasoning_effort": "string",
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "provider": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                         |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.ChatModelConfig](schemas.md#codersdkchatmodelconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete chat model config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/experimental/chats/model-configs/{modelConfig} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/experimental/chats/model-configs/{modelConfig}`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name          | In   | Type         | Required | Description     |
+|---------------|------|--------------|----------|-----------------|
+| `modelConfig` | path | string(uuid) | true     | Model config ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat model config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/experimental/chats/model-configs/{modelConfig} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/experimental/chats/model-configs/{modelConfig}`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "display_name": "string",
+  "enabled": true,
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "cost": {
+      "cache_read_price_per_million_tokens": 0,
+      "cache_write_price_per_million_tokens": 0,
+      "input_price_per_million_tokens": 0,
+      "output_price_per_million_tokens": 0
+    },
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "disable_parallel_tool_use": true,
+        "effort": "string",
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_effort": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "reasoning_effort": "string",
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "provider": "string"
+}
+```
+
+### Parameters
+
+| Name          | In   | Type                                                                                     | Required | Description     |
+|---------------|------|------------------------------------------------------------------------------------------|----------|-----------------|
+| `modelConfig` | path | string(uuid)                                                                             | true     | Model config ID |
+| `body`        | body | [codersdk.UpdateChatModelConfigRequest](schemas.md#codersdkupdatechatmodelconfigrequest) | true     | Request body    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "cost": {
+      "cache_read_price_per_million_tokens": 0,
+      "cache_write_price_per_million_tokens": 0,
+      "input_price_per_million_tokens": 0,
+      "output_price_per_million_tokens": 0
+    },
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "disable_parallel_tool_use": true,
+        "effort": "string",
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_effort": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "reasoning_effort": "string",
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "effort": "string",
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "provider": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelConfig](schemas.md#codersdkchatmodelconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List chat models
 
 ### Code samples
@@ -733,6 +2939,371 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                 | Description | Schema                                                               |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelsResponse](schemas.md#codersdkchatmodelsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List chat providers
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/providers \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/providers`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "allow_central_api_key_fallback": true,
+    "allow_user_api_key": true,
+    "base_url": "string",
+    "central_api_key_enabled": true,
+    "created_at": "2019-08-24T14:15:22Z",
+    "display_name": "string",
+    "enabled": true,
+    "has_api_key": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "provider": "string",
+    "source": "database",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                        |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatProviderConfig](schemas.md#codersdkchatproviderconfig) |
+
+<h3 id="list-chat-providers-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                               | Type                                                                             | Required | Restrictions | Description |
+|------------------------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`                     | array                                                                            | false    |              |             |
+| `» allow_central_api_key_fallback` | boolean                                                                          | false    |              |             |
+| `» allow_user_api_key`             | boolean                                                                          | false    |              |             |
+| `» base_url`                       | string                                                                           | false    |              |             |
+| `» central_api_key_enabled`        | boolean                                                                          | false    |              |             |
+| `» created_at`                     | string(date-time)                                                                | false    |              |             |
+| `» display_name`                   | string                                                                           | false    |              |             |
+| `» enabled`                        | boolean                                                                          | false    |              |             |
+| `» has_api_key`                    | boolean                                                                          | false    |              |             |
+| `» id`                             | string(uuid)                                                                     | false    |              |             |
+| `» provider`                       | string                                                                           | false    |              |             |
+| `» source`                         | [codersdk.ChatProviderConfigSource](schemas.md#codersdkchatproviderconfigsource) | false    |              |             |
+| `» updated_at`                     | string(date-time)                                                                | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                              |
+|----------|---------------------------------------|
+| `source` | `database`, `env_preset`, `supported` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create chat provider
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/providers \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/providers`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "allow_central_api_key_fallback": true,
+  "allow_user_api_key": true,
+  "api_key": "string",
+  "base_url": "string",
+  "central_api_key_enabled": true,
+  "display_name": "string",
+  "enabled": true,
+  "provider": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                           | Required | Description  |
+|--------|------|------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.CreateChatProviderConfigRequest](schemas.md#codersdkcreatechatproviderconfigrequest) | true     | Request body |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "allow_central_api_key_fallback": true,
+  "allow_user_api_key": true,
+  "base_url": "string",
+  "central_api_key_enabled": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "has_api_key": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "provider": "string",
+  "source": "database",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                               |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.ChatProviderConfig](schemas.md#codersdkchatproviderconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete chat provider
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/experimental/chats/providers/{providerConfig} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/experimental/chats/providers/{providerConfig}`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `providerConfig` | path | string(uuid) | true     | Provider config ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat provider
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/experimental/chats/providers/{providerConfig} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/experimental/chats/providers/{providerConfig}`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "allow_central_api_key_fallback": true,
+  "allow_user_api_key": true,
+  "api_key": "string",
+  "base_url": "string",
+  "central_api_key_enabled": true,
+  "display_name": "string",
+  "enabled": true
+}
+```
+
+### Parameters
+
+| Name             | In   | Type                                                                                           | Required | Description        |
+|------------------|------|------------------------------------------------------------------------------------------------|----------|--------------------|
+| `providerConfig` | path | string(uuid)                                                                                   | true     | Provider config ID |
+| `body`           | body | [codersdk.UpdateChatProviderConfigRequest](schemas.md#codersdkupdatechatproviderconfigrequest) | true     | Request body       |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "allow_central_api_key_fallback": true,
+  "allow_user_api_key": true,
+  "base_url": "string",
+  "central_api_key_enabled": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "has_api_key": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "provider": "string",
+  "source": "database",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatProviderConfig](schemas.md#codersdkchatproviderconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List user chat provider configs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/user-provider-configs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/user-provider-configs`
+
+Experimental: this endpoint is subject to change.
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "display_name": "string",
+    "has_central_api_key_fallback": true,
+    "has_user_api_key": true,
+    "provider": "string",
+    "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.UserChatProviderConfig](schemas.md#codersdkuserchatproviderconfig) |
+
+<h3 id="list-user-chat-provider-configs-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                             | Type         | Required | Restrictions | Description |
+|----------------------------------|--------------|----------|--------------|-------------|
+| `[array item]`                   | array        | false    |              |             |
+| `» display_name`                 | string       | false    |              |             |
+| `» has_central_api_key_fallback` | boolean      | false    |              |             |
+| `» has_user_api_key`             | boolean      | false    |              |             |
+| `» provider`                     | string       | false    |              |             |
+| `» provider_id`                  | string(uuid) | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert user chat provider key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/user-provider-configs/{providerConfig} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/user-provider-configs/{providerConfig}`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "api_key": "string"
+}
+```
+
+### Parameters
+
+| Name             | In   | Type                                                                                             | Required | Description        |
+|------------------|------|--------------------------------------------------------------------------------------------------|----------|--------------------|
+| `providerConfig` | path | string(uuid)                                                                                     | true     | Provider config ID |
+| `body`           | body | [codersdk.CreateUserChatProviderKeyRequest](schemas.md#codersdkcreateuserchatproviderkeyrequest) | true     | Request body       |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "display_name": "string",
+  "has_central_api_key_fallback": true,
+  "has_user_api_key": true,
+  "provider": "string",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserChatProviderConfig](schemas.md#codersdkuserchatproviderconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete user chat provider key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/experimental/chats/user-provider-configs/{providerConfig} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/experimental/chats/user-provider-configs/{providerConfig}`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `providerConfig` | path | string(uuid) | true     | Provider config ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1242,6 +3813,183 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                         | Description | Schema |
 |--------|-----------------------------------------------------------------|-------------|--------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat debug runs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/debug/runs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/debug/runs`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "finished_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "chat_turn",
+    "model": "string",
+    "provider": "string",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "in_progress",
+    "summary": {
+      "property1": null,
+      "property2": null
+    },
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                          |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatDebugRunSummary](schemas.md#codersdkchatdebugrunsummary) |
+
+<h3 id="get-chat-debug-runs-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type                                                             | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`      | array                                                            | false    |              |             |
+| `» chat_id`         | string(uuid)                                                     | false    |              |             |
+| `» finished_at`     | string(date-time)                                                | false    |              |             |
+| `» id`              | string(uuid)                                                     | false    |              |             |
+| `» kind`            | [codersdk.ChatDebugRunKind](schemas.md#codersdkchatdebugrunkind) | false    |              |             |
+| `» model`           | string                                                           | false    |              |             |
+| `» provider`        | string                                                           | false    |              |             |
+| `» started_at`      | string(date-time)                                                | false    |              |             |
+| `» status`          | [codersdk.ChatDebugStatus](schemas.md#codersdkchatdebugstatus)   | false    |              |             |
+| `» summary`         | object                                                           | false    |              |             |
+| `»» [any property]` | any                                                              | false    |              |             |
+| `» updated_at`      | string(date-time)                                                | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                  |
+|----------|-----------------------------------------------------------|
+| `kind`   | `chat_turn`, `compaction`, `quickgen`, `title_generation` |
+| `status` | `completed`, `error`, `in_progress`, `interrupted`        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get chat debug run
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/debug/runs/{debugRun} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/debug/runs/{debugRun}`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name       | In   | Type         | Required | Description  |
+|------------|------|--------------|----------|--------------|
+| `chat`     | path | string(uuid) | true     | Chat ID      |
+| `debugRun` | path | string(uuid) | true     | Debug run ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "finished_at": "2019-08-24T14:15:22Z",
+  "history_tip_message_id": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "chat_turn",
+  "model": "string",
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "provider": "string",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "in_progress",
+  "steps": [
+    {
+      "assistant_message_id": 0,
+      "attempts": [
+        {
+          "property1": null,
+          "property2": null
+        }
+      ],
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "error": {
+        "property1": null,
+        "property2": null
+      },
+      "finished_at": "2019-08-24T14:15:22Z",
+      "history_tip_message_id": 0,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "normalized_request": {
+        "property1": null,
+        "property2": null
+      },
+      "normalized_response": {
+        "property1": null,
+        "property2": null
+      },
+      "operation": "stream",
+      "run_id": "dded282c-8ebd-44cf-8ba5-9a234973d1ec",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "in_progress",
+      "step_number": 0,
+      "updated_at": "2019-08-24T14:15:22Z",
+      "usage": {
+        "property1": null,
+        "property2": null
+      }
+    }
+  ],
+  "summary": {
+    "property1": null,
+    "property2": null
+  },
+  "trigger_message_id": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDebugRun](schemas.md#codersdkchatdebugrun) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2106,6 +4854,64 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Delete chat queued message
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/experimental/chats/{chat}/queue/{queuedMessage} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/experimental/chats/{chat}/queue/{queuedMessage}`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name            | In   | Type         | Required | Description       |
+|-----------------|------|--------------|----------|-------------------|
+| `chat`          | path | string(uuid) | true     | Chat ID           |
+| `queuedMessage` | path | integer      | true     | Queued message ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Promote chat queued message
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/queue/{queuedMessage}/promote \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/{chat}/queue/{queuedMessage}/promote`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name            | In   | Type         | Required | Description       |
+|-----------------|------|--------------|----------|-------------------|
+| `chat`          | path | string(uuid) | true     | Chat ID           |
+| `queuedMessage` | path | integer      | true     | Queued message ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Stream chat events via WebSockets
 
 ### Code samples
@@ -2451,6 +5257,45 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Propose chat title
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/title/propose \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/{chat}/title/propose`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "title": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProposeChatTitleResponse](schemas.md#codersdkproposechattitleresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Regenerate chat title
 
 ### Code samples
@@ -2741,5 +5586,51 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                 | Description | Schema                                   |
 |--------|---------------------------------------------------------|-------------|------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Submit chat tool results
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/tool-results \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/{chat}/tool-results`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "results": [
+    {
+      "is_error": true,
+      "output": [
+        0
+      ],
+      "tool_call_id": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                             | Required | Description  |
+|--------|------|----------------------------------------------------------------------------------|----------|--------------|
+| `chat` | path | string(uuid)                                                                     | true     | Chat ID      |
+| `body` | body | [codersdk.SubmitToolResultsRequest](schemas.md#codersdksubmittoolresultsrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
