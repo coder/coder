@@ -321,6 +321,5 @@ Coder Agents is a new approach that differs from
 
 ## Product status
 
-Coder Agents is in Early Access. The feature is under active development and
-available for evaluation. See [Early Access](./early-access.md) for
-enablement instructions and program details.
+Coder Agents is in Beta. The feature is under active development and
+available for evaluation.
