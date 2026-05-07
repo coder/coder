@@ -9,7 +9,6 @@ import (
 	"errors"
 	"io"
 	"net/url"
-	"time"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
@@ -23,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
-	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
@@ -134,33 +132,6 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			return nil, nil, err
 		}
 		closers.Add(api)
-
-		// Start the enterprise usage publisher routine. This won't do anything
-		// unless the deployment is licensed and one of the licenses has usage
-		// publishing enabled.
-		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys,
-			usage.PublisherWithHTTPClient(api.HTTPClient),
-		)
-		err = publisher.Start()
-		if err != nil {
-			_ = closers.Close()
-			return nil, nil, xerrors.Errorf("start usage publisher: %w", err)
-		}
-		closers.Add(publisher)
-
-		// usageCron are heartbeat events to the usage table. These events are eventually sent
-		// to Tallyman.
-		usageCron := usage.NewCron(quartz.NewReal(), options.Logger.Named("usage-cron"), options.Database, *options.UsageInserter.Load())
-		// ai-seats heartbeats track the number of users that have used an AI feature.
-		// These users consume a seat for the AI addon to our License.
-		_ = usageCron.Register(usage.CronJob{
-			Name:     "ai-seats",
-			Interval: usage.AISeatsInterval,
-			Jitter:   10 * time.Minute,
-			Fn:       usage.AISeatsHeartbeat(options.Database),
-		})
-		usageCron.Start(ctx)
-		closers.Add(usageCron)
 
 		// In-memory aibridge daemon.
 		// TODO(@deansheather): the lifecycle of the aibridged server is

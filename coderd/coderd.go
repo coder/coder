@@ -844,7 +844,7 @@ func New(options *Options) *API {
 		UsageTracker:           options.WorkspaceUsageTracker,
 		UpdateAgentMetricsFn:   options.UpdateAgentMetrics,
 		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
-		DisableDatabaseInserts: !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value(),
+		DisableDatabaseInserts: true,
 	})
 
 	// Initialize the metadata batcher for batching agent metadata updates.
@@ -1765,7 +1765,7 @@ func New(options *Options) *API {
 					func(next http.Handler) http.Handler {
 						return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 							// Template insights depend on the usage stats.
-							if !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value() {
+							if true {
 								httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 									Message: "Not Found.",
 									Detail:  "Template insights are disabled.",
