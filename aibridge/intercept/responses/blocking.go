@@ -103,7 +103,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		// The failover loop may return a keypool exhaustion
 		// error. Render it here.
 		if upstreamErr != nil {
-			if keyErr := i.mapExhaustionError(upstreamErr); keyErr != nil {
+			if keyErr := processKeyPoolError(upstreamErr); keyErr != nil {
 				i.writeUpstreamError(w, keyErr)
 				return xerrors.Errorf("key pool exhausted: %w", upstreamErr)
 			}

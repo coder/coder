@@ -188,15 +188,11 @@ func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *key
 	)
 }
 
-// For centralized requests, mapExhaustionError translates a
-// keypool exhaustion error into a developer-facing responseError
-// shaped for the OpenAI API. Returns nil if err is not an
-// exhaustion error.
-func (i *responsesInterceptionBase) mapExhaustionError(err error) *responseError {
-	if i.cfg.KeyPool == nil {
-		return nil
-	}
-	var transient *keypool.TransientExhaustionError
+// processKeyPoolError translates a keypool exhaustion error
+// into a developer-facing responseError shaped for the OpenAI
+// API. Returns nil if err is not an exhaustion error.
+func processKeyPoolError(err error) *responseError {
+	var transient *keypool.TransientKeyPoolError
 	switch {
 	case errors.As(err, &transient):
 		return newErrorResponse(
@@ -206,7 +202,7 @@ func (i *responsesInterceptionBase) mapExhaustionError(err error) *responseError
 			http.StatusTooManyRequests,
 			transient.RetryAfter,
 		)
-	case errors.Is(err, keypool.ErrPermanentExhaustion):
+	case errors.Is(err, keypool.ErrPermanentKeyPool):
 		return newErrorResponse(
 			"all configured keys failed authentication",
 			intercept.OpenAIErrTypeAPI,

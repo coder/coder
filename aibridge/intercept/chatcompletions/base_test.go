@@ -86,42 +86,34 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 	}
 }
 
-func TestMapExhaustionError(t *testing.T) {
+func TestProcessKeyPoolError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name               string
-		nilKeyPool         bool
 		err                error
 		expectedNil        bool
 		expectedStatus     int
 		expectedRetryAfter time.Duration
 	}{
 		{
-			// BYOK or no centralized pool: never maps.
-			name:        "nil_keypool_returns_nil",
-			nilKeyPool:  true,
-			err:         &keypool.TransientExhaustionError{},
-			expectedNil: true,
-		},
-		{
 			// Transient with valid keys present: 429, no Retry-After.
 			name:               "transient_zero_retry_after",
-			err:                &keypool.TransientExhaustionError{},
+			err:                &keypool.TransientKeyPoolError{},
 			expectedStatus:     http.StatusTooManyRequests,
 			expectedRetryAfter: 0,
 		},
 		{
 			// Transient with cooldown: 429, Retry-After set.
 			name:               "transient_with_retry_after",
-			err:                &keypool.TransientExhaustionError{RetryAfter: 5 * time.Second},
+			err:                &keypool.TransientKeyPoolError{RetryAfter: 5 * time.Second},
 			expectedStatus:     http.StatusTooManyRequests,
 			expectedRetryAfter: 5 * time.Second,
 		},
 		{
 			// Permanent: 502 api_error.
 			name:           "permanent_returns_502",
-			err:            keypool.ErrPermanentExhaustion,
+			err:            keypool.ErrPermanentKeyPool,
 			expectedStatus: http.StatusBadGateway,
 		},
 		{
@@ -135,15 +127,7 @@ func TestMapExhaustionError(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := config.OpenAI{}
-			if !tc.nilKeyPool {
-				pool, err := keypool.New([]string{"key-0"}, quartz.NewMock(t))
-				require.NoError(t, err)
-				cfg.KeyPool = pool
-			}
-			base := &interceptionBase{cfg: cfg}
-
-			got := base.mapExhaustionError(tc.err)
+			got := processKeyPoolError(tc.err)
 			if tc.expectedNil {
 				require.Nil(t, got)
 				return

@@ -135,14 +135,12 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			var currentKey *keypool.Key
 			if walker != nil {
 				key, err := walker.Next()
-				if err != nil {
+				if respErr := processKeyPoolError(err); respErr != nil {
 					// Pool exhausted: write the error directly. In
 					// agentic mode the inner loop buffers events
 					// instead of streaming them downstream, so the
 					// SSE connection has not been opened yet.
-					if respErr := i.mapExhaustionError(err); respErr != nil {
-						i.writeUpstreamError(w, respErr)
-					}
+					i.writeUpstreamError(w, respErr)
 					return xerrors.Errorf("key pool exhausted: %w", err)
 				}
 				currentKey = key
