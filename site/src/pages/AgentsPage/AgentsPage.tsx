@@ -342,7 +342,8 @@ const AgentsPage: FC = () => {
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
 				() =>
 					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
-						?.created_at,
+						?.created_at ??
+					queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
