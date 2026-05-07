@@ -2458,32 +2458,41 @@ class ApiMethods {
 		templateVersionId: string,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const currentBuildParameters = await this.getWorkspaceBuildParameters(
-			workspace.latest_build.id,
-		);
-
-		const templateParameters: TypesGen.TemplateVersionParameter[] =
-			await this.getDynamicParameters(
-				templateVersionId,
-				workspace.owner_id,
-				currentBuildParameters,
-			);
-
-		const missingParameters = getMissingParameters(
-			currentBuildParameters,
-			newBuildParameters,
-			templateParameters,
-		);
-
-		if (missingParameters.length > 0) {
-			throw new MissingBuildParameters(missingParameters, templateVersionId);
+		// Stop the workspace if it is already running.
+		if (workspace.latest_build.status === "running") {
+			const stopBuild = await this.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await this.waitForBuild(stopBuild);
+			// If the stop is canceled halfway through, we bail.
+			// This is the same behaviour as restartWorkspace.
+			if (awaitedStopBuild?.status === "canceled") {
+				return Promise.reject(
+					new Error("Workspace stop was canceled, not proceeding with update."),
+				);
+			}
 		}
 
-		return this.postWorkspaceBuild(workspace.id, {
-			transition: "start",
-			template_version_id: templateVersionId,
-			rich_parameter_values: newBuildParameters,
-		});
+		try {
+			return await this.postWorkspaceBuild(workspace.id, {
+				transition: "start",
+				template_version_id: templateVersionId,
+				rich_parameter_values: newBuildParameters,
+			});
+		} catch (error) {
+			// If the build failed because of a parameter validation error, then we
+			// throw a special sentinel error that can be caught by the caller.
+			if (
+				isApiError(error) &&
+				error.response.status === 400 &&
+				error.response.data.validations &&
+				error.response.data.validations.length > 0
+			) {
+				throw new ParameterValidationError(
+					templateVersionId,
+					error.response.data.validations,
+				);
+			}
+			throw error;
+		}
 	};
 
 	/** Steps to update the workspace
@@ -2501,44 +2510,13 @@ class ApiMethods {
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const template = await this.getTemplate(workspace.template_id);
-
 		const activeVersionId = template.active_version_id;
 
-		// Stop the workspace if it is already running.
-		if (workspace.latest_build.status === "running") {
-			const stopBuild = await this.stopWorkspace(workspace.id);
-			const awaitedStopBuild = await this.waitForBuild(stopBuild);
-			// If the stop is canceled halfway through, we bail.
-			// This is the same behaviour as restartWorkspace.
-			if (awaitedStopBuild?.status === "canceled") {
-				return Promise.reject(
-					new Error("Workspace stop was canceled, not proceeding with update."),
-				);
-			}
-		}
-
-		try {
-			return await this.postWorkspaceBuild(workspace.id, {
-				transition: "start",
-				template_version_id: activeVersionId,
-				rich_parameter_values: newBuildParameters,
-			});
-		} catch (error) {
-			// If the build failed because of a parameter validation error, then we
-			// throw a special sentinel error that can be caught by the caller.
-			if (
-				isApiError(error) &&
-				error.response.status === 400 &&
-				error.response.data.validations &&
-				error.response.data.validations.length > 0
-			) {
-				throw new ParameterValidationError(
-					activeVersionId,
-					error.response.data.validations,
-				);
-			}
-			throw error;
-		}
+		return this.changeWorkspaceVersion(
+			workspace,
+			activeVersionId,
+			newBuildParameters,
+		);
 	};
 
 	getWorkspaceResolveAutostart = async (
