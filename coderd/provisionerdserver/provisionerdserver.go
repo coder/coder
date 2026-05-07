@@ -1296,6 +1296,10 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
+		err = wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub)
+		if err != nil {
+			s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake", slog.Error(err))
+		}
 
 		// Publish workspace build update to the all builds channel if the experiment is enabled.
 		if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
@@ -2542,6 +2546,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 	err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 	if err != nil {
 		return xerrors.Errorf("update workspace: %w", err)
+	}
+	err = wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub)
+	if err != nil {
+		s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake",
+			slog.Error(err),
+		)
 	}
 
 	// Publish workspace build update to the all builds channel if the experiment is enabled.

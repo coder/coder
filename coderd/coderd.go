@@ -950,6 +950,8 @@ func New(options *Options) *API {
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
 
+	newWorkspaceBuildOrchestrator(api).start(api.ctx)
+
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),

@@ -886,6 +886,10 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
 	})
+	err = wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, api.Pubsub)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to publish workspace build orchestration wake", slog.Error(err))
+	}
 
 	// Publish workspace build update to the all builds channel if the experiment is enabled.
 	if api.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
