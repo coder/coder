@@ -1,10 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
+import MuiDialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import type { FC } from "react";
-import type { ConfirmDialogProps } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Dialog, DialogActionButtons } from "#/components/Dialogs/Dialog";
+import { Button } from "#/components/Button/Button";
+import type { ConfirmDialogProps } from "#/components/Dialog/ConfirmDialog";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 interface ScheduleDialogProps extends ConfirmDialogProps {
 	readonly inactiveWorkspacesToGoDormant: number;
@@ -54,7 +56,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 			dormantWorkspacesToBeDeletedInWeek > 0);
 
 	return (
-		<Dialog
+		<MuiDialog
 			css={styles.dialogWrapper}
 			onClose={onClose}
 			open={open}
@@ -125,17 +127,30 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 			</div>
 
 			<DialogActions>
-				<DialogActionButtons
-					cancelText={cancelText}
-					confirmLoading={confirmLoading}
-					confirmText="Submit"
-					disabled={disabled}
-					onCancel={!hideCancel ? onClose : undefined}
-					onConfirm={onConfirm || onClose}
-					type="delete"
-				/>
+				{!hideCancel && (
+					<Button
+						variant="outline"
+						disabled={confirmLoading}
+						onClick={(e) => {
+							e.stopPropagation();
+							onClose();
+						}}
+					>
+						{cancelText ?? "Cancel"}
+					</Button>
+				)}
+				<Button
+					variant="destructive"
+					disabled={confirmLoading || disabled}
+					onClick={onConfirm ?? onClose}
+					data-testid="confirm-button"
+					type="submit"
+				>
+					<Spinner loading={confirmLoading} />
+					Submit
+				</Button>
 			</DialogActions>
-		</Dialog>
+		</MuiDialog>
 	);
 };
 

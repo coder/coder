@@ -9,8 +9,8 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,

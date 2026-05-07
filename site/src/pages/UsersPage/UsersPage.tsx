@@ -15,8 +15,8 @@ import {
 	updateRoles,
 } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";

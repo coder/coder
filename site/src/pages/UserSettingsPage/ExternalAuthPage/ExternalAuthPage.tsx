@@ -8,7 +8,7 @@ import {
 	validateExternalAuth,
 } from "#/api/queries/externalAuth";
 import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,

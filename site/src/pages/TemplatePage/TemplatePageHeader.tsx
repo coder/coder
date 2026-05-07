@@ -21,8 +21,8 @@ import type {
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

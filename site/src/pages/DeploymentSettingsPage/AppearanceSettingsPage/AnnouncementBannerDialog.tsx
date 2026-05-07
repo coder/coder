@@ -1,4 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import MuiDialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
@@ -6,7 +7,7 @@ import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Dialog, DialogActionButtons } from "#/components/Dialogs/Dialog";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { getFormHelpers } from "#/utils/formUtils";
 
@@ -38,7 +39,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	const [showHuePicker, setShowHuePicker] = useState(false);
 
 	return (
-		<Dialog css={styles.dialogWrapper} open onClose={onCancel}>
+		<MuiDialog css={styles.dialogWrapper} open onClose={onCancel}>
 			{/* Banner preview */}
 			<div className="fixed top-0 left-0 right-0">
 				<AnnouncementBannerView
@@ -132,16 +133,27 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 			</div>
 
 			<DialogActions>
-				<DialogActionButtons
-					cancelText="Cancel"
-					confirmLoading={bannerForm.isSubmitting}
-					confirmText="Update"
+				<Button
+					variant="outline"
 					disabled={bannerForm.isSubmitting}
-					onCancel={onCancel}
-					onConfirm={bannerForm.handleSubmit}
-				/>
+					onClick={(e) => {
+						e.stopPropagation();
+						onCancel();
+					}}
+				>
+					Cancel
+				</Button>
+				<Button
+					disabled={bannerForm.isSubmitting}
+					onClick={() => bannerForm.handleSubmit()}
+					data-testid="confirm-button"
+					type="submit"
+				>
+					<Spinner loading={bannerForm.isSubmitting} />
+					Update
+				</Button>
 			</DialogActions>
-		</Dialog>
+		</MuiDialog>
 	);
 };
 

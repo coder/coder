@@ -1,7 +1,7 @@
 import { EllipsisVerticalIcon } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

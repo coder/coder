@@ -1,6 +1,7 @@
 import { css } from "@emotion/css";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
+import type { DialogProps } from "@mui/material/Dialog";
 import TextField from "@mui/material/TextField";
 import { InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -10,8 +11,7 @@ import type { TemplateVersion, Workspace } from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { Pill } from "#/components/Pill/Pill";

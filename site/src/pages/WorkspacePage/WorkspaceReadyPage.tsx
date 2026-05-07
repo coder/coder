@@ -22,7 +22,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
-} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+} from "#/components/Dialog/ConfirmDialog";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";

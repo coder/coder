@@ -8,7 +8,7 @@ import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
 } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 import { docs } from "#/utils/docs";
 
 interface WorkspaceDeleteDialogProps {

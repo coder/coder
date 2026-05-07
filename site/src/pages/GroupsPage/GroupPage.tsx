@@ -19,7 +19,7 @@ import {
 import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import { Loader } from "#/components/Loader/Loader";

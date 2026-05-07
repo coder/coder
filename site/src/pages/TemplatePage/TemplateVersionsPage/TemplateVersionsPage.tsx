@@ -8,7 +8,7 @@ import {
 	templateVersions,
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";

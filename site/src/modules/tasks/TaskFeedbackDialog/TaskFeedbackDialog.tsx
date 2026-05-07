@@ -1,3 +1,4 @@
+import type { DialogProps } from "@mui/material/Dialog";
 import { useFormik } from "formik";
 import { FrownIcon, MehIcon, SmileIcon } from "lucide-react";
 import type { FC, HTMLProps, ReactNode } from "react";
@@ -19,7 +20,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 

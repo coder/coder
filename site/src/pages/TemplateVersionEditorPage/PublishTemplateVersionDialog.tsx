@@ -1,12 +1,12 @@
 import Checkbox from "@mui/material/Checkbox";
+import type { DialogProps } from "@mui/material/Dialog";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
 import { EnterpriseBadge } from "#/components/Badges/Badges";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";
 import {
 	HelpPopover,

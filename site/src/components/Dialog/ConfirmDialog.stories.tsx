@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 const meta: Meta<typeof ConfirmDialog> = {
-	title: "components/Dialogs/ConfirmDialog",
+	title: "components/Dialog/ConfirmDialog",
 	component: ConfirmDialog,
 	args: {
-		onClose: action("onClose"),
-		onConfirm: action("onConfirm"),
+		onClose: fn(),
+		onConfirm: fn(),
 		open: true,
 		title: "Confirm Dialog",
 	},
@@ -62,5 +62,34 @@ export const SuccessDialogLoading: Story = {
 		hideCancel: true,
 		type: "success",
 		confirmLoading: true,
+	},
+};
+
+export const CallsOnCloseWhenCancelled: Story = {
+	args: {
+		cancelText: "CANCEL",
+		hideCancel: false,
+		title: "Test",
+	},
+	play: async ({ args, canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(await body.findByRole("button", { name: "CANCEL" }));
+		await expect(args.onClose).toHaveBeenCalledTimes(1);
+		await expect(args.onConfirm).not.toHaveBeenCalled();
+	},
+};
+
+export const CallsOnConfirmWhenConfirmed: Story = {
+	args: {
+		cancelText: "CANCEL",
+		confirmText: "CONFIRM",
+		hideCancel: false,
+		title: "Test",
+	},
+	play: async ({ args, canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(await body.findByRole("button", { name: "CONFIRM" }));
+		await expect(args.onConfirm).toHaveBeenCalledTimes(1);
+		await expect(args.onClose).not.toHaveBeenCalled();
 	},
 };

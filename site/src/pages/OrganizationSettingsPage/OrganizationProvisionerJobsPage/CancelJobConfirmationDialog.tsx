@@ -8,7 +8,7 @@ import {
 	provisionerJobsQueryKey,
 } from "#/api/queries/organizations";
 import type { ProvisionerJob } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 
 type CancelJobConfirmationDialogProps = {
 	open: boolean;

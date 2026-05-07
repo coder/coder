@@ -1,7 +1,8 @@
-import TextField from "@mui/material/TextField";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { Alert } from "#/components/Alert/Alert";
-import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface DeleteDialogProps {
 	isOpen: boolean;
@@ -25,13 +26,14 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	info,
 	name,
 	confirmLoading,
-	// All optional to change the verbiage. For example, "unlinking" vs "deleting"
+	// All optional to change the verbiage. For example, "unlinking" vs "deleting".
 	verb,
 	title,
 	label,
 	confirmText,
 }) => {
-	const hookId = useId();
+	const inputId = useId();
+	const errorId = useId();
 
 	const [userConfirmationText, setUserConfirmationText] = useState("");
 	const [isFocused, setIsFocused] = useState(false);
@@ -46,7 +48,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 
 	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
 	const displayErrorMessage = hasError && !isFocused;
-	const inputColor = hasError ? "error" : "primary";
+	const inputLabel = label ?? `Name of the ${entity} to delete`;
 
 	return (
 		<ConfirmDialog
@@ -60,9 +62,9 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 			disabled={!deletionConfirmed}
 			confirmText={confirmText}
 			description={
-				<>
+				<div className="flex flex-col gap-6">
 					<div className="flex flex-col gap-3">
-						<p>
+						<p className="m-0">
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
 						{Boolean(info) && (
@@ -70,38 +72,38 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 								{info}
 							</Alert>
 						)}
-						<p>
-							Type <strong>{name}</strong> below to confirm.
+						<p className="m-0">
+							Type <strong className="text-content-primary">{name}</strong>{" "}
+							below to confirm.
 						</p>
 					</div>
 
-					<form onSubmit={onSubmit}>
-						<TextField
-							fullWidth
+					<form onSubmit={onSubmit} className="flex flex-col gap-2">
+						<Label htmlFor={inputId} className="sr-only">
+							{inputLabel}
+						</Label>
+						<Input
 							autoFocus
-							className="mt-6"
+							id={inputId}
 							name="confirmation"
 							autoComplete="off"
-							id={`${hookId}-confirm`}
 							placeholder={name}
 							value={userConfirmationText}
 							onChange={(event) => setUserConfirmationText(event.target.value)}
 							onFocus={() => setIsFocused(true)}
 							onBlur={() => setIsFocused(false)}
-							label={label ?? `Name of the ${entity} to delete`}
-							color={inputColor}
-							error={displayErrorMessage}
-							helperText={
-								displayErrorMessage &&
-								`${userConfirmationText} does not match the name of this ${entity}`
-							}
-							InputProps={{ color: inputColor }}
-							inputProps={{
-								"data-testid": "delete-dialog-name-confirmation",
-							}}
+							aria-label={inputLabel}
+							aria-invalid={displayErrorMessage}
+							aria-describedby={displayErrorMessage ? errorId : undefined}
+							data-testid="delete-dialog-name-confirmation"
 						/>
+						{displayErrorMessage && (
+							<p id={errorId} className="m-0 text-xs text-content-destructive">
+								{userConfirmationText} does not match the name of this {entity}
+							</p>
+						)}
 					</form>
-				</>
+				</div>
 			}
 		/>
 	);

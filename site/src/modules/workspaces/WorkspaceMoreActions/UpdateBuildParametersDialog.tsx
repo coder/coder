@@ -1,4 +1,5 @@
 import { css } from "@emotion/css";
+import type { DialogProps } from "@mui/material/Dialog";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -12,7 +13,6 @@ import type {
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "#/components/Form/Form";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { getFormHelpers } from "#/utils/formUtils";

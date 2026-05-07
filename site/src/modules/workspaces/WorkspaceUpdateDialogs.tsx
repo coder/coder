@@ -8,7 +8,7 @@ import type {
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { UpdateBuildParametersDialog } from "#/modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "#/modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";

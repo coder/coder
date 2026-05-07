@@ -7,7 +7,7 @@ import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog";
 import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizontalForm";
 import { Loader } from "#/components/Loader/Loader";
 import { pageTitle } from "#/utils/page";
