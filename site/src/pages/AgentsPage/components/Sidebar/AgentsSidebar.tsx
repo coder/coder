@@ -1160,7 +1160,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								placeholder="Search filters..."
 								value={filterSearch}
 								onChange={(e) => setFilterSearch(e.target.value)}
-								className="h-7 w-full rounded-md border border-solid border-border-default bg-surface-primary pl-7 pr-2 text-xs text-content-primary placeholder:text-content-secondary focus:border-border-hover focus:outline-none"
+								className="h-7 w-full rounded-md border border-solid border-border bg-transparent pl-7 pr-2 text-xs text-content-primary placeholder:text-content-secondary focus:border-border-hover focus:outline-none"
 							/>
 						</div>
 						<ScrollArea className="max-h-52">
