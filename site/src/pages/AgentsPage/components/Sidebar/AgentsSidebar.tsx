@@ -1579,7 +1579,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											{visibleRootIDs.length > 0 && (
 												<div
 													className={
-														layout !== "narrow" ? "-mx-2 pb-2" : "pb-2"
+														layout !== "narrow" ? "-ml-2 pb-2" : "pb-2"
 													}
 												>
 													{/* ── Pinned section ── */}
