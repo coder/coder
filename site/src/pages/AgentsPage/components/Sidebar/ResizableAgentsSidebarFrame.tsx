@@ -48,7 +48,7 @@ export const ResizableAgentsSidebarFrame = ({
 		const clampedWidth = clampLeftSidebarWidth(width);
 		setVisualWidth(clampedWidth);
 	});
-	
+
 	useEffect(() => {
 		globalThis.addEventListener("resize", handleResize);
 		return () => globalThis.removeEventListener("resize", handleResize);
