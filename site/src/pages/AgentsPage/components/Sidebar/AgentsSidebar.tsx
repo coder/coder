@@ -558,6 +558,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
 		visibleChatIDs.has(childID),
 	);
+	const hasActiveChild = childIDs.includes(activeChatId ?? "");
 	const hasChildren = childIDs.length > 0;
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
@@ -947,6 +948,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								"group relative min-w-0 select-none border-0 border-y border-solid border-border-default/30 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary",
+								hasActiveChild && "bg-surface-secondary text-content-primary",
 							)}
 						>
 							{/* Table row */}
