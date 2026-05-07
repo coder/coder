@@ -136,11 +136,10 @@ CODER_DISABLE_PASSWORD_AUTH=true
 
 ## SCIM
 
-> [!NOTE]
-> SCIM is a Premium feature.
-> [Learn more](https://coder.com/pricing#compare-plans).
-
 > [!IMPORTANT]
+> SCIM is a Premium feature
+> ([learn more](https://coder.com/pricing#compare-plans)).
+>
 > Coder's SCIM 2.0 implementation is not a fully certified or guaranteed
 > implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
 > It is intended to cover common user provisioning and deprovisioning flows
