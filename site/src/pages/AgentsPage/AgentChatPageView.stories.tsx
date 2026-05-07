@@ -6,6 +6,10 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import {
+	MockDefaultOrganization,
+	MockGroup,
+	MockOrganizationMember,
+	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -53,6 +57,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	owner_username: "owner",
+	owner_name: "Owner",
 	title: "Help me refactor",
 	status: "completed",
 	last_model_config_id: defaultModelConfigID,
@@ -148,6 +153,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
 		compressionThreshold: undefined as number | undefined,
+		canUpdateOtherUserChat: false,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -182,6 +188,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
+		canShareChat: false,
 		...overrides,
 		store,
 		messageCount: overrides.messageCount ?? messageCount,
@@ -233,33 +240,54 @@ export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
 };
 
-/** Shows an identity warning banner when viewing a chat owned by another user. */
 export const AdminViewingOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			chatOwner={{ id: "other-user-id", username: "OtherUser" }}
+			canUpdateOtherUserChat
+			chatOwner={{ username: "OtherUser", name: "Other User" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByText(
-			"This is not your chat. Prompting here will use @OtherUser's identity.",
+			"This is not your chat. Prompting here will use Other User's identity.",
 		);
 		expect(banner).toBeVisible();
 		expect(banner).toHaveAttribute("role", "status");
 	},
 };
 
-/** Shows the owner ID fallback while the owner profile is unavailable. */
-export const OtherUserChatOwnerFallback: Story = {
-	render: () => <StoryAgentChatPageView chatOwner={{ id: "other-user-id" }} />,
+export const OtherUserChatOwnerPending: Story = {
+	render: () => <StoryAgentChatPageView canUpdateOtherUserChat />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
+	},
+};
+
+export const ReadOnlyOtherUserChatOwner: Story = {
+	render: () => (
+		<StoryAgentChatPageView chatOwner={{ username: "OtherUser" }} />
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = canvas.getByText(
-			"This is not your chat. Prompting here will use owner other-user-id's identity.",
+			"This chat is owned by @OtherUser. You have read-only access.",
 		);
 		expect(banner).toBeVisible();
 		expect(banner).toHaveAttribute("role", "status");
+	},
+};
+
+export const ReadOnlyOtherUserChatOwnerPending: Story = {
+	render: () => <StoryAgentChatPageView />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/^This chat is owned/)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
 	},
 };
 
@@ -269,7 +297,7 @@ export const ArchivedOtherUserChat: Story = {
 		<StoryAgentChatPageView
 			isArchived
 			isInputDisabled
-			chatOwner={{ id: "other-user-id", username: "OtherUser" }}
+			chatOwner={{ username: "OtherUser" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -435,7 +463,7 @@ export const SidebarCollapsed: Story = {
 	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
 };
 
-/** No model options available — shows a disabled status message. */
+/** No model options available, shows a disabled status message. */
 export const NoModelOptions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -623,7 +651,7 @@ export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading, Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -642,7 +670,7 @@ export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading, Agents</title>}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -660,7 +688,7 @@ export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading, Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -679,7 +707,7 @@ export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading, Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -735,7 +763,7 @@ const editingMessages = [
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
 
-/** Editing a message in the middle of the conversation — shows the warning
+/** Editing a message in the middle of the conversation, shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */
 export const EditingMessage: Story = {
@@ -758,7 +786,7 @@ export const EditingMessage: Story = {
 export const NotFound: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
+			titleElement={<title>Not Found, Agents</title>}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -769,7 +797,7 @@ export const NotFound: Story = {
 export const NotFoundSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
+			titleElement={<title>Not Found, Agents</title>}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -1400,5 +1428,37 @@ export const DoesNotPersistForArchivedChat: Story = {
 		});
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();
+	},
+};
+
+export const ShareChatPopoverFromTopBar: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			canShareChat
+			organizationId={MockDefaultOrganization.id}
+		/>
+	),
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Share chat"));
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Chat Sharing")).toBeVisible();
+		});
+		await waitFor(() => {
+			expect(body.getByText("No shared members or groups yet")).toBeVisible();
+		});
 	},
 };

@@ -11,6 +11,8 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
+	chatACL,
+	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
 	chatCostSummary,
@@ -36,6 +38,8 @@ import {
 	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	setChatGroupRole,
+	setChatUserRole,
 	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
@@ -62,6 +66,8 @@ vi.mock("#/api/api", () => ({
 			regenerateChatTitle: vi.fn(),
 			getChatAdvisorConfig: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
+			getChatACL: vi.fn(),
+			updateChatACL: vi.fn(),
 		},
 	},
 }));
@@ -367,7 +373,7 @@ describe("archiveChat optimistic update", () => {
 		// Verify the optimistic update took effect.
 		expect(readInfiniteChats(queryClient)?.[0].archived).toBe(true);
 
-		// Simulate an error — the onError handler invalidates the
+		// Simulate an error, the onError handler invalidates the
 		// cache so a re-fetch restores the correct state.
 		mutation.onError(new Error("server error"), chatId, context);
 
@@ -780,7 +786,7 @@ describe("chat cost query factories", () => {
 describe("mutation invalidation scope", () => {
 	// These tests assert the CORRECT (narrow) invalidation behaviour.
 	// Each mutation should only invalidate the queries it actually
-	// needs to refresh — not the entire ["chats"] prefix tree. The
+	// needs to refresh, not the entire ["chats"] prefix tree. The
 	// WebSocket stream already delivers real-time updates for
 	// messages, status changes, and sidebar ordering, so broad
 	// prefix invalidation causes a burst of redundant HTTP requests
@@ -1198,7 +1204,7 @@ describe("mutation invalidation scope", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		// Page 0 (newest): IDs 10–6. Page 1 (older): IDs 5–1.
+		// Page 0 (newest): IDs 10-6. Page 1 (older): IDs 5-1.
 		const page0 = [10, 9, 8, 7, 6].map((id) => makeMsg(chatId, id));
 		const page1 = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
 		const optimisticMessage = buildOptimisticMessage(requireMessage(page0, 7));
@@ -1526,7 +1532,7 @@ describe("diff_status_change invalidation scope", () => {
 	// These tests verify the CORRECT invalidation pattern for
 	// diff_status_change WebSocket events. The handler should
 	// invalidate only the individual chat detail and diff-contents
-	// queries — NOT the chat list (sidebar) or messages.
+	// queries, NOT the chat list (sidebar) or messages.
 
 	it("exact chatKey invalidation does not cascade to messages or diff-contents", async () => {
 		const queryClient = createTestQueryClient();
@@ -1538,7 +1544,7 @@ describe("diff_status_change invalidation scope", () => {
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
 
-		// This is what the fixed handler does — exact: true.
+		// This is what the fixed handler does, exact: true.
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
@@ -1577,7 +1583,7 @@ describe("diff_status_change invalidation scope", () => {
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 
-		// This is what the OLD (broken) handler did — no exact: true.
+		// This is what the OLD broken handler did, no exact: true.
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 		});
@@ -1693,7 +1699,7 @@ describe("cancelChatListRefetches", () => {
 
 		seedInfiniteChats(queryClient, [makeChat(chatId, { title: "original" })]);
 
-		// Start an in-flight refetch (no fetchMeta — simulates a
+		// Start an in-flight refetch, no fetchMeta simulates a
 		// regular invalidation or window-focus refetch).
 		const fetchDone = queryClient.prefetchQuery({
 			queryKey: infiniteChatsTestKey,
@@ -1756,7 +1762,7 @@ describe("cancelChatListRefetches", () => {
 		await cancelChatListRefetches(queryClient);
 		await fetchDone;
 
-		// The fetch was NOT cancelled — the new data landed.
+		// The fetch was NOT cancelled, the new data landed.
 		const title = readInfiniteChats(queryClient)?.find(
 			(c) => c.id === chatId,
 		)?.title;
@@ -1803,7 +1809,7 @@ describe("cancelChatListRefetches", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		// Do NOT seed the cache — simulate the very first fetch
+		// Do NOT seed the cache, simulate the very first fetch
 		// where no data exists yet.
 		const fetchDone = queryClient.prefetchQuery({
 			queryKey: infiniteChatsTestKey,
@@ -2501,5 +2507,58 @@ describe("TERMINAL_RUN_STATUSES", () => {
 				SUCCESS_STATUSES.has(status) || ERROR_STATUSES.has(status);
 			expect(classified).toBe(true);
 		}
+	});
+});
+
+describe("chat ACL query factories", () => {
+	it("builds the ACL query under the chat key hierarchy", async () => {
+		const chatId = "chat-1";
+		const acl: TypesGen.ChatACL = { users: [], groups: [] };
+		vi.mocked(API.experimental.getChatACL).mockResolvedValue(acl);
+
+		const query = chatACL(chatId);
+
+		expect(chatACLKey(chatId)).toEqual(["chats", chatId, "acl"]);
+		expect(query.queryKey).toEqual(chatACLKey(chatId));
+		await expect(query.queryFn()).resolves.toEqual(acl);
+		expect(API.experimental.getChatACL).toHaveBeenCalledWith(chatId);
+	});
+
+	it("sets one chat user role and invalidates the ACL", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(chatACLKey(chatId), { users: [], groups: [] });
+		vi.mocked(API.experimental.updateChatACL).mockResolvedValue();
+
+		const mutation = setChatUserRole(queryClient);
+		const variables = { chatId, userId: "user-1", role: "read" as const };
+		await mutation.mutationFn(variables);
+		expect(API.experimental.updateChatACL).toHaveBeenCalledWith(chatId, {
+			user_roles: { "user-1": "read" },
+		});
+
+		await mutation.onSuccess?.(undefined, variables);
+		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
+			true,
+		);
+	});
+
+	it("sets one chat group role and invalidates the ACL", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(chatACLKey(chatId), { users: [], groups: [] });
+		vi.mocked(API.experimental.updateChatACL).mockResolvedValue();
+
+		const mutation = setChatGroupRole(queryClient);
+		const variables = { chatId, groupId: "group-1", role: "" as const };
+		await mutation.mutationFn(variables);
+		expect(API.experimental.updateChatACL).toHaveBeenCalledWith(chatId, {
+			group_roles: { "group-1": "" },
+		});
+
+		await mutation.onSuccess?.(undefined, variables);
+		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
+			true,
+		);
 	});
 });

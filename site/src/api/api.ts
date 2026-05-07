@@ -183,7 +183,7 @@ export const watchChatDesktop = (chatId: string): WebSocket => {
 	const socket = createWebSocket(
 		`/api/experimental/chats/${chatId}/stream/desktop`,
 	);
-	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
+	// RFB is a binary protocol. noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
 };
@@ -3165,6 +3165,20 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
+		const response = await this.axios.get<TypesGen.ChatACL>(
+			`/api/experimental/chats/${chatId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatACL = async (
+		chatId: string,
+		req: TypesGen.UpdateChatACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}/acl`, req);
+	};
+
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },

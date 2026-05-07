@@ -7,10 +7,11 @@ import {
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
+	Share2Icon,
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
@@ -22,6 +23,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
@@ -48,6 +50,7 @@ type ChatTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
+	chatSharingPopover?: (open: boolean) => ReactNode;
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
@@ -65,9 +68,11 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
+	chatSharingPopover,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
+	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
 
 	const prUrl = diffStatusData?.url;
 	const prState = diffStatusData?.pull_request_state;
@@ -155,7 +160,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</div>
 				)}
 			</div>
-			{/* PR link — mobile: icon + number; desktop: icon + title.
+			{/* PR link, mobile: icon + number; desktop: icon + title.
 			   Hidden on desktop when the sidebar panel is open
 			   (which already shows PR info). */}
 			{prUrl && hasPR && (
@@ -183,6 +188,21 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
+				{!isEmbedded && chatSharingPopover && (
+					<Popover open={isChatSharingOpen} onOpenChange={setIsChatSharingOpen}>
+						<PopoverTrigger asChild>
+							<Button
+								variant="subtle"
+								size="icon"
+								className="h-7 w-7 text-content-secondary hover:text-content-primary"
+								aria-label="Share chat"
+							>
+								<Share2Icon className="h-4 w-4" />
+							</Button>
+						</PopoverTrigger>
+						{chatSharingPopover(isChatSharingOpen)}
+					</Popover>
+				)}
 				{!isEmbedded && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
