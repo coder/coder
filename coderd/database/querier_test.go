@@ -7423,9 +7423,13 @@ func TestGetWorkspaceBuildAgentsByInstanceID(t *testing.T) {
 		assert.Equal(t, []uuid.UUID{newer.Agent.ID, older.Agent.ID}, []uuid.UUID{agents[0].WorkspaceAgent.ID, agents[1].WorkspaceAgent.ID})
 		assert.Equal(t, []uuid.UUID{newer.Build.ID, older.Build.ID}, []uuid.UUID{agents[0].WorkspaceBuildID, agents[1].WorkspaceBuildID})
 		assert.Equal(t, newer.Workspace.ID, agents[0].WorkspaceTable.ID)
+		assert.Equal(t, older.Workspace.ID, agents[1].WorkspaceTable.ID)
 		assert.Equal(t, newer.Workspace.OwnerID, agents[0].WorkspaceTable.OwnerID)
+		assert.Equal(t, older.Workspace.OwnerID, agents[1].WorkspaceTable.OwnerID)
 		assert.Equal(t, newer.Workspace.OrganizationID, agents[0].WorkspaceTable.OrganizationID)
+		assert.Equal(t, older.Workspace.OrganizationID, agents[1].WorkspaceTable.OrganizationID)
 		assert.False(t, agents[0].WorkspaceTable.Deleted)
+		assert.False(t, agents[1].WorkspaceTable.Deleted)
 	})
 
 	t.Run("ExcludesDeletedAgentsSubAgentsAndNonWorkspaceBuildJobs", func(t *testing.T) {
