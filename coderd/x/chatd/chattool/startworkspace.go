@@ -131,10 +131,16 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 					// viewer. The fantasy/chatprompt pipeline discards structured
 					// fields from IsError content.
 					// The frontend detects errors via the "error" key instead.
-					return buildToolResponse(newBuildError(
-						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
+					return buildFailureToolResponse(
+						ctx,
+						options.Logger,
+						db,
+						options.OwnerID,
+						ws.OrganizationID,
+						buildFailureActionStart,
 						build.ID,
-					)), nil
+						xerrors.Errorf("waiting for in-progress build: %w", err),
+					), nil
 				}
 				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
 				// Re-fire after the agent is fully ready so
@@ -212,10 +218,16 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				options.OnChatUpdated(updatedChat)
 			}
 			if err := waitForBuild(ctx, db, startBuild.ID); err != nil {
-				return buildToolResponse(newBuildError(
-					xerrors.Errorf("workspace start build failed: %w", err).Error(),
+				return buildFailureToolResponse(
+					ctx,
+					options.Logger,
+					db,
+					options.OwnerID,
+					ws.OrganizationID,
+					buildFailureActionStart,
 					startBuild.ID,
-				)), nil
+					xerrors.Errorf("workspace start build failed: %w", err),
+				), nil
 			}
 
 			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
