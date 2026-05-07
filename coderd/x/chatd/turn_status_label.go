@@ -210,15 +210,32 @@ func executeTurnStatusSignal(
 		return turnStatusSignal{}, false
 	}
 
+	containsPRCreateCommand := isPRCreateCommand(command)
+	containsGitCommitCommand := isGitCommitCommand(command)
+	containsTestCommand := isTestCommand(command)
+
 	switch {
-	case isPRCreateCommand(command) && result.Success:
+	case containsPRCreateCommand:
+		if !result.Success {
+			return turnStatusSignal{}, false
+		}
 		return turnStatusSignal{
 			Label:      "Submitted PR",
 			Source:     turnStatusLabelSourceHeuristic,
 			Success:    true,
 			Confidence: 100,
 		}, true
-	case isTestCommand(command):
+	case containsGitCommitCommand:
+		if !result.Success {
+			return turnStatusSignal{}, false
+		}
+		return turnStatusSignal{
+			Label:      "Created commit",
+			Source:     turnStatusLabelSourceHeuristic,
+			Success:    true,
+			Confidence: 100,
+		}, true
+	case containsTestCommand:
 		if result.Success {
 			return turnStatusSignal{
 				Label:      "Finished tests",
@@ -231,13 +248,6 @@ func executeTurnStatusSignal(
 			Label:      "Tests failing",
 			Source:     turnStatusLabelSourceHeuristic,
 			Success:    false,
-			Confidence: 100,
-		}, true
-	case isGitCommitCommand(command) && result.Success:
-		return turnStatusSignal{
-			Label:      "Created commit",
-			Source:     turnStatusLabelSourceHeuristic,
-			Success:    true,
 			Confidence: 100,
 		}, true
 	default:

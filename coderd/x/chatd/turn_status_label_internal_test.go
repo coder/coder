@@ -292,6 +292,10 @@ func TestTurnStatusSignalsFromContent(t *testing.T) {
 			content: failedExecuteToolContent(t, "call-pr", "gh pr create --fill"),
 		},
 		{
+			name:    "failed compound test and pr ignored",
+			content: failedExecuteToolContent(t, "call-pr", "go test ./... && gh pr create --fill"),
+		},
+		{
 			name:    "failed commit ignored",
 			content: failedExecuteToolContent(t, "call-commit", "git commit -m change"),
 		},
@@ -387,8 +391,15 @@ func TestIsTestCommand(t *testing.T) {
 	}{
 		{name: "go test", command: "go test ./...", want: true},
 		{name: "pnpm test", command: "pnpm test", want: true},
+		{name: "pnpm run test", command: "pnpm run test", want: true},
 		{name: "npm run test", command: "npm run test", want: true},
+		{name: "npm test", command: "npm test", want: true},
 		{name: "pytest", command: "pytest -q", want: true},
+		{name: "vitest", command: "vitest run", want: true},
+		{name: "cargo test", command: "cargo test", want: true},
+		{name: "make test", command: "make test", want: true},
+		{name: "yarn test", command: "yarn test", want: true},
+		{name: "yarn run test", command: "yarn run test", want: true},
 		{name: "after shell separator", command: "cd site && pnpm test", want: true},
 		{name: "after compact semicolon", command: "cd site; go test ./...", want: true},
 		{name: "after pipe", command: "cat config.json | go test ./...", want: true},

@@ -6756,7 +6756,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 		"errored chats should clear cached turn summaries")
 
 	msg := mockPush.getLastMessage()
-	require.NotEqual(t, "Agent encountered an error.", msg.Body)
+	require.NotEqual(t, "Hit an error", msg.Body)
 	require.Contains(t, msg.Body, "OpenAI returned an unexpected error")
 }
 
