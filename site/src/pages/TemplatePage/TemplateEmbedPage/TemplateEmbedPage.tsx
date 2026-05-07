@@ -42,10 +42,7 @@ const TemplateEmbedPage: FC = () => {
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
-	const sendMessage = (
-		formValues: Record<string, string>,
-		_ownerId?: string,
-	) => {
+	const sendMessage = (formValues: Record<string, string>) => {
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
 			owner_id: me.id,
