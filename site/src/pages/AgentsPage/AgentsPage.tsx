@@ -337,12 +337,13 @@ const AgentsPage: FC = () => {
 		if (isArchiving) {
 			return;
 		}
+		const isAutoCreated =
+			readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
+				?.workspace_auto_created ?? false;
 		try {
 			const action = await resolveArchiveAndDeleteAction(
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
-				() =>
-					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
-						?.created_at,
+				isAutoCreated,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(

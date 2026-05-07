@@ -65,6 +65,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	client_type: "ui",
 	last_turn_summary: null,
 	children: [],
+	workspace_auto_created: false,
 	...overrides,
 });
 

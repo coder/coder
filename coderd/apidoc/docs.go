@@ -15545,6 +15545,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "workspace_auto_created": {
+                    "type": "boolean"
+                },
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"

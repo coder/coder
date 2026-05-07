@@ -1,0 +1,2 @@
+ALTER TABLE chats
+    ADD COLUMN workspace_auto_created BOOLEAN NOT NULL DEFAULT FALSE;

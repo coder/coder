@@ -156,6 +156,7 @@ Experimental: this endpoint is subject to change.
     "warnings": [
       "string"
     ],
+    "workspace_auto_created": true,
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   }
 ]
@@ -274,6 +275,7 @@ Status Code **200**
 | `» title`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `» updated_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `» warnings`                      | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `» workspace_auto_created`        | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
 | `» workspace_id`                  | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
@@ -486,6 +488,7 @@ Experimental: this endpoint is subject to change.
       "warnings": [
         "string"
       ],
+      "workspace_auto_created": true,
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -610,6 +613,7 @@ Experimental: this endpoint is subject to change.
   "warnings": [
     "string"
   ],
+  "workspace_auto_created": true,
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -885,6 +889,7 @@ Experimental: this endpoint is subject to change.
     "warnings": [
       "string"
     ],
+    "workspace_auto_created": true,
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "kind": "status_change",
@@ -1063,6 +1068,7 @@ Experimental: this endpoint is subject to change.
       "warnings": [
         "string"
       ],
+      "workspace_auto_created": true,
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -1187,6 +1193,7 @@ Experimental: this endpoint is subject to change.
   "warnings": [
     "string"
   ],
+  "workspace_auto_created": true,
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -1446,6 +1453,7 @@ Experimental: this endpoint is subject to change.
       "warnings": [
         "string"
       ],
+      "workspace_auto_created": true,
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -1570,6 +1578,7 @@ Experimental: this endpoint is subject to change.
   "warnings": [
     "string"
   ],
+  "workspace_auto_created": true,
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -2608,6 +2617,7 @@ Experimental: this endpoint is subject to change.
       "warnings": [
         "string"
       ],
+      "workspace_auto_created": true,
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ],
@@ -2732,6 +2742,7 @@ Experimental: this endpoint is subject to change.
   "warnings": [
     "string"
   ],
+  "workspace_auto_created": true,
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```

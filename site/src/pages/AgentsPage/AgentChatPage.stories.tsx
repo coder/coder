@@ -139,6 +139,7 @@ const baseChatFields = {
 	client_type: "ui",
 	last_turn_summary: null,
 	children: [],
+	workspace_auto_created: false,
 } as const;
 
 // ---------------------------------------------------------------------------

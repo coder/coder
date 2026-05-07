@@ -70,6 +70,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	mcp_server_ids: [],
 	labels: {},
 	children: [],
+	workspace_auto_created: false,
 	...overrides,
 });
 

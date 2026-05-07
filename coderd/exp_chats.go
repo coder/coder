@@ -2716,10 +2716,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		updatedChat, err := api.Database.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-			ID:          chat.ID,
-			WorkspaceID: workspaceID,
-			BuildID:     uuid.NullUUID{},
-			AgentID:     uuid.NullUUID{},
+			ID:                   chat.ID,
+			WorkspaceID:          workspaceID,
+			BuildID:              uuid.NullUUID{},
+			AgentID:              uuid.NullUUID{},
+			WorkspaceAutoCreated: false,
 		})
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {

@@ -71,6 +71,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	client_type: "ui",
 	last_turn_summary: null,
 	children: [],
+	workspace_auto_created: false,
 	...overrides,
 });
 

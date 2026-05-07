@@ -73,6 +73,7 @@ export const WithParentChat: Story = {
 			has_unread: false,
 			client_type: "ui",
 			children: [],
+			workspace_auto_created: false,
 		},
 	},
 };

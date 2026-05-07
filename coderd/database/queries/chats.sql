@@ -608,6 +608,7 @@ UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
     build_id = sqlc.narg('build_id')::uuid,
     agent_id = sqlc.narg('agent_id')::uuid,
+    workspace_auto_created = @workspace_auto_created::boolean,
     updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING *;

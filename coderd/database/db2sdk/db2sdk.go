@@ -1702,6 +1702,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.AgentID.Valid {
 		chat.AgentID = &c.AgentID.UUID
 	}
+	chat.WorkspaceAutoCreated = c.WorkspaceAutoCreated
 	if diffStatus != nil {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus

@@ -220,6 +220,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	client_type: "ui",
 	last_turn_summary: null,
 	children: [],
+	workspace_auto_created: false,
 });
 
 const makeMessage = (

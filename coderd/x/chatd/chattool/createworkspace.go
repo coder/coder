@@ -252,7 +252,8 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				// AgentID is left null because the build hasn't
 				// completed yet. The chatd runtime binds it once
 				// the agent comes online.
-				AgentID: uuid.NullUUID{},
+				AgentID:              uuid.NullUUID{},
+				WorkspaceAutoCreated: true,
 			})
 			if err != nil {
 				options.Logger.Error(ctx, "failed to persist chat workspace association",
@@ -404,7 +405,8 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				UUID:  build.ID,
 				Valid: build.ID != uuid.Nil,
 			},
-			AgentID: uuid.NullUUID{},
+			AgentID:              uuid.NullUUID{},
+			WorkspaceAutoCreated: true,
 		})
 		if bindErr != nil {
 			o.Logger.Error(ctx, "failed to persist build ID on chat binding",

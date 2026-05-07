@@ -113,7 +113,8 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 						UUID:  build.ID,
 						Valid: build.ID != uuid.Nil,
 					},
-					AgentID: uuid.NullUUID{},
+					AgentID:              uuid.NullUUID{},
+					WorkspaceAutoCreated: chat.WorkspaceAutoCreated,
 				})
 				if bindErr != nil {
 					options.Logger.Error(ctx, "failed to persist build ID on chat binding",
@@ -206,7 +207,8 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 					UUID:  startBuild.ID,
 					Valid: startBuild.ID != uuid.Nil,
 				},
-				AgentID: uuid.NullUUID{},
+				AgentID:              uuid.NullUUID{},
+				WorkspaceAutoCreated: chat.WorkspaceAutoCreated,
 			})
 			if bindErr != nil {
 				options.Logger.Error(ctx, "failed to persist build ID on chat binding",

@@ -5504,8 +5504,9 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	// Link the workspace to the chat in the DB, simulating what
 	// the create_workspace tool does mid-conversation.
 	_, err = db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-		WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
-		ID:          chat.ID,
+		WorkspaceID:          uuid.NullUUID{UUID: ws.ID, Valid: true},
+		ID:                   chat.ID,
+		WorkspaceAutoCreated: true,
 	})
 	require.NoError(t, err)
 

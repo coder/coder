@@ -269,10 +269,11 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 		}, nil)
 	db.EXPECT().
 		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			ID:          chatID,
-			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{},
+			ID:                   chatID,
+			WorkspaceID:          uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:              uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:              uuid.NullUUID{},
+			WorkspaceAutoCreated: true,
 		}).
 		Return(database.Chat{
 			ID:          chatID,
@@ -593,10 +594,11 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 		}, nil)
 	db.EXPECT().
 		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			ID:          chatID,
-			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{},
+			ID:                   chatID,
+			WorkspaceID:          uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:              uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:              uuid.NullUUID{},
+			WorkspaceAutoCreated: true,
 		}).
 		Return(database.Chat{
 			ID:          chatID,
@@ -1057,10 +1059,11 @@ func TestCheckExistingWorkspace_InProgressBuildReturnsBuildID(t *testing.T) {
 	// waitForBuild.
 	db.EXPECT().
 		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			ID:          chatID,
-			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{},
+			ID:                   chatID,
+			WorkspaceID:          uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:              uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:              uuid.NullUUID{},
+			WorkspaceAutoCreated: true,
 		}).
 		Return(database.Chat{
 			ID:          chatID,
@@ -1146,10 +1149,11 @@ func TestCheckExistingWorkspace_InProgressBuildFailureReturnsBuildID(t *testing.
 	// waitForBuild.
 	db.EXPECT().
 		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			ID:          chatID,
-			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{},
+			ID:                   chatID,
+			WorkspaceID:          uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:              uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:              uuid.NullUUID{},
+			WorkspaceAutoCreated: true,
 		}).
 		Return(database.Chat{
 			ID:          chatID,
