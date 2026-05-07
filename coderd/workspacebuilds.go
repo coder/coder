@@ -375,6 +375,30 @@ func (api *API) postWorkspaceBuildsInternal(
 	codersdk.WorkspaceBuild,
 	error,
 ) {
+	if err := validateCreateWorkspaceBuildOnSuccess(createBuild); err != nil {
+		return codersdk.WorkspaceBuild{}, err
+	}
+
+	var childParameterValuesJSON json.RawMessage
+	if createBuild.OnSuccess != nil {
+		childParameterValues := createBuild.OnSuccess.RichParameterValues
+		if childParameterValues == nil {
+			childParameterValues = []codersdk.WorkspaceBuildParameter{}
+		}
+
+		var err error
+		childParameterValuesJSON, err = json.Marshal(childParameterValues)
+		if err != nil {
+			return codersdk.WorkspaceBuild{}, httperror.NewResponseError(
+				http.StatusInternalServerError,
+				codersdk.Response{
+					Message: "Internal error preparing follow-up workspace build parameters",
+					Detail:  err.Error(),
+				},
+			)
+		}
+	}
+
 	transition := database.WorkspaceTransition(createBuild.Transition)
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
@@ -481,7 +505,57 @@ func (api *API) postWorkspaceBuildsInternal(
 			},
 			workspaceBuildBaggage,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		if createBuild.OnSuccess != nil {
+			childBuild := createBuild.OnSuccess
+			now := dbtime.Now()
+			_, err = tx.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+				ID:              uuid.New(),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+				ParentBuildID:   workspaceBuild.ID,
+				ChildTransition: database.WorkspaceTransition(childBuild.Transition),
+				ChildTemplateVersionID: uuid.NullUUID{
+					UUID:  childBuild.TemplateVersionID,
+					Valid: childBuild.TemplateVersionID != uuid.Nil,
+				},
+				ChildTemplateVersionPresetID: uuid.NullUUID{
+					UUID:  childBuild.TemplateVersionPresetID,
+					Valid: childBuild.TemplateVersionPresetID != uuid.Nil,
+				},
+				ChildRichParameterValues: childParameterValuesJSON,
+				ChildLogLevel:            string(createBuild.LogLevel),
+				ChildReason: database.NullBuildReason{
+					BuildReason: database.BuildReason(createBuild.Reason),
+					Valid:       createBuild.Reason != "",
+				},
+			})
+			if err != nil {
+				if dbauthz.IsNotAuthorizedError(err) {
+					return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+						Message: "Unauthorized to queue follow-up workspace build.",
+						Detail:  "You do not have permission to queue this follow-up workspace build.",
+					})
+				}
+				api.Logger.Error(ctx, "failed to queue follow-up workspace build",
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.Error(err),
+				)
+				return httperror.NewResponseError(
+					http.StatusInternalServerError,
+					codersdk.Response{
+						Message: "Internal error queueing follow-up workspace build",
+						Detail:  err.Error(),
+					},
+				)
+			}
+		}
+
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err
@@ -582,6 +656,43 @@ func (api *API) postWorkspaceBuildsInternal(
 	})
 
 	return apiBuild, nil
+}
+
+// validateCreateWorkspaceBuildOnSuccess enforces the subset of build options
+// that currently has well-defined stop-then-start semantics.
+func validateCreateWorkspaceBuildOnSuccess(createBuild codersdk.CreateWorkspaceBuildRequest) error {
+	onSuccess := createBuild.OnSuccess
+	if onSuccess == nil {
+		return nil
+	}
+
+	if createBuild.Transition != codersdk.WorkspaceTransitionStop {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess is only permitted when stopping a workspace.",
+		})
+	}
+	if onSuccess.Transition != codersdk.WorkspaceTransitionStart {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess transition must be start.",
+		})
+	}
+	if createBuild.DryRun {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess cannot be set alongside DryRun.",
+		})
+	}
+	if createBuild.Orphan {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess cannot be set alongside Orphan.",
+		})
+	}
+	if len(createBuild.ProvisionerState) > 0 {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess cannot be set alongside ProvisionerState.",
+		})
+	}
+
+	return nil
 }
 
 func (api *API) notifyWorkspaceUpdated(
