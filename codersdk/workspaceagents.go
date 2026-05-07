@@ -134,6 +134,7 @@ const (
 	DisplayAppWebTerminal    DisplayApp = "web_terminal"
 	DisplayAppPortForward    DisplayApp = "port_forwarding_helper"
 	DisplayAppSSH            DisplayApp = "ssh_helper"
+	DisplayAppDesktop        DisplayApp = "desktop"
 )
 
 type WorkspaceAgent struct {
@@ -190,6 +191,7 @@ type DLPPolicy struct {
 	SSHAccess            bool   `json:"ssh_access"`
 	WebTerminalAccess    bool   `json:"web_terminal_access"`
 	PortForwardingAccess bool   `json:"port_forwarding_access"`
+	DesktopAccess        bool   `json:"desktop_access"`
 	// AllowedApplications lists the `coder_app` slugs the workspace user is
 	// permitted to access. Apps whose slugs are not in this list are blocked.
 	AllowedApplications []string `json:"allowed_applications"`

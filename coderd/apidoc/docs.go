@@ -16632,7 +16632,8 @@ const docTemplate = `{
                 "jetbrains",
                 "reconnecting_pty",
                 "workspace_app",
-                "port_forwarding"
+                "port_forwarding",
+                "desktop"
             ],
             "x-enum-varnames": [
                 "ConnectionTypeSSH",
@@ -16640,7 +16641,8 @@ const docTemplate = `{
                 "ConnectionTypeJetBrains",
                 "ConnectionTypeReconnectingPTY",
                 "ConnectionTypeWorkspaceApp",
-                "ConnectionTypePortForwarding"
+                "ConnectionTypePortForwarding",
+                "ConnectionTypeDesktop"
             ]
         },
         "codersdk.ConvertLoginRequest": {
@@ -17636,6 +17638,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "desktop_access": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -18006,14 +18011,16 @@ const docTemplate = `{
                 "vscode_insiders",
                 "web_terminal",
                 "port_forwarding_helper",
-                "ssh_helper"
+                "ssh_helper",
+                "desktop"
             ],
             "x-enum-varnames": [
                 "DisplayAppVSCodeDesktop",
                 "DisplayAppVSCodeInsiders",
                 "DisplayAppWebTerminal",
                 "DisplayAppPortForward",
-                "DisplayAppSSH"
+                "DisplayAppSSH",
+                "DisplayAppDesktop"
             ]
         },
         "codersdk.DynamicParametersRequest": {

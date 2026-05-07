@@ -17,7 +17,8 @@
             "vscode": true,
             "web_terminal": true,
             "ssh_helper": true,
-            "port_forwarding_helper": true
+            "port_forwarding_helper": true,
+            "desktop": true
           },
           "extra_envs": [
             {

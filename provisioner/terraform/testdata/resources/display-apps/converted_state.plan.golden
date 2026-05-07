@@ -14,7 +14,8 @@
           "connection_timeout_seconds": 120,
           "display_apps": {
             "vscode_insiders": true,
-            "web_terminal": true
+            "web_terminal": true,
+            "desktop": true
           },
           "resources_monitoring": {},
           "api_key_scope": "all"

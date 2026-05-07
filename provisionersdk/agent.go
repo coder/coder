@@ -62,5 +62,6 @@ func DefaultDisplayApps() *proto.DisplayApps {
 		WebTerminal:          true,
 		PortForwardingHelper: true,
 		SshHelper:            true,
+		Desktop:              true,
 	}
 }

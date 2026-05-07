@@ -504,6 +504,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
               "allowed_applications": [
                 "string"
               ],
+              "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
               "ssh_access": true,
@@ -759,6 +760,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
               "allowed_applications": [
                 "string"
               ],
+              "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
               "ssh_access": true,

@@ -334,7 +334,8 @@ CREATE TYPE connection_type AS ENUM (
     'jetbrains',
     'reconnecting_pty',
     'workspace_app',
-    'port_forwarding'
+    'port_forwarding',
+    'desktop'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -359,7 +360,8 @@ CREATE TYPE display_app AS ENUM (
     'vscode_insiders',
     'web_terminal',
     'ssh_helper',
-    'port_forwarding_helper'
+    'port_forwarding_helper',
+    'desktop'
 );
 
 CREATE TYPE group_source AS ENUM (
@@ -2634,7 +2636,8 @@ CREATE TABLE template_version_dlp_policies (
     port_forwarding_access boolean NOT NULL,
     allowed_applications text[],
     display_name text DEFAULT ''::text NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    desktop_access boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE template_version_parameters (

@@ -5357,6 +5357,7 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 				SshAccess:            true,
 				WebTerminalAccess:    false,
 				PortForwardingAccess: true,
+				DesktopAccess:        false,
 				AllowedApplications:  []string{"code-server", "vscode-desktop"},
 			},
 			{
@@ -5364,6 +5365,7 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 				SshAccess:            true,
 				WebTerminalAccess:    true,
 				PortForwardingAccess: true,
+				DesktopAccess:        true,
 				AllowedApplications:  nil,
 			},
 		}
@@ -5385,12 +5387,14 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 		require.True(t, strict.SshAccess)
 		require.False(t, strict.WebTerminalAccess)
 		require.True(t, strict.PortForwardingAccess)
+		require.False(t, strict.DesktopAccess)
 		require.Equal(t, []string{"code-server", "vscode-desktop"}, strict.AllowedApplications)
 
 		lax := byName["lax"]
 		require.True(t, lax.SshAccess)
 		require.True(t, lax.WebTerminalAccess)
 		require.True(t, lax.PortForwardingAccess)
+		require.True(t, lax.DesktopAccess)
 		require.Empty(t, lax.AllowedApplications)
 	})
 

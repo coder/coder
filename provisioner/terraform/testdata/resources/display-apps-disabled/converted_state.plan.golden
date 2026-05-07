@@ -12,7 +12,9 @@
             "Token": ""
           },
           "connection_timeout_seconds": 120,
-          "display_apps": {},
+          "display_apps": {
+            "desktop": true
+          },
           "resources_monitoring": {},
           "api_key_scope": "all"
         }

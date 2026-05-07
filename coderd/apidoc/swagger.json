@@ -15033,7 +15033,8 @@
 				"jetbrains",
 				"reconnecting_pty",
 				"workspace_app",
-				"port_forwarding"
+				"port_forwarding",
+				"desktop"
 			],
 			"x-enum-varnames": [
 				"ConnectionTypeSSH",
@@ -15041,7 +15042,8 @@
 				"ConnectionTypeJetBrains",
 				"ConnectionTypeReconnectingPTY",
 				"ConnectionTypeWorkspaceApp",
-				"ConnectionTypePortForwarding"
+				"ConnectionTypePortForwarding",
+				"ConnectionTypeDesktop"
 			]
 		},
 		"codersdk.ConvertLoginRequest": {
@@ -15988,6 +15990,9 @@
 						"type": "string"
 					}
 				},
+				"desktop_access": {
+					"type": "boolean"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -16355,14 +16360,16 @@
 				"vscode_insiders",
 				"web_terminal",
 				"port_forwarding_helper",
-				"ssh_helper"
+				"ssh_helper",
+				"desktop"
 			],
 			"x-enum-varnames": [
 				"DisplayAppVSCodeDesktop",
 				"DisplayAppVSCodeInsiders",
 				"DisplayAppWebTerminal",
 				"DisplayAppPortForward",
-				"DisplayAppSSH"
+				"DisplayAppSSH",
+				"DisplayAppDesktop"
 			]
 		},
 		"codersdk.DynamicParametersRequest": {

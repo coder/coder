@@ -27,6 +27,10 @@ const (
 	// AccessMethodTerminal is special since it's not a real app and only
 	// applies to the PTY endpoint on the API.
 	AccessMethodTerminal AccessMethod = "terminal"
+	// AccessMethodDesktop is special since it's not a real app and only
+	// applies to the noVNC desktop endpoint on the API. The auth shape
+	// matches AccessMethodTerminal: only an agent UUID is required.
+	AccessMethodDesktop AccessMethod = "desktop"
 )
 
 type IssueTokenRequest struct {
@@ -54,7 +58,7 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 	}
 
 	switch r.AppRequest.AccessMethod {
-	case AccessMethodPath, AccessMethodTerminal:
+	case AccessMethodPath, AccessMethodTerminal, AccessMethodDesktop:
 		u.Path = r.AppRequest.BasePath
 		if !strings.HasSuffix(u.Path, "/") {
 			u.Path += "/"
@@ -127,7 +131,7 @@ func (r Request) Normalize() Request {
 // parameters.
 func (r Request) Check() error {
 	switch r.AccessMethod {
-	case AccessMethodPath, AccessMethodSubdomain, AccessMethodTerminal:
+	case AccessMethodPath, AccessMethodSubdomain, AccessMethodTerminal, AccessMethodDesktop:
 	default:
 		return xerrors.Errorf("invalid access method: %q", r.AccessMethod)
 	}
@@ -139,9 +143,9 @@ func (r Request) Check() error {
 		return xerrors.New("dev error: appReq.Validate() called before appReq.Normalize()")
 	}
 
-	if r.AccessMethod == AccessMethodTerminal {
+	if r.AccessMethod == AccessMethodTerminal || r.AccessMethod == AccessMethodDesktop {
 		if r.UsernameOrID != "" || r.WorkspaceNameOrID != "" || r.AppSlugOrPort != "" {
-			return xerrors.New("dev error: cannot specify any fields other than r.AccessMethod, r.BasePath and r.AgentNameOrID for terminal access method")
+			return xerrors.New("dev error: cannot specify any fields other than r.AccessMethod, r.BasePath and r.AgentNameOrID for terminal or desktop access method")
 		}
 
 		if r.AgentNameOrID == "" {
@@ -216,9 +220,9 @@ type databaseRequest struct {
 // If any of the queries don't return any rows, the error will wrap
 // sql.ErrNoRows. All other errors should be considered internal server errors.
 func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseRequest, error) {
-	// If the AccessMethod is AccessMethodTerminal, then we need to get the
-	// agent first since that's the only info we have.
-	if r.AccessMethod == AccessMethodTerminal {
+	// If the AccessMethod is AccessMethodTerminal or AccessMethodDesktop, then
+	// we need to get the agent first since that's the only info we have.
+	if r.AccessMethod == AccessMethodTerminal || r.AccessMethod == AccessMethodDesktop {
 		return r.getDatabaseTerminal(ctx, db)
 	}
 
@@ -430,11 +434,11 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	}, nil
 }
 
-// getDatabaseTerminal is called by getDatabase for AccessMethodTerminal
-// requests.
+// getDatabaseTerminal is called by getDatabase for AccessMethodTerminal and
+// AccessMethodDesktop requests, both of which only carry an agent UUID.
 func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*databaseRequest, error) {
-	if r.AccessMethod != AccessMethodTerminal {
-		return nil, xerrors.Errorf("invalid access method %q for terminal request", r.AccessMethod)
+	if r.AccessMethod != AccessMethodTerminal && r.AccessMethod != AccessMethodDesktop {
+		return nil, xerrors.Errorf("invalid access method %q for terminal or desktop request", r.AccessMethod)
 	}
 
 	agentID, uuidErr := uuid.Parse(r.AgentNameOrID)

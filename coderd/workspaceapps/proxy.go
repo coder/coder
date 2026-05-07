@@ -232,6 +232,7 @@ func (s *Server) Attach(r chi.Router) {
 	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", servePathApps)
 
 	r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", s.workspaceAgentPTY)
+	r.Get("/api/v2/workspaceagents/{workspaceagent}/desktop", s.workspaceAgentDesktop)
 }
 
 // handleAPIKeySmuggling is called by the proxy path and subdomain handlers to
@@ -941,6 +942,116 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
+}
+
+// workspaceAgentDesktop opens a noVNC WebSocket against the agent's desktop
+// endpoint and proxies it back to the dashboard. Mirrors workspaceAgentPTY.
+//
+// @Summary Open VNC desktop to workspace agent
+// @ID open-vnc-desktop-to-workspace-agent
+// @Security CoderSessionToken
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 101
+// @Router /workspaceagents/{workspaceagent}/desktop [get]
+// @x-apidocgen {"skip": true}
+func (s *Server) workspaceAgentDesktop(rw http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	s.websocketWaitMutex.Lock()
+	s.websocketWaitGroup.Add(1)
+	s.websocketWaitMutex.Unlock()
+	defer s.websocketWaitGroup.Done()
+
+	appToken, ok := ResolveRequest(rw, r, ResolveRequestOptions{
+		Logger:              s.Logger,
+		Cookies:             s.cookies,
+		CookieCfg:           s.CookiesConfig,
+		SignedTokenProvider: s.SignedTokenProvider,
+		DashboardURL:        s.DashboardURL,
+		PathAppBaseURL:      s.AccessURL,
+		AppHostname:         s.Hostname,
+		AppRequest: Request{
+			AccessMethod:  AccessMethodDesktop,
+			BasePath:      r.URL.Path,
+			AgentNameOrID: chi.URLParam(r, "workspaceagent"),
+		},
+		AppPath:  "",
+		AppQuery: "",
+	})
+	if !ok {
+		return
+	}
+	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
+	log.Debug(ctx, "resolved desktop request")
+
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if dlp != nil && !dlp.DesktopAccess {
+		s.logDLPDenial(ctx, r, appToken, dlp,
+			database.ConnectionTypeDesktop,
+			fmt.Sprintf("DLP policy %q denied desktop_access", dlp.Name),
+			sql.NullString{},
+		)
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Desktop access is blocked by a data loss prevention policy.",
+			Detail:  fmt.Sprintf("DLP policy %q denies desktop access for this workspace agent.", dlp.Name),
+		})
+		return
+	}
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+		OriginPatterns: []string{
+			s.DashboardURL.Host,
+			s.AccessURL.Host,
+		},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// RFB framebuffer updates can be large; do not impose a read limit.
+	conn.SetReadLimit(-1)
+	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
+
+	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+
+	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
+	if err != nil {
+		log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
+		return
+	}
+	defer release()
+	log.Debug(ctx, "dialed workspace agent")
+
+	desktopConn, err := agentConn.ConnectDesktopVNC(ctx)
+	if err != nil {
+		log.Debug(ctx, "connect agent desktop", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("connect agent desktop: %s", err))
+		return
+	}
+	defer desktopConn.Close()
+	log.Debug(ctx, "obtained desktop connection")
+
+	report := newStatsReportFromSignedToken(*appToken)
+	s.collectStats(report)
+	defer func() {
+		report.SessionEndedAt = dbtime.Now()
+		s.collectStats(report)
+	}()
+
+	agentssh.Bicopy(ctx, wsNetConn, desktopConn)
+	log.Debug(ctx, "desktop Bicopy finished")
 }
 
 func (s *Server) collectStats(stats StatsReport) {

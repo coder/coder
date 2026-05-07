@@ -589,6 +589,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
     "allowed_applications": [
       "string"
     ],
+    "desktop_access": true,
     "name": "string",
     "port_forwarding_access": true,
     "ssh_access": true,

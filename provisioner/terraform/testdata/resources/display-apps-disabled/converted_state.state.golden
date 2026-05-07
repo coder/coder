@@ -13,7 +13,9 @@
             "Token": "bd20db5f-7645-411f-b253-033e494e6c89"
           },
           "connection_timeout_seconds": 120,
-          "display_apps": {},
+          "display_apps": {
+            "desktop": true
+          },
           "resources_monitoring": {},
           "api_key_scope": "all"
         }

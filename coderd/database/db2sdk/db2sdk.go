@@ -422,7 +422,7 @@ func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 	dapps := make([]codersdk.DisplayApp, 0, len(apps))
 	for _, app := range apps {
 		switch codersdk.DisplayApp(app) {
-		case codersdk.DisplayAppVSCodeDesktop, codersdk.DisplayAppVSCodeInsiders, codersdk.DisplayAppPortForward, codersdk.DisplayAppWebTerminal, codersdk.DisplayAppSSH:
+		case codersdk.DisplayAppVSCodeDesktop, codersdk.DisplayAppVSCodeInsiders, codersdk.DisplayAppPortForward, codersdk.DisplayAppWebTerminal, codersdk.DisplayAppSSH, codersdk.DisplayAppDesktop:
 			dapps = append(dapps, codersdk.DisplayApp(app))
 		}
 	}
@@ -506,6 +506,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 			SSHAccess:            dlpPolicy.SshAccess,
 			WebTerminalAccess:    dlpPolicy.WebTerminalAccess,
 			PortForwardingAccess: dlpPolicy.PortForwardingAccess,
+			DesktopAccess:        dlpPolicy.DesktopAccess,
 			AllowedApplications:  dlpPolicy.AllowedApplications,
 		}
 	}

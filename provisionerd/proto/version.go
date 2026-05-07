@@ -94,9 +94,13 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added new field `name` to `provisioner.DLPPolicy`.
 //   - Added new field `dlp_policies` to `provisioner.GraphComplete` and
 //     `CompletedJob.TemplateImport`.
+//
+// API v1.19:
+//   - Added `desktop` to `provisioner.DisplayApps`.
+//   - Added `desktop_access` to `provisioner.DLPPolicy`.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 18
+	CurrentMinor = 19
 )
 
 // CurrentVersion is the current provisionerd API version.

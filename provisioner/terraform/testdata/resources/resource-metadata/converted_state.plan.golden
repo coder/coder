@@ -26,7 +26,8 @@
             "vscode": true,
             "web_terminal": true,
             "ssh_helper": true,
-            "port_forwarding_helper": true
+            "port_forwarding_helper": true,
+            "desktop": true
           },
           "resources_monitoring": {},
           "api_key_scope": "all"

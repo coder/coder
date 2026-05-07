@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec "$(dirname "$0")/../build/coder_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m)" "$@"

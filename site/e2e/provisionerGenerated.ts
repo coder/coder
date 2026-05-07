@@ -283,6 +283,7 @@ export interface DisplayApps {
   webTerminal: boolean;
   sshHelper: boolean;
   portForwardingHelper: boolean;
+  desktop: boolean;
 }
 
 export interface Env {
@@ -414,6 +415,7 @@ export interface DLPPolicy {
   /** Slugs of `coder_app` resources the workspace user is permitted to access. */
   allowedApplications: string[];
   name: string;
+  desktopAccess: boolean;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
@@ -1102,6 +1104,9 @@ export const DisplayApps = {
     if (message.portForwardingHelper !== false) {
       writer.uint32(40).bool(message.portForwardingHelper);
     }
+    if (message.desktop !== false) {
+      writer.uint32(48).bool(message.desktop);
+    }
     return writer;
   },
 };
@@ -1386,6 +1391,9 @@ export const DLPPolicy = {
     }
     if (message.name !== "") {
       writer.uint32(50).string(message.name);
+    }
+    if (message.desktopAccess !== false) {
+      writer.uint32(56).bool(message.desktopAccess);
     }
     return writer;
   },

@@ -221,6 +221,7 @@ message DisplayApps {
   bool web_terminal = 3;
   bool ssh_helper = 4;
   bool port_forwarding_helper = 5;
+  bool desktop = 6;
 }
 
 message Env {
@@ -363,6 +364,7 @@ message DLPPolicy {
   // Slugs of `coder_app` resources the workspace user is permitted to access.
   repeated string allowed_applications = 5;
   string name = 6;
+  bool desktop_access = 7;
 }
 
 // Metadata is information about a workspace used in the execution of a build

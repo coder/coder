@@ -50,6 +50,7 @@ func TestConvertResources(t *testing.T) {
 		WebTerminal:          true,
 		PortForwardingHelper: true,
 		SshHelper:            true,
+		Desktop:              true,
 	}
 
 	// nolint:paralleltest
@@ -850,6 +851,7 @@ func TestConvertResources(t *testing.T) {
 					DisplayApps: &proto.DisplayApps{
 						VscodeInsiders: true,
 						WebTerminal:    true,
+						Desktop:        true,
 					},
 					ResourcesMonitoring: &proto.ResourcesMonitoring{},
 				}},
@@ -866,8 +868,10 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
-					DisplayApps:              &proto.DisplayApps{},
-					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+					// `desktop` defaults to true in the schema and the .tf
+					// fixture leaves it unset.
+					DisplayApps:         &proto.DisplayApps{Desktop: true},
+					ResourcesMonitoring: &proto.ResourcesMonitoring{},
 				}},
 			}},
 		},
@@ -1859,6 +1863,7 @@ func TestDLPPolicy(t *testing.T) {
 			"ssh_access":             false,
 			"web_terminal_access":    false,
 			"port_forwarding_access": false,
+			"desktop_access":         false,
 			"allowed_applications":   []interface{}{},
 		}
 		for k, v := range extra {
@@ -1904,6 +1909,7 @@ func TestDLPPolicy(t *testing.T) {
 				"ssh_access":             true,
 				"web_terminal_access":    false,
 				"port_forwarding_access": true,
+				"desktop_access":         true,
 				"allowed_applications":   []interface{}{"code-server", "vscode-desktop"},
 			}),
 		)
@@ -1916,6 +1922,7 @@ func TestDLPPolicy(t *testing.T) {
 		require.True(t, policy.SshAccess)
 		require.False(t, policy.WebTerminalAccess)
 		require.True(t, policy.PortForwardingAccess)
+		require.True(t, policy.DesktopAccess)
 		require.Equal(t, []string{"code-server", "vscode-desktop"}, policy.AllowedApplications)
 	})
 

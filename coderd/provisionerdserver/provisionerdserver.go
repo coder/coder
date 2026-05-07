@@ -2709,6 +2709,7 @@ func InsertTemplateVersionDLPPolicies(ctx context.Context, logger slog.Logger, d
 			SshAccess:            p.SshAccess,
 			WebTerminalAccess:    p.WebTerminalAccess,
 			PortForwardingAccess: p.PortForwardingAccess,
+			DesktopAccess:        p.DesktopAccess,
 			AllowedApplications:  p.AllowedApplications,
 			DisplayName:          "",
 			CreatedAt:            t,
@@ -3429,7 +3430,7 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 	if apps == nil {
 		return nil
 	}
-	dapps := make([]database.DisplayApp, 0, 5)
+	dapps := make([]database.DisplayApp, 0, 6)
 	if apps.Vscode {
 		dapps = append(dapps, database.DisplayAppVscode)
 	}
@@ -3444,6 +3445,9 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 	}
 	if apps.WebTerminal {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
+	}
+	if apps.Desktop {
+		dapps = append(dapps, database.DisplayAppDesktop)
 	}
 	return dapps
 }

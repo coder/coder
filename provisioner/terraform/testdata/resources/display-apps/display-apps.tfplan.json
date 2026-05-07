@@ -23,7 +23,8 @@
                 "ssh_helper": false,
                 "vscode": false,
                 "vscode_insiders": true,
-                "web_terminal": true
+                "web_terminal": true,
+                "desktop": true
               }
             ],
             "env": null,
@@ -85,7 +86,8 @@
               "ssh_helper": false,
               "vscode": false,
               "vscode_insiders": true,
-              "web_terminal": true
+              "web_terminal": true,
+              "desktop": true
             }
           ],
           "env": null,

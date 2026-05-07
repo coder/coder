@@ -4107,9 +4107,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `vscode`, `workspace_app` |
+| Value(s)                                                                                        |
+|-------------------------------------------------------------------------------------------------|
+| `desktop`, `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `vscode`, `workspace_app` |
 
 ## codersdk.ConvertLoginRequest
 
@@ -5201,6 +5201,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "allowed_applications": [
     "string"
   ],
+  "desktop_access": true,
   "name": "string",
   "port_forwarding_access": true,
   "ssh_access": true,
@@ -5213,6 +5214,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name                     | Type            | Required | Restrictions | Description                                                                                                                                    |
 |--------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allowed_applications`   | array of string | false    |              | Allowed applications lists the `coder_app` slugs the workspace user is permitted to access. Apps whose slugs are not in this list are blocked. |
+| `desktop_access`         | boolean         | false    |              |                                                                                                                                                |
 | `name`                   | string          | false    |              |                                                                                                                                                |
 | `port_forwarding_access` | boolean         | false    |              |                                                                                                                                                |
 | `ssh_access`             | boolean         | false    |              |                                                                                                                                                |
@@ -6514,9 +6516,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                            |
-|-------------------------------------------------------------------------------------|
-| `port_forwarding_helper`, `ssh_helper`, `vscode`, `vscode_insiders`, `web_terminal` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `desktop`, `port_forwarding_helper`, `ssh_helper`, `vscode`, `vscode_insiders`, `web_terminal` |
 
 ## codersdk.DynamicParametersRequest
 
@@ -9496,6 +9498,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               "allowed_applications": [
                 "string"
               ],
+              "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
               "ssh_access": true,
@@ -10859,6 +10862,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
               "allowed_applications": [
                 "string"
               ],
+              "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
               "ssh_access": true,
@@ -13951,6 +13955,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "allowed_applications": [
                 "string"
               ],
+              "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
               "ssh_access": true,
@@ -14245,6 +14250,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "allowed_applications": [
       "string"
     ],
+    "desktop_access": true,
     "name": "string",
     "port_forwarding_access": true,
     "ssh_access": true,
@@ -15215,6 +15221,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "allowed_applications": [
               "string"
             ],
+            "desktop_access": true,
             "name": "string",
             "port_forwarding_access": true,
             "ssh_access": true,
@@ -15694,6 +15701,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "allowed_applications": [
           "string"
         ],
+        "desktop_access": true,
         "name": "string",
         "port_forwarding_access": true,
         "ssh_access": true,
@@ -16053,6 +16061,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   "allowed_applications": [
                     "string"
                   ],
+                  "desktop_access": true,
                   "name": "string",
                   "port_forwarding_access": true,
                   "ssh_access": true,

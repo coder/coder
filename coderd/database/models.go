@@ -1634,6 +1634,7 @@ const (
 	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	ConnectionTypeDesktop         ConnectionType = "desktop"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -1678,7 +1679,8 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeJetbrains,
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding:
+		ConnectionTypePortForwarding,
+		ConnectionTypeDesktop:
 		return true
 	}
 	return false
@@ -1692,6 +1694,7 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
+		ConnectionTypeDesktop,
 	}
 }
 
@@ -1883,6 +1886,7 @@ const (
 	DisplayAppWebTerminal          DisplayApp = "web_terminal"
 	DisplayAppSSHHelper            DisplayApp = "ssh_helper"
 	DisplayAppPortForwardingHelper DisplayApp = "port_forwarding_helper"
+	DisplayAppDesktop              DisplayApp = "desktop"
 )
 
 func (e *DisplayApp) Scan(src interface{}) error {
@@ -1926,7 +1930,8 @@ func (e DisplayApp) Valid() bool {
 		DisplayAppVscodeInsiders,
 		DisplayAppWebTerminal,
 		DisplayAppSSHHelper,
-		DisplayAppPortForwardingHelper:
+		DisplayAppPortForwardingHelper,
+		DisplayAppDesktop:
 		return true
 	}
 	return false
@@ -1939,6 +1944,7 @@ func AllDisplayAppValues() []DisplayApp {
 		DisplayAppWebTerminal,
 		DisplayAppSSHHelper,
 		DisplayAppPortForwardingHelper,
+		DisplayAppDesktop,
 	}
 }
 
@@ -5471,6 +5477,7 @@ type TemplateVersionDlpPolicy struct {
 	AllowedApplications  []string  `db:"allowed_applications" json:"allowed_applications"`
 	DisplayName          string    `db:"display_name" json:"display_name"`
 	CreatedAt            time.Time `db:"created_at" json:"created_at"`
+	DesktopAccess        bool      `db:"desktop_access" json:"desktop_access"`
 }
 
 type TemplateVersionParameter struct {
