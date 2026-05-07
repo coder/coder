@@ -828,15 +828,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				template, err := appDetails.SDKClient.UpdateTemplateMeta(ctx, appDetails.Workspace.TemplateID, codersdk.UpdateTemplateMeta{
 					CORSBehavior: &b,
 				})
-				// The default cors_behavior on a freshly created template is
-				// "simple", so an UpdateTemplateMeta that re-asserts that value
-				// is now a true no-op and returns 304 Not Modified. Tolerate
-				// that and fetch the template to keep the rest of the
-				// assertion meaningful.
-				if err != nil {
-					require.ErrorContains(t, err, "not modified")
-					template, err = appDetails.SDKClient.Template(ctx, appDetails.Workspace.TemplateID)
-				}
 				require.NoError(t, err)
 				require.Equal(t, tc.behavior, template.CORSBehavior)
 
@@ -1831,15 +1822,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				template, err := appDetails.SDKClient.UpdateTemplateMeta(ctx, appDetails.Workspace.TemplateID, codersdk.UpdateTemplateMeta{
 					CORSBehavior: &b,
 				})
-				// The default cors_behavior on a freshly created template is
-				// "simple", so an UpdateTemplateMeta that re-asserts that value
-				// is now a true no-op and returns 304 Not Modified. Tolerate
-				// that and fetch the template to keep the rest of the
-				// assertion meaningful.
-				if err != nil {
-					require.ErrorContains(t, err, "not modified")
-					template, err = appDetails.SDKClient.Template(ctx, appDetails.Workspace.TemplateID)
-				}
 				require.NoError(t, err)
 				require.Equal(t, tc.behavior, template.CORSBehavior)
 

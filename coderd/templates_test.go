@@ -1332,14 +1332,16 @@ func TestPatchTemplateMeta(t *testing.T) {
 			AllowUserAutostop:   &template.AllowUserAutostop,
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "not modified")
+		require.NoError(t, err)
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Equal(t, template.ActivityBumpMillis, updated.ActivityBumpMillis)
+		assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
+		assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
@@ -1608,7 +1610,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// SDK).
 		req.UseClassicParameterFlow = nil
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "not modified")
+		require.NoError(t, err)
+
 		updated, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.True(t, updated.UseClassicParameterFlow, "expected true")
@@ -1645,7 +1648,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// SDK).
 		req.DisableModuleCache = nil
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "not modified")
+		require.NoError(t, err)
 		updated, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.True(t, updated.DisableModuleCache, "expected true")
@@ -1754,11 +1757,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				}()
 				ctx := testutil.Context(t, testutil.WaitLong)
 				_, err := client.UpdateTemplateMeta(ctx, reference.ID, tc.req)
-				if tc.expected.notModified {
-					require.ErrorContains(t, err, "not modified")
-				} else {
-					require.NoError(t, err)
-				}
+				require.NoError(t, err)
 				updated, err := client.Template(ctx, reference.ID)
 				require.NoError(t, err)
 				assert.Equal(t, tc.expected.displayName, updated.DisplayName)
@@ -1791,7 +1790,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// should change. The handler returns 304 Not Modified in this case,
 		// which the SDK surfaces as an error containing "not modified".
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{})
-		require.ErrorContains(t, err, "not modified")
+		require.NoError(t, err)
 
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)

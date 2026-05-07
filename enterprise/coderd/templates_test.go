@@ -192,9 +192,7 @@ func TestTemplates(t *testing.T) {
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
-		if err != nil {
-			require.ErrorContains(t, err, "not modified")
-		}
+		require.NoError(t, err)
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Equal(t, level, template.MaxPortShareLevel)
