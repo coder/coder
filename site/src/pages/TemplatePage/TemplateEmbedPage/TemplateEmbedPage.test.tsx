@@ -1,0 +1,301 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { act } from "react";
+import { API } from "#/api/api";
+import type { DynamicParametersResponse } from "#/api/typesGenerated";
+import { MockPreviewParameter, MockTemplate } from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { mockDynamicParameterWebSocket } from "#/testHelpers/websockets";
+import { TemplateLayout } from "../TemplateLayout";
+import TemplateEmbedPage from "./TemplateEmbedPage";
+
+// Renders TemplateEmbedPage inside the real TemplateLayout so that
+// useTemplateLayoutContext and useAuthenticated are both satisfied through
+// the normal provider tree + MSW handlers.
+function renderEmbedPage() {
+	return renderWithAuth(<TemplateLayout />, {
+		path: "/templates/:template",
+		route: `/templates/${MockTemplate.name}/embed`,
+		children: [{ path: "embed", element: <TemplateEmbedPage /> }],
+	});
+}
+
+function getSearchParams(url: string): URLSearchParams {
+	const startOf = url.indexOf("?");
+	if (startOf < 0) {
+		return new URLSearchParams();
+	}
+	return new URLSearchParams(url.slice(startOf));
+}
+
+const paramRegion = {
+	...MockPreviewParameter,
+	name: "region",
+	display_name: "Region",
+	form_type: "input" as const,
+	value: { value: "us-east-1", valid: true },
+	default_value: { value: "us-east-1", valid: true },
+	order: 0,
+};
+const paramCpu = {
+	...MockPreviewParameter,
+	name: "cpu",
+	display_name: "CPU",
+	form_type: "input" as const,
+	value: { value: "4", valid: true },
+	default_value: { value: "4", valid: true },
+	order: 1,
+};
+
+describe("TemplateEmbedPage", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
+	it("populates parameters", async () => {
+		mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [paramRegion, paramCpu],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
+		});
+
+		const cpuInput = screen.getByDisplayValue("4");
+		expect(cpuInput).toBeInTheDocument();
+	});
+
+	it("includes mode and param.* params in the test link and markdown", async () => {
+		const param = {
+			...MockPreviewParameter,
+			name: "flavor",
+			display_name: "Flavor",
+			form_type: "input" as const,
+			value: { value: "vanilla", valid: true },
+			default_value: { value: "vanilla", valid: true },
+			order: 0,
+		};
+
+		mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [param],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		// Wait for the parameter to be rendered
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("vanilla")).toBeInTheDocument();
+		});
+
+		// The "Test" link is an <a> element; it always uses mode=manual for testing.
+		const testLink = screen.getByRole("link", { name: "Test" });
+		const href = testLink.getAttribute("href") ?? "";
+
+		const searchParams = getSearchParams(href);
+		expect(searchParams.get("mode")).toBe("manual");
+		expect(searchParams.get("param.flavor")).toBe("vanilla");
+
+		// Intercept the clipboard write to capture the markdown content.
+		let copiedText = "";
+		const writeTextMock = vi.fn().mockImplementation(async (text: string) => {
+			copiedText = text;
+		});
+		Object.assign(navigator, {
+			clipboard: { writeText: writeTextMock },
+		});
+
+		const copyButton = screen.getByRole("button", {
+			name: /copy button markdown/i,
+		});
+		await userEvent.click(copyButton);
+
+		await waitFor(() => {
+			expect(writeTextMock).toHaveBeenCalled();
+		});
+
+		expect(copiedText).toContain("open-in-coder.svg");
+		expect(copiedText).toContain(
+			`/templates/${MockTemplate.organization_name}/${MockTemplate.name}/workspace`,
+		);
+		expect(copiedText).toContain("mode=manual");
+		expect(copiedText).toContain("param.flavor=vanilla");
+	});
+
+	it("changes mode to auto when selected", async () => {
+		mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [paramRegion],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
+		});
+
+		// The Test link always forces mode=manual regardless of form state,
+		// but the Copy button Markdown uses the selected mode.
+		const autoRadio = screen.getByLabelText(/automatic/i);
+		await userEvent.click(autoRadio);
+
+		// Verify the copy content includes mode=auto
+		let copiedText = "";
+		const writeTextMock = vi.fn().mockImplementation(async (text: string) => {
+			copiedText = text;
+		});
+		Object.assign(navigator, {
+			clipboard: { writeText: writeTextMock },
+		});
+
+		const copyButton = screen.getByRole("button", {
+			name: /copy button markdown/i,
+		});
+		await userEvent.click(copyButton);
+
+		await waitFor(() => {
+			expect(writeTextMock).toHaveBeenCalled();
+		});
+
+		expect(copiedText).toContain("mode=auto");
+		expect(copiedText).toContain("param.region=us-east-1");
+
+		// The Test link should still use mode=manual
+		const testLink = screen.getByRole("link", { name: "Test" });
+		const href = testLink.getAttribute("href") ?? "";
+		const searchParams = getSearchParams(href);
+		expect(searchParams.get("mode")).toBe("manual");
+	});
+
+	it("sends updated values when a parameter changes", async () => {
+		const [mockWebSocket] = mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [paramRegion],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
+		});
+
+		const input = screen.getByDisplayValue("us-east-1");
+		await userEvent.clear(input);
+		await userEvent.type(input, "us-east-4");
+
+		await waitFor(() => {
+			expect(mockWebSocket.send).toHaveBeenCalledWith(
+				expect.stringContaining('"region":"us-east-4"'),
+			);
+		});
+	});
+
+	it("updates form state when server responds", async () => {
+		const [, mockPublisher] = mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [paramRegion],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
+		});
+
+		const updatedResponse: DynamicParametersResponse = {
+			id: 1,
+			parameters: [
+				{
+					...paramRegion,
+					value: { value: "us-east-4", valid: true },
+				},
+			],
+			diagnostics: [],
+		};
+
+		await act(async () => {
+			// Push an updated parameter value
+			mockPublisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify(updatedResponse),
+				}),
+			);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("us-east-4")).toBeInTheDocument();
+		});
+
+		// Verify the Test link reflects the updated value
+		const testLink = screen.getByRole("link", { name: "Test" });
+		const href = testLink.getAttribute("href") ?? "";
+		expect(href).toContain("param.region=us-east-4");
+	});
+
+	it("displays error alert", async () => {
+		const [, mockPublisher] = mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		// Wait for the page to be ready
+		await waitFor(() => {
+			expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+		});
+
+		await act(async () => {
+			mockPublisher.publishError(new Event("error"));
+		});
+
+		await waitFor(() => {
+			expect(screen.getByRole("alert")).toBeInTheDocument();
+		});
+	});
+
+	it("shows loading state", async () => {
+		// Stay in a loading state
+		vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+			(_versionId, _ownerId, _callbacks) => {
+				// Return a fake WebSocket that's perpetually "connecting"
+				return {
+					readyState: WebSocket.CONNECTING,
+					close: vi.fn(),
+					addEventListener: vi.fn(),
+					removeEventListener: vi.fn(),
+					send: vi.fn(),
+				} as unknown as WebSocket;
+			},
+		);
+
+		renderEmbedPage();
+
+		// The page should show the "Creation mode" section header regardless of loading
+		await waitFor(() => {
+			expect(screen.getByText("Creation mode")).toBeInTheDocument();
+		});
+
+		// Skeleton is present
+		expect(screen.queryByRole("progressbar")).toBeInTheDocument();
+
+		// Should NOT show the "Test" link while loading
+		expect(
+			screen.queryByRole("link", { name: "Test" }),
+		).not.toBeInTheDocument();
+	});
+});

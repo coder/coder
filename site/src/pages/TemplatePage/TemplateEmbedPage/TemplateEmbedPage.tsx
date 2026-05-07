@@ -282,7 +282,7 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 
 const ParametersSkeleton: React.FC = () => {
 	return (
-		<div className="flex flex-col gap-9">
+		<div role="progressbar" className="flex flex-col gap-9">
 			<div className="flex flex-col gap-2">
 				<Skeleton className="h-5 w-1/3" />
 				<Skeleton className="h-9 w-full" />
