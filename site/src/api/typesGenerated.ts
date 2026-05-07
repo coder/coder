@@ -3568,6 +3568,8 @@ export interface DangerousConfig {
 	readonly allow_path_app_sharing: boolean;
 	readonly allow_path_app_site_owner_access: boolean;
 	readonly allow_all_cors: boolean;
+	readonly allow_external_auth_header: boolean;
+	readonly external_auth_header_trusted_origins?: string;
 }
 
 // From codersdk/database.go

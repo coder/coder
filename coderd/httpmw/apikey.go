@@ -47,6 +47,11 @@ type ValidateAPIKeyConfig struct {
 	// from the request. Nil uses the default (cookie/header).
 	SessionTokenFunc func(*http.Request) string
 	Logger           slog.Logger
+
+	// ExternalAuthHeader configures trust of the Coder-Authorization
+	// header used by external authentication gateways. Defaults to
+	// disabled. See ExternalAuthHeaderConfig for the threat model.
+	ExternalAuthHeader ExternalAuthHeaderConfig
 }
 
 // ValidateAPIKeyResult is the outcome of successful validation.
@@ -169,6 +174,11 @@ type ExtractAPIKeyConfig struct {
 
 	// Logger is used for logging middleware operations.
 	Logger slog.Logger
+
+	// ExternalAuthHeader configures trust of the Coder-Authorization
+	// header used by external authentication gateways. Defaults to
+	// disabled. See ExternalAuthHeaderConfig for the threat model.
+	ExternalAuthHeader ExternalAuthHeaderConfig
 }
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
@@ -248,6 +258,16 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 //
 // Returns (result, nil) on success or (nil, error) on failure.
 func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
+	// External authentication gateways assert user identity via the
+	// Coder-Authorization header. When trusted, that assertion
+	// short-circuits all token-based validation: no secret hash check,
+	// no OAuth refresh, no DB updates. The synthesized APIKey lives
+	// only in this request's context. See ExternalAuthHeaderConfig
+	// for the threat model.
+	if result, valErr, ok := validateExternalAuthHeader(ctx, cfg.ExternalAuthHeader, cfg.DB, cfg.Logger, r); ok {
+		return result, valErr
+	}
+
 	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.SessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr
@@ -640,6 +660,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			DisableSessionExpiryRefresh: cfg.DisableSessionExpiryRefresh,
 			SessionTokenFunc:            cfg.SessionTokenFunc,
 			Logger:                      cfg.Logger,
+			ExternalAuthHeader:          cfg.ExternalAuthHeader,
 		}, r)
 		if valErr != nil {
 			if valErr.Hard {

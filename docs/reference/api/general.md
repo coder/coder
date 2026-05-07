@@ -239,8 +239,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "dangerous": {
       "allow_all_cors": true,
+      "allow_external_auth_header": true,
       "allow_path_app_sharing": true,
-      "allow_path_app_site_owner_access": true
+      "allow_path_app_site_owner_access": true,
+      "external_auth_header_trusted_origins": [
+        "string"
+      ]
     },
     "derp": {
       "config": {

@@ -889,6 +889,26 @@ Allow workspace apps that are not served from subdomains to be shared. Path-base
 
 Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
 
+### --dangerous-allow-external-auth-header
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>bool</code>                                        |
+| Environment | <code>$CODER_DANGEROUS_ALLOW_EXTERNAL_AUTH_HEADER</code> |
+| YAML        | <code>dangerous.allowExternalAuthHeader</code>           |
+
+Trust the Coder-Authorization header for user identity assertions when the request originates from a CIDR listed in --dangerous-external-auth-header-trusted-origins. This is intended for deployments that sit behind an authenticating reverse proxy (e.g. an Envoy authn plugin). MISCONFIGURING THIS IS A FULL-IMPERSONATION FOOTGUN. The header has the form 'Coder-Authorization: Basic Username=alice' or 'Coder-Authorization: Basic UserEmail=alice@example.com'. See the docs for the full threat model.
+
+### --dangerous-external-auth-header-trusted-origins
+
+|             |                                                                    |
+|-------------|--------------------------------------------------------------------|
+| Type        | <code>string-array</code>                                          |
+| Environment | <code>$CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_TRUSTED_ORIGINS</code> |
+| YAML        | <code>dangerous.externalAuthHeaderTrustedOrigins</code>            |
+
+CIDR networks whose source addresses may assert user identity via the Coder-Authorization header. Required for --dangerous-allow-external-auth-header to have any effect; an empty list silently disables the feature. Bind Coder to localhost or use mTLS at the proxy boundary; never list a network containing untrusted clients.
+
 ### --experiments
 
 |             |                                 |

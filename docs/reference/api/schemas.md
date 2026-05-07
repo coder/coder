@@ -5126,18 +5126,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "allow_all_cors": true,
+  "allow_external_auth_header": true,
   "allow_path_app_sharing": true,
-  "allow_path_app_site_owner_access": true
+  "allow_path_app_site_owner_access": true,
+  "external_auth_header_trusted_origins": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name                               | Type    | Required | Restrictions | Description |
-|------------------------------------|---------|----------|--------------|-------------|
-| `allow_all_cors`                   | boolean | false    |              |             |
-| `allow_path_app_sharing`           | boolean | false    |              |             |
-| `allow_path_app_site_owner_access` | boolean | false    |              |             |
+| Name                                   | Type            | Required | Restrictions | Description |
+|----------------------------------------|-----------------|----------|--------------|-------------|
+| `allow_all_cors`                       | boolean         | false    |              |             |
+| `allow_external_auth_header`           | boolean         | false    |              |             |
+| `allow_path_app_sharing`               | boolean         | false    |              |             |
+| `allow_path_app_site_owner_access`     | boolean         | false    |              |             |
+| `external_auth_header_trusted_origins` | array of string | false    |              |             |
 
 ## codersdk.DeleteExternalAuthByIDResponse
 
@@ -5302,8 +5308,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "dangerous": {
       "allow_all_cors": true,
+      "allow_external_auth_header": true,
       "allow_path_app_sharing": true,
-      "allow_path_app_site_owner_access": true
+      "allow_path_app_site_owner_access": true,
+      "external_auth_header_trusted_origins": [
+        "string"
+      ]
     },
     "derp": {
       "config": {
@@ -5893,8 +5903,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "dangerous": {
     "allow_all_cors": true,
+    "allow_external_auth_header": true,
     "allow_path_app_sharing": true,
-    "allow_path_app_site_owner_access": true
+    "allow_path_app_site_owner_access": true,
+    "external_auth_header_trusted_origins": [
+      "string"
+    ]
   },
   "derp": {
     "config": {

@@ -638,6 +638,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			externalAuthHeaderConfig, err := httpmw.ParseExternalAuthHeaderConfig(
+				vals.Dangerous.AllowExternalAuthHeader.Value(),
+				vals.Dangerous.ExternalAuthHeaderTrustedOrigins.Value(),
+			)
+			if err != nil {
+				return xerrors.Errorf("parse external auth header config: %w", err)
+			}
+			if externalAuthHeaderConfig.Enabled && len(externalAuthHeaderConfig.TrustedOrigins) == 0 {
+				cliui.Warnf(inv.Stderr,
+					"%s is set but no trusted origins are configured; the %s header will be ignored.\n",
+					pretty.Sprint(cliui.DefaultStyles.Field, "--dangerous-allow-external-auth-header"),
+					httpmw.ExternalAuthHeaderName,
+				)
+			}
+
 			configSSHOptions, err := vals.SSHConfig.ParseOptions()
 			if err != nil {
 				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
@@ -664,6 +679,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         nil,
 				RealIPConfig:                realIPConfig,
+				ExternalAuthHeaderConfig:    externalAuthHeaderConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),

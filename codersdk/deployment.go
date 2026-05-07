@@ -1026,9 +1026,11 @@ type LoggingConfig struct {
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing         serpent.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
-	AllowPathAppSiteOwnerAccess serpent.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
-	AllowAllCors                serpent.Bool `json:"allow_all_cors" typescript:",notnull"`
+	AllowPathAppSharing              serpent.Bool        `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess      serpent.Bool        `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowAllCors                     serpent.Bool        `json:"allow_all_cors" typescript:",notnull"`
+	AllowExternalAuthHeader          serpent.Bool        `json:"allow_external_auth_header" typescript:",notnull"`
+	ExternalAuthHeaderTrustedOrigins serpent.StringArray `json:"external_auth_header_trusted_origins,omitempty" typescript:",notnull"`
 }
 
 type UserQuietHoursScheduleConfig struct {
@@ -2748,6 +2750,26 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Env:         "CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS",
 
 			Value: &c.Dangerous.AllowPathAppSiteOwnerAccess,
+			Group: &deploymentGroupDangerous,
+		},
+		{
+			Name:        "DANGEROUS: Allow External Authentication Header",
+			Description: "Trust the Coder-Authorization header for user identity assertions when the request originates from a CIDR listed in --dangerous-external-auth-header-trusted-origins. This is intended for deployments that sit behind an authenticating reverse proxy (e.g. an Envoy authn plugin). MISCONFIGURING THIS IS A FULL-IMPERSONATION FOOTGUN. The header has the form 'Coder-Authorization: Basic Username=alice' or 'Coder-Authorization: Basic UserEmail=alice@example.com'. See the docs for the full threat model.",
+			Flag:        "dangerous-allow-external-auth-header",
+			Env:         "CODER_DANGEROUS_ALLOW_EXTERNAL_AUTH_HEADER",
+			YAML:        "allowExternalAuthHeader",
+
+			Value: &c.Dangerous.AllowExternalAuthHeader,
+			Group: &deploymentGroupDangerous,
+		},
+		{
+			Name:        "DANGEROUS: External Authentication Header Trusted Origins",
+			Description: "CIDR networks whose source addresses may assert user identity via the Coder-Authorization header. Required for --dangerous-allow-external-auth-header to have any effect; an empty list silently disables the feature. Bind Coder to localhost or use mTLS at the proxy boundary; never list a network containing untrusted clients.",
+			Flag:        "dangerous-external-auth-header-trusted-origins",
+			Env:         "CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_TRUSTED_ORIGINS",
+			YAML:        "externalAuthHeaderTrustedOrigins",
+
+			Value: &c.Dangerous.ExternalAuthHeaderTrustedOrigins,
 			Group: &deploymentGroupDangerous,
 		},
 		// Misc. settings

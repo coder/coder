@@ -956,6 +956,11 @@
 							"description": "Encrypt the database to prevent unauthorized access",
 							"path": "./admin/security/database-encryption.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "External Authentication Header",
+							"description": "Trust an upstream authentication gateway via the Coder-Authorization header",
+							"path": "./admin/security/external-auth-header.md"
 						}
 					]
 				},

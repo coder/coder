@@ -869,6 +869,16 @@ Configure how workspace prebuilds behave.
           How often to reconcile workspace prebuilds state.
 
 ⚠️ DANGEROUS OPTIONS: 
+      --dangerous-allow-external-auth-header bool, $CODER_DANGEROUS_ALLOW_EXTERNAL_AUTH_HEADER
+          Trust the Coder-Authorization header for user identity assertions when
+          the request originates from a CIDR listed in
+          --dangerous-external-auth-header-trusted-origins. This is intended for
+          deployments that sit behind an authenticating reverse proxy (e.g. an
+          Envoy authn plugin). MISCONFIGURING THIS IS A FULL-IMPERSONATION
+          FOOTGUN. The header has the form 'Coder-Authorization: Basic
+          Username=alice' or 'Coder-Authorization: Basic
+          UserEmail=alice@example.com'. See the docs for the full threat model.
+
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
           Allow workspace apps that are not served from subdomains to be shared.
           Path-based app sharing is DISABLED by default for security purposes.
@@ -884,6 +894,14 @@ Configure how workspace prebuilds behave.
           risk when the workspace serves malicious JavaScript. Path-based apps
           can be disabled entirely with --disable-path-apps for further
           security.
+
+      --dangerous-external-auth-header-trusted-origins string-array, $CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_TRUSTED_ORIGINS
+          CIDR networks whose source addresses may assert user identity via the
+          Coder-Authorization header. Required for
+          --dangerous-allow-external-auth-header to have any effect; an empty
+          list silently disables the feature. Bind Coder to localhost or use
+          mTLS at the proxy boundary; never list a network containing untrusted
+          clients.
 
 ENTERPRISE OPTIONS: 
 These options are only available in the Enterprise Edition.

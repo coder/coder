@@ -459,6 +459,23 @@ provisioning:
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
+dangerous:
+  # Trust the Coder-Authorization header for user identity assertions when the
+  # request originates from a CIDR listed in
+  # --dangerous-external-auth-header-trusted-origins. This is intended for
+  # deployments that sit behind an authenticating reverse proxy (e.g. an Envoy authn
+  # plugin). MISCONFIGURING THIS IS A FULL-IMPERSONATION FOOTGUN. The header has the
+  # form 'Coder-Authorization: Basic Username=alice' or 'Coder-Authorization: Basic
+  # UserEmail=alice@example.com'. See the docs for the full threat model.
+  # (default: <unset>, type: bool)
+  allowExternalAuthHeader: false
+  # CIDR networks whose source addresses may assert user identity via the
+  # Coder-Authorization header. Required for --dangerous-allow-external-auth-header
+  # to have any effect; an empty list silently disables the feature. Bind Coder to
+  # localhost or use mTLS at the proxy boundary; never list a network containing
+  # untrusted clients.
+  # (default: <unset>, type: string-array)
+  externalAuthHeaderTrustedOrigins: []
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

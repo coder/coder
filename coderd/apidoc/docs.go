@@ -17528,11 +17528,20 @@ const docTemplate = `{
                 "allow_all_cors": {
                     "type": "boolean"
                 },
+                "allow_external_auth_header": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },
                 "allow_path_app_site_owner_access": {
                     "type": "boolean"
+                },
+                "external_auth_header_trusted_origins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

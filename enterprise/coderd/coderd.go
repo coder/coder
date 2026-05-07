@@ -270,6 +270,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		Optional:                      false,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
+		ExternalAuthHeader:            options.ExternalAuthHeaderConfig,
 	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -279,6 +280,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		Optional:                      true,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
+		ExternalAuthHeader:            options.ExternalAuthHeaderConfig,
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
