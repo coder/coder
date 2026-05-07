@@ -50,11 +50,22 @@ type AWSBedrock struct {
 	BaseURL string
 }
 
+// OpenAI carries configuration for an OpenAI provider.
+//
+// Authentication is mutually exclusive across these two fields,
+// set per interception in the provider's CreateInterceptor:
+//   - KeyPool: centralized requests with automatic key failover.
+//   - Key: BYOK with Authorization Bearer (single attempt, no
+//     failover).
+//
+// TODO(ssncferreira): consolidate the authentication fields per
+// https://github.com/coder/aibridge/issues/266.
 type OpenAI struct {
 	// Name is the provider instance name. If empty, defaults to "openai".
 	Name             string
 	BaseURL          string
 	Key              string
+	KeyPool          *keypool.Pool
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool

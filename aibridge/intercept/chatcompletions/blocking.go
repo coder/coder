@@ -223,6 +223,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			return xerrors.Errorf("upstream connection closed: %w", err)
 		}
 
+		// The failover loop may return a keypool exhaustion
+		// error. Check before the SDK-error path.
+		if keyErr := processKeyPoolError(err); keyErr != nil {
+			i.writeUpstreamError(w, keyErr)
+			return xerrors.Errorf("key pool exhausted: %w", err)
+		}
+
 		if apiErr := getErrorResponse(err); apiErr != nil {
 			i.writeUpstreamError(w, apiErr)
 			return xerrors.Errorf("openai API error: %w", err)
@@ -258,9 +265,54 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (_ *openai.ChatCompletion, outErr error) {
-	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
+// newChatCompletion routes between BYOK (single attempt) and
+// centralized failover.
+func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, error) {
+	// BYOK: single attempt, no failover.
+	if i.cfg.KeyPool == nil {
+		return i.newChatCompletionWithKey(ctx, svc, opts)
+	}
+	return i.newChatCompletionWithKeyFailover(ctx, svc, opts)
+}
+
+// newChatCompletionWithKey performs a single upstream call.
+func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (_ *openai.ChatCompletion, outErr error) {
+	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer tracing.EndSpanErr(span, &outErr)
 
 	return svc.New(ctx, i.req.ChatCompletionNewParams, opts...)
+}
+
+// newChatCompletionWithKeyFailover walks the centralized key
+// pool, trying each key until one succeeds or the pool is
+// exhausted. Keys are marked temporary on 429 and permanent on
+// 401/403. Errors that aren't key-specific don't trigger
+// failover and are returned to the caller.
+func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, error) {
+	// TODO(ssncferreira): update the interception's credential
+	// hint with the actually-used key (the successful key on
+	// success, the last tried key on failure) in the upstack PR.
+	walker := i.cfg.KeyPool.Walker()
+	for {
+		key, err := walker.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		requestOpts := append([]option.RequestOption{}, opts...)
+		requestOpts = append(requestOpts,
+			option.WithAPIKey(key.Value()),
+			// Disable SDK retries because the failover loop
+			// handles retries via key rotation.
+			option.WithMaxRetries(0),
+		)
+		completion, err := i.newChatCompletionWithKey(ctx, svc, requestOpts)
+		// Key-specific failure: try the next key.
+		if i.markKeyOnError(ctx, key, err) {
+			continue
+		}
+		// Either success (completion, nil) or a non-key error
+		// (nil, err): nothing to retry, return as-is.
+		return completion, err
+	}
 }

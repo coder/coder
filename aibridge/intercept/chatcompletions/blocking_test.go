@@ -1,22 +1,22 @@
 package chatcompletions //nolint:testpackage // tests unexported internals
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
+	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -26,109 +26,37 @@ import (
 	"github.com/coder/quartz"
 )
 
-// Test that when the upstream provider returns an error before streaming starts,
-// the error status code and body are correctly relayed to the client.
-func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
-	t.Parallel()
+// OpenAI-shaped response bodies.
+const (
+	successBody      = `{"id":"chatcmpl-01","object":"chat.completion","created":1234567890,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`
+	toolUseBody      = `{"id":"chatcmpl-01","object":"chat.completion","created":1234567890,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_01","type":"function","function":{"name":"test_tool","arguments":"{}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`
+	textCompleteBody = `{"id":"chatcmpl-02","object":"chat.completion","created":1234567890,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":15,"completion_tokens":3,"total_tokens":18}}`
+	rateLimitBody    = `{"error":{"message":"Rate limit exceeded","type":"rate_limit_error","code":"rate_limit_exceeded"}}`
+	authErrorBody    = `{"error":{"message":"Invalid API key","type":"invalid_request_error","code":"invalid_api_key"}}`
+	serverErrorBody  = `{"error":{"message":"Internal server error","type":"server_error","code":"internal_error"}}`
+)
 
-	tests := []struct {
-		name           string
-		statusCode     int
-		responseBody   string
-		expectedErrStr string
-		expectedBody   string
-	}{
-		{
-			name:           "bad request error",
-			statusCode:     http.StatusBadRequest,
-			responseBody:   `{"error":{"message":"Invalid request","type":"invalid_request_error","code":"invalid_request"}}`,
-			expectedErrStr: "Invalid request",
-			expectedBody:   "invalid_request",
+type upstreamResponse struct {
+	statusCode int
+	body       string
+	headers    map[string]string
+}
+
+// newRequestParams builds a minimal chat-completions request
+// for tests.
+func newRequestParams(stream bool) *ChatCompletionNewParamsWrapper {
+	return &ChatCompletionNewParamsWrapper{
+		ChatCompletionNewParams: openai.ChatCompletionNewParams{
+			Model: "gpt-4",
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				openai.UserMessage("hi"),
+			},
 		},
-		{
-			name:           "rate limit error",
-			statusCode:     http.StatusTooManyRequests,
-			responseBody:   `{"error":{"message":"Rate limit exceeded","type":"rate_limit_error","code":"rate_limit_exceeded"}}`,
-			expectedErrStr: "Rate limit exceeded",
-			expectedBody:   "rate_limit",
-		},
-		{
-			name:           "internal server error",
-			statusCode:     http.StatusInternalServerError,
-			responseBody:   `{"error":{"message":"Internal server error","type":"server_error","code":"internal_error"}}`,
-			expectedErrStr: "Internal server error",
-			expectedBody:   "server_error",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Setup a mock server that returns an error immediately (before any streaming)
-			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("x-should-retry", "false")
-				w.WriteHeader(tc.statusCode)
-				_, _ = w.Write([]byte(tc.responseBody))
-			}))
-			t.Cleanup(mockServer.Close)
-
-			// Create interceptor with mock server URL
-			cfg := config.OpenAI{
-				BaseURL: mockServer.URL,
-				Key:     "test-key",
-			}
-
-			req := &ChatCompletionNewParamsWrapper{
-				ChatCompletionNewParams: openai.ChatCompletionNewParams{
-					Model: "gpt-4",
-					Messages: []openai.ChatCompletionMessageParamUnion{
-						openai.UserMessage("hello"),
-					},
-				},
-				Stream: true,
-			}
-
-			// Create test request
-			w := httptest.NewRecorder()
-			httpReq := httptest.NewRequest(http.MethodPost, "/chat/completions", nil)
-
-			tracer := otel.Tracer("test")
-			interceptor := NewStreamingInterceptor(uuid.New(), req, config.ProviderOpenAI, cfg, httpReq.Header, "Authorization", tracer, intercept.CredentialInfo{})
-
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
-
-			// Process the request
-			err := interceptor.ProcessRequest(w, httpReq)
-
-			// Verify error was returned
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.expectedErrStr)
-
-			// Verify status code was written to response
-			assert.Equal(t, tc.statusCode, w.Code, "expected status code to be relayed to client")
-
-			// Verify error body contains expected error info
-			body := w.Body.String()
-			assert.Contains(t, body, tc.expectedBody, "expected error type in response body")
-		})
+		Stream: stream,
 	}
 }
 
-// OpenAI-shaped SSE body for a successful streaming response.
-const streamingSuccessBody = `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
-
-data: [DONE]
-
-`
-
-func TestStreamingInterception_KeyFailover(t *testing.T) {
+func TestBlockingInterception_KeyFailover(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -146,24 +74,19 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 		expectedKeyStates []keypool.KeyState
 	}{
 		{
-			// Given: 1 valid key returning a successful stream.
+			// Given: 1 valid key returning 200.
 			// Then: 1 request, 200 response, key remains valid.
 			name: "single_valid_key",
 			keys: []string{"k0"},
 			responses: map[string]upstreamResponse{
-				"k0": {
-					statusCode: http.StatusOK,
-					headers:    map[string]string{"Content-Type": "text/event-stream"},
-					body:       streamingSuccessBody,
-				},
+				"k0": {statusCode: http.StatusOK, body: successBody},
 			},
 			expectedRequestCount: 1,
 			expectedStatusCode:   http.StatusOK,
 			expectedKeyStates:    []keypool.KeyState{keypool.KeyStateValid},
 		},
 		{
-			// Given: 2 keys; key-0 returns 429 pre-stream, key-1
-			// streams successfully.
+			// Given: 2 keys; key-0 returns 429, key-1 returns 200.
 			// Then: 2 requests, 200 response, key-0 temporary, key-1 valid.
 			name: "failover_after_429",
 			keys: []string{"k0", "k1"},
@@ -173,11 +96,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 					headers:    map[string]string{"Retry-After": "5"},
 					body:       rateLimitBody,
 				},
-				"k1": {
-					statusCode: http.StatusOK,
-					headers:    map[string]string{"Content-Type": "text/event-stream"},
-					body:       streamingSuccessBody,
-				},
+				"k1": {statusCode: http.StatusOK, body: successBody},
 			},
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusOK,
@@ -187,18 +106,13 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			},
 		},
 		{
-			// Given: 2 keys; key-0 returns 401 pre-stream, key-1
-			// streams successfully.
+			// Given: 2 keys; key-0 returns 401, key-1 returns 200.
 			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
 			name: "failover_after_401",
 			keys: []string{"k0", "k1"},
 			responses: map[string]upstreamResponse{
 				"k0": {statusCode: http.StatusUnauthorized, body: authErrorBody},
-				"k1": {
-					statusCode: http.StatusOK,
-					headers:    map[string]string{"Content-Type": "text/event-stream"},
-					body:       streamingSuccessBody,
-				},
+				"k1": {statusCode: http.StatusOK, body: successBody},
 			},
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusOK,
@@ -208,17 +122,13 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			},
 		},
 		{
-			// Given: 2 keys; key-0 returns 403 pre-stream, key-1 streams.
+			// Given: 2 keys; key-0 returns 403, key-1 returns 200.
 			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
 			name: "failover_after_403",
 			keys: []string{"k0", "k1"},
 			responses: map[string]upstreamResponse{
 				"k0": {statusCode: http.StatusForbidden, body: authErrorBody},
-				"k1": {
-					statusCode: http.StatusOK,
-					headers:    map[string]string{"Content-Type": "text/event-stream"},
-					body:       streamingSuccessBody,
-				},
+				"k1": {statusCode: http.StatusOK, body: successBody},
 			},
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusOK,
@@ -228,10 +138,9 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			},
 		},
 		{
-			// Given: 3 keys; all return 429 pre-stream with
-			// cooldowns 5s, 3s, 10s.
-			// Then: 3 requests, 429 response with smallest
-			// Retry-After, all keys temporary.
+			// Given: 3 keys; all return 429 with cooldowns 5s, 3s, 10s.
+			// Then: 3 requests, 429 response with smallest Retry-After,
+			// all keys temporary.
 			name: "all_keys_rate_limited",
 			keys: []string{"k0", "k1", "k2"},
 			responses: map[string]upstreamResponse{
@@ -261,7 +170,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			},
 		},
 		{
-			// Given: 2 keys; both return 401 pre-stream.
+			// Given: 2 keys; both return 401.
 			// Then: 2 requests, 502 api_error response, both keys permanent.
 			name: "all_keys_unauthorized",
 			keys: []string{"k0", "k1"},
@@ -277,7 +186,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			},
 		},
 		{
-			// Given: 2 keys; key-0 returns 500 pre-stream.
+			// Given: 2 keys; key-0 returns 500.
 			// Then: 1 request, 500 response, both keys remain valid.
 			name: "server_error_no_failover",
 			keys: []string{"k0", "k1"},
@@ -332,6 +241,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				if !ok {
 					resp = upstreamResponse{statusCode: http.StatusInternalServerError}
 				}
+				w.Header().Set("Content-Type", "application/json")
 				for hk, hv := range resp.headers {
 					w.Header().Set(hk, hv)
 				}
@@ -351,14 +261,14 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				cfg.Key = tc.byokKey
 			}
 
-			interceptor := NewStreamingInterceptor(
+			interceptor := NewBlockingInterceptor(
 				uuid.New(),
-				newRequestParams(true),
+				newRequestParams(false),
 				config.ProviderOpenAI,
 				cfg,
 				http.Header{},
 				"Authorization",
-				otel.Tracer("streaming_test"),
+				otel.Tracer("blocking_test"),
 				intercept.NewCredentialInfo(intercept.CredentialKindCentralized, ""),
 			)
 			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
@@ -382,41 +292,13 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 	}
 }
 
-// SSE bodies covering an agentic-continuation flow.
-const (
-	// First response: a tool_calls delta referencing the
-	// injected "test_tool". Triggers the agentic continuation
-	// loop.
-	toolUseStreamBody = `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_01","type":"function","function":{"name":"test_tool","arguments":""}}]},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{}"}}]},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
-
-data: [DONE]
-
-`
-
-	// Second response (after the tool result is sent back):
-	// a plain text completion that ends the loop.
-	textStreamBody = `data: {"id":"chatcmpl-02","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"done"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-02","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":15,"completion_tokens":3,"total_tokens":18}}
-
-data: [DONE]
-
-`
-)
-
-// TestStreamingInterception_AgenticLoopFailover covers the
+// TestBlockingInterception_AgenticLoopFailover covers the
 // scenarios that span an agentic-loop continuation: the initial
 // client request and the subsequent tool-call continuation can
 // each fail over independently. Each iteration gets its own
 // walker.
-func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
+func TestBlockingInterception_AgenticLoopFailover(t *testing.T) {
 	t.Parallel()
-
-	sseHeaders := map[string]string{"Content-Type": "text/event-stream"}
 
 	tests := []struct {
 		name string
@@ -425,29 +307,20 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 		responses            []upstreamResponse
 		expectedRequestCount int32
 		expectedSeenKeys     []string
-		// Substring expected in the response body. Either a
-		// success marker (e.g. "done") or an error marker
-		// (e.g. "rate_limit_error").
-		expectedBodyContains string
-		// True when the error must be relayed as an SSE event.
-		expectErrorAsSSEEvent bool
-		// True when ProcessRequest is expected to return an
-		// error (e.g. all keys exhausted).
-		expectedErr       bool
-		expectedKeyStates []keypool.KeyState
+		expectedStatusCode   int
+		expectedKeyStates    []keypool.KeyState
 	}{
 		{
 			// Given: 2 keys; both upstream calls succeed on key-0.
-			// Then: 2 requests, success body, both keys remain valid.
+			// Then: 2 requests, 200 response, both keys remain valid.
 			name: "happy_path",
 			responses: []upstreamResponse{
-				{statusCode: http.StatusOK, headers: sseHeaders, body: toolUseStreamBody},
-				{statusCode: http.StatusOK, headers: sseHeaders, body: textStreamBody},
+				{statusCode: http.StatusOK, body: toolUseBody},
+				{statusCode: http.StatusOK, body: textCompleteBody},
 			},
-			expectedRequestCount:  2,
-			expectedSeenKeys:      []string{"k0", "k0"},
-			expectedBodyContains:  "done",
-			expectErrorAsSSEEvent: false,
+			expectedRequestCount: 2,
+			expectedSeenKeys:     []string{"k0", "k0"},
+			expectedStatusCode:   http.StatusOK,
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateValid,
 				keypool.KeyStateValid,
@@ -456,22 +329,21 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 		{
 			// Given: 2 keys; key-0 succeeds initially, then 429s
 			// during the agentic continuation, key-1 succeeds.
-			// Then: 3 requests, success body, key-0 temporary,
+			// Then: 3 requests, 200 response, key-0 temporary,
 			// key-1 valid.
 			name: "agentic_failover_to_k1",
 			responses: []upstreamResponse{
-				{statusCode: http.StatusOK, headers: sseHeaders, body: toolUseStreamBody},
+				{statusCode: http.StatusOK, body: toolUseBody},
 				{
 					statusCode: http.StatusTooManyRequests,
 					headers:    map[string]string{"Retry-After": "5"},
 					body:       rateLimitBody,
 				},
-				{statusCode: http.StatusOK, headers: sseHeaders, body: textStreamBody},
+				{statusCode: http.StatusOK, body: textCompleteBody},
 			},
-			expectedRequestCount:  3,
-			expectedSeenKeys:      []string{"k0", "k0", "k1"},
-			expectedBodyContains:  "done",
-			expectErrorAsSSEEvent: false,
+			expectedRequestCount: 3,
+			expectedSeenKeys:     []string{"k0", "k0", "k1"},
+			expectedStatusCode:   http.StatusOK,
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
@@ -480,11 +352,11 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 		{
 			// Given: 2 keys; key-0 succeeds initially, then both
 			// keys 429 during the agentic continuation.
-			// Then: 3 requests, error injected as SSE event, both
-			// keys temporary.
+			// Then: 3 requests, 429 response with smallest
+			// Retry-After, both keys temporary.
 			name: "agentic_all_keys_fail",
 			responses: []upstreamResponse{
-				{statusCode: http.StatusOK, headers: sseHeaders, body: toolUseStreamBody},
+				{statusCode: http.StatusOK, body: toolUseBody},
 				{
 					statusCode: http.StatusTooManyRequests,
 					headers:    map[string]string{"Retry-After": "5"},
@@ -496,11 +368,9 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 					body:       rateLimitBody,
 				},
 			},
-			expectedRequestCount:  3,
-			expectedSeenKeys:      []string{"k0", "k0", "k1"},
-			expectedBodyContains:  "all configured keys are rate-limited",
-			expectErrorAsSSEEvent: true,
-			expectedErr:           true,
+			expectedRequestCount: 3,
+			expectedSeenKeys:     []string{"k0", "k0", "k1"},
+			expectedStatusCode:   http.StatusTooManyRequests,
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateTemporary,
 				keypool.KeyStateTemporary,
@@ -530,6 +400,7 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 					return
 				}
 				resp := tc.responses[idx]
+				w.Header().Set("Content-Type", "application/json")
 				for hk, hv := range resp.headers {
 					w.Header().Set(hk, hv)
 				}
@@ -546,20 +417,19 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				KeyPool: pool,
 			}
 
-			interceptor := NewStreamingInterceptor(
+			interceptor := NewBlockingInterceptor(
 				uuid.New(),
-				newRequestParams(true),
+				newRequestParams(false),
 				config.ProviderOpenAI,
 				cfg,
 				http.Header{},
 				"Authorization",
-				otel.Tracer("streaming_test"),
+				otel.Tracer("blocking_test"),
 				intercept.NewCredentialInfo(intercept.CredentialKindCentralized, ""),
 			)
 
-			// Mock proxy with a tool the upstream's tool_calls
-			// chunks will reference. The stub caller returns a
-			// fixed text result.
+			// Mock proxy with a tool the upstream's tool_use
+			// response will reference.
 			proxy := &mockServerProxier{
 				tools: []*mcp.Tool{
 					{
@@ -576,21 +446,14 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 			w := httptest.NewRecorder()
 			err = interceptor.ProcessRequest(w, req)
-			if tc.expectedErr {
-				require.Error(t, err)
-			} else {
+			if tc.expectedStatusCode == http.StatusOK {
 				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
 			}
 
 			assert.Equal(t, tc.expectedRequestCount, requestCount.Load(), "upstream request count")
-			body := w.Body.String()
-			assert.Contains(t, body, tc.expectedBodyContains, "response body")
-			if tc.expectErrorAsSSEEvent {
-				// SSE was opened before the failure, so the body
-				// must start with stream chunks, not a direct
-				// HTTP error body.
-				assert.True(t, strings.HasPrefix(body, "data: "), "body must start with SSE chunks")
-			}
+			assert.Equal(t, tc.expectedStatusCode, w.Code, "response status code")
 
 			seenKeysMu.Lock()
 			defer seenKeysMu.Unlock()
@@ -598,4 +461,42 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			assert.Equal(t, tc.expectedKeyStates, pool.PoolState(), "key states")
 		})
 	}
+}
+
+// mockServerProxier is a test implementation of mcp.ServerProxier.
+type mockServerProxier struct {
+	tools []*mcp.Tool
+}
+
+func (*mockServerProxier) Init(context.Context) error {
+	return nil
+}
+
+func (*mockServerProxier) Shutdown(context.Context) error {
+	return nil
+}
+
+func (m *mockServerProxier) ListTools() []*mcp.Tool {
+	return m.tools
+}
+
+func (m *mockServerProxier) GetTool(id string) *mcp.Tool {
+	for _, t := range m.tools {
+		if t.ID == id {
+			return t
+		}
+	}
+	return nil
+}
+
+func (*mockServerProxier) CallTool(context.Context, string, any) (*mcplib.CallToolResult, error) {
+	return nil, nil //nolint:nilnil // mock: no-op implementation
+}
+
+// stubToolCaller is a minimal mcp.ToolCaller that returns a fixed
+// text result, so the agentic continuation can proceed.
+type stubToolCaller struct{}
+
+func (stubToolCaller) CallTool(_ context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+	return mcplib.NewToolResultText("tool result"), nil
 }
