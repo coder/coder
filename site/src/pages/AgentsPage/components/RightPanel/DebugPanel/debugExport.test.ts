@@ -78,6 +78,7 @@ describe("buildChatDebugExport", () => {
 		expect(payload.limited_to_most_recent).toBe(DEBUG_RUN_LIST_LIMIT);
 		expect(payload.runs).toEqual(runs);
 		expect(payload.runs[0].steps).toHaveLength(1);
+		expect(payload).not.toHaveProperty("failed_runs");
 	});
 
 	it("includes failed run metadata when some detail fetches fail", () => {

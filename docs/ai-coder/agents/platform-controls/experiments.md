@@ -134,7 +134,10 @@ from above:
 RUN_IDS=$(curl -fsS \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   "$CODER_URL/api/experimental/chats/$CHAT_ID/debug/runs" \
-  | jq -r '.[].id')
+  | jq -r '.[].id') || {
+  echo "Failed to list debug runs" >&2
+  exit 1
+}
 
 RUN_EXPORTS=$(mktemp)
 trap 'rm -f "$RUN_EXPORTS"' EXIT

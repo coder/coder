@@ -861,6 +861,42 @@ export const ExportAllRunsPartialFailure: Story = {
 	},
 };
 
+export const ExportAllRunsTotalFetchFailure: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: ExportAllRuns.parameters,
+	beforeEach: () => {
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockRejectedValue(new Error("run details unavailable"));
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const errorSpy = spyOn(toast, "error");
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() =>
+			expect(errorSpy).toHaveBeenCalledWith("Failed to export debug logs.", {
+				description: "No debug run details could be fetched.",
+			}),
+		);
+		expect(args.download).not.toHaveBeenCalled();
+		expect(
+			canvas.getByRole("button", { name: "Export debug logs" }),
+		).toBeEnabled();
+		errorSpy.mockRestore();
+	},
+};
+
 export const ExportAllRunsDownloadError: Story = {
 	args: {
 		download: fn(async () => {

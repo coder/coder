@@ -10,7 +10,7 @@ export interface ChatDebugRunFetchFailure {
 	readonly message: string;
 }
 
-interface ChatDebugRunExport {
+interface DebugRunExport {
 	readonly version: 1;
 	readonly scope: "run";
 	readonly exported_at: string;
@@ -31,7 +31,7 @@ interface DebugChatExport {
 	readonly runs: readonly ChatDebugRun[];
 }
 
-type ChatDebugExport = ChatDebugRunExport | DebugChatExport;
+type ChatDebugExport = DebugRunExport | DebugChatExport;
 
 export type DownloadDebugFile = (
 	blob: Blob,
@@ -42,7 +42,7 @@ export const buildRunDebugExport = (
 	chatId: string,
 	run: ChatDebugRun,
 	exportedAt = new Date(),
-): ChatDebugRunExport => ({
+): DebugRunExport => ({
 	version: 1,
 	scope: "run",
 	exported_at: exportedAt.toISOString(),
