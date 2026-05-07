@@ -66,7 +66,16 @@ const (
 	planPathLookupTimeout        = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
-	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	// workspaceMCPDiscoveryTimeout bounds the per-turn dial that
+	// asks the workspace agent for its MCP tools. It must be
+	// greater than agent/x/agentmcp.connectTimeout (30s as of
+	// this writing) plus a small buffer so a cold-start agent
+	// has time to finish its first MCP reload before chatd gives
+	// up. The two constants live in different packages, so this
+	// comment is the contract; do not import the agent constant
+	// at runtime. If agentmcp.connectTimeout changes, bump this
+	// value to match.
+	workspaceMCPDiscoveryTimeout = 35 * time.Second
 	turnSummaryWriteTimeout      = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.

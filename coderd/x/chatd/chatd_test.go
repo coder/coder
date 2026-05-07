@@ -11157,3 +11157,115 @@ func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
 		}
 	}
 }
+
+// TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent verifies that
+// chatd's per-turn workspace MCP discovery waits long enough for a
+// cold-start agent to finish its first MCP reload. The agent's
+// per-server connectTimeout (in agent/x/agentmcp) is 30s, so a
+// chatd timeout shorter than that can abandon a legitimate cold
+// reload and surface an empty tool list to the LLM. The mocked
+// ListMCPTools blocks for slowAgentMCPListDelay before returning a
+// non-empty list. The test passes only when
+// workspaceMCPDiscoveryTimeout exceeds slowAgentMCPListDelay.
+func TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent(t *testing.T) {
+	t.Parallel()
+
+	// slowAgentMCPListDelay must be greater than the old 5s
+	// workspaceMCPDiscoveryTimeout and less than the new bound.
+	// Any value in that band proves the constant bump.
+	const slowAgentMCPListDelay = 7 * time.Second
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		requestsMu.Unlock()
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	workspaceToolName := "workspace-slow-mcp__echo"
+	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
+		Tools: []workspacesdk.MCPToolInfo{{
+			ServerName:  "workspace-slow-mcp",
+			Name:        workspaceToolName,
+			Description: "Slow workspace echo tool",
+			Schema: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		}},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	// Block ListMCPTools to simulate a cold-start agent whose
+	// first MCP reload has not finished yet. Honor caller-side
+	// cancellation so the goroutine exits when chatd's per-turn
+	// context is canceled by the old 5s timeout.
+	mockConn.EXPECT().ListMCPTools(gomock.Any()).
+		DoAndReturn(func(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+			select {
+			case <-time.After(slowAgentMCPListDelay):
+				return workspaceToolsResp, nil
+			case <-ctx.Done():
+				return workspacesdk.ListMCPToolsResponse{}, ctx.Err()
+			}
+		}).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "workspace-mcp-slow-agent",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("List the workspace MCP tools."),
+		},
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat failed", "last_error=%q",
+			chatLastErrorMessage(chatResult.LastError))
+	}
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 1, "expected exactly one streamed model call")
+	require.Contains(t, recorded[0].Tools, workspaceToolName,
+		"workspace MCP tool should reach the LLM once chatd's discovery "+
+			"timeout exceeds the agent's MCP reload time")
+}
