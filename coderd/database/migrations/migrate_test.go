@@ -1185,3 +1185,169 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 		"trigger should only create org-member and org-service-account system roles",
 	)
 }
+
+func TestMigration000489BackfillWorkspaceAutoCreated(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 489
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before the one that adds
+	// workspace_auto_created.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID := uuid.New()
+	userID := uuid.New()
+	providerID := uuid.New()
+	modelConfigID := uuid.New()
+	templateJobID := uuid.New()
+	templateVersionID := uuid.New()
+	templateID := uuid.New()
+
+	// Workspace created AFTER its chat (auto-created).
+	wsAutoCreatedID := uuid.New()
+	chatAutoCreatedID := uuid.New()
+
+	// Workspace created BEFORE its chat (manually attached).
+	wsManualID := uuid.New()
+	chatManualID := uuid.New()
+
+	// Chat with no workspace.
+	chatNoWorkspaceID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		// Organization and user.
+		{
+			`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			[]any{orgID, "test-org", "Test", "Test", now, now},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userID, "testuser", "test@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		// Chat provider and model config (chats FK).
+		{
+			`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{providerID, "openai", "OpenAI", "", true, now, now},
+		},
+		{
+			`INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{modelConfigID, "openai", "gpt-4", "GPT 4", true, 100000, 70, now, now},
+		},
+		// Template chain: provisioner job -> version -> template.
+		{
+			`INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, file_id, type, input, tags)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+			[]any{templateJobID, now, now, now, now, "", orgID, userID, "terraform", "file", uuid.New(), "template_version_import", []byte("{}"), []byte("{}")},
+		},
+		{
+			`INSERT INTO template_versions (id, organization_id, name, readme, created_at, updated_at, job_id, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{templateVersionID, orgID, "v1", "", now, now, templateJobID, userID},
+		},
+		{
+			`INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{templateID, orgID, "test-template", now, now, "terraform", templateVersionID, userID},
+		},
+
+		// Case 1: workspace created AFTER the chat (auto-created).
+		// Chat at T, workspace at T+5s.
+		{
+			`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{chatAutoCreatedID, userID, orgID, modelConfigID, "auto-created", now, now},
+		},
+		{
+			`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{wsAutoCreatedID, now.Add(5 * time.Second), now, userID, orgID, templateID, "ws-auto"},
+		},
+		{
+			`UPDATE chats SET workspace_id = $1 WHERE id = $2`,
+			[]any{wsAutoCreatedID, chatAutoCreatedID},
+		},
+
+		// Case 2: workspace created BEFORE the chat (manually attached).
+		// Workspace at T-1h, chat at T.
+		{
+			`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{wsManualID, now.Add(-1 * time.Hour), now, userID, orgID, templateID, "ws-manual"},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, title, created_at, updated_at, workspace_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{chatManualID, userID, orgID, modelConfigID, "manual", now, now, wsManualID},
+		},
+
+		// Case 3: chat with no workspace.
+		{
+			`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{chatNoWorkspaceID, userID, orgID, modelConfigID, "no-workspace", now, now},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run the migration that adds and backfills workspace_auto_created.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Helper to query workspace_auto_created for a chat.
+	getAutoCreated := func(t *testing.T, chatID uuid.UUID) bool {
+		t.Helper()
+		var val bool
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT workspace_auto_created FROM chats WHERE id = $1", chatID,
+		).Scan(&val)
+		require.NoError(t, err)
+		return val
+	}
+
+	// Case 1: workspace created after chat should be marked as
+	// auto-created.
+	require.True(t, getAutoCreated(t, chatAutoCreatedID),
+		"workspace created after chat should be marked auto-created")
+
+	// Case 2: workspace created before chat should NOT be marked
+	// as auto-created.
+	require.False(t, getAutoCreated(t, chatManualID),
+		"workspace predating chat should not be marked auto-created")
+
+	// Case 3: chat without a workspace should default to false.
+	require.False(t, getAutoCreated(t, chatNoWorkspaceID),
+		"chat without workspace should default to false")
+}
