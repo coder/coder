@@ -3,18 +3,18 @@ package coderdtest_test
 import (
 	"crypto/tls"
 	"net/http"
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestNewIsolatedHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.NewIsolatedHTTPClient(mustParseURL(t, "http://example.com"))
+	client := coderdtest.NewIsolatedHTTPClient(testutil.MustURL(t, "http://example.com"))
 	require.NotNil(t, client.Transport)
 	require.NotSame(t, http.DefaultTransport, client.Transport)
 
@@ -26,7 +26,7 @@ func TestNewIsolatedHTTPClient(t *testing.T) {
 func TestNewIsolatedHTTPSClient(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.NewIsolatedHTTPClient(mustParseURL(t, "https://example.com"))
+	client := coderdtest.NewIsolatedHTTPClient(testutil.MustURL(t, "https://example.com"))
 	require.NotSame(t, http.DefaultTransport, client.Transport)
 
 	transport, ok := client.Transport.(*http.Transport)
@@ -62,12 +62,4 @@ func TestCreateAnotherUserHTTPClient(t *testing.T) {
 		return http.ErrUseLastResponse
 	}
 	require.Nil(t, other.HTTPClient.CheckRedirect)
-}
-
-func mustParseURL(t *testing.T, rawURL string) *url.URL {
-	t.Helper()
-
-	parsed, err := url.Parse(rawURL)
-	require.NoError(t, err)
-	return parsed
 }
