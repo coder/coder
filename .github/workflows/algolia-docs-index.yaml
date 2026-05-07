@@ -1,0 +1,116 @@
+name: Update Algolia docs index
+
+# Triggers a webhook on coder.com whenever this branch's docs/** content
+# changes. The handler at coder.com/api/algolia-docs-sync re-extracts
+# records from the rendered HTML and atomically replaces the slice of
+# the Algolia `docs` index scoped by (corpus, version).
+#
+# This workflow has zero Algolia dependencies. It signs a tiny JSON body
+# with HMAC-SHA-256 using a shared secret and POSTs it. All extraction,
+# rendering, and Algolia traffic happens on the coder.com side.
+#
+# See coder/coder.com/src/pages/api/algolia-docs-sync.ts.
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - "docs/**"
+      - ".github/workflows/algolia-docs-index.yaml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        default: index
+        options:
+          - index
+          - delete
+      ref:
+        description: "Branch to (re)index or delete (e.g. main, release/2.32). Defaults to the workflow's checkout ref."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: algolia-docs-index-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute action and ref
+        id: input
+        env:
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_REF: ${{ inputs.ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ACTION="${INPUT_ACTION:-index}"
+          REF="${INPUT_REF:-$GITHUB_REF_NAME}"
+          case "$REF" in
+            main|release/*) ;;
+            *)
+              echo "::error::Unsupported ref '$REF'. Only main and release/* are eligible."
+              exit 1
+              ;;
+          esac
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: POST to coder.com docs indexer
+        env:
+          ACTION: ${{ steps.input.outputs.action }}
+          REF: ${{ steps.input.outputs.ref }}
+          SECRET: ${{ secrets.ALGOLIA_DOCS_SYNC_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SECRET:-}" ]; then
+            echo "::error::ALGOLIA_DOCS_SYNC_SECRET is not configured."
+            exit 1
+          fi
+          BODY=$(jq -nc \
+            --arg action "$ACTION" \
+            --arg corpus "v2" \
+            --arg ref "$REF" \
+            '{action: $action, corpus: $corpus, ref: $ref}')
+          # Compute SHA-256 HMAC over the exact bytes we POST. The
+          # handler verifies with crypto.timingSafeEqual on the same
+          # raw body, so the prefix and hex casing must match.
+          SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')"
+          echo "Action: $ACTION  Ref: $REF"
+          # Use --fail-with-body so non-2xx responses surface in the
+          # workflow log without us having to grep stderr separately.
+          response=$(mktemp)
+          status=$(curl --fail-with-body -sS \
+            -o "$response" \
+            -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "X-Coder-Signature: $SIG" \
+            --data "$BODY" \
+            https://coder.com/api/algolia-docs-sync) || rc=$?
+          {
+            echo "## Algolia docs index sync"
+            echo
+            echo "- Action: \`$ACTION\`"
+            echo "- Ref: \`$REF\`"
+            echo "- HTTP status: \`${status:-n/a}\`"
+            echo
+            echo "### Response"
+            echo
+            echo '```json'
+            cat "$response"
+            echo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${rc:-}" ] && [ "${rc}" -ne 0 ]; then
+            exit "$rc"
+          fi
