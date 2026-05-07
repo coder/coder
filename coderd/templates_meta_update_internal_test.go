@@ -377,7 +377,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			name: "DisableEveryoneGroupAccessTrueWithMembership",
 			req:  codersdk.UpdateTemplateMeta{DisableEveryoneGroupAccess: ptr.Ref(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
-				r.disableEveryoneIntent = true
+				r.groupACL = database.TemplateACL{}
 			}},
 		},
 		{
@@ -389,7 +389,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			name: "UpdateWorkspaceLastUsedAtTrue",
 			req:  codersdk.UpdateTemplateMeta{UpdateWorkspaceLastUsedAt: ptr.Ref(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
-				r.updateWorkspaceLastUsedAt = true
+				r.updateWorkspaceLastUsedAtIntent = true
 			}},
 		},
 		{
@@ -401,7 +401,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			name: "UpdateWorkspaceDormantAtTrue",
 			req:  codersdk.UpdateTemplateMeta{UpdateWorkspaceDormantAt: ptr.Ref(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
-				r.updateWorkspaceDormantAt = true
+				r.updateWorkspaceDormantAtIntent = true
 			}},
 		},
 	}
@@ -435,28 +435,6 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-// TestResolveTemplateMetaUpdate_DisableEveryoneIntentNoMembership covers the
-// case where the request asks to disable everyone-group access but the group
-// is not currently part of the template's GroupACL. The intent flag should
-// remain false so the no-op short-circuit in the handler can correctly
-// return early.
-func TestResolveTemplateMetaUpdate_DisableEveryoneIntentNoMembership(t *testing.T) {
-	t.Parallel()
-
-	tpl := baselineTemplate()
-	tpl.GroupACL = database.TemplateACL{} // no everyone-group entry
-	schedOpts := baselineScheduleOpts()
-	req := codersdk.UpdateTemplateMeta{DisableEveryoneGroupAccess: ptr.Ref(true)}
-
-	got, validErrs := resolveTemplateMetaUpdate(tpl, schedOpts, req)
-	if len(validErrs) != 0 {
-		t.Fatalf("unexpected validation errors: %+v", validErrs)
-	}
-	if got.disableEveryoneIntent {
-		t.Fatalf("disableEveryoneIntent must be false when the everyone group is not in the GroupACL")
 	}
 }
 

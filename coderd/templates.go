@@ -738,6 +738,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, hasEveryoneGroup := template.GroupACL[template.OrganizationID.String()]
+
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if resolved.name == template.Name &&
@@ -761,16 +763,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			resolved.disableModuleCache == template.DisableModuleCache &&
 			maxPortShareLevel == template.MaxPortSharingLevel &&
 			resolved.corsBehavior == template.CorsBehavior &&
-			!resolved.disableEveryoneIntent {
+			(req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess && hasEveryoneGroup) {
 			return nil
-		}
-
-		groupACL := template.GroupACL
-		// DisableEveryoneGroupAccess is a one-shot intent: when set to
-		// true the everyone-group ACL entry is removed. Omitting the
-		// field (nil) or passing false leaves the ACL unchanged.
-		if resolved.disableEveryoneIntent {
-			delete(groupACL, template.OrganizationID.String())
 		}
 
 		if template.MaxPortSharingLevel != maxPortShareLevel {
@@ -797,7 +791,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Description:                  resolved.description,
 			Icon:                         resolved.icon,
 			AllowUserCancelWorkspaceJobs: resolved.allowUserCancelWorkspaceJobs,
-			GroupACL:                     groupACL,
+			GroupACL:                     resolved.groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      resolved.classicTemplateFlow,
 			CorsBehavior:                 resolved.corsBehavior,
@@ -828,10 +822,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		inactivityTTL := time.Duration(resolved.timeTilDormantMillis) * time.Millisecond
 		timeTilDormantAutoDelete := time.Duration(resolved.timeTilDormantAutoDeleteMillis) * time.Millisecond
 
-		// updateWorkspaceLastUsedAt is a one-shot intent: only run the
+		// updateWorkspaceLastUsedAtIntent is a one-shot intent: only run the
 		// side effect when the field was explicitly set to true.
 		var updateWorkspaceLastUsedAt workspacestats.UpdateTemplateWorkspacesLastUsedAtFunc
-		if resolved.updateWorkspaceLastUsedAt {
+		if resolved.updateWorkspaceLastUsedAtIntent {
 			updateWorkspaceLastUsedAt = workspacestats.UpdateTemplateWorkspacesLastUsedAt
 		}
 
@@ -864,7 +858,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				TimeTilDormant:            inactivityTTL,
 				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
 				UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
-				UpdateWorkspaceDormantAt:  resolved.updateWorkspaceDormantAt,
+				UpdateWorkspaceDormantAt:  resolved.updateWorkspaceDormantAtIntent,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)

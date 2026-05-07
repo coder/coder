@@ -36,15 +36,14 @@ type templateMetaUpdate struct {
 	autostopRequirementDaysOfWeekParsed  uint8
 	autostartRequirementDaysOfWeekParsed uint8
 	autostopRequirementWeeks             int64
-	// disableEveryoneIntent is true only when the request explicitly asks
-	// to disable the everyone-group access AND that group is currently
-	// part of the template's GroupACL. It is used as a one-shot intent.
-	disableEveryoneIntent bool
-	// updateWorkspaceLastUsedAt and updateWorkspaceDormantAt are one-shot
+	groupACL                             database.TemplateACL
+
+	// Intents are side effects that cannot be returned by the
+	// updateWorkspaceLastUsedAtIntent and updateWorkspaceDormantAtIntent are one-shot
 	// intents that trigger side effects only when the request explicitly
 	// sets the field to true. nil and false are no-ops.
-	updateWorkspaceLastUsedAt bool
-	updateWorkspaceDormantAt  bool
+	updateWorkspaceLastUsedAtIntent bool
+	updateWorkspaceDormantAtIntent  bool
 }
 
 // resolveTemplateMetaUpdate produces a templateMetaUpdate populated with
@@ -70,19 +69,27 @@ func resolveTemplateMetaUpdate(
 		displayName:                    ptr.NilToDefault(req.DisplayName, template.DisplayName),
 		description:                    ptr.NilToDefault(req.Description, template.Description),
 		icon:                           ptr.NilToDefault(req.Icon, template.Icon),
-		allowUserAutostart:             ptr.NilToDefault(req.AllowUserAutostart, template.AllowUserAutostart),
-		allowUserAutostop:              ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop),
-		allowUserCancelWorkspaceJobs:   ptr.NilToDefault(req.AllowUserCancelWorkspaceJobs, template.AllowUserCancelWorkspaceJobs),
-		requireActiveVersion:           ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion),
 		defaultTTLMillis:               ptr.NilToDefault(req.DefaultTTLMillis, time.Duration(template.DefaultTTL).Milliseconds()),
 		activityBumpMillis:             ptr.NilToDefault(req.ActivityBumpMillis, time.Duration(template.ActivityBump).Milliseconds()),
 		failureTTLMillis:               ptr.NilToDefault(req.FailureTTLMillis, time.Duration(template.FailureTTL).Milliseconds()),
 		timeTilDormantMillis:           ptr.NilToDefault(req.TimeTilDormantMillis, time.Duration(template.TimeTilDormant).Milliseconds()),
 		timeTilDormantAutoDeleteMillis: ptr.NilToDefault(req.TimeTilDormantAutoDeleteMillis, time.Duration(template.TimeTilDormantAutoDelete).Milliseconds()),
+		allowUserAutostart:             ptr.NilToDefault(req.AllowUserAutostart, template.AllowUserAutostart),
+		allowUserAutostop:              ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop),
+		allowUserCancelWorkspaceJobs:   ptr.NilToDefault(req.AllowUserCancelWorkspaceJobs, template.AllowUserCancelWorkspaceJobs),
+		requireActiveVersion:           ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion),
 		deprecationMessage:             ptr.NilToDefault(req.DeprecationMessage, template.Deprecated),
 		classicTemplateFlow:            ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),
 		disableModuleCache:             ptr.NilToDefault(req.DisableModuleCache, template.DisableModuleCache),
-		corsBehavior:                   template.CorsBehavior,
+		groupACL:                       template.GroupACL,
+
+		// Default to the original values
+		corsBehavior:                         template.CorsBehavior,
+		autostopRequirementDaysOfWeekParsed:  scheduleOpts.AutostopRequirement.DaysOfWeek,
+		autostopRequirementWeeks:             scheduleOpts.AutostopRequirement.Weeks,
+		autostartRequirementDaysOfWeekParsed: scheduleOpts.AutostartRequirement.DaysOfWeek,
+		updateWorkspaceLastUsedAtIntent:      false,
+		updateWorkspaceDormantAtIntent:       false,
 	}
 
 	// Users should not be able to clear the template name. This is the only field
@@ -91,39 +98,23 @@ func resolveTemplateMetaUpdate(
 		out.name = template.Name
 	}
 
-	// Resolve autostop requirement (defaults to the schedule store).
-	autostopReq := req.AutostopRequirement
-	if autostopReq == nil {
-		autostopReq = &codersdk.TemplateAutostopRequirement{
-			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostopRequirement.DaysOfWeek),
-			Weeks:      scheduleOpts.AutostopRequirement.Weeks,
-		}
-	}
-	if len(autostopReq.DaysOfWeek) > 0 {
-		bitmap, err := codersdk.WeekdaysToBitmap(autostopReq.DaysOfWeek)
+	// Override autostop if provided is non-nil
+	if req.AutostopRequirement != nil {
+		bitmap, err := codersdk.WeekdaysToBitmap(req.AutostopRequirement.DaysOfWeek)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{
 				Field:  "autostop_requirement.days_of_week",
 				Detail: err.Error(),
 			})
 		} else {
-			out.autostopRequirementDaysOfWeekParsed = bitmap
+			out.autostartRequirementDaysOfWeekParsed = bitmap
+			out.autostopRequirementWeeks = req.AutostopRequirement.Weeks
 		}
-	}
-	out.autostopRequirementWeeks = autostopReq.Weeks
-	if out.autostopRequirementWeeks == 0 {
-		out.autostopRequirementWeeks = 1
 	}
 
-	// Resolve autostart requirement (defaults to the schedule store).
-	autostartReq := req.AutostartRequirement
-	if autostartReq == nil {
-		autostartReq = &codersdk.TemplateAutostartRequirement{
-			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostartRequirement.DaysOfWeek),
-		}
-	}
-	if len(autostartReq.DaysOfWeek) > 0 {
-		bitmap, err := codersdk.WeekdaysToBitmap(autostartReq.DaysOfWeek)
+	// Override autostart if provided is non-nil
+	if req.AutostartRequirement != nil {
+		bitmap, err := codersdk.WeekdaysToBitmap(req.AutostartRequirement.DaysOfWeek)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{
 				Field:  "autostart_requirement.days_of_week",
@@ -151,24 +142,20 @@ func resolveTemplateMetaUpdate(
 		}
 	}
 
-	// disableEveryoneIntent is true only when the caller explicitly asks
-	// for it AND the everyone group is currently in the template's
-	// GroupACL. We compute this here so the no-op short-circuit in the
-	// caller can correctly detect that an otherwise-empty request still
-	// has an effect.
 	if req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess {
-		if _, ok := template.GroupACL[template.OrganizationID.String()]; ok {
-			out.disableEveryoneIntent = true
-		}
+		// Remove the "everyone" group from the template. If this is set to false, the
+		// user needs to explicitly add the "everyone" group back to the ACL via the
+		// group ACL endpoints, so we don't treat false as a no-op.
+		delete(out.groupACL, template.OrganizationID.String())
 	}
 
 	// One-shot intent flags. nil and false are both no-ops; true is a
 	// trigger to run the side effect.
 	if req.UpdateWorkspaceLastUsedAt != nil && *req.UpdateWorkspaceLastUsedAt {
-		out.updateWorkspaceLastUsedAt = true
+		out.updateWorkspaceLastUsedAtIntent = true
 	}
 	if req.UpdateWorkspaceDormantAt != nil && *req.UpdateWorkspaceDormantAt {
-		out.updateWorkspaceDormantAt = true
+		out.updateWorkspaceDormantAtIntent = true
 	}
 
 	return out, validErrs
