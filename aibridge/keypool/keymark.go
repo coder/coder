@@ -30,7 +30,7 @@ func MarkKeyOnStatus(
 			cooldown = defaultCooldown
 		}
 		if key.MarkTemporary(cooldown) {
-			logger.Warn(ctx, "key marked temporary",
+			logger.Info(ctx, "key marked temporary",
 				slog.F("provider", providerName),
 				slog.F("api_key_hint", utils.MaskSecret(key.Value())),
 				slog.F("status", statusCode),
@@ -39,7 +39,7 @@ func MarkKeyOnStatus(
 		return true
 	case http.StatusUnauthorized, http.StatusForbidden:
 		if key.MarkPermanent() {
-			logger.Error(ctx, "key marked permanent",
+			logger.Warn(ctx, "key marked permanent",
 				slog.F("provider", providerName),
 				slog.F("api_key_hint", utils.MaskSecret(key.Value())),
 				slog.F("status", statusCode))
