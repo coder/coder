@@ -1,5 +1,3 @@
-// Package agentchat provides helpers for propagating chat identity
-// through agent HTTP requests and logs.
 package agentchat
 
 import (
