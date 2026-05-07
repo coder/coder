@@ -9,6 +9,7 @@
 //     /api/v2/workspaceagents/.../coordinate (ssh_access=false).
 //   - Dashboard web terminal: 403 (web_terminal_access=false).
 //   - Dashboard Ports tab: 403 (port_forwarding_access=false).
+//   - Dashboard Desktop button: 403 (desktop_access=false).
 //   - "helloworld" coder_app: 403 (slug not in allowed_applications).
 //
 // The "code-server" coder_app continues to load because its slug is in
@@ -48,6 +49,7 @@ resource "coder_dlp_policy" "policy" {
   ssh_access             = false
   web_terminal_access    = false
   port_forwarding_access = false
+  desktop_access         = false
   allowed_applications   = ["code-server"]
 }
 
@@ -67,16 +69,27 @@ resource "coder_agent" "main" {
   EOT
 
   # Hide the VS Code Desktop, SSH, and port-forwarding helper buttons since
-  # they are not gated by coder_dlp_policy. Keep web_terminal visible so the
-  # dashboard's PTY button is reachable; the dlp_policy.web_terminal_access
-  # gate enforces the actual access decision when the user clicks it.
+  # they are not gated by coder_dlp_policy. Keep web_terminal and desktop
+  # visible so the dashboard's PTY and noVNC buttons are reachable; the
+  # corresponding dlp_policy gates enforce the actual access decisions when
+  # the user clicks them.
   display_apps {
     vscode                 = false
     vscode_insiders        = false
     web_terminal           = true
     ssh_helper             = false
     port_forwarding_helper = false
+    desktop                = true
   }
+}
+
+// portabledesktop: installs the noVNC server the dashboard's Desktop button
+// connects to. Lets a user click the gated button and observe the 403 from
+// the desktop_access denial.
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.main.id
 }
 
 resource "coder_app" "code-server" {

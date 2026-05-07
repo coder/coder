@@ -36,11 +36,13 @@ data "coder_workspace_owner" "me" {}
 
 // Strict policy. Every gate denied; the only permitted coder_app slug is the
 // one the kasmvnc module creates ("kasm-vnc"). Anything else, including the
-// dashboard web terminal, the Ports tab, and CLI peering, is blocked.
+// dashboard web terminal, the Ports tab, the noVNC Desktop button, and CLI
+// peering, is blocked.
 resource "coder_dlp_policy" "policy" {
   ssh_access             = false
   web_terminal_access    = false
   port_forwarding_access = false
+  desktop_access         = false
   allowed_applications   = ["kasm-vnc"]
 }
 
@@ -55,16 +57,28 @@ resource "coder_agent" "main" {
   # to do at startup.
 
   # Hide the VS Code Desktop, SSH, and port-forwarding helper buttons since
-  # they are not gated by coder_dlp_policy. Keep web_terminal visible so the
-  # dashboard's PTY button is reachable; the dlp_policy.web_terminal_access
-  # gate enforces the actual access decision when the user clicks it.
+  # they are not gated by coder_dlp_policy. Keep web_terminal and desktop
+  # visible so the dashboard's PTY and noVNC buttons are reachable; the
+  # corresponding dlp_policy gates enforce the actual access decisions when
+  # the user clicks them. The Desktop button targets the portabledesktop
+  # module below, which is gated and not the kasmvnc app.
   display_apps {
     vscode                 = false
     vscode_insiders        = false
     web_terminal           = true
     ssh_helper             = false
     port_forwarding_helper = false
+    desktop                = true
   }
+}
+
+// portabledesktop: installs the noVNC server the dashboard's Desktop button
+// connects to. Pairs with desktop_access=false so the gated denial can be
+// observed alongside the working "kasm-vnc" app.
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.main.id
 }
 
 // KasmVNC registry module. Creates a single coder_app with slug "kasm-vnc"
@@ -88,10 +102,10 @@ resource "docker_volume" "home_volume" {
 }
 
 resource "docker_container" "workspace" {
-  count      = data.coder_workspace.me.start_count
-  image      = "codercom/enterprise-base:ubuntu"
-  name       = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  hostname   = data.coder_workspace.me.name
+  count    = data.coder_workspace.me.start_count
+  image    = "codercom/enterprise-base:ubuntu"
+  name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  hostname = data.coder_workspace.me.name
   # Pre-install everything the kasmvnc registry module's coder_script
   # depends on, before the agent (and therefore kasm) starts:
   #   * `apt-get update` populates the cache so kasm's apt-get install can
@@ -109,7 +123,7 @@ resource "docker_container" "workspace" {
     "sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libdatetime-perl xfce4 xfce4-terminal dbus-x11 && exec sh -c \"$0\" \"$@\"",
     coder_agent.main.init_script,
   ]
-  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

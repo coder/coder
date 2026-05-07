@@ -28,6 +28,7 @@ time before the KasmVNC app shows up.
 ## Verifying the policy
 
 Try `coder ssh kasm1`: should fail with the DLP CLI denial, since
-`ssh_access=false`. The dashboard web terminal and Ports tab should
-return 403. The "KasmVNC" app should load normally because the
-`kasm-vnc` slug is in `allowed_applications`.
+`ssh_access=false`. The dashboard web terminal, Ports tab, and Desktop
+button (backed by the portabledesktop module) should return 403. The
+"KasmVNC" app should load normally because the `kasm-vnc` slug is in
+`allowed_applications`.

@@ -35,6 +35,7 @@ resource "coder_dlp_policy" "policy" {
   ssh_access             = true
   web_terminal_access    = true
   port_forwarding_access = true
+  desktop_access         = true
   allowed_applications   = ["code-server", "helloworld"]
 }
 
@@ -55,16 +56,26 @@ resource "coder_agent" "main" {
   EOT
 
   # Match the strict and kasmvnc templates: hide the VS Code Desktop, SSH,
-  # and port-forwarding helper buttons but keep the web terminal button.
-  # On a permissive policy these would all work; hiding them keeps the
-  # surface consistent across the dlp-* templates.
+  # and port-forwarding helper buttons but keep the web terminal and desktop
+  # buttons. On a permissive policy these would all work; hiding them keeps
+  # the surface consistent across the dlp-* templates.
   display_apps {
     vscode                 = false
     vscode_insiders        = false
     web_terminal           = true
     ssh_helper             = false
     port_forwarding_helper = false
+    desktop                = true
   }
+}
+
+// portabledesktop: installs the noVNC server the dashboard's Desktop button
+// connects to. Mirrors the dogfood template (dogfood/coder/main.tf) so the
+// Desktop button has something to display.
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.main.id
 }
 
 resource "coder_app" "code-server" {
