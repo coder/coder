@@ -133,7 +133,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					<NavLink to="/workspaces" className="inline-flex">
 						<ProductLogo className="size-6" />
 					</NavLink>
-					<FeatureStageBadge contentType="beta" size="sm" />
+					<FeatureStageBadge contentType="beta" size="xs" />
 				</div>
 			)}
 			{isSidebarCollapsed && (

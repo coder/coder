@@ -1569,11 +1569,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<NavLink to="/workspaces" className="inline-flex">
 								<ProductLogo className="size-6" />
 							</NavLink>
-							<FeatureStageBadge
-								contentType="beta"
-								size="sm"
-								className="flex items-center py-0.5 leading-normal"
-							/>
+								<FeatureStageBadge contentType="beta" size="xs" />
 						</div>
 						<div className="flex items-center gap-0.5">
 							<Button

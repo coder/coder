@@ -45,7 +45,10 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 				>
 					<FormSection
 						classes={{
-							root: "flex flex-col gap-4",
+							// Override lg:gap-6 from FormSection defaults. The
+							// lg:flex-col counters the default FormContext
+							// direction ("horizontal") which adds lg:flex-row.
+							root: "flex-col lg:flex-col gap-4 lg:gap-4",
 						}}
 						title="Provisioner Tags"
 						description={

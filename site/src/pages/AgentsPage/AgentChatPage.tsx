@@ -345,7 +345,7 @@ export function useConversationEditingState(deps: {
 		: null;
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
-			if (typeof window === "undefined" || !draftStorageKey) {
+			if (!draftStorageKey) {
 				return { editorInitialValue: "", initialEditorState: undefined };
 			}
 			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));

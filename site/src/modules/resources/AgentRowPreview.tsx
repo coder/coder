@@ -1,8 +1,8 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import { TerminalIcon } from "#/components/Icons/TerminalIcon";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { cn } from "#/utils/cn";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
@@ -23,55 +23,36 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 	return (
 		<div
 			key={agent.id}
-			className="flex flex-row items-center justify-between gap-4"
-			css={styles.agentRow}
+			className="relative flex flex-row items-center justify-between gap-4 bg-surface-secondary px-8 pb-4 pt-4 text-base [&:not(:last-child)]:pb-0 after:absolute after:left-[43px] after:top-0 after:h-full after:w-0.5 after:bg-border after:content-['']"
 		>
 			<div className="flex flex-row items-baseline gap-4">
-				<div css={styles.agentStatusWrapper}>
-					<div css={styles.agentStatusPreview} />
+				<div className="flex w-6 shrink-0 justify-center">
+					<div className="relative z-[1] size-2.5 rounded-full border-solid border-2 border-content-secondary bg-surface-secondary" />
 				</div>
-				<div
-					className="flex flex-row items-baseline gap-8"
-					css={styles.agentData}
-				>
+				<div className="flex flex-row items-baseline gap-8 font-normal text-sm text-content-secondary max-md:flex-wrap max-md:gap-4">
 					<div
-						className="flex flex-row items-baseline gap-2"
-						css={[
-							styles.noShrink,
-							styles.agentDataItem,
-							(theme) => ({
-								[theme.breakpoints.up("sm")]: {
-									minWidth: alignValues ? 240 : undefined,
-								},
-							}),
-						]}
+						className={cn(
+							"flex shrink-0 flex-row items-baseline gap-2 max-md:w-fit max-md:flex-col max-md:items-start max-md:gap-2",
+							alignValues && "sm:min-w-[240px]",
+						)}
 					>
 						<span>Agent:</span>
-						<span css={styles.agentDataValue}>{agent.name}</span>
+						<span className="text-content-primary">{agent.name}</span>
 					</div>
 
 					<div
-						className="flex flex-row items-baseline gap-2"
-						css={[
-							styles.noShrink,
-							styles.agentDataItem,
-							(theme) => ({
-								[theme.breakpoints.up("sm")]: {
-									minWidth: alignValues ? 100 : undefined,
-								},
-							}),
-						]}
+						className={cn(
+							"flex shrink-0 flex-row items-baseline gap-2 max-md:w-fit max-md:flex-col max-md:items-start max-md:gap-2",
+							alignValues && "sm:min-w-[100px]",
+						)}
 					>
 						<span>OS:</span>
-						<span css={[styles.agentDataValue, styles.agentOS]}>
+						<span className="font-normal text-sm capitalize text-content-primary">
 							{agent.operating_system}
 						</span>
 					</div>
 
-					<div
-						className="flex flex-row items-center gap-2"
-						css={styles.agentDataItem}
-					>
+					<div className="flex flex-row items-center gap-2 max-md:w-fit max-md:flex-col max-md:items-start max-md:gap-2">
 						<span>Apps:</span>
 						<div className="flex flex-row items-center gap-1 flex-wrap">
 							{/* We display all modules returned in agent.apps */}
@@ -112,7 +93,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 								)
 							)}
 							{agent.apps.length === 0 && agent.display_apps.length === 0 && (
-								<span css={styles.agentDataValue}>None</span>
+								<span className="text-content-primary">None</span>
 							)}
 						</div>
 					</div>
@@ -121,79 +102,3 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	agentRow: (theme) => ({
-		padding: "16px 32px",
-		backgroundColor: theme.palette.background.paper,
-		fontSize: 16,
-		position: "relative",
-
-		"&:not(:last-child)": {
-			paddingBottom: 0,
-		},
-
-		"&:after": {
-			content: "''",
-			height: "100%",
-			width: 2,
-			backgroundColor: theme.palette.divider,
-			position: "absolute",
-			top: 0,
-			left: 43,
-		},
-	}),
-
-	agentStatusWrapper: {
-		width: 24,
-		display: "flex",
-		justifyContent: "center",
-		flexShrink: 0,
-	},
-
-	agentStatusPreview: (theme) => ({
-		width: 10,
-		height: 10,
-		border: `2px solid ${theme.palette.text.secondary}`,
-		borderRadius: "100%",
-		position: "relative",
-		zIndex: 1,
-		background: theme.palette.background.paper,
-	}),
-
-	agentName: {
-		fontWeight: 600,
-	},
-
-	agentOS: {
-		textTransform: "capitalize",
-		fontSize: 14,
-	},
-
-	agentData: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-
-		[theme.breakpoints.down("md")]: {
-			gap: 16,
-			flexWrap: "wrap",
-		},
-	}),
-
-	agentDataValue: (theme) => ({
-		color: theme.palette.text.primary,
-	}),
-
-	noShrink: {
-		flexShrink: 0,
-	},
-
-	agentDataItem: (theme) => ({
-		[theme.breakpoints.down("md")]: {
-			flexDirection: "column",
-			alignItems: "flex-start",
-			gap: 8,
-			width: "fit-content",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
