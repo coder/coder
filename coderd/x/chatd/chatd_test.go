@@ -1063,6 +1063,8 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 
 func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	t.Parallel()
+	// TODO(hugodutka): Unskip when chatd is free of race conditions.
+	t.Skip("skipped due to inherent race condition; see https://github.com/coder/internal/issues/1493")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
