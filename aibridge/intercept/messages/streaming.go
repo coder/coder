@@ -175,23 +175,21 @@ newStream:
 		var currentKey *keypool.Key
 		if walker != nil {
 			key, err := walker.Next()
-			if err != nil {
+			if respErr := processKeyPoolError(err); respErr != nil {
 				// Pool exhausted in this iteration. Relay the
 				// error to the client: as an SSE event if events
 				// have already been sent, or by direct write
 				// otherwise.
-				if respErr := i.mapExhaustionError(err); respErr != nil {
-					interceptionErr = respErr
-					if events.IsStreaming() {
-						payload, mErr := i.marshal(respErr)
-						if mErr != nil {
-							logger.Warn(ctx, "failed to marshal exhaustion error", slog.Error(mErr))
-						} else if sErr := events.Send(streamCtx, payload); sErr != nil {
-							logger.Warn(ctx, "failed to relay exhaustion error", slog.Error(sErr))
-						}
-					} else {
-						i.writeUpstreamError(w, respErr)
+				interceptionErr = respErr
+				if events.IsStreaming() {
+					payload, mErr := i.marshal(respErr)
+					if mErr != nil {
+						logger.Warn(ctx, "failed to marshal exhaustion error", slog.Error(mErr))
+					} else if sErr := events.Send(streamCtx, payload); sErr != nil {
+						logger.Warn(ctx, "failed to relay exhaustion error", slog.Error(sErr))
 					}
+				} else {
+					i.writeUpstreamError(w, respErr)
 				}
 				break
 			}

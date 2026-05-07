@@ -18,19 +18,19 @@ var (
 	ErrDuplicateKey = xerrors.New("duplicate key")
 )
 
-// ErrPermanentExhaustion is returned when every key in the
+// ErrPermanentKeyPool is returned when every key in the
 // pool has been permanently marked unavailable.
-var ErrPermanentExhaustion = xerrors.New("all keys permanently unavailable")
+var ErrPermanentKeyPool = xerrors.New("all keys permanently unavailable")
 
-// TransientExhaustionError is returned when no key is currently
+// TransientKeyPoolError is returned when no key is currently
 // available but at least one will recover. RetryAfter is the
 // soonest remaining cooldown across the pool, or 0 if a key
 // just became valid mid-walk.
-type TransientExhaustionError struct {
+type TransientKeyPoolError struct {
 	RetryAfter time.Duration
 }
 
-func (e *TransientExhaustionError) Error() string {
+func (e *TransientKeyPoolError) Error() string {
 	return fmt.Sprintf("all keys exhausted (retry after %s)", e.RetryAfter)
 }
 
@@ -176,12 +176,12 @@ func (k *Key) MarkPermanent() bool {
 	return true
 }
 
-// exhaustionError returns ErrPermanentExhaustion if every key
-// is permanently unavailable, or *TransientExhaustionError if
+// keyPoolError returns ErrPermanentKeyPool if every key
+// is permanently unavailable, or *TransientKeyPoolError if
 // at least one key is temporarily unavailable. When multiple
 // keys are temporary, the smallest remaining cooldown is used
 // as the retry-after.
-func (p *Pool) exhaustionError() error {
+func (p *Pool) keyPoolError() error {
 	var retryAfter time.Duration
 	var hasCooldown bool
 	for i := range p.keys {
@@ -189,7 +189,7 @@ func (p *Pool) exhaustionError() error {
 		switch state {
 		// Recoverable now: signal transient with zero retry-after.
 		case KeyStateValid:
-			return &TransientExhaustionError{}
+			return &TransientKeyPoolError{}
 		// Recoverable later: track soonest remaining cooldown.
 		case KeyStateTemporary:
 			if !hasCooldown || cooldown < retryAfter {
@@ -201,9 +201,9 @@ func (p *Pool) exhaustionError() error {
 		}
 	}
 	if hasCooldown {
-		return &TransientExhaustionError{RetryAfter: retryAfter}
+		return &TransientKeyPoolError{RetryAfter: retryAfter}
 	}
-	return ErrPermanentExhaustion
+	return ErrPermanentKeyPool
 }
 
 // PoolState returns a snapshot of each key's state in the pool's
@@ -236,12 +236,12 @@ func (p *Pool) Walker() *Walker {
 // Next returns a Key handle for the next available key without
 // modifying the pool state.
 //
-// Returns *TransientExhaustionError or ErrPermanentExhaustion
+// Returns *TransientKeyPoolError or ErrPermanentKeyPool
 // when no more keys are available.
 func (w *Walker) Next() (*Key, error) {
 	pool := w.pool
 	if pool == nil {
-		return nil, ErrPermanentExhaustion
+		return nil, ErrPermanentKeyPool
 	}
 
 	for i := w.pos; i < len(pool.keys); i++ {
@@ -255,5 +255,5 @@ func (w *Walker) Next() (*Key, error) {
 	}
 
 	// No keys available.
-	return nil, pool.exhaustionError()
+	return nil, pool.keyPoolError()
 }

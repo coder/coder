@@ -51,7 +51,7 @@ func TestNewKeyPool(t *testing.T) {
 
 			// No more keys available.
 			_, err = walker.Next()
-			var transient *keypool.TransientExhaustionError
+			var transient *keypool.TransientKeyPoolError
 			require.ErrorAs(t, err, &transient, "expected transient exhaustion: walker returned all valid keys, none marked permanent")
 		})
 	}
@@ -299,7 +299,7 @@ func TestWalkerNext(t *testing.T) {
 			keys:          []string{"key-0", "key-1", "key-2"},
 			setup:         func(_ *testing.T, _ *keypool.Pool) {},
 			expectedValid: []string{"key-0", "key-1", "key-2"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: temporary, key-1: valid, key-2: valid.
@@ -312,7 +312,7 @@ func TestWalkerNext(t *testing.T) {
 				key.MarkTemporary(60 * time.Second)
 			},
 			expectedValid: []string{"key-1", "key-2"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: permanent, key-1: permanent, key-2: valid.
@@ -329,7 +329,7 @@ func TestWalkerNext(t *testing.T) {
 				key1.MarkPermanent()
 			},
 			expectedValid: []string{"key-2"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: temporary (30s), key-1: valid.
@@ -344,7 +344,7 @@ func TestWalkerNext(t *testing.T) {
 			},
 			advance:       35 * time.Second,
 			expectedValid: []string{"key-0", "key-1"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: temporary (zero, default 60s), key-1: valid.
@@ -359,7 +359,7 @@ func TestWalkerNext(t *testing.T) {
 			},
 			advance:       50 * time.Second,
 			expectedValid: []string{"key-1"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: temporary (zero, default 60s), key-1: valid.
@@ -374,7 +374,7 @@ func TestWalkerNext(t *testing.T) {
 			},
 			advance:       65 * time.Second,
 			expectedValid: []string{"key-0", "key-1"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: temporary (negative, default 60s), key-1: valid.
@@ -389,7 +389,7 @@ func TestWalkerNext(t *testing.T) {
 			},
 			advance:       65 * time.Second,
 			expectedValid: []string{"key-0", "key-1"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: temporary (60s), then marked again with shorter cooldown (10s).
@@ -405,7 +405,7 @@ func TestWalkerNext(t *testing.T) {
 			},
 			advance:       15 * time.Second,
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientExhaustionError{RetryAfter: 45 * time.Second},
+			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 45 * time.Second},
 		},
 		{
 			// Given: key-0: temporary (60s), then marked again with shorter cooldown (10s).
@@ -421,7 +421,7 @@ func TestWalkerNext(t *testing.T) {
 			},
 			advance:       65 * time.Second,
 			expectedValid: []string{"key-0"},
-			expectedErr:   &keypool.TransientExhaustionError{},
+			expectedErr:   &keypool.TransientKeyPoolError{},
 		},
 		{
 			// Given: key-0: temporary (60s), key-1: temporary (10s), key-2: temporary (30s).
@@ -442,7 +442,7 @@ func TestWalkerNext(t *testing.T) {
 				key2.MarkTemporary(30 * time.Second)
 			},
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientExhaustionError{RetryAfter: 10 * time.Second},
+			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 10 * time.Second},
 		},
 		{
 			// Given: key-0: temporary, key-1: temporary.
@@ -459,7 +459,7 @@ func TestWalkerNext(t *testing.T) {
 				key1.MarkTemporary(60 * time.Second)
 			},
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientExhaustionError{RetryAfter: 60 * time.Second},
+			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 60 * time.Second},
 		},
 		{
 			// Given: key-0: permanent, key-1: permanent.
@@ -476,7 +476,7 @@ func TestWalkerNext(t *testing.T) {
 				key1.MarkPermanent()
 			},
 			expectedValid: []string{},
-			expectedErr:   keypool.ErrPermanentExhaustion,
+			expectedErr:   keypool.ErrPermanentKeyPool,
 		},
 		{
 			// Given: key-0: permanent, key-1: temporary, key-2: permanent.
@@ -496,7 +496,7 @@ func TestWalkerNext(t *testing.T) {
 				key2.MarkPermanent()
 			},
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientExhaustionError{RetryAfter: 60 * time.Second},
+			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 60 * time.Second},
 		},
 	}
 
@@ -523,9 +523,9 @@ func TestWalkerNext(t *testing.T) {
 
 			// After all expected keys, the walker should be exhausted.
 			_, err = walker.Next()
-			var wantTransient *keypool.TransientExhaustionError
+			var wantTransient *keypool.TransientKeyPoolError
 			if errors.As(tc.expectedErr, &wantTransient) {
-				var got *keypool.TransientExhaustionError
+				var got *keypool.TransientKeyPoolError
 				require.ErrorAs(t, err, &got)
 				assert.Equal(t, wantTransient.RetryAfter, got.RetryAfter)
 			} else {
