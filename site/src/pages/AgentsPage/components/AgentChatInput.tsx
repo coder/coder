@@ -641,9 +641,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// Lexical fires onChange synchronously from editor.setValue().
 		// While cycling, compare incoming content to currentCycleValueRef,
 		// the last value we applied. Different content means user input,
-		// so reset. Matching content is our own setValue echo, so keep cycling.
-		// This works because Lexical fires onChange once per editor.update()
-		// and React 19 flushes discrete-event state synchronously.
+		// so reset; matching content is our own setValue echo, so keep cycling.
+		// This works because React batches state updates within event handlers
+		// and commits them after the handler returns, so the synchronous onChange
+		// callback sees the pre-batch cycleIndex value, not the queued update.
 		if (cycleIndex !== null && content !== currentCycleValueRef.current) {
 			resetPromptCycle();
 		}
