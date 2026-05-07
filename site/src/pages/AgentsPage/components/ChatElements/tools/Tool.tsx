@@ -452,7 +452,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 			created={created}
-			quotaTitle={quotaTitle}
+			labelOverride={quotaTitle}
 		/>
 	);
 };
@@ -990,7 +990,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			noBuild={noBuild}
-			quotaTitle={quotaTitle}
+			labelOverride={quotaTitle}
 		/>
 	);
 };
