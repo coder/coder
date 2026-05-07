@@ -201,12 +201,13 @@ describe("api.ts", () => {
 				];
 
 				vi.spyOn(API, "postWorkspaceBuild")
-					// First postWorkspaceBuild call is for the stop (succeeds)
+					// First postWorkspaceBuild call is for the stop, which should succeed
 					.mockResolvedValueOnce({
 						...MockWorkspaceBuild,
 						transition: "stop",
 					})
-					// Second postWorkspaceBuild call is for the start (fails with 400)
+					// Second postWorkspaceBuild call is for the start, which should fail
+					// with validation errors.
 					.mockRejectedValueOnce({
 						isAxiosError: true,
 						response: {
