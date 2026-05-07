@@ -4,7 +4,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
-import { ThinkingDisplaySettings } from "./components/ThinkingDisplaySettings";
+import {
+	CodeDiffDisplaySettings,
+	ThinkingDisplaySettings,
+} from "./components/ThinkingDisplaySettings";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
 
 export interface AgentSettingsGeneralPageViewProps {
@@ -55,6 +58,7 @@ export const AgentSettingsGeneralPageView: FC<
 			/>
 			<ChatFullWidthSettings />
 			<ThinkingDisplaySettings />
+			<CodeDiffDisplaySettings />
 			<UserChatDebugLoggingSettings
 				userSettings={userDebugLoggingData}
 				onSaveUserSetting={onSaveUserDebugLogging}

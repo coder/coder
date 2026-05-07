@@ -1431,6 +1431,20 @@
 | `workspace_agent_id`   | string                                       | false    |              |             |
 | `workspace_agent_name` | string                                       | false    |              |             |
 
+## codersdk.AgentDisplayMode
+
+```json
+"auto"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                 |
+|----------------------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto`, `preview` |
+
 ## codersdk.AgentScriptTiming
 
 ```json
@@ -12807,6 +12821,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -12816,6 +12831,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name                                | Type                                                         | Required | Restrictions | Description |
 |-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)       | false    |              |             |
 | `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
 | `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
 
@@ -13393,6 +13409,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -13402,6 +13419,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                                | Type                                                         | Required | Restrictions | Description |
 |-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)       | false    |              |             |
 | `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
 | `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
 

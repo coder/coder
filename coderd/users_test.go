@@ -1963,6 +1963,96 @@ func TestThinkingDisplayMode(t *testing.T) {
 	})
 }
 
+func TestAgentDisplayModePreferences(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	requireValidationField := func(t *testing.T, err error, field string) {
+		t.Helper()
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, field, sdkErr.Validations[0].Field)
+	}
+
+	t.Run("defaults to auto", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.CodeDiffDisplayMode)
+	})
+
+	t.Run("round-trips code diff display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			CodeDiffDisplayMode: codersdk.AgentDisplayModePreview,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentDisplayModePreview, updated.CodeDiffDisplayMode)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentDisplayModePreview, settings.CodeDiffDisplayMode)
+	})
+
+	t.Run("updates preserve stored display modes", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModePreview,
+			CodeDiffDisplayMode: codersdk.AgentDisplayModePreview,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModeAlwaysExpanded,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, updated.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModePreview, updated.CodeDiffDisplayMode)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, settings.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModePreview, settings.CodeDiffDisplayMode)
+	})
+
+	t.Run("rejects invalid code diff display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			CodeDiffDisplayMode: codersdk.AgentDisplayMode("bogus"),
+		})
+		requireValidationField(t, err, "code_diff_display_mode")
+	})
+}
+
 func TestWorkspacesByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {

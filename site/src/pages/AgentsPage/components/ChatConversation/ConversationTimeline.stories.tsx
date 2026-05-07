@@ -14,6 +14,7 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import type { ParsedMessageEntry } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
@@ -1753,6 +1754,78 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 	},
 };
 
+export const CodeDiffDisplayModeFromPreferences: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+					code_diff_display_mode: "always_collapsed" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			{
+				message: {
+					...baseMessage,
+					id: 1,
+					role: "assistant",
+					content: [],
+				},
+				parsed: {
+					markdown: "",
+					reasoning: "",
+					toolCalls: [],
+					toolResults: [],
+					tools: [
+						{
+							id: "edit-tool",
+							name: "edit_files",
+							args: {
+								files: [
+									{
+										path: "src/config.ts",
+										edits: [
+											{
+												search: "const timeout = 30;",
+												replace: "const timeout = 60;",
+											},
+										],
+									},
+								],
+							},
+							result: { ok: true },
+							isError: false,
+							status: "completed",
+						},
+					],
+					blocks: [{ type: "tool", id: "edit-tool" }],
+					sources: [],
+				},
+			},
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+
+		const editFilesButton = canvas.getByRole("button", {
+			name: /Edited config\.ts/,
+		});
+		expect(editFilesButton).toHaveAttribute("aria-expanded", "false");
+		await userEvent.click(editFilesButton);
+		await waitFor(() => {
+			expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+		});
+	},
+};
+
 /**
  * A completed thinking block with always_expanded mode should show
  * its content without user interaction.
@@ -1765,6 +1838,7 @@ export const ThinkingBlockAlwaysExpanded: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_expanded" as const,
+					code_diff_display_mode: "auto" as const,
 				},
 			},
 		],
@@ -1812,6 +1886,7 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
+					code_diff_display_mode: "auto" as const,
 				},
 			},
 		],
@@ -1860,6 +1935,7 @@ export const ThinkingBlockWithToolCall: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
+					code_diff_display_mode: "auto" as const,
 				},
 			},
 		],
@@ -1921,6 +1997,7 @@ export const ThinkingBlockAutoMode: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
 				},
 			},
 		],
@@ -1972,6 +2049,7 @@ export const ThinkingBlockPreviewMode: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "preview" as const,
+					code_diff_display_mode: "auto" as const,
 				},
 			},
 		],

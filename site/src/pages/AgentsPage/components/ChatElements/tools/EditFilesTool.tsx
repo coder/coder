@@ -3,12 +3,17 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	isAgentDisplayFullyExpanded,
+	resolveAgentDisplayState,
+} from "./displayMode";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
@@ -18,22 +23,19 @@ import {
 	type ToolStatus,
 } from "./utils";
 
-/**
- * Collapsed-by-default rendering for `edit_files` tool calls.
- * Shows "Edited <filename>" (or "Edited N files") with a chevron;
- * expanding reveals a unified diff for each file.
- */
 export const EditFilesTool: React.FC<{
 	files: EditFilesFileEntry[];
 	diffs: (FileDiffMetadata | null)[];
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ files, diffs, status, isError, errorMessage }) => {
+	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+}> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
+	const displayState = resolveAgentDisplayState(codeDiffDisplayMode, "preview");
 
 	let label: string;
 	if (isRunning) {
@@ -58,6 +60,8 @@ export const EditFilesTool: React.FC<{
 			className="w-full"
 			hasContent={hasDiffs}
 			defaultExpanded
+			displayMode={codeDiffDisplayMode}
+			autoDisplayState="preview"
 			header={
 				<>
 					<span className="text-[13px]">{label}</span>
@@ -84,7 +88,11 @@ export const EditFilesTool: React.FC<{
 							key={files[i].path}
 							data-testid="edit-file-diff"
 							className="rounded-md border border-solid border-border-default text-2xs"
-							viewportClassName="max-h-64"
+							viewportClassName={
+								isAgentDisplayFullyExpanded(displayState)
+									? undefined
+									: "max-h-64"
+							}
 							scrollBarClassName="w-1.5"
 						>
 							<FileDiff

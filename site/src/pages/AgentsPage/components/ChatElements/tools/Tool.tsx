@@ -18,6 +18,10 @@ import {
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
+import {
+	isAgentDisplayFullyExpanded,
+	resolveAgentDisplayState,
+} from "./displayMode";
 import { EditFilesTool } from "./EditFilesTool";
 import {
 	ExecuteAuthRequiredTool,
@@ -94,6 +98,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	previousResponseText?: string;
 	/** Human-readable intent extracted from the model's tool-call args. */
 	modelIntent?: string;
+	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -117,6 +122,7 @@ type ToolRendererProps = {
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
+	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
 // ---------------------------------------------------------------------------
@@ -369,6 +375,7 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	codeDiffDisplayMode,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
@@ -382,6 +389,7 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
 	);
 };
@@ -391,6 +399,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	codeDiffDisplayMode,
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
@@ -413,6 +422,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
 	);
 };
@@ -825,12 +835,17 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	mcpServerConfigId,
 	mcpServers,
 	modelIntent,
+	codeDiffDisplayMode,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
 	const writeFileDiff = getWriteFileDiff(name, args);
+	const writeFileDiffDisplayState = resolveAgentDisplayState(
+		codeDiffDisplayMode,
+		"collapsed",
+	);
 	const fileViewerOpts = getFileViewerOptions(isDark);
 	const fileContentOptions = fileContent
 		? {
@@ -853,6 +868,8 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ToolCollapsible
 			hasContent={hasContent}
+			displayMode={writeFileDiff ? codeDiffDisplayMode : undefined}
+			autoDisplayState={writeFileDiff ? "collapsed" : undefined}
 			header={
 				<>
 					<ToolIcon
@@ -893,7 +910,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			{writeFileDiff ? (
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
+					viewportClassName={
+						isAgentDisplayFullyExpanded(writeFileDiffDisplayState)
+							? undefined
+							: "max-h-64"
+					}
 					scrollBarClassName="w-1.5"
 				>
 					<FileDiff
@@ -1030,6 +1051,7 @@ export const Tool = memo(
 		isLatestAskUserQuestion,
 		previousResponseText,
 		modelIntent,
+		codeDiffDisplayMode,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -1076,6 +1098,7 @@ export const Tool = memo(
 					isLatestAskUserQuestion={isLatestAskUserQuestion}
 					previousResponseText={previousResponseText}
 					modelIntent={modelIntent}
+					codeDiffDisplayMode={codeDiffDisplayMode}
 				/>
 			</div>
 		);
