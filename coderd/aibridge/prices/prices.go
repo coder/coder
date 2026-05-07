@@ -16,12 +16,12 @@ import (
 var seedJSON []byte
 
 // Pointer fields preserve the distinction between "not populated by upstream"
-// (null) and "explicitly zero" (0).
+// (null) and "explicitly zero" (0). Used only for Go-side type validation in
+// parseSeed; the upsert reads the raw JSON bytes via the batch SQL query.
 //
-// NOTE: keep these JSON tags in sync with the corresponding type in the price
-// generator. The two are independently defined and connected only by the JSON
-// wire format; a tag change in one without the other will silently unmarshal
-// as nil here.
+// NOTE: the JSON contract for the price seed lives in three places that must
+// stay in sync: the corresponding struct in the price generator, the column
+// extraction in the batch SQL upsert, and the tags here.
 type seedRow struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model"`

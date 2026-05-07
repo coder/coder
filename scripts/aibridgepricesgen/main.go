@@ -62,10 +62,9 @@ func (c *upstreamCost) hasPricing() bool {
 // Pointer fields preserve the distinction between "not populated by upstream"
 // (null) and "explicitly zero" (0).
 //
-// NOTE: keep these JSON tags in sync with the corresponding type in the price
-// seeder. The two are independently defined and connected only by the JSON
-// wire format; a tag change in one without the other will silently unmarshal
-// as nil on the seeder side.
+// NOTE: the JSON contract for the price seed lives in three places that must
+// stay in sync: the tags here, the corresponding struct in the price seeder,
+// and the column extraction in the batch SQL upsert.
 type priceRow struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model"`
