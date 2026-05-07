@@ -122,6 +122,27 @@ export const RendersChatLayoutSection: Story = {
 	},
 };
 
+export const RendersAgentDisplayModeSettings: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(await canvas.findByText("Thinking Display")).toBeVisible();
+		expect(await canvas.findByText("Code Diff Display")).toBeVisible();
+	},
+};
+
 export const ShowsChatDebugLoggingToggle: Story = {
 	args: {
 		userDebugLoggingData: {
