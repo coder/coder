@@ -70,7 +70,7 @@ custom endpoints or VPC endpoints.
 
 > [!NOTE]
 > Agents Bedrock provider configuration is separate from AI Gateway Bedrock
-> flags (`CODER_AIBRIDGE_BEDROCK_*`). AI Gateway and Agents use independent
+> flags (`CODER_AI_GATEWAY_BEDROCK_*`). AI Gateway and Agents use independent
 > credential paths.
 
 ## Provider credentials and security
