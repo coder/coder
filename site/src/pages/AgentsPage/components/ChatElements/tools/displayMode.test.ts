@@ -32,5 +32,6 @@ describe("isAgentDisplayFullyExpanded", () => {
 	it("returns whether a display state uses a fully expanded view", () => {
 		expect(isAgentDisplayFullyExpanded("expanded")).toBe(true);
 		expect(isAgentDisplayFullyExpanded("preview")).toBe(false);
+		expect(isAgentDisplayFullyExpanded("collapsed")).toBe(false);
 	});
 });

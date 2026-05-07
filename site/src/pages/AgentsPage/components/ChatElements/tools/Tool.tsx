@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
+import { File as FileViewer } from "@pierre/diffs/react";
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -18,10 +18,6 @@ import {
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
-import {
-	isAgentDisplayFullyExpanded,
-	resolveAgentDisplayState,
-} from "./displayMode";
 import { EditFilesTool } from "./EditFilesTool";
 import {
 	ExecuteAuthRequiredTool,
@@ -43,10 +39,7 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "./subagentDescriptor";
-import {
-	AgentDisplayModeToolCollapsible,
-	ToolCollapsible,
-} from "./ToolCollapsible";
+import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
 import {
@@ -56,7 +49,6 @@ import {
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
 	formatResultOutput,
-	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -67,7 +59,6 @@ import {
 	parseEditFilesArgs,
 	parseServerEditDiffText,
 	parseServerEditResults,
-	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
@@ -827,8 +818,6 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-// Generic fallback renderer — only path that needs theme, diff
-// viewers, and file content helpers.
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
@@ -838,17 +827,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	mcpServerConfigId,
 	mcpServers,
 	modelIntent,
-	codeDiffDisplayMode,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
-	const writeFileDiff = getWriteFileDiff(name, args);
-	const writeFileDiffDisplayState = resolveAgentDisplayState(
-		codeDiffDisplayMode,
-		"collapsed",
-	);
 	const fileViewerOpts = getFileViewerOptions(isDark);
 	const fileContentOptions = fileContent
 		? {
@@ -863,7 +846,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
+	const hasContent = Boolean(fileContent || resultOutput);
 	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
@@ -905,23 +888,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 
 	const toolContent = (
 		<>
-			{writeFileDiff ? (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName={
-						isAgentDisplayFullyExpanded(writeFileDiffDisplayState)
-							? undefined
-							: "max-h-64"
-					}
-					scrollBarClassName="w-1.5"
-				>
-					<FileDiff
-						fileDiff={stripNoNewline(writeFileDiff)}
-						options={getDiffViewerOptions(isDark)}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : fileContent ? (
+			{fileContent ? (
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
@@ -956,19 +923,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			)}
 		</>
 	);
-
-	if (writeFileDiff) {
-		return (
-			<AgentDisplayModeToolCollapsible
-				hasContent={hasContent}
-				displayMode={codeDiffDisplayMode}
-				autoDisplayState="collapsed"
-				header={toolHeader}
-			>
-				{toolContent}
-			</AgentDisplayModeToolCollapsible>
-		);
-	}
 
 	return (
 		<ToolCollapsible hasContent={hasContent} header={toolHeader}>

@@ -2000,15 +2000,20 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			CodeDiffDisplayMode: codersdk.AgentDisplayModeAlwaysExpanded,
-		})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, updated.CodeDiffDisplayMode)
+		for _, mode := range []codersdk.AgentDisplayMode{
+			codersdk.AgentDisplayModeAlwaysExpanded,
+			codersdk.AgentDisplayModeAlwaysCollapsed,
+		} {
+			updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+				CodeDiffDisplayMode: mode,
+			})
+			require.NoError(t, err)
+			require.Equal(t, mode, updated.CodeDiffDisplayMode)
 
-		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, settings.CodeDiffDisplayMode)
+			settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+			require.NoError(t, err)
+			require.Equal(t, mode, settings.CodeDiffDisplayMode)
+		}
 	})
 
 	t.Run("updates preserve stored display modes", func(t *testing.T) {

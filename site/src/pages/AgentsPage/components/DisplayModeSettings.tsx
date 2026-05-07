@@ -4,7 +4,10 @@ import {
 	preferenceSettings,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
-import type { UserPreferenceSettings } from "#/api/typesGenerated";
+import type {
+	UpdateUserPreferenceSettingsRequest,
+	UserPreferenceSettings,
+} from "#/api/typesGenerated";
 import {
 	Select,
 	SelectContent,
@@ -39,10 +42,7 @@ type DisplayModeSettingsProps<T extends string> = {
 	defaultValue: T;
 	options: DisplayModeOption<T>[];
 	getMode: (settings: UserPreferenceSettings) => T;
-	updateSettings: (
-		settings: UserPreferenceSettings,
-		value: T,
-	) => UserPreferenceSettings;
+	updateSettings: (value: T) => UpdateUserPreferenceSettingsRequest;
 };
 
 const DisplayModeSettings = <T extends string>({
@@ -76,7 +76,7 @@ const DisplayModeSettings = <T extends string>({
 					onValueChange={(value: string) => {
 						const selected = options.find((opt) => opt.value === value);
 						if (!query.data || !selected) return;
-						mutation.mutate(updateSettings(query.data, selected.value));
+						mutation.mutate(updateSettings(selected.value));
 					}}
 				>
 					<SelectTrigger className="w-44 shrink-0" aria-label={ariaLabel}>
@@ -108,8 +108,7 @@ export const ThinkingDisplaySettings: FC = () => {
 			defaultValue="auto"
 			options={thinkingDisplayOptions}
 			getMode={(settings) => settings.thinking_display_mode}
-			updateSettings={(settings, value) => ({
-				...settings,
+			updateSettings={(value) => ({
 				thinking_display_mode: value,
 			})}
 		/>
@@ -120,14 +119,13 @@ export const CodeDiffDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Code Diff Display"
-			description="How inline code diff tool calls should be displayed by default."
+			description="Controls how code edit diffs appear. Auto starts single-file writes collapsed and opens multi-file edits with a height-constrained preview. Always Expanded opens diffs by default; Always Collapsed keeps them collapsed."
 			ariaLabel="Code diff display mode"
 			errorMessage="Failed to save your code diff display preference."
 			defaultValue="auto"
 			options={agentDisplayOptions}
 			getMode={(settings) => settings.code_diff_display_mode}
-			updateSettings={(settings, value) => ({
-				...settings,
+			updateSettings={(value) => ({
 				code_diff_display_mode: value,
 			})}
 		/>

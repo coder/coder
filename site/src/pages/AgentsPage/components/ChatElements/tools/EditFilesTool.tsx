@@ -11,6 +11,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
+	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
@@ -22,6 +23,8 @@ import {
 	stripNoNewline,
 	type ToolStatus,
 } from "./utils";
+
+const EDIT_FILES_AUTO_DISPLAY_STATE: AgentDisplayState = "preview";
 
 export const EditFilesTool: React.FC<{
 	files: EditFilesFileEntry[];
@@ -35,7 +38,10 @@ export const EditFilesTool: React.FC<{
 	const isDark = theme.palette.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
-	const displayState = resolveAgentDisplayState(codeDiffDisplayMode, "preview");
+	const displayState = resolveAgentDisplayState(
+		codeDiffDisplayMode,
+		EDIT_FILES_AUTO_DISPLAY_STATE,
+	);
 
 	let label: string;
 	if (isRunning) {
@@ -60,7 +66,7 @@ export const EditFilesTool: React.FC<{
 			className="w-full"
 			hasContent={hasDiffs}
 			displayMode={codeDiffDisplayMode}
-			autoDisplayState="preview"
+			autoDisplayState={EDIT_FILES_AUTO_DISPLAY_STATE}
 			header={
 				<>
 					<span className="text-[13px]">{label}</span>
@@ -89,7 +95,7 @@ export const EditFilesTool: React.FC<{
 							className="rounded-md border border-solid border-border-default text-2xs"
 							viewportClassName={
 								isAgentDisplayFullyExpanded(displayState)
-									? undefined
+									? "max-h-[80vh]"
 									: "max-h-64"
 							}
 							scrollBarClassName="w-1.5"

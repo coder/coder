@@ -11,6 +11,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
+	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
@@ -21,6 +22,8 @@ import {
 	stripNoNewline,
 	type ToolStatus,
 } from "./utils";
+
+const WRITE_FILE_AUTO_DISPLAY_STATE: AgentDisplayState = "collapsed";
 
 export const WriteFileTool: React.FC<{
 	path: string;
@@ -36,7 +39,7 @@ export const WriteFileTool: React.FC<{
 	const isRunning = status === "running";
 	const displayState = resolveAgentDisplayState(
 		codeDiffDisplayMode,
-		"collapsed",
+		WRITE_FILE_AUTO_DISPLAY_STATE,
 	);
 
 	const filename = path.split("/").pop() || path;
@@ -47,7 +50,7 @@ export const WriteFileTool: React.FC<{
 			className="w-full"
 			hasContent={hasDiff}
 			displayMode={codeDiffDisplayMode}
-			autoDisplayState="collapsed"
+			autoDisplayState={WRITE_FILE_AUTO_DISPLAY_STATE}
 			header={
 				<>
 					<span className="text-[13px]">{label}</span>
@@ -72,7 +75,9 @@ export const WriteFileTool: React.FC<{
 					data-testid="write-file-diff"
 					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName={
-						isAgentDisplayFullyExpanded(displayState) ? undefined : "max-h-64"
+						isAgentDisplayFullyExpanded(displayState)
+							? "max-h-[80vh]"
+							: "max-h-64"
 					}
 					scrollBarClassName="w-1.5"
 				>
