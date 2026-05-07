@@ -944,7 +944,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative grid min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
+								"group relative grid min-w-0 select-none items-center border-0 border-y border-solid border-border-default/30 text-content-secondary",
 								layout === "large"
 									? "grid-cols-[2rem_3fr_2fr_4rem_8rem_2.5rem_2rem]"
 									: "grid-cols-[2rem_3fr_2fr_7rem_2.5rem_2rem]",
@@ -1657,7 +1657,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																			className={
 																				layout === "narrow"
 																					? "flex flex-col gap-0.5"
-																					: "flex flex-col"
+																					: "flex flex-col -space-y-px"
 																			}
 																		>
 																			{sortedPinnedChats.map((chat) => (
@@ -1722,7 +1722,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																		className={
 																			layout === "narrow"
 																				? "flex flex-col gap-0.5"
-																				: "flex flex-col"
+																				: "flex flex-col -space-y-px"
 																		}
 																	>
 																		{groupChats.map((chat) => (
