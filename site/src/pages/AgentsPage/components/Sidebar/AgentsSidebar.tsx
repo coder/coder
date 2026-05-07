@@ -1653,7 +1653,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																			className={
 																				layout === "narrow"
 																					? "flex flex-col gap-0.5"
-																					: "flex flex-col border-0 border-t border-solid border-border-default/30"
+																					: "flex flex-col"
 																			}
 																		>
 																			{sortedPinnedChats.map((chat) => (
@@ -1718,7 +1718,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																		className={
 																			layout === "narrow"
 																				? "flex flex-col gap-0.5"
-																				: "flex flex-col border-0 border-t border-solid border-border-default/30"
+																				: "flex flex-col"
 																		}
 																	>
 																		{groupChats.map((chat) => (
