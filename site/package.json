@@ -213,10 +213,12 @@
 			"mdast-util-to-hast": "13.2.1",
 			"dompurify": "3.4.0",
 			"brace-expansion": "1.1.13",
-			"qs": "6.14.1",
+			"qs": "6.14.2",
 			"uuid": "11.1.1",
 			"js-yaml": "3.14.2",
-			"yaml": "2.8.3"
+			"yaml": "2.8.3",
+			"lodash-es": "4.18.1",
+			"picomatch@>=4": "4.0.4"
 		},
 		"ignoredBuiltDependencies": [
 			"cpu-features",
