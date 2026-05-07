@@ -1098,7 +1098,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											<button
 												type="button"
 												onClick={() => toggleSection(`subagents-${chatID}`)}
-												className="mb-1 flex items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary hover:text-content-primary cursor-pointer"
+												className="mb-1 flex items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary hover:text-content-primary cursor-pointer"
 											>
 												<ChevronUpIcon
 													className={cn(
@@ -1496,7 +1496,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		}
 	}, [activeChatId]);
 	const toggleExpanded = (chatID: string) => {
-		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
+		setExpandedById((prev) => {
+			const next = !prev[chatID];
+			// When expanding, ensure subagents section is also expanded.
+			if (next) {
+				setCollapsedSections((s) => {
+					const copy = new Set(s);
+					copy.delete(`subagents-${chatID}`);
+					return copy;
+				});
+			}
+			return { ...prev, [chatID]: next };
+		});
 	};
 
 	const chatTreeCtx: ChatTreeContextValue = {
