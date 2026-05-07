@@ -828,11 +828,6 @@ export interface AdvisorConfig {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overlays provider reasoning effort on the advisor
-	 * call config when supported. Allowed: "", "low", "medium", "high".
-	 */
-	readonly reasoning_effort: string;
 }
 
 // From codersdk/workspacebuilds.go
@@ -7919,11 +7914,6 @@ export interface UpdateAdvisorConfigRequest {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overlays provider reasoning effort on the advisor
-	 * call config when supported. Allowed: "", "low", "medium", "high".
-	 */
-	readonly reasoning_effort: string;
 }
 
 // From codersdk/deployment.go

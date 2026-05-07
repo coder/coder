@@ -29,7 +29,6 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 		enabled: false,
 		max_uses_per_run: 0,
 		max_output_tokens: 0,
-		reasoning_effort: "",
 		model_config_id: "",
 	},
 	isAdvisorConfigLoading: false,
