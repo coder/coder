@@ -112,6 +112,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 				return xerrors.Errorf("upstream connection closed: %w", err)
 			}
 
+			// The failover loop may return a keypool exhaustion
+			// error. Check before the SDK-error path.
+			if keyErr := processKeyPoolError(err); keyErr != nil {
+				i.writeUpstreamError(w, keyErr)
+				return xerrors.Errorf("key pool exhausted: %w", err)
+			}
+
 			if antErr := getErrorResponse(err); antErr != nil {
 				i.writeUpstreamError(w, antErr)
 				return xerrors.Errorf("anthropic API error: %w", err)
@@ -334,9 +341,53 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (_ *anthropic.Message, outErr error) {
-	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
+// newMessage routes between BYOK (single attempt) and centralized
+// failover.
+func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, error) {
+	// BYOK: single attempt, no failover.
+	if i.cfg.KeyPool == nil {
+		return i.newMessageWithKey(ctx, svc)
+	}
+	return i.newMessageWithKeyFailover(ctx, svc)
+}
+
+// newMessageWithKey performs a single upstream call.
+func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthropic.MessageService, extraOpts ...option.RequestOption) (_ *anthropic.Message, outErr error) {
+	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer tracing.EndSpanErr(span, &outErr)
 
-	return svc.New(ctx, anthropic.MessageNewParams{}, i.withBody())
+	opts := append([]option.RequestOption{i.withBody()}, extraOpts...)
+	return svc.New(ctx, anthropic.MessageNewParams{}, opts...)
+}
+
+// newMessageWithKeyFailover walks the centralized key pool,
+// trying each key until one succeeds or the pool is exhausted.
+// Keys are marked temporary on 429 and permanent on 401/403.
+// Errors that aren't key-specific don't trigger failover and
+// are returned to the caller.
+func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, error) {
+	// TODO(ssncferreira): update the interception's credential
+	// hint with the actually-used key (the successful key on
+	// success, the last tried key on failure) in the upstack PR.
+	walker := i.cfg.KeyPool.Walker()
+	for {
+		key, err := walker.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		msg, err := i.newMessageWithKey(ctx, svc,
+			option.WithAPIKey(key.Value()),
+			// Disable SDK retries because the failover loop
+			// handles retries via key rotation.
+			option.WithMaxRetries(0),
+		)
+		// Key-specific failure: try the next key.
+		if i.markKeyOnError(ctx, key, err) {
+			continue
+		}
+		// Either success (msg, nil) or a non-key error (nil, err):
+		// nothing to retry, return as-is.
+		return msg, err
+	}
 }

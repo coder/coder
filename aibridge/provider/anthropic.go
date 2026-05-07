@@ -15,8 +15,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/quartz"
 )
 
 // anthropicForwardHeaders lists headers from incoming requests that should be
@@ -55,6 +57,24 @@ func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropi
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.anthropic.com/"
 	}
+	// Resolve centralized key configuration into KeyPool.
+	// Precedence:
+	//   1. cfg.KeyPool (explicit, highest priority).
+	//   2. cfg.Key (legacy single key).
+	// After this block cfg.Key is empty so it can only carry a
+	// BYOK X-Api-Key set per interception in CreateInterceptor.
+	// TODO(ssncferreira): simplify auth field resolution per
+	// https://github.com/coder/aibridge/issues/266.
+	if cfg.KeyPool == nil && cfg.Key != "" {
+		// keypool.New only fails on empty or duplicate keys,
+		// neither possible with a single non-empty key.
+		pool, err := keypool.New([]string{cfg.Key}, quartz.NewReal())
+		if err != nil {
+			panic(fmt.Sprintf("anthropic provider: build single-key pool: %s", err))
+		}
+		cfg.KeyPool = pool
+	}
+	cfg.Key = ""
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.IsFailure = anthropicIsFailure
 		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
@@ -119,29 +139,41 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	// Any Coder-specific authentication has already been stripped.
 	//
 	// In centralized mode neither Authorization nor X-Api-Key is
-	// present, so cfg keeps the centralized key unchanged.
+	// present, so cfg keeps the KeyPool from provider construction
+	// and the failover loop walks it.
 	//
-	// In BYOK mode the user's LLM credentials survive intact.
-	// If X-Api-Key is present the user has a personal API key;
-	// overwrite the centralized key with it. If Authorization is
-	// present the user authenticated directly with provider;
-	// set BYOKBearerToken and clear the centralized key.
-	// When both are present, X-Api-Key takes priority to match
-	// claude-code behavior.
+	// In BYOK mode the user's LLM credentials survive intact and
+	// failover is disabled by clearing cfg.KeyPool. If X-Api-Key is
+	// present the user has a personal API key, populate cfg.Key.
+	// If Authorization is present the user authenticated directly
+	// with the provider, populate cfg.BYOKBearerToken. When both
+	// are present, X-Api-Key takes priority to match claude-code
+	// behavior.
+	//
+	// TODO(ssncferreira): consolidate auth field handling per
+	// https://github.com/coder/aibridge/issues/266.
 	credKind := intercept.CredentialKindCentralized
-	credSecret := cfg.Key
+	var credSecret string
 	authHeaderName := p.AuthHeader()
 	if apiKey := r.Header.Get("X-Api-Key"); apiKey != "" {
 		cfg.Key = apiKey
+		cfg.KeyPool = nil
 		authHeaderName = "X-Api-Key"
 		credKind = intercept.CredentialKindBYOK
 		credSecret = apiKey
 	} else if token := utils.ExtractBearerToken(r.Header.Get("Authorization")); token != "" {
 		cfg.BYOKBearerToken = token
-		cfg.Key = ""
+		cfg.KeyPool = nil
 		authHeaderName = "Authorization"
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
+	} else if cfg.KeyPool != nil {
+		// Centralized: use the first key as a placeholder hint.
+		// TODO(ssncferreira): record the actually-used key in
+		// the interception record to reflect failover.
+		if k, err := cfg.KeyPool.Walker().Next(); err == nil {
+			credSecret = k.Value()
+		}
 	}
 
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
@@ -175,7 +207,16 @@ func (p *Anthropic) InjectAuthHeader(headers *http.Header) {
 		return
 	}
 
-	headers.Set(p.AuthHeader(), p.cfg.Key)
+	// Centralized: pull a single key from the pool. No failover
+	// or exhaustion handling here.
+	// TODO(ssncferreira): replace with RoundTripper-based auth
+	// in the upstack passthrough PR.
+	if p.cfg.KeyPool == nil {
+		return
+	}
+	if key, err := p.cfg.KeyPool.Walker().Next(); err == nil {
+		headers.Set(p.AuthHeader(), key.Value())
+	}
 }
 
 func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {
