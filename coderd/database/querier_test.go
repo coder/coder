@@ -11793,6 +11793,11 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	staleTime := time.Now().Add(-2 * time.Hour)
 	staleThreshold := time.Now().Add(-1 * time.Hour)
 
+	// preExistingError is attached to staleStep so we can verify
+	// that finalization preserves pre-existing error JSON rather
+	// than clearing or overwriting it.
+	preExistingError := json.RawMessage(`{"code":"timeout","message":"upstream deadline exceeded"}`)
+
 	// --- staleRun: in_progress run with no finished_at --- should be
 	// finalized.
 	staleRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
@@ -11808,7 +11813,8 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// staleStep: in_progress step attached to staleRun.
+	// staleStep: in_progress step attached to staleRun with a
+	// pre-existing error JSON payload.
 	staleStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
 		RunID:      staleRun.ID,
 		ChatID:     chat.ID,
@@ -11816,8 +11822,14 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		Operation:  "stream",
 		Status:     "in_progress",
 		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		Error: pqtype.NullRawMessage{
+			RawMessage: preExistingError,
+			Valid:      true,
+		},
 	})
 	require.NoError(t, err)
+	require.True(t, staleStep.Error.Valid,
+		"precondition: error must be stored at insertion")
 
 	// --- orphanStep: in_progress step whose run is already completed ---
 	// Its own updated_at is old, so it should be finalized directly.
@@ -12021,8 +12033,11 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Execute the finalization sweep. ---
+	// Capture the @now timestamp so we can verify finalized rows
+	// received exactly this value for updated_at and finished_at.
+	nowParam := time.Now().Truncate(time.Microsecond)
 	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
-		Now:           time.Now(),
+		Now:           nowParam,
 		UpdatedBefore: staleThreshold,
 	})
 	require.NoError(t, err)
@@ -12037,14 +12052,20 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	assert.EqualValues(t, 3, result.StepsFinalized,
 		"stale step + orphan step + cascade step should all be finalized")
 
-	// Verify the stale run was set to interrupted.
+	// Verify the stale run was set to interrupted with correct
+	// timestamps matching the @now parameter.
 	updatedStaleRun, err := store.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "interrupted", updatedStaleRun.Status)
 	assert.True(t, updatedStaleRun.FinishedAt.Valid,
 		"finalized run should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, updatedStaleRun.FinishedAt.Time, time.Microsecond,
+		"finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, updatedStaleRun.UpdatedAt, time.Microsecond,
+		"updated_at should match the @now parameter")
 
-	// Verify the stale step was set to interrupted.
+	// Verify the stale step was set to interrupted and its
+	// pre-existing error JSON was preserved.
 	staleSteps, err := store.GetChatDebugStepsByRunID(ctx, staleRun.ID)
 	require.NoError(t, err)
 	require.Len(t, staleSteps, 1)
@@ -12052,20 +12073,44 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	assert.Equal(t, "interrupted", staleSteps[0].Status)
 	assert.True(t, staleSteps[0].FinishedAt.Valid,
 		"finalized step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, staleSteps[0].FinishedAt.Time, time.Microsecond,
+		"step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, staleSteps[0].UpdatedAt, time.Microsecond,
+		"step updated_at should match the @now parameter")
+	// The error JSON that was set at insertion time must survive
+	// finalization. The query does not touch the error column, so
+	// this proves the JSONB payload is preserved.
+	assert.True(t, staleSteps[0].Error.Valid,
+		"pre-existing error JSON must be preserved after finalization")
+	assert.JSONEq(t, string(preExistingError), string(staleSteps[0].Error.RawMessage),
+		"error JSON content must match the value set at insertion")
 
-	// Verify the orphan step was also finalized.
+	// Verify the orphan step was also finalized with correct timestamps.
 	orphanSteps, err := store.GetChatDebugStepsByRunID(ctx, completedRun.ID)
 	require.NoError(t, err)
 	require.Len(t, orphanSteps, 1)
 	assert.Equal(t, orphanStep.ID, orphanSteps[0].ID)
 	assert.Equal(t, "interrupted", orphanSteps[0].Status)
+	assert.True(t, orphanSteps[0].FinishedAt.Valid,
+		"orphan step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, orphanSteps[0].FinishedAt.Time, time.Microsecond,
+		"orphan step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, orphanSteps[0].UpdatedAt, time.Microsecond,
+		"orphan step updated_at should match the @now parameter")
+	// The orphan step had no error set; verify it remains null.
+	assert.False(t, orphanSteps[0].Error.Valid,
+		"step without pre-existing error should remain null after finalization")
 
-	// Verify the cascade run was finalized.
+	// Verify the cascade run was finalized with correct timestamps.
 	updatedCascadeRun, err := store.GetChatDebugRunByID(ctx, cascadeRun.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "interrupted", updatedCascadeRun.Status)
 	assert.True(t, updatedCascadeRun.FinishedAt.Valid,
 		"cascade run should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, updatedCascadeRun.FinishedAt.Time, time.Microsecond,
+		"cascade run finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, updatedCascadeRun.UpdatedAt, time.Microsecond,
+		"cascade run updated_at should match the @now parameter")
 
 	// Verify the cascade step was finalized despite its recent
 	// updated_at, proving the cascade CTE clause is required.
@@ -12077,6 +12122,13 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		"fresh step should be finalized via cascade, not age")
 	assert.True(t, cascadeSteps[0].FinishedAt.Valid,
 		"cascade step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, cascadeSteps[0].FinishedAt.Time, time.Microsecond,
+		"cascade step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, cascadeSteps[0].UpdatedAt, time.Microsecond,
+		"cascade step updated_at should match the @now parameter")
+	// The cascade step also had no error set.
+	assert.False(t, cascadeSteps[0].Error.Valid,
+		"cascade step without pre-existing error should remain null")
 
 	// Verify the completed run/step are untouched.
 	unchangedRun, err := store.GetChatDebugRunByID(ctx, doneRun.ID)
