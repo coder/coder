@@ -258,7 +258,7 @@ const PortsSubMenuItem: FC<{
 				<NetworkIcon className="size-3.5" />
 				{totalCount !== undefined ? `Ports (${totalCount})` : "Ports"}
 			</DropdownMenuSubTrigger>
-			<DropdownMenuSubContent className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5">
+			<DropdownMenuSubContent className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5">
 				{/* Listening Ports header: only render when there are ports to list. */}
 				{privateListeningPorts.length > 0 && (
 					<div className="px-2 pb-1.5 pt-1">
