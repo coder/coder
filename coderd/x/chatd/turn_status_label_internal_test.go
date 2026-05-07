@@ -74,6 +74,11 @@ func TestNormalizeTurnStatusLabel(t *testing.T) {
 			ok:    false,
 		},
 		{
+			name:  "rejects single word",
+			input: "Fixed",
+			ok:    false,
+		},
+		{
 			name:  "rejects long labels",
 			input: "Fixed the bug and added tests",
 			ok:    false,
