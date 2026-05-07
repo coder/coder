@@ -25887,6 +25887,23 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	return count, err
 }
 
+const getUserShellToolDisplayMode = `-- name: GetUserShellToolDisplayMode :one
+SELECT
+	value AS shell_tool_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_shell_tool_display_mode'
+`
+
+func (q *sqlQuerier) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserShellToolDisplayMode, userID)
+	var shell_tool_display_mode string
+	err := row.Scan(&shell_tool_display_mode)
+	return shell_tool_display_mode, err
+}
+
 const getUserTaskNotificationAlertDismissed = `-- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
 	value::boolean as task_notification_alert_dismissed
@@ -26801,6 +26818,33 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.ChatSpendLimitMicros,
 	)
 	return i, err
+}
+
+const updateUserShellToolDisplayMode = `-- name: UpdateUserShellToolDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_shell_tool_display_mode', $2::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_shell_tool_display_mode'
+RETURNING value AS shell_tool_display_mode
+`
+
+type UpdateUserShellToolDisplayModeParams struct {
+	UserID               uuid.UUID `db:"user_id" json:"user_id"`
+	ShellToolDisplayMode string    `db:"shell_tool_display_mode" json:"shell_tool_display_mode"`
+}
+
+func (q *sqlQuerier) UpdateUserShellToolDisplayMode(ctx context.Context, arg UpdateUserShellToolDisplayModeParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, updateUserShellToolDisplayMode, arg.UserID, arg.ShellToolDisplayMode)
+	var shell_tool_display_mode string
+	err := row.Scan(&shell_tool_display_mode)
+	return shell_tool_display_mode, err
 }
 
 const updateUserStatus = `-- name: UpdateUserStatus :one

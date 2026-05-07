@@ -1306,6 +1306,15 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	shellToolMode, err := api.Database.GetUserShellToolDisplayMode(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	codeDiffMode, err := api.Database.GetUserCodeDiffDisplayMode(ctx, user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1327,6 +1336,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
+		ShellToolDisplayMode:           sanitizeAgentDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
 		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
@@ -1359,6 +1369,16 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			Message: "Invalid thinking display mode.",
 			Validations: []codersdk.ValidationError{
 				{Field: "thinking_display_mode", Detail: thinkingDisplayModeValidationDetail},
+			},
+		})
+		return
+	}
+	if params.ShellToolDisplayMode != "" &&
+		!slices.Contains(codersdk.ValidAgentDisplayModes, params.ShellToolDisplayMode) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid shell tool display mode.",
+			Validations: []codersdk.ValidationError{
+				{Field: "shell_tool_display_mode", Detail: agentDisplayModeValidationDetail},
 			},
 		})
 		return
@@ -1416,6 +1436,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				return newUserPreferenceSettingsAPIError("Error reading thinking display mode.", err)
 			}
 			settings.ThinkingDisplayMode = sanitizeThinkingDisplayMode(stored)
+		}
+
+		if params.ShellToolDisplayMode != "" {
+			updated, err := tx.UpdateUserShellToolDisplayMode(ctx, database.UpdateUserShellToolDisplayModeParams{
+				UserID:               user.ID,
+				ShellToolDisplayMode: string(params.ShellToolDisplayMode),
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating shell tool display mode.", err)
+			}
+			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(updated)
+		} else {
+			stored, err := tx.GetUserShellToolDisplayMode(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading shell tool display mode.", err)
+			}
+			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(stored)
 		}
 
 		if params.CodeDiffDisplayMode != "" {

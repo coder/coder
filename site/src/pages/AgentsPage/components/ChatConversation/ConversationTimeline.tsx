@@ -275,6 +275,8 @@ export const BlockList: FC<{
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
+	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.shell_tool_display_mode || "auto";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
@@ -367,6 +369,7 @@ export const BlockList: FC<{
 									name="Tool"
 									status="running"
 									isError={false}
+									shellToolDisplayMode={shellToolDisplayMode}
 									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
@@ -384,6 +387,7 @@ export const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
+								shellToolDisplayMode={shellToolDisplayMode}
 								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
@@ -440,6 +444,7 @@ export const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
+					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
@@ -564,7 +569,7 @@ const ChatMessageItem = memo<{
 					) : (
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
-								<div className="relative space-y-3 overflow-visible">
+								<div className="relative space-y-3 overflow-visible [&>[data-shell-tool]+[data-shell-tool]]:mt-2">
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}

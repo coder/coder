@@ -9,7 +9,8 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
-import { useRef, useState } from "react";
+import { useState } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -20,184 +21,234 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import {
-	BORDER_BG_STYLE,
-	COLLAPSED_OUTPUT_HEIGHT,
-	signalTooltipLabel,
-	type ToolStatus,
-} from "./utils";
+	type AgentDisplayState,
+	resolveAgentDisplayState,
+} from "./displayMode";
+import { signalTooltipLabel, type ToolStatus } from "./utils";
 
-/**
- * Specialized rendering for `execute` tool calls. Shows the command
- * in a terminal-style block with a copy button. Output is shown in a
- * collapsed preview (~3 lines) with an expand chevron at the bottom.
- */
-export const ExecuteTool: React.FC<{
+type ExecuteToolProps = {
 	command: string;
 	output: string;
 	status: ToolStatus;
 	isError: boolean;
+	exitCode?: number | null;
+	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
-}> = ({ command, output, status, isBackgrounded = false, killedBySignal }) => {
-	const [expanded, setExpanded] = useState(false);
-	const outputRef = useRef<HTMLPreElement | null>(null);
+	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
+};
+
+type ExecuteToolInnerProps = ExecuteToolProps & {
+	outputInitiallyExpanded: boolean;
+};
+
+export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
+	const autoDisplayState: AgentDisplayState =
+		props.output.length > 0 ||
+		props.status === "running" ||
+		props.isBackgrounded ||
+		!!props.killedBySignal
+			? "preview"
+			: "collapsed";
+	const resolvedDisplayState = resolveAgentDisplayState(
+		props.shellToolDisplayMode,
+		autoDisplayState,
+	);
+	return (
+		<ExecuteToolInner
+			key={`${props.shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
+			{...props}
+			outputInitiallyExpanded={resolvedDisplayState !== "collapsed"}
+		/>
+	);
+};
+
+const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
+	command,
+	output,
+	status,
+	isError,
+	exitCode,
+	durationMs,
+	isBackgrounded = false,
+	killedBySignal,
+	outputInitiallyExpanded,
+}) => {
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
-
-	// Track whether the command text is truncated so we can offer
-	// a click-to-expand interaction. The ResizeObserver may clear
-	// commandOverflows while the text is wrapped, but
-	// canToggleCommand stays true via commandExpanded so the
-	// collapse affordance remains visible.
-	const [commandExpanded, setCommandExpanded] = useState(false);
-	const [commandOverflows, setCommandOverflows] = useState(false);
-	const canToggleCommand = commandOverflows || commandExpanded;
-	const commandRef = (node: HTMLElement | null) => {
-		if (!node) return;
-		const measure = () => {
-			setCommandOverflows(node.scrollWidth > node.clientWidth);
-		};
-		measure();
-		const ro = new ResizeObserver(measure);
-		ro.observe(node);
-		return () => ro.disconnect();
-	};
-
-	// Check whether the output overflows the collapsed height so we
-	// know if we need to show the expand toggle at all.
-	const [overflows, setOverflows] = useState(false);
-	const measureRef = (node: HTMLPreElement | null) => {
-		outputRef.current = node;
-		if (node) {
-			setOverflows(node.scrollHeight > COLLAPSED_OUTPUT_HEIGHT);
-		}
-	};
+	const [outputExpanded, setOutputExpanded] = useState(outputInitiallyExpanded);
+	const outputToggleLabel = outputExpanded
+		? "Collapse command output"
+		: "Expand command output";
+	const statusLabel = shellStatusLabel({
+		isRunning,
+		isError,
+		exitCode,
+		killedBySignal,
+	});
+	const durationLabel = formatShellDurationMs(durationMs);
 
 	return (
-		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
-			{/* Header: $ command + copy button */}
-			<div className="flex w-full items-start justify-between gap-2 px-3 py-2">
-				{/* biome-ignore lint/a11y/useKeyWithClickEvents: Click toggles for mouse users; keyboard users use the chevron button. */}
-				<div
-					className={cn(
-						"flex min-w-0 flex-1 items-start gap-2",
-						canToggleCommand && "cursor-pointer",
-					)}
-					onClick={
-						canToggleCommand ? () => setCommandExpanded((v) => !v) : undefined
-					}
-				>
-					<span className="shrink-0 font-mono text-xs leading-5 text-content-secondary">
-						$
-					</span>
-					<code
-						ref={commandRef}
-						className={cn(
-							"min-w-0 flex-1 font-mono text-xs leading-5 text-content-primary",
-							commandExpanded ? "whitespace-pre-wrap break-all" : "truncate",
-						)}
-					>
+		<div className="group/exec grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-mono text-xs leading-5 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
+			<span className="col-start-1 row-start-1 shrink-0 text-content-success">
+				$
+			</span>
+			<div className="col-start-2 row-start-1 min-w-0">
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span className="block truncate text-content-primary">
+							{command}
+						</span>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-xl whitespace-pre-wrap break-all font-mono">
 						{command}
-					</code>
-				</div>
-				<div className="flex shrink-0 items-center gap-1">
-					{canToggleCommand && (
-						<button
-							type="button"
-							onClick={() => setCommandExpanded((v) => !v)}
-							className={cn(
-								"border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
-								commandExpanded
-									? "opacity-100"
-									: "opacity-0 group-hover/exec:opacity-100",
-							)}
-							aria-expanded={commandExpanded}
-							aria-label={
-								commandExpanded ? "Collapse command" : "Expand command"
-							}
-						>
-							<ChevronDownIcon
-								className={cn(
-									"h-3.5 w-3.5 transition-transform",
-									commandExpanded && "rotate-180",
-								)}
-							/>
-						</button>
-					)}
-					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-					)}
-					{isBackgrounded && !isRunning && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<LayersIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-							</TooltipTrigger>
-							<TooltipContent>Running in background</TooltipContent>
-						</Tooltip>
-					)}
-					{killedBySignal && !isRunning && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
-							</TooltipTrigger>
-							<TooltipContent>
-								{signalTooltipLabel(killedBySignal)}
-							</TooltipContent>
-						</Tooltip>
-					)}
-					<CopyButton
-						text={command}
-						label="Copy command"
-						className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
-					/>
-				</div>
+					</TooltipContent>
+				</Tooltip>
 			</div>
-			{/* Output preview / expanded */}
+			<div className="col-start-3 row-start-1 flex shrink-0 items-center gap-1">
+				{isRunning && (
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				)}
+				{isBackgrounded && !isRunning && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<LayersIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+						</TooltipTrigger>
+						<TooltipContent>Running in background</TooltipContent>
+					</Tooltip>
+				)}
+				{killedBySignal && !isRunning && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+						</TooltipTrigger>
+						<TooltipContent>
+							{signalTooltipLabel(killedBySignal)}
+						</TooltipContent>
+					</Tooltip>
+				)}
+				<CopyButton
+					text={command}
+					label="Copy command"
+					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
+				/>
+			</div>
 			{hasOutput && (
-				<>
-					<div className="h-px" style={BORDER_BG_STYLE} />
-					<ScrollArea
-						className="text-2xs"
-						viewportClassName={expanded ? "max-h-96" : ""}
-						scrollBarClassName="w-1.5"
-					>
-						<pre
-							ref={measureRef}
-							style={
-								expanded
-									? undefined
-									: { maxHeight: COLLAPSED_OUTPUT_HEIGHT, overflow: "hidden" }
-							}
-							className={cn(
-								"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-3 py-2 font-mono text-xs",
-								"text-content-secondary",
-							)}
-						>
-							{output}
-						</pre>
-					</ScrollArea>
-
-					{/* Expand / collapse toggle at the bottom */}
-					{overflows && (
-						<button
-							type="button"
-							aria-expanded={expanded}
-							onClick={() => setExpanded((v) => !v)}
-							className="border-0 bg-transparent m-0 font-[inherit] text-[inherit] flex w-full cursor-pointer items-center justify-center py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
-							aria-label={expanded ? "Collapse output" : "Expand output"}
-						>
-							<ChevronDownIcon
-								className={cn(
-									"h-3 w-3 transition-transform",
-									expanded && "rotate-180",
-								)}
-							/>
-						</button>
-					)}
-				</>
+				<ShellOutputToggle
+					expanded={outputExpanded}
+					label={outputToggleLabel}
+					statusLabel={statusLabel}
+					durationLabel={durationLabel}
+					onToggle={() => setOutputExpanded((value) => !value)}
+				/>
+			)}
+			{hasOutput && outputExpanded && (
+				<ShellOutputBody output={output} isError={isError} />
 			)}
 		</div>
 	);
+};
+
+const ShellOutputToggle: React.FC<{
+	expanded: boolean;
+	label: string;
+	statusLabel: { text: string; className: string };
+	durationLabel: string;
+	onToggle: () => void;
+}> = ({ expanded, label, statusLabel, durationLabel, onToggle }) => {
+	return (
+		<button
+			type="button"
+			aria-expanded={expanded}
+			aria-label={label}
+			onClick={onToggle}
+			className="col-start-2 col-span-2 row-start-2 mt-1 flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-secondary hover:text-content-primary sm:col-start-4 sm:col-span-1 sm:row-start-1 sm:mt-0"
+		>
+			<span className="sm:hidden">output</span>
+			{durationLabel && (
+				<>
+					<span>{durationLabel}</span>
+					<ShellMetaSeparator />
+				</>
+			)}
+			<span className={statusLabel.className}>{statusLabel.text}</span>
+			<ChevronDownIcon
+				className={cn(
+					"size-3.5 shrink-0 transition-transform",
+					expanded ? "rotate-180" : "",
+				)}
+			/>
+		</button>
+	);
+};
+
+const ShellOutputBody: React.FC<{
+	output: string;
+	isError: boolean;
+}> = ({ output, isError }) => {
+	return (
+		<ScrollArea
+			className="col-start-1 col-span-3 mt-1 rounded-md border border-solid border-border-default/50 bg-surface-secondary/30 text-2xs sm:col-span-4"
+			viewportClassName="max-h-64"
+			scrollBarClassName="w-1.5"
+		>
+			<pre
+				className={cn(
+					"m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-2 py-1.5 font-mono text-xs leading-5",
+					isError ? "text-content-destructive" : "text-content-primary",
+				)}
+			>
+				{output}
+			</pre>
+		</ScrollArea>
+	);
+};
+
+const ShellMetaSeparator: React.FC = () => {
+	return <span className="text-content-disabled">|</span>;
+};
+
+const shellStatusLabel = ({
+	isRunning,
+	isError,
+	exitCode,
+	killedBySignal,
+}: {
+	isRunning: boolean;
+	isError: boolean;
+	exitCode?: number | null;
+	killedBySignal?: "kill" | "terminate";
+}): { text: string; className: string } => {
+	if (isRunning) {
+		return { text: "running", className: "text-content-link" };
+	}
+	if (killedBySignal) {
+		return { text: "terminated", className: "text-content-secondary" };
+	}
+	const code = exitCode ?? (isError ? 1 : 0);
+	return {
+		text: `exit ${code}`,
+		className: code === 0 ? "text-content-success" : "text-content-destructive",
+	};
+};
+
+const formatShellDurationMs = (durationMs: number | undefined): string => {
+	if (durationMs === undefined || durationMs < 0) {
+		return "";
+	}
+	if (durationMs < 1000) {
+		return `${Math.round(durationMs)}ms`;
+	}
+	const seconds = durationMs / 1000;
+	if (seconds < 60) {
+		return `${Number(seconds.toFixed(1))}s`;
+	}
+	const minutes = seconds / 60;
+	if (minutes < 60) {
+		return `${Number(minutes.toFixed(1))}m`;
+	}
+	const hours = minutes / 60;
+	return `${Number(hours.toFixed(1))}h`;
 };
 
 export const ExecuteAuthRequiredTool: React.FC<{

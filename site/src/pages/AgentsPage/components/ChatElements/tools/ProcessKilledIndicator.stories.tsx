@@ -19,7 +19,7 @@ export default meta;
 type Story = StoryObj<typeof Tool>;
 
 // ---------------------------------------------------------------------------
-// Execute tool — killed indicator via killedBySignal prop
+// Execute tool, killed indicator via killedBySignal prop.
 // ---------------------------------------------------------------------------
 
 export const ExecuteKilled: Story = {
@@ -38,7 +38,7 @@ export const ExecuteKilled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("make pre-push 2>&1")).toBeInTheDocument();
+		expect(canvas.getAllByText("make pre-push 2>&1").length).toBeGreaterThan(0);
 	},
 };
 
@@ -58,11 +58,11 @@ export const ExecuteTerminated: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("npm start")).toBeInTheDocument();
+		expect(canvas.getAllByText("npm start").length).toBeGreaterThan(0);
 	},
 };
 
-/** Execute NOT signaled — no indicator. */
+/** Execute not signaled, no indicator. */
 export const ExecuteNotSignaled: Story = {
 	args: {
 		name: "execute",
@@ -77,11 +77,11 @@ export const ExecuteNotSignaled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("echo hello")).toBeInTheDocument();
+		expect(canvas.getAllByText("echo hello").length).toBeGreaterThan(0);
 	},
 };
 
-/** Running execute — killed indicator should NOT appear yet. */
+/** Running execute, killed indicator should not appear yet. */
 export const ExecuteRunningNotYetKilled: Story = {
 	args: {
 		name: "execute",
@@ -91,12 +91,12 @@ export const ExecuteRunningNotYetKilled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("make pre-push 2>&1")).toBeInTheDocument();
+		expect(canvas.getAllByText("make pre-push 2>&1").length).toBeGreaterThan(0);
 	},
 };
 
 // ---------------------------------------------------------------------------
-// ProcessOutput tool — killed indicator
+// ProcessOutput tool, killed indicator.
 // ---------------------------------------------------------------------------
 
 export const ProcessOutputKilled: Story = {
@@ -133,7 +133,7 @@ export const ProcessOutputTerminated: Story = {
 	},
 };
 
-/** ProcessOutput with no output and killed — indicator in empty state. */
+/** ProcessOutput with no output and killed, indicator in empty state. */
 export const ProcessOutputKilledNoOutput: Story = {
 	args: {
 		name: "process_output",

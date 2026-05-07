@@ -92,6 +92,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	previousResponseText?: string;
 	/** Human-readable intent extracted from the model's tool-call args. */
 	modelIntent?: string;
+	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
 
@@ -116,6 +117,7 @@ type ToolRendererProps = {
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
+	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -218,11 +220,20 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	shellToolDisplayMode,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const command = parsedArgs ? asString(parsedArgs.command) : "";
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
+	const rawExitCode = rec
+		? asNumber(rec.exit_code, { parseString: true })
+		: undefined;
+	const exitCode = rawExitCode ?? null;
+	const durationMs = rec
+		? (asNumber(rec.wall_duration_ms, { parseString: true }) ??
+			asNumber(rec.duration_ms, { parseString: true }))
+		: undefined;
 	const authRequired = rec ? Boolean(rec.auth_required) : false;
 	const authenticateURL = rec ? asString(rec.authenticate_url).trim() : "";
 	const providerLabel = toProviderLabel(
@@ -247,7 +258,10 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			output={output}
 			status={status}
 			isError={isError}
+			exitCode={exitCode}
+			durationMs={durationMs}
 			killedBySignal={killedBySignal}
+			shellToolDisplayMode={shellToolDisplayMode}
 		/>
 	);
 };
@@ -257,6 +271,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
@@ -273,6 +288,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			exitCode={exitCode}
 			isError={isError}
 			killedBySignal={killedBySignal}
+			shellToolDisplayMode={shellToolDisplayMode}
 		/>
 	);
 };
@@ -1037,6 +1053,7 @@ export const Tool = memo(
 		isLatestAskUserQuestion,
 		previousResponseText,
 		modelIntent,
+		shellToolDisplayMode,
 		codeDiffDisplayMode,
 		ref,
 		...props
@@ -1044,21 +1061,17 @@ export const Tool = memo(
 		const Renderer = isSubagentToolName(name)
 			? SubagentRenderer
 			: (toolRenderers[name] ?? GenericToolRenderer);
+		const isShellTool = name === "execute" || name === "process_output";
 
 		return (
 			<div
 				ref={ref}
 				data-tool-call=""
+				data-shell-tool={isShellTool ? "" : undefined}
 				className={cn(
-					name === "execute" ||
-						name === "process_output" ||
-						name === "propose_plan" ||
-						name === "advisor"
+					isShellTool || name === "propose_plan" || name === "advisor"
 						? "w-full py-0.5"
 						: "py-0.5",
-					// Collapse padding between adjacent tool calls so they hug.
-					// Bottom padding is removed on a tool followed by a tool, and
-					// top padding is removed on a tool preceded by a tool.
 					"[&:has(+[data-tool-call])]:pb-0",
 					"[[data-tool-call]+&]:pt-0",
 					className,
@@ -1084,6 +1097,7 @@ export const Tool = memo(
 					isLatestAskUserQuestion={isLatestAskUserQuestion}
 					previousResponseText={previousResponseText}
 					modelIntent={modelIntent}
+					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
 				/>
 			</div>

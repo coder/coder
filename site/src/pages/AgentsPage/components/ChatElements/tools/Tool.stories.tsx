@@ -6,6 +6,8 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const longExecuteCommand =
+	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
@@ -46,7 +48,11 @@ export const ExecuteRunning: Story = {
 
 export const ExecuteSuccess: Story = {
 	args: {
+		shellToolDisplayMode: "auto",
+		args: { command: longExecuteCommand },
 		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
 			output:
 				"From github.com:coder/coder\n * [new branch]      feature/agent-ui -> origin/feature/agent-ui",
 		},
@@ -54,6 +60,109 @@ export const ExecuteSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
+		expect(canvas.getByText("exit 0")).toBeVisible();
+		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ExecuteError: Story = {
+	args: {
+		name: "execute",
+		status: "error",
+		isError: true,
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 8600,
+			exit_code: 1,
+			output: Array.from(
+				{ length: 47 },
+				(_, index) => `error line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("exit 1")).toBeVisible();
+		expect(canvas.getByText("8.6s")).toBeVisible();
+		expect(canvas.queryByText("47 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ExecuteAlwaysCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: executeCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "From github.com:coder/coder\nFetching origin/main",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(executeCommand)).toBeVisible();
+		expect(canvas.getByText("exit 0")).toBeVisible();
+		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText(/From github\.com:coder\/coder/),
+		).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand command output" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
+		});
+	},
+};
+
+export const ExecuteLongCommandCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
+			output: Array.from(
+				{ length: 61 },
+				(_, index) => `output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const command = canvas.getByText(longExecuteCommand);
+		expect(command).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: longExecuteCommand }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("exit 0")).toBeVisible();
+		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ProcessOutputAlwaysCollapsed: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "build completed\n0 errors",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/build completed/)).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand process output" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/build completed/)).toBeVisible();
+		});
 	},
 };
 

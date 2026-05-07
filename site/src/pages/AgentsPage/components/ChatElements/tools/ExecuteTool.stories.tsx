@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
+
+const longCommand =
+	"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50";
 
 const meta: Meta<typeof ExecuteTool> = {
 	title: "components/ai-elements/tool/ExecuteTool",
@@ -29,29 +32,27 @@ export const ShortCommand: Story = {
 	},
 };
 
-/** A long command expanded to show the full text, with the chevron visible on hover. */
 export const LongCommand: Story = {
 	args: {
-		command:
-			"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50",
+		command: longCommand,
 		output: "",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const chevron = canvas.getByRole("button", {
-			name: /expand command/i,
-		});
-		await userEvent.click(chevron);
-		// Hover the component so the chevron stays visible.
-		await userEvent.hover(canvasElement.firstElementChild!);
+		const command = canvas.getByText(longCommand);
+		expect(command).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: longCommand }),
+		).not.toBeInTheDocument();
+		await userEvent.hover(command);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(longCommand);
 	},
 };
 
 /** A long truncated command with multi-line output below it. */
 export const LongCommandWithOutput: Story = {
 	args: {
-		command:
-			"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50",
+		command: longCommand,
 		output: [
 			"src/api/legacyClient.ts",
 			"src/components/OldTable/OldTable.tsx",
