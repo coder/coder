@@ -103,6 +103,13 @@ func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer,
 		// output when scrolling back with the mouse wheel (copy mode still works
 		// since that is screen itself scrolling).
 		"altscreen on",
+		// Match the background color erase capability advertised by xterm-256color.
+		"defbce on",
+		// Keep the shell environment aligned with the web terminal emulator. Some
+		// terminal applications, including tmux, render differently when they see
+		// screen.xterm-256color even though screen is only an implementation
+		// detail for reconnecting.
+		"term " + xterm256Color,
 		// Remap the control key to C-s since C-a may be used in applications.  C-s
 		// is chosen because it cannot actually be used because by default it will
 		// pause and C-q to resume will just kill the browser window.  We may not
@@ -230,7 +237,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 		// pty.Cmd duplicates Path as the first argument so remove it.
 	}, rpty.command.Args[1:]...)...)
 	//nolint:gocritic
-	cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
+	cmd.Env = append(rpty.command.Env, "TERM="+xterm256Color)
 	cmd.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
 		pty.WithSSHRequest(ssh.Pty{
@@ -346,7 +353,7 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			"-X", command,
 		)
 		//nolint:gocritic
-		cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
+		cmd.Env = append(rpty.command.Env, "TERM="+xterm256Color)
 		cmd.Dir = rpty.command.Dir
 		cmd.Stdout = &stdout
 		err := cmd.Run()

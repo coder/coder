@@ -2229,12 +2229,25 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 			}
 
-			// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
-			// will sometimes put the command output on the same line as the command and the test will flake
+			// Wait for the prompt before writing commands. If the command
+			// arrives before the prompt is written, screen will sometimes put
+			// the command output on the same line as the command and the test
+			// will flake.
 			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
 			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
 
 			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+				Data: "printf '%s\\n' \"$TERM\"\r",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+			require.NoError(t, tr1.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr2.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
+			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
+
+			data, err = json.Marshal(workspacesdk.ReconnectingPTYRequest{
 				Data: "echo test\r",
 			})
 			require.NoError(t, err)
