@@ -316,6 +316,10 @@ func TestTurnStatusSignalsFromContent(t *testing.T) {
 			content: failedExecuteToolContent(t, "call-commit", "git commit -m change"),
 		},
 		{
+			name:    "unrecognized execute command ignored",
+			content: successfulExecuteToolContent(t, "call-ls", "ls -la"),
+		},
+		{
 			name: "updated files",
 			content: []fantasy.Content{
 				toolResultContent(t, "call-edit", "edit_files", map[string]any{"ok": true}),
@@ -338,6 +342,12 @@ func TestTurnStatusSignalsFromContent(t *testing.T) {
 				Success:    true,
 				Confidence: 70,
 			}},
+		},
+		{
+			name: "failed file update ignored",
+			content: []fantasy.Content{
+				toolResultContent(t, "call-edit", "edit_files", map[string]any{"ok": false}),
+			},
 		},
 		{
 			name: "provider executed result is ignored",
