@@ -1108,7 +1108,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			<PopoverContent
 				align="end"
 				sideOffset={2}
-				alignOffset={0}
+				alignOffset={6}
 				className="w-64 p-0"
 			>
 				<div className="flex flex-col">
