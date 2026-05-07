@@ -4,19 +4,11 @@ import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { regenerateUserSSHKey, userSSHKey } from "#/api/queries/sshKeys";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Section } from "../Section";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { SSHKeysPageView } from "./SSHKeysPageView";
-
-export const Language = {
-	title: "SSH keys",
-	regenerateDialogTitle: "Regenerate SSH key?",
-	regenerationError: "Failed to regenerate SSH key",
-	regenerationSuccess: "SSH Key regenerated successfully.",
-	regenerateDialogMessage:
-		"You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
-	confirmLabel: "Confirm",
-	cancelLabel: "Cancel",
-};
 
 const SSHKeysPage: FC = () => {
 	const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
@@ -30,32 +22,36 @@ const SSHKeysPage: FC = () => {
 
 	return (
 		<>
-			<Section title={Language.title}>
-				<SSHKeysPageView
-					isLoading={userSSHKeyQuery.isLoading}
-					getSSHKeyError={userSSHKeyQuery.error}
-					sshKey={userSSHKeyQuery.data}
-					onRegenerateClick={() => setIsConfirmingRegeneration(true)}
-				/>
-			</Section>
+			<SettingsHeader>
+				<SettingsHeaderTitle>SSH keys</SettingsHeaderTitle>
+			</SettingsHeader>
+			<SSHKeysPageView
+				isLoading={userSSHKeyQuery.isLoading}
+				getSSHKeyError={userSSHKeyQuery.error}
+				sshKey={userSSHKeyQuery.data}
+				onRegenerateClick={() => setIsConfirmingRegeneration(true)}
+			/>
 
 			<ConfirmDialog
 				type="delete"
 				hideCancel={false}
 				open={isConfirmingRegeneration}
 				confirmLoading={regenerateSSHKeyMutation.isPending}
-				title={Language.regenerateDialogTitle}
-				description={Language.regenerateDialogMessage}
-				confirmText={Language.confirmLabel}
+				title="Regenerate SSH key?"
+				description="You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces."
+				confirmText="Confirm"
 				onClose={() => setIsConfirmingRegeneration(false)}
 				onConfirm={async () => {
 					try {
 						await regenerateSSHKeyMutation.mutateAsync();
-						toast.success(Language.regenerationSuccess);
+						toast.success("SSH Key regenerated successfully.");
 					} catch (error) {
-						toast.error(getErrorMessage(error, Language.regenerationError), {
-							description: getErrorDetail(error),
-						});
+						toast.error(
+							getErrorMessage(error, "Failed to regenerate SSH key"),
+							{
+								description: getErrorDetail(error),
+							},
+						);
 					} finally {
 						setIsConfirmingRegeneration(false);
 					}

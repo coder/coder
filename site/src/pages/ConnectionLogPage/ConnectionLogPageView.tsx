@@ -1,7 +1,5 @@
 import type { ComponentProps, FC } from "react";
-import { docs } from "utils/docs";
 import type { ConnectionLog } from "#/api/typesGenerated";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -14,7 +12,6 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -23,14 +20,10 @@ import {
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
-import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
+import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
-
-const Language = {
-	title: "Connection Log",
-	subtitle: "View workspace connection events.",
-};
 
 interface ConnectionLogPageViewProps {
 	connectionLogs?: readonly ConnectionLog[];
@@ -60,16 +53,18 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
-					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.title}</span>
-						<ConnectionLogHelpTooltip />
-					</Stack>
+					<div className="flex flex-row gap-2 items-center">
+						<span>Connection Log</span>
+						<ConnectionLogHelpPopover />
+					</div>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					View workspace connection events.
+				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<ChooseOne>
-				<Cond condition={isConnectionLogVisible}>
+			{isConnectionLogVisible ? (
+				<>
 					<ConnectionLogFilter {...filterProps} />
 
 					<PaginationContainer
@@ -78,65 +73,76 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					>
 						<Table>
 							<TableBody>
-								<ChooseOne>
-									{/* Error condition should just show an empty table. */}
-									<Cond condition={Boolean(error)}>
-										<TableRow>
-											<TableCell colSpan={999}>
-												<EmptyState message="An error occurred while loading connection logs" />
-											</TableCell>
-										</TableRow>
-									</Cond>
-
-									<Cond condition={isLoading}>
-										<TableLoader />
-									</Cond>
-
-									<Cond condition={isEmpty}>
-										<ChooseOne>
-											<Cond condition={isNonInitialPage}>
-												<TableRow>
-													<TableCell colSpan={999}>
-														<EmptyState message="No connection logs available on this page" />
-													</TableCell>
-												</TableRow>
-											</Cond>
-
-											<Cond>
-												<TableRow>
-													<TableCell colSpan={999}>
-														<EmptyState message="No connection logs available" />
-													</TableCell>
-												</TableRow>
-											</Cond>
-										</ChooseOne>
-									</Cond>
-
-									<Cond>
-										{connectionLogs && (
-											<Timeline
-												items={connectionLogs}
-												getDate={(log) => new Date(log.connect_time)}
-												row={(log) => (
-													<ConnectionLogRow key={log.id} connectionLog={log} />
-												)}
-											/>
-										)}
-									</Cond>
-								</ChooseOne>
+								<ConnectionLogTableBody
+									connectionLogs={connectionLogs}
+									error={error}
+									isLoading={isLoading}
+									isEmpty={isEmpty}
+									isNonInitialPage={isNonInitialPage}
+								/>
 							</TableBody>
 						</Table>
 					</PaginationContainer>
-				</Cond>
-
-				<Cond>
-					<PaywallPremium
-						message="Connection logs"
-						description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/monitoring/connection-logs")}
-					/>
-				</Cond>
-			</ChooseOne>
+				</>
+			) : (
+				<PaywallPremium
+					message="Connection logs"
+					description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
+					documentationLink={docs("/admin/monitoring/connection-logs")}
+				/>
+			)}
 		</Margins>
+	);
+};
+
+interface ConnectionLogTableBodyProps {
+	connectionLogs: readonly ConnectionLog[] | undefined;
+	error: unknown;
+	isLoading: boolean;
+	isEmpty: boolean;
+	isNonInitialPage: boolean;
+}
+
+const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
+	connectionLogs,
+	error,
+	isLoading,
+	isEmpty,
+	isNonInitialPage,
+}) => {
+	// An error renders as an empty table.
+	if (error) {
+		return (
+			<TableRow>
+				<TableCell colSpan={999}>
+					<EmptyState message="An error occurred while loading connection logs" />
+				</TableCell>
+			</TableRow>
+		);
+	}
+	if (isLoading) {
+		return <TableLoader />;
+	}
+	if (isEmpty) {
+		const emptyMessage = isNonInitialPage
+			? "No connection logs available on this page"
+			: "No connection logs available";
+		return (
+			<TableRow>
+				<TableCell colSpan={999}>
+					<EmptyState message={emptyMessage} />
+				</TableCell>
+			</TableRow>
+		);
+	}
+	if (!connectionLogs) {
+		return null;
+	}
+	return (
+		<Timeline
+			items={connectionLogs}
+			getDate={(log) => new Date(log.connect_time)}
+			row={(log) => <ConnectionLogRow key={log.id} connectionLog={log} />}
+		/>
 	);
 };

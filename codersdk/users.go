@@ -98,6 +98,9 @@ type User struct {
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []SlimRole  `json:"roles"`
+	// HasAISeat intentionally omits omitempty so the API always includes the
+	// field, even when false.
+	HasAISeat bool `json:"has_ai_seat"`
 }
 
 type GetUsersResponse struct {
@@ -122,12 +125,13 @@ type LicensorTrialRequest struct {
 }
 
 type CreateFirstUserRequest struct {
-	Email     string                   `json:"email" validate:"required,email"`
-	Username  string                   `json:"username" validate:"required,username"`
-	Name      string                   `json:"name" validate:"user_real_name"`
-	Password  string                   `json:"password" validate:"required"`
-	Trial     bool                     `json:"trial"`
-	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+	Email          string                         `json:"email" validate:"required,email"`
+	Username       string                         `json:"username" validate:"required,username"`
+	Name           string                         `json:"name" validate:"user_real_name"`
+	Password       string                         `json:"password" validate:"required"`
+	Trial          bool                           `json:"trial"`
+	TrialInfo      CreateFirstUserTrialInfo       `json:"trial_info"`
+	OnboardingInfo *CreateFirstUserOnboardingInfo `json:"onboarding_info,omitempty"`
 }
 
 type CreateFirstUserTrialInfo struct {
@@ -138,6 +142,13 @@ type CreateFirstUserTrialInfo struct {
 	CompanyName string `json:"company_name"`
 	Country     string `json:"country"`
 	Developers  string `json:"developers"`
+}
+
+// CreateFirstUserOnboardingInfo contains optional newsletter preference
+// data collected during first user setup.
+type CreateFirstUserOnboardingInfo struct {
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
@@ -178,6 +189,8 @@ type CreateUserRequestWithOrgs struct {
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
 	// Service accounts are admin-managed accounts that cannot login.
 	ServiceAccount bool `json:"service_account,omitempty"`
+	// Roles is an optional list of site-level roles to assign at creation.
+	Roles []string `json:"roles,omitempty"`
 }
 
 // UnmarshalJSON implements the unmarshal for the legacy param "organization_id".
@@ -250,11 +263,29 @@ type UpdateUserAppearanceSettingsRequest struct {
 }
 
 type UserPreferenceSettings struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed bool                `json:"task_notification_alert_dismissed"`
+	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed *bool               `json:"task_notification_alert_dismissed,omitempty"`
+	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode,omitempty"`
+}
+
+type ThinkingDisplayMode string
+
+const (
+	ThinkingDisplayModeAuto            ThinkingDisplayMode = "auto"
+	ThinkingDisplayModePreview         ThinkingDisplayMode = "preview"
+	ThinkingDisplayModeAlwaysExpanded  ThinkingDisplayMode = "always_expanded"
+	ThinkingDisplayModeAlwaysCollapsed ThinkingDisplayMode = "always_collapsed"
+)
+
+var ValidThinkingDisplayModes = []ThinkingDisplayMode{
+	ThinkingDisplayModeAuto,
+	ThinkingDisplayModePreview,
+	ThinkingDisplayModeAlwaysExpanded,
+	ThinkingDisplayModeAlwaysCollapsed,
 }
 
 type UpdateUserPasswordRequest struct {

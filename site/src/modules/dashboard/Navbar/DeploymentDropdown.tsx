@@ -1,4 +1,3 @@
-import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
 import { Link } from "react-router";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -9,6 +8,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { linkToAuditing } from "#/modules/navigation";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
@@ -93,7 +93,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			)}
 			{canViewAIBridge && (
 				<DropdownMenuItem asChild>
-					<Link to="/aibridge">AI Bridge Logs</Link>
+					<Link to="/aibridge/sessions">AI Bridge Sessions</Link>
 				</DropdownMenuItem>
 			)}
 			{canViewHealth && (

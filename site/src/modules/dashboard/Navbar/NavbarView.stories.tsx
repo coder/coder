@@ -1,9 +1,14 @@
-import { chromaticWithTablet } from "testHelpers/chromatic";
-import { MockTasks, MockUserMember, MockUserOwner } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
+import { chromaticWithTablet } from "#/testHelpers/chromatic";
+import {
+	MockBuildInfo,
+	MockTasks,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
 const tasksFilter: TasksFilter = {
@@ -15,7 +20,6 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: {
 		chromatic: chromaticWithTablet,
 		layout: "fullscreen",
-		experiments: ["agents"],
 		queries: [
 			{
 				key: ["tasks", tasksFilter],
@@ -30,6 +34,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		canCreateChat: true,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -86,12 +91,18 @@ export const ForMember: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canCreateChat: false,
 	},
 };
 
-export const CustomLogo: Story = {
+export const ForMemberWithAgentsAccess: Story = {
 	args: {
-		logo_url: "/icon/github.svg",
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: false,
+		canCreateChat: true,
 	},
 };
 
@@ -164,5 +175,35 @@ export const DefaultSupportLinks: Story = {
 			},
 			{ icon: "star", name: "Star the Repo", target: "" },
 		],
+	},
+};
+
+export const DevelBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.21.0-devel+abc123",
+			external_url: "https://github.com/coder/coder/commit/abc123",
+		},
+	},
+};
+
+export const RcBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.21.0-rc.1+def456",
+			external_url: "https://github.com/coder/coder/releases/tag/v2.21.0-rc.1",
+		},
+	},
+};
+
+export const RcDevelBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.33.0-rc.1-devel+727ec00f7",
+			external_url: "https://github.com/coder/coder/commit/727ec00f7",
+		},
 	},
 };

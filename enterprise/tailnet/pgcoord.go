@@ -3,9 +3,10 @@ package tailnet
 import (
 	"context"
 	"database/sql"
+	"math"
+	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -39,6 +40,27 @@ const (
 	cleanupPeriod          = time.Hour
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
+
+func publishPeerUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, peerID uuid.UUID) {
+	if err := ps.Publish(eventPeerUpdate, []byte(peerID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish peer update", slog.F("peer_id", peerID), slog.Error(err))
+	}
+}
+
+func publishTunnelUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, srcID, dstID uuid.UUID) {
+	if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish tunnel update",
+			slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
+	}
+}
+
+func publishCoordinatorHeartbeat(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, id uuid.UUID) {
+	if err := ps.Publish(EventHeartbeats, []byte(id.String())); err != nil {
+		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.F("coordinator_id", id), slog.Error(err))
+	} else {
+		logger.Debug(ctx, "sent heartbeat", slog.F("coordinator_id", id))
+	}
+}
 
 // pgCoord is a postgres-backed coordinator
 //
@@ -150,11 +172,11 @@ func newPGCoordInternal(
 		logger:           logger,
 		pubsub:           ps,
 		store:            store,
-		binder:           newBinder(ctx, logger, id, store, bCh, fHB),
+		binder:           newBinder(ctx, logger, id, store, ps, bCh, fHB),
 		bindings:         bCh,
 		newConnections:   cCh,
 		closeConnections: ccCh,
-		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
+		tunneler:         newTunneler(ctx, logger, id, store, ps, sCh, fHB),
 		tunnelerCh:       sCh,
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
@@ -271,6 +293,7 @@ type tunneler struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	updates       <-chan tunnel
 
 	mu     sync.Mutex
@@ -284,6 +307,7 @@ func newTunneler(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	updates <-chan tunnel,
 	startWorkers <-chan struct{},
 ) *tunneler {
@@ -292,6 +316,7 @@ func newTunneler(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		updates:       updates,
 		latest:        make(map[uuid.UUID]map[uuid.UUID]tunnel),
 		workQ:         newWorkQ[tKey](ctx),
@@ -394,7 +419,8 @@ func (t *tunneler) writeOne(tun tunnel) error {
 	var err error
 	switch {
 	case tun.dst == uuid.Nil:
-		err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
+		var deleted []database.DeleteAllTailnetTunnelsRow
+		deleted, err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
 			SrcID:         tun.src,
 			CoordinatorID: t.coordinatorID,
 		})
@@ -402,6 +428,11 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("src_id", tun.src),
 			slog.Error(err),
 		)
+		if err == nil {
+			for _, row := range deleted {
+				publishTunnelUpdate(t.ctx, t.pubsub, t.logger, row.SrcID, row.DstID)
+			}
+		}
 	case tun.active:
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -413,6 +444,9 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("dst_id", tun.dst),
 			slog.Error(err),
 		)
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
+		}
 	case !tun.active:
 		_, err = t.store.DeleteTailnetTunnel(t.ctx, database.DeleteTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -426,7 +460,10 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		)
 		// writeOne should be idempotent
 		if xerrors.Is(err, sql.ErrNoRows) {
-			err = nil
+			return nil // No row deleted, skip publish.
+		}
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
 		}
 	default:
 		panic("unreachable")
@@ -457,6 +494,7 @@ type binder struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	bindings      <-chan binding
 
 	mu     sync.Mutex
@@ -471,6 +509,7 @@ func newBinder(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	bindings <-chan binding,
 	startWorkers <-chan struct{},
 ) *binder {
@@ -479,6 +518,7 @@ func newBinder(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		bindings:      bindings,
 		latest:        make(map[bKey]binding),
 		workQ:         newWorkQ[bKey](ctx),
@@ -506,12 +546,15 @@ func newBinder(ctx context.Context,
 
 		ctx, cancel := context.WithTimeout(dbauthz.As(context.Background(), pgCoordSubject), time.Second*15)
 		defer cancel()
-		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
+		peerIDs, err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
 			CoordinatorID: b.coordinatorID,
 			Status:        database.TailnetStatusLost,
 		})
 		if err != nil {
 			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
+		}
+		for _, peerID := range peerIDs {
+			publishPeerUpdate(ctx, b.pubsub, b.logger, peerID)
 		}
 	}()
 	return b
@@ -590,6 +633,9 @@ func (b *binder) writeOne(bnd binding) error {
 			slog.F("binding_id", bnd.bKey),
 			slog.F("node", bnd.node),
 			slog.Error(err))
+	}
+	if err == nil {
+		publishPeerUpdate(b.ctx, b.pubsub, b.logger, uuid.UUID(bnd.bKey))
 	}
 	return err
 }
@@ -693,9 +739,12 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil {
-			// lots of reasons this could happen, most usually, the peer has disconnected.
-			m.logger.Debug(m.ctx, "failed to enqueue node update", slog.Error(err))
+		for _, chunk := range update.Chunked() {
+			if err := m.c.Enqueue(chunk); err != nil {
+				// lots of reasons this could happen, most usually, the peer has disconnected.
+				m.logger.Debug(m.ctx, "failed to enqueue chunk", slog.Error(err))
+				break
+			}
 		}
 	}
 }
@@ -807,7 +856,8 @@ type querier struct {
 	newConnections   chan *connIO
 	closeConnections chan *connIO
 
-	workQ *workQ[querierWorkKey]
+	peerUpdateQ *workQ[uuid.UUID]
+	mappingQ    *workQ[mKey]
 
 	wg sync.WaitGroup
 
@@ -840,7 +890,8 @@ func newQuerier(ctx context.Context,
 		store:            store,
 		newConnections:   newConnections,
 		closeConnections: closeConnections,
-		workQ:            newWorkQ[querierWorkKey](ctx),
+		peerUpdateQ:      newWorkQ[uuid.UUID](ctx),
+		mappingQ:         newWorkQ[mKey](ctx),
 		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
 		mappers:          make(map[mKey]*mapper),
 		updates:          updates,
@@ -848,14 +899,21 @@ func newQuerier(ctx context.Context,
 	}
 	q.subscribe()
 
-	q.wg.Add(2 + numWorkers)
+	// For an odd number of workers we allocate more to the mapping workers since they're busier.
+	mappingWorkers := int(math.Ceil(float64(numWorkers) / 2))
+	peerWorkers := numWorkers - mappingWorkers
+
+	q.wg.Add(2 + mappingWorkers + peerWorkers)
 	go func() {
 		<-firstHeartbeat
 		go q.handleIncoming()
-		for i := 0; i < numWorkers; i++ {
-			go q.worker()
-		}
 		go q.handleUpdates()
+		for range mappingWorkers {
+			go q.mappingWorker()
+		}
+		for range peerWorkers {
+			go q.peerUpdateWorker()
+		}
 	}()
 	return q
 }
@@ -905,17 +963,13 @@ func (q *querier) newConn(c *connIO) {
 	dup, ok := q.mappers[mk]
 	if ok {
 		q.logger.Debug(q.ctx, "duplicate mapper found; closing old connection", slog.F("peer_id", dup.c.UniqueID()))
-		// overwrite and close the old one
-		atomic.StoreInt64(&c.overwrites, dup.c.Overwrites()+1)
 		err := dup.c.CoordinatorClose()
 		if err != nil {
 			q.logger.Error(q.ctx, "failed to close duplicate mapper", slog.F("peer_id", dup.c.UniqueID()), slog.Error(err))
 		}
 	}
 	q.mappers[mk] = mpr
-	q.workQ.enqueue(querierWorkKey{
-		mappingQuery: mk,
-	})
+	q.mappingQ.enqueue(mk)
 	q.logger.Debug(q.ctx, "added new mapper", slog.F("peer_id", c.UniqueID()))
 }
 
@@ -947,87 +1001,144 @@ func (q *querier) cleanupConn(c *connIO) {
 	q.logger.Debug(q.ctx, "removed mapper", slog.F("peer_id", c.UniqueID()))
 }
 
-func (q *querier) worker() {
+// maxBatchSize is the maximum number of keys to process in a single batch
+// query.
+const maxBatchSize = 50
+
+func (q *querier) peerUpdateWorker() {
 	defer q.wg.Done()
-	defer q.logger.Debug(q.ctx, "worker exited")
+	defer q.logger.Debug(q.ctx, "peerUpdate worker exited")
 	eb := backoff.NewExponentialBackOff()
 	eb.MaxElapsedTime = 0 // retry indefinitely
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, q.ctx)
 	for {
-		qk, err := q.workQ.acquire()
+		allKeys, err := q.peerUpdateQ.acquireBatch(maxBatchSize)
 		if err != nil {
-			// context expired
 			return
 		}
+		peers := make([]uuid.UUID, 0, len(allKeys))
+		peers = append(peers, allKeys...)
 		err = backoff.Retry(func() error {
-			return q.query(qk)
+			return q.peerUpdate(peers)
 		}, bkoff)
 		if err != nil {
 			bkoff.Reset()
 		}
-		q.workQ.done(qk)
+		q.peerUpdateQ.done(allKeys...)
 	}
 }
 
-func (q *querier) query(qk querierWorkKey) error {
-	if uuid.UUID(qk.mappingQuery) != uuid.Nil {
-		return q.mappingQuery(qk.mappingQuery)
+func (q *querier) mappingWorker() {
+	defer q.wg.Done()
+	defer q.logger.Debug(q.ctx, "mapping worker exited")
+	eb := backoff.NewExponentialBackOff()
+	eb.MaxElapsedTime = 0 // retry indefinitely
+	eb.MaxInterval = dbMaxBackoff
+	bkoff := backoff.WithContext(eb, q.ctx)
+	for {
+		allKeys, err := q.mappingQ.acquireBatch(maxBatchSize)
+		if err != nil {
+			return
+		}
+		mkeys := make([]mKey, 0, len(allKeys))
+		mkeys = append(mkeys, allKeys...)
+		err = backoff.Retry(func() error {
+			return q.mappingQuery(mkeys)
+		}, bkoff)
+		if err != nil {
+			bkoff.Reset()
+		}
+		q.mappingQ.done(allKeys...)
 	}
-	if qk.peerUpdate != uuid.Nil {
-		return q.peerUpdate(qk.peerUpdate)
-	}
-	q.logger.Critical(q.ctx, "bad querierWorkKey", slog.F("work_key", qk))
-	return backoff.Permanent(xerrors.Errorf("bad querierWorkKey %v", qk))
 }
 
 // peerUpdate is work scheduled in response to a new peer->binding.  We need to find out all the
 // other peers that share a tunnel with the indicated peer, and then schedule a mapping update on
 // each, so that they can find out about the new binding.
-func (q *querier) peerUpdate(peer uuid.UUID) error {
-	logger := q.logger.With(slog.F("peer_id", peer))
-	logger.Debug(q.ctx, "querying peers that share a tunnel")
-	others, err := q.store.GetTailnetTunnelPeerIDs(q.ctx, peer)
+func (q *querier) peerUpdate(peers []uuid.UUID) error {
+	q.logger.Debug(q.ctx, "batch querying peers that share tunnels",
+		slog.F("num_peers", len(peers)))
+	others, err := q.store.GetTailnetTunnelPeerIDsBatch(q.ctx, peers)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return err
+		return xerrors.Errorf("get tunnel peer IDs batch: %w", err)
 	}
-	logger.Debug(q.ctx, "queried peers that share a tunnel", slog.F("num_peers", len(others)))
+	q.logger.Debug(q.ctx, "batch queried tunnel peers",
+		slog.F("num_results", len(others)))
+	q.mu.Lock()
 	for _, other := range others {
-		logger.Debug(q.ctx, "got tunnel peer", slog.F("other_id", other.PeerID))
-		q.workQ.enqueue(querierWorkKey{mappingQuery: mKey(other.PeerID)})
+		mk := mKey(other.PeerID)
+		if _, ok := q.mappers[mk]; ok {
+			q.mappingQ.enqueue(mk)
+		}
+	}
+	q.mu.Unlock()
+	return nil
+}
+
+// mappingQuery queries the database for all the mappings that the given peers should know about,
+// that is, all the peers that it shares a tunnel with and their current node mappings (if they
+// exist).  It then sends the mapping snapshot to the corresponding mapper, where it will get
+// transmitted to the peer.
+func (q *querier) mappingQuery(peers []mKey) error {
+	// Filter to peers with active mappers before hitting the DB.
+	q.mu.Lock()
+	active := make([]uuid.UUID, 0, len(peers))
+	activeKeys := make([]mKey, 0, len(peers))
+	for _, p := range peers {
+		if _, ok := q.mappers[p]; ok {
+			active = append(active, uuid.UUID(p))
+			activeKeys = append(activeKeys, p)
+		}
+	}
+	q.mu.Unlock()
+	if len(active) == 0 {
+		q.logger.Debug(q.ctx, "batch mapping query: no active mappers")
+		return nil
+	}
+
+	q.logger.Debug(q.ctx, "batch querying mappings",
+		slog.F("num_peers", len(active)))
+	bindings, err := q.store.GetTailnetTunnelPeerBindingsBatch(q.ctx, active)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("get tunnel peer bindings batch: %w", err)
+	}
+	q.logger.Debug(q.ctx, "batch queried mappings",
+		slog.F("num_bindings", len(bindings)))
+
+	// Group bindings by lookup_id (the peer that needs the mapping).
+	grouped := make(map[uuid.UUID][]database.GetTailnetTunnelPeerBindingsBatchRow)
+	for _, b := range bindings {
+		grouped[b.LookupID] = append(grouped[b.LookupID], b)
+	}
+
+	// Dispatch each peer's mappings to its mapper.
+	for _, mk := range activeKeys {
+		peerID := uuid.UUID(mk)
+		rows := grouped[peerID]
+		mappings, err := q.bindingsToMappings(rows)
+		if err != nil {
+			q.logger.Error(q.ctx, "failed to convert batch mappings",
+				slog.F("peer_id", peerID), slog.Error(err))
+			continue
+		}
+		q.mu.Lock()
+		mpr, ok := q.mappers[mk]
+		q.mu.Unlock()
+		if !ok {
+			continue
+		}
+		if err := agpl.SendCtx(mpr.ctx, mpr.mappings, mappings); err != nil {
+			q.logger.Debug(q.ctx, "failed to send mappings to peer",
+				slog.F("peer_id", peerID), slog.Error(err))
+			continue
+		}
 	}
 	return nil
 }
 
-// mappingQuery queries the database for all the mappings that the given peer should know about,
-// that is, all the peers that it shares a tunnel with and their current node mappings (if they
-// exist).  It then sends the mapping snapshot to the corresponding mapper, where it will get
-// transmitted to the peer.
-func (q *querier) mappingQuery(peer mKey) error {
-	logger := q.logger.With(slog.F("peer_id", uuid.UUID(peer)))
-	logger.Debug(q.ctx, "querying mappings")
-	bindings, err := q.store.GetTailnetTunnelPeerBindings(q.ctx, uuid.UUID(peer))
-	logger.Debug(q.ctx, "queried mappings", slog.F("num_mappings", len(bindings)))
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	mappings, err := q.bindingsToMappings(bindings)
-	if err != nil {
-		logger.Debug(q.ctx, "failed to convert mappings", slog.Error(err))
-		return err
-	}
-	q.mu.Lock()
-	mpr, ok := q.mappers[peer]
-	q.mu.Unlock()
-	if !ok {
-		logger.Debug(q.ctx, "query for missing mapper")
-		return nil
-	}
-	logger.Debug(q.ctx, "sending mappings", slog.F("mapping_len", len(mappings)))
-	return agpl.SendCtx(mpr.ctx, mpr.mappings, mappings)
-}
-
-func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsRow) ([]mapping, error) {
+// bindingsToMappings converts binding rows to mappings.
+func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsBatchRow) ([]mapping, error) {
 	slog.Helper()
 	mappings := make([]mapping, 0, len(bindings))
 	for _, binding := range bindings {
@@ -1162,7 +1273,7 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	// we know that this peer has an updated node mapping, but we don't yet know who to send that
 	// update to. We need to query the database to find all the other peers that share a tunnel with
 	// this one, and then run mapping queries against all of them.
-	q.workQ.enqueue(querierWorkKey{peerUpdate: peer})
+	q.peerUpdateQ.enqueue(peer)
 }
 
 func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
@@ -1192,13 +1303,17 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 				slog.F("peer_id", peer))
 			continue
 		}
-		q.workQ.enqueue(querierWorkKey{mappingQuery: mk})
+		q.mappingQ.enqueue(mk)
 	}
 }
 
 func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err error) {
-	if err != nil && !xerrors.Is(err, pubsub.ErrDroppedMessages) {
-		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
+	if err != nil {
+		if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+			q.logger.Warn(q.ctx, "pubsub dropped ready-for-handshake messages")
+		} else {
+			q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
+		}
 		return
 	}
 
@@ -1229,9 +1344,11 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	keys := make([]mKey, 0, len(q.mappers))
 	for mk := range q.mappers {
-		q.workQ.enqueue(querierWorkKey{mappingQuery: mk})
+		keys = append(keys, mk)
 	}
+	q.mappingQ.enqueue(keys...)
 }
 
 func (q *querier) handleUpdates() {
@@ -1347,17 +1464,8 @@ type mapping struct {
 	kind        proto.CoordinateResponse_PeerUpdate_Kind
 }
 
-// querierWorkKey describes two kinds of work the querier needs to do.  If peerUpdate
-// is not uuid.Nil, then the querier needs to find all tunnel peers of the given peer and
-// mark them for a mapping query.  If mappingQuery is not uuid.Nil, then the querier has to
-// query the mappings of the tunnel peers of the given peer.
-type querierWorkKey struct {
-	peerUpdate   uuid.UUID
-	mappingQuery mKey
-}
-
 type queueKey interface {
-	bKey | tKey | querierWorkKey
+	bKey | tKey | uuid.UUID | mKey
 }
 
 // workQ allows scheduling work based on a key.  Multiple enqueue requests for the same key are coalesced, and
@@ -1387,59 +1495,69 @@ func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 }
 
 // enqueue adds the key to the workQ if it is not already pending.
-func (q *workQ[K]) enqueue(key K) {
+func (q *workQ[K]) enqueue(keys ...K) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
-	for _, mk := range q.pending {
-		if mk == key {
-			// already pending, no-op
-			return
+	for _, key := range keys {
+		if slices.Contains(q.pending, key) {
+			continue
 		}
+		q.pending = append(q.pending, key)
 	}
-	q.pending = append(q.pending, key)
 	q.cond.Signal()
 }
 
-// acquire gets a new key to begin working on.  This call blocks until work is available.  After acquiring a key, the
-// worker MUST call done() with the same key to mark it complete and allow new pending work to be acquired for the key.
+// acquireBatch blocks until at least one pending key is available, then
+// returns up to limit keys, moving them to inProgress. Caller must call
+// done() for each returned key.
 // An error is returned if the workQ context is canceled to unblock waiting workers.
-func (q *workQ[K]) acquire() (key K, err error) {
+func (q *workQ[K]) acquireBatch(limit int) ([]K, error) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
-	for !q.workAvailable() && q.ctx.Err() == nil {
+	for {
+		if q.ctx.Err() != nil {
+			return nil, q.ctx.Err()
+		}
+		var batch []K
+		remaining := make([]K, 0, len(q.pending))
+		for _, k := range q.pending {
+			if len(batch) >= limit {
+				remaining = append(remaining, k)
+				continue
+			}
+			if _, inProg := q.inProgress[k]; inProg {
+				remaining = append(remaining, k)
+				continue
+			}
+			batch = append(batch, k)
+			q.inProgress[k] = true
+		}
+		q.pending = remaining
+		if len(batch) > 0 {
+			return batch, nil
+		}
 		q.cond.Wait()
 	}
-	if q.ctx.Err() != nil {
-		return key, q.ctx.Err()
-	}
-	for i, mk := range q.pending {
-		_, ok := q.inProgress[mk]
-		if !ok {
-			q.pending = append(q.pending[:i], q.pending[i+1:]...)
-			q.inProgress[mk] = true
-			return mk, nil
-		}
-	}
-	// this should not be possible because we are holding the lock when we exit the loop that waits
-	panic("woke with no work available")
 }
 
-// workAvailable returns true if there is work we can do.  Must be called while holding q.cond.L
-func (q workQ[K]) workAvailable() bool {
-	for _, mk := range q.pending {
-		_, ok := q.inProgress[mk]
-		if !ok {
-			return true
-		}
+// acquire blocks until a work item is available and returns it. After
+// acquiring a key, the worker MUST call done() with the same key to mark
+// it complete and allow new pending work to be acquired for the key.
+func (q *workQ[K]) acquire() (key K, err error) {
+	items, err := q.acquireBatch(1)
+	if err != nil {
+		return key, err
 	}
-	return false
+	return items[0], nil
 }
 
 // done marks the key completed; MUST be called after acquire() for each key.
-func (q *workQ[K]) done(key K) {
+func (q *workQ[K]) done(keys ...K) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
-	delete(q.inProgress, key)
+	for _, key := range keys {
+		delete(q.inProgress, key)
+	}
 	q.cond.Signal()
 }
 
@@ -1639,11 +1757,17 @@ func (h *heartbeats) checkExpiry() {
 	expired := false
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
-		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
+		h.logger.Debug(h.ctx, "last heartbeat from coordinator",
+			slog.F("other_coordinator_id", id),
+			slog.F("last_heartbeat", lastHB),
+		)
 		if lastHB >= MissedHeartbeats*HeartbeatPeriod {
 			expired = true
 			delete(h.coordinators, id)
-			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
+			h.logger.Info(h.ctx, "coordinator failed heartbeat check",
+				slog.F("other_coordinator_id", id),
+				slog.F("last_heartbeat", lastHB),
+			)
 		}
 	}
 	if expired {
@@ -1683,7 +1807,7 @@ func (h *heartbeats) sendBeat() {
 		}
 		return
 	}
-	h.logger.Debug(h.ctx, "sent heartbeat")
+	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})

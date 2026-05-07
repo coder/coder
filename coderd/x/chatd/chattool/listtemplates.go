@@ -1,11 +1,11 @@
 package chattool
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"charm.land/fantasy"
@@ -22,21 +22,21 @@ const listTemplatesPageSize = 10
 
 // ListTemplatesOptions configures the list_templates tool.
 type ListTemplatesOptions struct {
-	DB                 database.Store
 	OwnerID            uuid.UUID
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
 type listTemplatesArgs struct {
-	Query string `json:"query,omitempty"`
-	Page  int    `json:"page,omitempty"`
+	Query string `json:"query,omitempty" description:"Optional text to filter templates by name or description."`
+	Page  int    `json:"page,omitempty" description:"Page number for pagination (starts at 1). Each page returns up to 10 templates."`
 }
 
 // ListTemplates returns a tool that lists available workspace templates.
 // The agent uses this to discover templates before creating a workspace.
 // Results are ordered by number of active developers (most popular first)
 // and paginated at 10 per page.
-func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
+// db must not be nil.
+func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemplatesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"list_templates",
 		"List available workspace templates. Optionally filter by a "+
@@ -45,17 +45,14 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			"Results are ordered by number of active developers (most popular first). "+
 			"Returns 10 per page. Use the page parameter to paginate through results.",
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.DB == nil {
-				return fantasy.NewTextErrorResponse("database is not configured"), nil
-			}
-
-			ctx, err := asOwner(ctx, options.DB, options.OwnerID)
+			ctx, err := asOwner(ctx, db, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			filterParams := database.GetTemplatesWithFilterParams{
-				Deleted: false,
+				Deleted:        false,
+				OrganizationID: organizationID,
 				Deprecated: sql.NullBool{
 					Bool:  false,
 					Valid: true,
@@ -73,7 +70,7 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			if len(allowlist) > 0 {
 				filterParams.IDs = slices.Collect(maps.Keys(allowlist))
 			}
-			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)
+			templates, err := db.GetTemplatesWithFilter(ctx, filterParams)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
@@ -85,7 +82,8 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 			ownerCounts := make(map[uuid.UUID]int64)
 			if len(templateIDs) > 0 {
-				rows, countErr := options.DB.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
+				rows, countErr := db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
+
 				if countErr == nil {
 					for _, row := range rows {
 						ownerCounts[row.TemplateID] = row.UniqueOwnersSum
@@ -94,10 +92,9 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 
 			// Sort by active developer count descending.
-			sort.SliceStable(templates, func(i, j int) bool {
-				return ownerCounts[templates[i].ID] > ownerCounts[templates[j].ID]
+			slices.SortStableFunc(templates, func(a, b database.Template) int {
+				return cmp.Compare(ownerCounts[b.ID], ownerCounts[a.ID])
 			})
-
 			// Paginate.
 			page := args.Page
 			if page < 1 {
@@ -121,8 +118,9 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			items := make([]map[string]any, 0, len(pageTemplates))
 			for _, t := range pageTemplates {
 				item := map[string]any{
-					"id":   t.ID.String(),
-					"name": t.Name,
+					"id":              t.ID.String(),
+					"name":            t.Name,
+					"organization_id": t.OrganizationID.String(),
 				}
 				if display := strings.TrimSpace(t.DisplayName); display != "" {
 					item["display_name"] = display

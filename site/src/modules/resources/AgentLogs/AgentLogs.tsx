@@ -1,6 +1,5 @@
 import type { JSX } from "react";
 import { FixedSizeList as List } from "react-window";
-import { cn } from "utils/cn";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import type { Line } from "#/components/Logs/LogLine";
@@ -9,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
 // Fallback log used in places where we must always have a valid log source.
@@ -29,6 +29,7 @@ type AgentLogsProps = Omit<
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
+	showSourceIcons?: boolean;
 };
 
 export const AgentLogs: React.FC<AgentLogsProps> = ({
@@ -36,6 +37,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	sources,
 	overflowed,
 	className,
+	showSourceIcons = true,
 	...listProps
 }) => {
 	const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
@@ -51,7 +53,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
 				className={cn(
-					"pt-4 [&>div]:relative bg-surface-secondary",
+					"py-4 [&>div]:relative bg-surface-secondary",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
@@ -124,22 +126,22 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					return (
 						<AgentLogLine
 							line={log}
-							number={index + 1}
-							maxLineNumber={logs.length}
 							style={style}
 							sourceIcon={
-								<Tooltip>
-									<TooltipTrigger asChild>{icon}</TooltipTrigger>
-									<TooltipContent side="bottom">
-										{logSource.display_name}
-										{assignedIcon && (
-											<i>
-												<br />
-												No icon specified!
-											</i>
-										)}
-									</TooltipContent>
-								</Tooltip>
+								showSourceIcons ? (
+									<Tooltip>
+										<TooltipTrigger asChild>{icon}</TooltipTrigger>
+										<TooltipContent side="bottom">
+											{logSource.display_name}
+											{assignedIcon && (
+												<i>
+													<br />
+													No icon specified!
+												</i>
+											)}
+										</TooltipContent>
+									</Tooltip>
+								) : null
 							}
 						/>
 					);

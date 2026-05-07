@@ -1,19 +1,18 @@
 # Getting Started
 
-This guide walks platform teams and administrators through enabling Coder
-Agents, preparing your deployment, and running your first chat.
+This guide walks platform teams and administrators through setting up Coder
+Agents, preparing your deployment, and running your first Coder Agent.
 
 > [!NOTE]
-> Coder Agents is in [Early Access](./early-access.md). Deploy to a
-> **test or development environment** — not production — while evaluating
-> the feature.
+> Coder Agents is in Beta. APIs, behavior, and configuration may change
+> between releases without notice; pin a release before broad rollout.
+> Use **Coder version 2.33.1 or greater**.
 
 ## Prerequisites
 
 Before you begin, confirm the following:
 
-- **Coder deployment** running the latest release with the `agents`
-  experiment flag available.
+- **Coder deployment** running the latest release.
 - **LLM provider credentials** — an API key for at least one
   [supported provider](./models.md) (Anthropic, OpenAI, Google, Azure OpenAI,
   AWS Bedrock, OpenAI Compatible, OpenRouter, or Vercel AI Gateway).
@@ -22,42 +21,25 @@ Before you begin, confirm the following:
 - **At least one template** with a
   [descriptive name and description](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
-- **Admin access** to the Coder deployment for enabling the experiment and
-  configuring providers.
+- **Admin access** to the Coder deployment for configuring providers.
+- **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
+  This role is granted **per organization**. Owners and organization admins can
+  assign it from **Admin settings** > **Organizations** > _[your organization]_ >
+  **Members**. See [Grant Coder Agents User](#step-2-grant-coder-agents-user)
+  below.
 
-## Step 1: Enable the experiment
-
-Coder Agents is gated behind the `agents` experiment flag. Pass it when
-starting the Coder server:
-
-```sh
-CODER_EXPERIMENTS="agents" coder server
-# or
-coder server --experiments=agents
-```
-
-If you already use other experiments, add `agents` to the comma-separated list:
-
-```sh
-CODER_EXPERIMENTS="agents,oauth2,mcp-server-http" coder server
-```
-
-See [Enable Coder Agents](./early-access.md#enable-coder-agents) for full
-details.
-
-## Step 2: Configure an LLM provider and model
+## Step 1: Configure an LLM provider and model
 
 > [!IMPORTANT]
 > Configuring providers, models, and system prompts requires the
 > **Owner** role (Coder administrator). Non-admin users cannot access the
-> Admin panel or modify deployment-level Agents configuration.
+> admin Settings panel or modify deployment-level Agents configuration.
 
-Once the server restarts with the experiment enabled:
+To configure Coder Agents:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Click **Admin** to open the configuration dialog.
-1. Under the **Providers** tab, select a provider, enter your API key, and
-   save.
+1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
+   Pick a provider, enter your API key, and save.
 1. Switch to the **Models** tab, click **Add**, and configure at least one
    model with its identifier, display name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
@@ -69,7 +51,65 @@ Detailed instructions for each provider and model option are in the
 > Start with a single frontier model to validate your setup before adding
 > additional providers.
 
-## Step 3: Start your first chat
+## Step 2: Grant Coder Agents User
+
+The **Coder Agents User** role controls which users can interact with Coder
+Agents. The role is assigned **per organization**, so a user must be granted
+it in each organization where they need access. Members do not have it by
+default.
+
+Owners always have full access and do not need the role. Repeat the following
+steps for each user who needs access in each organization.
+
+**Dashboard (individual):**
+
+1. Open **Admin settings** > **Organizations** in the Coder dashboard, then
+   select the organization where you want to grant access.
+1. The **Members** tab opens by default. Find the user in the table.
+1. Click the **Roles** cell for that user to open the role editor.
+1. Toggle on **Coder Agents User** and save.
+
+> [!TIP]
+> If your deployment has multiple organizations, repeat this for each
+> organization where the user needs access.
+
+**CLI (bulk, per organization):**
+
+Granting the role via CLI is org-scoped. The `edit-roles` command **replaces**
+the member's full set of org roles, so include every role you want them to
+keep. To grant `agents-access` to a single user while preserving their
+existing org roles:
+
+```sh
+ORG="my-org"
+USER="alice"
+ROLES=$(coder organizations members list -O "$ORG" -o json \
+  | jq -r --arg user "$USER" \
+      '.[] | select(.username == $user) | [.roles[].name, "agents-access"]
+      | unique | join(" ")')
+# shellcheck disable=SC2086
+coder organizations members edit-roles "$USER" -O "$ORG" $ROLES
+```
+
+To grant the role to every member of an organization while preserving their
+existing roles:
+
+```sh
+ORG="my-org"
+coder organizations members list -O "$ORG" -o json \
+  | jq -c '.[] | {user_id, roles: [.roles[].name]}' \
+  | while read -r row; do
+      user_id=$(echo "$row" | jq -r '.user_id')
+      roles=$(echo "$row" | jq -r '(.roles + ["agents-access"]) | unique | join(" ")')
+      # shellcheck disable=SC2086
+      coder organizations members edit-roles "$user_id" -O "$ORG" $roles
+    done
+```
+
+You can also set the organization with the `CODER_ORGANIZATION` environment
+variable instead of `-O`.
+
+## Step 3: Start your first Coder Agent
 
 1. Go to the **Agents** page in the Coder dashboard.
 1. Select a model from the dropdown (your default will be pre-selected).
@@ -115,17 +155,28 @@ credential scoping, and pre-installing dependencies.
 
 ## Things to know before you start
 
-### Deploy to a non-production environment
+### Plan for change between releases
 
-Coder Agents is under active development. APIs, behavior, and configuration
-may change between releases without notice. Run your evaluation on a
-dedicated test or staging deployment to avoid disruption to production
-developer workflows. See [Early Access](./early-access.md) for the full
-set of expectations and limitations.
+Coder Agents is under active development. APIs, behavior, and
+configuration may change between releases without notice. Pin a
+specific release before broad rollout and review the release notes
+before upgrading so changes do not surprise developers in production.
+
+### Use HTTPS for push notifications
+
+Coder Agents use browser push notifications to alert you when a task
+completes or needs attention. Most browsers require a secure (HTTPS)
+origin for the [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
+to work. If your access URL uses plain HTTP,
+push notifications may not function.
+
+This does not affect agents themselves — only the browser notification
+delivery. If you terminate TLS at a reverse proxy, ensure the
+[access URL](../../admin/setup/index.md) is configured with an `https://` scheme.
 
 ### Set a deployment-wide system prompt
 
-Administrators can set a system prompt that applies to all chats across the
+Administrators can set a system prompt that applies to all Coder Agents across the
 deployment. Use this to encode organizational conventions:
 
 - Coding standards and style guidelines.
@@ -134,7 +185,8 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from the **Admin** dialog on the Agents page
+Configure the system prompt from **Agents** > **Settings** >
+**Manage Agents** > **Instructions**
 or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
@@ -158,13 +210,13 @@ with tighter network policies.
 
 ### Plan for LLM costs
 
-Every chat turn sends tokens to your LLM provider. Long-running tasks,
+Every conversation turn sends tokens to your LLM provider. Long-running tasks,
 sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing in the admin panel (Input Price, Output
-  Price) to track spend.
+- Setting per-model token pricing under **Agents** > **Settings** >
+  **Manage Agents** > **Models** (Input Price, Output Price) to track spend.
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group
@@ -185,15 +237,15 @@ multiplier, not a replacement for developer judgment.
 
 ### Use the API for programmatic automation
 
-The [Chats API](./chats-api.md) enables programmatic access to Coder Agents.
+The [Chats API](../../reference/api/chats.md) enables programmatic access to Coder Agents.
 This is useful for building automations such as:
 
-- Triggering chats from CI/CD pipelines when builds fail.
-- Creating chats from GitHub webhooks on new issues or PRs.
+- Triggering Coder Agents from CI/CD pipelines when builds fail.
+- Creating Coder Agents from GitHub webhooks on new issues or PRs.
 - Building internal tools or dashboards on top of the API.
 - Scripting batch operations across repositories.
 
-**Quick example — create a chat via the API:**
+**Quick example — create a Coder Agent via the API:**
 
 ```sh
 curl -X POST https://coder.example.com/api/experimental/chats \
@@ -218,15 +270,15 @@ rather than developer session tokens. Keep automation credentials
 narrowly scoped.
 
 > [!NOTE]
-> The Chats API is experimental and may change without notice.
-> See [Chats API](./chats-api.md) for the full endpoint reference.
+> The Chats API is in beta and may change without notice.
+> See [Chats API](../../reference/api/chats.md) for the full endpoint reference.
 
 ### Add workspace context with AGENTS.md
 
 Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or
 the workspace agent's working directory to provide persistent context to the
 agent. This file is automatically read and included in the system prompt
-for every chat that uses that workspace.
+for every conversation with a Coder Agent that uses that workspace.
 
 Use it for:
 
@@ -256,10 +308,10 @@ Good feedback includes:
 - **What you tried** — the prompt, the template, and the model.
 - **What happened** — the agent's behavior, any errors, unexpected results.
 - **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, chat IDs, or links to the Agents page help
+- **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
-Your input directly influences product direction during Early Access.
+Your input directly influences product direction during Beta.
 
 ## Next steps
 
@@ -271,4 +323,4 @@ Your input directly influences product direction during Early Access.
 - [Template Optimization](./platform-controls/template-optimization.md) —
   create agent-friendly templates with network boundaries and scoped
   credentials.
-- [Chats API](./chats-api.md) — build programmatic integrations.
+- [Chats API](../../reference/api/chats.md): build programmatic integrations.

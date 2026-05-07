@@ -2123,7 +2123,6 @@ func TestServer_TelemetryDisable(t *testing.T) {
 	// Set the default telemetry to true (normally disabled in tests).
 	t.Setenv("CODER_TEST_TELEMETRY_DEFAULT_ENABLE", "true")
 
-	//nolint:paralleltest // No need to reinitialise the variable tt (Go version).
 	for _, tt := range []struct {
 		key  string
 		val  string
@@ -2371,27 +2370,26 @@ func TestConnectToPostgres(t *testing.T) {
 	})
 }
 
-func TestServer_InvalidDERP(t *testing.T) {
+func TestServer_DisabledDERP_EmptyBaseMap(t *testing.T) {
 	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancelFunc()
 
 	// Try to start a server with the built-in DERP server disabled and no
 	// external DERP map.
-
-	inv, _ := clitest.New(t,
+	inv, cfg := clitest.New(t,
 		"server",
 		dbArg(t),
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
-		"--derp-server-stun-addresses", "disable",
-		"--block-direct-connections",
 	)
-	err := inv.Run()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "A valid DERP map is required for networking to work")
+	clitest.Start(t, inv.WithContext(ctx))
+	waitAccessURL(t, cfg)
 }
 
-func TestServer_DisabledDERP(t *testing.T) {
+func TestServer_DisabledDERP_ExternalMap(t *testing.T) {
 	t.Parallel()
 
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)

@@ -1,8 +1,6 @@
 import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import type {
 	Organization,
@@ -19,7 +17,6 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	Dialog,
 	DialogContent,
@@ -30,11 +27,11 @@ import {
 } from "#/components/Dialog/Dialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+} from "#/components/HelpPopover/HelpPopover";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -57,6 +54,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
@@ -206,7 +205,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
-										<AssignDefaultOrgHelpTooltip />
+										<AssignDefaultOrgHelpPopover />
 									</span>
 								</div>
 							</div>
@@ -327,7 +326,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}}
 								>
 									<Spinner loading={form.isSubmitting}>
-										<Plus />
+										<PlusIcon />
 									</Spinner>
 									Add IdP organization
 								</Button>
@@ -408,27 +407,23 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				<ChooseOne>
-					<Cond condition={isEmpty}>
-						<TableRow>
-							<TableCell colSpan={999}>
-								<EmptyState
-									message="No organization mappings"
-									isCompact
-									cta={
-										<Link
-											href={docs("/admin/users/idp-sync#organization-sync")}
-										>
-											How to set up IdP organization sync
-										</Link>
-									}
-								/>
-							</TableCell>
-						</TableRow>
-					</Cond>
-
-					<Cond>{children}</Cond>
-				</ChooseOne>
+				{isEmpty ? (
+					<TableRow>
+						<TableCell colSpan={999}>
+							<EmptyState
+								message="No organization mappings"
+								isCompact
+								cta={
+									<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+										How to set up IdP organization sync
+									</Link>
+								}
+							/>
+						</TableCell>
+					</TableRow>
+				) : (
+					children
+				)}
 			</TableBody>
 		</Table>
 	);
@@ -455,7 +450,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					{!exists && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								<TriangleAlertIcon className="size-icon-xs cursor-pointer text-content-warning" />
 							</TooltipTrigger>
 							<TooltipContent
 								align="start"
@@ -482,7 +477,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>
-					<Trash />
+					<TrashIcon />
 					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>
@@ -490,16 +485,16 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-const AssignDefaultOrgHelpTooltip: FC = () => {
+const AssignDefaultOrgHelpPopover: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipText>
+		<HelpPopover>
+			<HelpPopoverIconTrigger />
+			<HelpPopoverContent>
+				<HelpPopoverText>
 					Disabling will remove all users from the default organization if a
 					mapping for the default organization is not defined.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+				</HelpPopoverText>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

@@ -1,14 +1,12 @@
-import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import {
-	Diagnostics,
-	DynamicParameter,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { type FC, useEffect, useMemo, useRef, useState } from "react";
-import { pageTitle } from "utils/page";
+	type FC,
+	useEffect,
+	useEffectEvent,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { API } from "#/api/api";
 import { DetailedError } from "#/api/errors";
 import type {
@@ -24,6 +22,14 @@ import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useClipboard } from "#/hooks/useClipboard";
+import {
+	Diagnostics,
+	DynamicParameter,
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+import { pageTitle } from "#/utils/page";
 
 type ButtonValues = Record<string, string>;
 
@@ -36,19 +42,20 @@ const TemplateEmbedPageExperimental: FC = () => {
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
-	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, _ownerId?: string) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				owner_id: me.id,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
-		},
-	);
+	const sendMessage = (
+		formValues: Record<string, string>,
+		_ownerId?: string,
+	) => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			owner_id: me.id,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
+	};
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
@@ -91,7 +98,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [template.active_version_id, onMessage, me]);
+	}, [template.active_version_id, me]);
 
 	const sortedParams = useMemo(() => {
 		if (!latestResponse?.parameters) {
@@ -274,7 +281,7 @@ function getClipboardCopyContent(
 	organization: string,
 	buttonValues: ButtonValues | undefined,
 ): string {
-	const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+	const deploymentUrl = `${location.protocol}//${location.host}`;
 	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
 	const createWorkspaceParams = new URLSearchParams(buttonValues);
 	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;

@@ -2,9 +2,9 @@
  * Copied from shadc/ui on 04/03/2025
  * @see {@link https://ui.shadcn.com/docs/components/checkbox}
  */
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import { Check, Minus } from "lucide-react";
-import { cn } from "utils/cn";
+import { CheckIcon, MinusIcon } from "lucide-react";
+import { Checkbox as CheckboxPrimitive } from "radix-ui";
+import { cn } from "#/utils/cn";
 
 /**
  * To allow for an indeterminate state the checkbox must be controlled, otherwise the checked prop would remain undefined
@@ -29,7 +29,7 @@ export const Checkbox: React.FC<
 				"data-[state=indeterminate]:bg-surface-invert-primary",
 				"data-[state=indeterminate]:text-content-invert",
 				"data-[state=indeterminate]:border-surface-invert-primary",
-				"hover:enabled:border-border-hover",
+				"hover:enabled:border-border-secondary",
 				"hover:data-[state=checked]:bg-surface-invert-secondary",
 				"hover:data-[state=checked]:border-surface-invert-secondary",
 				"hover:data-[state=indeterminate]:bg-surface-invert-secondary",
@@ -44,10 +44,10 @@ export const Checkbox: React.FC<
 				)}
 			>
 				{(props.checked === true || props.defaultChecked === true) && (
-					<Check className="size-4" strokeWidth={2.5} />
+					<CheckIcon className="size-4" strokeWidth={2.5} />
 				)}
 				{props.checked === "indeterminate" && (
-					<Minus className="size-4" strokeWidth={2.5} />
+					<MinusIcon className="size-4" strokeWidth={2.5} />
 				)}
 			</CheckboxPrimitive.Indicator>
 		</CheckboxPrimitive.Root>

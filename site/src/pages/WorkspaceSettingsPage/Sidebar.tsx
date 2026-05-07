@@ -2,10 +2,9 @@ import {
 	SettingsIcon as GeneralIcon,
 	CodeIcon as ParameterIcon,
 	TimerIcon as ScheduleIcon,
-	Users as SharingIcon,
+	UsersIcon as SharingIcon,
 } from "lucide-react";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
@@ -43,7 +42,6 @@ export const Sidebar: React.FC = () => {
 			{permissions?.shareWorkspace && (
 				<SidebarNavItem href="sharing" icon={SharingIcon}>
 					Sharing
-					<FeatureStageBadge contentType="beta" size="sm" />
 				</SidebarNavItem>
 			)}
 		</BaseSidebar>

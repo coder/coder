@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users`
+`GET /api/v2/users`
 
 ### Parameters
 
@@ -34,6 +34,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
@@ -78,7 +79,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users`
+`POST /api/v2/users`
 
 > Body parameter
 
@@ -91,6 +92,9 @@ curl -X POST http://coder-server:8080/api/v2/users \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "password": "string",
+  "roles": [
+    "string"
+  ],
   "service_account": true,
   "user_status": "active",
   "username": "string"
@@ -112,6 +116,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -153,7 +158,7 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/authmethods`
+`GET /api/v2/users/authmethods`
 
 ### Example responses
 
@@ -196,7 +201,7 @@ curl -X GET http://coder-server:8080/api/v2/users/first \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/first`
+`GET /api/v2/users/first`
 
 ### Example responses
 
@@ -235,7 +240,7 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/first`
+`POST /api/v2/users/first`
 
 > Body parameter
 
@@ -243,6 +248,10 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 {
   "email": "string",
   "name": "string",
+  "onboarding_info": {
+    "newsletter_marketing": true,
+    "newsletter_releases": true
+  },
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -294,7 +303,7 @@ curl -X POST http://coder-server:8080/api/v2/users/logout \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/logout`
+`POST /api/v2/users/logout`
 
 ### Example responses
 
@@ -331,7 +340,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oauth2/github/callback`
+`GET /api/v2/users/oauth2/github/callback`
 
 ### Responses
 
@@ -352,7 +361,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oauth2/github/device`
+`GET /api/v2/users/oauth2/github/device`
 
 ### Example responses
 
@@ -387,7 +396,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oidc-claims \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oidc-claims`
+`GET /api/v2/users/oidc-claims`
 
 ### Example responses
 
@@ -417,7 +426,7 @@ curl -X GET http://coder-server:8080/api/v2/users/oidc/callback \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/oidc/callback`
+`GET /api/v2/users/oidc/callback`
 
 ### Responses
 
@@ -438,7 +447,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}`
+`GET /api/v2/users/{user}`
 
 ### Parameters
 
@@ -455,6 +464,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -495,7 +505,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /users/{user}`
+`DELETE /api/v2/users/{user}`
 
 ### Parameters
 
@@ -522,7 +532,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/appearance \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/appearance`
+`GET /api/v2/users/{user}/appearance`
 
 ### Parameters
 
@@ -561,7 +571,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/appearance`
+`PUT /api/v2/users/{user}/appearance`
 
 > Body parameter
 
@@ -609,7 +619,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/autofill-parameters?tem
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/autofill-parameters`
+`GET /api/v2/users/{user}/autofill-parameters`
 
 ### Parameters
 
@@ -660,7 +670,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/gitsshkey \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/gitsshkey`
+`GET /api/v2/users/{user}/gitsshkey`
 
 ### Parameters
 
@@ -700,7 +710,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/gitsshkey \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/gitsshkey`
+`PUT /api/v2/users/{user}/gitsshkey`
 
 ### Parameters
 
@@ -740,7 +750,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/keys`
+`POST /api/v2/users/{user}/keys`
 
 ### Parameters
 
@@ -777,7 +787,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/tokens`
+`GET /api/v2/users/{user}/keys/tokens`
 
 ### Parameters
 
@@ -846,11 +856,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `type`       | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
-| `login_type` | `github`, `oidc`, `password`, `token`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `scope`      | `all`, `application_connect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Property     | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type`       | `*`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| `login_type` | `github`, `oidc`, `password`, `token`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `scope`      | `all`, `application_connect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -866,7 +876,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/keys/tokens`
+`POST /api/v2/users/{user}/keys/tokens`
 
 > Body parameter
 
@@ -923,7 +933,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/tokens/{keyname}`
+`GET /api/v2/users/{user}/keys/tokens/{keyname}`
 
 ### Parameters
 
@@ -979,7 +989,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/{keyid}`
+`GET /api/v2/users/{user}/keys/{keyid}`
 
 ### Parameters
 
@@ -1034,7 +1044,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /users/{user}/keys/{keyid}`
+`DELETE /api/v2/users/{user}/keys/{keyid}`
 
 ### Parameters
 
@@ -1062,7 +1072,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/keys/{keyid}/expire \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/keys/{keyid}/expire`
+`PUT /api/v2/users/{user}/keys/{keyid}/expire`
 
 ### Parameters
 
@@ -1096,7 +1106,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/login-type \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/login-type`
+`GET /api/v2/users/{user}/login-type`
 
 ### Parameters
 
@@ -1133,7 +1143,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/organizations`
+`GET /api/v2/users/{user}/organizations`
 
 ### Parameters
 
@@ -1195,7 +1205,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/organizations/{organizationname}`
+`GET /api/v2/users/{user}/organizations/{organizationname}`
 
 ### Parameters
 
@@ -1240,7 +1250,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/password`
+`PUT /api/v2/users/{user}/password`
 
 > Body parameter
 
@@ -1277,7 +1287,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/preferences`
+`GET /api/v2/users/{user}/preferences`
 
 ### Parameters
 
@@ -1291,7 +1301,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
@@ -1315,13 +1326,14 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/preferences`
+`PUT /api/v2/users/{user}/preferences`
 
 > Body parameter
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
@@ -1338,7 +1350,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
@@ -1362,7 +1375,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/profile`
+`PUT /api/v2/users/{user}/profile`
 
 > Body parameter
 
@@ -1389,6 +1402,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1430,7 +1444,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/roles`
+`GET /api/v2/users/{user}/roles`
 
 ### Parameters
 
@@ -1447,6 +1461,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1489,7 +1504,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/roles`
+`PUT /api/v2/users/{user}/roles`
 
 > Body parameter
 
@@ -1517,6 +1532,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1558,7 +1574,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/status/activate`
+`PUT /api/v2/users/{user}/status/activate`
 
 ### Parameters
 
@@ -1575,6 +1591,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1616,7 +1633,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/status/suspend`
+`PUT /api/v2/users/{user}/status/suspend`
 
 ### Parameters
 
@@ -1633,6 +1650,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",

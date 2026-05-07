@@ -1,18 +1,8 @@
-import { useClickableTableRow } from "hooks";
-import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
-import { TaskActionButton } from "modules/tasks/TaskActionButton";
-import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
-import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
-import {
-	canPauseTask,
-	canResumeTask,
-	isPauseDisabled,
-} from "modules/tasks/taskActions";
+import { EllipsisVerticalIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { relativeTime } from "utils/time";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { pauseTask, resumeTask } from "#/api/queries/tasks";
 import type { Task } from "#/api/typesGenerated";
@@ -40,6 +30,16 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { TaskActionButton } from "#/modules/tasks/TaskActionButton";
+import { TaskDeleteDialog } from "#/modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
+import { TaskStatus } from "#/modules/tasks/TaskStatus/TaskStatus";
+import {
+	canPauseTask,
+	canResumeTask,
+	isPauseDisabled,
+} from "#/modules/tasks/taskActions";
+import { relativeTime } from "#/utils/time";
 
 type TasksTableProps = {
 	tasks: readonly Task[] | undefined;
@@ -96,9 +96,7 @@ export const TasksTable: FC<TasksTableProps> = ({
 							<Checkbox
 								disabled={!tasks || tasks.length === 0}
 								checked={
-									tasks &&
-									tasks.length > 0 &&
-									checkedTaskIds.size === tasks.length
+									Boolean(tasks) && checkedTaskIds.size === tasks?.length
 								}
 								onCheckedChange={(checked) => {
 									if (!tasks || !onCheckChange) {
@@ -294,7 +292,7 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 									variant="subtle"
 									onClick={(e) => e.stopPropagation()}
 								>
-									<EllipsisVertical aria-hidden="true" />
+									<EllipsisVerticalIcon aria-hidden="true" />
 									<span className="sr-only">Show task actions</span>
 								</Button>
 							</DropdownMenuTrigger>

@@ -1,12 +1,7 @@
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByOrganization } from "#/api/queries/groups";
 import {
@@ -17,10 +12,14 @@ import {
 	roleIdpSyncSettings,
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
 
 const IdpSyncPage: FC = () => {
@@ -70,7 +69,7 @@ const IdpSyncPage: FC = () => {
 
 	const fieldValuesQuery = useQuery({
 		...organizationIdpSyncClaimFieldValues(organizationName, field),
-		enabled: !!field,
+		enabled: Boolean(field),
 	});
 
 	const patchGroupSyncSettingsMutation = useMutation(
@@ -128,61 +127,57 @@ const IdpSyncPage: FC = () => {
 						</p>
 					</div>
 				</header>
-				<ChooseOne>
-					<Cond condition={!isIdpSyncEnabled}>
-						<PaywallPremium
-							message="IdP Sync"
-							description="Configure group and role mappings to manage permissions outside of Coder. You need a Premium license to use this feature."
-							documentationLink={docs("/admin/users/idp-sync")}
-						/>
-					</Cond>
-					<Cond>
-						<IdpSyncPageView
-							tab={tab}
-							groupSyncSettings={groupIdpSyncSettingsQuery.data}
-							roleSyncSettings={roleIdpSyncSettingsQuery.data}
-							claimFieldValues={fieldValuesQuery.data}
-							groups={groupsQuery.data}
-							groupsMap={groupsMap}
-							roles={rolesQuery.data}
-							organization={organization}
-							onGroupSyncFieldChange={setGroupField}
-							onRoleSyncFieldChange={setRoleField}
-							error={error}
-							onSubmitGroupSyncSettings={async (data) => {
-								const mutation =
-									patchGroupSyncSettingsMutation.mutateAsync(data);
-								toast.promise(mutation, {
-									loading: "Updating IdP group sync settings...",
-									success: "IdP group sync settings updated.",
-									error: (error) => ({
-										message: getErrorMessage(
-											error,
-											"Failed to update IdP group sync settings.",
-										),
+				{!isIdpSyncEnabled ? (
+					<PaywallPremium
+						message="IdP Sync"
+						description="Configure group and role mappings to manage permissions outside of Coder. You need a Premium license to use this feature."
+						documentationLink={docs("/admin/users/idp-sync")}
+					/>
+				) : (
+					<IdpSyncPageView
+						tab={tab}
+						groupSyncSettings={groupIdpSyncSettingsQuery.data}
+						roleSyncSettings={roleIdpSyncSettingsQuery.data}
+						claimFieldValues={fieldValuesQuery.data}
+						groups={groupsQuery.data}
+						groupsMap={groupsMap}
+						roles={rolesQuery.data}
+						organization={organization}
+						onGroupSyncFieldChange={setGroupField}
+						onRoleSyncFieldChange={setRoleField}
+						error={error}
+						onSubmitGroupSyncSettings={async (data) => {
+							const mutation = patchGroupSyncSettingsMutation.mutateAsync(data);
+							toast.promise(mutation, {
+								loading: "Updating IdP group sync settings...",
+								success: "IdP group sync settings updated.",
+								error: (error) => ({
+									message: getErrorMessage(
+										error,
+										"Failed to update IdP group sync settings.",
+									),
+									description: getErrorDetail(error),
+								}),
+							});
+						}}
+						onSubmitRoleSyncSettings={async (data) => {
+							try {
+								await patchRoleSyncSettingsMutation.mutateAsync(data);
+								toast.success("IdP Role sync settings updated.");
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										"Failed to update IdP role sync settings.",
+									),
+									{
 										description: getErrorDetail(error),
-									}),
-								});
-							}}
-							onSubmitRoleSyncSettings={async (data) => {
-								try {
-									await patchRoleSyncSettingsMutation.mutateAsync(data);
-									toast.success("IdP Role sync settings updated.");
-								} catch (error) {
-									toast.error(
-										getErrorMessage(
-											error,
-											"Failed to update IdP role sync settings.",
-										),
-										{
-											description: getErrorDetail(error),
-										},
-									);
-								}
-							}}
-						/>
-					</Cond>
-				</ChooseOne>
+									},
+								);
+							}
+						}}
+					/>
+				)}
 			</div>
 		</div>
 	);

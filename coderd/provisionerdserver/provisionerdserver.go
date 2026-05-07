@@ -591,6 +591,26 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		// Fetch user secrets for build-time injection, but only on start
+		// transitions where the workspace actually needs them.
+		var userSecrets []*sdkproto.UserSecretValue
+		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
+			dbSecrets, err := s.Database.ListUserSecretsWithValues(ctx, owner.ID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("get user secrets: %s", err))
+			}
+			for _, secret := range dbSecrets {
+				if secret.EnvName == "" && secret.FilePath == "" {
+					continue
+				}
+				userSecrets = append(userSecrets, &sdkproto.UserSecretValue{
+					EnvName:  secret.EnvName,
+					FilePath: secret.FilePath,
+					Value:    []byte(secret.Value),
+				})
+			}
+		}
+
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
@@ -773,7 +793,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TaskPrompt:                    task.Prompt,
 					TemplateVersionModulesFile:    versionModulesFile,
 				},
-				LogLevel: input.LogLevel,
+				LogLevel:    input.LogLevel,
+				UserSecrets: userSecrets,
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
@@ -1881,8 +1902,8 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				hashBytes := sha256.Sum256(moduleFiles)
 				hash := hex.EncodeToString(hashBytes[:])
 
-				// nolint:gocritic // Requires reading "system" files
-				file, err := db.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
+				//nolint:gocritic // Acting as provisionerd
+				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
 				switch {
 				case err == nil:
 					// This set of modules is already cached, which means we can reuse them
@@ -1893,8 +1914,8 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				case !xerrors.Is(err, sql.ErrNoRows):
 					return xerrors.Errorf("check for cached modules: %w", err)
 				default:
-					// nolint:gocritic // Requires creating a "system" file
-					file, err = db.InsertFile(dbauthz.AsSystemRestricted(ctx), database.InsertFileParams{
+					//nolint:gocritic // Acting as provisionerd
+					file, err = db.InsertFile(dbauthz.AsProvisionerd(ctx), database.InsertFileParams{
 						ID:        uuid.New(),
 						Hash:      hash,
 						CreatedBy: uuid.Nil,
@@ -2539,6 +2560,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		err = prebuilds.NewPubsubWorkspaceClaimPublisher(s.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
 			WorkspaceID: workspace.ID,
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			OwnerID:     workspace.OwnerID,
 		})
 		if err != nil {
 			s.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))

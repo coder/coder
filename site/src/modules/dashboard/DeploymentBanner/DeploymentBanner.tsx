@@ -1,9 +1,9 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useLocation } from "react-router";
 import { health } from "#/api/queries/debug";
 import { deploymentStats } from "#/api/queries/deployment";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
 const HIDE_DEPLOYMENT_BANNER_PATHS = [
@@ -18,7 +18,10 @@ const HIDE_DEPLOYMENT_BANNER_PATHS = [
 
 export const DeploymentBanner: FC = () => {
 	const { permissions } = useAuthenticated();
-	const deploymentStatsQuery = useQuery(deploymentStats());
+	const deploymentStatsQuery = useQuery({
+		...deploymentStats(),
+		enabled: permissions.viewDeploymentStats,
+	});
 	const healthQuery = useQuery({
 		...health(),
 		enabled: permissions.viewDeploymentConfig,

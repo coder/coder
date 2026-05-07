@@ -25,6 +25,7 @@ export type ModelConfigFormBuildResult = {
 export type ModelFormValues = {
 	model: string;
 	displayName: string;
+	enabled: boolean;
 	contextLimit: string;
 	compressionThreshold: string;
 	isDefault: boolean;
@@ -55,7 +56,7 @@ export const parseThresholdInteger = (value: string): number | null => {
  * Set a value inside a nested object, creating intermediate
  * objects along the way. The path is an array of string keys.
  */
-function deepSet(
+export function deepSet(
 	obj: Record<string, unknown>,
 	path: string[],
 	value: unknown,
@@ -79,7 +80,7 @@ function deepSet(
  * Get a value from a nested object using an array of string keys.
  * Returns `undefined` if any intermediate key is missing.
  */
-function deepGet(obj: unknown, path: string[]): unknown {
+export function deepGet(obj: unknown, path: string[]): unknown {
 	let current = obj;
 	for (const key of path) {
 		if (
@@ -220,17 +221,18 @@ export const extractModelConfigFormState = (
 // ── Build initial model form values ────────────────────────────
 
 export const buildInitialModelFormValues = (
-	editingModel?: TypesGen.ChatModelConfig,
+	sourceModel?: TypesGen.ChatModelConfig,
 ): ModelFormValues => ({
-	model: editingModel?.model ?? "",
-	displayName: editingModel?.display_name ?? "",
-	contextLimit: editingModel ? String(editingModel.context_limit) : "",
-	compressionThreshold: editingModel
-		? String(editingModel.compression_threshold)
+	model: sourceModel?.model ?? "",
+	displayName: sourceModel?.display_name ?? "",
+	enabled: sourceModel?.enabled ?? true,
+	contextLimit: sourceModel ? String(sourceModel.context_limit) : "",
+	compressionThreshold: sourceModel
+		? String(sourceModel.compression_threshold)
 		: "",
-	isDefault: editingModel?.is_default ?? false,
-	config: editingModel
-		? extractModelConfigFormState(editingModel)
+	isDefault: sourceModel?.is_default ?? false,
+	config: sourceModel
+		? extractModelConfigFormState(sourceModel)
 		: structuredClone(emptyModelConfigFormState),
 });
 

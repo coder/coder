@@ -1,16 +1,11 @@
-import * as SelectPrimitive from "@radix-ui/react-select";
 import { useFormik } from "formik";
-import { Check } from "lucide-react";
-import type { FC } from "react";
-import { cn } from "utils/cn";
-import {
-	displayNameValidator,
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
+import { CheckIcon } from "lucide-react";
+import { Select as SelectPrimitive } from "radix-ui";
+import { type FC, useState } from "react";
+import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -26,6 +21,14 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { RoleSelector } from "#/modules/roles/RoleSelector";
+import { cn } from "#/utils/cn";
+import {
+	displayNameValidator,
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 const loginTypeOptions = {
 	password: {
@@ -78,16 +81,25 @@ type CreateUserFormData = {
 	readonly login_type: TypesGen.LoginType;
 	readonly password: string;
 	readonly service_account: boolean;
+	readonly roles: Set<string>;
 };
 
-interface CreateUserFormProps {
+type CreateUserFormProps = {
 	error?: unknown;
 	isLoading: boolean;
 	onSubmit: (user: CreateUserFormData) => void;
 	onCancel: () => void;
 	authMethods?: TypesGen.AuthMethods;
 	showOrganizations: boolean;
-}
+	serviceAccountsEnabled: boolean;
+	availableRoles?: TypesGen.AssignableRoles[];
+	rolesLoading?: boolean;
+	rolesError?: unknown;
+};
+
+// Stable reference for empty org options to avoid re-render loops
+// in the render-time state adjustment pattern.
+const emptyOrgs: TypesGen.Organization[] = [];
 
 export const CreateUserForm: FC<CreateUserFormProps> = ({
 	error,
@@ -96,12 +108,16 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	onCancel,
 	showOrganizations,
 	authMethods,
+	serviceAccountsEnabled,
+	availableRoles,
+	rolesLoading,
+	rolesError,
 }) => {
 	const availableLoginTypes = [
 		authMethods?.password.enabled && "password",
 		authMethods?.oidc.enabled && "oidc",
 		authMethods?.github.enabled && "github",
-		"none",
+		serviceAccountsEnabled && "none",
 	].filter(Boolean) as Array<keyof typeof loginTypeOptions>;
 
 	const defaultLoginType = availableLoginTypes[0];
@@ -117,11 +133,44 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 				: "00000000-0000-0000-0000-000000000000",
 			login_type: defaultLoginType,
 			service_account: defaultLoginType === "none",
+			roles: new Set(),
 		},
 		validationSchema,
 		onSubmit,
 		enableReinitialize: true,
 	});
+
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		null,
+	);
+
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "organization_member" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
+
+	// Clear invalid selections when permission filtering removes the
+	// selected org. Uses the React render-time adjustment pattern.
+	const [prevOrgOptions, setPrevOrgOptions] = useState(orgOptions);
+	if (orgOptions !== prevOrgOptions) {
+		setPrevOrgOptions(orgOptions);
+		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
+			setSelectedOrg(null);
+			void form.setFieldValue("organization", "");
+		}
+	}
+
+	// Auto-select when exactly one org is available and nothing is
+	// selected. Runs every render (not gated on options change) so it
+	// works when mock data is available synchronously on first render.
+	if (orgOptions.length === 1 && selectedOrg === null) {
+		setSelectedOrg(orgOptions[0]);
+		void form.setFieldValue("organization", orgOptions[0].id ?? "");
+	}
 
 	const getFieldHelpers = getFormHelpers(form, error);
 
@@ -132,62 +181,34 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	});
 
 	return (
-		<FullPageForm title="Create user">
+		<FullPageForm title="Create user" size="condensed">
 			{isApiError(error) && !hasApiFieldErrors(error) && (
 				<ErrorAlert error={error} className="mb-8" />
 			)}
-			<form onSubmit={form.handleSubmit} autoComplete="off">
+			<form
+				onSubmit={form.handleSubmit}
+				autoComplete="off"
+				className="border border-border border-solid rounded-md p-4"
+			>
 				<div className="flex flex-col gap-6">
-					<FormField
-						field={getFieldHelpers("username")}
-						label="Username"
-						id="username"
-						name="username"
-						value={form.values.username}
-						onChange={onChangeTrimmed(form)}
-						onBlur={form.handleBlur}
-						autoComplete="username"
-						autoFocus
-					/>
-
-					<FormField
-						field={getFieldHelpers("name")}
-						label={
-							<>
-								Full name{" "}
-								<span className="font-normal text-content-secondary">
-									(optional)
-								</span>
-							</>
-						}
-						id="name"
-						name="name"
-						value={form.values.name}
-						onChange={form.handleChange}
-						onBlur={form.handleBlur}
-						autoComplete="name"
-					/>
-
 					{showOrganizations && (
-						<div className="flex flex-col gap-2">
+						<div className="flex flex-col gap-2 max-w-sm">
 							<Label htmlFor="organization">Organization</Label>
 							<OrganizationAutocomplete
-								{...getFieldHelpers("organization")}
 								id="organization"
 								required
+								value={selectedOrg}
+								options={orgOptions}
 								onChange={(newValue) => {
+									setSelectedOrg(newValue);
 									void form.setFieldValue("organization", newValue?.id ?? "");
-								}}
-								check={{
-									object: { resource_type: "organization_member" },
-									action: "create",
 								}}
 							/>
 						</div>
 					)}
 
 					{/* Login type — "none" is presented as "Service account" */}
-					<div className="flex flex-col gap-2">
+					<div className="flex flex-col gap-2 max-w-sm">
 						<Label htmlFor="login_type">Login type</Label>
 						<Select
 							value={form.values.login_type}
@@ -220,6 +241,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							>
 								<SelectValue placeholder="Select a login type…" />
 							</SelectTrigger>
+
 							<SelectContent className="max-w-sm">
 								{availableLoginTypes.map((key) => {
 									const opt = loginTypeOptions[key];
@@ -231,7 +253,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 										>
 											<span className="absolute right-2 top-2 flex items-center justify-center">
 												<SelectPrimitive.ItemIndicator>
-													<Check className="size-icon-sm" />
+													<CheckIcon className="size-icon-sm" />
 												</SelectPrimitive.ItemIndicator>
 											</span>
 											<div className="flex flex-col py-0.5">
@@ -256,6 +278,37 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							</span>
 						)}
 					</div>
+
+					<FormField
+						field={getFieldHelpers("username")}
+						label="Username"
+						id="username"
+						name="username"
+						value={form.values.username}
+						onChange={onChangeTrimmed(form)}
+						onBlur={form.handleBlur}
+						autoComplete="username"
+						autoFocus
+						className="max-w-sm"
+					/>
+
+					<FormField
+						field={getFieldHelpers("name")}
+						label={
+							<>
+								Full name{" "}
+								<span className="font-normal text-content-secondary">
+									(optional)
+								</span>
+							</>
+						}
+						id="name"
+						name="name"
+						value={form.values.name}
+						onChange={form.handleChange}
+						onBlur={form.handleBlur}
+						autoComplete="name"
+					/>
 
 					{!isServiceAccount && (
 						<FormField
@@ -292,6 +345,14 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							data-testid="password-input"
 						/>
 					)}
+
+					<RoleSelector
+						loading={rolesLoading}
+						error={rolesError}
+						availableRoles={availableRoles}
+						selectedRoles={form.values.roles}
+						onChange={(roles) => form.setFieldValue("roles", roles)}
+					/>
 				</div>
 
 				<FormFooter className="mt-8">

@@ -1,12 +1,7 @@
-import {
-	MockNoPermissions,
-	MockPermissions,
-	MockUserOwner,
-} from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
+import { Navigate, useOutletContext } from "react-router";
 import {
 	expect,
 	fn,
@@ -20,12 +15,29 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	MockNoPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
+import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
+import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
+import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
+import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
+import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
+import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
-import { AgentsPageView } from "./AgentsPageView";
+import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
+import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
+import type { ModelSelectorOption } from "./components/ChatElements";
+import { ChatTopBar } from "./components/ChatTopBar";
 
 const defaultModelConfigID = "model-config-1";
 
@@ -63,6 +75,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	total_output_tokens: 654_321,
 	total_cache_read_tokens: 9_876,
 	total_cache_creation_tokens: 5_432,
+	total_runtime_ms: 0,
 	by_model: [
 		{
 			model_config_id: defaultModelConfigID,
@@ -75,6 +88,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 200_000,
 			total_cache_read_tokens: 7_654,
 			total_cache_creation_tokens: 3_210,
+			total_runtime_ms: 0,
 		},
 	],
 	by_chat: [
@@ -87,6 +101,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 			total_output_tokens: 80_000,
 			total_cache_read_tokens: 4_321,
 			total_cache_creation_tokens: 1_234,
+			total_runtime_ms: 0,
 		},
 	],
 };
@@ -108,6 +123,7 @@ const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
 			total_output_tokens: 45_000,
 			total_cache_read_tokens: 6_789,
 			total_cache_creation_tokens: 2_468,
+			total_runtime_ms: 0,
 		},
 	],
 };
@@ -117,6 +133,7 @@ const todayTimestamp = new Date().toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
@@ -126,7 +143,11 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
-	last_error: null,
+	pin_order: 0,
+	has_unread: false,
+	client_type: "ui",
+	last_turn_summary: null,
+	children: [],
 	...overrides,
 });
 
@@ -134,16 +155,126 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 // across timezones.
 const fixedNow = dayjs("2026-03-12T12:00:00");
 
+const AgentsRouteElement = () => (
+	<AgentSettingsAgentsPageView
+		adminOverridesData={{ allow_users: false }}
+		onSaveAdminOverrides={fn()}
+		isSavingAdminOverrides={false}
+		isSaveAdminOverridesError={false}
+		exploreModelOverrideData={{
+			context: "explore",
+			model_config_id: "",
+			is_malformed: false,
+		}}
+		titleGenerationModelOverrideData={{
+			context: "title_generation",
+			model_config_id: "",
+			is_malformed: false,
+		}}
+		modelConfigsData={[]}
+		modelConfigsError={undefined}
+		isLoadingModelConfigs={false}
+		onSaveTitleGenerationModel={fn()}
+		isSavingTitleGenerationModel={false}
+		isSaveTitleGenerationModelError={false}
+		onSaveExploreModelOverride={fn()}
+		isSavingExploreModelOverride={false}
+		isSaveExploreModelOverrideError={false}
+	/>
+);
+
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
 	children: [
-		{ path: "settings", element: <AgentSettingsPage /> },
-		{ path: "settings/:section", element: <AgentSettingsPage /> },
+		{
+			path: "settings",
+			element: <AgentSettingsPage />,
+			children: [
+				{ index: true, element: <AgentSettingsGeneralPage /> },
+				{ path: "general", element: <AgentSettingsGeneralPage /> },
+				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
+				{
+					path: "instructions",
+					element: <AgentSettingsInstructionsPage />,
+				},
+				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
+				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },
+				{ path: "admin", element: <AgentsRouteElement /> },
+				{ path: "agents", element: <AgentsRouteElement /> },
+				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
+				{
+					path: "usage",
+					element: <Navigate to="/agents/settings/spend" replace />,
+				},
+			],
+		},
 		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const AgentTopBarRouteElement = () => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsOutletContext>();
+	return (
+		<ChatTopBar
+			chatTitle="Collapsed sidebar agent"
+			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
+			onArchiveAgent={fn()}
+			onArchiveAndDeleteWorkspace={fn()}
+			onRegenerateTitle={fn()}
+			onUnarchiveAgent={fn()}
+			isSidebarCollapsed={isSidebarCollapsed}
+			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+		/>
+	);
+};
+
+const agentsWithChatTopBarRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <AgentTopBarRouteElement /> }
+			: route,
+	),
+};
+
+const defaultArgs: ComponentProps<typeof AgentsPageView> = {
+	agentId: undefined,
+	chatList: [],
+	catalogModelOptions: defaultModelOptions,
+	modelConfigs: defaultModelConfigs,
+	handleNewAgent: fn(),
+	isCreating: false,
+	isArchiving: false,
+	archivingChatId: undefined,
+	isChatsLoading: false,
+	chatsLoadError: null,
+	onRetryChatsLoad: fn(),
+	onCollapseSidebar: fn(),
+	isSidebarCollapsed: false,
+	onExpandSidebar: fn(),
+	chatErrorReasons: {},
+	setChatErrorReason: fn(),
+	clearChatErrorReason: fn(),
+	requestArchiveAgent: fn(),
+	requestUnarchiveAgent: fn(),
+	requestArchiveAndDeleteWorkspace: fn(),
+	requestPinAgent: fn(),
+	requestUnpinAgent: fn(),
+	onRegenerateTitle: fn(async () => "Generated title"),
+	onProposeTitle: fn(async () => "Proposed title"),
+	onRenameTitle: fn(async () => {}),
+	regeneratingTitleChatIds: [],
+	onToggleSidebarCollapsed: fn(),
+	isAgentsAdmin: false,
+	archivedFilter: "active",
+	onArchivedFilterChange: fn(),
+	hasNextPage: false,
+	onLoadMore: fn(),
+	isFetchingNextPage: false,
 };
 
 const meta: Meta<typeof AgentsPageView> = {
@@ -159,36 +290,7 @@ const meta: Meta<typeof AgentsPageView> = {
 			routing: agentsRouting,
 		}),
 	},
-	args: {
-		agentId: undefined,
-		chatList: [],
-		catalogModelOptions: defaultModelOptions,
-		modelConfigs: defaultModelConfigs,
-		logoUrl: "",
-		handleNewAgent: fn(),
-		isCreating: false,
-		isArchiving: false,
-		archivingChatId: undefined,
-		isChatsLoading: false,
-		chatsLoadError: null,
-		onRetryChatsLoad: fn(),
-		onCollapseSidebar: fn(),
-		isSidebarCollapsed: false,
-		onExpandSidebar: fn(),
-		chatErrorReasons: {},
-		setChatErrorReason: fn(),
-		clearChatErrorReason: fn(),
-		requestArchiveAgent: fn(),
-		requestUnarchiveAgent: fn(),
-		requestArchiveAndDeleteWorkspace: fn(),
-		onToggleSidebarCollapsed: fn(),
-		isAgentsAdmin: false,
-		archivedFilter: "active" as const,
-		onArchivedFilterChange: fn(),
-		hasNextPage: false,
-		onLoadMore: fn(),
-		isFetchingNextPage: false,
-	},
+	args: defaultArgs,
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
@@ -202,6 +304,8 @@ const meta: Meta<typeof AgentsPageView> = {
 		);
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
+			include_default_system_prompt: true,
+			default_system_prompt: "You are Coder, an AI coding assistant...",
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
@@ -245,10 +349,65 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
 			enable_desktop: false,
 		});
+		spyOn(API.experimental, "updateChatDesktopEnabled").mockResolvedValue();
+		spyOn(API.experimental, "getChatDebugLogging").mockResolvedValue({
+			allow_users: false,
+			forced_by_deployment: false,
+		});
+		spyOn(API.experimental, "updateChatDebugLogging").mockResolvedValue();
+		spyOn(API.experimental, "getUserChatDebugLogging").mockResolvedValue({
+			debug_logging_enabled: false,
+			forced_by_deployment: false,
+			user_toggle_allowed: false,
+		});
+		spyOn(API.experimental, "updateUserChatDebugLogging").mockResolvedValue();
+		spyOn(API.experimental, "getChatPlanModeInstructions").mockResolvedValue({
+			plan_mode_instructions: "",
+		});
+		spyOn(
+			API.experimental,
+			"updateChatPlanModeInstructions",
+		).mockResolvedValue();
+		spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue({
+			thresholds: [],
+		});
+		spyOn(
+			API.experimental,
+			"updateUserChatCompactionThreshold",
+		).mockResolvedValue({
+			model_config_id: defaultModelConfigID,
+			threshold_percent: 70,
+		});
+		spyOn(
+			API.experimental,
+			"deleteUserChatCompactionThreshold",
+		).mockResolvedValue();
 		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatRetentionDays").mockResolvedValue({
+			retention_days: 30,
+		});
+		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
+		spyOn(API.experimental, "getChatUsageLimitConfig").mockResolvedValue({
+			spend_limit_micros: null,
+			period: "month",
+			updated_at: "2026-02-18T00:00:00.000Z",
+			unpriced_model_count: 0,
+			overrides: [],
+			group_overrides: [],
+		});
+		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatCostUsers").mockResolvedValue({
+			start_date: "2026-02-10T00:00:00Z",
+			end_date: "2026-03-12T00:00:00Z",
+			count: 0,
+			users: [],
+		});
 	},
 };
 
@@ -256,6 +415,28 @@ export default meta;
 type Story = StoryObj<typeof AgentsPageView>;
 
 export const EmptyState: Story = {};
+
+export const ArchivedEmptyState: Story = {
+	args: {
+		archivedFilter: "archived",
+		chatList: [],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
+		await expect(await screen.findByText("No archived agents")).toBeVisible();
+		await expect(
+			screen.getByRole("button", { name: /back to active/i }),
+		).toBeVisible();
+	},
+};
 
 export const WithChatList: Story = {
 	args: {
@@ -276,7 +457,11 @@ export const WithChatList: Story = {
 				id: "chat-3",
 				title: "Fix database migration issue",
 				status: "error",
-				last_error: "Connection timeout",
+				last_error: {
+					message: "Connection timeout",
+					kind: "generic",
+					retryable: false,
+				},
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
@@ -337,6 +522,92 @@ export const SidebarCollapsed: Story = {
 export const WithToolbarEndContent: Story = {
 	args: {
 		isAgentsAdmin: true,
+	},
+};
+
+export const EmptyStateZoom200Desktop: Story = {
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("agents-page-layout");
+		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
+		const main = await canvas.findByTestId("agents-main-panel");
+
+		await waitFor(() => {
+			const layoutStyles = getComputedStyle(layout);
+			const sidebarStyles = getComputedStyle(sidebar);
+			const mainStyles = getComputedStyle(main);
+			const sidebarRect = sidebar.getBoundingClientRect();
+			const mainRect = main.getBoundingClientRect();
+
+			expect(layoutStyles.flexDirection).toBe("row");
+			expect(sidebarStyles.display).not.toBe("none");
+			expect(mainStyles.display).toBe("flex");
+			expect(sidebarRect.width).toBeGreaterThan(0);
+			expect(mainRect.width).toBeGreaterThan(0);
+			expect(sidebarRect.left).toBeLessThan(mainRect.left);
+			expect(sidebarRect.right).toBeLessThanOrEqual(mainRect.left + 1);
+		});
+
+		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: /TestUser/ }),
+		).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200Desktop: Story = {
+	args: {
+		isSidebarCollapsed: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
+	args: {
+		agentId: "chat-1",
+		isSidebarCollapsed: true,
+		chatList: [
+			buildChat({
+				id: "chat-1",
+				title: "Collapsed sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: agentsWithChatTopBarRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
 	},
 };
 
@@ -492,10 +763,23 @@ export const WithErrorReasons: Story = {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	const link = await waitFor(() =>
-		canvas.getByRole("link", { name: "Settings" }),
+	const settingsLink = canvas.queryByRole("link", { name: "Settings" });
+	if (settingsLink) {
+		await userEvent.click(settingsLink);
+		return;
+	}
+
+	const mobileMoreOptionsButton = canvas
+		.getAllByRole("button", { name: "More options" })
+		.find((button) => button.getAttribute("aria-haspopup") === "menu");
+	if (!mobileMoreOptionsButton) {
+		throw new Error("Expected a mobile More options menu button.");
+	}
+	await userEvent.click(mobileMoreOptionsButton);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		await body.findByRole("menuitem", { name: "Settings" }),
 	);
-	await userEvent.click(link);
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -512,7 +796,7 @@ export const OpensAnalyticsForAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review your personal chat usage and cost breakdowns.",
+					"Review your personal Coder Agents usage and cost breakdowns.",
 				),
 			).toBeInTheDocument();
 		});
@@ -534,7 +818,7 @@ export const OpensAnalyticsForNonAdmins: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review your personal chat usage and cost breakdowns.",
+					"Review your personal Coder Agents usage and cost breakdowns.",
 				),
 			).toBeInTheDocument();
 		});
@@ -550,9 +834,7 @@ export const OpensSettingsForAdmins: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
 	},
@@ -570,11 +852,38 @@ export const OpensSettingsForNonAdmins: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
+
+		expect(
+			screen.queryByRole("link", { name: "Manage Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const OpensAdminSubPanelOnMobile: Story = {
+	args: {
+		isAgentsAdmin: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("link", { name: "Manage Agents" }),
+		);
+
+		await expect(
+			await screen.findByRole("link", { name: "Providers" }),
+		).toBeInTheDocument();
+		await expect(
+			await screen.findByRole("link", { name: "Spend" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -588,33 +897,36 @@ export const SettingsViewResets: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
 
-		// Navigate to Usage section
-		await userEvent.click(screen.getByText("Usage"));
+		// Navigate to the admin panel, then open the Spend section.
+		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review deployment chat usage and drill into individual users.",
+					"Configure spend limits and monitor usage across your deployment.",
 				),
 			).toBeInTheDocument();
 		});
 
-		// Go back to chats
-		const backButton = screen.getByLabelText("Back to chats");
-		await userEvent.click(backButton);
+		// Step back to the top-level settings panel, then back to conversations.
+		const backToSettingsButton = await screen.findByRole("link", {
+			name: "Back to Settings",
+		});
+		await userEvent.click(backToSettingsButton);
+		const backToAgentsButton = await screen.findByRole("link", {
+			name: "Back to Agents",
+		});
+		await userEvent.click(backToAgentsButton);
 
-		// Re-open settings, should reset to Behavior
+		// Re-open settings, should reset to General
 		await openSettingsView(canvasElement);
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Custom instructions that shape how the agent responds in your chats.",
-				),
+				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
 	},

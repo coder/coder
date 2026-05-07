@@ -56,6 +56,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -305,7 +306,6 @@ func enablePrometheus(
 	}
 	options.ProvisionerdServerMetrics = provisionerdserverMetrics
 
-	//nolint:revive
 	return ServeHandler(
 		ctx, logger, promhttp.InstrumentMetricHandler(
 			options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
@@ -599,13 +599,26 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defaultRegion = nil
 			}
 
-			derpMap, err := tailnet.NewDERPMap(
-				ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
-				vals.DERP.Config.URL.String(), vals.DERP.Config.Path.String(),
-				vals.DERP.Config.BlockDirect.Value(),
-			)
-			if err != nil {
-				return xerrors.Errorf("create derp map: %w", err)
+			derpConfigURL := vals.DERP.Config.URL.String()
+			derpConfigPath := vals.DERP.Config.Path.String()
+			var derpMap *tailcfg.DERPMap
+			if defaultRegion == nil && derpConfigURL == "" && derpConfigPath == "" {
+				logger.Warn(ctx,
+					"no DERP servers are currently configured; workspace networking"+
+						" will not work until you either restart coderd with the"+
+						" built-in DERP server enabled, restart coderd with an"+
+						" external DERP map configured, or start a workspace proxy"+
+						" with its DERP server enabled")
+				derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+			} else {
+				derpMap, err = tailnet.NewDERPMap(
+					ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
+					derpConfigURL, derpConfigPath,
+					vals.DERP.Config.BlockDirect.Value(),
+				)
+				if err != nil {
+					return xerrors.Errorf("create derp map: %w", err)
+				}
 			}
 
 			appHostname := vals.WildcardAccessURL.String()
@@ -843,28 +856,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
+			aibridgeProviders, err := ReadAIBridgeProvidersFromEnv(logger, os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read aibridge providers from env: %w", err)
+			}
+			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aibridgeProviders...)
+
 			// Manage push notifications.
-			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-			if experiments.Enabled(codersdk.ExperimentWebPush) || buildinfo.IsDev() {
-				if !strings.HasPrefix(options.AccessURL.String(), "https://") {
-					options.Logger.Warn(ctx, "access URL is not HTTPS, so web push notifications may not work on some browsers", slog.F("access_url", options.AccessURL.String()))
-				}
-				webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
-				if err != nil {
-					options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
-					options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
-					webpusher = &webpush.NoopWebpusher{
-						Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
-					}
-				}
-				options.WebPushDispatcher = webpusher
-			} else {
-				options.WebPushDispatcher = &webpush.NoopWebpusher{
-					// Users will likely not see this message as the endpoints return 404
-					// if not enabled. Just in case...
-					Msg: "Web Push notifications are an experimental feature and are disabled by default. Enable the 'web-push' experiment to use this feature.",
+			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
+			if err != nil {
+				options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
+				webpusher = &webpush.NoopWebpusher{
+					Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
 				}
 			}
+			options.WebPushDispatcher = webpusher
 
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
 			if err != nil {
@@ -1020,6 +1026,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
 					return xerrors.Errorf("register experiments metric: %w", err)
 				}
+
+				revision, _ := buildinfo.Revision()
+				if err = prometheusmetrics.BuildInfo(options.PrometheusRegistry, buildinfo.Version(), revision); err != nil {
+					return xerrors.Errorf("register build info metric: %w", err)
+				}
 			}
 
 			// This is helpful for tests, but can be silently ignored.
@@ -1076,7 +1087,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, quartz.NewReal(), options.PrometheusRegistry)
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, options.PrometheusRegistry, &coderAPI.Auditor, dbpurge.WithNotificationsEnqueuer(options.NotificationsEnqueuer))
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -1637,8 +1648,6 @@ var defaultCipherSuites = func() []uint16 {
 // configureServerTLS returns the TLS config used for the Coderd server
 // connections to clients. A logger is passed in to allow printing warning
 // messages that do not block startup.
-//
-//nolint:revive
 func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string, ciphers []string, allowInsecureCiphers bool) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -2055,7 +2064,6 @@ func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *c
 	return &params, nil
 }
 
-//nolint:revive // Ignore flag-parameter: parameter 'allowEveryone' seems to be a control flag, avoid control coupling (revive)
 func configureGithubOAuth2(instrument *promoauth.Factory, params *githubOAuth2ConfigParams) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := params.accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
@@ -2331,7 +2339,8 @@ func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 			return ctx, nil, err
 		}
 
-		tlsClientConfig := &tls.Config{ //nolint:gosec
+		tlsClientConfig := &tls.Config{
+			MinVersion:   tls.VersionTLS12,
 			Certificates: certificates,
 			NextProtos:   []string{"h2", "http/1.1"},
 		}
@@ -2915,6 +2924,201 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 		providers[providerNum] = provider
 	}
 	return providers, nil
+}
+
+// ReadAIBridgeProvidersFromEnv parses CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+// environment variables into a slice of AIBridgeProviderConfig.
+// This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
+func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIBridgeProviderConfig, error) {
+	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	var providers []codersdk.AIBridgeProviderConfig
+	for _, v := range parsed {
+		tokens := strings.SplitN(v.Name, "_", 2)
+		if len(tokens) != 2 {
+			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+		}
+
+		providerNum, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, xerrors.Errorf("parse number: %s", v.Name)
+		}
+
+		var provider codersdk.AIBridgeProviderConfig
+		switch {
+		case len(providers) < providerNum:
+			return nil, xerrors.Errorf(
+				"provider num %v skipped: %s",
+				len(providers),
+				v.Name,
+			)
+		case len(providers) == providerNum: // First observation of this index, create a new provider.
+			providers = append(providers, provider)
+		case len(providers) == providerNum+1: // Provider already exists at this index, update it.
+			provider = providers[providerNum]
+		}
+
+		key := tokens[1]
+		switch key {
+		case "TYPE":
+			provider.Type = v.Value
+		case "NAME":
+			provider.Name = v.Value
+		case "KEY", "KEYS":
+			if len(provider.Keys) > 0 {
+				return nil, xerrors.Errorf("provider %d: KEY and KEYS are mutually exclusive, use one or the other", providerNum)
+			}
+			if key == "KEYS" {
+				provider.Keys = strings.Split(v.Value, ",")
+			} else {
+				provider.Keys = []string{v.Value}
+			}
+		case "BASE_URL":
+			provider.BaseURL = v.Value
+		case "DUMP_DIR":
+			provider.DumpDir = v.Value
+		case "BEDROCK_BASE_URL":
+			provider.BedrockBaseURL = v.Value
+		case "BEDROCK_REGION":
+			provider.BedrockRegion = v.Value
+		case "BEDROCK_ACCESS_KEY", "BEDROCK_ACCESS_KEYS":
+			if len(provider.BedrockAccessKeys) > 0 {
+				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY and BEDROCK_ACCESS_KEYS are mutually exclusive, use one or the other", providerNum)
+			}
+			if key == "BEDROCK_ACCESS_KEYS" {
+				provider.BedrockAccessKeys = strings.Split(v.Value, ",")
+			} else {
+				provider.BedrockAccessKeys = []string{v.Value}
+			}
+		case "BEDROCK_ACCESS_KEY_SECRET", "BEDROCK_ACCESS_KEY_SECRETS":
+			if len(provider.BedrockAccessKeySecrets) > 0 {
+				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY_SECRET and BEDROCK_ACCESS_KEY_SECRETS are mutually exclusive, use one or the other", providerNum)
+			}
+			if key == "BEDROCK_ACCESS_KEY_SECRETS" {
+				provider.BedrockAccessKeySecrets = strings.Split(v.Value, ",")
+			} else {
+				provider.BedrockAccessKeySecrets = []string{v.Value}
+			}
+		case "BEDROCK_MODEL":
+			provider.BedrockModel = v.Value
+		case "BEDROCK_SMALL_FAST_MODEL":
+			provider.BedrockSmallFastModel = v.Value
+		default:
+			logger.Warn(context.Background(), "ignoring unknown aibridge provider field (check for typos)",
+				slog.F("env", fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_%s", providerNum, key)),
+			)
+		}
+		providers[providerNum] = provider
+	}
+
+	// Post-parse validation.
+	names := make(map[string]int, len(providers))
+	for i := range providers {
+		p := &providers[i]
+		if p.Type == "" {
+			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
+		}
+
+		switch p.Type {
+		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
+		default:
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
+				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+		}
+
+		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
+				i, p.Type, aibridge.ProviderAnthropic)
+		}
+
+		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
+				i, p.Type, aibridge.ProviderCopilot)
+		}
+
+		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
+			return nil, err
+		}
+
+		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
+			return nil, err
+		}
+
+		if p.Name == "" {
+			p.Name = p.Type
+		}
+		if other, exists := names[p.Name]; exists {
+			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
+		}
+		names[p.Name] = i
+	}
+
+	return providers, nil
+}
+
+func hasBedrockFields(p codersdk.AIBridgeProviderConfig) bool {
+	return p.BedrockBaseURL != "" || p.BedrockRegion != "" ||
+		len(p.BedrockAccessKeys) > 0 || len(p.BedrockAccessKeySecrets) > 0 ||
+		p.BedrockModel != "" || p.BedrockSmallFastModel != ""
+}
+
+// maxKeysPerProvider is the maximum number of keys allowed per
+// provider. This bounds the failover pool size and keeps the
+// configuration manageable.
+const maxKeysPerProvider = 5
+
+// validateProviderCredentialList checks that a list of credentials
+// belonging to a provider is well-formed: no empty values, no
+// duplicates, and within the maximum count. Trims whitespace in
+// place.
+func validateProviderCredentialList(providerIndex int, providerType string, keys []string) error {
+	if len(keys) > maxKeysPerProvider {
+		return xerrors.Errorf("provider %d (%s): too many keys (%d), maximum is %d",
+			providerIndex, providerType, len(keys), maxKeysPerProvider)
+	}
+
+	seen := make(map[string]struct{}, len(keys))
+	for i, key := range keys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			return xerrors.Errorf("provider %d (%s): key at index %d is empty",
+				providerIndex, providerType, i)
+		}
+		keys[i] = trimmed
+		if _, exists := seen[trimmed]; exists {
+			return xerrors.Errorf("provider %d (%s): duplicate key at index %d",
+				providerIndex, providerType, i)
+		}
+		seen[trimmed] = struct{}{}
+	}
+
+	return nil
+}
+
+// validateBedrockCredentials checks that Bedrock access keys and
+// secrets are paired correctly (same count) and that each list is
+// well-formed.
+func validateBedrockCredentials(providerIndex int, providerType string, accessKeys, secrets []string) error {
+	if len(accessKeys) != len(secrets) {
+		return xerrors.Errorf("provider %d (%s): BEDROCK_ACCESS_KEYS count (%d) must match BEDROCK_ACCESS_KEY_SECRETS count (%d)",
+			providerIndex, providerType, len(accessKeys), len(secrets))
+	}
+
+	if err := validateProviderCredentialList(providerIndex, providerType, accessKeys); err != nil {
+		return err
+	}
+
+	return validateProviderCredentialList(providerIndex, providerType, secrets)
 }
 
 var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)

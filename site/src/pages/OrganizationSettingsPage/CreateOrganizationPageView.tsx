@@ -1,22 +1,14 @@
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
-import { docs } from "utils/docs";
-import {
-	displayNameValidator,
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { IconField } from "#/components/IconField/IconField";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
@@ -26,6 +18,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import {
+	displayNameValidator,
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -68,14 +67,14 @@ export const CreateOrganizationPageView: FC<
 					to="/organizations"
 					className="flex flex-row items-center gap-2 no-underline text-content-secondary hover:text-content-primary"
 				>
-					<ArrowLeft size={20} />
+					<ArrowLeftIcon size={20} />
 					Go Back
 				</Link>
 			</div>
 			<div className="flex flex-col gap-4 w-full min-w-96 mx-auto">
 				<div className="flex flex-col items-center">
 					{Boolean(error) && !isApiValidationError(error) && (
-						<div css={{ marginBottom: 32 }}>
+						<div className="mb-8">
 							<ErrorAlert error={error} />
 						</div>
 					)}
@@ -112,67 +111,64 @@ export const CreateOrganizationPageView: FC<
 						</p>
 					</header>
 				</div>
-				<ChooseOne>
-					<Cond condition={!isEntitled}>
-						<div className="min-w-fit mx-auto">
-							<PaywallPremium
-								message="Organizations"
-								description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-								documentationLink={docs("/admin/users/organizations")}
-							/>
-						</div>
-					</Cond>
-					<Cond>
-						<div className="flex flex-col gap-4 w-full max-w-xl min-w-72 mx-auto">
-							<form
-								onSubmit={form.handleSubmit}
-								aria-label="Organization settings form"
-								className="flex flex-col gap-6 w-full"
+				{!isEntitled ? (
+					<div className="min-w-fit mx-auto">
+						<PaywallPremium
+							message="Organizations"
+							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+							documentationLink={docs("/admin/users/organizations")}
+						/>
+					</div>
+				) : (
+					<div className="flex flex-col gap-4 w-full max-w-xl min-w-72 mx-auto">
+						<form
+							onSubmit={form.handleSubmit}
+							aria-label="Organization settings form"
+							className="flex flex-col gap-6 w-full"
+						>
+							<fieldset
+								disabled={form.isSubmitting}
+								className="flex flex-col gap-6 w-full border-none"
 							>
-								<fieldset
-									disabled={form.isSubmitting}
-									className="flex flex-col gap-6 w-full border-none"
+								<TextField
+									{...getFieldHelpers("name")}
+									onChange={onChangeTrimmed(form)}
+									fullWidth
+									label="Slug"
+								/>
+								<TextField
+									{...getFieldHelpers("display_name")}
+									fullWidth
+									label="Display name"
+								/>
+								<TextField
+									{...getFieldHelpers("description")}
+									multiline
+									label="Description"
+									rows={2}
+								/>
+								<IconField
+									{...getFieldHelpers("icon")}
+									onChange={onChangeTrimmed(form)}
+									onPickEmoji={(value) => form.setFieldValue("icon", value)}
+								/>
+							</fieldset>
+							<div className="flex flex-row gap-2">
+								<Button type="submit" disabled={form.isSubmitting}>
+									{form.isSubmitting && <Spinner />}
+									Save
+								</Button>
+								<Button
+									variant="outline"
+									type="button"
+									onClick={() => navigate("/organizations")}
 								>
-									<TextField
-										{...getFieldHelpers("name")}
-										onChange={onChangeTrimmed(form)}
-										fullWidth
-										label="Slug"
-									/>
-									<TextField
-										{...getFieldHelpers("display_name")}
-										fullWidth
-										label="Display name"
-									/>
-									<TextField
-										{...getFieldHelpers("description")}
-										multiline
-										label="Description"
-										rows={2}
-									/>
-									<IconField
-										{...getFieldHelpers("icon")}
-										onChange={onChangeTrimmed(form)}
-										onPickEmoji={(value) => form.setFieldValue("icon", value)}
-									/>
-								</fieldset>
-								<div className="flex flex-row gap-2">
-									<Button type="submit" disabled={form.isSubmitting}>
-										{form.isSubmitting && <Spinner />}
-										Save
-									</Button>
-									<Button
-										variant="outline"
-										type="button"
-										onClick={() => navigate("/organizations")}
-									>
-										Cancel
-									</Button>
-								</div>
-							</form>
-						</div>
-					</Cond>
-				</ChooseOne>
+									Cancel
+								</Button>
+							</div>
+						</form>
+					</div>
+				)}
 			</div>
 		</div>
 	);

@@ -1,11 +1,14 @@
-import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { getApps, revokeApp } from "#/api/queries/oauth2";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import { Section } from "../Section";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
 const OAuth2ProviderPage: FC = () => {
@@ -19,7 +22,10 @@ const OAuth2ProviderPage: FC = () => {
 	);
 
 	return (
-		<Section title="OAuth2 Applications" layout="fluid">
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
+			</SettingsHeader>
 			<OAuth2ProviderPageView
 				isLoading={userOAuth2AppsQuery.isLoading}
 				error={userOAuth2AppsQuery.error}
@@ -57,7 +63,7 @@ const OAuth2ProviderPage: FC = () => {
 					}}
 				/>
 			)}
-		</Section>
+		</>
 	);
 };
 

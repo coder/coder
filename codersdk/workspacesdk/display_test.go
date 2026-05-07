@@ -99,6 +99,19 @@ func TestDefaultDesktopGeometry(t *testing.T) {
 	assert.Equal(t, 720, geometry.DeclaredHeight)
 }
 
+// TestDefaultOpenAIComputerUseDesktopGeometry pins the model-facing coordinate
+// system for OpenAI computer use so future geometry changes are intentional.
+func TestDefaultOpenAIComputerUseDesktopGeometry(t *testing.T) {
+	t.Parallel()
+
+	geometry := workspacesdk.DefaultOpenAIComputerUseDesktopGeometry()
+
+	assert.Equal(t, 1920, geometry.NativeWidth)
+	assert.Equal(t, 1080, geometry.NativeHeight)
+	assert.Equal(t, 1600, geometry.DeclaredWidth)
+	assert.Equal(t, 900, geometry.DeclaredHeight)
+}
+
 func TestDesktopGeometryDeclaredPointToNative(t *testing.T) {
 	t.Parallel()
 

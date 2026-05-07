@@ -1,15 +1,9 @@
-import {
-	defaultMetadataManager,
-	type MetadataState,
-} from "hooks/useEmbeddedMetadata";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type {
 	MutationOptions,
 	QueryClient,
 	UseMutationOptions,
 	UseQueryOptions,
 } from "react-query";
-import { prepareQuery } from "utils/filters";
 import { API } from "#/api/api";
 import type {
 	AuthorizationRequest,
@@ -26,6 +20,12 @@ import type {
 	UserPreferenceSettings,
 	UsersRequest,
 } from "#/api/typesGenerated";
+import {
+	defaultMetadataManager,
+	type MetadataState,
+} from "#/hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { prepareQuery } from "#/utils/filters";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 
@@ -154,7 +154,7 @@ export const me = (metadata: MetadataState<User>) => {
 	});
 };
 
-export const userKey = (usernameOrId: string) => ["user", usernameOrId];
+const userKey = (usernameOrId: string) => ["user", usernameOrId];
 
 export const user = (usernameOrId: string) => {
 	return {

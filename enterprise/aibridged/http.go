@@ -8,8 +8,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
@@ -35,7 +35,20 @@ var (
 func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	logger := s.logger.With(slog.F("path", r.URL.Path))
+	logger := s.logger.With(
+		slog.F("method", r.Method),
+		slog.F("path", r.URL.Path),
+	)
+
+	// Extract and strip proxy request ID for cross-service log
+	// correlation. Absent for direct requests not routed through
+	// aibridgeproxyd.
+	if proxyReqID := r.Header.Get(agplaibridge.HeaderCoderRequestID); proxyReqID != "" {
+		// Inject into context so downstream loggers include it.
+		ctx = slog.With(ctx, slog.F("aibridgeproxy_id", proxyReqID))
+		logger = logger.With(slog.F("aibridgeproxy_id", proxyReqID))
+	}
+	r.Header.Del(agplaibridge.HeaderCoderRequestID)
 
 	byok := agplaibridge.IsBYOK(r.Header)
 	authMode := "centralized"
@@ -45,7 +58,13 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
 	if key == "" {
-		logger.Warn(ctx, "no auth key provided")
+		// Some clients (e.g. Claude) send a HEAD request
+		// without credentials to check connectivity.
+		if r.Method == http.MethodHead {
+			logger.Info(ctx, "unauthenticated HEAD request")
+		} else {
+			logger.Warn(ctx, "no auth key provided")
+		}
 		http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
 		return
 	}

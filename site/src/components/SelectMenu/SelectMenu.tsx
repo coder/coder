@@ -9,7 +9,6 @@ import {
 	type ReactElement,
 	useMemo,
 } from "react";
-import { cn } from "utils/cn";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import {
@@ -23,6 +22,7 @@ import {
 	SearchField,
 	type SearchFieldProps,
 } from "#/components/SearchField/SearchField";
+import { cn } from "#/utils/cn";
 
 export const SelectMenu = Popover;
 

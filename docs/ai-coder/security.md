@@ -24,8 +24,8 @@ scopes or tokens from the standard one.
 
 Additional guidance and tooling is coming in future releases of Coder.
 
-## Set Up Agent Boundaries
+## Set Up Agent Firewall
 
-Agent Boundaries are process-level "agent firewalls" that lets you restrict and
+Agent Firewall is a process-level firewall that lets you restrict and
 audit what AI agents can access within Coder workspaces. To learn more about
-this feature, see [Agent Boundaries](./agent-boundaries/index.md).
+this feature, see [Agent Firewall](./agent-firewall/index.md).

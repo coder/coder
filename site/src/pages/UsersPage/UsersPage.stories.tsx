@@ -1,20 +1,20 @@
-import { MockAuthMethodsAll, MockUserOwner } from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withToaster,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MockGroups } from "pages/UsersPage/storybookData/groups";
-import { MockRoles } from "pages/UsersPage/storybookData/roles";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { deploymentConfigQueryKey } from "#/api/queries/deployment";
 import { groupsQueryKey } from "#/api/queries/groups";
 import { rolesQueryKey } from "#/api/queries/roles";
 import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
+import { MockGroups } from "#/pages/UsersPage/storybookData/groups";
+import { MockRoles } from "#/pages/UsersPage/storybookData/roles";
+import { MockUsers } from "#/pages/UsersPage/storybookData/users";
+import { MockAuthMethodsAll, MockUserOwner } from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import UsersPage from "./UsersPage";
 
 const parameters = {
@@ -72,15 +72,40 @@ const meta: Meta<typeof UsersPage> = {
 	component: UsersPage,
 	parameters,
 	decorators: [withToaster, withAuthProvider, withDashboardProvider],
-	args: {
-		defaultNewPassword: "edWbqYiaVpEiEWwI",
-	},
 };
 
 export default meta;
 type Story = StoryObj<typeof UsersPage>;
 
 export const Loaded: Story = {};
+
+export const WithAIAddonColumn: Story = {
+	parameters: {
+		features: ["ai_governance_user_limit"],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = await canvas.findByRole("columnheader", {
+			name: /AI add-on/i,
+		});
+
+		await expect(header).toBeVisible();
+	},
+};
+
+export const WithoutAIAddonColumn: Story = {
+	parameters: {
+		features: ["audit_log"],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("columnheader", { name: "User" });
+
+		await expect(
+			canvas.queryByRole("columnheader", { name: /AI add-on/i }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const SuspendUserSuccess: Story = {
 	play: async ({ canvasElement }) => {
@@ -349,8 +374,10 @@ export const UpdateUserRoleSuccess: Story = {
 			count: 60,
 		});
 
-		await user.click(within(userRow).getByLabelText("Edit user roles"));
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		await user.click(screen.getByText("Edit roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
+		await user.click(screen.getByText("Confirm"));
 		await screen.findByText(/roles updated successfully/);
 	},
 };
@@ -365,12 +392,14 @@ export const UpdateUserRoleError: Story = {
 		}
 		spyOn(API, "updateUserRoles").mockRejectedValue({});
 
-		await user.click(within(userRow).getByLabelText("Edit user roles"));
+		await user.click(within(userRow).getByLabelText("Open menu"));
+		await user.click(screen.getByText("Edit roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
+		await user.click(screen.getByText("Confirm"));
 		await screen.findByText(/Error updating user roles/);
 	},
 };
 
 function replaceUser(users: User[], index: number, user: User) {
-	return users.map((u, i) => (i === index ? user : u));
+	return users.map((u, i) => (i === index ? { ...u, ...user } : u));
 }

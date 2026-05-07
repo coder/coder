@@ -1,15 +1,15 @@
-import { useAuthenticated } from "hooks/useAuthenticated";
+import { type FC, Fragment, type ReactNode } from "react";
+import { useQuery } from "react-query";
+import { deploymentConfig } from "#/api/queries/deployment";
+import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	type ActionType,
 	abilitiesByWorkspaceStatus,
-} from "modules/workspaces/actions";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
-import { type FC, Fragment, type ReactNode } from "react";
-import { useQuery } from "react-query";
-import { mustUpdateWorkspace } from "utils/workspace";
-import { deploymentConfig } from "#/api/queries/deployment";
-import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
+} from "#/modules/workspaces/actions";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
+import { mustUpdateWorkspace } from "#/utils/workspace";
 import {
 	ActivateButton,
 	CancelButton,
@@ -66,7 +66,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
 		{
-			canDebug: !!deployment?.config.enable_terraform_debug_mode,
+			canDebug: Boolean(deployment?.config.enable_terraform_debug_mode),
 			isOwner: user.roles.some((role) => role.name === "owner"),
 		},
 	);
@@ -171,10 +171,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	};
 
 	return (
-		<div
-			css={{ display: "flex", alignItems: "center", gap: 8 }}
-			data-testid="workspace-actions"
-		>
+		<div className="flex items-center gap-2" data-testid="workspace-actions">
 			{/* Restarting must be handled separately, because it otherwise would appear as stopping */}
 			{isUpdating
 				? buttonMapping.updating

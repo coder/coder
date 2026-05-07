@@ -1,4 +1,55 @@
-import type { Workspace, WorkspaceAgentStatus } from "#/api/typesGenerated";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
+
+/**
+ * Canonical messages for startup and shutdown script issues.
+ * Used by the per-agent-row tooltips in AgentStatus; the
+ * start-related entries are also shared with per-agent health
+ * classification in getAgentHealthIssues.
+ */
+export const agentScriptMessages = {
+	start_error: {
+		title: "Startup script failed",
+		detail:
+			"A startup script exited with an error. Check the agent logs for details.",
+	},
+	start_timeout: {
+		title: "Startup script is taking longer than expected",
+		detail:
+			"A startup script has exceeded the expected time. Check the agent logs for details.",
+	},
+	shutdown_error: {
+		title: "Shutdown script failed",
+		detail:
+			"A shutdown script exited with an error. Check the agent logs for details.",
+	},
+	shutdown_timeout: {
+		title: "Shutdown script is taking longer than expected",
+		detail:
+			"A shutdown script has exceeded the expected time. Check the agent logs for details.",
+	},
+} as const;
+
+/**
+ * Canonical messages for agent connection issues (the agent
+ * process connecting to the Coder control plane).
+ */
+export const agentConnectionMessages = {
+	connecting: {
+		title: "Workspace agent is connecting",
+		detail:
+			"The workspace agent has not connected yet. Wait for it to connect or check the logs if it does not.",
+	},
+	timeout: {
+		title: "Agent is taking longer than expected to connect",
+		detail:
+			"Continue to wait and check the log output for errors. If agents do not connect, try restarting the workspace.",
+	},
+	disconnected: {
+		title: "Workspace agent has disconnected",
+		detail:
+			"Check the log output for errors. If agents do not reconnect, try restarting the workspace.",
+	},
+} as const;
 
 interface AgentHealthIssue {
 	title: string;
@@ -11,114 +62,93 @@ interface AgentHealthIssue {
 }
 
 /**
- * Classifies the health issue affecting a workspace based on agent
- * status and lifecycle state. Returns a title and detail message
- * that accurately describes the root cause rather than using a
- * generic "unhealthy" label.
+ * Classifies all health issues for an individual agent.
  */
-export function getAgentHealthIssue(workspace: Workspace): AgentHealthIssue {
-	const failingAgentCount = workspace.health.failing_agents.length;
-	const statusSet = new Set<WorkspaceAgentStatus>();
-	let hasStartError = false;
-	let hasStartTimeout = false;
-	let hasShutdownState = false;
+export function getAgentHealthIssues(
+	agent: WorkspaceAgent,
+): AgentHealthIssue[] {
+	const issues: AgentHealthIssue[] = [];
 
-	for (const resource of workspace.latest_build.resources) {
-		for (const agent of resource.agents ?? []) {
-			// Skip sub-agents (devcontainer agents) to match the
-			// backend health calculation which excludes them.
-			if (agent.parent_id !== null) {
-				continue;
-			}
-			statusSet.add(agent.status);
-			if (agent.lifecycle_state === "start_error") {
-				hasStartError = true;
-			}
-			if (agent.lifecycle_state === "start_timeout") {
-				hasStartTimeout = true;
-			}
-			if (
-				agent.lifecycle_state === "shutting_down" ||
-				agent.lifecycle_state === "shutdown_error" ||
-				agent.lifecycle_state === "shutdown_timeout"
-			) {
-				hasShutdownState = true;
-			}
-		}
-	}
-
-	const plural = failingAgentCount > 1;
-
-	if (statusSet.has("disconnected")) {
-		return {
-			title: plural
-				? `${failingAgentCount} workspace agents have disconnected`
-				: "Workspace agent has disconnected",
-			detail:
-				"Check the log output for errors. If agents do not reconnect, try restarting the workspace.",
-			severity: "warning",
-			prominent: true,
-		};
-	}
-
-	if (statusSet.has("timeout")) {
-		return {
-			title: plural
-				? `${failingAgentCount} agents are taking longer than expected to connect`
-				: "Agent is taking longer than expected to connect",
-			detail:
-				"Continue to wait and check the log output for errors. If agents do not connect, try restarting the workspace.",
+	if (agent.status === "disconnected") {
+		issues.push({
+			title: agentConnectionMessages.disconnected.title,
+			detail: agentConnectionMessages.disconnected.detail,
 			severity: "warning",
 			prominent: false,
-		};
+		});
 	}
 
-	if (hasShutdownState) {
-		return {
-			title: plural
-				? `${failingAgentCount} workspace agents are shutting down`
-				: "Workspace agent is shutting down",
+	if (agent.status === "timeout") {
+		issues.push({
+			title: agentConnectionMessages.timeout.title,
+			detail: agentConnectionMessages.timeout.detail,
+			severity: "warning",
+			prominent: false,
+		});
+	}
+
+	if (
+		agent.lifecycle_state === "shutting_down" ||
+		agent.lifecycle_state === "shutdown_error" ||
+		agent.lifecycle_state === "shutdown_timeout"
+	) {
+		issues.push({
+			title: "Workspace agent is shutting down",
 			detail: "The workspace is not available while agents shut down.",
 			severity: "info",
 			prominent: false,
-		};
+		});
 	}
 
-	if (hasStartError) {
-		return {
-			title: plural
-				? `Startup scripts failed on ${failingAgentCount} agents`
-				: "Startup script failed",
-			detail:
-				"A startup script exited with an error. Check the agent logs for details.",
-			severity: "warning",
-			prominent: true,
-		};
+	// Ignore `start_error` and `start_timeout`, as these will eventually be
+	// removed from agent health.  Instead, figure out if a script failed to start
+	// by looking directly at the scripts.
+	for (const script of agent.scripts) {
+		switch (script.status) {
+			case "timed_out":
+				issues.push({
+					title: `"${script.display_name}" is taking longer than expected`,
+					detail: `"${script.display_name}" has exceeded the expected time. Check the agent logs for details.`,
+					severity: "warning",
+					prominent: false,
+				});
+				break;
+			case "exit_failure":
+				if (script.exit_code) {
+					issues.push({
+						title: `"${script.display_name}" failed`,
+						detail: `"${script.display_name}" exited with ${script.exit_code}. Check the agent logs for details.`,
+						severity: "warning",
+						prominent: false,
+					});
+				} else {
+					issues.push({
+						title: `"${script.display_name}" failed`,
+						detail: `"${script.display_name}" has exited with an error. Check the agent logs for details.`,
+						severity: "warning",
+						prominent: false,
+					});
+				}
+				break;
+			case "pipes_left_open":
+				issues.push({
+					title: `"${script.display_name}" left pipes open`,
+					detail: "Check the agent logs for details.",
+					severity: "warning",
+					prominent: false,
+				});
+				break;
+		}
 	}
 
-	// The backend does not mark start_timeout agents as unhealthy on
-	// their own (it treats it as a soft issue). This branch is only
-	// reachable in multi-agent workspaces where a different agent
-	// triggered the unhealthy flag but none of the higher-priority
-	// branches matched.
-	if (hasStartTimeout) {
-		return {
-			title: plural
-				? `Startup scripts are taking longer than expected on ${failingAgentCount} agents`
-				: "Startup script is taking longer than expected",
-			detail:
-				"A startup script has exceeded the expected time. Check the agent logs for details.",
-			severity: "warning",
+	if (agent.status === "connecting") {
+		issues.push({
+			title: agentConnectionMessages.connecting.title,
+			detail: agentConnectionMessages.connecting.detail,
+			severity: "info",
 			prominent: false,
-		};
+		});
 	}
 
-	return {
-		title: plural
-			? `${failingAgentCount} workspace agents are still connecting`
-			: "Workspace agent is still connecting",
-		detail: "Check the log output if the connection does not complete.",
-		severity: "info",
-		prominent: false,
-	};
+	return issues;
 }

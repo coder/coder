@@ -1,4 +1,3 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { API } from "#/api/api";
 import type { Organization } from "#/api/typesGenerated";
@@ -17,7 +16,8 @@ import {
 	DEFAULT_USER_FILTER_WIDTH,
 	type UserFilterMenu,
 	UserMenu,
-} from "../../components/Filter/UserFilter";
+} from "#/components/Filter/UserFilter";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 interface TemplatesFilterProps {
 	filter: UseFilterResult;

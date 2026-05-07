@@ -1,4 +1,4 @@
-import type { ThemeRole } from "theme/roles";
+import type { ThemeRole } from "#/theme/roles";
 
 export const httpStatusColor = (httpStatus: number): ThemeRole => {
 	// Treat server errors (500) as errors

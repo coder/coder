@@ -16,6 +16,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// NOTE: See the auditLogCountCap note.
+const connectionLogCountCap = 2000
+
 // @Summary Get connection logs
 // @ID get-connection-logs
 // @Security CoderSessionToken
@@ -25,7 +28,7 @@ import (
 // @Param limit query int true "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.ConnectionLogResponse
-// @Router /connectionlog [get]
+// @Router /api/v2/connectionlog [get]
 func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -49,6 +52,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
+	countFilter.CountCap = connectionLogCountCap
 	count, err := api.Database.CountConnectionLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -63,6 +67,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
 			ConnectionLogs: []codersdk.ConnectionLog{},
 			Count:          0,
+			CountCap:       connectionLogCountCap,
 		})
 		return
 	}
@@ -80,6 +85,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
 		ConnectionLogs: convertConnectionLogs(dblogs),
 		Count:          count,
+		CountCap:       connectionLogCountCap,
 	})
 }
 

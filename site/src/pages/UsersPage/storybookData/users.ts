@@ -565,6 +565,7 @@ export const MockUsers: User[] = [
 	...u,
 	...fakeUserData[i],
 	avatar_url: "",
+	has_ai_seat: false,
 	status: u.status as UserStatus,
 	login_type: u.login_type as LoginType,
 }));

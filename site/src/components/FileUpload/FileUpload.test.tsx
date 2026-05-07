@@ -1,5 +1,5 @@
-import { renderComponent } from "testHelpers/renderHelpers";
 import { fireEvent, screen } from "@testing-library/react";
+import { renderComponent } from "#/testHelpers/renderHelpers";
 import { FileUpload } from "./FileUpload";
 
 test("accepts files with the correct extension", async () => {

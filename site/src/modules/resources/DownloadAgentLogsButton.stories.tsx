@@ -1,8 +1,9 @@
-import { MockWorkspaceAgent } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { Mock } from "vitest";
 import { agentLogsKey } from "#/api/queries/workspaces";
 import type { WorkspaceAgentLog } from "#/api/typesGenerated";
+import { MockWorkspaceAgent } from "#/testHelpers/entities";
 import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 
 const meta: Meta<typeof DownloadAgentLogsButton> = {
@@ -41,7 +42,7 @@ export const ClickOnDownload: Story = {
 				`${MockWorkspaceAgent.name}-logs.txt`,
 			),
 		);
-		const blob: Blob = (args.download as jest.Mock).mock.calls[0][0];
+		const blob: Blob = (args.download as Mock).mock.calls[0][0];
 		await expect(blob.type).toEqual("text/plain");
 	},
 };

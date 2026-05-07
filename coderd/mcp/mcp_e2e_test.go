@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,12 +18,18 @@ import (
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -215,21 +223,27 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 	t.Parallel()
 
-	// Setup Coder server with full workspace environment
-	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-	})
+	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
 	defer closer.Close()
 
 	user := coderdtest.CreateFirstUser(t, coderClient)
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		Name:           "myworkspace",
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
 
-	// Create template and workspace for testing
-	version := coderdtest.CreateTemplateVersion(t, coderClient, user.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, coderClient, version.ID)
-	template := coderdtest.CreateTemplate(t, coderClient, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, coderClient, template.ID)
+	fs := afero.NewMemMapFs()
+	tmpdir := os.TempDir()
+	require.NoError(t, fs.MkdirAll(tmpdir, 0o755))
+	filePath := filepath.Join(tmpdir, "mcp-http-test.txt")
+	require.NoError(t, afero.WriteFile(fs, filePath, []byte("hello from mcp"), 0o644))
 
-	// Create MCP client
+	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
+		opts.Filesystem = fs
+	})
+	coderdtest.NewWorkspaceAgentWaiter(t, coderClient, r.Workspace.ID).Wait()
+
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
 		transport.WithHTTPHeaders(map[string]string{
@@ -245,11 +259,8 @@ func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	// Start and initialize client
-	err = mcpClient.Start(ctx)
-	require.NoError(t, err)
-
-	initReq := mcp.InitializeRequest{
+	require.NoError(t, mcpClient.Start(ctx))
+	_, err = mcpClient.Initialize(ctx, mcp.InitializeRequest{
 		Params: mcp.InitializeParams{
 			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
 			ClientInfo: mcp.Implementation{
@@ -257,48 +268,30 @@ func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 				Version: "1.0.0",
 			},
 		},
-	}
-
-	_, err = mcpClient.Initialize(ctx, initReq)
+	})
 	require.NoError(t, err)
 
-	// Test workspace-related tools
-	tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
-	require.NoError(t, err)
-
-	// Find workspace listing tool
-	var workspaceTool *mcp.Tool
-	for _, tool := range tools.Tools {
-		if tool.Name == toolsdk.ToolNameListWorkspaces {
-			workspaceTool = &tool
-			break
-		}
-	}
-
-	if workspaceTool != nil {
-		// Execute workspace listing tool
-		toolReq := mcp.CallToolRequest{
-			Params: mcp.CallToolParams{
-				Name:      workspaceTool.Name,
-				Arguments: map[string]any{},
+	toolResult, err := mcpClient.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: toolsdk.ToolNameWorkspaceLS,
+			Arguments: map[string]any{
+				"workspace": r.Workspace.Name,
+				"path":      tmpdir,
 			},
-		}
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, toolResult.Content)
 
-		toolResult, err := mcpClient.CallTool(ctx, toolReq)
-		require.NoError(t, err)
-		require.NotEmpty(t, toolResult.Content)
+	textContent, ok := toolResult.Content[0].(mcp.TextContent)
+	require.True(t, ok, "expected TextContent type, got %T", toolResult.Content[0])
 
-		// Verify the result mentions our workspace
-		if textContent, ok := toolResult.Content[0].(mcp.TextContent); ok {
-			assert.Contains(t, textContent.Text, workspace.Name, "Workspace listing should include our test workspace")
-		} else {
-			t.Error("Expected TextContent type from workspace tool")
-		}
-
-		t.Logf("Workspace tool test successful: Found workspace %s in results", workspace.Name)
-	} else {
-		t.Skip("Workspace listing tool not available, skipping workspace-specific test")
-	}
+	var response toolsdk.WorkspaceLSResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+	assert.Contains(t, response.Contents, toolsdk.WorkspaceLSFile{
+		Path:  filePath,
+		IsDir: false,
+	})
 }
 
 func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
@@ -1405,6 +1398,92 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 }
 
 // Helper function to parse URL safely in tests
+// TestMCPHTTP_E2E_WorkspaceSSHAuthz verifies that users who can read
+// a workspace but lack ActionSSH are denied when calling workspace
+// tools through the MCP HTTP endpoint.
+func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
+	t.Parallel()
+
+	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	defer closer.Close()
+
+	admin := coderdtest.CreateFirstUser(t, coderClient)
+
+	// Create a workspace owned by the admin.
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		Name:           "authz-test-ws",
+		OrganizationID: admin.OrganizationID,
+		OwnerID:        admin.UserID,
+	}).WithAgent().Do()
+
+	fs := afero.NewMemMapFs()
+	require.NoError(t, fs.MkdirAll("/tmp", 0o755))
+	require.NoError(t, afero.WriteFile(fs, "/tmp/secret.txt", []byte("secret-content"), 0o644))
+
+	_ = agenttest.New(t, coderClient.URL, r.AgentToken, func(opts *agent.Options) {
+		opts.Filesystem = fs
+	})
+	coderdtest.NewWorkspaceAgentWaiter(t, coderClient, r.Workspace.ID).Wait()
+
+	// Create a second user with template-admin role. This role grants
+	// ActionRead on workspaces but not ActionSSH.
+	tmplAdminClient, _ := coderdtest.CreateAnotherUser(
+		t, coderClient, admin.OrganizationID, rbac.RoleTemplateAdmin(),
+	)
+
+	// Connect with the template-admin user.
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
+	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
+		transport.WithHTTPHeaders(map[string]string{
+			"Authorization": "Bearer " + tmplAdminClient.SessionToken(),
+		}))
+	require.NoError(t, err)
+	defer func() {
+		_ = mcpClient.Close()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	require.NoError(t, mcpClient.Start(ctx))
+	_, err = mcpClient.Initialize(ctx, mcp.InitializeRequest{
+		Params: mcp.InitializeParams{
+			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+			ClientInfo: mcp.Implementation{
+				Name:    "test-client-authz",
+				Version: "1.0.0",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Calling a workspace tool that requires an agent connection
+	// should fail because the template-admin user lacks ActionSSH.
+	// Use owner/workspace format so the lookup resolves to the
+	// admin's workspace rather than defaulting to "me".
+	workspaceIdent := coderdtest.FirstUserParams.Username + "/" + r.Workspace.Name
+	toolResult, err := mcpClient.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: toolsdk.ToolNameWorkspaceReadFile,
+			Arguments: map[string]any{
+				"workspace": workspaceIdent,
+				"path":      "/tmp/secret.txt",
+			},
+		},
+	})
+	// The MCP library may return the error in the tool result itself
+	// (isError=true) rather than as a Go error. Check both.
+	if err != nil {
+		require.ErrorContains(t, err, "unauthorized")
+		return
+	}
+	// If no Go error, the tool result must report failure.
+	require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
+	textContent, ok := toolResult.Content[0].(mcp.TextContent)
+	require.True(t, ok)
+	assert.Contains(t, textContent.Text, "unauthorized")
+}
+
 func mustParseURL(t *testing.T, rawURL string) *url.URL {
 	u, err := url.Parse(rawURL)
 	require.NoError(t, err, "Failed to parse URL %q", rawURL)

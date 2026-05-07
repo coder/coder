@@ -1,6 +1,4 @@
-import { MockTemplateVersion, MockWorkspace } from "testHelpers/entities";
 import type { Meta, Parameters, StoryObj } from "@storybook/react-vite";
-import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { useQueryClient } from "react-query";
 import { action } from "storybook/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
@@ -10,11 +8,13 @@ import type {
 	Workspace,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
+import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
+import { MockTemplateVersion, MockWorkspace } from "#/testHelpers/entities";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 
-type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
-type MutableWorkspace = Writeable<Omit<Workspace, "latest_build">> & {
-	latest_build: Writeable<WorkspaceBuild>;
+type Writable<T> = { -readonly [Key in keyof T]: T[Key] };
+type MutableWorkspace = Writable<Omit<Workspace, "latest_build">> & {
+	latest_build: Writable<WorkspaceBuild>;
 };
 
 const meta: Meta<typeof BatchUpdateModalForm> = {

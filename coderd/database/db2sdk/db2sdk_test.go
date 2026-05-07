@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -209,6 +210,395 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
 }
 
+func TestChatDebugRunSummary(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(5 * time.Second)
+
+	run := database.ChatDebugRun{
+		ID:         uuid.New(),
+		ChatID:     uuid.New(),
+		Kind:       "chat_turn",
+		Status:     "completed",
+		Provider:   sql.NullString{String: "openai", Valid: true},
+		Model:      sql.NullString{String: "gpt-4o", Valid: true},
+		Summary:    json.RawMessage(`{"step_count":3,"has_error":false}`),
+		StartedAt:  startedAt,
+		UpdatedAt:  finishedAt,
+		FinishedAt: sql.NullTime{Time: finishedAt, Valid: true},
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+
+	require.Equal(t, run.ID, sdk.ID)
+	require.Equal(t, run.ChatID, sdk.ChatID)
+	require.Equal(t, codersdk.ChatDebugRunKindChatTurn, sdk.Kind)
+	require.Equal(t, codersdk.ChatDebugStatusCompleted, sdk.Status)
+	require.NotNil(t, sdk.Provider)
+	require.Equal(t, "openai", *sdk.Provider)
+	require.NotNil(t, sdk.Model)
+	require.Equal(t, "gpt-4o", *sdk.Model)
+	require.Equal(t, map[string]any{"step_count": float64(3), "has_error": false}, sdk.Summary)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, finishedAt, sdk.UpdatedAt)
+	require.NotNil(t, sdk.FinishedAt)
+	require.Equal(t, finishedAt, *sdk.FinishedAt)
+}
+
+func TestChatDebugRunSummary_NullableFieldsNil(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "title_generation",
+		Status:    "in_progress",
+		Summary:   json.RawMessage(`{}`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+
+	require.Nil(t, sdk.Provider, "NULL Provider should map to nil")
+	require.Nil(t, sdk.Model, "NULL Model should map to nil")
+	require.Nil(t, sdk.FinishedAt, "NULL FinishedAt should map to nil")
+}
+
+func TestChatDebugStep(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(2 * time.Second)
+	attempts := json.RawMessage(`[
+		{
+			"attempt_number": 1,
+			"status": "completed",
+			"raw_request": {"url": "https://example.com"},
+			"raw_response": {"status": "200"},
+			"duration_ms": 123,
+			"started_at": "2026-03-01T10:00:01Z",
+			"finished_at": "2026-03-01T10:00:02Z"
+		}
+	]`)
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          attempts,
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         startedAt,
+		UpdatedAt:         finishedAt,
+		FinishedAt:        sql.NullTime{Time: finishedAt, Valid: true},
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+
+	// Verify all scalar fields are mapped correctly.
+	require.Equal(t, step.ID, sdk.ID)
+	require.Equal(t, step.RunID, sdk.RunID)
+	require.Equal(t, step.ChatID, sdk.ChatID)
+	require.Equal(t, step.StepNumber, sdk.StepNumber)
+	require.Equal(t, codersdk.ChatDebugStepOperationStream, sdk.Operation)
+	require.Equal(t, codersdk.ChatDebugStatusCompleted, sdk.Status)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, finishedAt, sdk.UpdatedAt)
+	require.Equal(t, &finishedAt, sdk.FinishedAt)
+
+	// Verify JSON object fields are deserialized.
+	require.NotNil(t, sdk.NormalizedRequest)
+	require.Equal(t, map[string]any{"messages": []any{}}, sdk.NormalizedRequest)
+	require.NotNil(t, sdk.Metadata)
+	require.Equal(t, map[string]any{"provider": "openai"}, sdk.Metadata)
+
+	// Verify nullable fields are nil when the DB row has NULL values.
+	require.Nil(t, sdk.HistoryTipMessageID, "NULL HistoryTipMessageID should map to nil")
+	require.Nil(t, sdk.AssistantMessageID, "NULL AssistantMessageID should map to nil")
+	require.Nil(t, sdk.NormalizedResponse, "NULL NormalizedResponse should map to nil")
+	require.Nil(t, sdk.Usage, "NULL Usage should map to nil")
+	require.Nil(t, sdk.Error, "NULL Error should map to nil")
+
+	// Verify attempts are preserved with all fields.
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, float64(1), sdk.Attempts[0]["attempt_number"])
+	require.Equal(t, "completed", sdk.Attempts[0]["status"])
+	require.Equal(t, float64(123), sdk.Attempts[0]["duration_ms"])
+	require.Equal(t, map[string]any{"url": "https://example.com"}, sdk.Attempts[0]["raw_request"])
+	require.Equal(t, map[string]any{"status": "200"}, sdk.Attempts[0]["raw_response"])
+}
+
+func TestChatDebugStep_NullableFieldsPopulated(t *testing.T) {
+	t.Parallel()
+
+	tipID := int64(42)
+	asstID := int64(99)
+	step := database.ChatDebugStep{
+		ID:                  uuid.New(),
+		RunID:               uuid.New(),
+		ChatID:              uuid.New(),
+		StepNumber:          2,
+		Operation:           "generate",
+		Status:              "completed",
+		HistoryTipMessageID: sql.NullInt64{Int64: tipID, Valid: true},
+		AssistantMessageID:  sql.NullInt64{Int64: asstID, Valid: true},
+		NormalizedRequest:   json.RawMessage(`{}`),
+		NormalizedResponse:  pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"text":"hi"}`), Valid: true},
+		Usage:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"tokens":10}`), Valid: true},
+		Error:               pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"code":"rate_limit"}`), Valid: true},
+		Attempts:            json.RawMessage(`[]`),
+		Metadata:            json.RawMessage(`{}`),
+		StartedAt:           time.Now().UTC(),
+		UpdatedAt:           time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+
+	require.NotNil(t, sdk.HistoryTipMessageID)
+	require.Equal(t, tipID, *sdk.HistoryTipMessageID)
+	require.NotNil(t, sdk.AssistantMessageID)
+	require.Equal(t, asstID, *sdk.AssistantMessageID)
+	require.NotNil(t, sdk.NormalizedResponse)
+	require.Equal(t, map[string]any{"text": "hi"}, sdk.NormalizedResponse)
+	require.NotNil(t, sdk.Usage)
+	require.Equal(t, map[string]any{"tokens": float64(10)}, sdk.Usage)
+	require.NotNil(t, sdk.Error)
+	require.Equal(t, map[string]any{"code": "rate_limit"}, sdk.Error)
+}
+
+func TestChatDebugStep_PreservesMalformedAttempts(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+		Attempts:          json.RawMessage(`{"bad":true}`),
+		Metadata:          json.RawMessage(`{"provider":"openai"}`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.Len(t, sdk.Attempts, 1)
+	require.Equal(t, "malformed attempts payload", sdk.Attempts[0]["error"])
+	require.NotEmpty(t, sdk.Attempts[0]["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, `{"bad":true}`, sdk.Attempts[0]["raw"])
+}
+
+func TestChatDebugRunSummary_PreservesMalformedSummary(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "chat_turn",
+		Status:    "completed",
+		Summary:   json.RawMessage(`not-an-object`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+	require.Equal(t, "malformed debug payload", sdk.Summary["error"])
+	require.NotEmpty(t, sdk.Summary["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, "not-an-object", sdk.Summary["raw"])
+}
+
+func TestChatDebugStep_PreservesMalformedRequest(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`[1,2,3]`),
+		Attempts:          json.RawMessage(`[]`),
+		Metadata:          json.RawMessage(`"just-a-string"`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.Equal(t, "malformed debug payload", sdk.NormalizedRequest["error"])
+	require.NotEmpty(t, sdk.NormalizedRequest["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, "[1,2,3]", sdk.NormalizedRequest["raw"])
+	require.Equal(t, "malformed debug payload", sdk.Metadata["error"])
+	require.NotEmpty(t, sdk.Metadata["parse_error"], "parse_error should contain the unmarshal error")
+	require.Equal(t, `"just-a-string"`, sdk.Metadata["raw"])
+}
+
+func TestChatDebugRunSummary_JSONNullYieldsEmptyMap(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "chat_turn",
+		Status:    "completed",
+		Summary:   json.RawMessage(`null`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunSummary(run)
+	require.NotNil(t, sdk.Summary, "JSON literal null must produce non-nil map")
+	require.Empty(t, sdk.Summary, "JSON literal null must produce empty map")
+}
+
+func TestChatDebugStep_JSONNullYieldsEmptyStructures(t *testing.T) {
+	t.Parallel()
+
+	step := database.ChatDebugStep{
+		ID:                uuid.New(),
+		RunID:             uuid.New(),
+		ChatID:            uuid.New(),
+		StepNumber:        1,
+		Operation:         "stream",
+		Status:            "completed",
+		NormalizedRequest: json.RawMessage(`null`),
+		Attempts:          json.RawMessage(`null`),
+		Metadata:          json.RawMessage(`null`),
+		StartedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugStep(step)
+	require.NotNil(t, sdk.NormalizedRequest, "JSON literal null must produce non-nil map")
+	require.Empty(t, sdk.NormalizedRequest, "JSON literal null must produce empty map")
+	require.NotNil(t, sdk.Attempts, "JSON literal null must produce non-nil slice")
+	require.Empty(t, sdk.Attempts, "JSON literal null must produce empty slice")
+	require.NotNil(t, sdk.Metadata, "JSON literal null must produce non-nil map")
+	require.Empty(t, sdk.Metadata, "JSON literal null must produce empty map")
+}
+
+func TestChatDebugRunDetail(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(5 * time.Second)
+	rootChatID := uuid.New()
+	parentChatID := uuid.New()
+	modelConfigID := uuid.New()
+	triggerMessageID := int64(7)
+	historyTipMessageID := int64(11)
+
+	run := database.ChatDebugRun{
+		ID:                  uuid.New(),
+		ChatID:              uuid.New(),
+		RootChatID:          uuid.NullUUID{UUID: rootChatID, Valid: true},
+		ParentChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: triggerMessageID, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: historyTipMessageID, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+		Provider:            sql.NullString{String: "openai", Valid: true},
+		Model:               sql.NullString{String: "gpt-4o", Valid: true},
+		Summary:             json.RawMessage(`{"step_count":2}`),
+		StartedAt:           startedAt,
+		UpdatedAt:           finishedAt,
+		FinishedAt:          sql.NullTime{Time: finishedAt, Valid: true},
+	}
+	steps := []database.ChatDebugStep{
+		{
+			ID:                uuid.New(),
+			RunID:             run.ID,
+			ChatID:            run.ChatID,
+			StepNumber:        1,
+			Operation:         "stream",
+			Status:            "completed",
+			NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+			Attempts:          json.RawMessage(`[]`),
+			Metadata:          json.RawMessage(`{}`),
+			StartedAt:         startedAt,
+			UpdatedAt:         finishedAt,
+		},
+		{
+			ID:                uuid.New(),
+			RunID:             run.ID,
+			ChatID:            run.ChatID,
+			StepNumber:        2,
+			Operation:         "generate",
+			Status:            "completed",
+			NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+			Attempts:          json.RawMessage(`[]`),
+			Metadata:          json.RawMessage(`{}`),
+			StartedAt:         startedAt,
+			UpdatedAt:         finishedAt,
+		},
+	}
+
+	sdk := db2sdk.ChatDebugRunDetail(run, steps)
+
+	require.Equal(t, run.ID, sdk.ID)
+	require.Equal(t, run.ChatID, sdk.ChatID)
+	require.NotNil(t, sdk.RootChatID)
+	require.Equal(t, rootChatID, *sdk.RootChatID)
+	require.NotNil(t, sdk.ParentChatID)
+	require.Equal(t, parentChatID, *sdk.ParentChatID)
+	require.NotNil(t, sdk.ModelConfigID)
+	require.Equal(t, modelConfigID, *sdk.ModelConfigID)
+	require.NotNil(t, sdk.TriggerMessageID)
+	require.Equal(t, triggerMessageID, *sdk.TriggerMessageID)
+	require.NotNil(t, sdk.HistoryTipMessageID)
+	require.Equal(t, historyTipMessageID, *sdk.HistoryTipMessageID)
+	require.Equal(t, codersdk.ChatDebugRunKindChatTurn, sdk.Kind)
+	require.Equal(t, codersdk.ChatDebugStatusCompleted, sdk.Status)
+	require.NotNil(t, sdk.Provider)
+	require.Equal(t, "openai", *sdk.Provider)
+	require.NotNil(t, sdk.Model)
+	require.Equal(t, "gpt-4o", *sdk.Model)
+	require.Equal(t, map[string]any{"step_count": float64(2)}, sdk.Summary)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, finishedAt, sdk.UpdatedAt)
+	require.NotNil(t, sdk.FinishedAt)
+	require.Equal(t, finishedAt, *sdk.FinishedAt)
+	require.Len(t, sdk.Steps, 2)
+	require.Equal(t, steps[0].ID, sdk.Steps[0].ID)
+	require.Equal(t, codersdk.ChatDebugStepOperationStream, sdk.Steps[0].Operation)
+	require.Equal(t, steps[1].ID, sdk.Steps[1].ID)
+	require.Equal(t, codersdk.ChatDebugStepOperationGenerate, sdk.Steps[1].Operation)
+}
+
+func TestChatDebugRunDetail_NullableFieldsNil(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "chat_turn",
+		Status:    "in_progress",
+		Summary:   json.RawMessage(`{}`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunDetail(run, nil)
+
+	require.Nil(t, sdk.RootChatID, "NULL RootChatID should map to nil")
+	require.Nil(t, sdk.ParentChatID, "NULL ParentChatID should map to nil")
+	require.Nil(t, sdk.ModelConfigID, "NULL ModelConfigID should map to nil")
+	require.Nil(t, sdk.TriggerMessageID, "NULL TriggerMessageID should map to nil")
+	require.Nil(t, sdk.HistoryTipMessageID, "NULL HistoryTipMessageID should map to nil")
+	require.Nil(t, sdk.Provider, "NULL Provider should map to nil")
+	require.Nil(t, sdk.Model, "NULL Model should map to nil")
+	require.Nil(t, sdk.FinishedAt, "NULL FinishedAt should map to nil")
+	require.NotNil(t, sdk.Steps, "nil steps slice should serialize as empty array")
+	require.Empty(t, sdk.Steps)
+}
+
 func TestAIBridgeInterception(t *testing.T) {
 	t.Parallel()
 
@@ -258,11 +648,13 @@ func TestAIBridgeInterception(t *testing.T) {
 			},
 			tokenUsages: []database.AIBridgeTokenUsage{
 				{
-					ID:                 uuid.New(),
-					InterceptionID:     interceptionID,
-					ProviderResponseID: "resp-123",
-					InputTokens:        100,
-					OutputTokens:       200,
+					ID:                    uuid.New(),
+					InterceptionID:        interceptionID,
+					ProviderResponseID:    "resp-123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
 					Metadata: pqtype.NullRawMessage{
 						RawMessage: json.RawMessage(`{"cache":"hit"}`),
 						Valid:      true,
@@ -412,6 +804,8 @@ func TestAIBridgeInterception(t *testing.T) {
 				require.Equal(t, tu.ProviderResponseID, result.TokenUsages[i].ProviderResponseID)
 				require.Equal(t, tu.InputTokens, result.TokenUsages[i].InputTokens)
 				require.Equal(t, tu.OutputTokens, result.TokenUsages[i].OutputTokens)
+				require.Equal(t, tu.CacheReadInputTokens, result.TokenUsages[i].CacheReadInputTokens)
+				require.Equal(t, tu.CacheWriteInputTokens, result.TokenUsages[i].CacheWriteInputTokens)
 			}
 
 			// Verify user prompts are converted correctly.
@@ -511,6 +905,295 @@ func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	require.Len(t, queued.Content, 1)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
 	require.Equal(t, "queued text", queued.Content[0].Text)
+}
+
+func TestChat_AllFieldsPopulated(t *testing.T) {
+	t.Parallel()
+
+	// Every field of database.Chat is set to a non-zero value so
+	// that the reflection check below catches any field that
+	// db2sdk.Chat forgets to populate. When someone adds a new
+	// field to codersdk.Chat, this test will fail until the
+	// converter is updated.
+	now := dbtime.Now()
+	lastErrorPayload := codersdk.ChatError{
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
+	}
+	lastErrorRaw, err := json.Marshal(lastErrorPayload)
+	require.NoError(t, err)
+
+	input := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		OrganizationID:    uuid.New(),
+		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		LastModelConfigID: uuid.New(),
+		Title:             "all-fields-test",
+		Status:            database.ChatStatusRunning,
+		ClientType:        database.ChatClientTypeUi,
+		LastError:         pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
+		LastTurnSummary:   sql.NullString{String: "turn completed", Valid: true},
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		Archived:          true,
+		PinOrder:          1,
+		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+		MCPServerIDs:      []uuid.UUID{uuid.New()},
+		Labels:            database.StringMap{"env": "prod"},
+		LastInjectedContext: pqtype.NullRawMessage{
+			// Use a context-file part to verify internal
+			// fields are not present (they are stripped at
+			// write time by chatd, not at read time).
+			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
+			Valid:      true,
+		},
+		DynamicTools: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
+			Valid:      true,
+		},
+	}
+	// Only ChatID is needed here. This test checks that
+	// Chat.DiffStatus is non-nil, not that every DiffStatus
+	// field is populated — that would be a separate test for
+	// the ChatDiffStatus converter.
+	diffStatus := &database.ChatDiffStatus{
+		ChatID: input.ID,
+	}
+
+	fileRows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             uuid.New(),
+			OwnerID:        input.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "test.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+	}
+
+	got := db2sdk.Chat(input, diffStatus, fileRows)
+
+	require.Equal(t, &lastErrorPayload, got.LastError)
+
+	v := reflect.ValueOf(got)
+	typ := v.Type()
+	// HasUnread is populated by ChatRowsWithChildren (which joins the
+	// read-cursor query), not by Chat. Warnings is a transient
+	// field populated by handlers, not the converter. Both are
+	// expected to remain zero here.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true}
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if skip[field.Name] {
+			continue
+		}
+		require.False(t, v.Field(i).IsZero(),
+			"codersdk.Chat field %q is zero-valued — db2sdk.Chat may not be populating it",
+			field.Name,
+		)
+	}
+}
+
+func TestChat_FileMetadataConversion(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	fileID := uuid.New()
+	now := dbtime.Now()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           ownerID,
+		LastModelConfigID: uuid.New(),
+		Title:             "file metadata test",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	rows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             fileID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+			Name:           "screenshot.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+	}
+
+	result := db2sdk.Chat(chat, nil, rows)
+
+	require.Len(t, result.Files, 1)
+	f := result.Files[0]
+	require.Equal(t, fileID, f.ID)
+	require.Equal(t, ownerID, f.OwnerID, "OwnerID must be mapped from DB row")
+	require.Equal(t, orgID, f.OrganizationID, "OrganizationID must be mapped from DB row")
+	require.Equal(t, "screenshot.png", f.Name)
+	require.Equal(t, "image/png", f.MimeType)
+	require.Equal(t, now, f.CreatedAt)
+
+	// Verify JSON serialization uses snake_case for mime_type.
+	data, err := json.Marshal(f)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"mime_type"`)
+	require.NotContains(t, string(data), `"mimetype"`)
+}
+
+func TestChat_NilFilesOmitted(t *testing.T) {
+	t.Parallel()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		LastModelConfigID: uuid.New(),
+		Title:             "no files",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         dbtime.Now(),
+		UpdatedAt:         dbtime.Now(),
+	}
+
+	result := db2sdk.Chat(chat, nil, nil)
+	require.Empty(t, result.Files)
+}
+
+func TestChat_LastErrorFallback(t *testing.T) {
+	t.Parallel()
+
+	const fallbackMessage = "The chat request failed unexpectedly."
+
+	tests := []struct {
+		name          string
+		raw           json.RawMessage
+		expectPayload *codersdk.ChatError
+	}{
+		{
+			name: "MalformedJSON",
+			raw:  json.RawMessage(`{`),
+			expectPayload: &codersdk.ChatError{
+				Message:   fallbackMessage,
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Retryable: false,
+			},
+		},
+		{
+			name: "MessageMissingPreservesMetadata",
+			raw:  json.RawMessage(`{"kind":"timeout","provider":"openai","status_code":504}`),
+			expectPayload: &codersdk.ChatError{
+				Message:    fallbackMessage,
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 504,
+			},
+		},
+		{
+			name: "WhitespaceMessageDefaultsKind",
+			raw:  json.RawMessage(`{"message":"  ","provider":"openai"}`),
+			expectPayload: &codersdk.ChatError{
+				Message:   fallbackMessage,
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Provider:  "openai",
+				Retryable: false,
+			},
+		},
+		{
+			name: "KindMissingDefaultsGeneric",
+			raw:  json.RawMessage(`{"message":"OpenAI returned an unexpected error.","provider":"openai","status_code":502}`),
+			expectPayload: &codersdk.ChatError{
+				Message:    "OpenAI returned an unexpected error.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 502,
+			},
+		},
+		{
+			name: "UsageLimitKindRoundTrips",
+			raw:  json.RawMessage(`{"message":"Usage limit reached.","kind":"usage_limit"}`),
+			expectPayload: &codersdk.ChatError{
+				Message:   "Usage limit reached.",
+				Kind:      codersdk.ChatErrorKindUsageLimit,
+				Retryable: false,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			chat := database.Chat{
+				ID:                uuid.New(),
+				OwnerID:           uuid.New(),
+				LastModelConfigID: uuid.New(),
+				Title:             "fallback payload",
+				Status:            database.ChatStatusError,
+				CreatedAt:         dbtime.Now(),
+				UpdatedAt:         dbtime.Now(),
+				LastError: pqtype.NullRawMessage{
+					RawMessage: tc.raw,
+					Valid:      true,
+				},
+			}
+
+			result := db2sdk.Chat(chat, nil, nil)
+			require.Equal(t, tc.expectPayload, result.LastError)
+		})
+	}
+}
+
+func TestChat_MultipleFiles(t *testing.T) {
+	t.Parallel()
+
+	now := dbtime.Now()
+	file1 := uuid.New()
+	file2 := uuid.New()
+
+	chat := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		LastModelConfigID: uuid.New(),
+		Title:             "multi file test",
+		Status:            database.ChatStatusWaiting,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	rows := []database.GetChatFileMetadataByChatIDRow{
+		{
+			ID:             file1,
+			OwnerID:        chat.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "a.png",
+			Mimetype:       "image/png",
+			CreatedAt:      now,
+		},
+		{
+			ID:             file2,
+			OwnerID:        chat.OwnerID,
+			OrganizationID: uuid.New(),
+			Name:           "b.txt",
+			Mimetype:       "text/plain",
+			CreatedAt:      now,
+		},
+	}
+
+	result := db2sdk.Chat(chat, nil, rows)
+	require.Len(t, result.Files, 2)
+	require.Equal(t, "a.png", result.Files[0].Name)
+	require.Equal(t, "b.txt", result.Files[1].Name)
 }
 
 func TestChatQueuedMessage_MalformedContent(t *testing.T) {

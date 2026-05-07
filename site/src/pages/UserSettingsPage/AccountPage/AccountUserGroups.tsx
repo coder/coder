@@ -1,11 +1,15 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { isApiError } from "#/api/errors";
 import type { Group } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarCard } from "#/components/Avatar/AvatarCard";
 import { Loader } from "#/components/Loader/Loader";
-import { Section } from "../Section";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 type AccountGroupsProps = {
 	groups: readonly Group[] | undefined;
@@ -21,21 +25,22 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 	const { showOrganizations } = useDashboard();
 
 	return (
-		<Section
-			title="Your groups"
-			layout="fluid"
-			description={
-				groups && (
-					<span>
+		<div>
+			<SettingsHeader>
+				<SettingsHeaderTitle hierarchy="secondary">
+					Your groups
+				</SettingsHeaderTitle>
+				{groups && (
+					<SettingsHeaderDescription>
 						You are in{" "}
 						<em className="not-italic text-content-primary font-semibold">
 							{groups.length} group
 							{groups.length !== 1 && "s"}
 						</em>
-					</span>
-				)
-			}
-		>
+					</SettingsHeaderDescription>
+				)}
+			</SettingsHeader>
+
 			<div className="flex flex-col gap-6">
 				{isApiError(error) && <ErrorAlert error={error} />}
 
@@ -63,6 +68,6 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 
 				{loading && <Loader />}
 			</div>
-		</Section>
+		</div>
 	);
 };

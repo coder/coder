@@ -1,13 +1,13 @@
-import { RefreshCw } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import { RefreshCwIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import type { InvalidatePresetsResponse } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+import { pageTitle } from "#/utils/page";
 
 const TemplatePrebuildsPage: FC = () => {
 	const { template } = useTemplateLayoutContext();
@@ -68,7 +68,7 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 						disabled={invalidateMutation.isPending}
 						className="gap-2"
 					>
-						<RefreshCw className="size-4" />
+						<RefreshCwIcon className="size-4" />
 						Invalidate now
 					</Button>
 				</div>

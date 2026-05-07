@@ -1,14 +1,14 @@
-import CircularProgress from "@mui/material/CircularProgress";
 import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "utils/cn";
-import { getLatencyColor } from "utils/latency";
 import { Abbr } from "#/components/Abbr/Abbr";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
 
 interface LatencyProps {
 	latency?: number;
@@ -38,7 +38,7 @@ export const Latency: FC<LatencyProps> = ({
 							className,
 						)}
 					>
-						<CircularProgress className={cn("!size-icon-xs", latencyColor)} />
+						<Spinner loading className={cn("!size-icon-xs", latencyColor)} />
 					</div>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Loading latency...</TooltipContent>

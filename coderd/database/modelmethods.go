@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
@@ -175,10 +175,22 @@ func (t Task) RBACObject() rbac.Object {
 }
 
 func (c Chat) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String())
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
+func (r GetChatsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
+}
+
+func (r GetChildChatsByParentIDsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
 }
 
 func (c ChatFile) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
+func (c GetChatFileMetadataByChatIDRow) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
@@ -615,7 +627,7 @@ type WorkspaceAgentConnectionStatus struct {
 	DisconnectedAt   *time.Time           `json:"disconnected_at"`
 }
 
-func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
+func (a WorkspaceAgent) Status(now time.Time, inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
 	connectionTimeout := time.Duration(a.ConnectionTimeoutSeconds) * time.Second
 
 	status := WorkspaceAgentConnectionStatus{
@@ -634,7 +646,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 	switch {
 	case !a.FirstConnectedAt.Valid:
 		switch {
-		case connectionTimeout > 0 && dbtime.Now().Sub(a.CreatedAt) > connectionTimeout:
+		case connectionTimeout > 0 && now.Sub(a.CreatedAt) > connectionTimeout:
 			// If the agent took too long to connect the first time,
 			// mark it as timed out.
 			status.Status = WorkspaceAgentStatusTimeout
@@ -649,7 +661,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		status.Status = WorkspaceAgentStatusDisconnected
-	case dbtime.Now().Sub(a.LastConnectedAt.Time) > inactiveTimeout:
+	case now.Sub(a.LastConnectedAt.Time) > inactiveTimeout:
 		// The connection died without updating the last connected.
 		status.Status = WorkspaceAgentStatusDisconnected
 		// Client code needs an accurate disconnected at if the agent has been inactive.
@@ -917,5 +929,34 @@ func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
 
 // A workspace agent belongs to the owner of the associated workspace.
 func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}
+
+// UpsertConnectionLogParams contains the parameters for upserting a
+// connection log entry. This struct is hand-maintained (not generated
+// by sqlc) because the single-row UpsertConnectionLog query was
+// removed in favor of BatchUpsertConnectionLogs, but the struct is
+// still used as the canonical connection log event type throughout
+// the codebase.
+type UpsertConnectionLogParams struct {
+	ID               uuid.UUID        `db:"id" json:"id"`
+	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
+	AgentName        string           `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType   `db:"type" json:"type"`
+	Code             sql.NullInt32    `db:"code" json:"code"`
+	IP               pqtype.Inet      `db:"ip" json:"ip"`
+	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
+	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
+	Time             time.Time        `db:"time" json:"time"`
+	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+}
+
+func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
 }

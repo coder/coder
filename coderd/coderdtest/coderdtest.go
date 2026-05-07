@@ -149,12 +149,13 @@ type Options struct {
 	OneTimePasscodeValidityPeriod time.Duration
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
-	IncludeProvisionerDaemon    bool
-	ProvisionerDaemonVersion    string
-	ProvisionerDaemonTags       map[string]string
-	MetricsCacheRefreshInterval time.Duration
-	AgentStatsRefreshInterval   time.Duration
-	DeploymentValues            *codersdk.DeploymentValues
+	IncludeProvisionerDaemon      bool
+	ChatdInstructionLookupTimeout time.Duration
+	ProvisionerDaemonVersion      string
+	ProvisionerDaemonTags         map[string]string
+	MetricsCacheRefreshInterval   time.Duration
+	AgentStatsRefreshInterval     time.Duration
+	DeploymentValues              *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -559,12 +560,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses,
-		options.DeploymentValues.DERP.Config.URL.Value(),
-		options.DeploymentValues.DERP.Config.Path.Value(),
-		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
-	)
-	require.NoError(t, err)
+	derpConfigURL := options.DeploymentValues.DERP.Config.URL.Value()
+	derpConfigPath := options.DeploymentValues.DERP.Config.Path.Value()
+	var derpMap *tailcfg.DERPMap
+	if region == nil && derpConfigURL == "" && derpConfigPath == "" {
+		derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+	} else {
+		derpMap, err = tailnet.NewDERPMap(
+			ctx, region, stunAddresses,
+			derpConfigURL, derpConfigPath,
+			options.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		)
+		require.NoError(t, err)
+	}
 
 	return func(h http.Handler) {
 			mutex.Lock()
@@ -575,6 +583,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
+			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,

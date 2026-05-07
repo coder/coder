@@ -1,4 +1,3 @@
-import { useClipboard } from "hooks";
 import {
 	ArrowLeftIcon,
 	CheckIcon,
@@ -21,6 +20,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { ShareButton } from "../WorkspacePage/WorkspaceActions/ShareButton";
 import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";

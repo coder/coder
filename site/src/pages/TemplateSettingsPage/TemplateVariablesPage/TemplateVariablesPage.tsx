@@ -1,4 +1,3 @@
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback } from "react";
 import {
 	keepPreviousData,
@@ -8,7 +7,6 @@ import {
 } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import {
 	createAndBuildTemplateVersion,
 	templateVersion,
@@ -22,6 +20,8 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 

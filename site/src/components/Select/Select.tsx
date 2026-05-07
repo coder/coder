@@ -2,14 +2,14 @@
  * Copied from shadc/ui on 13/01/2025
  * @see {@link https://ui.shadcn.com/docs/components/select}
  */
-import * as SelectPrimitive from "@radix-ui/react-select";
 import {
-	Check,
-	ChevronUp,
-	ChevronDown as LucideChevronDown,
+	CheckIcon,
+	ChevronUpIcon,
+	ChevronDownIcon as LucideChevronDown,
 } from "lucide-react";
-import { cn } from "utils/cn";
+import { Select as SelectPrimitive } from "radix-ui";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { cn } from "#/utils/cn";
 
 export const Select = SelectPrimitive.Root;
 
@@ -54,7 +54,7 @@ const SelectScrollUpButton: React.FC<
 		)}
 		{...props}
 	>
-		<ChevronUp className="size-icon-sm" />
+		<ChevronUpIcon className="size-icon-sm" />
 	</SelectPrimitive.ScrollUpButton>
 );
 
@@ -134,7 +134,7 @@ export const SelectItem: React.FC<
 	>
 		<span className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center">
 			<SelectPrimitive.ItemIndicator className="size-icon-sm">
-				<Check className="size-icon-sm" />
+				<CheckIcon className="size-icon-sm" />
 			</SelectPrimitive.ItemIndicator>
 		</span>
 		<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

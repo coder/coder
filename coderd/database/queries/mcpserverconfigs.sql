@@ -77,6 +77,8 @@ INSERT INTO mcp_server_configs (
     tool_deny_list,
     availability,
     enabled,
+    model_intent,
+    allow_in_plan_mode,
     created_by,
     updated_by
 ) VALUES (
@@ -102,6 +104,8 @@ INSERT INTO mcp_server_configs (
     @tool_deny_list::text[],
     @availability::text,
     @enabled::boolean,
+    @model_intent::boolean,
+    @allow_in_plan_mode::boolean,
     @created_by::uuid,
     @updated_by::uuid
 )
@@ -134,6 +138,8 @@ SET
     tool_deny_list = @tool_deny_list::text[],
     availability = @availability::text,
     enabled = @enabled::boolean,
+    model_intent = @model_intent::boolean,
+    allow_in_plan_mode = @allow_in_plan_mode::boolean,
     updated_by = @updated_by::uuid,
     updated_at = NOW()
 WHERE

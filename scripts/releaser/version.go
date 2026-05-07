@@ -3,18 +3,21 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
 
-// version holds a parsed semver version.
+// version holds a parsed semver version with optional prerelease
+// suffix (e.g. "rc.0").
 type version struct {
 	Major int
 	Minor int
 	Patch int
+	Pre   string // e.g. "rc.0", "" for stable releases.
 }
 
-var semverRe = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)$`)
+var semverRe = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)(-(.+))?$`)
 
 func parseVersion(s string) (version, bool) {
 	m := semverRe.FindStringSubmatch(s)
@@ -24,11 +27,33 @@ func parseVersion(s string) (version, bool) {
 	maj, _ := strconv.Atoi(m[1])
 	mnr, _ := strconv.Atoi(m[2])
 	pat, _ := strconv.Atoi(m[3])
-	return version{Major: maj, Minor: mnr, Patch: pat}, true
+	return version{Major: maj, Minor: mnr, Patch: pat, Pre: m[5]}, true
 }
 
 func (v version) String() string {
+	if v.Pre != "" {
+		return fmt.Sprintf("v%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.Pre)
+	}
 	return fmt.Sprintf("v%d.%d.%d", v.Major, v.Minor, v.Patch)
+}
+
+// IsRC returns true when the version has a prerelease suffix starting
+// with "rc." (e.g. "rc.0", "rc.1").
+func (v version) IsRC() bool {
+	return strings.HasPrefix(v.Pre, "rc.")
+}
+
+// rcNumber returns the numeric RC identifier (e.g. 0 for "rc.0").
+// It returns -1 when the version is not an RC.
+func (v version) rcNumber() int {
+	if !v.IsRC() {
+		return -1
+	}
+	n, err := strconv.Atoi(strings.TrimPrefix(v.Pre, "rc."))
+	if err != nil {
+		return -1
+	}
+	return n
 }
 
 func (v version) GreaterThan(b version) bool {
@@ -38,11 +63,38 @@ func (v version) GreaterThan(b version) bool {
 	if v.Minor != b.Minor {
 		return v.Minor > b.Minor
 	}
-	return v.Patch > b.Patch
+	if v.Patch != b.Patch {
+		return v.Patch > b.Patch
+	}
+	// A release without prerelease suffix is greater than one
+	// with a prerelease suffix (v2.32.0 > v2.32.0-rc.0).
+	if v.Pre == "" && b.Pre != "" {
+		return true
+	}
+	if v.Pre != "" && b.Pre == "" {
+		return false
+	}
+	// Both have prerelease: compare numerically for RC versions.
+	if v.IsRC() && b.IsRC() {
+		return v.rcNumber() > b.rcNumber()
+	}
+	// Fallback for non-RC prerelease strings.
+	return v.Pre > b.Pre
 }
 
 func (v version) Equal(b version) bool {
-	return v.Major == b.Major && v.Minor == b.Minor && v.Patch == b.Patch
+	return v.Major == b.Major && v.Minor == b.Minor && v.Patch == b.Patch && v.Pre == b.Pre
+}
+
+// sortVersionsDesc sorts a slice of versions in descending order
+// using semver-correct comparison. This is necessary because git's
+// --sort=-v:refname treats pre-release suffixes (e.g. -rc.0) as
+// greater than the release version, which is the opposite of semver
+// where v2.32.0 > v2.32.0-rc.0.
+func sortVersionsDesc(tags []version) {
+	sort.Slice(tags, func(i, j int) bool {
+		return tags[i].GreaterThan(tags[j])
+	})
 }
 
 // allSemverTags returns all semver tags sorted descending.
@@ -60,6 +112,7 @@ func allSemverTags() ([]version, error) {
 			tags = append(tags, v)
 		}
 	}
+	sortVersionsDesc(tags)
 	return tags, nil
 }
 
@@ -79,5 +132,6 @@ func mergedSemverTags() ([]version, error) {
 			tags = append(tags, v)
 		}
 	}
+	sortVersionsDesc(tags)
 	return tags, nil
 }

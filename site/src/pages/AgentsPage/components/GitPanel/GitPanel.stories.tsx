@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import type {
 	ChatDiffContents,
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { generateLargeDiff } from "../DiffViewer/testHelpers";
 import { GitPanel } from "./GitPanel";
 
 // ---------------------------------------------------------------------------
@@ -99,7 +100,7 @@ const meta: Meta<typeof GitPanel> = {
 	title: "pages/AgentsPage/GitPanel",
 	component: GitPanel,
 	args: {
-		onRefresh: fn(),
+		onRefresh: fn().mockReturnValue(true),
 		onCommit: fn(),
 		repositories: new Map(),
 	},
@@ -226,6 +227,10 @@ export const WorkingChangesOnly: Story = {
 	args: {
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText("Refresh")).toBeEnabled();
+	},
 };
 
 /** Multiple repos with working changes. */
@@ -264,6 +269,35 @@ export const MultipleRepos: Story = {
 export const EmptyState: Story = {
 	args: {
 		prTab: { prNumber: 23020, chatId: "test-chat" },
+	},
+};
+
+/** No repositories and no remote tab; Git controls should be disabled. */
+export const GitNotActive: Story = {
+	args: {
+		repositories: new Map(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText("Refresh")).toBeDisabled();
+		await expect(canvas.getByLabelText("Unified diff")).toBeDisabled();
+		await expect(canvas.getByLabelText("Split diff")).toBeDisabled();
+		await expect(
+			canvas.getByText("Git is not set up for this chat."),
+		).toBeVisible();
+		await expect(canvas.getByText(/Git status will appear/)).toBeVisible();
+	},
+};
+
+/** Git watcher is loading its first repository update. */
+export const GitStatusLoading: Story = {
+	args: {
+		repositories: new Map(),
+		isGitStatusLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Waiting for Git status")).toBeVisible();
 	},
 };
 
@@ -320,5 +354,71 @@ export const InlineCommentInput: Story = {
 		if (textarea) {
 			expect(textarea).toBeInTheDocument();
 		}
+	},
+};
+
+export const LargeDiff: Story = {
+	args: {
+		repositories: new Map([
+			[
+				"/home/coder/large-project",
+				makeRepo({
+					repo_root: "/home/coder/large-project",
+					branch: "feat/large-refactor",
+					remote_origin: "https://github.com/coder/large-project.git",
+					unified_diff: generateLargeDiff(40, 60),
+				}),
+			],
+		]),
+	},
+};
+
+/**
+ * Regression: when a repo was dirty during this session and then went
+ * clean (empty unified_diff), the tab must remain visible. Before the
+ * ever-dirty fix, the tab vanished the moment the diff became empty,
+ * which is what users saw as "diff disappears between edit_files".
+ */
+export const EverDirtyRepoGoneClean: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(["/home/coder/coder"]),
+	},
+	play: async ({ canvasElement }) => {
+		// The repo tab is still present (identified by the 'Working'
+		// prefix used by GitPanel's tab-strip button) even though the
+		// current diff is empty, because it was dirty earlier in the
+		// session.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(1);
+
+		// The content pane shows the diff viewer's empty-diff state.
+		expect(canvasElement.textContent ?? "").toContain("No file changes");
+	},
+};
+
+/**
+ * Baseline: a repo reported clean from the start (never dirty in
+ * this session) has no tab. Ensures the ever-dirty fix did not
+ * regress the "nothing to show" case.
+ */
+export const CleanRepoFromStart: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(),
+	},
+	play: async ({ canvasElement }) => {
+		// No local repo tab should appear in the tab strip. The
+		// 'Working' prefix is GitPanel's tab-strip label contract.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(0);
 	},
 };

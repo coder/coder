@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -344,6 +345,68 @@ func TestCreateAgentClient_Azure(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, provider.TokenExchanger)
 	require.IsType(t, &agentsdk.AzureSessionTokenExchanger{}, provider.TokenExchanger)
+}
+
+func TestCreateAgentClient_GoogleAgentName(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "google-instance-identity",
+		"--agent-url", "http://coder.fake",
+		"--agent-name", "google-agent")
+	requireInstanceIdentityAgentName(t, client, &agentsdk.GoogleSessionTokenExchanger{}, "google-agent")
+}
+
+func TestCreateAgentClient_AWSAgentName(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "aws-instance-identity",
+		"--agent-url", "http://coder.fake",
+		"--agent-name", "aws-agent")
+	requireInstanceIdentityAgentName(t, client, &agentsdk.AWSSessionTokenExchanger{}, "aws-agent")
+}
+
+func TestCreateAgentClient_AzureAgentName(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "azure-instance-identity",
+		"--agent-url", "http://coder.fake",
+		"--agent-name", "azure-agent")
+	requireInstanceIdentityAgentName(t, client, &agentsdk.AzureSessionTokenExchanger{}, "azure-agent")
+}
+
+func TestCreateAgentClient_GoogleAgentNameEnv(t *testing.T) {
+	t.Parallel()
+
+	r := &cli.RootCmd{}
+	var client *agentsdk.Client
+	subCmd := agentClientCommand(&client)
+	cmd, err := r.Command([]*serpent.Command{subCmd})
+	require.NoError(t, err)
+	inv, _ := clitest.NewWithCommand(t, cmd,
+		"agent-client",
+		"--auth", "google-instance-identity",
+		"--agent-url", "http://coder.fake")
+	inv.Environ.Set("CODER_AGENT_NAME", "env-agent")
+	err = inv.Run()
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	requireInstanceIdentityAgentName(t, client, &agentsdk.GoogleSessionTokenExchanger{}, "env-agent")
+}
+
+func requireInstanceIdentityAgentName(t *testing.T, client *agentsdk.Client, expectedExchanger any, want string) {
+	t.Helper()
+
+	provider, ok := client.RefreshableSessionTokenProvider.(*agentsdk.InstanceIdentitySessionTokenProvider)
+	require.True(t, ok)
+	require.NotNil(t, provider.TokenExchanger)
+	require.IsType(t, expectedExchanger, provider.TokenExchanger)
+
+	agentNameField := reflect.ValueOf(provider.TokenExchanger).Elem().FieldByName("agentName")
+	require.True(t, agentNameField.IsValid())
+	require.Equal(t, want, agentNameField.String())
 }
 
 func createAgentWithFlags(t *testing.T, flags ...string) *agentsdk.Client {

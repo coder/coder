@@ -1,10 +1,9 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
-import IconButton from "@mui/material/IconButton";
-import { useClickable } from "hooks/useClickable";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
-import { Stack } from "#/components/Stack/Stack";
+import { Button } from "#/components/Button/Button";
+import { useClickable } from "#/hooks/useClickable";
+import { cn } from "#/utils/cn";
 
 interface FileUploadProps {
 	isUploading: boolean;
@@ -35,21 +34,21 @@ export const FileUpload: FC<FileUploadProps> = ({
 
 	if (!isUploading && file) {
 		return (
-			<Stack
-				css={styles.file}
-				direction="row"
-				justifyContent="space-between"
-				alignItems="center"
-			>
-				<Stack direction="row" alignItems="center">
+			<div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border bg-surface-primary p-4">
+				<div className="flex flex-row items-center gap-4">
 					<FolderIcon className="size-icon-sm" />
 					<span>{file.name}</span>
-				</Stack>
+				</div>
 
-				<IconButton title={removeLabel} size="small" onClick={onRemove}>
+				<Button
+					variant="subtle"
+					size="icon-lg"
+					onClick={onRemove}
+					title={removeLabel}
+				>
 					<TrashIcon className="size-icon-sm" />
-				</IconButton>
-			</Stack>
+				</Button>
+			</div>
 		);
 	}
 
@@ -57,12 +56,16 @@ export const FileUpload: FC<FileUploadProps> = ({
 		<>
 			<div
 				data-testid="drop-zone"
-				css={[styles.root, isUploading && styles.disabled]}
+				className={cn(
+					"flex cursor-pointer items-center justify-center rounded-lg border-2",
+					"border-dashed border-border p-12 hover:bg-surface-primary",
+					isUploading && "pointer-events-none opacity-75",
+				)}
 				{...clickable}
 				{...fileDrop}
 			>
-				<Stack alignItems="center" spacing={1}>
-					<div css={styles.iconWrapper}>
+				<div className="flex flex-col items-center gap-2">
+					<div className="flex size-16 items-center justify-center">
 						{isUploading ? (
 							<CircularProgress size={32} />
 						) : (
@@ -70,18 +73,20 @@ export const FileUpload: FC<FileUploadProps> = ({
 						)}
 					</div>
 
-					<Stack alignItems="center" spacing={0.5}>
-						<span css={styles.title}>{title}</span>
-						<span css={styles.description}>{description}</span>
-					</Stack>
-				</Stack>
+					<div className="flex flex-col items-center gap-1">
+						<span className="text-base leading-none">{title}</span>
+						<span className="mt-1 max-w-[400px] text-center text-sm leading-6 text-content-secondary">
+							{description}
+						</span>
+					</div>
+				</div>
 			</div>
 
 			<input
 				type="file"
 				data-testid="file-upload"
 				ref={inputRef}
-				css={styles.input}
+				className="hidden"
 				accept={extensions?.map((ext) => `.${ext}`).join(",")}
 				onChange={(event) => {
 					const file = event.currentTarget.files?.[0];
@@ -134,58 +139,3 @@ const useFileDrop = (
 		onDrop,
 	};
 };
-
-const styles = {
-	root: (theme) => css`
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: 8px;
-		border: 2px dashed ${theme.palette.divider};
-		padding: 48px;
-		cursor: pointer;
-
-		&:hover {
-			background-color: ${theme.palette.background.paper};
-		}
-	`,
-
-	disabled: {
-		pointerEvents: "none",
-		opacity: 0.75,
-	},
-
-	// Used to maintain the size of icon and spinner
-	iconWrapper: {
-		width: 64,
-		height: 64,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-	},
-
-	title: {
-		fontSize: 16,
-		lineHeight: "1",
-	},
-
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		maxWidth: 400,
-		fontSize: 14,
-		lineHeight: "1.5",
-		marginTop: 4,
-	}),
-
-	input: {
-		display: "none",
-	},
-
-	file: (theme) => ({
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		padding: 16,
-		background: theme.palette.background.paper,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

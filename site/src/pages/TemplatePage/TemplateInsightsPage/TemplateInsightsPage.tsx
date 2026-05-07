@@ -1,15 +1,9 @@
 import chroma from "chroma-js";
 import {
-	CircleCheck as CircleCheckIcon,
+	CircleCheckIcon,
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import {
-	DateRangePicker as DailyPicker,
-	type DateRangeValue,
-} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
 	Fragment,
@@ -20,15 +14,6 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
-import { cn } from "utils/cn";
-import { getLatencyColor } from "utils/latency";
-import {
-	addTime,
-	formatDateTime,
-	startOfDay,
-	startOfHour,
-	subtractTime,
-} from "utils/time";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	insightsTemplate,
@@ -50,21 +35,37 @@ import {
 } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "#/components/DateRangePicker/DateRangePicker";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
+import {
+	addTime,
+	formatDateTime,
+	startOfDay,
+	startOfHour,
+	subtractTime,
+} from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
@@ -142,6 +143,7 @@ interface TemplateInsightsControlsProps {
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
+	now?: Date;
 }
 
 export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
@@ -150,6 +152,7 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 	setDateRange,
 	searchParams,
 	setSearchParams,
+	now,
 }) => {
 	return (
 		<>
@@ -165,7 +168,12 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 				}}
 			/>
 			{interval === "day" ? (
-				<DailyPicker value={dateRange} onChange={setDateRange} />
+				<DailyPicker
+					value={dateRange}
+					onChange={setDateRange}
+					now={now}
+					size="lg"
+				/>
 			) : (
 				<WeekPicker value={dateRange} onChange={setDateRange} />
 			)}
@@ -310,15 +318,15 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Latency by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is latency calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								The median round trip time of user connections to workspaces.
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -365,16 +373,16 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Activity by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is activity calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								When a connection is initiated to a user&apos;s workspace they
 								are considered an active user. e.g. apps, web terminal, SSH
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -445,7 +453,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 								<div key={usage.slug} className="flex items-center gap-6">
 									<div className="flex items-center gap-2">
 										<div className="flex justify-center items-center w-5 h-5">
-											<img
+											<ExternalImage
 												src={usage.icon}
 												alt=""
 												className="h-full w-full object-contain"
@@ -472,10 +480,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											<TooltipArrow className="fill-border" />
 										</TooltipContent>
 									</Tooltip>
-									<Stack
-										spacing={0}
-										className="text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]"
-									>
+									<div className="flex flex-col text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]">
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
 											<span className="text-[12px] text-content-disabled">
@@ -483,7 +488,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 												{usage.times_used === 1 ? "time" : "times"}
 											</span>
 										)}
-									</Stack>
+									</div>
 								</div>
 							);
 						})}

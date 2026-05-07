@@ -7,12 +7,13 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import express from "express";
 import capitalize from "lodash/capitalize";
 import * as ssh from "ssh2";
-import { TarWriter } from "utils/tar";
 import { API } from "#/api/api";
 import type {
 	UpdateTemplateMeta,
 	WorkspaceBuildParameter,
+	WorkspaceStatus,
 } from "#/api/typesGenerated";
+import { TarWriter } from "#/utils/tar";
 import {
 	agentPProfPort,
 	coderBinary,
@@ -293,6 +294,13 @@ export const createTemplate = async (
 			mimeType: "application/x-tar",
 			name: "template.tar",
 		});
+		// setInputFiles triggers the upload API call through React's
+		// onChange handler, but the call is fire-and-forget (not awaited
+		// in the component chain). Wait for the upload to finish so
+		// uploadedFile.hash is available when the form submits.
+		await expect(
+			page.getByRole("button", { name: "Remove file" }),
+		).toBeVisible();
 	}
 
 	// If the organization picker is present on the page, select the default
@@ -423,7 +431,8 @@ export const startWorkspaceWithEphemeralParameters = async (
 	await page.getByTestId("workspace-parameters").click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: "Update and restart" }).click();
+
+	await page.getByRole("button", { name: /update and start/i }).click();
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1177,6 +1186,7 @@ export const updateTemplateSettings = async (
 export const updateWorkspace = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1194,12 +1204,19 @@ export const updateWorkspace = async (
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	await page.getByRole("button", { name: /update and restart/i }).click();
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 };
 
 export const updateWorkspaceParameters = async (
 	page: Page,
 	workspaceName: string,
+	workspaceStatus: WorkspaceStatus,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
@@ -1209,7 +1226,14 @@ export const updateWorkspaceParameters = async (
 	});
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByRole("button", { name: /update and restart/i }).click();
+
+	if (workspaceStatus === "running") {
+		await page.getByRole("button", { name: /update and restart/i }).click();
+		// Confirmation dialog.
+		await page.getByRole("button", { name: /restart/i }).click();
+	} else {
+		await page.getByRole("button", { name: /update and start/i }).click();
+	}
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1240,6 +1264,10 @@ export async function openTerminalWindow(
 	await terminal.goto(
 		`/@${user.username}/${workspaceName}.${agentName}/terminal${commandQuery}`,
 	);
+
+	// The terminal command confirmation dialog requires explicit user
+	// approval before the command executes.
+	await terminal.getByRole("button", { name: "Run command" }).click();
 
 	return terminal;
 }
@@ -1304,11 +1332,12 @@ export async function createUser(
 	await expect(addedRow).toBeVisible();
 
 	// Give them a role
-	await addedRow.getByLabel("Edit user roles").click();
+	await addedRow.getByLabel("Open menu").click();
+	await page.getByText("Edit roles").click();
 	for (const role of roles) {
-		await page.getByRole("group").getByText(role, { exact: true }).click();
+		await page.getByRole("dialog").getByText(role, { exact: true }).click();
 	}
-	await page.mouse.click(10, 10); // close the popover by clicking outside of it
+	await page.getByText("Confirm").click();
 
 	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
 	return { name, username, email, password, roles };

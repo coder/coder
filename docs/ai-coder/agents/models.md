@@ -1,26 +1,29 @@
 # Models
 
 Administrators configure LLM providers and models from the Coder dashboard.
-These are deployment-wide settings — developers do not manage API keys or
-provider configuration. They select from the set of models that an administrator
-has enabled.
+Providers, models, and centrally managed credentials are deployment-wide
+settings managed by platform teams. Developers select from the set of models
+that an administrator has enabled.
+
+Optionally, administrators can allow developers to supply their own API keys
+for specific providers. See [User API keys](#user-api-keys-byok) below.
 
 ## Providers
 
-Each LLM provider has a type, an API key, and an optional base URL override.
+Each LLM provider has a type, a credential configuration, and an optional base URL override.
 
 Coder supports the following provider types:
 
-| Provider          | Description                              |
-|-------------------|------------------------------------------|
-| Anthropic         | Claude models via Anthropic API          |
-| OpenAI            | GPT and o-series models via OpenAI API   |
-| Google            | Gemini models via Google AI API          |
-| Azure OpenAI      | OpenAI models hosted on Azure            |
-| AWS Bedrock       | Models available through AWS Bedrock     |
-| OpenAI Compatible | Any endpoint implementing the OpenAI API |
-| OpenRouter        | Multi-model routing via OpenRouter       |
-| Vercel AI Gateway | Models via Vercel AI SDK                 |
+| Provider          | Description                                                      |
+|-------------------|------------------------------------------------------------------|
+| Anthropic         | Claude models via Anthropic API                                  |
+| OpenAI            | GPT and o-series models via OpenAI API                           |
+| Google            | Gemini models via Google AI API                                  |
+| Azure OpenAI      | OpenAI models hosted on Azure                                    |
+| AWS Bedrock       | Models via AWS Bedrock (bearer token or ambient AWS credentials) |
+| OpenAI Compatible | Any endpoint implementing the OpenAI API                         |
+| OpenRouter        | Multi-model routing via OpenRouter                               |
+| Vercel AI Gateway | Models via Vercel AI SDK                                         |
 
 The **OpenAI Compatible** type is a catch-all for any service that exposes an
 OpenAI-compatible chat completions endpoint. Use it to connect to self-hosted
@@ -29,33 +32,95 @@ models, internal gateways, or third-party proxies like LiteLLM.
 ### Add a provider
 
 1. Navigate to the **Agents** page in the Coder dashboard.
-1. Click **Admin** in the top bar to open the configuration dialog.
-1. Select the **Providers** tab.
+1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
 1. Click the provider you want to configure.
-1. Enter the **API key** for the provider.
+1. Enter the **API key** for the provider, if required.
 1. Optionally set a **Base URL** to override the default endpoint. This is
    useful for enterprise proxies, regional endpoints, or self-hosted models.
 1. Click **Save**.
 
-<img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the admin dialog">
+<img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the Agents settings">
 
 <small>The providers list shows all supported providers and their configuration
 status.</small>
 
 <img src="../../images/guides/ai-agents/models-add-provider.png" alt="Screenshot of the add provider form">
 
-<small>Adding a provider requires an API key. The base URL is optional.</small>
+<small>Adding a provider usually requires an API key. AWS Bedrock can also use
+ambient AWS credentials. The base URL is optional.</small>
 
-### Provider API keys and security
+## Configuring AWS Bedrock
 
-Provider API keys are stored encrypted in the Coder database. They are never
-exposed to workspaces, developers, or the browser after initial entry. The
-dashboard shows only whether a key is set, not the key itself.
+AWS Bedrock supports two credential modes for Agents providers:
+
+- **Bearer token mode**: Enter a Bedrock-compatible bearer token in the
+  **API key** field when you add the provider.
+- **Ambient AWS credentials mode**: Leave the **API key** field empty. The
+  Coder server resolves credentials from the standard AWS SDK credential chain,
+  including IAM instance roles and `AWS_ACCESS_KEY_ID` /
+  `AWS_SECRET_ACCESS_KEY` environment variables.
+
+Region comes from the standard AWS SDK configuration. In most deployments, set
+`AWS_REGION` on the Coder server. Bearer token mode falls back to `us-east-1`
+when no region is configured. Ambient credentials require a region from the
+standard AWS SDK chain, for example `AWS_REGION`.
+
+The **Base URL** field overrides the Bedrock runtime endpoint. Use it for
+custom endpoints or VPC endpoints.
+
+> [!NOTE]
+> Agents Bedrock provider configuration is separate from AI Gateway Bedrock
+> flags (`CODER_AIBRIDGE_BEDROCK_*`). AI Gateway and Agents use independent
+> credential paths.
+
+## Provider credentials and security
+
+Provider API keys entered in the dashboard are stored encrypted in the Coder
+database. They are never exposed to workspaces, developers, or the browser
+after initial entry. The dashboard shows only whether a key is set, not the
+key itself.
+
+When a provider uses ambient credentials, Coder resolves them from the server
+environment at request time instead of storing a secret in the database.
 
 Because the agent loop runs in the control plane, workspaces never need direct
 access to LLM providers. See
 [Architecture](./architecture.md#no-api-keys-in-workspaces) for details
 on this security model.
+
+## Key policy
+
+Each provider has three policy flags that control how provider credentials are
+sourced:
+
+| Setting                 | Default | Description                                                                                                              |
+|-------------------------|---------|--------------------------------------------------------------------------------------------------------------------------|
+| Central API key         | On      | The provider uses deployment-managed credentials configured by an administrator. For most providers, this is an API key. |
+| Allow user API keys     | Off     | Developers may supply their own API key for this provider.                                                               |
+| Central key as fallback | Off     | When user keys are allowed, fall back to deployment-managed credentials if a developer has not set a personal key.       |
+
+At least one credential source must be enabled. These settings appear in the
+provider configuration form under **Key policy**.
+
+The interaction between these flags determines whether a provider is available
+to a given developer:
+
+| Central key | User keys allowed | Fallback | Developer has key | Result               |
+|-------------|-------------------|----------|-------------------|----------------------|
+| On          | Off               | —        | —                 | Uses central key     |
+| Off         | On                | —        | Yes               | Uses developer's key |
+| Off         | On                | —        | No                | Unavailable          |
+| On          | On                | Off      | Yes               | Uses developer's key |
+| On          | On                | Off      | No                | Unavailable          |
+| On          | On                | On       | Yes               | Uses developer's key |
+| On          | On                | On       | No                | Uses central key     |
+
+When a developer's personal key is present, it always takes precedence over
+deployment-managed credentials. When user keys are required and fallback is
+disabled, the provider is unavailable to developers who have not saved a
+personal key, even if deployment-managed credentials exist. This is
+intentional: it enforces that each developer authenticates with their own
+credentials.
 
 ## Models
 
@@ -64,7 +129,7 @@ generation parameters, and provider-specific options.
 
 ### Add a model
 
-1. Open the **Admin** dialog and select the **Models** tab.
+1. Open **Settings** > **Manage Agents** and select the **Models** tab.
 1. Click **Add** and select the provider for the new model.
 1. Enter the **Model Identifier** — the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
@@ -75,7 +140,7 @@ generation parameters, and provider-specific options.
 1. Configure any provider-specific options (see below).
 1. Click **Save**.
 
-<img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the admin dialog">
+<img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the Agents settings">
 
 <small>The models list shows all configured models grouped by provider.</small>
 
@@ -125,18 +190,18 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### Anthropic
 
-| Option                 | Description                                             |
-|------------------------|---------------------------------------------------------|
-| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.         |
-| Effort                 | Thinking effort level (`low`, `medium`, `high`, `max`). |
+| Option                 | Description                                                      |
+|------------------------|------------------------------------------------------------------|
+| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                  |
+| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`). |
 
 #### OpenAI
 
-| Option                | Description                                                           |
-|-----------------------|-----------------------------------------------------------------------|
-| Reasoning Effort      | How much effort the model spends reasoning (`low`, `medium`, `high`). |
-| Max Completion Tokens | Cap on completion tokens for reasoning models.                        |
-| Parallel Tool Calls   | Whether the model can call multiple tools at once.                    |
+| Option                | Description                                                                               |
+|-----------------------|-------------------------------------------------------------------------------------------|
+| Reasoning Effort      | How much effort the model spends reasoning (`minimal`, `low`, `medium`, `high`, `xhigh`). |
+| Max Completion Tokens | Cap on completion tokens for reasoning models.                                            |
+| Parallel Tool Calls   | Whether the model can call multiple tools at once.                                        |
 
 #### Google
 
@@ -144,7 +209,6 @@ fields appear dynamically in the admin UI when you select a provider.
 |------------------|-----------------------------------------------------|
 | Thinking Budget  | Maximum tokens for the model's internal reasoning.  |
 | Include Thoughts | Whether to include thinking traces in the response. |
-| Safety Settings  | Content safety thresholds by category.              |
 
 #### OpenRouter
 
@@ -152,27 +216,25 @@ fields appear dynamically in the admin UI when you select a provider.
 |-------------------|---------------------------------------------------|
 | Reasoning Enabled | Enable extended reasoning mode.                   |
 | Reasoning Effort  | Reasoning effort level (`low`, `medium`, `high`). |
-| Provider Order    | Preferred provider routing order.                 |
-| Allow Fallbacks   | Whether to fall back to alternative providers.    |
 
 #### Vercel AI Gateway
 
-| Option            | Description                                   |
-|-------------------|-----------------------------------------------|
-| Reasoning Enabled | Enable extended reasoning mode.               |
-| Reasoning Effort  | Reasoning effort level.                       |
-| Provider Options  | Routing preferences for underlying providers. |
+| Option            | Description                     |
+|-------------------|---------------------------------|
+| Reasoning Enabled | Enable extended reasoning mode. |
+| Reasoning Effort  | Reasoning effort level.         |
 
 > [!NOTE]
 > Azure OpenAI uses the same options as OpenAI. AWS Bedrock uses the same
-> options as Anthropic.
+> model configuration options as Anthropic (thinking budget, reasoning
+> effort).
 
 ## How developers select models
 
 Developers see a model selector dropdown when starting or continuing a chat on
 the Agents page. The selector shows only models from providers that have valid
-API keys configured. Models are grouped by provider if multiple providers are
-active.
+credentials configured. Models are grouped by provider if multiple providers
+are active.
 
 The model selector uses the following precedence to pre-select a model:
 
@@ -180,19 +242,94 @@ The model selector uses the following precedence to pre-select a model:
 1. **Admin-designated default** — the model marked with the star icon.
 1. **First available model** — if no default is set and no history exists.
 
-Developers cannot add their own providers, models, or API keys. If no models
-are configured, the chat interface displays a message directing developers to
+Developers cannot add their own providers or models. If no models are
+configured, the chat interface displays a message directing developers to
 contact an administrator.
+
+## Model overrides
+
+Beyond the chat-level model picker, Coder Agents supports two override
+layers:
+
+- **Subagent overrides** (admin, deployment-wide): Pin specific subagent
+  contexts to a particular model. Configure them at **Agents** >
+  **Settings** > **Manage Agents** > **Agents**.
+- **Personal overrides** (per user, opt-in by admin): Let users override
+  the model for their own root chats and delegated subagents. Admins
+  enable the toggle on the same admin page; once on, each user sees an
+  **Agents** tab in their personal **Agents** > **Settings**.
+
+The configurable contexts:
+
+| Context              | Layer        | Applies to                                                                     |
+|----------------------|--------------|--------------------------------------------------------------------------------|
+| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`). |
+| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                       |
+| **Title generation** | Admin only   | Automatic title generation for new chats.                                      |
+| **Root**             | User only    | The user's own root chats.                                                     |
+
+Resolution order, evaluated per chat or subagent:
+
+1. Personal override (when the admin gate is on and a model is set).
+1. Admin subagent override.
+1. The chat's selected model (or the deployment default for new chats).
+
+If a referenced model is later disabled or deleted, that layer is skipped
+and resolution falls through to the next.
+
+> [!NOTE]
+> Both override layers are experimental and may change between releases.
+> The same values are available through the experimental chat
+> configuration API under `/api/experimental/chats/config/`.
+
+## User API keys (BYOK)
+
+When an administrator enables **Allow user API keys** on a provider,
+developers can supply their own API key from the Agents settings page.
+
+### Managing personal API keys
+
+1. Navigate to the **Agents** page in the Coder dashboard.
+1. Open **Settings** and select the **API Keys** tab.
+1. Each provider that allows user keys is listed with a status indicator:
+   - **Key saved** — your personal key is active and will be used for requests.
+   - **Using shared key** — no personal key set, but the central deployment
+     key is available as a fallback.
+   - **No key** — you must add a personal key before you can use this provider.
+1. Enter your API key and click **Save**.
+
+Personal API keys are encrypted at rest using the same database encryption
+used for deployment-managed provider secrets. The dashboard never displays a
+saved key, only whether one is set.
+
+### How key selection works
+
+When you start a chat, the control plane resolves which credential source to
+use for each provider:
+
+1. If you have a personal key for the provider, it is used.
+1. If you do not have a personal key and central key fallback is enabled,
+   deployment-managed credentials are used.
+1. If you do not have a personal key and fallback is disabled, the provider
+   is unavailable to you. Models from that provider will not appear in the
+   model selector.
+
+### Removing a personal key
+
+Click **Remove** on the provider card in the API Keys settings tab. If
+central key fallback is enabled, subsequent requests will use the shared
+deployment-managed credentials. If fallback is disabled, the provider becomes
+unavailable until you add a new personal key.
 
 ## Using an LLM proxy
 
 Organizations that route LLM traffic through a centralized proxy — such as
-Coder's AI Bridge or third parties like LiteLLM — can point any provider's **Base URL** at their proxy endpoint.
+Coder's AI Gateway or third parties like LiteLLM — can point any provider's **Base URL** at their proxy endpoint.
 
-For example, to route all OpenAI traffic through Coder's AI Bridge:
+For example, to route all OpenAI traffic through Coder's AI Gateway:
 
 1. Add or edit the **OpenAI** provider.
-1. Set the **Base URL** to your AI Bridge endpoint
+1. Set the **Base URL** to your AI Gateway endpoint
    (e.g., `https://example.coder.com/api/v2/aibridge/openai/v1`).
 1. Enter the API key your proxy expects.
 

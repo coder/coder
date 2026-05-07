@@ -1,10 +1,10 @@
-import { mockApiError } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
+import { mockApiError } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import type { WorkspaceFilterState } from "./WorkspacesFilter";
 import { WorkspacesFilter } from "./WorkspacesFilter";
 

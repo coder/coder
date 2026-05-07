@@ -1,5 +1,4 @@
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { watchAgentContainers } from "#/api/api";
@@ -59,13 +58,7 @@ export function useAgentContainers(
 		});
 
 		return () => socket.close();
-	}, [
-		agent.id,
-		agent.status,
-		queryIsLoading,
-		queryError,
-		updateDevcontainersCache,
-	]);
+	}, [agent.id, agent.status, queryIsLoading, queryError]);
 
 	return devcontainers;
 }

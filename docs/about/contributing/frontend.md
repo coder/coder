@@ -34,16 +34,14 @@ the most important.
 - [React](https://reactjs.org/) for the UI framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
 - [Vite](https://vitejs.dev/) to build the project
-- [Material V5](https://mui.com/material-ui/getting-started/) for UI components
 - [react-router](https://reactrouter.com/en/main) for routing
-- [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for
+- [TanStack Query](https://tanstack.com/query/v4/docs/react/overview) for
   fetching data
-- [axios](https://github.com/axios/axios) as fetching lib
+- [Vitest](https://vitest.dev/) for integration testing
 - [Playwright](https://playwright.dev/) for end-to-end (E2E) testing
-- [Jest](https://jestjs.io/) for integration testing
 - [Storybook](https://storybook.js.org/) and
   [Chromatic](https://www.chromatic.com/) for visual testing
-- [PNPM](https://pnpm.io/) as the package manager
+- [pnpm](https://pnpm.io/) as the package manager
 
 ## Structure
 
@@ -51,7 +49,6 @@ All UI-related code is in the `site` folder. Key directories include:
 
 - **e2e** - End-to-end (E2E) tests
 - **src** - Source code
-  - **mocks** - [Manual mocks](https://jestjs.io/docs/manual-mocks) used by Jest
   - **@types** - Custom types for dependencies that don't have defined types
     (largely code that has no server-side equivalent)
   - **api** - API function calls and types
@@ -59,7 +56,7 @@ All UI-related code is in the `site` folder. Key directories include:
   - **components** - Reusable UI components without Coder specific business
     logic
   - **hooks** - Custom React hooks
-  - **modules** - Coder-specific UI components
+  - **modules** - Coder specific logic and components related to multiple parts of the UI
   - **pages** - Page-level components
   - **testHelpers** - Helper functions for integration testing
   - **theme** - theme configuration and color definitions
@@ -286,9 +283,9 @@ local machine and forward the necessary ports to your workspace. At the end of
 the script, you will land _inside_ your workspace with environment variables set
 so you can simply execute the test (`pnpm run playwright:test`).
 
-### Integration/Unit – Jest
+### Integration/Unit
 
-We use Jest mostly for testing code that does _not_ pertain to React. Functions and classes that contain notable app logic, and which are well abstracted from React should have accompanying tests. If the logic is tightly coupled to a React component, a Storybook test or an E2E test may be a better option depending on the scenario.
+We use unit and integration tests mostly for testing code that does _not_ pertain to React. Functions and classes that contain notable app logic, and which are well abstracted from React should have accompanying tests. If the logic is tightly coupled to a React component, a Storybook test or an E2E test is usually a better option.
 
 ### Visual Testing – Storybook
 

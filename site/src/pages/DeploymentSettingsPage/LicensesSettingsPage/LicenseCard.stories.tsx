@@ -1,14 +1,13 @@
-import { chromatic } from "testHelpers/chromatic";
-import { MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, fn, within } from "storybook/test";
+import { chromatic } from "#/testHelpers/chromatic";
+import { MockLicenseResponse } from "#/testHelpers/entities";
 
 import { LicenseCard } from "./LicenseCard";
 
-const FIXED_NOW = dayjs().startOf("day");
-const YESTERDAY = FIXED_NOW.subtract(1, "day").unix();
-const NEXT_WEEK = FIXED_NOW.add(7, "day").unix();
+const EXPIRED_DATE = dayjs("2000-01-01T12:00:00Z").unix();
+const FUTURE_START_DATE = dayjs("2099-01-01T12:00:00Z").unix();
 
 const meta: Meta<typeof LicenseCard> = {
 	title: "pages/DeploymentSettingsPage/LicensesSettingsPage/LicenseCard",
@@ -176,7 +175,7 @@ export const ExpiredAIGovernanceOverageShowsExpired: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				license_expires: YESTERDAY,
+				license_expires: EXPIRED_DATE,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
@@ -208,7 +207,7 @@ export const ExpiredAIGovernanceInGracePeriodShowsExceeded: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				license_expires: YESTERDAY,
+				license_expires: EXPIRED_DATE,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
@@ -238,7 +237,7 @@ export const NotYetValid: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				nbf: NEXT_WEEK,
+				nbf: FUTURE_START_DATE,
 			},
 		},
 	},
@@ -254,7 +253,7 @@ export const FutureAIGovernanceOverageShowsStartsOn: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				nbf: NEXT_WEEK,
+				nbf: FUTURE_START_DATE,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
@@ -286,7 +285,7 @@ export const FutureAIGovernanceUsageShowsNoCurrentSeats: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				nbf: NEXT_WEEK,
+				nbf: FUTURE_START_DATE,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,

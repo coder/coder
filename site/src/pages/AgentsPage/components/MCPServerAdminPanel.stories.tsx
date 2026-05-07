@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 
@@ -33,79 +32,12 @@ const createServerConfig = (
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
+	model_intent: overrides.model_intent ?? false,
+	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
 });
-
-/**
- * Set up spies for MCP server config API methods. The mutable
- * `state` object lets mutation spies update what queries return
- * on refetch, mimicking a real server round-trip.
- */
-const setupMCPSpies = (state: { servers: TypesGen.MCPServerConfig[] }) => {
-	spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
-		async () => {
-			return state.servers;
-		},
-	);
-
-	spyOn(API.experimental, "createMCPServerConfig").mockImplementation(
-		async (req) => {
-			const created = createServerConfig({
-				id: `mcp-${Date.now()}`,
-				display_name: req.display_name,
-				slug: req.slug,
-				description: req.description,
-				icon_url: req.icon_url,
-				transport: req.transport,
-				url: req.url,
-				auth_type: req.auth_type,
-				availability: req.availability,
-				enabled: req.enabled,
-				has_oauth2_secret: (req.oauth2_client_secret ?? "").length > 0,
-				has_api_key: (req.api_key_value ?? "").length > 0,
-				has_custom_headers:
-					req.custom_headers != null &&
-					Object.keys(req.custom_headers).length > 0,
-				tool_allow_list: req.tool_allow_list ?? [],
-				tool_deny_list: req.tool_deny_list ?? [],
-			});
-			state.servers = [...state.servers, created];
-			return created;
-		},
-	);
-
-	spyOn(API.experimental, "updateMCPServerConfig").mockImplementation(
-		async (id, req) => {
-			const idx = state.servers.findIndex((s) => s.id === id);
-			if (idx < 0) {
-				throw new Error("MCP server config not found.");
-			}
-			const current = state.servers[idx];
-			const updated: TypesGen.MCPServerConfig = {
-				...current,
-				display_name: req.display_name ?? current.display_name,
-				slug: req.slug ?? current.slug,
-				description: req.description ?? current.description,
-				url: req.url ?? current.url,
-				transport: req.transport ?? current.transport,
-				auth_type: req.auth_type ?? current.auth_type,
-				availability: req.availability ?? current.availability,
-				enabled: req.enabled ?? current.enabled,
-				updated_at: now,
-			};
-			state.servers = state.servers.map((s, i) => (i === idx ? updated : s));
-			return updated;
-		},
-	);
-
-	spyOn(API.experimental, "deleteMCPServerConfig").mockImplementation(
-		async (id) => {
-			state.servers = state.servers.filter((s) => s.id !== id);
-		},
-	);
-};
 
 // ── Meta ───────────────────────────────────────────────────────
 
@@ -118,6 +50,20 @@ const meta: Meta<typeof MCPServerAdminPanel> = {
 			routing: { path: "/agents/settings/mcp-servers" },
 		}),
 	},
+	args: {
+		serversData: [],
+		isLoadingServers: false,
+		serversError: null,
+		onCreateServer: fn(async () => ({}) as TypesGen.MCPServerConfig),
+		onUpdateServer: fn(async () => ({}) as TypesGen.MCPServerConfig),
+		onDeleteServer: fn(async () => undefined),
+		isCreatingServer: false,
+		isUpdatingServer: false,
+		isDeletingServer: false,
+		createError: null,
+		updateError: null,
+		deleteError: null,
+	},
 };
 
 export default meta;
@@ -127,62 +73,66 @@ type Story = StoryObj<typeof MCPServerAdminPanel>;
 
 /** Empty state with no servers configured. */
 export const EmptyState: Story = {
-	beforeEach: () => {
-		setupMCPSpies({ servers: [] });
+	args: {
+		serversData: [],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await expect(
 			await body.findByText(/No MCP servers configured yet/i),
 		).toBeInTheDocument();
-		await expect(
-			body.getByRole("button", { name: /Add Server/i }),
+
+		// Both the section header and the empty state render a distinct
+		// Add button, and the empty-state one is the primary CTA.
+		expect(
+			body.getByRole("button", { name: "Add server" }),
+		).toBeInTheDocument();
+		expect(
+			body.getByRole("button", { name: "Add your first server" }),
 		).toBeInTheDocument();
 	},
 };
 
 /** List view with multiple servers showing status indicators. */
 export const ServerList: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-sentry",
-					display_name: "Sentry",
-					slug: "sentry",
-					icon_url: "/icon/widgets.svg",
-					url: "https://mcp.sentry.io/sse",
-					transport: "sse",
-					auth_type: "oauth2",
-					has_oauth2_secret: true,
-					availability: "force_on",
-					enabled: true,
-				}),
-				createServerConfig({
-					id: "mcp-linear",
-					display_name: "Linear",
-					slug: "linear",
-					url: "https://mcp.linear.app/v1",
-					transport: "streamable_http",
-					auth_type: "api_key",
-					has_api_key: true,
-					availability: "default_on",
-					enabled: true,
-				}),
-				createServerConfig({
-					id: "mcp-github",
-					display_name: "GitHub",
-					slug: "github",
-					icon_url: "/icon/github.svg",
-					url: "https://api.githubcopilot.com/mcp/",
-					transport: "streamable_http",
-					auth_type: "oauth2",
-					has_oauth2_secret: true,
-					availability: "default_off",
-					enabled: false,
-				}),
-			],
-		});
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-sentry",
+				display_name: "Sentry",
+				slug: "sentry",
+				icon_url: "/icon/widgets.svg",
+				url: "https://mcp.sentry.io/sse",
+				transport: "sse",
+				auth_type: "oauth2",
+				has_oauth2_secret: true,
+				availability: "force_on",
+				enabled: true,
+			}),
+			createServerConfig({
+				id: "mcp-linear",
+				display_name: "Linear",
+				slug: "linear",
+				url: "https://mcp.linear.app/v1",
+				transport: "streamable_http",
+				auth_type: "api_key",
+				has_api_key: true,
+				availability: "default_on",
+				enabled: true,
+			}),
+			createServerConfig({
+				id: "mcp-github",
+				display_name: "GitHub",
+				slug: "github",
+				icon_url: "/icon/github.svg",
+				url: "https://api.githubcopilot.com/mcp/",
+				transport: "streamable_http",
+				auth_type: "oauth2",
+				has_oauth2_secret: true,
+				availability: "default_off",
+				enabled: false,
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -193,27 +143,39 @@ export const ServerList: Story = {
 		).toBeInTheDocument();
 		expect(body.getByRole("button", { name: /Linear/ })).toBeInTheDocument();
 		expect(body.getByRole("button", { name: /GitHub/ })).toBeInTheDocument();
+
+		// Disabled servers surface a warning badge next to the name.
+		expect(body.getByText(/^disabled$/i)).toBeInTheDocument();
 	},
 };
 
 /** Navigate to the create form and fill it out. */
 export const CreateServer: Story = {
-	beforeEach: () => {
-		setupMCPSpies({ servers: [] });
+	args: {
+		serversData: [],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Click Add Server.
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
-		// Fill in the display name via the inline header input.
+		// Fill in the Display name field.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		await userEvent.type(nameInput, "Sentry");
 
-		// Slug should auto-populate.
+		// Required fields (display name, slug, server URL) are always visible.
+		// Optional sections start collapsed and the Enabled switch is edit-only.
+		expect(body.getByLabelText(/^Slug/i)).toBeInTheDocument();
+		expect(body.getByLabelText(/Server URL/i)).toBeInTheDocument();
+		expect(body.queryByLabelText(/Description/i)).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("switch", { name: /Enabled/i }),
+		).not.toBeInTheDocument();
+
+		// Slug should auto-populate from the display name.
 		await expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
 
 		await userEvent.type(
@@ -225,9 +187,9 @@ export const CreateServer: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(args.onCreateServer).toHaveBeenCalledWith(
 			expect.objectContaining({
 				display_name: "Sentry",
 				slug: "sentry",
@@ -241,14 +203,14 @@ export const CreateServer: Story = {
 
 /** Open the create form and select OAuth2 auth type. */
 export const CreateServerOAuth2: Story = {
-	beforeEach: () => {
-		setupMCPSpies({ servers: [] });
+	args: {
+		serversData: [],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "GitHub");
@@ -257,6 +219,9 @@ export const CreateServerOAuth2: Story = {
 			"https://api.githubcopilot.com/mcp/",
 		);
 
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
 		// Select OAuth2 from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(await body.findByRole("option", { name: /OAuth2/i }));
@@ -276,9 +241,9 @@ export const CreateServerOAuth2: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(args.onCreateServer).toHaveBeenCalledWith(
 			expect.objectContaining({
 				auth_type: "oauth2",
 				oauth2_client_id: "my-client-id",
@@ -290,14 +255,14 @@ export const CreateServerOAuth2: Story = {
 
 /** Open the create form and select API Key auth type. */
 export const CreateServerAPIKey: Story = {
-	beforeEach: () => {
-		setupMCPSpies({ servers: [] });
+	args: {
+		serversData: [],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(await body.findByLabelText(/Display Name/i), "Linear");
@@ -306,6 +271,9 @@ export const CreateServerAPIKey: Story = {
 			"https://mcp.linear.app/v1",
 		);
 
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
 		// Select API Key from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(
@@ -324,9 +292,9 @@ export const CreateServerAPIKey: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(args.onCreateServer).toHaveBeenCalledWith(
 			expect.objectContaining({
 				auth_type: "api_key",
 				api_key_header: "Authorization",
@@ -338,24 +306,22 @@ export const CreateServerAPIKey: Story = {
 
 /** Click an existing server to open the edit form. */
 export const EditServer: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-sentry",
-					display_name: "Sentry",
-					slug: "sentry",
-					description: "Error tracking",
-					url: "https://mcp.sentry.io/sse",
-					transport: "sse",
-					auth_type: "none",
-					availability: "default_on",
-					enabled: true,
-				}),
-			],
-		});
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-sentry",
+				display_name: "Sentry",
+				slug: "sentry",
+				description: "Error tracking",
+				url: "https://mcp.sentry.io/sse",
+				transport: "sse",
+				auth_type: "none",
+				availability: "default_on",
+				enabled: true,
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Click the server row.
@@ -364,10 +330,15 @@ export const EditServer: Story = {
 		// The inline name input should be pre-populated.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		expect(nameInput).toHaveValue("Sentry");
+
+		// Slug and Server URL are always visible.
 		expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
 		expect(body.getByLabelText(/Server URL/i)).toHaveValue(
 			"https://mcp.sentry.io/sse",
 		);
+
+		// Expand Details to reach the description field.
+		await userEvent.click(body.getByRole("button", { name: /Details/i }));
 
 		// Update the description.
 		const descField = body.getByLabelText(/Description/i);
@@ -377,43 +348,46 @@ export const EditServer: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Save changes/i }));
 
 		await waitFor(() => {
-			expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onUpdateServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledWith(
-			"mcp-sentry",
-			expect.objectContaining({
+		expect(args.onUpdateServer).toHaveBeenCalledWith({
+			id: "mcp-sentry",
+			req: expect.objectContaining({
 				description: "Sentry error tracking integration",
 			}),
-		);
+		});
 	},
 };
 
 /** Edit a server that has OAuth2 — secret field should show placeholder. */
 export const EditServerWithOAuth2Secret: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-github",
-					display_name: "GitHub",
-					slug: "github",
-					url: "https://api.githubcopilot.com/mcp/",
-					auth_type: "oauth2",
-					oauth2_client_id: "gh-client-id",
-					has_oauth2_secret: true,
-					oauth2_auth_url: "https://github.com/login/oauth/authorize",
-					oauth2_token_url: "https://github.com/login/oauth/access_token",
-					oauth2_scopes: "repo user",
-					availability: "default_on",
-					enabled: true,
-				}),
-			],
-		});
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-github",
+				display_name: "GitHub",
+				slug: "github",
+				url: "https://api.githubcopilot.com/mcp/",
+				auth_type: "oauth2",
+				oauth2_client_id: "gh-client-id",
+				has_oauth2_secret: true,
+				oauth2_auth_url: "https://github.com/login/oauth/authorize",
+				oauth2_token_url: "https://github.com/login/oauth/access_token",
+				oauth2_scopes: "repo user",
+				availability: "default_on",
+				enabled: true,
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(await body.findByRole("button", { name: /GitHub/ }));
+
+		// Authentication section is collapsed by default.
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
 
 		// The OAuth2 fields should be visible.
 		const secretField = await body.findByLabelText(/Client Secret/i);
@@ -424,27 +398,30 @@ export const EditServerWithOAuth2Secret: Story = {
 
 /** Edit a server that has custom headers configured. */
 export const EditServerWithCustomHeaders: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-custom",
-					display_name: "Custom API",
-					slug: "custom-api",
-					url: "https://mcp.example.com/v1",
-					auth_type: "custom_headers",
-					has_custom_headers: true,
-					availability: "default_on",
-					enabled: true,
-				}),
-			],
-		});
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-custom",
+				display_name: "Custom API",
+				slug: "custom-api",
+				url: "https://mcp.example.com/v1",
+				auth_type: "custom_headers",
+				has_custom_headers: true,
+				availability: "default_on",
+				enabled: true,
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
 			await body.findByRole("button", { name: /Custom API/ }),
+		);
+
+		// Authentication section is collapsed by default.
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
 		);
 
 		// Should show message about existing headers.
@@ -468,29 +445,27 @@ export const EditServerWithCustomHeaders: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Save changes/i }));
 
 		await waitFor(() => {
-			expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onUpdateServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledWith(
-			"mcp-custom",
-			expect.objectContaining({
+		expect(args.onUpdateServer).toHaveBeenCalledWith({
+			id: "mcp-custom",
+			req: expect.objectContaining({
 				custom_headers: { Authorization: "Bearer tok_abc" },
 			}),
-		);
+		});
 	},
 };
 
-/** Delete a server with confirmation step. */
+/** Delete a server shows confirmation dialog. */
 export const DeleteServerConfirmation: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-sentry",
-					display_name: "Sentry",
-					slug: "sentry",
-				}),
-			],
-		});
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-sentry",
+				display_name: "Sentry",
+				slug: "sentry",
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -500,92 +475,115 @@ export const DeleteServerConfirmation: Story = {
 		// Click Delete.
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 
-		// Confirmation should appear.
+		// Confirmation dialog should appear.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this MCP server/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 	},
 };
 
-/** Cancel delete returns to normal form footer. */
+/** Cancel delete closes the dialog. */
 export const DeleteServerCancelled: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-sentry",
-					display_name: "Sentry",
-					slug: "sentry",
-				}),
-			],
-		});
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-sentry",
+				display_name: "Sentry",
+				slug: "sentry",
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
-		await body.findByText(/Are you sure/i);
+		await body.findByText(/Are you sure you want to delete this MCP server/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
+		// The dialog should be closed and the form footer restored.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
+			body.findByRole("button", { name: "Delete" }),
+		).resolves.toBeInTheDocument();
 		expect(
 			body.getByRole("button", { name: /Save changes/i }),
 		).toBeInTheDocument();
 	},
 };
 
-/** Confirm delete calls the API. */
-export const DeleteServerConfirmed: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-sentry",
-					display_name: "Sentry",
-					slug: "sentry",
-				}),
-			],
-		});
+/** Confirm delete in dialog calls the API. */
+export const DirectEditWhileLoading: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/settings/mcp-servers",
+				searchParams: { server: "mcp-sentry" },
+			},
+			routing: { path: "/agents/settings/mcp-servers" },
+		}),
+	},
+	args: {
+		serversData: undefined,
+		isLoadingServers: true,
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
+		await expect(await body.findByText(/^Loading$/i)).toBeInTheDocument();
+		expect(body.queryByLabelText(/Display Name/i)).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: /Save changes/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const DeleteServerConfirmed: Story = {
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-sentry",
+				display_name: "Sentry",
+				slug: "sentry",
+			}),
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
-		await body.findByText(/Are you sure/i);
-		await userEvent.click(body.getByRole("button", { name: /Delete server/i }));
+		await body.findByText(/Are you sure you want to delete this MCP server/i);
+		await userEvent.click(
+			body.getByRole("button", { name: /Delete MCP server/i }),
+		);
 
 		await waitFor(() => {
-			expect(API.experimental.deleteMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onDeleteServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.deleteMCPServerConfig).toHaveBeenCalledWith(
-			"mcp-sentry",
-		);
+		expect(args.onDeleteServer).toHaveBeenCalledWith("mcp-sentry");
 	},
 };
 
 /** Navigate to form and back without saving. */
 export const BackToList: Story = {
-	beforeEach: () => {
-		setupMCPSpies({
-			servers: [
-				createServerConfig({
-					id: "mcp-sentry",
-					display_name: "Sentry",
-					slug: "sentry",
-				}),
-			],
-		});
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-sentry",
+				display_name: "Sentry",
+				slug: "sentry",
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /^Add server$/i }),
 		);
 
 		// Click Back.
@@ -596,20 +594,20 @@ export const BackToList: Story = {
 			await body.findByRole("button", { name: /Sentry/ }),
 		).toBeInTheDocument();
 
-		expect(API.experimental.createMCPServerConfig).not.toHaveBeenCalled();
+		expect(args.onCreateServer).not.toHaveBeenCalled();
 	},
 };
 
 /** Create a server with tool allow/deny lists. */
 export const CreateServerWithToolGovernance: Story = {
-	beforeEach: () => {
-		setupMCPSpies({ servers: [] });
+	args: {
+		serversData: [],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(
@@ -621,6 +619,7 @@ export const CreateServerWithToolGovernance: Story = {
 			"https://mcp.example.com/v1",
 		);
 
+		await userEvent.click(body.getByRole("button", { name: /Behavior/i }));
 		await userEvent.type(
 			body.getByLabelText(/Tool Allow List/i),
 			"search, read_file",
@@ -633,9 +632,9 @@ export const CreateServerWithToolGovernance: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(args.onCreateServer).toHaveBeenCalledWith(
 			expect.objectContaining({
 				tool_allow_list: ["search", "read_file"],
 				tool_deny_list: ["delete_file", "execute"],
@@ -646,14 +645,14 @@ export const CreateServerWithToolGovernance: Story = {
 
 /** Selecting Custom Headers auth type and adding a header via the key-value editor. */
 export const CustomHeadersAuthType: Story = {
-	beforeEach: () => {
-		setupMCPSpies({ servers: [] });
+	args: {
+		serversData: [],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: /Add Server/i }),
+			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
 		await userEvent.type(
@@ -665,6 +664,9 @@ export const CustomHeadersAuthType: Story = {
 			"https://mcp.example.com/v1",
 		);
 
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
 		// Select Custom Headers auth type.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
 		await userEvent.click(
@@ -686,13 +688,65 @@ export const CustomHeadersAuthType: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(args.onCreateServer).toHaveBeenCalledWith(
 			expect.objectContaining({
 				auth_type: "custom_headers",
 				custom_headers: { "X-Api-Token": "secret-token-123" },
 			}),
 		);
+	},
+};
+
+export const CreateServerUserOIDC: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add your first server/i }),
+		);
+
+		await userEvent.type(
+			await body.findByLabelText(/Display Name/i),
+			"Internal API",
+		);
+		await userEvent.type(
+			body.getByLabelText(/Server URL/i),
+			"https://mcp.internal.example.com/v1",
+		);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
+		await userEvent.click(body.getByLabelText(/Authentication/i));
+		await userEvent.click(
+			await body.findByRole("option", { name: /User OIDC Identity/i }),
+		);
+
+		// No additional auth fields for user_oidc; the helper text is shown.
+		expect(
+			body.getByText(/forwarded to this MCP server in the/i),
+		).toBeInTheDocument();
+
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
+
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				auth_type: "user_oidc",
+			}),
+		);
+		// Should not include any oauth2/api_key/custom_headers fields.
+		const call = (args.onCreateServer as ReturnType<typeof fn>).mock
+			.calls[0][0];
+		expect(call).not.toHaveProperty("oauth2_client_id");
+		expect(call).not.toHaveProperty("api_key_value");
+		expect(call).not.toHaveProperty("custom_headers");
 	},
 };

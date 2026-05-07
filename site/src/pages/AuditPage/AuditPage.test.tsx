@@ -1,14 +1,4 @@
 import {
-	MockAuditLog,
-	MockAuditLog2,
-	MockEntitlementsWithAuditLog,
-} from "testHelpers/entities";
-import {
-	renderWithAuth,
-	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import {
 	createEvent,
 	fireEvent,
 	screen,
@@ -17,10 +7,20 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import * as CreateDayString from "utils/createDayString";
 import { API } from "#/api/api";
 import type { AuditLogsRequest } from "#/api/typesGenerated";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
+import {
+	MockAuditLog,
+	MockAuditLog2,
+	MockEntitlementsWithAuditLog,
+} from "#/testHelpers/entities";
+import {
+	renderWithAuth,
+	waitForLoaderToBeRemoved,
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import * as CreateDayString from "#/utils/createDayString";
 import AuditPage from "./AuditPage";
 
 interface RenderPageOptions {
@@ -71,6 +71,7 @@ describe("AuditPage", () => {
 		const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog, MockAuditLog2],
 			count: 2,
+			count_cap: 0,
 		});
 
 		// When
@@ -90,6 +91,7 @@ describe("AuditPage", () => {
 		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog],
 			count: 1,
+			count_cap: 0,
 		});
 
 		await renderPage();
@@ -114,6 +116,7 @@ describe("AuditPage", () => {
 		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog],
 			count: 1,
+			count_cap: 0,
 		});
 
 		await renderPage();
@@ -140,9 +143,11 @@ describe("AuditPage", () => {
 
 	describe("Filtering", () => {
 		it("filters by URL", async () => {
-			const getAuditLogsSpy = vi
-				.spyOn(API, "getAuditLogs")
-				.mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 });
+			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+				audit_logs: [MockAuditLog],
+				count: 1,
+				count_cap: 0,
+			});
 
 			const query = "resource_type:workspace action:create";
 			await renderPage({ filter: query });
@@ -169,6 +174,31 @@ describe("AuditPage", () => {
 					limit: DEFAULT_RECORDS_PER_PAGE,
 					offset: 0,
 					q: query,
+				}),
+			);
+		});
+	});
+
+	describe("Capped count", () => {
+		it("shows capped count indicator and navigates to next page with correct offset", async () => {
+			vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+				audit_logs: [MockAuditLog, MockAuditLog2],
+				count: 2001,
+				count_cap: 2000,
+			});
+
+			const user = userEvent.setup();
+			await renderPage();
+
+			await screen.findByText(/2,000\+/);
+
+			await user.click(screen.getByRole("button", { name: /next page/i }));
+
+			await waitFor(() =>
+				expect(API.getAuditLogs).toHaveBeenLastCalledWith<[AuditLogsRequest]>({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: DEFAULT_RECORDS_PER_PAGE,
+					q: "",
 				}),
 			);
 		});

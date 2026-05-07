@@ -3,8 +3,7 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { useDebouncedValue } from "hooks/debounce";
-import { Info, X } from "lucide-react";
+import { InfoIcon, XIcon } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	type KeyboardEvent,
@@ -17,7 +16,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -32,6 +30,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDebouncedValue } from "#/hooks/debounce";
+import { cn } from "#/utils/cn";
 
 export interface Option {
 	value: string;
@@ -526,7 +526,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										}}
 										onClick={() => handleUnselect(option)}
 									>
-										<X className="h-4 w-4 text-content-secondary hover:text-content-primary align-text-bottom" />
+										<XIcon className="h-4 w-4 text-content-secondary hover:text-content-primary align-text-bottom" />
 									</button>
 								</Badge>
 							);
@@ -593,7 +593,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									"hidden",
 							)}
 						>
-							<X className="h-5 w-5" />
+							<XIcon className="h-5 w-5" />
 						</button>
 						<ChevronDownIcon
 							open={open}
@@ -642,6 +642,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 													<CommandItem
 														key={option.value}
 														value={option.value}
+														keywords={[option.label]}
 														disabled={option.disable}
 														onMouseDown={(e) => {
 															e.preventDefault();
@@ -676,7 +677,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 																<Tooltip>
 																	<TooltipTrigger asChild>
 																		<span className="flex items-center pointer-events-auto">
-																			<Info className="!w-3.5 !h-3.5 text-content-secondary" />
+																			<InfoIcon className="!w-3.5 !h-3.5 text-content-secondary" />
 																		</span>
 																	</TooltipTrigger>
 																	<TooltipContent side="right" sideOffset={10}>

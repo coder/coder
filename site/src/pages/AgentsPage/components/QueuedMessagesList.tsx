@@ -6,7 +6,6 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
-import { cn } from "utils/cn";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -15,6 +14,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
@@ -170,7 +170,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	const isBusy = busyItem !== null;
 
 	return (
-		<div className={cn("flex w-full flex-col", className)}>
+		<div
+			className={cn(
+				"flex w-full flex-col max-h-[40svh] overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]",
+				className,
+			)}
+		>
 			{visibleItems.map((item, index) => {
 				const isEditing = item.id === editingMessageID;
 				const isFirst = index === 0;

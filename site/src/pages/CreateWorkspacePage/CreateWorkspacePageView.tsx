@@ -1,15 +1,5 @@
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
-import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
-import {
-	Diagnostics,
-	DynamicParameter,
-	getInitialParameterValues,
-	useValidationSchemaForDynamicParameters,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
+import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
 	useCallback,
@@ -19,9 +9,6 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
-import { nameValidator } from "utils/formUtils";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
@@ -40,17 +27,30 @@ import {
 	ComboboxItem,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { WorkspaceUserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
+import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
+import {
+	Diagnostics,
+	DynamicParameter,
+	getInitialParameterValues,
+	useValidationSchemaForDynamicParameters,
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { docs } from "#/utils/docs";
+import { nameValidator } from "#/utils/formUtils";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
@@ -138,7 +138,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
 	// 2. Only touched form fields are sent to the websocket, a field is touched if edited by the user or set by autofill
 	// 3. The websocket response may add or remove parameters, these are added or removed from the form values in the useSyncFormParameters hook
-	// 4. All existing form parameters are updated to match the websocket response in the useSyncFormParameters hook
+	// 4. All existing form parameters are updated to match the websocket response
+	//    in the useSyncFormParameters hook, unless they have been touched by the
+	//    user or auto-filled.
 	const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
 		useFormik<TypesGen.CreateWorkspaceRequest>({
 			initialValues: {
@@ -241,7 +243,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 			sendMessage(formInputs, ownerId);
 		},
-		500,
+		(
+			parameters: Array<{ parameter: PreviewParameter; value: string }>,
+			_ownerId?: string,
+		) => {
+			// Return a debounce for string fields (those that involve typing) and
+			// zero debounce for all others (so the UI can react immediately).
+			return parameters.some(
+				({ parameter }) =>
+					parameter.form_type === "input" || parameter.form_type === "textarea",
+			)
+				? 500
+				: 0;
+		},
 	);
 
 	useEffect(() => {
@@ -254,7 +268,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			}
 		}
 
-		if (!selectedPreset || !selectedPreset.Parameters) {
+		if (!selectedPreset?.Parameters) {
 			setPresetParameterNames([]);
 			return;
 		}
@@ -348,6 +362,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		touched: form.touched,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -369,7 +384,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					type="button"
 					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-12"
 				>
-					<ArrowLeft size={20} />
+					<ArrowLeftIcon size={20} />
 					Go back
 				</button>
 			</div>
@@ -408,11 +423,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<CircleHelp className="size-icon-xs text-content-secondary" />
-							</TooltipTrigger>
-							<TooltipContent className="max-w-xs text-sm">
+						<HelpPopover>
+							<HelpPopoverIconTrigger />
+							<HelpPopoverContent className="max-w-xs text-sm">
 								Dynamic Parameters enhances Coder's existing parameter system
 								with real-time validation, conditional parameter behavior, and
 								richer input types.
@@ -424,8 +437,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								>
 									View docs
 								</Link>
-							</TooltipContent>
-						</Tooltip>
+							</HelpPopoverContent>
+						</HelpPopover>
 					</span>
 				</header>
 
@@ -433,6 +446,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
 					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 

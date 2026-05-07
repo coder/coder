@@ -2,8 +2,6 @@ import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import { isApiValidationError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -18,6 +16,8 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
@@ -151,7 +151,7 @@ export const WorkspaceParametersPageView: FC<
 			</header>
 
 			{submitError && !isApiValidationError(submitError) ? (
-				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
+				<ErrorAlert error={submitError} className="mb-12" />
 			) : null}
 
 			{templateVersionParameters && buildParameters ? (
@@ -185,10 +185,7 @@ export const WorkspaceParametersPageView: FC<
 								</a>
 							</Button>
 						}
-						css={(theme) => ({
-							border: `1px solid ${theme.palette.divider}`,
-							borderRadius: 8,
-						})}
+						className="border border-solid rounded-lg"
 					/>
 				)
 			) : (

@@ -125,6 +125,18 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 - Keep nullable-field handling, type coercion, and response shaping in the
   converter so handlers stay focused on request flow and authorization.
 
+### Transactions and `InTx`
+
+- Inside `db.InTx(...)` closures, do not use the outer store (`api.Database`,
+  `p.db`, etc.) directly or indirectly. Use the `tx` handle for DB work inside
+  the closure, or fetch read-only inputs before opening the transaction.
+- Watch for helper methods on a receiver that hide outer-store access. A call
+  like `p.someHelper(ctx)` is still unsafe inside `InTx` if that helper uses
+  `p.db` internally.
+- Using the outer store while a transaction is open can hold one connection and
+  then block on another pool checkout, which can cause pool starvation and
+  `idle in transaction` incidents under load.
+
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md
@@ -269,6 +281,22 @@ ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 // Workspace builds can take a long time
 // Default timeout is too short
 ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+```
+
+### No Emdash or Endash
+
+Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+in code, comments, string literals, or documentation. Use commas,
+semicolons, or periods instead. Restructure the sentence if needed.
+Do not replace an emdash with ` -- `. Unicode emdash and endash are
+caught by `make lint/emdash`.
+
+```go
+// Good: uses a period to separate the clauses.
+// This is slow. We should cache it.
+
+// Good: uses a comma to join related clauses.
+// This is slow, so we should cache it.
 ```
 
 ### Avoid Unnecessary Changes

@@ -1,25 +1,35 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import {
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockOwnerRole,
 	MockUserAdminRole,
 	MockUserOwner,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
-import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
+} from "#/testHelpers/entities";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const meta: Meta<typeof OrganizationMembersPageView> = {
 	title: "pages/OrganizationMembersPageView",
 	component: OrganizationMembersPageView,
 	args: {
-		canEditMembers: true,
 		error: undefined,
-		isAddingMember: false,
-		isUpdatingMemberRoles: false,
-		canViewMembers: true,
-		me: MockUserOwner,
+		filterProps: {
+			filter: {
+				query: "",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: false,
+			},
+		},
+		organizationName: "friends",
+		membersQuery: {
+			...mockSuccessResult,
+			totalRecords: 2,
+		} as UsePaginatedQueryResult,
 		members: [
 			{
 				...MockOrganizationMember,
@@ -28,13 +38,14 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 			},
 			{ ...MockOrganizationMember2, groups: [] },
 		],
-		membersQuery: {
-			...mockSuccessResult,
-			totalRecords: 2,
-		} as UsePaginatedQueryResult,
-		addMember: () => Promise.resolve(),
+		addMembers: () => Promise.resolve(),
+		onEditMemberRoles: () => Promise.resolve(),
+		isUpdatingMemberRoles: false,
 		removeMember: () => Promise.resolve(),
-		updateMemberRoles: () => Promise.resolve(),
+		me: MockUserOwner.id,
+		canEditMembers: true,
+		canViewMembers: true,
+		canViewActivity: false,
 	},
 };
 
@@ -42,6 +53,12 @@ export default meta;
 type Story = StoryObj<typeof OrganizationMembersPageView>;
 
 export const Default: Story = {};
+
+export const WithAIAddonColumn: Story = {
+	args: {
+		showAISeatColumn: true,
+	},
+};
 
 export const NoMembers: Story = {
 	args: {
@@ -58,12 +75,6 @@ export const WithError: Story = {
 export const NoEdit: Story = {
 	args: {
 		canEditMembers: false,
-	},
-};
-
-export const AddingMember: Story = {
-	args: {
-		isAddingMember: true,
 	},
 };
 

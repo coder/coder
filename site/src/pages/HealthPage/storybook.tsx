@@ -1,13 +1,3 @@
-import { chromatic } from "testHelpers/chromatic";
-import {
-	MockAppearanceConfig,
-	MockBuildInfo,
-	MockEntitlements,
-	MockExperiments,
-	MockHealth,
-	MockHealthSettings,
-} from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta } from "@storybook/react-vite";
 import {
 	type RouteDefinition,
@@ -18,6 +8,16 @@ import {
 	HEALTH_QUERY_KEY,
 	HEALTH_QUERY_SETTINGS_KEY,
 } from "#/api/queries/debug";
+import { chromatic } from "#/testHelpers/chromatic";
+import {
+	MockAppearanceConfig,
+	MockBuildInfo,
+	MockEntitlements,
+	MockExperiments,
+	MockHealth,
+	MockHealthSettings,
+} from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { HealthLayout } from "./HealthLayout";
 
 type MetaOptions = {

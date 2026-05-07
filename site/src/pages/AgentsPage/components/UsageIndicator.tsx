@@ -2,7 +2,6 @@ import dayjs from "dayjs";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
-import { formatCostMicros } from "utils/currency";
 import { chatUsageLimitStatus } from "#/api/queries/chats";
 import {
 	DropdownMenu,
@@ -11,6 +10,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { formatCostMicros } from "#/utils/currency";
 import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
 
 export const UsageIndicator: FC = () => {

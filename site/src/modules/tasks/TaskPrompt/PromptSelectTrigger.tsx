@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { cn } from "utils/cn";
 import {
 	SelectTrigger,
 	type SelectTriggerProps,
@@ -10,6 +9,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 type PromptSelectTriggerProps = SelectTriggerProps & {
 	tooltip: string;

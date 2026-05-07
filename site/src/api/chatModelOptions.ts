@@ -13,6 +13,8 @@ export interface FieldSchema {
 	type: "string" | "integer" | "number" | "boolean" | "array" | "object";
 	/** Human-readable description of the field. May be absent for some fields. */
 	description?: string;
+	/** Optional display label override. When absent, derive from json_name. */
+	label?: string;
 	/** Whether this field is required when configuring the provider. */
 	required: boolean;
 	/** Hint for how the frontend should render the input control. */

@@ -1,6 +1,5 @@
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
-import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -17,6 +16,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -204,7 +204,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
-			if (event.origin !== window.location.origin) return;
+			if (event.origin !== location.origin) return;
 			if (
 				event.data?.type === "mcp-oauth2-complete" &&
 				typeof event.data.serverID === "string"

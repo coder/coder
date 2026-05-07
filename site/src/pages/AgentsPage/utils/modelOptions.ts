@@ -1,6 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
-import { asNumber, asString } from "#/components/ai-elements/runtimeTypeUtils";
+import type { ModelSelectorOption } from "../components/ChatElements";
+import {
+	asNumber,
+	asString,
+} from "../components/ChatElements/runtimeTypeUtils";
 
 type RuntimeModelRef = {
 	readonly provider?: unknown;
@@ -35,6 +38,32 @@ type ModelOptionConfigLike =
 			readonly enabled?: unknown;
 			readonly context_limit?: unknown;
 	  });
+
+export const hasConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	return countConfiguredProviderConfigs(providerConfigs, catalog) > 0;
+};
+
+export const countConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): number => {
+	const availableProviders = getAvailableProviders(catalog);
+	return (
+		providerConfigs?.filter((providerConfig) => {
+			if (
+				providerConfig.source === "supported" ||
+				providerConfig.enabled !== true
+			) {
+				return false;
+			}
+			const provider = asString(providerConfig.provider).trim().toLowerCase();
+			return provider !== "" && availableProviders.has(provider);
+		}).length ?? 0
+	);
+};
 
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
@@ -77,6 +106,17 @@ export const hasConfiguredModelsInCatalog = (
 	catalog: ModelCatalogLike | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
+};
+
+export const hasUserFixableProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	if (!catalog?.providers) {
+		return false;
+	}
+	return catalog.providers.some(
+		(provider) => provider.unavailable_reason === "user_api_key_required",
+	);
 };
 
 const getAvailableProviders = (
@@ -202,6 +242,7 @@ export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,
 	hasConfiguredModels: boolean,
+	catalog?: TypesGen.ChatModelsResponse | null,
 ): string => {
 	if (modelOptions.length > 0) {
 		return "Select model";
@@ -210,7 +251,9 @@ export const getModelSelectorPlaceholder = (
 		return "Loading models...";
 	}
 	if (hasConfiguredModels) {
-		return "No Models Available";
+		return hasUserFixableProviders(catalog)
+			? "Configure API Keys"
+			: "No Models Available";
 	}
 	return "No Models Configured";
 };

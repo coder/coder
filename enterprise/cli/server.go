@@ -18,7 +18,6 @@ import (
 	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -162,38 +161,49 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		usageCron.Start(ctx)
 		closers.Add(usageCron)
 
-		// In-memory aibridge daemon.
-		// TODO(@deansheather): the lifecycle of the aibridged server is
-		// probably better managed by the enterprise API type itself. Managing
-		// it in the API type means we can avoid starting it up when the license
-		// is not entitled to the feature.
-		var aibridgeDaemon *aibridged.Server
-		if options.DeploymentValues.AI.BridgeConfig.Enabled {
-			aibridgeDaemon, err = newAIBridgeDaemon(api)
+		// Build the provider list and start AI Bridge daemons only when
+		// at least one of the bridge or proxy features is enabled.
+		bridgeEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value()
+		proxyEnabled := options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value()
+		if bridgeEnabled || proxyEnabled {
+			providers, err := buildProviders(options.DeploymentValues.AI.BridgeConfig)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("create aibridged: %w", err)
+				return nil, nil, xerrors.Errorf("build aibridge providers: %w", err)
 			}
 
-			api.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+			// In-memory aibridge daemon.
+			// TODO(@deansheather): the lifecycle of the aibridged server is
+			// probably better managed by the enterprise API type itself. Managing
+			// it in the API type means we can avoid starting it up when the license
+			// is not entitled to the feature.
+			if bridgeEnabled {
+				aibridgeDaemon, err := newAIBridgeDaemon(api, providers)
+				if err != nil {
+					return nil, nil, xerrors.Errorf("create aibridged: %w", err)
+				}
 
-			// When running as an in-memory daemon, the HTTP handler is wired into the
-			// coderd API and therefore is subject to its context. Calling Close() on
-			// aibridged will NOT affect in-flight requests but those will be closed once
-			// the API server is itself shutdown.
-			closers.Add(aibridgeDaemon)
-		}
+				api.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
 
-		// In-memory AI Bridge Proxy daemon
-		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api)
-			if err != nil {
-				_ = closers.Close()
-				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
+				// When running as an in-memory daemon, the HTTP handler is
+				// wired into the coderd API and therefore is subject to its
+				// context. Calling Close() on aibridged will NOT affect
+				// in-flight requests but those will be closed once the API
+				// server is itself shutdown.
+				closers.Add(aibridgeDaemon)
 			}
-			closers.Add(aiBridgeProxyServer)
 
-			// Register the handler so coderd can serve the proxy endpoints.
-			api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
+			// In-memory AI Bridge Proxy daemon.
+			if proxyEnabled {
+				aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api, providers)
+				if err != nil {
+					_ = closers.Close()
+					return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
+				}
+				closers.Add(aiBridgeProxyServer)
+
+				// Register the handler so coderd can serve the proxy endpoints.
+				api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
+			}
 		}
 
 		return api.AGPL, closers, nil

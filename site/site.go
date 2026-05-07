@@ -266,10 +266,9 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
-	TasksTabVisible  string
-	AgentsTabVisible string
-	Permissions      string
-	Organizations    string
+	TasksTabVisible string
+	Permissions     string
+	Organizations   string
 }
 
 type csrfState struct {
@@ -526,16 +525,6 @@ func (h *Handler) populateHTMLState(
 		}
 	})
 	wg.Go(func() {
-		agentsTabVisible := false
-		if experiments != nil {
-			agentsTabVisible = experiments.Enabled(codersdk.ExperimentAgents)
-		}
-		data, err := json.Marshal(agentsTabVisible)
-		if err == nil {
-			state.AgentsTabVisible = html.EscapeString(string(data))
-		}
-	})
-	wg.Go(func() {
 		sdkOrgs := slice.List(userOrgs, db2sdk.Organization)
 		data, err := json.Marshal(sdkOrgs)
 		if err == nil {
@@ -571,9 +560,16 @@ func init() {
 func (h *Handler) renderPermissions(ctx context.Context, actor rbac.Subject) string {
 	response := make(codersdk.AuthorizationResponse)
 	for k, v := range permissionChecks {
+		// Resolve the "me" sentinel so permission checks
+		// run against the actual actor, matching the
+		// API-side handling in coderd/authorize.go.
+		ownerID := v.Object.OwnerID
+		if ownerID == codersdk.Me {
+			ownerID = actor.ID
+		}
 		obj := rbac.Object{
 			ID:          v.Object.ResourceID,
-			Owner:       v.Object.OwnerID,
+			Owner:       ownerID,
 			OrgID:       v.Object.OrganizationID,
 			AnyOrgOwner: v.Object.AnyOrgOwner,
 			Type:        string(v.Object.ResourceType),
@@ -792,12 +788,12 @@ func (jfs justFilesSystem) Open(name string) (fs.File, error) {
 // RenderOAuthAllowData contains the variables that are found in
 // site/static/oauth2allow.html.
 type RenderOAuthAllowData struct {
-	AppIcon     string
-	AppName     string
-	CancelURI   string
-	RedirectURI string
-	CSRFToken   string
-	Username    string
+	AppIcon      string
+	AppName      string
+	CancelURI    htmltemplate.URL
+	DashboardURL string
+	CSRFToken    string
+	Username     string
 }
 
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create

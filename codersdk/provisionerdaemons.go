@@ -143,13 +143,14 @@ type ProvisionerJobInput struct {
 
 // ProvisionerJobMetadata contains metadata for the job.
 type ProvisionerJobMetadata struct {
-	TemplateVersionName string     `json:"template_version_name" table:"template version name"`
-	TemplateID          uuid.UUID  `json:"template_id" format:"uuid" table:"template id"`
-	TemplateName        string     `json:"template_name" table:"template name"`
-	TemplateDisplayName string     `json:"template_display_name" table:"template display name"`
-	TemplateIcon        string     `json:"template_icon" table:"template icon"`
-	WorkspaceID         *uuid.UUID `json:"workspace_id,omitempty" format:"uuid" table:"workspace id"`
-	WorkspaceName       string     `json:"workspace_name,omitempty" table:"workspace name"`
+	TemplateVersionName      string              `json:"template_version_name" table:"template version name"`
+	TemplateID               uuid.UUID           `json:"template_id" format:"uuid" table:"template id"`
+	TemplateName             string              `json:"template_name" table:"template name"`
+	TemplateDisplayName      string              `json:"template_display_name" table:"template display name"`
+	TemplateIcon             string              `json:"template_icon" table:"template icon"`
+	WorkspaceID              *uuid.UUID          `json:"workspace_id,omitempty" format:"uuid" table:"workspace id"`
+	WorkspaceName            string              `json:"workspace_name,omitempty" table:"workspace name"`
+	WorkspaceBuildTransition WorkspaceTransition `json:"workspace_build_transition,omitempty" table:"workspace build transition"`
 }
 
 // ProvisionerJobType represents the type of job.
@@ -166,6 +167,7 @@ type JobErrorCode string
 
 const (
 	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	InsufficientQuota         JobErrorCode = "INSUFFICIENT_QUOTA"
 )
 
 // JobIsMissingParameterErrorCode returns whether the error is a missing parameter error.
@@ -180,6 +182,13 @@ func JobIsMissingRequiredTemplateVariableErrorCode(code JobErrorCode) bool {
 	return string(code) == runner.RequiredTemplateVariablesErrorCode
 }
 
+// JobIsInsufficientQuotaErrorCode returns whether the error is an insufficient
+// quota error. This can indicate to consumers that they should explain quota
+// recovery options instead of treating the failure as a generic build error.
+func JobIsInsufficientQuotaErrorCode(code JobErrorCode) bool {
+	return string(code) == runner.InsufficientQuotaErrorCode
+}
+
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
 	ID               uuid.UUID              `json:"id" format:"uuid" table:"id"`
@@ -188,7 +197,7 @@ type ProvisionerJob struct {
 	CompletedAt      *time.Time             `json:"completed_at,omitempty" format:"date-time" table:"completed at"`
 	CanceledAt       *time.Time             `json:"canceled_at,omitempty" format:"date-time" table:"canceled at"`
 	Error            string                 `json:"error,omitempty" table:"error"`
-	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES" table:"error code"`
+	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES,INSUFFICIENT_QUOTA" table:"error code"`
 	Status           ProvisionerJobStatus   `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
 	WorkerID         *uuid.UUID             `json:"worker_id,omitempty" format:"uuid" table:"worker id"`
 	WorkerName       string                 `json:"worker_name,omitempty" table:"worker name"`

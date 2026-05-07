@@ -23,7 +23,7 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 }) => {
 	if (!isFeatureVisible) {
 		return (
-			<Dialog open={true}>
+			<Dialog open>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>

@@ -1,6 +1,4 @@
-import { Check, Plus } from "lucide-react";
-import type { Permissions } from "modules/permissions";
-import type { OrganizationPermissions } from "modules/permissions/organizations";
+import { CheckIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
@@ -22,6 +20,8 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
+import type { Permissions } from "#/modules/permissions";
+import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */
@@ -110,7 +110,7 @@ export const OrganizationSidebarView: FC<
 												{organization?.display_name || organization?.name}
 											</span>
 											{activeOrganization?.name === organization.name && (
-												<Check className="ml-auto" />
+												<CheckIcon className="ml-auto" />
 											)}
 										</CommandItem>
 									))}
@@ -129,7 +129,7 @@ export const OrganizationSidebarView: FC<
 												}, 200);
 											}}
 										>
-											<Plus /> Create Organization
+											<PlusIcon /> Create Organization
 										</CommandItem>
 									</CommandGroup>
 								</>

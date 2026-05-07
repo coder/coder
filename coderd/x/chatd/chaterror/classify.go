@@ -4,16 +4,46 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ClassifiedError is the normalized, user-facing view of an
 // underlying provider or runtime error.
 type ClassifiedError struct {
 	Message    string
-	Kind       string
+	Detail     string
+	Kind       codersdk.ChatErrorKind
 	Provider   string
 	Retryable  bool
 	StatusCode int
+
+	// RetryAfter is a normalized minimum retry delay derived from
+	// provider response metadata when available.
+	RetryAfter time.Duration
+}
+
+const responsesAPIDiagnosticMessage = "The chat continuation failed due to an " +
+	"internal state mismatch. This is not a configuration or billing issue."
+
+type responsesAPIDiagnosticMatch struct {
+	pattern string
+	detail  string
+}
+
+// responsesAPIDiagnosticMatches maps provider error fragments to safe
+// diagnostics. Details must not include provider item IDs because they are
+// returned to clients and used by operators for grepping.
+var responsesAPIDiagnosticMatches = []responsesAPIDiagnosticMatch{
+	{
+		pattern: "no tool output found for function call",
+		detail:  "OpenAI Responses API request continuity diagnostic: match=function_call_output_missing.",
+	},
+	{
+		pattern: "was provided without its required 'reasoning' item",
+		detail:  "OpenAI Responses API request continuity diagnostic: match=web_search_reasoning_missing.",
+	},
 }
 
 // WithProvider returns a copy of the classification using an explicit
@@ -71,22 +101,39 @@ func Classify(err error) ClassifiedError {
 		return normalizeClassification(wrapped.classified)
 	}
 
+	structured := extractProviderErrorDetails(err)
 	message := strings.TrimSpace(err.Error())
-	if message == "" {
+	if message == "" && structured.detail == "" && structured.statusCode == 0 && structured.retryAfter <= 0 {
 		return ClassifiedError{}
 	}
 
 	lower := strings.ToLower(message)
-	statusCode := extractStatusCode(lower)
+	statusCode := structured.statusCode
+	if statusCode == 0 {
+		statusCode = extractStatusCode(lower)
+	}
 	provider := detectProvider(lower)
 	canceled := errors.Is(err, context.Canceled) || strings.Contains(lower, "context canceled")
 	interrupted := containsAny(lower, interruptedPatterns...)
 	if canceled || interrupted {
 		return normalizeClassification(ClassifiedError{
 			Message:    "The request was canceled before it completed.",
-			Kind:       KindGeneric,
+			Detail:     structured.detail,
+			Kind:       codersdk.ChatErrorKindGeneric,
 			Provider:   provider,
 			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
+		})
+	}
+
+	if detail, ok := responsesAPIDiagnostic(lower, structured.detail); ok {
+		return normalizeClassification(ClassifiedError{
+			Message:    responsesAPIDiagnosticMessage,
+			Detail:     detail,
+			Kind:       codersdk.ChatErrorKindGeneric,
+			Provider:   provider,
+			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
 		})
 	}
 
@@ -109,42 +156,42 @@ func Classify(err error) ClassifiedError {
 	// the root cause when both signals appear.
 	rules := []struct {
 		match     bool
-		kind      string
+		kind      codersdk.ChatErrorKind
 		retryable bool
 	}{
 		{
 			match:     overloadedMatch,
-			kind:      KindOverloaded,
+			kind:      codersdk.ChatErrorKindOverloaded,
 			retryable: true,
 		},
 		{
 			match:     authStrong,
-			kind:      KindAuth,
+			kind:      codersdk.ChatErrorKindAuth,
 			retryable: false,
 		},
 		{
 			match:     authWeak && !configMatch,
-			kind:      KindAuth,
+			kind:      codersdk.ChatErrorKindAuth,
 			retryable: false,
 		},
 		{
 			match:     rateLimitMatch && !configMatch,
-			kind:      KindRateLimit,
+			kind:      codersdk.ChatErrorKindRateLimit,
 			retryable: true,
 		},
 		{
 			match:     timeoutMatch && !configMatch,
-			kind:      KindTimeout,
+			kind:      codersdk.ChatErrorKindTimeout,
 			retryable: !deadline,
 		},
 		{
 			match:     configMatch,
-			kind:      KindConfig,
+			kind:      codersdk.ChatErrorKindConfig,
 			retryable: false,
 		},
 		{
 			match:     genericRetryableMatch,
-			kind:      KindGeneric,
+			kind:      codersdk.ChatErrorKindGeneric,
 			retryable: true,
 		},
 	}
@@ -153,32 +200,68 @@ func Classify(err error) ClassifiedError {
 			continue
 		}
 		return normalizeClassification(ClassifiedError{
+			Detail:     structured.detail,
 			Kind:       rule.kind,
 			Provider:   provider,
 			Retryable:  rule.retryable,
 			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
 		})
 	}
 
 	return normalizeClassification(ClassifiedError{
-		Kind:       KindGeneric,
+		Detail:     structured.detail,
+		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,
+		RetryAfter: structured.retryAfter,
 	})
+}
+
+func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {
+	lowerDetail := strings.ToLower(detail)
+	for _, match := range responsesAPIDiagnosticMatches {
+		if strings.Contains(lowerMessage, match.pattern) || strings.Contains(lowerDetail, match.pattern) {
+			return match.detail, true
+		}
+	}
+	return "", false
 }
 
 func normalizeClassification(classified ClassifiedError) ClassifiedError {
 	classified.Message = strings.TrimSpace(classified.Message)
-	classified.Kind = strings.TrimSpace(classified.Kind)
+	classified.Detail = normalizeClassificationDetail(classified.Detail)
+	classified.Kind = codersdk.ChatErrorKind(strings.TrimSpace(string(classified.Kind)))
 	classified.Provider = normalizeProvider(classified.Provider)
+	if classified.RetryAfter < 0 {
+		classified.RetryAfter = 0
+	}
 	if classified.Kind == "" && classified.Message == "" {
-		return ClassifiedError{}
+		if classified.Detail == "" && classified.StatusCode == 0 &&
+			classified.RetryAfter <= 0 {
+			return ClassifiedError{}
+		}
+		classified.Kind = codersdk.ChatErrorKindGeneric
 	}
 	if classified.Kind == "" {
-		classified.Kind = KindGeneric
+		classified.Kind = codersdk.ChatErrorKindGeneric
 	}
 	if classified.Message == "" {
 		classified.Message = terminalMessage(classified)
 	}
 	return classified
+}
+
+const maxClassificationDetailRunes = 500
+
+func normalizeClassificationDetail(detail string) string {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return ""
+	}
+	runes := []rune(detail)
+	if len(runes) <= maxClassificationDetailRunes {
+		return detail
+	}
+	return string(runes[:maxClassificationDetailRunes-1]) + "…"
 }

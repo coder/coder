@@ -1,4 +1,5 @@
 import "../src/index.css";
+import "../src/theme/globalFonts";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
@@ -6,14 +7,13 @@ import {
 	StyledEngineProvider,
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
+import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
 import isChromatic from "chromatic/isChromatic";
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
-import "theme/globalFonts";
-import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
-import themes from "../src/theme";
+import themes, { baseModeFor, isConcreteThemeName } from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
@@ -49,6 +49,19 @@ export const parameters: Parameters = {
 					width: "390px",
 				},
 				type: "mobile",
+			},
+			// Approximates a 1440x900 desktop viewed at 200% browser zoom,
+			// which collapses the CSS viewport to 720x450. Used by stories
+			// that verify the desktop layout still renders at common zoom
+			// levels. Below the Tailwind sm: breakpoint (640 px), the
+			// AgentsPage collapses into the mobile stack, so 720 px stays
+			// on the desktop branch.
+			desktopZoom200: {
+				name: "Desktop @ 200% zoom (720x450)",
+				styles: {
+					height: "450px",
+					width: "720px",
+				},
 			},
 			terminal: {
 				name: "Terminal",
@@ -87,20 +100,21 @@ const withQuery: Decorator = (Story, { parameters }) => {
 
 const withTheme: Decorator = (Story, context) => {
 	const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
-	const { themeOverride } = DecoratorHelpers.useThemeParameters();
+	const { themeOverride } = DecoratorHelpers.useThemeParameters() ?? {};
 	const selected = themeOverride || selectedTheme || "dark";
-
+	const concreteName = isConcreteThemeName(selected) ? selected : "dark";
+	const htmlClassName = `${baseModeFor(concreteName)} ${concreteName}`;
 	// Ensure the correct theme is applied to Tailwind CSS classes by adding the
-	// theme to the HTML class list. This approach is necessary because Tailwind
-	// CSS relies on class names to apply styles, and dynamically changing themes
-	// requires updating the class list accordingly.
-	document.querySelector("html")?.setAttribute("class", selected);
+	// concrete theme and base mode to the HTML class list. This mirrors the
+	// production ThemeProvider so Tailwind's selector-based `dark:` variant keeps
+	// working in Storybook when a dark colorblind variant is active.
+	document.querySelector("html")?.setAttribute("class", htmlClassName);
 
 	return (
 		<StrictMode>
 			<StyledEngineProvider injectFirst>
-				<MuiThemeProvider theme={themes[selected]}>
-					<EmotionThemeProvider theme={themes[selected]}>
+				<MuiThemeProvider theme={themes[concreteName]}>
+					<EmotionThemeProvider theme={themes[concreteName]}>
 						<TooltipProvider delayDuration={100}>
 							<CssBaseline />
 							<Story />

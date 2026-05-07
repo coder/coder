@@ -1,6 +1,6 @@
 // Package chatretry provides retry logic for transient LLM provider
-// errors. It classifies errors as retryable or permanent and
-// implements exponential backoff matching the behavior of coder/mux.
+// errors. It classifies errors as retryable or permanent and uses
+// exponential backoff with provider retry hints when available.
 package chatretry
 
 import (
@@ -50,6 +50,16 @@ func Delay(attempt int) time.Duration {
 	return d
 }
 
+// effectiveDelay returns the delay for the given 0-indexed attempt
+// while honoring any provider-supplied minimum retry delay.
+func effectiveDelay(attempt int, classified ClassifiedError) time.Duration {
+	delay := Delay(attempt)
+	if classified.RetryAfter > delay {
+		return classified.RetryAfter
+	}
+	return delay
+}
+
 // RetryFn is the function to retry. It receives a context and returns
 // an error. The context may be a child of the original with adjusted
 // deadlines for individual attempts.
@@ -62,7 +72,8 @@ type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay ti
 
 // Retry calls fn repeatedly until it succeeds, returns a
 // non-retryable error, ctx is canceled, or MaxAttempts is reached.
-// Retries use exponential backoff capped at MaxDelay.
+// Retries use exponential backoff capped at MaxDelay, unless the
+// normalized error includes a longer provider Retry-After hint.
 //
 // The onRetry callback (if non-nil) is called before each retry
 // attempt, giving the caller a chance to reset state, log, or
@@ -94,7 +105,7 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 			)
 		}
 
-		delay := Delay(attempt - 1)
+		delay := effectiveDelay(attempt-1, classified)
 
 		if onRetry != nil {
 			onRetry(attempt, err, classified, delay)

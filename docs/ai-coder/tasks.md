@@ -1,5 +1,12 @@
 # Coder Tasks
 
+> [!WARNING]
+> Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.
+>
+> Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
+>
+> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
+
 Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider, powered by Coder workspaces.
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)
@@ -15,7 +22,7 @@ The Task details view shows the user's complete chat, workspace status and, buil
 ![VS Code IDE Extension Details View](../images/guides/ai-agents/vs_code_tasks_extension_details.png)
 
 > [!NOTE]
-> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Bridge](./ai-bridge/index.md) or [Agent Boundaries](./agent-boundaries/index.md). To scale beyond the 1,000 build limit or enable AI Governance features, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
+> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md). To scale beyond the 1,000 build limit or enable AI Governance features, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
 
 ## Supported Agents (and Models)
 

@@ -6,6 +6,15 @@ FROM
 WHERE
     id = @id::uuid;
 
+-- name: GetChatProviderByIDForUpdate :one
+SELECT
+    *
+FROM
+    chat_providers
+WHERE
+    id = @id::uuid
+FOR UPDATE;
+
 -- name: GetChatProviderByProvider :one
 SELECT
     *
@@ -13,6 +22,15 @@ FROM
     chat_providers
 WHERE
     provider = @provider::text;
+
+-- name: GetChatProviderByProviderForUpdate :one
+SELECT
+    *
+FROM
+    chat_providers
+WHERE
+    provider = @provider::text
+FOR UPDATE;
 
 -- name: GetChatProviders :many
 SELECT
@@ -40,7 +58,10 @@ INSERT INTO chat_providers (
     base_url,
     api_key_key_id,
     created_by,
-    enabled
+    enabled,
+    central_api_key_enabled,
+    allow_user_api_key,
+    allow_central_api_key_fallback
 ) VALUES (
     @provider::text,
     @display_name::text,
@@ -48,7 +69,10 @@ INSERT INTO chat_providers (
     @base_url::text,
     sqlc.narg('api_key_key_id')::text,
     sqlc.narg('created_by')::uuid,
-    @enabled::boolean
+    @enabled::boolean,
+    @central_api_key_enabled::boolean,
+    @allow_user_api_key::boolean,
+    @allow_central_api_key_fallback::boolean
 )
 RETURNING
     *;
@@ -62,6 +86,9 @@ SET
     base_url = @base_url::text,
     api_key_key_id = sqlc.narg('api_key_key_id')::text,
     enabled = @enabled::boolean,
+    central_api_key_enabled = @central_api_key_enabled::boolean,
+    allow_user_api_key = @allow_user_api_key::boolean,
+    allow_central_api_key_fallback = @allow_central_api_key_fallback::boolean,
     updated_at = NOW()
 WHERE
     id = @id::uuid

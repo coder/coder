@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/regions \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /regions`
+`GET /api/v2/regions`
 
 ### Example responses
 

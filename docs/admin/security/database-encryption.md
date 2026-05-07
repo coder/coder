@@ -23,6 +23,7 @@ The following database fields are currently encrypted:
 - `external_auth_links.oauth_access_token`
 - `external_auth_links.oauth_refresh_token`
 - `crypto_keys.secret`
+- `user_secrets.value`
 
 Additional database fields may be encrypted in the future.
 

@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/netip"
+	neturl "net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -42,6 +44,40 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 	}
 }
 
+// WrapAgentConn returns an AgentConn that delegates every operation to conn and
+// applies closeFunc exactly once when the logical session is closed.
+//
+// If conn is nil, any provided closeFunc is invoked immediately so logical
+// session cleanup is not silently dropped.
+func WrapAgentConn(conn AgentConn, closeFunc func() error) AgentConn {
+	if conn == nil {
+		if closeFunc != nil {
+			_ = closeFunc()
+		}
+		return nil
+	}
+	if closeFunc == nil {
+		closeFunc = func() error { return nil }
+	}
+	return &wrappedAgentConn{AgentConn: conn, closeFunc: closeFunc}
+}
+
+type wrappedAgentConn struct {
+	AgentConn
+	closeFunc func() error
+	closeOnce sync.Once
+	closeErr  error
+}
+
+func (c *wrappedAgentConn) Close() error {
+	c.closeOnce.Do(func() {
+		// Close the underlying connection before releasing the logical session so
+		// the lease remains held until teardown is complete.
+		c.closeErr = errors.Join(c.AgentConn.Close(), c.closeFunc())
+	})
+	return c.closeErr
+}
+
 const (
 	// CoderChatIDHeader is the HTTP header containing the current
 	// chat ID. Set by coderd on agentconn requests originating
@@ -59,13 +95,16 @@ type AgentConn interface {
 	SetExtraHeaders(h http.Header)
 
 	AwaitReachable(ctx context.Context) bool
+	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
+	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
+	ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error)
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
@@ -78,10 +117,11 @@ type AgentConn interface {
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
+	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
-	EditFiles(ctx context.Context, edits FileEditRequest) error
+	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -91,6 +131,8 @@ type AgentConn interface {
 	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
 	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
+	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
+	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -593,6 +635,37 @@ type DesktopActionResponse struct {
 	ScreenshotHeight int    `json:"screenshot_height,omitempty"`
 }
 
+// StartDesktopRecordingRequest is the request body for starting a
+// desktop recording session.
+type StartDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// StopDesktopRecordingRequest is the request body for stopping a
+// desktop recording session.
+type StopDesktopRecordingRequest struct {
+	RecordingID string `json:"recording_id"`
+}
+
+// StopDesktopRecordingResponse wraps the response from stopping a
+// desktop recording. Body contains the recording data as a
+// multipart/mixed stream. ContentType holds the Content-Type
+// header (including boundary) so callers can parse the body.
+type StopDesktopRecordingResponse struct {
+	Body        io.ReadCloser
+	ContentType string
+}
+
+// MaxRecordingSize is the largest desktop recording (in bytes)
+// that will be accepted. Used by both the agent-side stop handler
+// and the server-side storage pipeline.
+const MaxRecordingSize = 100 << 20 // 100 MB
+
+// MaxThumbnailSize is the largest thumbnail (in bytes) that will
+// be accepted. Applied both agent-side (before streaming) and
+// server-side (when parsing multipart parts).
+const MaxThumbnailSize = 10 << 20 // 10 MB
+
 // ExecuteDesktopAction executes a mouse/keyboard/scroll action on the
 // agent's desktop.
 func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error) {
@@ -638,6 +711,48 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 		return DesktopActionResponse{}, xerrors.Errorf("decode action response: %w", err)
 	}
 	return result, nil
+}
+
+// StartDesktopRecording starts a desktop recording session on the
+// agent with the given recording ID. The recording ID is
+// caller-provided and must be unique. Idempotent — if the ID is
+// already recording, returns success.
+func (c *agentConn) StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/start", req)
+	if err != nil {
+		return xerrors.Errorf("start recording request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// StopDesktopRecording stops a desktop recording session on the
+// agent and returns the recording as a StopDesktopRecordingResponse.
+// The response body is a multipart/mixed stream containing the
+// video (and optionally a JPEG thumbnail). The caller is
+// responsible for closing the returned Body. Idempotent — safe
+// to call on an already-stopped recording.
+func (c *agentConn) StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/desktop/recording/stop", req)
+	if err != nil {
+		return StopDesktopRecordingResponse{}, xerrors.Errorf("stop recording request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return StopDesktopRecordingResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	// Caller is responsible for closing res.Body.
+	return StopDesktopRecordingResponse{
+		Body:        res.Body,
+		ContentType: res.Header.Get("Content-Type"),
+	}, nil
 }
 
 // DeleteDevcontainer deletes the provided devcontainer.
@@ -777,7 +892,9 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/list-directory?path=%s", path), req)
+	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/list-directory", neturl.Values{
+		"path": []string{path},
+	}), req)
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -793,16 +910,50 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	return m, nil
 }
 
+// ResolvePathResponse is the response from the agent's path-resolution endpoint.
+type ResolvePathResponse struct {
+	ResolvedPath string `json:"resolved_path"`
+}
+
+// ResolvePath resolves the existing portion of an absolute path through any
+// symlinks and preserves missing trailing components.
+func (c *agentConn) ResolvePath(ctx context.Context, path string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/resolve-path", neturl.Values{
+		"path": []string{path},
+	}), nil)
+	if err != nil {
+		return "", xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", codersdk.ReadBodyAsError(res)
+	}
+
+	var m ResolvePathResponse
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return "", xerrors.Errorf("decode response body: %w", err)
+	}
+	return m.ResolvedPath, nil
+}
+
 // ReadFileLines reads a file with line-based offset and limit, returning
 // line-numbered content with safety limits.
 func (c *agentConn) ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf(
-		"/api/v0/read-file-lines?path=%s&offset=%d&limit=%d&max_file_size=%d&max_line_bytes=%d&max_response_lines=%d&max_response_bytes=%d",
-		path, offset, limit, limits.MaxFileSize, limits.MaxLineBytes, limits.MaxResponseLines, limits.MaxResponseBytes,
-	), nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file-lines", neturl.Values{
+		"path":               []string{path},
+		"offset":             []string{strconv.FormatInt(offset, 10)},
+		"limit":              []string{strconv.FormatInt(limit, 10)},
+		"max_file_size":      []string{strconv.FormatInt(limits.MaxFileSize, 10)},
+		"max_line_bytes":     []string{strconv.Itoa(limits.MaxLineBytes)},
+		"max_response_lines": []string{strconv.Itoa(limits.MaxResponseLines)},
+		"max_response_bytes": []string{strconv.Itoa(limits.MaxResponseBytes)},
+	}), nil)
 	if err != nil {
 		return ReadFileLinesResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -825,7 +976,11 @@ func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int
 	defer span.End()
 
 	//nolint:bodyclose // we want to return the body so the caller can stream.
-	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/read-file?path=%s&offset=%d&limit=%d", path, offset, limit), nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", neturl.Values{
+		"path":   []string{path},
+		"offset": []string{strconv.FormatInt(offset, 10)},
+		"limit":  []string{strconv.FormatInt(limit, 10)},
+	}), nil)
 	if err != nil {
 		return nil, "", xerrors.Errorf("do request: %w", err)
 	}
@@ -847,7 +1002,9 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/write-file?path=%s", path), reader)
+	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/write-file", neturl.Values{
+		"path": []string{path},
+	}), reader)
 	if err != nil {
 		return xerrors.Errorf("do request: %w", err)
 	}
@@ -921,6 +1078,83 @@ type FileEdits struct {
 
 type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
+	// IncludeDiff asks the agent to compute a unified diff per file
+	// and return it in FileEditResponse.Files[i].Diff. When false
+	// (default) the agent skips diff computation and Files is nil.
+	IncludeDiff bool `json:"include_diff,omitempty"`
+}
+
+// FileEditResponse is the success response for the edit-files endpoint.
+// When the request's IncludeDiff flag is set, Files contains one entry
+// per edited file in request order. Each entry's Path matches the
+// caller-supplied path (pre-symlink resolution).
+//
+// The slice is named Files (rather than Diffs) so future work can
+// hang per-file errors or status off each element without a second
+// wire break.
+type FileEditResponse struct {
+	Files []FileEditResult `json:"files,omitempty"`
+}
+
+// FileEditResult carries the outcome of editing one file. Path is
+// the original caller-supplied path, not any symlink-resolved
+// target. Diff is the unified-diff string produced when the
+// caller set FileEditRequest.IncludeDiff; it is empty for no-op
+// edits or when diffs were not requested.
+type FileEditResult struct {
+	Path string `json:"path"`
+	Diff string `json:"diff"`
+}
+
+// ListMCPToolsResponse is the response from the agent's
+// MCP tool discovery endpoint.
+type ListMCPToolsResponse struct {
+	Tools []MCPToolInfo `json:"tools"`
+}
+
+// MCPToolInfo describes a single tool discovered from an MCP
+// server configured in the workspace's .mcp.json file.
+type MCPToolInfo struct {
+	// ServerName is the key from .mcp.json (e.g. "github").
+	ServerName string `json:"server_name"`
+	// Name is the prefixed tool name: "serverName__toolName".
+	Name string `json:"name"`
+	// Description is the tool's human-readable description.
+	Description string `json:"description"`
+	// Schema is the JSON Schema for the tool's input parameters.
+	Schema map[string]any `json:"schema"`
+	// Required lists required parameter names.
+	Required []string `json:"required"`
+}
+
+// ContextConfigResponse is the response from the agent's context
+// configuration endpoint. Contains pre-read instruction file
+// contents and discovered skill metadata as chat message parts.
+type ContextConfigResponse struct {
+	Parts []codersdk.ChatMessagePart `json:"parts"`
+}
+
+// CallMCPToolRequest is the request body for proxying an MCP
+// tool call through the workspace agent.
+type CallMCPToolRequest struct {
+	// ToolName is the prefixed tool name (e.g. "github__create_issue").
+	ToolName string `json:"tool_name"`
+	// Arguments is the tool input as key-value pairs.
+	Arguments map[string]any `json:"arguments"`
+}
+
+// CallMCPToolResponse is the response from a proxied MCP tool call.
+type CallMCPToolResponse struct {
+	Content []MCPToolContent `json:"content"`
+	IsError bool             `json:"is_error"`
+}
+
+// MCPToolContent is a single content block in an MCP tool response.
+type MCPToolContent struct {
+	Type      string `json:"type"` // "text", "image", "audio", "resource"
+	Text      string `json:"text,omitempty"`
+	Data      string `json:"data,omitempty"` // base64 for binary
+	MediaType string `json:"media_type,omitempty"`
 }
 
 // StartProcess starts a new process on the workspace agent.
@@ -952,6 +1186,57 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListProcessesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ListMCPTools returns tools discovered from MCP servers configured
+// in the workspace.
+func (c *agentConn) ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/mcp/tools", nil)
+	if err != nil {
+		return ListMCPToolsResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListMCPToolsResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ListMCPToolsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ContextConfig returns the resolved context configuration from
+// the workspace agent.
+func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/context-config", nil)
+	if err != nil {
+		return ContextConfigResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ContextConfigResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// CallMCPTool proxies a tool call to an MCP server running in
+// the workspace.
+func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/mcp/call-tool", req)
+	if err != nil {
+		return CallMCPToolResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp CallMCPToolResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -995,24 +1280,34 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 }
 
 // EditFiles performs search and replace edits on one or more files.
-func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error {
+// When edits.IncludeDiff is true, the returned FileEditResponse
+// carries a unified diff per edited file.
+func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return FileEditResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var m codersdk.Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
-		return xerrors.Errorf("decode response body: %w", err)
+	var resp FileEditResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return FileEditResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
-	return nil
+	return resp, nil
+}
+
+func agentAPIPath(path string, query neturl.Values) string {
+	if len(query) == 0 {
+		return path
+	}
+
+	return path + "?" + query.Encode()
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.

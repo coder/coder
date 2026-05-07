@@ -123,6 +123,9 @@ func dialWithLazyValidation(
 	validateBinding := func() (uuid.UUID, error) {
 		validatedAgentID, err := validateFn(ctx, workspaceID)
 		if err != nil {
+			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
+				return uuid.Nil, errChatHasNoWorkspaceAgent
+			}
 			return uuid.Nil, wrapErr(err)
 		}
 		return validatedAgentID, nil
@@ -150,10 +153,19 @@ func dialWithLazyValidation(
 		return resolveFastFailure()
 
 	case <-timer.C:
-		validatedAgentID, validationErr := validateFn(ctx, workspaceID)
-		if validationErr != nil || validatedAgentID == agentID {
+		validatedAgentID, validationErr := validateBinding()
+		if validationErr != nil {
+			if xerrors.Is(validationErr, errChatHasNoWorkspaceAgent) {
+				dialCancel()
+				return DialResult{}, validationErr
+			}
 			// Validation could not prove the binding was stale, so keep waiting on
 			// the original dial.
+			return waitForOriginalDial(ctx)
+		}
+		if validatedAgentID == agentID {
+			// Validation confirmed the current binding, so keep waiting on the
+			// original dial.
 			return waitForOriginalDial(ctx)
 		}
 		// The original dial is stale. Cancel it first, then let the deferred drain

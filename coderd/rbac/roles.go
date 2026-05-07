@@ -21,6 +21,7 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
+	agentsAccess  string = "agents-access"
 	// customSiteRole is a placeholder for all custom site roles.
 	// This is used for what roles can assign other roles.
 	// TODO: Make this more dynamic to allow other roles to grant.
@@ -142,6 +143,7 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
+func RoleAgentsAccess() string          { return agentsAccess }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -195,6 +197,10 @@ func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
 
 func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
+}
+
+func ScopedRoleAgentsAccess(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleAgentsAccess(), OrganizationID: organizationID}
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -288,7 +294,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners cannot access other users' secrets.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage, ResourceAiSeat),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
@@ -316,7 +322,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception, ResourceChat, ResourceAiSeat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -364,6 +370,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// CRUD all files, even those they did not upload.
 			ResourceFile.Type:              {policy.ActionCreate, policy.ActionRead},
 			ResourceWorkspace.Type:         {policy.ActionRead},
+			ResourceWorkspaceDormant.Type:  {policy.ActionRead},
 			ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			// CRUD to provisioner daemons for now.
 			ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
@@ -420,10 +427,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			return auditorRole
 		},
 
+		// templateAdmin grants all actions on templates, files,
+		// provisioner daemons, and prebuilt workspaces.
 		templateAdmin: func(_ uuid.UUID) Role {
 			return templateAdminRole
 		},
 
+		// userAdmin grants all actions on users, groups, roles,
+		// and organization membership.
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
 		},
@@ -444,7 +455,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
 						Org: append(
-							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage),
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceAiSeat),
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
@@ -522,6 +533,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceTemplate.Type:          ResourceTemplate.AvailableActions(),
 							ResourceFile.Type:              {policy.ActionCreate, policy.ActionRead},
 							ResourceWorkspace.Type:         {policy.ActionRead},
+							ResourceWorkspaceDormant.Type:  {policy.ActionRead},
 							ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 							// Assigning template perms requires this permission.
 							ResourceOrganization.Type:       {policy.ActionRead},
@@ -577,6 +589,30 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		// agentsAccess grants org members permission to create, read, and
+		// update chats. ActionDelete is intentionally excluded: no dbauthz
+		// function checks it on ResourceChat. Hard-deletion goes through
+		// ResourceSystem (dbpurge).
+		agentsAccess: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
+				DisplayName: "Coder Agents User",
+				Site:        []Permission{},
+				User:        []Permission{},
+				ByOrgID: map[string]OrgPermissions{
+					organizationID.String(): {
+						Org: []Permission{},
+						Member: Permissions(map[string][]policy.Action{
+							ResourceChat.Type: {
+								policy.ActionCreate,
+								policy.ActionRead,
+								policy.ActionUpdate,
+							},
+						}),
+					},
+				},
+			}
+		},
 	}
 }
 
@@ -600,6 +636,7 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
+		agentsAccess:            true,
 	},
 	owner: {
 		owner:                   true,
@@ -615,10 +652,12 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
+		agentsAccess:            true,
 	},
 	userAdmin: {
-		member:    true,
-		orgMember: true,
+		member:       true,
+		orgMember:    true,
+		agentsAccess: true,
 	},
 	orgAdmin: {
 		orgAdmin:                true,
@@ -628,10 +667,13 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		customOrganizationRole:  true,
+		agentsAccess:            true,
 	},
 	orgUserAdmin: {
-		orgMember: true,
+		orgMember:    true,
+		agentsAccess: true,
 	},
+
 	prebuildsOrchestrator: {
 		orgMember: true,
 	},
@@ -1002,7 +1044,10 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			ResourceUser,
 			ResourceOrganizationMember,
 			ResourceAibridgeInterception,
+			// Chat access requires the agents-access role.
+			ResourceChat,
 		),
+
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
 			// ssh, or exec.
@@ -1084,7 +1129,10 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			ResourceUser,
 			ResourceOrganizationMember,
 			ResourceAibridgeInterception,
+			// Chat access requires the agents-access role.
+			ResourceChat,
 		),
+
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
 			// ssh, or exec.

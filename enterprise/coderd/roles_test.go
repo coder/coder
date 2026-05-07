@@ -452,7 +452,12 @@ func TestCustomOrganizationRole(t *testing.T) {
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
+	dv := coderdtest.DeploymentValues(t)
+
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
@@ -500,6 +505,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        false,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            false,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: false,
+				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     false,
 			}),
 		},
 		{
@@ -533,6 +539,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     true,
 			}),
 		},
 		{
@@ -566,6 +573,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleAgentsAccess, OrganizationID: owner.OrganizationID}:                     true,
 			}),
 		},
 	}

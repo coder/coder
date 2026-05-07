@@ -1,11 +1,11 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersionWithMarkdownMessage,
 	mockApiError,
-} from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+} from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import {
 	TemplateVersionPageView,
 	type TemplateVersionPageViewProps,

@@ -1,11 +1,5 @@
 import { useFormik } from "formik";
-import { isEveryoneGroup } from "modules/groups";
 import type { FC } from "react";
-import {
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
 import type { Group } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -13,6 +7,12 @@ import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { isEveryoneGroup } from "#/modules/groups";
+import {
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 type FormData = {
 	name: string;

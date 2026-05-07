@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members`
+`GET /api/v2/organizations/{organization}/members`
 
 ### Parameters
 
@@ -36,6 +36,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
         "organization_id": "string"
       }
     ],
+    "has_ai_seat": true,
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
@@ -68,28 +69,29 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Status Code **200**
 
-| Name                   | Type                                                 | Required | Restrictions | Description |
-|------------------------|------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`         | array                                                | false    |              |             |
-| `» avatar_url`         | string                                               | false    |              |             |
-| `» created_at`         | string(date-time)                                    | false    |              |             |
-| `» email`              | string                                               | false    |              |             |
-| `» global_roles`       | array                                                | false    |              |             |
-| `»» display_name`      | string                                               | false    |              |             |
-| `»» name`              | string                                               | false    |              |             |
-| `»» organization_id`   | string                                               | false    |              |             |
-| `» is_service_account` | boolean                                              | false    |              |             |
-| `» last_seen_at`       | string(date-time)                                    | false    |              |             |
-| `» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
-| `» name`               | string                                               | false    |              |             |
-| `» organization_id`    | string(uuid)                                         | false    |              |             |
-| `» roles`              | array                                                | false    |              |             |
-| `» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
-| `» updated_at`         | string(date-time)                                    | false    |              |             |
-| `» user_created_at`    | string(date-time)                                    | false    |              |             |
-| `» user_id`            | string(uuid)                                         | false    |              |             |
-| `» user_updated_at`    | string(date-time)                                    | false    |              |             |
-| `» username`           | string                                               | false    |              |             |
+| Name                   | Type                                                 | Required | Restrictions | Description                                                                                      |
+|------------------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `[array item]`         | array                                                | false    |              |                                                                                                  |
+| `» avatar_url`         | string                                               | false    |              |                                                                                                  |
+| `» created_at`         | string(date-time)                                    | false    |              |                                                                                                  |
+| `» email`              | string                                               | false    |              |                                                                                                  |
+| `» global_roles`       | array                                                | false    |              |                                                                                                  |
+| `»» display_name`      | string                                               | false    |              |                                                                                                  |
+| `»» name`              | string                                               | false    |              |                                                                                                  |
+| `»» organization_id`   | string                                               | false    |              |                                                                                                  |
+| `» has_ai_seat`        | boolean                                              | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `» is_service_account` | boolean                                              | false    |              |                                                                                                  |
+| `» last_seen_at`       | string(date-time)                                    | false    |              |                                                                                                  |
+| `» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |                                                                                                  |
+| `» name`               | string                                               | false    |              |                                                                                                  |
+| `» organization_id`    | string(uuid)                                         | false    |              |                                                                                                  |
+| `» roles`              | array                                                | false    |              |                                                                                                  |
+| `» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |                                                                                                  |
+| `» updated_at`         | string(date-time)                                    | false    |              |                                                                                                  |
+| `» user_created_at`    | string(date-time)                                    | false    |              |                                                                                                  |
+| `» user_id`            | string(uuid)                                         | false    |              |                                                                                                  |
+| `» user_updated_at`    | string(date-time)                                    | false    |              |                                                                                                  |
+| `» username`           | string                                               | false    |              |                                                                                                  |
 
 #### Enumerated Values
 
@@ -111,7 +113,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members/roles`
+`GET /api/v2/organizations/{organization}/members/roles`
 
 ### Parameters
 
@@ -191,10 +193,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `resource_type` | `*`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -210,7 +212,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /organizations/{organization}/members/roles`
+`PUT /api/v2/organizations/{organization}/members/roles`
 
 > Body parameter
 
@@ -324,10 +326,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `resource_type` | `*`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -343,7 +345,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/members/roles`
+`POST /api/v2/organizations/{organization}/members/roles`
 
 > Body parameter
 
@@ -457,10 +459,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `resource_type` | `*`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -475,7 +477,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}/members/roles/{roleName}`
+`DELETE /api/v2/organizations/{organization}/members/roles/{roleName}`
 
 ### Parameters
 
@@ -552,10 +554,10 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `resource_type` | `*`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -570,7 +572,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members/{user}`
+`GET /api/v2/organizations/{organization}/members/{user}`
 
 ### Parameters
 
@@ -595,6 +597,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
       "organization_id": "string"
     }
   ],
+  "has_ai_seat": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -635,7 +638,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/members/{user}`
+`POST /api/v2/organizations/{organization}/members/{user}`
 
 ### Parameters
 
@@ -682,7 +685,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}/members/{user}`
+`DELETE /api/v2/organizations/{organization}/members/{user}`
 
 ### Parameters
 
@@ -711,7 +714,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /organizations/{organization}/members/{user}/roles`
+`PUT /api/v2/organizations/{organization}/members/{user}/roles`
 
 > Body parameter
 
@@ -770,7 +773,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/paginated-members`
+`GET /api/v2/organizations/{organization}/paginated-members`
 
 ### Parameters
 
@@ -802,6 +805,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
             "organization_id": "string"
           }
         ],
+        "has_ai_seat": true,
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
@@ -836,30 +840,31 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 Status Code **200**
 
-| Name                    | Type                                                 | Required | Restrictions | Description |
-|-------------------------|------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`          | array                                                | false    |              |             |
-| `» count`               | integer                                              | false    |              |             |
-| `» members`             | array                                                | false    |              |             |
-| `»» avatar_url`         | string                                               | false    |              |             |
-| `»» created_at`         | string(date-time)                                    | false    |              |             |
-| `»» email`              | string                                               | false    |              |             |
-| `»» global_roles`       | array                                                | false    |              |             |
-| `»»» display_name`      | string                                               | false    |              |             |
-| `»»» name`              | string                                               | false    |              |             |
-| `»»» organization_id`   | string                                               | false    |              |             |
-| `»» is_service_account` | boolean                                              | false    |              |             |
-| `»» last_seen_at`       | string(date-time)                                    | false    |              |             |
-| `»» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
-| `»» name`               | string                                               | false    |              |             |
-| `»» organization_id`    | string(uuid)                                         | false    |              |             |
-| `»» roles`              | array                                                | false    |              |             |
-| `»» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
-| `»» updated_at`         | string(date-time)                                    | false    |              |             |
-| `»» user_created_at`    | string(date-time)                                    | false    |              |             |
-| `»» user_id`            | string(uuid)                                         | false    |              |             |
-| `»» user_updated_at`    | string(date-time)                                    | false    |              |             |
-| `»» username`           | string                                               | false    |              |             |
+| Name                    | Type                                                 | Required | Restrictions | Description                                                                                      |
+|-------------------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `[array item]`          | array                                                | false    |              |                                                                                                  |
+| `» count`               | integer                                              | false    |              |                                                                                                  |
+| `» members`             | array                                                | false    |              |                                                                                                  |
+| `»» avatar_url`         | string                                               | false    |              |                                                                                                  |
+| `»» created_at`         | string(date-time)                                    | false    |              |                                                                                                  |
+| `»» email`              | string                                               | false    |              |                                                                                                  |
+| `»» global_roles`       | array                                                | false    |              |                                                                                                  |
+| `»»» display_name`      | string                                               | false    |              |                                                                                                  |
+| `»»» name`              | string                                               | false    |              |                                                                                                  |
+| `»»» organization_id`   | string                                               | false    |              |                                                                                                  |
+| `»» has_ai_seat`        | boolean                                              | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `»» is_service_account` | boolean                                              | false    |              |                                                                                                  |
+| `»» last_seen_at`       | string(date-time)                                    | false    |              |                                                                                                  |
+| `»» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |                                                                                                  |
+| `»» name`               | string                                               | false    |              |                                                                                                  |
+| `»» organization_id`    | string(uuid)                                         | false    |              |                                                                                                  |
+| `»» roles`              | array                                                | false    |              |                                                                                                  |
+| `»» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |                                                                                                  |
+| `»» updated_at`         | string(date-time)                                    | false    |              |                                                                                                  |
+| `»» user_created_at`    | string(date-time)                                    | false    |              |                                                                                                  |
+| `»» user_id`            | string(uuid)                                         | false    |              |                                                                                                  |
+| `»» user_updated_at`    | string(date-time)                                    | false    |              |                                                                                                  |
+| `»» username`           | string                                               | false    |              |                                                                                                  |
 
 #### Enumerated Values
 
@@ -881,7 +886,7 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/roles`
+`GET /api/v2/users/roles`
 
 ### Example responses
 
@@ -955,9 +960,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `resource_type` | `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `resource_type` | `*`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

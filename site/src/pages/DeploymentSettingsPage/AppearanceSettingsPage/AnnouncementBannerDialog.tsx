@@ -2,14 +2,13 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { AnnouncementBannerView } from "modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
-import { getFormHelpers } from "utils/formUtils";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Dialog, DialogActionButtons } from "#/components/Dialogs/Dialog";
-import { Stack } from "#/components/Stack/Stack";
+import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
+import { getFormHelpers } from "#/utils/formUtils";
 
 interface AnnouncementBannerDialogProps {
 	banner: BannerConfig;
@@ -41,7 +40,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	return (
 		<Dialog css={styles.dialogWrapper} open onClose={onCancel}>
 			{/* Banner preview */}
-			<div css={{ position: "fixed", top: 0, left: 0, right: 0 }}>
+			<div className="fixed top-0 left-0 right-0">
 				<AnnouncementBannerView
 					message={bannerForm.values.message}
 					backgroundColor={bannerForm.values.background_color}
@@ -50,7 +49,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 
 			<div css={styles.dialogContent}>
 				<h3 css={styles.dialogTitle}>Announcement banner</h3>
-				<Stack>
+				<div className="flex flex-col gap-4">
 					<div>
 						<h4 css={styles.settingName}>Message</h4>
 						<TextField
@@ -67,7 +66,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 					</div>
 					<div>
 						<h4 css={styles.settingName}>Background color</h4>
-						<Stack spacing={2}>
+						<div className="flex flex-col gap-4">
 							{showHuePicker ? (
 								<SliderPicker
 									color={bannerForm.values.background_color}
@@ -127,9 +126,9 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 									Show {showHuePicker ? "palette" : "slider"}
 								</Button>
 							</div>
-						</Stack>
+						</div>
 					</div>
-				</Stack>
+				</div>
 			</div>
 
 			<DialogActions>

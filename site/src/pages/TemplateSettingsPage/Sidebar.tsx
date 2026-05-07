@@ -4,7 +4,6 @@ import {
 	SettingsIcon,
 	CodeIcon as VariablesIcon,
 } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -13,6 +12,7 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 interface SidebarProps {
 	template: Template;

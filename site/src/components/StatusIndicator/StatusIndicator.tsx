@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { createContext, type FC, useContext } from "react";
-import { cn } from "utils/cn";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 const statusIndicatorVariants = cva(
 	"font-medium inline-flex items-center gap-2",

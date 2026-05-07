@@ -1,7 +1,5 @@
-import { Label } from "@radix-ui/react-label";
-import { Slot } from "@radix-ui/react-slot";
-import { TriangleAlert } from "lucide-react";
-import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
+import { TriangleAlertIcon } from "lucide-react";
+import { Label, Slot } from "radix-ui";
 import {
 	type FC,
 	type ForwardedRef,
@@ -11,7 +9,6 @@ import {
 	useState,
 } from "react";
 import { useQueries } from "react-query";
-import { cn } from "utils/cn";
 import { templateVersion } from "#/api/queries/templates";
 import type { Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -26,6 +23,8 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
+import { cn } from "#/utils/cn";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,
@@ -117,12 +116,12 @@ const ReviewPanel: FC<ReviewPanelProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<span className="leading-tight">{workspaceName}</span>
 						{running && (
-							<Badge size="xs" variant="warning" border="none">
+							<Badge size="xs" variant="warning">
 								Running
 							</Badge>
 						)}
 						{transitioning && (
-							<Badge size="xs" variant="warning" border="none">
+							<Badge size="xs" variant="warning">
 								Getting latest status
 							</Badge>
 						)}
@@ -185,7 +184,7 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 			className="rounded-md border-border-warning border border-solid p-4"
 		>
 			<h4 className="m-0 font-semibold flex flex-row items-center gap-2 text-content-primary">
-				<TriangleAlert className="text-content-warning" size={16} />
+				<TriangleAlertIcon className="text-content-warning" size={16} />
 				Running workspaces detected
 			</h4>
 
@@ -201,14 +200,14 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 				<li>Any unsaved data will be lost.</li>
 			</ul>
 
-			<Label className="flex flex-row gap-3 items-center leading-tight pt-6">
+			<Label.Root className="flex flex-row gap-3 items-center leading-tight pt-6">
 				<Checkbox
 					ref={checkboxRef}
 					checked={acceptedRisks}
 					onCheckedChange={onAcceptedRisksChange}
 				/>
 				I acknowledge these risks.
-			</Label>
+			</Label.Root>
 		</div>
 	);
 };
@@ -219,7 +218,7 @@ type ContainerProps = Readonly<{
 }>;
 
 const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
-	const Wrapper = asChild ? Slot : "div";
+	const Wrapper = asChild ? Slot.Root : "div";
 	return (
 		<Wrapper className="max-h-[80vh] flex flex-col flex-nowrap">
 			{children}
@@ -487,7 +486,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 						{readyToUpdate.length > 0 && (
 							<WorkspacesListSection
 								headerText="Ready to update"
-								description="These workspaces will have their templates be updated to the latest version."
+								description="These workspaces will be updated to the latest template version."
 							>
 								{readyToUpdate.map((ws) => {
 									const matchedQuery = templateVersionQueries.find(

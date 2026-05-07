@@ -1,15 +1,15 @@
 import {
+	ArrowLeftIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
-	XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
-import { cn } from "utils/cn";
 import { Button } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 import { DesktopPanel } from "../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
@@ -42,6 +42,16 @@ interface SidebarTabViewProps {
 	onClose?: () => void;
 	/** Desktop chat ID. Omitted if desktop is not available. */
 	desktopChatId?: string;
+	/**
+	 * The resolved tab ID to render as active (computed by the parent
+	 * with `getEffectiveTabId`). Keeping a single source of truth in the
+	 * parent prevents this component's highlight from drifting from
+	 * parent-side gating like `TerminalPanel.isVisible` or
+	 * `DebugPanel.isVisible`.
+	 */
+	effectiveTabId: string | null;
+	/** Called when the user switches tabs. */
+	onActiveTabChange: (tabId: string) => void;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -107,31 +117,28 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	desktopChatId,
+	effectiveTabId,
+	onActiveTabChange,
 }) => {
 	const tabIdPrefix = useId();
-	const [activeTabId, setActiveTabId] = useState<string | null>(
-		tabs.length > 0 ? tabs[0].id : null,
-	);
 
-	// Build the full list of tab IDs including the desktop tab
-	// so that effectiveTabId validation covers it.
-	const allTabIds = new Set(tabs.map((t) => t.id));
+	// Unified list of panels for rendering. Includes the desktop
+	// tab when available so we don't need to special-case it.
+	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
+		id: t.id,
+		content: t.content,
+	}));
 	if (desktopChatId) {
-		allTabIds.add("desktop");
+		allPanels.push({
+			id: "desktop",
+			content: (
+				<DesktopPanel
+					chatId={desktopChatId}
+					isVisible={effectiveTabId === "desktop"}
+				/>
+			),
+		});
 	}
-
-	// Derive the effective tab. Fall back to the first tab if
-	// the stored activeTabId no longer matches any tab in the list.
-	const effectiveTabId =
-		activeTabId !== null && allTabIds.has(activeTabId)
-			? activeTabId
-			: tabs.length > 0
-				? tabs[0].id
-				: desktopChatId
-					? "desktop"
-					: null;
-
-	const activeTab = tabs.find((t) => t.id === effectiveTabId) ?? null;
 
 	const {
 		ref: tabScrollRef,
@@ -147,8 +154,19 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				{/* Tab bar – always visible for the expand button. */}
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
+					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 				>
+					{onClose && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={onClose}
+							aria-label="Close panel"
+							className="h-7 w-7 shrink-0 lg:hidden"
+						>
+							<ArrowLeftIcon />
+						</Button>
+					)}
 					<div className="min-w-0 shrink-0 text-center">
 						{isExpanded && chatTitle && (
 							<span className="truncate text-sm text-content-primary">
@@ -156,23 +174,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							</span>
 						)}
 					</div>
-					{onClose && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onClose}
-							aria-label="Close panel"
-							className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
-						>
-							<XIcon />
-						</Button>
-					)}
 					<Button
 						variant="subtle"
 						size="icon"
 						onClick={onToggleExpanded}
 						aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-						className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:inline-flex"
+						className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
 					>
 						{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 					</Button>
@@ -189,8 +196,20 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 			{/* Tab bar */}
 			<div
 				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
+				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 			>
+				{/* Back button (mobile), placed before the tab strip */}
+				{onClose && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onClose}
+						aria-label="Close panel"
+						className="h-7 w-7 shrink-0 lg:hidden"
+					>
+						<ArrowLeftIcon />
+					</Button>
+				)}
 				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
 					<Button
@@ -227,7 +246,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}
-									onClick={() => setActiveTabId(tab.id)}
+									onClick={() => onActiveTabChange(tab.id)}
 									variant="outline"
 									size="lg"
 									className={cn(
@@ -257,7 +276,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								id={`${tabIdPrefix}-tab-desktop`}
 								role="tab"
 								aria-selected={effectiveTabId === "desktop"}
-								onClick={() => setActiveTabId("desktop")}
+								onClick={() => onActiveTabChange("desktop")}
 								variant="outline"
 								size="lg"
 								className={cn(
@@ -289,42 +308,32 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					</div>
 				)}
-				{/* Right side: close (mobile) / expand (desktop) */}
-				{onClose && (
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={onClose}
-						aria-label="Close panel"
-						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
-					>
-						<XIcon />
-					</Button>
-				)}
+				{/* Expand/collapse (desktop only) */}
 				<Button
 					variant="subtle"
 					size="icon"
 					onClick={onToggleExpanded}
 					aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-					className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:inline-flex"
+					className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
 				>
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-			{/* Tab content */}
-			<div
-				role="tabpanel"
-				aria-labelledby={
-					effectiveTabId ? `${tabIdPrefix}-tab-${effectiveTabId}` : undefined
-				}
-				className="min-h-0 flex-1"
-			>
-				{effectiveTabId === "desktop" && desktopChatId ? (
-					<DesktopPanel chatId={desktopChatId} />
-				) : (
-					activeTab?.content
-				)}
-			</div>
+			{/* Tab panels – all stay mounted, only the active one visible. */}
+			{allPanels.map((panel) => {
+				const isActive = effectiveTabId === panel.id;
+				return (
+					<div
+						key={panel.id}
+						role="tabpanel"
+						aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
+						className={cn("min-h-0 flex-1", !isActive && "hidden")}
+						inert={!isActive}
+					>
+						{panel.content}
+					</div>
+				);
+			})}
 		</div>
 	);
 };

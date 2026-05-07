@@ -1,14 +1,6 @@
 import { ChevronDownIcon, LayoutGridIcon, TerminalIcon } from "lucide-react";
-import { getTerminalHref } from "modules/apps/apps";
-import { useAppLink } from "modules/apps/useAppLink";
-import {
-	getAllAppsWithAgent,
-	type WorkspaceAppWithAgent,
-} from "modules/tasks/apps";
 import { type FC, useState } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
 import type { Task, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -21,6 +13,14 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { ScrollArea, ScrollBar } from "#/components/ScrollArea/ScrollArea";
+import { getTerminalHref } from "#/modules/apps/apps";
+import { useAppLink } from "#/modules/apps/useAppLink";
+import {
+	getAllAppsWithAgent,
+	type WorkspaceAppWithAgent,
+} from "#/modules/tasks/apps";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import { TaskAppIFrame, TaskIframe } from "./TaskAppIframe";
 
 type TaskAppsProps = {
@@ -31,16 +31,17 @@ type TaskAppsProps = {
 const TERMINAL_TAB_ID = "terminal";
 
 export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
-	const apps = getAllAppsWithAgent(workspace).filter(
+	const allApps = getAllAppsWithAgent(workspace);
+	const apps = allApps.filter(
 		// The Chat UI app will be displayed in the sidebar, so we don't want to
 		// show it as a web app.
-		(app) => app.id !== task.workspace_app_id,
+		(app) => app.id !== task.workspace_app_id && !app.hidden,
 	);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 	const hasAvailableAppsToDisplay =
 		embeddedApps.length > 0 || externalApps.length > 0;
-	const taskAgent = apps.at(0)?.agent;
+	const taskAgent = allApps.at(0)?.agent;
 	const terminalHref = getTerminalHref({
 		username: task.owner_name,
 		workspace: task.workspace_name,

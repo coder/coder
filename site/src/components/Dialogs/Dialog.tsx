@@ -67,4 +67,4 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
  * Re-export of MUI's Dialog component, for convenience.
  * @link See original documentation here: https://mui.com/material-ui/react-dialog/
  */
-export { MuiDialog as Dialog, type DialogProps };
+export { type DialogProps, MuiDialog as Dialog };

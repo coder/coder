@@ -6,6 +6,7 @@ import type {
 	WorkspaceAgentRepoChanges,
 	WorkspaceAgentStatus,
 } from "#/api/typesGenerated";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 
 // Compile-time guard: ensures the bailout comparison in setRepositories
 // covers every data field. If WorkspaceAgentRepoChanges gains a new
@@ -28,13 +29,19 @@ interface UseGitWatcherOptions {
 interface UseGitWatcherResult {
 	/** Current repo state, keyed by repo root path. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+	/**
+	 * Repo roots seen with a non-empty unified_diff during this chat.
+	 * Survives reconnects; evicted on `removed: true`, cleared on
+	 * chatId change. Consumers should intersect with `repositories`.
+	 */
+	everDirty: ReadonlySet<string>;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
-	/** Send a refresh request. */
-	refresh: () => void;
+	/** Whether the watcher has received repository state for this chat. */
+	hasReceivedChanges: boolean;
+	/** Send a refresh request. Returns true if sent, false if disconnected. */
+	refresh: () => boolean;
 }
-
-const MAX_BACKOFF_MS = 30_000;
 
 export function useGitWatcher({
 	chatId,
@@ -43,23 +50,33 @@ export function useGitWatcher({
 	const [repositories, setRepositories] = useState<
 		ReadonlyMap<string, WorkspaceAgentRepoChanges>
 	>(new Map());
+	const [everDirty, setEverDirty] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
 	const [isConnected, setIsConnected] = useState(false);
+	const [hasReceivedChanges, setHasReceivedChanges] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
-	const reconnectAttemptRef = useRef(0);
-	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	// Track whether we've been disposed to avoid reconnecting after unmount.
-	const disposedRef = useRef(false);
+	// Chat-scoped state (everDirty) resets on chatId change but
+	// must survive agentStatus flaps on the same chat.
+	// https://react.dev/reference/react/useState#storing-information-from-previous-renders
+	const [lastChatId, setLastChatId] = useState<string | undefined>(chatId);
+	if (lastChatId !== chatId) {
+		setLastChatId(chatId);
+		setEverDirty((prev) => (prev.size === 0 ? prev : new Set()));
+	}
 
-	const sendMessage = (msg: WorkspaceAgentGitClientMessage) => {
+	const sendMessage = (msg: WorkspaceAgentGitClientMessage): boolean => {
 		const socket = socketRef.current;
 		if (socket && socket.readyState === WebSocket.OPEN) {
 			socket.send(JSON.stringify(msg));
+			return true;
 		}
+		return false;
 	};
 
-	const refresh = () => {
-		sendMessage({ type: "refresh" });
+	const refresh = (): boolean => {
+		return sendMessage({ type: "refresh" });
 	};
 
 	useEffect(() => {
@@ -67,109 +84,104 @@ export function useGitWatcher({
 			return;
 		}
 
-		disposedRef.current = false;
+		const activeChatId = chatId;
 
-		function connect() {
-			if (disposedRef.current) {
-				return;
-			}
+		const dispose = createReconnectingWebSocket({
+			connect() {
+				const socket = watchChatGit(activeChatId);
+				socketRef.current = socket;
 
-			const socket = watchChatGit(chatId!);
-			socketRef.current = socket;
+				socket.addEventListener("message", (event) => {
+					// Ignore messages from superseded connections.
+					if (socketRef.current !== socket) {
+						return;
+					}
+					let data: WorkspaceAgentGitServerMessage;
+					try {
+						data = JSON.parse(
+							String((event as MessageEvent).data),
+						) as WorkspaceAgentGitServerMessage;
+					} catch {
+						// Ignore unparsable messages.
+						return;
+					}
 
-			socket.addEventListener("open", () => {
-				// Ignore open events from superseded connections.
-				if (socketRef.current !== socket) {
-					return;
-				}
-				setIsConnected(true);
-				reconnectAttemptRef.current = 0;
-			});
-
-			socket.addEventListener("message", (event) => {
-				// Ignore messages from superseded connections.
-				if (socketRef.current !== socket) {
-					return;
-				}
-				let data: WorkspaceAgentGitServerMessage;
-				try {
-					data = JSON.parse(
-						String(event.data),
-					) as WorkspaceAgentGitServerMessage;
-				} catch {
-					// Ignore unparsable messages.
-					return;
-				}
-
-				if (data.type === "changes" && data.repositories) {
-					setRepositories((prev) => {
-						let changed = false;
-						const next = new Map(prev);
-						for (const repo of data.repositories!) {
-							if (repo.removed) {
-								if (next.has(repo.repo_root)) {
-									next.delete(repo.repo_root);
-									changed = true;
+					if (data.type === "changes") {
+						setHasReceivedChanges(true);
+						if (data.repositories) {
+							setRepositories((prev) => {
+								let changed = false;
+								const next = new Map(prev);
+								for (const repo of data.repositories!) {
+									if (repo.removed) {
+										if (next.has(repo.repo_root)) {
+											next.delete(repo.repo_root);
+											changed = true;
+										}
+									} else {
+										const existing = next.get(repo.repo_root);
+										if (
+											!existing ||
+											existing.branch !== repo.branch ||
+											existing.remote_origin !== repo.remote_origin ||
+											existing.unified_diff !== repo.unified_diff
+										) {
+											next.set(repo.repo_root, repo);
+											changed = true;
+										}
+									}
 								}
-							} else {
-								const existing = next.get(repo.repo_root);
-								if (
-									!existing ||
-									existing.branch !== repo.branch ||
-									existing.remote_origin !== repo.remote_origin ||
-									existing.unified_diff !== repo.unified_diff
-								) {
-									next.set(repo.repo_root, repo);
-									changed = true;
+								return changed ? next : prev;
+							});
+							setEverDirty((prev) => {
+								let changed = false;
+								const next = new Set(prev);
+								for (const repo of data.repositories!) {
+									if (repo.removed) {
+										if (next.delete(repo.repo_root)) {
+											changed = true;
+										}
+									} else if (repo.unified_diff && !next.has(repo.repo_root)) {
+										next.add(repo.repo_root);
+										changed = true;
+									}
 								}
-							}
+								return changed ? next : prev;
+							});
 						}
-						return changed ? next : prev;
-					});
-				} else if (data.type === "error") {
-					console.warn("[useGitWatcher] server error:", data.message);
-				}
-			});
+					} else if (data.type === "error") {
+						console.warn("[useGitWatcher] server error:", data.message);
+					}
+				});
 
-			// Note: WebSocket "error" events are always followed by a "close"
-			// event, so reconnection is handled here.
-			socket.addEventListener("close", () => {
-				// Ignore close events from superseded connections.
-				if (socketRef.current !== socket) {
-					return;
-				}
+				return socket;
+			},
+
+			onOpen() {
+				setIsConnected(true);
+			},
+
+			onDisconnect() {
 				setIsConnected(false);
+				setHasReceivedChanges(false);
 				socketRef.current = null;
+			},
 
-				if (disposedRef.current) {
-					return;
-				}
-
-				// Reconnect with exponential backoff.
-				const attempt = reconnectAttemptRef.current;
-				const delay = Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS);
-				reconnectAttemptRef.current = attempt + 1;
-				reconnectTimerRef.current = setTimeout(connect, delay);
-			});
-		}
-
-		connect();
+			// 30s cap instead of the utility default 10s. The git
+			// endpoint may be slow to respond after a workspace wakes.
+			maxMs: 30_000,
+		});
 
 		return () => {
-			disposedRef.current = true;
-			if (reconnectTimerRef.current !== null) {
-				clearTimeout(reconnectTimerRef.current);
-				reconnectTimerRef.current = null;
-			}
-			if (socketRef.current) {
-				socketRef.current.close();
-				socketRef.current = null;
-			}
+			// Reset connection-scoped state only. `everDirty` is
+			// chat-scoped and persists across reconnects.
+			dispose();
 			setIsConnected(false);
+			setHasReceivedChanges(false);
 			setRepositories(new Map());
-			reconnectAttemptRef.current = 0;
+			socketRef.current = null;
 		};
 	}, [chatId, agentStatus]);
 
-	return { repositories, isConnected, refresh };
+	return { repositories, everDirty, isConnected, hasReceivedChanges, refresh };
 }

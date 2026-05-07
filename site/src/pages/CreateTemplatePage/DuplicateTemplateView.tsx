@@ -1,5 +1,3 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -15,6 +13,8 @@ import type { Template, TemplateVersion } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
@@ -79,7 +79,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
 	return (
 		<>
 			{totalPrebuilds > 0 && (
-				<Alert severity="warning" css={{ marginBottom: 16 }}>
+				<Alert severity="warning" className="mb-4">
 					This template has prebuilds configured. Duplicating this template will
 					automatically cause {totalPrebuilds}{" "}
 					{totalPrebuilds === 1 ? "prebuild" : "prebuilds"} to be created.

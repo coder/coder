@@ -185,17 +185,29 @@ type WorkspaceAgentLogSource struct {
 	Icon             string    `json:"icon"`
 }
 
+type WorkspaceAgentScriptStatus string
+
+// This is also in database/models.go and should be kept in sync.
+const (
+	WorkspaceAgentScriptStatusOK            WorkspaceAgentScriptStatus = "ok"
+	WorkspaceAgentScriptStatusExitFailure   WorkspaceAgentScriptStatus = "exit_failure"
+	WorkspaceAgentScriptStatusTimedOut      WorkspaceAgentScriptStatus = "timed_out"
+	WorkspaceAgentScriptStatusPipesLeftOpen WorkspaceAgentScriptStatus = "pipes_left_open"
+)
+
 type WorkspaceAgentScript struct {
-	ID               uuid.UUID     `json:"id" format:"uuid"`
-	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
-	LogPath          string        `json:"log_path"`
-	Script           string        `json:"script"`
-	Cron             string        `json:"cron"`
-	RunOnStart       bool          `json:"run_on_start"`
-	RunOnStop        bool          `json:"run_on_stop"`
-	StartBlocksLogin bool          `json:"start_blocks_login"`
-	Timeout          time.Duration `json:"timeout"`
-	DisplayName      string        `json:"display_name"`
+	ID               uuid.UUID                   `json:"id" format:"uuid"`
+	LogSourceID      uuid.UUID                   `json:"log_source_id" format:"uuid"`
+	LogPath          string                      `json:"log_path"`
+	Script           string                      `json:"script"`
+	Cron             string                      `json:"cron"`
+	RunOnStart       bool                        `json:"run_on_start"`
+	RunOnStop        bool                        `json:"run_on_stop"`
+	StartBlocksLogin bool                        `json:"start_blocks_login"`
+	Timeout          time.Duration               `json:"timeout"`
+	DisplayName      string                      `json:"display_name"`
+	ExitCode         *int32                      `json:"exit_code,omitempty"`
+	Status           *WorkspaceAgentScriptStatus `json:"status,omitempty"`
 }
 
 type WorkspaceAgentHealth struct {

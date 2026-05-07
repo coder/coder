@@ -2,12 +2,18 @@ import {
 	type Dispatch,
 	type SetStateAction,
 	useEffect,
-	useRef,
+	useEffectEvent,
 	useState,
 } from "react";
 import { API } from "#/api/api";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { UploadState } from "../components/AgentChatInput";
+import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	formatAgentAttachmentTooLargeError,
+	formatAgentAttachmentUploadError,
+	maxAgentAttachmentSize,
+	readAgentAttachmentText,
+} from "../utils/fileAttachmentLimits";
 
 /** @internal Exported for testing. */
 export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
@@ -21,18 +27,33 @@ interface PersistedAttachment {
 	fileName: string;
 	fileType: string;
 	lastModified: number;
+	organizationId: string;
 }
 
 /**
  * Restore previously persisted attachments from localStorage.
  * Creates synthetic File objects (empty blobs with correct metadata)
  * and populates the corresponding Maps so the UI can render them.
+ *
+ * Only attachments matching `currentOrgId` are returned. Entries
+ * belonging to a different organization are pruned from storage.
  */
-function restorePersistedAttachments(): {
+function restorePersistedAttachments(currentOrgId: string): {
 	attachments: File[];
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 } {
+	// When the org ID is not yet known (e.g. still loading), skip
+	// restoration entirely so we don't accidentally prune valid
+	// entries. The initializer only runs once, so the caller must
+	// ensure the org ID is available before mounting the hook.
+	if (!currentOrgId) {
+		return {
+			attachments: [],
+			uploadStates: new Map(),
+			previewUrls: new Map(),
+		};
+	}
 	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
 	if (!stored) {
 		return {
@@ -43,11 +64,25 @@ function restorePersistedAttachments(): {
 	}
 	try {
 		const persisted: PersistedAttachment[] = JSON.parse(stored);
+		const matched = persisted.filter((p) => p.organizationId === currentOrgId);
+
+		// Prune entries that don't match the current org.
+		if (matched.length !== persisted.length) {
+			if (matched.length > 0) {
+				localStorage.setItem(
+					persistedAttachmentsStorageKey,
+					JSON.stringify(matched),
+				);
+			} else {
+				localStorage.removeItem(persistedAttachmentsStorageKey);
+			}
+		}
+
 		const attachments: File[] = [];
 		const uploadStates = new Map<File, UploadState>();
 		const previewUrls = new Map<File, string>();
 
-		for (const p of persisted) {
+		for (const p of matched) {
 			if (!p.fileId || !p.fileName) continue;
 			// Synthetic File used as a Map key only. Its content is
 			// never read because the existing file_id is reused at
@@ -59,7 +94,7 @@ function restorePersistedAttachments(): {
 			attachments.push(file);
 			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
 			if (p.fileType.startsWith("image/")) {
-				previewUrls.set(file, `/api/experimental/chats/files/${p.fileId}`);
+				previewUrls.set(file, getChatFileURL(p.fileId));
 			}
 		}
 		return { attachments, uploadStates, previewUrls };
@@ -72,7 +107,11 @@ function restorePersistedAttachments(): {
 	}
 }
 
-function addPersistedAttachment(file: File, fileId: string) {
+function addPersistedAttachment(
+	file: File,
+	fileId: string,
+	organizationId: string,
+) {
 	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
 	let persisted: PersistedAttachment[];
 	try {
@@ -85,6 +124,7 @@ function addPersistedAttachment(file: File, fileId: string) {
 		fileName: file.name,
 		fileType: file.type,
 		lastModified: file.lastModified,
+		organizationId,
 	});
 	localStorage.setItem(
 		persistedAttachmentsStorageKey,
@@ -141,7 +181,7 @@ export function useFileAttachments(
 	// when persistence is enabled. Computed once on first render.
 	const [restored] = useState(() =>
 		persist
-			? restorePersistedAttachments()
+			? restorePersistedAttachments(organizationId ?? "")
 			: {
 					attachments: [] as File[],
 					uploadStates: new Map<File, UploadState>(),
@@ -156,17 +196,15 @@ export function useFileAttachments(
 		() => new Map<File, string>(),
 	);
 
-	// Revoke blob URLs on unmount to prevent memory leaks.
-	const previewUrlsRef = useRef(previewUrls);
-	useEffect(() => {
-		previewUrlsRef.current = previewUrls;
+	const revokePreviewUrls = useEffectEvent(() => {
+		for (const [, url] of previewUrls) {
+			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+		}
 	});
+
+	// Revoke blob URLs on unmount to prevent memory leaks.
 	useEffect(() => {
-		return () => {
-			for (const [, url] of previewUrlsRef.current) {
-				if (url.startsWith("blob:")) URL.revokeObjectURL(url);
-			}
-		};
+		return () => revokePreviewUrls();
 	}, []);
 
 	const startUpload = (file: File) => {
@@ -179,6 +217,10 @@ export function useFileAttachments(
 			);
 			return;
 		}
+
+		const shouldPersist = persist && Boolean(organizationId);
+		const isImage = file.type.startsWith("image/");
+
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
 			try {
@@ -192,20 +234,18 @@ export function useFileAttachments(
 						fileId: result.id,
 					}),
 				);
-				if (persist) {
-					addPersistedAttachment(file, result.id);
+				if (shouldPersist) {
+					addPersistedAttachment(file, result.id, organizationId!);
 				}
 				// Pre-warm the browser HTTP cache for images so the
 				// timeline can render them instantly after send. We
 				// intentionally skip text attachments because the
 				// composer already has the text content locally.
-				if (file.type.startsWith("image/")) {
-					void fetch(`/api/experimental/chats/files/${result.id}`);
+				if (isImage) {
+					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
-				const message = getErrorMessage(err, "Upload failed");
-				const detail = getErrorDetail(err);
-				const errorMessage = detail ? `${message} ${detail}` : message;
+				const errorMessage = formatAgentAttachmentUploadError(err);
 				setUploadStates((prev) =>
 					new Map(prev).set(file, {
 						status: "error",
@@ -217,7 +257,6 @@ export function useFileAttachments(
 	};
 
 	const handleAttach = (files: File[]) => {
-		const maxSize = 10 * 1024 * 1024; // 10 MB
 		setAttachments((prev) => [...prev, ...files]);
 		setPreviewUrls((prev) => {
 			const next = new Map(prev);
@@ -230,13 +269,8 @@ export function useFileAttachments(
 		});
 		// Read text content for preview, but skip oversized files.
 		for (const file of files) {
-			if (file.type === "text/plain" && file.size <= maxSize) {
-				// Defensive: some test environments lack File.prototype.text().
-				const readText =
-					typeof file.text === "function"
-						? file.text()
-						: new Response(file).text();
-				void readText
+			if (file.type === "text/plain" && file.size <= maxAgentAttachmentSize) {
+				void readAgentAttachmentText(file)
 					.then((content) => {
 						setTextContents((prev) => {
 							const next = new Map(prev);
@@ -250,11 +284,11 @@ export function useFileAttachments(
 			}
 		}
 		for (const file of files) {
-			if (file.size > maxSize) {
+			if (file.size > maxAgentAttachmentSize) {
 				setUploadStates((prev) =>
 					new Map(prev).set(file, {
 						status: "error" as const,
-						error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
+						error: formatAgentAttachmentTooLargeError(file.size),
 					}),
 				);
 			} else {
@@ -310,7 +344,7 @@ export function useFileAttachments(
 	};
 
 	const resetAttachments = () => {
-		for (const [, url] of previewUrlsRef.current) {
+		for (const [, url] of previewUrls) {
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 		setPreviewUrls(new Map());
@@ -331,7 +365,7 @@ export function useFileAttachments(
 		handleRemoveAttachment,
 		startUpload,
 		resetAttachments,
-		// Raw setters exposed for AgentDetailContent to pre-populate
+		// Raw setters exposed for ChatPageContent to pre-populate
 		// attachments from existing chat messages. These bypass
 		// localStorage persistence. Only use when persist is false.
 		setAttachments,

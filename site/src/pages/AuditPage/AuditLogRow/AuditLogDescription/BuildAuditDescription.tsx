@@ -1,8 +1,8 @@
 import { type FC, useMemo } from "react";
 import { Link as RouterLink } from "react-router";
-import { systemBuildReasons } from "utils/workspace";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
+import { systemBuildReasons } from "#/utils/workspace";
 
 interface BuildAuditDescriptionProps {
 	auditLog: AuditLog;

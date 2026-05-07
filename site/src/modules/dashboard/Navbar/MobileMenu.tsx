@@ -1,4 +1,3 @@
-import type { ProxyContextValue } from "contexts/ProxyContext";
 import {
 	ChevronRightIcon,
 	CircleHelpIcon,
@@ -8,7 +7,6 @@ import {
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -25,6 +23,8 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Latency } from "#/components/Latency/Latency";
+import type { ProxyContextValue } from "#/contexts/ProxyContext";
+import { cn } from "#/utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 const itemStyles = {
@@ -78,6 +78,16 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				className="w-screen border-0 border-b border-solid p-0 py-2"
 				sideOffset={17}
 			>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/workspaces">Workspaces</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/templates">Templates</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/agents">Agents</Link>
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 
 				{hasSomePermission && (
@@ -335,7 +345,7 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 
 export const includeOrigin = (target: string): string => {
 	if (target.startsWith("/")) {
-		const baseUrl = window.location.origin;
+		const baseUrl = location.origin;
 		return `${baseUrl}${target}`;
 	}
 	return target;

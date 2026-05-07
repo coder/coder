@@ -1,12 +1,11 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
+import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockDefaultOrganization,
 	MockOrganization,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within } from "@testing-library/react";
-import { action } from "storybook/actions";
-import { userEvent } from "storybook/test";
+} from "#/testHelpers/entities";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const meta: Meta<typeof OrganizationSettingsPageView> = {

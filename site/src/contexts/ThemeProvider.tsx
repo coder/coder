@@ -11,7 +11,6 @@ import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
 } from "@mui/material/styles";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -21,12 +20,16 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { appearanceSettings } from "#/api/queries/users";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import themes, {
+	baseModeFor,
+	CONCRETE_THEMES,
+	DEFAULT_THEME,
+	resolveThemeName,
+	type Theme,
+} from "#/theme";
 
-/**
- *
- */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
@@ -49,40 +52,39 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 			setPreferredColorScheme(event.matches ? "light" : "dark");
 		};
 
-		// `addEventListener` here is a recent API that only _very_ up-to-date
-		// browsers support, and that isn't mocked in Jest.
+		// `addEventListener` here is a recent API that isn't mocked in tests.
 		themeQuery.addEventListener?.("change", listener);
 		return () => {
 			themeQuery.removeEventListener?.("change", listener);
 		};
 	}, [themeQuery]);
 
-	// We might not be logged in yet, or the `theme_preference` could be an empty string.
-	// Prefer JS-fetched value, fall back to server-rendered meta tag, then default.
-	const themePreference =
+	// We might not be logged in yet, or the `theme_preference` could be an
+	// empty string. Prefer the JS-fetched value, fall back to the
+	// server-rendered meta tag, then to DEFAULT_THEME.
+	const storedPreference =
 		appearanceSettingsQuery.data?.theme_preference ||
 		metadata.userAppearance?.value?.theme_preference ||
 		DEFAULT_THEME;
-	// The janky casting here is fine because of the much more type safe fallback
-	// We need to support `themePreference` being wrong anyway because the database
-	// value could be anything, like an empty string.
+	const concreteName = resolveThemeName(storedPreference, preferredColorScheme);
 
 	useEffect(() => {
 		const root = document.documentElement;
-		if (themePreference === "auto") {
-			root.classList.add(preferredColorScheme);
-		} else {
-			root.classList.add(themePreference);
+		// Embedded pages manage theme independently.
+		if (root.dataset.embedTheme) {
+			return;
 		}
+		root.classList.add(concreteName);
+		root.classList.add(baseModeFor(concreteName));
 
 		return () => {
-			root.classList.remove("light", "dark");
+			if (!root.dataset.embedTheme) {
+				root.classList.remove(...CONCRETE_THEMES);
+			}
 		};
-	}, [themePreference, preferredColorScheme]);
+	}, [concreteName]);
 
-	const theme =
-		themes[themePreference as keyof typeof themes] ??
-		themes[preferredColorScheme];
+	const theme = themes[concreteName];
 
 	return (
 		<StyledEngineProvider injectFirst>

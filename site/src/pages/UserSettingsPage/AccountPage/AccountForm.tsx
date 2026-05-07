@@ -1,27 +1,20 @@
-import TextField from "@mui/material/TextField";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
-import {
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
 import type { UpdateUserProfileRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import { Spinner } from "#/components/Spinner/Spinner";
-
-export const Language = {
-	usernameLabel: "Username",
-	emailLabel: "Email",
-	nameLabel: "Name",
-	updateSettings: "Update account",
-};
+import {
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
-	username: nameValidator(Language.usernameLabel),
+	username: nameValidator("Username"),
 	name: Yup.string(),
 });
 
@@ -60,37 +53,39 @@ export const AccountForm: FC<AccountFormProps> = ({
 					<ErrorAlert error={updateProfileError} />
 				)}
 
-				<TextField
-					disabled
-					fullWidth
-					label={Language.emailLabel}
+				<FormField
+					field={getFieldHelpers("email")}
+					label="Email"
 					value={email}
+					disabled
 				/>
-				<TextField
-					{...getFieldHelpers("username")}
+				<FormField
+					field={getFieldHelpers("username")}
 					onChange={onChangeTrimmed(form)}
 					aria-disabled={!editable}
 					autoComplete="username"
 					disabled={!editable}
-					fullWidth
-					label={Language.usernameLabel}
+					className="w-full"
+					label="Username"
 				/>
-				<TextField
-					{...getFieldHelpers("name")}
-					autoComplete="name"
-					fullWidth
-					onBlur={(e) => {
-						e.target.value = e.target.value.trim();
-						form.handleChange(e);
+				<FormField
+					field={{
+						...getFieldHelpers("name"),
+						helperText:
+							'The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.',
 					}}
-					label={Language.nameLabel}
-					helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
+					autoComplete="name"
+					className="w-full"
+					label="Name"
+					onBlur={(event) => {
+						event.target.value = event.target.value.trim();
+						form.handleChange(event);
+					}}
 				/>
-
 				<div>
 					<Button disabled={isLoading} type="submit">
 						<Spinner loading={isLoading} />
-						{Language.updateSettings}
+						Update account
 					</Button>
 				</div>
 			</FormFields>

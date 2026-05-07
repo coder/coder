@@ -1,32 +1,29 @@
 import * as path from "node:path";
+import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
-// Enable the React profiling build and discoverable source maps for
-// internal deployments (e.g. dogfood). The profiling build swaps
-// react-dom/client for react-dom/profiling, which keeps production
-// optimizations but leaves the <Profiler> onRender callback and
-// React Performance Tracks instrumentation intact. The overhead is
-// ~13% on the react-dom chunk size.
+// We enable profiling and source maps for internal deployments (e.g. dogfood).
+// The profiling build uses react-dom/profiling, which keeps optimizations but
+// preserves performance instrumentation.
 const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
 
+const compilerPreset = reactCompilerPreset();
+compilerPreset.rolldown.filter = {
+	...compilerPreset.rolldown.filter,
+	id: {
+		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
+	},
+};
+
 const plugins: PluginOption[] = [
-	react({
-		babel: {
-			plugins: [],
-			overrides: [
-				{
-					test: /src\/(pages\/AgentsPage|components\/ai-elements)\//,
-					plugins: ["babel-plugin-react-compiler"],
-				},
-			],
-		},
-	}),
+	react(),
+	babel({ presets: [compilerPreset] }),
 	checker({
 		typescript: true,
 	}),
@@ -51,7 +48,7 @@ export default defineConfig({
 		outDir: path.resolve(__dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
 		sourcemap: isProfilingBuild ? true : "hidden",
-		rollupOptions: {
+		rolldownOptions: {
 			input: {
 				index: path.resolve(__dirname, "./index.html"),
 				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
@@ -62,17 +59,15 @@ export default defineConfig({
 						? "[name].js"
 						: "assets/[name]-[hash].js";
 				},
-				manualChunks(id) {
-					if (!id.includes("node_modules")) {
-						return;
-					}
-
-					if (id.includes("@mui")) return "mui";
-					if (id.includes("@emotion")) return "emotion";
-					if (id.includes("monaco-editor")) return "monaco";
-					if (id.includes("@xterm")) return "xterm";
-					if (id.includes("emoji-mart")) return "emoji-mart";
-					if (id.includes("radix-ui")) return "radix-ui";
+				codeSplitting: {
+					groups: [
+						{ name: "mui", test: /@mui/ },
+						{ name: "emotion", test: /@emotion/ },
+						{ name: "monaco", test: /monaco-editor/ },
+						{ name: "xterm", test: /@xterm/ },
+						{ name: "emoji-mart", test: /emoji-mart/ },
+						{ name: "radix-ui", test: /radix-ui/ },
+					],
 				},
 			},
 		},
@@ -97,63 +92,68 @@ export default defineConfig({
 			"Set-Cookie":
 				"csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
 		},
-		proxy: {
-			"//": {
-				changeOrigin: true,
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-				rewrite: (path) => path.replace(/\/+/g, "/"),
-			},
-			"/api": {
-				ws: true,
-				changeOrigin: true,
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-				configure: (proxy) => {
-					if (process.env.CODER_SESSION_TOKEN) {
-						proxy.on("proxyReq", (proxyReq) => {
-							proxyReq.setHeader(
-								"Coder-Session-Token",
-								process.env.CODER_SESSION_TOKEN!,
-							);
-						});
-					}
-					// Vite does not catch socket errors, and stops the webserver.
-					// As /logs endpoint can return HTTP 4xx status, we need to embrace
-					// Vite with a custom error handler to prevent from quitting.
-					proxy.on("proxyReqWs", (proxyReq, _req, socket) => {
-						if (process.env.NODE_ENV === "development") {
-							proxyReq.setHeader(
-								"origin",
-								process.env.CODER_HOST || "http://localhost:3000",
-							);
+		// The proxy targets localhost:3000 (coderd). During tests no
+		// coderd is running, and the proxy's retry sockets keep the
+		// Node process alive after vitest finishes.
+		proxy: process.env.VITEST
+			? undefined
+			: {
+					"//": {
+						changeOrigin: true,
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+						rewrite: (path) => path.replace(/\/+/g, "/"),
+					},
+					"/api": {
+						ws: true,
+						changeOrigin: true,
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+						configure: (proxy) => {
 							if (process.env.CODER_SESSION_TOKEN) {
-								proxyReq.setHeader(
-									"Coder-Session-Token",
-									process.env.CODER_SESSION_TOKEN!,
-								);
+								proxy.on("proxyReq", (proxyReq) => {
+									proxyReq.setHeader(
+										"Coder-Session-Token",
+										process.env.CODER_SESSION_TOKEN!,
+									);
+								});
 							}
-						}
+							// Vite does not catch socket errors, and stops the webserver.
+							// As /logs endpoint can return HTTP 4xx status, we need to embrace
+							// Vite with a custom error handler to prevent from quitting.
+							proxy.on("proxyReqWs", (proxyReq, _req, socket) => {
+								if (process.env.NODE_ENV === "development") {
+									proxyReq.setHeader(
+										"origin",
+										process.env.CODER_HOST || "http://localhost:3000",
+									);
+									if (process.env.CODER_SESSION_TOKEN) {
+										proxyReq.setHeader(
+											"Coder-Session-Token",
+											process.env.CODER_SESSION_TOKEN!,
+										);
+									}
+								}
 
-						socket.on("error", (error) => {
-							console.error(error);
-						});
-					});
+								socket.on("error", (error) => {
+									console.error(error);
+								});
+							});
+						},
+					},
+					"/swagger": {
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
+					"/healthz": {
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
+					"/serviceWorker.js": {
+						target: process.env.CODER_HOST || "http://localhost:3000",
+						secure: process.env.NODE_ENV === "production",
+					},
 				},
-			},
-			"/swagger": {
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-			},
-			"/healthz": {
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-			},
-			"/serviceWorker.js": {
-				target: process.env.CODER_HOST || "http://localhost:3000",
-				secure: process.env.NODE_ENV === "production",
-			},
-		},
 		allowedHosts: [".coder", ".dev.coder.com"],
 	},
 	// Pre-bundle deps that Vite tends to discover late (deep MUI
@@ -187,10 +187,8 @@ export default defineConfig({
 			"@mui/material/FormGroup",
 			"@mui/material/FormHelperText",
 			"@mui/material/FormLabel",
-			"@mui/material/IconButton",
 			"@mui/material/InputAdornment",
 			"@mui/material/InputBase",
-			"@mui/material/LinearProgress",
 			"@mui/material/Link",
 			"@mui/material/List",
 			"@mui/material/ListItem",
@@ -204,7 +202,6 @@ export default defineConfig({
 			"@mui/material/Skeleton",
 			"@mui/material/Snackbar",
 			"@mui/material/Stack",
-			"@mui/material/SvgIcon",
 			"@mui/material/TableRow",
 			"@mui/material/TextField",
 			"@mui/material/ToggleButton",
@@ -212,40 +209,34 @@ export default defineConfig({
 			"@mui/material/styles",
 			"@mui/system/createTheme",
 			"@mui/system/useTheme",
-			"@mui/x-tree-view",
+			// Discovered at runtime without this entry, triggering
+			// a mid-run dep re-optimization that breaks imports.
+			"@tanstack/react-query-devtools",
 		],
 	},
 	resolve: {
 		alias: {
-			// In profiling builds, swap the production react-dom client
-			// bundle for the profiling variant so that <Profiler>
-			// onRender receives actual timing data.
-			// Note: react-dom/profiling is a superset of react-dom/client
-			// (16 vs 3 exports). If a future React major changes this
-			// relationship, the alias may need updating.
+			// In profiling builds, swap the usual reconciler for the profiling
+			// variant so that <Profiler> receives actual timing data.
 			...(isProfilingBuild
 				? { "react-dom/client": "react-dom/profiling" }
 				: {}),
-			App: path.resolve(__dirname, "./src/App"),
-			api: path.resolve(__dirname, "./src/api"),
-			components: path.resolve(__dirname, "./src/components"),
-			contexts: path.resolve(__dirname, "./src/contexts"),
-			hooks: path.resolve(__dirname, "./src/hooks"),
-			modules: path.resolve(__dirname, "./src/modules"),
-			pages: path.resolve(__dirname, "./src/pages"),
-			testHelpers: path.resolve(__dirname, "./src/testHelpers"),
-			theme: path.resolve(__dirname, "./src/theme"),
-			utils: path.resolve(__dirname, "./src/utils"),
 		},
 	},
 	test: {
 		silent: "passed-only",
+		// Rolldown's native threads do not terminate on close,
+		// so vitest always hits this timeout. Keep it short.
+		teardownTimeout: 1000,
 		projects: [
 			{
 				extends: true,
 				test: {
 					name: "unit",
-					include: ["src/**/*.test.?(m)ts?(x)"],
+					include: [
+						"src/**/*.test.?(m)ts?(x)",
+						"scripts/**/*.test.?(m)[jt]s?(x)",
+					],
 					globals: true,
 					environment: "jsdom",
 					setupFiles: [
@@ -263,6 +254,27 @@ export default defineConfig({
 					storybookTest({
 						configDir: path.join(__dirname, ".storybook"),
 					}),
+					{
+						name: "storybook-test-setup",
+						// Return 502 for API routes. The proxy is disabled
+						// during tests (see above), so without this vite
+						// serves its HTML fallback for unmatched routes.
+						configureServer(server) {
+							server.middlewares.use((req, res, next) => {
+								const url = req.url ?? "";
+								if (
+									url.startsWith("/api/") ||
+									url.startsWith("/swagger/") ||
+									url.startsWith("/healthz")
+								) {
+									res.statusCode = 502;
+									res.end();
+									return;
+								}
+								next();
+							});
+						},
+					},
 				],
 				test: {
 					name: "storybook",
@@ -273,6 +285,12 @@ export default defineConfig({
 						instances: [{ browser: "chromium" }],
 					},
 					setupFiles: [".storybook/vitest.setup.ts"],
+					// Stop early on systemic failures.
+					bail: 5,
+					// Cap concurrent browser iframes. The default
+					// (os.availableParallelism, 96 on dev workspaces)
+					// overwhelms vite's transform pipeline on cold cache.
+					maxWorkers: 4,
 				},
 			},
 		],

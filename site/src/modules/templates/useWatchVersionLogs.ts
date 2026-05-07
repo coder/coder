@@ -1,5 +1,4 @@
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { watchBuildLogsByTemplateVersionId } from "#/api/api";
 import type { ProvisionerJobLog, TemplateVersion } from "#/api/typesGenerated";
 export const useWatchVersionLogs = (
@@ -14,7 +13,7 @@ export const useWatchVersionLogs = (
 		setLogs([]);
 	}
 
-	const stableOnDone = useEffectEvent(() => options?.onDone());
+	const onDoneEvent = useEffectEvent(() => options?.onDone());
 	const status = templateVersion?.job.status;
 	const canWatch = status === "running" || status === "pending";
 	useEffect(() => {
@@ -24,14 +23,14 @@ export const useWatchVersionLogs = (
 
 		const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
 			onError: (error) => console.error(error),
-			onDone: stableOnDone,
+			onDone: onDoneEvent,
 			onMessage: (newLog) => {
 				setLogs((current) => [...(current ?? []), newLog]);
 			},
 		});
 
 		return () => socket.close();
-	}, [stableOnDone, canWatch, templateVersionId]);
+	}, [canWatch, templateVersionId]);
 
 	return logs;
 };

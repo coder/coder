@@ -1,11 +1,36 @@
-import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
-import { API } from "#/api/api";
+import {
+	type InfiniteData,
+	type QueryClient,
+	queryOptions,
+	type UseInfiniteQueryOptions,
+} from "react-query";
+import {
+	API,
+	type ChatPlanModeOrClear,
+	type CreateChatMessageRequestWithClearablePlanMode,
+} from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import {
+	projectEditedConversationIntoCache,
+	reconcileEditedMessageInCache,
+} from "./chatMessageEdits";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
+
+export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+
+export const chatsByWorkspace = (workspaceIds: string[]) => {
+	const sorted = workspaceIds.toSorted();
+	return {
+		queryKey: [...chatsKey, "by-workspace", sorted],
+		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
+		enabled: workspaceIds.length > 0,
+	};
+};
 
 /**
  * Updates a single chat inside every page of the infinite chats query
@@ -79,7 +104,301 @@ export const readInfiniteChatsCache = (
 };
 
 /**
- * Invalidate only the sidebar chat-list queries (flat + infinite)
+ * Adds a child chat to its parent's `children` array across all
+ * infinite chat query caches. If the parent is not in any loaded page,
+ * the child is silently dropped (it will appear when the parent loads).
+ */
+export const addChildToParentInCache = (
+	queryClient: QueryClient,
+	child: TypesGen.Chat,
+	parentId: string,
+) => {
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (c.id !== parentId) return c;
+			// Avoid duplicates.
+			if (c.children?.some((ch) => ch.id === child.id)) return c;
+			changed = true;
+			return { ...c, children: [child, ...(c.children ?? [])] };
+		});
+		return changed ? next : chats;
+	});
+};
+
+/**
+ * Updates a child chat within its parent's `children` array across all
+ * infinite chat query caches. Returns true if the child was found and
+ * updated, false otherwise.
+ */
+export const updateChildInParentCache = (
+	queryClient: QueryClient,
+	updater: (child: TypesGen.Chat) => TypesGen.Chat,
+	childId: string,
+) => {
+	let found = false;
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (!c.children?.length) return c;
+			let childChanged = false;
+			const nextChildren = c.children.map((ch) => {
+				if (ch.id !== childId) return ch;
+				const updated = updater(ch);
+				if (updated !== ch) {
+					childChanged = true;
+					found = true;
+				}
+				return updated;
+			});
+			if (!childChanged) return c;
+			changed = true;
+			return { ...c, children: nextChildren };
+		});
+		return changed ? next : chats;
+	});
+	return found;
+};
+
+/**
+ * Removes a child chat from its parent's `children` array across all
+ * infinite chat query caches. Returns true if the child was found and
+ * removed, false otherwise. Used when a child is archived individually
+ * (the sidebar hides children whose archive state differs from the
+ * parent) and when a `deleted` pubsub event arrives for a child chat.
+ */
+export const removeChildFromParentInCache = (
+	queryClient: QueryClient,
+	childId: string,
+) => {
+	let found = false;
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let changed = false;
+		const next = chats.map((c) => {
+			if (!c.children?.length) return c;
+			const filtered = c.children.filter((ch) => ch.id !== childId);
+			if (filtered.length === c.children.length) return c;
+			found = true;
+			changed = true;
+			return { ...c, children: filtered };
+		});
+		return changed ? next : chats;
+	});
+	return found;
+};
+
+const parseUpdatedAtInstant = (updatedAt: string) => {
+	const match = updatedAt.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/);
+	if (!match) {
+		const epochMs = Date.parse(updatedAt);
+		return Number.isNaN(epochMs) ? undefined : { epochMs, fractionalNanos: 0 };
+	}
+
+	const [, timestampWithoutFraction, fractionalSeconds = "", timezone] = match;
+	const epochMs = Date.parse(`${timestampWithoutFraction}${timezone}`);
+	if (Number.isNaN(epochMs)) {
+		return undefined;
+	}
+	return {
+		epochMs,
+		fractionalNanos: Number(fractionalSeconds.slice(0, 9).padEnd(9, "0")),
+	};
+};
+
+const compareUpdatedAtInstants = (a: string, b: string): number => {
+	const parsedA = parseUpdatedAtInstant(a);
+	const parsedB = parseUpdatedAtInstant(b);
+	if (!parsedA || !parsedB) {
+		return a.localeCompare(b);
+	}
+	if (parsedA.epochMs !== parsedB.epochMs) {
+		return parsedA.epochMs - parsedB.epochMs;
+	}
+	return parsedA.fractionalNanos - parsedB.fractionalNanos;
+};
+
+type MergeWatchedChatOptions = {
+	readonly eventKind: TypesGen.ChatWatchEventKind;
+	readonly activeChatId?: string;
+};
+
+// Shallow-compare two ChatDiffStatus objects by their meaningful
+// fields, ignoring refreshed_at/stale_at which change on every poll.
+const diffStatusEqual = (
+	a: TypesGen.ChatDiffStatus | undefined,
+	b: TypesGen.ChatDiffStatus | undefined,
+): boolean => {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.url === b.url &&
+		a.pull_request_state === b.pull_request_state &&
+		a.pull_request_title === b.pull_request_title &&
+		a.pull_request_draft === b.pull_request_draft &&
+		a.changes_requested === b.changes_requested &&
+		a.additions === b.additions &&
+		a.deletions === b.deletions &&
+		a.changed_files === b.changed_files &&
+		a.pr_number === b.pr_number &&
+		a.approved === b.approved &&
+		a.commits === b.commits
+	);
+};
+
+/**
+ * Merges event-scoped chat fields into a cached summary, using updated_at
+ * as a stale guard while still adopting the latest DB-backed model config.
+ */
+export const mergeWatchedChatSummary = (
+	cachedChat: TypesGen.Chat,
+	watchedChat: TypesGen.Chat,
+	{ eventKind, activeChatId }: MergeWatchedChatOptions,
+): TypesGen.Chat => {
+	const isTitleEvent = eventKind === "title_change";
+	const isStatusEvent = eventKind === "status_change";
+	const isSummaryEvent = eventKind === "summary_change";
+	const isDiffStatusEvent = eventKind === "diff_status_change";
+	const updatedAtComparison = compareUpdatedAtInstants(
+		cachedChat.updated_at,
+		watchedChat.updated_at,
+	);
+	const isFreshEnough = updatedAtComparison <= 0;
+	const nextStatus =
+		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
+	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
+	// apply title_change payloads even when the chat summary timestamp is older.
+	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
+	// Diff status freshness is tracked outside chats.updated_at, so apply
+	// diff_status_change payloads even when the chat summary timestamp is older.
+	const nextDiffStatus = isDiffStatusEvent
+		? watchedChat.diff_status
+		: cachedChat.diff_status;
+	const nextWorkspaceId = isFreshEnough
+		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
+		: cachedChat.workspace_id;
+	const nextBuildId = isFreshEnough
+		? (watchedChat.build_id ?? cachedChat.build_id)
+		: cachedChat.build_id;
+	// All event types carry the current model config from the DB.
+	const nextLastModelConfigId = isFreshEnough
+		? watchedChat.last_model_config_id
+		: cachedChat.last_model_config_id;
+	const nextLastTurnSummary =
+		isFreshEnough || isSummaryEvent
+			? watchedChat.last_turn_summary
+			: cachedChat.last_turn_summary;
+	const nextHasUnread =
+		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
+			? true
+			: cachedChat.has_unread;
+	const nextUpdatedAt =
+		updatedAtComparison > 0 ? cachedChat.updated_at : watchedChat.updated_at;
+
+	// Keep updated_at in the no-op guard. This gives up the old streaming
+	// rerender shortcut so later stale events cannot pass isFreshEnough
+	// against a timestamp that should already have been superseded.
+	if (
+		nextStatus === cachedChat.status &&
+		nextTitle === cachedChat.title &&
+		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
+		nextWorkspaceId === cachedChat.workspace_id &&
+		nextBuildId === cachedChat.build_id &&
+		nextLastModelConfigId === cachedChat.last_model_config_id &&
+		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextHasUnread === cachedChat.has_unread &&
+		nextUpdatedAt === cachedChat.updated_at
+	) {
+		return cachedChat;
+	}
+
+	return {
+		...cachedChat,
+		status: nextStatus,
+		title: nextTitle,
+		diff_status: nextDiffStatus,
+		workspace_id: nextWorkspaceId,
+		build_id: nextBuildId,
+		last_model_config_id: nextLastModelConfigId,
+		last_turn_summary: nextLastTurnSummary,
+		has_unread: nextHasUnread,
+		updated_at: nextUpdatedAt,
+	};
+};
+
+/**
+ * Applies the same event-scoped merge and stale guard across the list,
+ * parent-child, and per-chat caches, covering all three cache layers.
+ */
+export const mergeWatchedChatIntoCaches = (
+	queryClient: QueryClient,
+	watchedChat: TypesGen.Chat,
+	options: MergeWatchedChatOptions,
+) => {
+	const mergeCachedChat = (cachedChat: TypesGen.Chat) =>
+		mergeWatchedChatSummary(cachedChat, watchedChat, options);
+
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let didUpdate = false;
+		const nextChats = chats.map((chat) => {
+			if (chat.id !== watchedChat.id) {
+				return chat;
+			}
+			const mergedChat = mergeCachedChat(chat);
+			if (mergedChat !== chat) {
+				didUpdate = true;
+			}
+			return mergedChat;
+		});
+		return didUpdate ? nextChats : chats;
+	});
+
+	updateChildInParentCache(queryClient, mergeCachedChat, watchedChat.id);
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatKey(watchedChat.id),
+		(cachedChat) => {
+			if (!cachedChat) {
+				return cachedChat;
+			}
+			return mergeCachedChat(cachedChat);
+		},
+	);
+};
+
+const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
+	let maxPinOrder = 0;
+	const queries = queryClient.getQueriesData<
+		TypesGen.Chat[] | { pages: TypesGen.Chat[][]; pageParams: unknown[] }
+	>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
+
+	for (const [, data] of queries) {
+		if (!data) {
+			continue;
+		}
+
+		if (Array.isArray(data)) {
+			for (const chat of data) {
+				maxPinOrder = Math.max(maxPinOrder, chat.pin_order);
+			}
+			continue;
+		}
+
+		for (const page of data.pages) {
+			for (const chat of page) {
+				maxPinOrder = Math.max(maxPinOrder, chat.pin_order);
+			}
+		}
+	}
+
+	return maxPinOrder + 1;
+};
+
 /**
  * Predicate that matches only chat-list queries (the sidebar), not
  * per-chat queries (detail, messages, diffs, cost).
@@ -105,20 +424,78 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 };
 
 /**
- * Cancel in-flight refetches for sidebar chat-list queries.
- * Call this before writing WebSocket-driven cache updates so a
- * concurrent refetch (e.g. from createChat.onSuccess or the
- * watchChats onOpen handler) cannot overwrite the update with
- * stale server data that predates async title generation.
+ * Predicate that matches chat-list queries performing a regular
+ * refetch (window-focus, invalidation, mount) but not a
+ * fetchNextPage or fetchPreviousPage. During pagination fetches
+ * react-query sets fetchMeta.fetchMore.direction to "forward"
+ * or "backward"; regular refetches leave fetchMeta null.
+ *
+ * Also excludes queries that have never loaded data. Cancelling
+ * a first-ever fetch with revert:true leaves the query stuck in
+ * { status: 'pending', fetchStatus: 'idle', data: undefined }
+ * with no automatic recovery, so the sidebar shows skeletons
+ * forever until the user refocuses the window.
  */
-export const cancelChatListQueries = (queryClient: QueryClient) => {
+const isChatListRefetch = (query: {
+	queryKey: readonly unknown[];
+	state: { data: unknown; fetchMeta: unknown };
+}): boolean => {
+	if (!isChatListQuery(query)) return false;
+	// Never cancel the initial load. Reverting a first-ever
+	// fetch produces a stuck pending/idle state that react-query
+	// does not automatically recover from.
+	if (query.state.data === undefined) return false;
+	const meta = query.state.fetchMeta as {
+		fetchMore?: { direction?: string };
+	} | null;
+	if (meta?.fetchMore?.direction) return false;
+	return true;
+};
+
+/**
+ * Cancel in-flight background refetches for sidebar chat-list
+ * queries, but leave fetchNextPage / fetchPreviousPage fetches
+ * alone. Call this before writing WebSocket-driven cache
+ * updates so a concurrent refetch cannot overwrite the update
+ * with stale server data.
+ *
+ * Pagination fetches are intentionally excluded because
+ * cancelling them would prevent the sidebar from loading
+ * additional pages when WebSocket events arrive frequently.
+ *
+ * Mutation onMutate handlers should keep the broad
+ * isChatListQuery predicate instead: mutations are infrequent
+ * and must cancel pagination fetches to protect optimistic
+ * updates from being overwritten by the oldPages snapshot
+ * that fetchNextPage captured before the mutation.
+ */
+export const cancelChatListRefetches = (queryClient: QueryClient) => {
 	return queryClient.cancelQueries({
 		queryKey: chatsKey,
-		predicate: isChatListQuery,
+		predicate: isChatListRefetch,
 	});
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
+
+type UpdateChatWorkspaceVariables = {
+	chatId: string;
+	workspaceId: string | null;
+};
+
+type UpdateChatPlanModeVariables = {
+	chatId: string;
+	planMode?: TypesGen.ChatPlanMode;
+};
+
+const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
+
+const toChatPlanModePayload = (
+	planMode: TypesGen.ChatPlanMode | undefined,
+): ChatPlanModeOrClear => {
+	// The API expects an empty string on the wire to clear plan mode.
+	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
+};
 
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
@@ -189,12 +566,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -203,11 +575,15 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Flip archived flag in the flat root list; strip the
+		// chat from any parent's embedded children (individual
+		// child archive).
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,
 			),
 		);
+		removeChildFromParentInCache(queryClient, chatId);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
@@ -240,6 +616,9 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -249,12 +628,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -300,58 +674,579 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
+
+export const updateChatPlanMode = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+		API.experimental.updateChat(chatId, {
+			plan_mode: toChatPlanModePayload(planMode),
+		}),
+	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				plan_mode: planMode,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatPlanModeVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (!previousChat) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? {
+							...chat,
+							plan_mode: previousChat.plan_mode,
+						}
+					: chat,
+			),
+		);
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+	},
+});
+
+export const updateChatWorkspace = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
+		API.experimental.updateChat(chatId, {
+			workspace_id:
+				workspaceId ??
+				// The API uses the nil UUID to clear the workspace association.
+				"00000000-0000-0000-0000-000000000000",
+		}),
+	onMutate: async ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? { ...chat, workspace_id: workspaceId ?? undefined }
+					: chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				workspace_id: workspaceId ?? undefined,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatWorkspaceVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((chat) =>
+					chat.id === chatId
+						? {
+								...chat,
+								workspace_id: previousChat.workspace_id,
+							}
+						: chat,
+				),
+			);
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatWorkspaceVariables,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
+	},
+});
+
+export const pinChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) =>
+		API.experimental.updateChat(chatId, { pin_order: 1 }),
+	onMutate: async (chatId: string) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, pin_order: optimisticPinOrder } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				pin_order: optimisticPinOrder,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const unpinChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) =>
+		API.experimental.updateChat(chatId, { pin_order: 0 }),
+	onMutate: async (chatId: string) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, pin_order: 0 } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				pin_order: 0,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const reorderPinnedChat = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, pinOrder }: { chatId: string; pinOrder: number }) =>
+		API.experimental.updateChat(chatId, { pin_order: pinOrder }),
+	onMutate: async ({
+		chatId,
+		pinOrder,
+	}: {
+		chatId: string;
+		pinOrder: number;
+	}) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+
+		// Optimistically reorder pinned chats in the cache so the
+		// sidebar reflects the new order immediately without waiting
+		// for the server round-trip.
+		const allChats = readInfiniteChatsCache(queryClient) ?? [];
+		const pinned = allChats
+			.filter((c) => c.pin_order > 0)
+			.sort((a, b) => a.pin_order - b.pin_order);
+		const oldIdx = pinned.findIndex((c) => c.id === chatId);
+		if (oldIdx !== -1) {
+			const moved = pinned.splice(oldIdx, 1)[0];
+			pinned.splice(pinOrder - 1, 0, moved);
+			const newOrders = new Map(pinned.map((c, i) => [c.id, i + 1]));
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((c) => {
+					const order = newOrders.get(c.id);
+					return order !== undefined ? { ...c, pin_order: order } : c;
+				}),
+			);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: { chatId: string; pinOrder: number },
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const regenerateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.regenerateChatTitle(chatId),
+
+	onSuccess: (updatedChat: TypesGen.Chat) => {
+		queryClient.setQueryData<TypesGen.Chat>(
+			chatKey(updatedChat.id),
+			(previousChat) =>
+				previousChat ? { ...previousChat, ...updatedChat } : updatedChat,
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === updatedChat.id
+					? { ...chat, title: updatedChat.title }
+					: chat,
+			),
+		);
+	},
+
+	onSettled: async (
+		_data: TypesGen.Chat | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
+export const proposeChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
+
+	onSettled: (
+		_data: { title: string } | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
+type UpdateChatTitleVariables = {
+	chatId: string;
+	title: string;
+};
+
+export const updateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
+		API.experimental.updateChat(chatId, { title }),
+
+	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
+		queryClient.setQueryData<TypesGen.Chat | undefined>(
+			chatKey(chatId),
+			(chat) => (chat ? { ...chat, title } : chat),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+		);
+	},
+
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: UpdateChatTitleVariables,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const chatDebugRunsKey = (chatId: string) =>
+	[...chatKey(chatId), "debug-runs"] as const;
+
+const chatDebugRunKey = (chatId: string, runId: string) =>
+	[...chatDebugRunsKey(chatId), runId] as const;
+
+// Foreground poll cadence when the Debug tab is open. The error cadence
+// is slower so a transiently unreachable backend is not hammered, but
+// the panel still recovers automatically once the request succeeds.
+const DEBUG_RUN_POLL_MS = 5_000;
+const DEBUG_RUN_ERROR_POLL_MS = 30_000;
+
+// Terminal debug-run statuses that stop the detail query from polling.
+// Kept here (rather than imported from the debug panel page) so the
+// api/queries layer has no dependency on the page tree. Must stay in
+// sync with the success/error classification in the debug panel's
+// status-badge logic: any status that renders a non-active badge
+// (green/destructive) must end polling, otherwise a successful run
+// with status "ok" or "succeeded" would be polled forever. A test in
+// chats.test.ts pins this set to the debug panel's SUCCESS/ERROR
+// display sets so drift is caught at CI time.
+export const TERMINAL_RUN_STATUSES = new Set([
+	// Success-like.
+	"completed",
+	"success",
+	"succeeded",
+	"ok",
+	// Error-like.
+	"failed",
+	"error",
+	"errored",
+	"interrupted",
+	"cancelled",
+	"canceled",
+]);
+
+export const chatDebugRuns = (chatId: string) =>
+	queryOptions({
+		queryKey: chatDebugRunsKey(chatId),
+		queryFn: () => API.experimental.getChatDebugRuns(chatId),
+		refetchInterval: ({ state }) => {
+			// Keep polling on error with backoff so a transient fetch
+			// failure does not freeze the panel until a manual remount.
+			if (state.status === "error") {
+				return DEBUG_RUN_ERROR_POLL_MS;
+			}
+			// Consistent foreground cadence while the Debug tab is open.
+			// A slower terminal-state interval would delay discovery of
+			// newly-started runs until the user switches tabs.
+			return DEBUG_RUN_POLL_MS;
+		},
+		refetchIntervalInBackground: false,
+	});
+
+export const chatDebugRun = (chatId: string, runId: string) =>
+	queryOptions({
+		queryKey: chatDebugRunKey(chatId, runId),
+		queryFn: () => API.experimental.getChatDebugRun(chatId, runId),
+		refetchInterval: ({ state }) => {
+			if (state.status === "error") {
+				return DEBUG_RUN_ERROR_POLL_MS;
+			}
+			const status = state.data?.status;
+			if (status && TERMINAL_RUN_STATUSES.has(status.toLowerCase())) {
+				return false;
+			}
+			return DEBUG_RUN_POLL_MS;
+		},
+		refetchIntervalInBackground: false,
+	});
+
+const invalidateChatDebugRuns = (queryClient: QueryClient, chatId: string) => {
+	return queryClient.invalidateQueries({
+		queryKey: chatDebugRunsKey(chatId),
+	});
+};
 
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
 	onSuccess: () => {
 		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
 export const createChatMessage = (
-	_queryClient: QueryClient,
+	queryClient: QueryClient,
 	chatId: string,
 ) => ({
-	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
+	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
-	// No onSuccess invalidation needed: the per-chat WebSocket delivers
-	// the response message via upsertDurableMessage, and the global
-	// watchChats() WebSocket updates the sidebar sort order.
+	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
 type EditChatMessageMutationArgs = {
 	messageId: number;
+	optimisticMessage?: TypesGen.ChatMessage;
 	req: TypesGen.EditChatMessageRequest;
+};
+
+type EditChatMessageMutationContext = {
+	previousData?: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
 };
 
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onSuccess: () => {
-		// Editing truncates all messages after the edited one on the
-		// server. The WebSocket can insert/update messages but cannot
-		// remove stale ones, so a full messages refetch is required.
-		// Use exact matching to avoid cascading to unrelated queries
-		// (diff-status, diff-contents, cost summaries, etc.).
-		void queryClient.invalidateQueries({
-			queryKey: chatKey(chatId),
+	onMutate: async ({
+		messageId,
+		optimisticMessage,
+	}: EditChatMessageMutationArgs): Promise<EditChatMessageMutationContext> => {
+		// Cancel in-flight refetches so they don't overwrite the
+		// optimistic update before the mutation completes.
+		await queryClient.cancelQueries({
+			queryKey: chatMessagesKey(chatId),
 			exact: true,
 		});
+
+		const previousData = queryClient.getQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse>
+		>(chatMessagesKey(chatId));
+
+		queryClient.setQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatId), (current) =>
+			projectEditedConversationIntoCache({
+				currentData: current,
+				editedMessageId: messageId,
+				replacementMessage: optimisticMessage,
+				queuedMessages: [],
+			}),
+		);
+
+		return { previousData };
+	},
+	onError: (
+		_error: unknown,
+		_variables: EditChatMessageMutationArgs,
+		context: EditChatMessageMutationContext | undefined,
+	) => {
+		// Restore the cache on failure so the user sees the
+		// original messages again.
+		if (context?.previousData) {
+			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
+		}
+		// Invalidate messages as a safety net: the restored snapshot
+		// may be missing WebSocket-delivered messages that arrived
+		// during the mutation's flight time.
 		void queryClient.invalidateQueries({
 			queryKey: chatMessagesKey(chatId),
 			exact: true,
 		});
 	},
+	onSuccess: (
+		response: TypesGen.EditChatMessageResponse,
+		variables: EditChatMessageMutationArgs,
+	) => {
+		queryClient.setQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatId), (current) =>
+			reconcileEditedMessageInCache({
+				currentData: current,
+				optimisticMessageId: variables.messageId,
+				responseMessage: response.message,
+			}),
+		);
+	},
+	onSettled: () => {
+		// Refresh chat metadata (status, title, etc.). The messages
+		// query is intentionally NOT invalidated here. The per-chat
+		// WebSocket handles post-edit message delivery via
+		// FullRefresh, making REST invalidation unnecessary.
+		// Invalidating chatMessagesKey would trigger a redundant
+		// refetch that causes extra store mutations while the
+		// sticky user message is settling after the optimistic
+		// truncation.
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
-export const interruptChat = (_queryClient: QueryClient, chatId: string) => ({
+export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
-	// No onSuccess invalidation needed: the per-chat WebSocket
-	// delivers the status change via setChatStatus, and the global
-	// watchChats() WebSocket updates the sidebar.
+	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
 export const deleteChatQueuedMessage = (
@@ -373,14 +1268,14 @@ export const deleteChatQueuedMessage = (
 });
 
 export const promoteChatQueuedMessage = (
-	_queryClient: QueryClient,
+	queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
-	// No onSuccess invalidation needed: the caller upserts the
-	// promoted message from the response, and the per-chat
-	// WebSocket delivers queue and status updates in real-time.
+	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
@@ -399,10 +1294,28 @@ export const chatSystemPrompt = () => ({
 });
 
 export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatSystemPrompt,
+	mutationFn: (req: TypesGen.UpdateChatSystemPromptRequest) =>
+		API.experimental.updateChatSystemPrompt(req),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,
+		});
+	},
+});
+
+const chatPlanModeInstructionsKey = ["chat-plan-mode-instructions"] as const;
+
+export const chatPlanModeInstructions = () => ({
+	queryKey: chatPlanModeInstructionsKey,
+	queryFn: () => API.experimental.getChatPlanModeInstructions(),
+});
+
+export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateChatPlanModeInstructionsRequest) =>
+		API.experimental.updateChatPlanModeInstructions(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatPlanModeInstructionsKey,
 		});
 	},
 });
@@ -423,6 +1336,67 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatPersonalModelOverridesAdminSettingsKey = [
+	...chatsKey,
+	"admin-personal-model-overrides",
+] as const;
+
+export const chatPersonalModelOverridesAdminSettings = () => ({
+	queryKey: chatPersonalModelOverridesAdminSettingsKey,
+	queryFn: () => API.experimental.getChatPersonalModelOverridesAdminSettings(),
+});
+
+export const updateChatPersonalModelOverridesAdminSettings = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (
+		req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
+	) => API.experimental.updateChatPersonalModelOverridesAdminSettings(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatPersonalModelOverridesAdminSettingsKey,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
+		});
+	},
+});
+
+export * from "./chatDebugLogging";
+export const chatAdvisorConfigKey = ["chat-advisor-config"] as const;
+
+export const chatAdvisorConfig = () => ({
+	queryKey: chatAdvisorConfigKey,
+	queryFn: (): Promise<TypesGen.AdvisorConfig> =>
+		API.experimental.getChatAdvisorConfig(),
+});
+
+export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateAdvisorConfigRequest) =>
+		API.experimental.updateChatAdvisorConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAdvisorConfigKey,
+		});
+	},
+});
+
+const chatComputerUseProviderKey = ["chat-computer-use-provider"] as const;
+
+export const chatComputerUseProvider = () => ({
+	queryKey: chatComputerUseProviderKey,
+	queryFn: () => API.experimental.getChatComputerUseProvider(),
+});
+
+export const updateChatComputerUseProvider = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatComputerUseProvider,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatComputerUseProviderKey,
+		});
+	},
+});
+
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 
 export const chatWorkspaceTTL = () => ({
@@ -435,6 +1409,54 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatWorkspaceTTLKey,
+		});
+	},
+});
+
+const chatRetentionDaysKey = ["chat-retention-days"] as const;
+
+export const chatRetentionDays = () => ({
+	queryKey: chatRetentionDaysKey,
+	queryFn: () => API.experimental.getChatRetentionDays(),
+});
+
+export const updateChatRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatRetentionDaysKey,
+		});
+	},
+});
+
+const chatDebugRetentionDaysKey = ["chat-debug-retention-days"] as const;
+
+export const chatDebugRetentionDays = () => ({
+	queryKey: chatDebugRetentionDaysKey,
+	queryFn: () => API.experimental.getChatDebugRetentionDays(),
+});
+
+export const updateChatDebugRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatDebugRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDebugRetentionDaysKey,
+		});
+	},
+});
+
+const chatAutoArchiveDaysKey = ["chat-auto-archive-days"] as const;
+
+export const chatAutoArchiveDays = () => ({
+	queryKey: chatAutoArchiveDaysKey,
+	queryFn: () => API.experimental.getChatAutoArchiveDays(),
+});
+
+export const updateChatAutoArchiveDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatAutoArchiveDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAutoArchiveDaysKey,
 		});
 	},
 });
@@ -467,6 +1489,34 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatUserCustomPromptKey,
+		});
+	},
+});
+
+const userChatPersonalModelOverridesKey = [
+	...chatsKey,
+	"user-personal-model-overrides",
+] as const;
+
+export const userChatPersonalModelOverrides = () => ({
+	queryKey: userChatPersonalModelOverridesKey,
+	queryFn: (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> =>
+		API.experimental.getUserChatPersonalModelOverrides(),
+});
+
+type UpdateUserChatPersonalModelOverrideArgs = {
+	context: TypesGen.ChatPersonalModelOverrideContext;
+	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
+};
+
+export const updateUserChatPersonalModelOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+		API.experimental.updateUserChatPersonalModelOverride(context, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
 		});
 	},
 });
@@ -528,6 +1578,47 @@ export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
 	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
 		API.experimental.getChatModelConfigs(),
+});
+
+export const userChatProviderConfigsKey = [
+	"user-chat-provider-configs",
+] as const;
+
+export const userChatProviderConfigs = () => ({
+	queryKey: userChatProviderConfigsKey,
+	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
+		API.experimental.getUserChatProviderConfigs(),
+});
+
+type UpsertUserChatProviderKeyArgs = {
+	providerConfigId: string;
+	req: TypesGen.CreateUserChatProviderKeyRequest;
+};
+
+export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
+		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
+export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.experimental.deleteUserChatProviderKey(providerConfigId),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
 });
 
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
@@ -604,12 +1695,6 @@ type ChatCostDateParams = {
 	end_date?: string;
 };
 
-type ChatCostUsersParams = ChatCostDateParams & {
-	username?: string;
-	limit?: number;
-	offset?: number;
-};
-
 export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
 	[...chatsKey, "costSummary", user, params] as const;
 
@@ -619,14 +1704,33 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatCostUsersKey = (params?: ChatCostUsersParams) =>
-	[...chatsKey, "costUsers", params] as const;
+interface PaginatedChatCostUsersPayload {
+	username: string;
+	start_date: string;
+	end_date: string;
+}
 
-export const chatCostUsers = (params?: ChatCostUsersParams) => ({
-	queryKey: chatCostUsersKey(params),
-	queryFn: () => API.experimental.getChatCostUsers(params),
-	staleTime: 60_000,
-});
+export function paginatedChatCostUsers(
+	payload: PaginatedChatCostUsersPayload,
+): UsePaginatedQueryOptions<
+	TypesGen.ChatCostUsersResponse,
+	PaginatedChatCostUsersPayload
+> {
+	return {
+		queryPayload: () => payload,
+		queryKey: ({ payload, pageNumber }) =>
+			[...chatsKey, "costUsers", payload, pageNumber] as const,
+		queryFn: ({ payload, limit, offset }) =>
+			API.experimental.getChatCostUsers({
+				start_date: payload.start_date,
+				end_date: payload.end_date,
+				username: payload.username || undefined,
+				limit,
+				offset,
+			}),
+		staleTime: 60_000,
+	};
+}
 
 const prInsightsKey = (params?: { start_date?: string; end_date?: string }) =>
 	[...chatsKey, "prInsights", params] as const;

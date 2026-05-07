@@ -1,7 +1,7 @@
 import {
 	CopyIcon,
 	DownloadIcon,
-	EllipsisVertical,
+	EllipsisVerticalIcon,
 	HistoryIcon,
 	SettingsIcon,
 	SquareIcon,
@@ -45,6 +45,7 @@ type WorkspaceMoreActionsProps = {
 	disabled: boolean;
 	onStop?: () => void;
 	isStopping?: boolean;
+	onActionSuccess?: () => Promise<void> | void;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
@@ -52,6 +53,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	disabled,
 	onStop,
 	isStopping,
+	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -97,8 +99,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 	// Delete
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
 	const deleteWorkspaceMutation = useMutation({
-		...deleteWorkspace(workspace, queryClient),
+		...deleteWorkspaceOptions,
+		onSuccess: async (build) => {
+			await deleteWorkspaceOptions.onSuccess?.(build);
+			await onActionSuccess?.();
+		},
 		onError: (error: unknown) => {
 			handleError(error);
 		},
@@ -127,7 +134,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						aria-controls="workspace-options"
 						disabled={disabled}
 					>
-						<EllipsisVertical aria-hidden="true" />
+						<EllipsisVerticalIcon aria-hidden="true" />
 						<span className="sr-only">Workspace actions</span>
 					</Button>
 				</DropdownMenuTrigger>
@@ -249,7 +256,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 			<WorkspaceDeleteDialog
 				workspace={workspace}
-				canDeleteFailedWorkspace={!!permissions?.deleteFailedWorkspace}
+				canDeleteFailedWorkspace={Boolean(permissions?.deleteFailedWorkspace)}
 				isOpen={isConfirmingDelete}
 				onCancel={() => {
 					setIsConfirmingDelete(false);

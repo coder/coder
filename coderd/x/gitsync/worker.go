@@ -66,8 +66,8 @@ type Store interface {
 	UpsertChatDiffStatusReference(
 		ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams,
 	) (database.ChatDiffStatus, error)
-	GetChats(
-		ctx context.Context, arg database.GetChatsParams,
+	GetChatsByWorkspaceIDs(
+		ctx context.Context, ids []uuid.UUID,
 	) ([]database.Chat, error)
 }
 
@@ -274,53 +274,82 @@ func (w *Worker) tick(ctx context.Context) {
 	}
 }
 
-// MarkStale persists the git ref on all chats for a workspace,
-// setting stale_at to the past so the next tick picks them up.
-// Publishes a diff status event for each affected chat.
+// MarkStaleParams holds the arguments for Worker.MarkStale.
+type MarkStaleParams struct {
+	WorkspaceID uuid.UUID
+	Branch      string
+	Origin      string
+	// ChatID, when set, targets a single chat instead of
+	// broadcasting to every chat on the workspace.
+	ChatID uuid.UUID
+}
+
+// MarkStale persists the git ref for a chat (or all chats on a
+// workspace when no ChatID is provided), setting stale_at to the
+// past so the next tick picks them up. Publishes a diff status
+// event for each affected chat.
 // Called from workspaceagents handlers. No goroutines spawned.
-func (w *Worker) MarkStale(
-	ctx context.Context,
-	workspaceID, ownerID uuid.UUID,
-	branch, origin string,
-) {
-	if branch == "" || origin == "" {
+func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
+	if p.Branch == "" || p.Origin == "" {
 		return
 	}
 
-	chats, err := w.store.GetChats(ctx, database.GetChatsParams{
-		OwnerID: ownerID,
-	})
+	// When a specific chat is identified, target it directly
+	// instead of broadcasting to every chat on the workspace.
+	// Note: this path does not verify that the chat belongs to
+	// WorkspaceID. This is safe because ChatID originates from
+	// chatd via the agent (trusted data flow), but differs from
+	// the broadcast path which filters by workspace.
+	if p.ChatID != uuid.Nil {
+		w.markStaleSingle(ctx, p.ChatID, p.Branch, p.Origin)
+		return
+	}
+
+	// Broadcast path: scope by workspace. GetChatsByWorkspaceIDs
+	// filters archived=false, which is intentional: archived
+	// chats aren't in the active sidebar and don't need refreshed
+	// git refs.
+	chats, err := w.store.GetChatsByWorkspaceIDs(ctx, []uuid.UUID{p.WorkspaceID})
 	if err != nil {
 		w.logger.Warn(ctx, "list chats for git ref storage",
-			slog.F("workspace_id", workspaceID),
+			slog.F("workspace_id", p.WorkspaceID),
 			slog.Error(err))
 		return
 	}
 
-	for _, chat := range filterChatsByWorkspaceID(chats, workspaceID) {
-		_, err := w.store.UpsertChatDiffStatusReference(ctx,
-			database.UpsertChatDiffStatusReferenceParams{
-				ChatID:          chat.ID,
-				GitBranch:       branch,
-				GitRemoteOrigin: origin,
-				StaleAt:         w.clock.Now().Add(-time.Second),
-				Url:             sql.NullString{},
-			},
-		)
-		if err != nil {
-			w.logger.Warn(ctx, "store git ref on chat diff status",
-				slog.F("chat_id", chat.ID),
-				slog.F("workspace_id", workspaceID),
-				slog.Error(err))
-			continue
-		}
-		// Notify the frontend immediately so the UI shows the
-		// branch info even before the worker refreshes PR data.
-		if w.publishDiffStatusChangeFn != nil {
-			if pubErr := w.publishDiffStatusChangeFn(ctx, chat.ID); pubErr != nil {
-				w.logger.Debug(ctx, "publish diff status after mark stale",
-					slog.F("chat_id", chat.ID), slog.Error(pubErr))
-			}
+	for _, chat := range chats {
+		w.markStaleSingle(ctx, chat.ID, p.Branch, p.Origin)
+	}
+}
+
+// markStaleSingle upserts the git ref for a single chat and
+// publishes a diff-status change event.
+func (w *Worker) markStaleSingle(
+	ctx context.Context,
+	chatID uuid.UUID,
+	branch, origin string,
+) {
+	_, err := w.store.UpsertChatDiffStatusReference(ctx,
+		database.UpsertChatDiffStatusReferenceParams{
+			ChatID:          chatID,
+			GitBranch:       branch,
+			GitRemoteOrigin: origin,
+			StaleAt:         w.clock.Now().Add(-time.Second),
+			Url:             sql.NullString{},
+		},
+	)
+	if err != nil {
+		w.logger.Warn(ctx, "store git ref on chat diff status",
+			slog.F("chat_id", chatID),
+			slog.Error(err))
+		return
+	}
+	// Notify the frontend immediately so the UI shows the
+	// branch info even before the worker refreshes PR data.
+	if w.publishDiffStatusChangeFn != nil {
+		if pubErr := w.publishDiffStatusChangeFn(ctx, chatID); pubErr != nil {
+			w.logger.Debug(ctx, "publish diff status after mark stale",
+				slog.F("chat_id", chatID), slog.Error(pubErr))
 		}
 	}
 }
@@ -369,20 +398,4 @@ func (w *Worker) RefreshChat(
 	}
 
 	return &upserted, nil
-}
-
-// filterChatsByWorkspaceID returns only chats associated with
-// the given workspace.
-func filterChatsByWorkspaceID(
-	chats []database.Chat,
-	workspaceID uuid.UUID,
-) []database.Chat {
-	filtered := make([]database.Chat, 0, len(chats))
-	for _, chat := range chats {
-		if !chat.WorkspaceID.Valid || chat.WorkspaceID.UUID != workspaceID {
-			continue
-		}
-		filtered = append(filtered, chat)
-	}
-	return filtered
 }

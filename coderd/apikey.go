@@ -36,7 +36,7 @@ import (
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.CreateTokenRequest true "Create token request"
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
-// @Router /users/{user}/keys/tokens [post]
+// @Router /api/v2/users/{user}/keys/tokens [post]
 func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -190,7 +190,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
-// @Router /users/{user}/keys [post]
+// @Router /api/v2/users/{user}/keys [post]
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -244,7 +244,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(string)
 // @Success 200 {object} codersdk.APIKey
-// @Router /users/{user}/keys/{keyid} [get]
+// @Router /api/v2/users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -273,7 +273,7 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param keyname path string true "Key Name" format(string)
 // @Success 200 {object} codersdk.APIKey
-// @Router /users/{user}/keys/tokens/{keyname} [get]
+// @Router /api/v2/users/{user}/keys/tokens/{keyname} [get]
 func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
@@ -308,7 +308,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {array} codersdk.APIKey
 // @Param include_expired query bool false "Include expired tokens in the list"
-// @Router /users/{user}/keys/tokens [get]
+// @Router /api/v2/users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -391,7 +391,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(string)
 // @Success 204
-// @Router /users/{user}/keys/{keyid} [delete]
+// @Router /api/v2/users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -436,7 +436,7 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Failure 404 {object} codersdk.Response
 // @Failure 500 {object} codersdk.Response
-// @Router /users/{user}/keys/{keyid}/expire [put]
+// @Router /api/v2/users/{user}/keys/{keyid}/expire [put]
 func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -497,7 +497,7 @@ func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.TokenConfig
-// @Router /users/{user}/keys/tokens/tokenconfig [get]
+// @Router /api/v2/users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	maxLifetime, err := api.getMaxTokenLifetime(r.Context(), user.ID)
@@ -582,5 +582,20 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
+		// MaxAge is set so the browser persists the cookie to disk rather
+		// than keeping it in memory as a session cookie. Standalone PWAs
+		// (display: standalone) run in their own browser process, and
+		// mobile OSes kill that process when the app is swiped away —
+		// deleting in-memory cookies and forcing an unexpected login.
+		//
+		// We use a long static value (1 year) instead of the key's
+		// LifetimeSeconds because the server refreshes the key's
+		// ExpiresAt on activity but does not re-set the cookie. Tying
+		// MaxAge to the key lifetime would cause the cookie to expire
+		// client-side even when the server-side key is still valid.
+		//
+		// Security is not affected: the server validates ExpiresAt on
+		// every request regardless of the cookie's MaxAge.
+		MaxAge: int((365 * 24 * time.Hour).Seconds()),
 	}), &newkey, nil
 }

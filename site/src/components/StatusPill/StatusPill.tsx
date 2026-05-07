@@ -1,11 +1,11 @@
 import type { FC } from "react";
-import { httpStatusColor } from "utils/http";
 import { Pill } from "#/components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { httpStatusColor } from "#/utils/http";
 
 interface StatusPillProps {
 	code: number;

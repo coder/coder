@@ -1,19 +1,14 @@
-import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
 	useCallback,
 	useEffect,
+	useEffectEvent,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import { API } from "#/api/api";
 import { type ApiErrorResponse, DetailedError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -32,6 +27,11 @@ import type {
 	Workspace,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { pageTitle } from "#/utils/page";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
@@ -78,7 +78,7 @@ const CreateWorkspacePage: FC = () => {
 	);
 	const templateVersionPresetsQuery = useQuery({
 		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: !!templateQuery.data,
+		enabled: Boolean(templateQuery.data),
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
@@ -87,7 +87,7 @@ const CreateWorkspacePage: FC = () => {
 				templateQuery.data?.id,
 			),
 		}),
-		enabled: !!templateQuery.data,
+		enabled: Boolean(templateQuery.data),
 	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
@@ -99,19 +99,20 @@ const CreateWorkspacePage: FC = () => {
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
-	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, ownerId?: string) => {
-			const request: DynamicParametersRequest = {
-				id: wsResponseId.current + 1,
-				owner_id: ownerId ?? owner.id,
-				inputs: formValues,
-			};
-			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-				ws.current.send(JSON.stringify(request));
-				wsResponseId.current = wsResponseId.current + 1;
-			}
-		},
-	);
+	const sendMessage = (
+		formValues: Record<string, string>,
+		ownerId?: string,
+	) => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			owner_id: ownerId ?? owner.id,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
+	};
 
 	// On page load, sends all initial parameter values to the websocket
 	// (including defaults and autofilled from the url)
@@ -187,7 +188,7 @@ const CreateWorkspacePage: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [realizedVersionId, onMessage, defaultOwner.id]);
+	}, [realizedVersionId, defaultOwner.id]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
@@ -278,7 +279,7 @@ const CreateWorkspacePage: FC = () => {
 		if (autoCreateReady) {
 			void automateWorkspaceCreation();
 		}
-	}, [automateWorkspaceCreation, autoCreateReady]);
+	}, [autoCreateReady]);
 
 	const sortedParams = useMemo(() => {
 		if (!latestResponse?.parameters) {

@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import type { ApiErrorResponse } from "#/api/errors";
 import type { ExternalAuthDevice } from "#/api/typesGenerated";
@@ -36,7 +35,7 @@ const LoginOAuthDevicePageView: FC<LoginOAuthDevicePageViewProps> = ({
 		<SignInLayout>
 			<Welcome>You&apos;ve authenticated with GitHub!</Welcome>
 
-			<p css={styles.text}>
+			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				If you&apos;re not redirected automatically,{" "}
 				<a href={redirectUrl}>click here</a>.
 			</p>
@@ -45,13 +44,3 @@ const LoginOAuthDevicePageView: FC<LoginOAuthDevicePageViewProps> = ({
 };
 
 export default LoginOAuthDevicePageView;
-
-const styles = {
-	text: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		lineHeight: "160%",
-		margin: 0,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

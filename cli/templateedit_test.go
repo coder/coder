@@ -828,7 +828,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--require-active-version",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		//nolint
+		//nolint:gocritic // Using owner client is required for template editing.
 		clitest.SetupConfig(t, client, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -858,7 +858,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--name", "something-new",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		//nolint
+		//nolint:gocritic // Using owner client is required for template editing.
 		clitest.SetupConfig(t, client, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)

@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within } from "@testing-library/react";
 import type { ComponentProps } from "react";
-import { userEvent } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { TemplateInsightsControls } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsControls> = {
@@ -17,6 +16,7 @@ const defaultArgs: Partial<ComponentProps<typeof TemplateInsightsControls>> = {
 		startDate: new Date("2025-08-05"),
 		endDate: new Date("2025-08-07"),
 	},
+	now: new Date("2025-08-07T12:00:00Z"),
 	setDateRange: () => {},
 	searchParams: new URLSearchParams(),
 	setSearchParams: () => {},

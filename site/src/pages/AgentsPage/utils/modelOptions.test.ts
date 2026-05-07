@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { ChatModelConfig, ChatModelsResponse } from "#/api/typesGenerated";
+import type {
+	ChatModelConfig,
+	ChatModelsResponse,
+	ChatProviderConfig,
+} from "#/api/typesGenerated";
 import {
+	countConfiguredProviderConfigs,
+	formatProviderLabel,
 	getModelOptionsFromConfigs,
+	getModelSelectorPlaceholder,
 	getNormalizedModelRef,
+	hasConfiguredProviderConfigs,
+	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./modelOptions";
 
@@ -45,6 +54,25 @@ const createCatalog = (
 	providers,
 });
 
+const createProviderConfig = (
+	overrides: Pick<ChatProviderConfig, "provider" | "source"> &
+		Partial<ChatProviderConfig>,
+): ChatProviderConfig => {
+	const { provider, source, ...rest } = overrides;
+	return {
+		id: "provider-config-1",
+		provider,
+		display_name: provider,
+		enabled: true,
+		has_api_key: false,
+		central_api_key_enabled: true,
+		allow_user_api_key: false,
+		allow_central_api_key_fallback: false,
+		source,
+		...rest,
+	};
+};
+
 describe("getNormalizedModelRef", () => {
 	it("returns empty strings for malformed values", () => {
 		expect(getNormalizedModelRef({ provider: undefined, model: null })).toEqual(
@@ -56,6 +84,178 @@ describe("getNormalizedModelRef", () => {
 		expect(
 			getNormalizedModelRef({ provider: " OpenAI ", model: " gpt-4o " }),
 		).toEqual({ provider: "openai", model: "gpt-4o" });
+	});
+});
+
+describe("hasUserFixableProviders", () => {
+	it("returns true when a provider needs a user API key", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "user_api_key_required",
+				models: [],
+			},
+		]);
+
+		expect(hasUserFixableProviders(catalog)).toBe(true);
+	});
+
+	it("returns false when providers are only admin-fixable", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "missing_api_key",
+				models: [],
+			},
+		]);
+
+		expect(hasUserFixableProviders(catalog)).toBe(false);
+	});
+});
+
+describe("hasConfiguredProviderConfigs", () => {
+	it("ignores supported provider placeholders", () => {
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+
+		expect(
+			hasConfiguredProviderConfigs(
+				[createProviderConfig({ provider: "openai", source: "supported" })],
+				catalog,
+			),
+		).toBe(false);
+	});
+
+	it("returns true for database and env preset provider configs", () => {
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+
+		expect(
+			hasConfiguredProviderConfigs(
+				[createProviderConfig({ provider: "openai", source: "database" })],
+				catalog,
+			),
+		).toBe(true);
+		expect(
+			hasConfiguredProviderConfigs(
+				[createProviderConfig({ provider: "openai", source: "env_preset" })],
+				catalog,
+			),
+		).toBe(true);
+	});
+
+	it("excludes disabled and unavailable provider configs", () => {
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+			{
+				provider: "anthropic",
+				available: false,
+				unavailable_reason: "missing_api_key",
+				models: [],
+			},
+		]);
+
+		expect(
+			hasConfiguredProviderConfigs(
+				[
+					createProviderConfig({
+						provider: "openai",
+						source: "database",
+						enabled: false,
+					}),
+					createProviderConfig({
+						provider: "anthropic",
+						source: "database",
+					}),
+				],
+				catalog,
+			),
+		).toBe(false);
+	});
+});
+
+describe("countConfiguredProviderConfigs", () => {
+	it("counts only enabled provider configs available in the catalog", () => {
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+			{ provider: "anthropic", available: true, models: [] },
+			{ provider: "google", available: true, models: [] },
+			{ provider: "azure", available: true, models: [] },
+			{
+				provider: "bedrock",
+				available: false,
+				unavailable_reason: "missing_api_key",
+				models: [],
+			},
+		]);
+
+		expect(
+			countConfiguredProviderConfigs(
+				[
+					createProviderConfig({ provider: "openai", source: "database" }),
+					createProviderConfig({ provider: "anthropic", source: "env_preset" }),
+					createProviderConfig({ provider: "google", source: "supported" }),
+					createProviderConfig({
+						provider: "azure",
+						source: "database",
+						enabled: false,
+					}),
+					createProviderConfig({ provider: "bedrock", source: "database" }),
+				],
+				catalog,
+			),
+		).toBe(2);
+	});
+
+	it("returns zero while provider availability is unknown", () => {
+		expect(
+			countConfiguredProviderConfigs(
+				[createProviderConfig({ provider: "openai", source: "database" })],
+				undefined,
+			),
+		).toBe(0);
+	});
+});
+
+describe("formatProviderLabel", () => {
+	it("formats OpenAI compatible providers", () => {
+		expect(formatProviderLabel("openai-compatible")).toBe("OpenAI-compatible");
+	});
+});
+
+describe("getModelSelectorPlaceholder", () => {
+	it("returns user guidance when only user-configured keys are missing", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "user_api_key_required",
+				models: [],
+			},
+		]);
+
+		expect(getModelSelectorPlaceholder([], false, true, catalog)).toBe(
+			"Configure API Keys",
+		);
+	});
+
+	it("keeps the generic unavailable placeholder for admin fixes", () => {
+		const catalog = createCatalog([
+			{
+				provider: "openai",
+				available: false,
+				unavailable_reason: "missing_api_key",
+				models: [],
+			},
+		]);
+
+		expect(getModelSelectorPlaceholder([], false, true, catalog)).toBe(
+			"No Models Available",
+		);
 	});
 });
 

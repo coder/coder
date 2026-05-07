@@ -1,7 +1,6 @@
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
 import type { InboxNotification } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -11,6 +10,7 @@ import {
 } from "#/components/Popover/Popover";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 import { InboxButton } from "./InboxButton";
 import { InboxItem } from "./InboxItem";
 import { UnreadBadge } from "./UnreadBadge";

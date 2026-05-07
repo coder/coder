@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
@@ -13,7 +12,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -23,6 +21,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
@@ -39,11 +38,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<div>
 					<SettingsHeader>
 						<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
@@ -61,7 +56,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 						</Link>
 					</Button>
 				)}
-			</Stack>
+			</div>
 
 			{error && <ErrorAlert error={error} />}
 
@@ -80,7 +75,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					{apps?.length === 0 && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No OAuth2 applications have been configured.
 								</div>
 							</TableCell>
@@ -113,7 +108,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 			</TableCell>
 
 			<TableCell>
-				<div css={{ display: "flex", paddingLeft: 16 }}>
+				<div className="flex pl-4">
 					<ChevronRightIcon className="size-icon-sm" />
 				</div>
 			</TableCell>

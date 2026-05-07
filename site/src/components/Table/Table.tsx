@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/table}
  */
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 export const Table: React.FC<React.ComponentPropsWithRef<"table">> = ({
 	className,
@@ -54,7 +54,7 @@ export const TableFooter: React.FC<React.ComponentPropsWithRef<"tfoot">> = ({
 	return (
 		<tfoot
 			className={cn(
-				"border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+				"border-t bg-surface-secondary/50 font-medium [&>tr]:last:border-b-0",
 				className,
 			)}
 			{...props}
@@ -65,14 +65,14 @@ export const TableFooter: React.FC<React.ComponentPropsWithRef<"tfoot">> = ({
 const tableRowVariants = cva(
 	[
 		"border-0 border-b border-solid border-border transition-colors",
-		"data-[state=selected]:bg-muted",
+		"data-[state=selected]:bg-surface-secondary",
 	],
 	{
 		variants: {
 			hover: {
 				false: null,
 				true: cn(
-					"cursor-pointer hover:outline focus-visible:outline outline-1 -outline-offset-1 outline-border-hover",
+					"cursor-pointer hover:outline focus-visible:outline outline-1 -outline-offset-1 outline-border-secondary",
 					"first:rounded-t-md last:rounded-b-md",
 				),
 			},
@@ -95,7 +95,7 @@ export const TableRow: React.FC<TableRowProps> = ({
 		<tr
 			className={cn(
 				"border-0 border-b border-solid border-border transition-colors",
-				"data-[state=selected]:bg-muted",
+				"data-[state=selected]:bg-surface-secondary",
 				tableRowVariants({ hover }),
 				className,
 			)}

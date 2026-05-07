@@ -1,9 +1,8 @@
-import { Check } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import { type FC, useId } from "react";
-import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+import { CheckIcon } from "lucide-react";
+import { type FC, useId, useState } from "react";
+import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import type { Group } from "#/api/typesGenerated";
+import type { ChatUsageLimitGroupOverride, Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -18,17 +17,19 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { getGroupSubtitle } from "#/modules/groups";
+import {
+	formatCostMicros,
+	isPositiveFiniteDollarAmount,
+} from "#/utils/currency";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface GroupLimitsSectionProps {
-	groupOverrides: ReadonlyArray<{
-		group_id: string;
-		group_display_name: string;
-		group_name: string;
-		group_avatar_url: string;
-		member_count: number;
-		spend_limit_micros: number | null;
-	}>;
+	hideHeader?: boolean;
+	groupOverrides: readonly ChatUsageLimitGroupOverride[];
+	/** Maps group_id → organization_name for building links to the group page. */
+	groupOrganizationNames?: Record<string, string>;
 	showGroupForm: boolean;
 	onShowGroupFormChange: (show: boolean) => void;
 	selectedGroup: Group | null;
@@ -58,7 +59,9 @@ interface GroupLimitsSectionProps {
 }
 
 export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
+	hideHeader,
 	groupOverrides,
+	groupOrganizationNames,
 	showGroupForm,
 	onShowGroupFormChange,
 	selectedGroup,
@@ -81,14 +84,18 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	const groupAutocompleteId = useId();
 	const groupAmountId = useId();
 	const isEditing = editingGroupOverride !== null;
+	const [pendingDeleteGroupId, setPendingDeleteGroupId] = useState<
+		string | null
+	>(null);
 
 	return (
 		<section className="space-y-4">
-			<SectionHeader
-				label="Group Limits"
-				description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
-			/>
-
+			{!hideHeader && (
+				<SectionHeader
+					label="Group Limits"
+					description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
+				/>
+			)}
 			<div className="space-y-4">
 				{groupOverrides.length > 0 ? (
 					<Table>
@@ -101,48 +108,68 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{groupOverrides.map((override) => (
-								<TableRow key={override.group_id}>
-									<TableCell>
-										<AvatarData
-											title={override.group_display_name || override.group_name}
-											subtitle={override.group_name}
-											src={override.group_avatar_url}
-											imgFallbackText={override.group_name}
-										/>
-									</TableCell>
-									<TableCell>{override.member_count}</TableCell>
-									<TableCell>
-										{override.spend_limit_micros !== null
-											? formatCostMicros(override.spend_limit_micros)
-											: "Unlimited"}
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-2">
-											<Button
-												variant="outline"
-												size="sm"
-												type="button"
-												onClick={() => onEditGroupOverride(override)}
-												disabled={deletePending || upsertPending}
-											>
-												Edit
-											</Button>
-											<Button
-												variant="outline"
-												size="sm"
-												type="button"
-												onClick={() =>
-													void onDeleteGroupOverride(override.group_id)
-												}
-												disabled={deletePending || upsertPending || isEditing}
-											>
-												Delete
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))}
+							{groupOverrides.map((override) => {
+								const orgName = groupOrganizationNames?.[override.group_id];
+								const groupLink = orgName
+									? `/organizations/${orgName}/groups/${override.group_name}`
+									: undefined;
+
+								const avatar = (
+									<AvatarData
+										title={override.group_display_name || override.group_name}
+										subtitle={override.group_name}
+										src={override.group_avatar_url}
+										imgFallbackText={override.group_name}
+									/>
+								);
+
+								return (
+									<TableRow key={override.group_id}>
+										<TableCell>
+											{groupLink ? (
+												<Link
+													to={groupLink}
+													className="flex rounded-md no-underline text-inherit -m-1.5 p-1.5 transition-colors hover:bg-surface-secondary"
+												>
+													{avatar}
+												</Link>
+											) : (
+												avatar
+											)}
+										</TableCell>
+										<TableCell>{override.member_count}</TableCell>
+										<TableCell>
+											{override.spend_limit_micros !== null
+												? formatCostMicros(override.spend_limit_micros)
+												: "Unlimited"}
+										</TableCell>
+										<TableCell>
+											<div className="flex gap-2">
+												<Button
+													variant="outline"
+													size="sm"
+													type="button"
+													onClick={() => onEditGroupOverride(override)}
+													disabled={deletePending || upsertPending}
+												>
+													Edit
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													type="button"
+													onClick={() =>
+														setPendingDeleteGroupId(override.group_id)
+													}
+													disabled={deletePending || upsertPending || isEditing}
+												>
+													Delete
+												</Button>
+											</div>
+										</TableCell>
+									</TableRow>
+								);
+							})}
 						</TableBody>
 					</Table>
 				) : (
@@ -211,7 +238,9 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 														src={option.avatar_url}
 														imgFallbackText={option.name}
 													/>
-													{isSelected && <Check className="size-4 shrink-0" />}
+													{isSelected && (
+														<CheckIcon className="size-4 shrink-0" />
+													)}
 												</div>
 											)}
 											placeholder="Search groups..."
@@ -284,6 +313,18 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 					</p>
 				)}
 			</div>
+			{pendingDeleteGroupId && (
+				<ConfirmDeleteDialog
+					entity="group override"
+					onConfirm={() => {
+						void onDeleteGroupOverride(pendingDeleteGroupId);
+						setPendingDeleteGroupId(null);
+					}}
+					isPending={deletePending}
+					open={true}
+					onOpenChange={(open) => !open && setPendingDeleteGroupId(null)}
+				/>
+			)}{" "}
 		</section>
 	);
 };

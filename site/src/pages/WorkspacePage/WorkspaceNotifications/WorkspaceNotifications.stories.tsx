@@ -1,3 +1,8 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
+import { getWorkspaceResolveAutostartQueryKey } from "#/api/queries/workspaceQuota";
+import type { Workspace } from "#/api/typesGenerated";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockOutdatedWorkspace,
 	MockTemplate,
@@ -6,13 +11,8 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceResource,
-} from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { expect, screen, userEvent, waitFor } from "storybook/test";
-import { getWorkspaceResolveAutostartQueryKey } from "#/api/queries/workspaceQuota";
-import type { Workspace } from "#/api/typesGenerated";
+} from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
 export const defaultPermissions: WorkspacePermissions = {
@@ -55,10 +55,10 @@ export const Outdated: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("info-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(screen.getByTestId("info-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					MockTemplateVersion.message,
 				),
 			);
@@ -73,10 +73,10 @@ export const OutdatedWithMarkdownMessage: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("info-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(screen.getByTestId("info-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					/an update is available/i,
 				),
 			);
@@ -104,10 +104,10 @@ export const RequiresManualUpdate: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					/unable to automatically update/i,
 				),
 			);
@@ -152,13 +152,18 @@ export const StartupScriptFailed: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
+		await step("shows startup script failure message", async () => {
+			await userEvent.click(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/startup script failed/i,
+				expect(screen.getByRole("dialog")).toHaveTextContent(
+					/a startup script has failed/i,
 				),
 			);
+		});
+		await step("does not offer restart", async () => {
+			expect(
+				screen.queryByRole("button", { name: /restart/i }),
+			).not.toBeInTheDocument();
 		});
 	},
 };
@@ -173,11 +178,11 @@ export const AgentDisconnected: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/agent has disconnected/i,
+				expect(screen.getByRole("dialog")).toHaveTextContent(
+					/one or more workspace agents need attention/i,
 				),
 			);
 		});
@@ -194,11 +199,11 @@ export const AgentTimeout: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/taking longer than expected/i,
+				expect(screen.getByRole("dialog")).toHaveTextContent(
+					/one or more workspace agents need attention/i,
 				),
 			);
 		});
@@ -228,10 +233,10 @@ export const Dormant: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					/workspace is dormant/i,
 				),
 			);
@@ -268,10 +273,10 @@ export const PendingInQueue: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(await screen.findByTestId("info-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(await screen.findByTestId("info-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					/build is pending/i,
 				),
 			);
@@ -290,10 +295,10 @@ export const TemplateDeprecated: Story = {
 	},
 
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
+		await step("activate click trigger", async () => {
+			await userEvent.click(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					/deprecated template/i,
 				),
 			);

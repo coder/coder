@@ -3,18 +3,18 @@ import type { FC } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getApplicationName } from "utils/appearance";
-import { getFormHelpers } from "utils/formUtils";
-import { pageTitle } from "utils/page";
 import * as yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import { changePasswordWithOTP } from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { getApplicationName } from "#/utils/appearance";
+import { getFormHelpers } from "#/utils/formUtils";
+import { pageTitle } from "#/utils/page";
 
 const validationSchema = yup.object({
 	password: yup.string().required("Password is required"),
@@ -77,7 +77,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 			<div className="p-6 flex items-center justify-center flex-col min-h-full text-center">
 				<main className="w-full max-w-xs flex flex-col items-center">
 					<div className="mb-10">
-						<CustomLogo />
+						<ProductLogo />
 					</div>
 					<h1 className="m-0 mb-6 text-xl font-semibold leading-7">
 						Choose a new password

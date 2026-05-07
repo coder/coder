@@ -1,6 +1,4 @@
 import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
-import { delay } from "utils/delay";
-import { getTemplateVersionFiles } from "utils/templateVersion";
 import {
 	API,
 	type GetTemplatesOptions,
@@ -16,6 +14,8 @@ import type {
 	TemplateVersion,
 	UsersRequest,
 } from "#/api/typesGenerated";
+import { delay } from "#/utils/delay";
+import { getTemplateVersionFiles } from "#/utils/templateVersion";
 
 const templateKey = (templateId: string) => ["template", templateId];
 

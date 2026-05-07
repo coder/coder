@@ -1,15 +1,16 @@
-import { chromatic } from "testHelpers/chromatic";
-import * as M from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
+import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
+import { chromatic } from "#/testHelpers/chromatic";
+import * as M from "#/testHelpers/entities";
 import {
 	withDashboardProvider,
 	withProxyProvider,
 	withWebSocket,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
-import { spyOn, userEvent, within } from "storybook/test";
-import { API } from "#/api/api";
-import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
+} from "#/testHelpers/storybook";
 import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [
@@ -75,6 +76,8 @@ const defaultAgentMetadata = [
 	},
 ];
 
+const fixedLogTimestamp = "2021-05-05T00:00:00.000Z";
+
 const logs = [
 	"\x1b[91mCloning Git repository...",
 	"\x1b[2;37;41mStarting Docker Daemon...",
@@ -86,8 +89,38 @@ const logs = [
 	level: "info",
 	output: line,
 	source_id: M.MockWorkspaceAgentLogSource.id,
-	created_at: new Date().toISOString(),
+	created_at: fixedLogTimestamp,
 }));
+
+const installScriptLogSource: WorkspaceAgentLogSource = {
+	...M.MockWorkspaceAgentLogSource,
+	id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+	display_name: "Install Script",
+};
+
+const tabbedLogs = [
+	{
+		id: 100,
+		level: "info",
+		output: "startup: preparing workspace",
+		source_id: M.MockWorkspaceAgentLogSource.id,
+		created_at: fixedLogTimestamp,
+	},
+	{
+		id: 101,
+		level: "info",
+		output: "install: pnpm install",
+		source_id: installScriptLogSource.id,
+		created_at: fixedLogTimestamp,
+	},
+	{
+		id: 102,
+		level: "info",
+		output: "install: setup complete",
+		source_id: installScriptLogSource.id,
+		created_at: fixedLogTimestamp,
+	},
+];
 
 const meta: Meta<typeof AgentRow> = {
 	title: "components/AgentRow",
@@ -126,7 +159,7 @@ export const Example: Story = {};
 export const BunchOfApps: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				M.MockWorkspaceApp,
 				M.MockWorkspaceApp,
@@ -164,7 +197,10 @@ export const Timeout: Story = {
 
 export const Starting: Story = {
 	args: {
-		agent: M.MockWorkspaceAgentStarting,
+		agent: {
+			...M.MockWorkspaceAgentStarting,
+			logs_length: logs.length,
+		},
 	},
 };
 
@@ -193,6 +229,33 @@ export const StartTimeout: Story = {
 export const StartError: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentStartError,
+	},
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					M.MockWorkspaceAgentStartError.log_sources.flatMap((l, i) => {
+						return [
+							{
+								id: i,
+								level: "info",
+								output: `running '${l.display_name}' script`,
+								source_id: l.id,
+								created_at: fixedLogTimestamp,
+							},
+							{
+								id: i + 100,
+								level: "error",
+								output: `stderr from '${l.display_name}' script`,
+								source_id: l.id,
+								created_at: fixedLogTimestamp,
+							},
+						];
+					}),
+				),
+			},
+		],
 	},
 };
 
@@ -263,7 +326,7 @@ export const Deprecated: Story = {
 export const HideApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,
@@ -277,7 +340,7 @@ export const HideApp: Story = {
 export const GroupApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,
@@ -332,5 +395,42 @@ export const FoundDevcontainer: Story = {
 			},
 		],
 		webSocket: [],
+	},
+};
+
+export const LogsTabs: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentReady,
+			logs_length: tabbedLogs.length,
+			log_sources: [M.MockWorkspaceAgentLogSource, installScriptLogSource],
+		},
+	},
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(tabbedLogs),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Logs" }));
+
+		const installTab = await canvas.findByRole("tab", {
+			name: "Install Script",
+		});
+		await userEvent.click(installTab);
+
+		await waitFor(() =>
+			expect(installTab).toHaveAttribute("data-state", "active"),
+		);
+		await waitFor(() =>
+			expect(
+				canvas.queryByText("startup: preparing workspace"),
+			).not.toBeInTheDocument(),
+		);
+		await expect(canvas.getByText("install: pnpm install")).toBeVisible();
 	},
 };

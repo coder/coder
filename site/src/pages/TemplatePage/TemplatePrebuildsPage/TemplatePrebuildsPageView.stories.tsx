@@ -1,8 +1,8 @@
-import { MockTemplate } from "testHelpers/entities";
-import { withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
+import { MockTemplate } from "#/testHelpers/entities";
+import { withToaster } from "#/testHelpers/storybook";
 import { TemplatePrebuildsPageView } from "./TemplatePrebuildsPage";
 
 const meta: Meta<typeof TemplatePrebuildsPageView> = {

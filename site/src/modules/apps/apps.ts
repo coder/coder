@@ -83,13 +83,25 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
+// Open `about:blank` first to detect a popup blocker. If it opens, we
+// null out `opener` (durable on the opened window); and navigate `popup`
+// to the target URL. The Coder UI keeps access to `popup`s handle
 export const openAppInNewWindow = (href: string) => {
-	const popup = window.open(href, "_blank", "width=900,height=600");
+	const popup = window.open("about:blank", "_blank", "width=900,height=600");
 	if (!popup) {
 		toast.error("Failed to open app in new window.", {
 			description: "Popup blocked. Allow popups to open this app.",
 		});
+		return;
 	}
+	try {
+		// Setting the opener to null persists in the `popup` window over refresh
+		// and navigation. The opening window retains its connection to `popup`
+		popup.opener = null;
+	} catch {
+		// Electron can throw
+	}
+	popup.location.href = href;
 };
 
 type GetAppHrefParams = {
@@ -115,16 +127,18 @@ export const getAppHref = (
 	}
 
 	if (app.command) {
-		// Terminal links are relative. The terminal page knows how
-		// to select the correct workspace proxy for the websocket
-		// connection.
+		// Pass the app slug instead of the raw command. The terminal
+		// page resolves the command from the workspace agent's app
+		// list, which avoids exposing the command in the URL and
+		// lets us skip the confirmation dialog for trusted,
+		// admin-configured template apps.
 		return `/@${workspace.owner_name}/${workspace.name}.${
 			agent.name
-		}/terminal?command=${encodeURIComponent(app.command)}`;
+		}/terminal?app=${encodeURIComponent(app.slug)}`;
 	}
 
 	if (host && app.subdomain && app.subdomain_name) {
-		const baseUrl = `${window.location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
+		const baseUrl = `${location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
 		const url = new URL(baseUrl);
 		url.pathname = "/";
 		return url.toString();

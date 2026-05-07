@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { API } from "#/api/api";
 import type { Template, WorkspaceStatus } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -16,6 +15,7 @@ import {
 	StatusIndicatorDot,
 	type StatusIndicatorDotProps,
 } from "#/components/StatusIndicator/StatusIndicator";
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 export const useTemplateFilterMenu = ({
 	value,

@@ -1,5 +1,4 @@
-import { type FC, useId } from "react";
-import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+import { type FC, useId, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { User } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -16,9 +15,15 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import {
+	formatCostMicros,
+	isPositiveFiniteDollarAmount,
+} from "#/utils/currency";
+import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface UserOverridesSectionProps {
+	hideHeader?: boolean;
 	overrides: ReadonlyArray<{
 		user_id: string;
 		name: string;
@@ -51,6 +56,7 @@ interface UserOverridesSectionProps {
 }
 
 export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
+	hideHeader,
 	overrides,
 	showUserForm,
 	onShowUserFormChange,
@@ -70,14 +76,18 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 }) => {
 	const userOverrideAmountId = useId();
 	const isEditing = editingUserOverride !== null;
+	const [pendingDeleteUserId, setPendingDeleteUserId] = useState<string | null>(
+		null,
+	);
 
 	return (
 		<section className="space-y-4">
-			<SectionHeader
-				label="Per-User Overrides"
-				description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
-			/>
-
+			{!hideHeader && (
+				<SectionHeader
+					label="Per-User Overrides"
+					description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
+				/>
+			)}
 			<div className="space-y-4">
 				{overrides.length > 0 ? (
 					<Table>
@@ -119,7 +129,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 												variant="outline"
 												size="sm"
 												type="button"
-												onClick={() => void onDeleteOverride(override.user_id)}
+												onClick={() => setPendingDeleteUserId(override.user_id)}
 												disabled={deletePending || upsertPending || isEditing}
 											>
 												Delete
@@ -243,6 +253,18 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 					</p>
 				)}
 			</div>
+			{pendingDeleteUserId && (
+				<ConfirmDeleteDialog
+					entity="user override"
+					onConfirm={() => {
+						void onDeleteOverride(pendingDeleteUserId);
+						setPendingDeleteUserId(null);
+					}}
+					isPending={deletePending}
+					open={true}
+					onOpenChange={(open) => !open && setPendingDeleteUserId(null)}
+				/>
+			)}{" "}
 		</section>
 	);
 };

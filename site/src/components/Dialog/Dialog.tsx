@@ -2,9 +2,11 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/dialog}
  */
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "utils/cn";
+import { Dialog as DialogPrimitive } from "radix-ui";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 
 export const Dialog = DialogPrimitive.Root;
 
@@ -103,6 +105,68 @@ export const DialogFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 			)}
 			{...props}
 		/>
+	);
+};
+
+type DialogActionsProps = {
+	/** Text to display in the confirm button */
+	confirmText?: React.ReactNode;
+	/** Whether or not confirm is loading, also disables cancel when true */
+	confirmLoading?: boolean;
+	/** Whether or not the submit button is disabled */
+	confirmDisabled?: boolean;
+	/** Whether the confirm button triggers a destructive action or not */
+	confirmVariant?: React.ComponentProps<typeof Button>["variant"];
+	/** Called when confirm is clicked */
+	onConfirm?: () => void;
+
+	/** Text to display in the cancel button */
+	cancelText?: string;
+	/** Called when cancel is clicked */
+	onCancel?: () => void;
+};
+
+/**
+ * Quickly handles most modals actions, some combination of a cancel and confirm button
+ */
+export const DialogActions: React.FC<DialogActionsProps> = ({
+	confirmText = "Confirm",
+	confirmLoading = false,
+	confirmDisabled = false,
+	confirmVariant,
+	onConfirm,
+
+	cancelText = "Cancel",
+	onCancel,
+}) => {
+	return (
+		<>
+			{onCancel && (
+				<Button
+					disabled={confirmLoading}
+					onClick={(e) => {
+						e.stopPropagation();
+						onCancel();
+					}}
+					variant="outline"
+				>
+					{cancelText}
+				</Button>
+			)}
+
+			{onConfirm && (
+				<Button
+					variant={confirmVariant}
+					disabled={confirmLoading || confirmDisabled}
+					onClick={onConfirm}
+					data-testid="confirm-button"
+					type="submit"
+				>
+					<Spinner loading={confirmLoading} />
+					{confirmText}
+				</Button>
+			)}
+		</>
 	);
 };
 

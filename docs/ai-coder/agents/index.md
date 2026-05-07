@@ -118,9 +118,6 @@ workspace is stopped, deleted, or rebuilt, the full conversation history
 survives. The agent can resume work by creating a new workspace with the same
 template and continuing from the last known state, such as a git branch.
 
-Users can also fork a chat at any point to explore a different direction while
-preserving the original conversation.
-
 ### Message queuing
 
 Users can send follow-up messages while the agent is actively working. Messages
@@ -223,40 +220,90 @@ enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
 Administrators can configure multiple providers simultaneously and set a default
 model. Developers select from enabled models when starting a chat.
 
-<img src="../../images/guides/ai-agents/llm-providers.png" alt="Screenshot of the provider/model configuration admin panel">
+<img src="../../images/guides/ai-agents/llm-providers.png" alt="Screenshot of the provider/model configuration in the Agents settings">
 
-<small>The model configuration panel in the Coder dashboard.</small>
+<small>The model configuration in the Agents settings panel.</small>
 
 ## Built-in tools
 
 The agent has access to a set of workspace tools that it uses to accomplish
 tasks:
 
-| Tool               | Description                                             |
-|--------------------|---------------------------------------------------------|
-| `list_templates`   | Browse available workspace templates                    |
-| `read_template`    | Get template details and configurable parameters        |
-| `create_workspace` | Create a workspace from a template                      |
-| `start_workspace`  | Start a stopped workspace for the current chat          |
-| `read_file`        | Read file contents from the workspace                   |
-| `write_file`       | Write a file to the workspace                           |
-| `edit_files`       | Perform search-and-replace edits across files           |
-| `execute`          | Run shell commands in the workspace                     |
-| `spawn_agent`      | Delegate a task to a sub-agent running in parallel      |
-| `wait_agent`       | Wait for a sub-agent to complete and collect its result |
-| `message_agent`    | Send a follow-up message to a running sub-agent         |
-| `close_agent`      | Stop a running sub-agent                                |
-| `web_search`       | Search the internet (provider-native, when enabled)     |
+| Tool                                        | Description                                                              |
+|---------------------------------------------|--------------------------------------------------------------------------|
+| `list_templates`                            | Browse available workspace templates                                     |
+| `read_template`                             | Get template details and configurable parameters                         |
+| `create_workspace`                          | Create a workspace from a template                                       |
+| `start_workspace`                           | Start a stopped workspace for the current chat                           |
+| `propose_plan`                              | Present a Markdown plan file for user review                             |
+| `ask_user_question`                         | Ask the user structured clarification questions during plan mode         |
+| `read_file`                                 | Read file contents from the workspace                                    |
+| `write_file`                                | Write a file to the workspace                                            |
+| `edit_files`                                | Perform search-and-replace edits across files                            |
+| `execute`                                   | Run shell commands in the workspace                                      |
+| `process_output`                            | Retrieve output from a background process                                |
+| `process_list`                              | List all tracked processes in the workspace                              |
+| `process_signal`                            | Send a signal (terminate/kill) to a tracked process                      |
+| `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment |
+| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel                       |
+| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                  |
+| `message_agent`                             | Send a follow-up message to a running sub-agent                          |
+| `close_agent`                               | Stop a running sub-agent                                                 |
+| `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard) |
+| `read_skill`                                | Read the instructions for a workspace skill by name                      |
+| `read_skill_file`                           | Read a supporting file from a skill's directory                          |
+| `web_search`                                | Search the internet (provider-native, when enabled)                      |
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
 the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
-`start_workspace`) and orchestration tools (`spawn_agent`)
-are only available to root chats. Sub-agents do
-not have access to these tools and cannot create workspaces or spawn further
-sub-agents.
+`start_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
+`wait_agent`, `message_agent`, `close_agent`)
+are only available to root chats. Sub-agents do not have access to these
+tools and cannot create workspaces or spawn further sub-agents.
+
+`spawn_agent` with `type=computer_use` additionally requires an
+Anthropic or OpenAI provider and the virtual desktop feature to be
+enabled by an administrator.
+`read_skill` and `read_skill_file` are available when the workspace contains
+skills in its `.agents/skills/` directory.
+
+`propose_plan` and `ask_user_question` are only available while plan mode is
+active. In plan mode, the agent can still inspect the workspace and template
+metadata, execute shell commands for exploration, and read process output.
+`write_file` and `edit_files` remain available only for the chat-specific plan
+file under `.coder/plans/`. MCP, dynamic, provider-native, and computer-use
+tools are blocked.
+
+## Plan mode
+
+Plan mode lets you ask the agent to investigate first and present a plan before
+implementation. Open the chat input menu and choose **Plan first** to enable it
+for the current chat. After you enable it, later turns in that chat stay in
+plan mode until you turn it off or click **Implement plan** after a proposed
+plan. Because the mode is stored on the chat, reloading the page preserves the
+current setting.
+
+While plan mode is active:
+
+- the agent can inspect repository files, workspace state, and available
+  templates
+- `write_file` and `edit_files` can only modify the chat-specific plan file
+  under `.coder/plans/`
+- `ask_user_question` can gather structured clarification from the user before
+  a plan is proposed
+- `propose_plan` snapshots the current plan file into the transcript so you can
+  review it before implementation starts
+- `execute` and `process_output` remain available for exploration, such as
+  cloning repositories, searching code, and running inspection commands
+- MCP tools, dynamic tools, provider-native tools, and computer-use tools are
+  not available
+
+This keeps planning turns focused on analysis and plan authoring rather than
+implementation. Once you click **Implement plan**, the next turn runs in normal
+mode again.
 
 ## Comparison to Coder Tasks
 
@@ -275,6 +322,5 @@ Coder Agents is a new approach that differs from
 
 ## Product status
 
-Coder Agents is in Early Access. The feature is under active development and
-available for evaluation. See [Early Access](./early-access.md) for
-enablement instructions and program details.
+Coder Agents is in Beta. The feature is under active development and
+available for evaluation.

@@ -1,10 +1,10 @@
-import { useProxy } from "contexts/ProxyContext";
-import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
-import { useAppLink } from "modules/apps/useAppLink";
-import type { WorkspaceAppWithAgent } from "modules/tasks/apps";
+import {
+	EllipsisVerticalIcon,
+	ExternalLinkIcon,
+	HouseIcon,
+} from "lucide-react";
 import { type FC, type HTMLProps, useRef } from "react";
 import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
 import type { Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -14,6 +14,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useProxy } from "#/contexts/ProxyContext";
+import { useAppLink } from "#/modules/apps/useAppLink";
+import type { WorkspaceAppWithAgent } from "#/modules/tasks/apps";
+import { cn } from "#/utils/cn";
 import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskAppIFrameProps = {
@@ -69,7 +73,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button size="icon" variant="subtle" aria-label="More options">
-								<EllipsisVertical aria-hidden="true" />
+								<EllipsisVerticalIcon aria-hidden="true" />
 								<span className="sr-only">More options</span>
 							</Button>
 						</DropdownMenuTrigger>

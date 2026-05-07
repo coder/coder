@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
@@ -29,6 +29,7 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 		ApiKeyId:              t.apiKeyID,
 		InitiatorId:           req.InitiatorID,
 		Provider:              req.Provider,
+		ProviderName:          req.ProviderName,
 		Model:                 req.Model,
 		UserAgent:             req.UserAgent,
 		Client:                req.Client,
@@ -36,6 +37,8 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 		Metadata:              marshalForProto(req.Metadata),
 		StartedAt:             timestamppb.New(req.StartedAt),
 		CorrelatingToolCallId: req.CorrelatingToolCallID,
+		CredentialKind:        req.CredentialKind,
+		CredentialHint:        req.CredentialHint,
 	})
 	return err
 }
@@ -65,18 +68,20 @@ func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridg
 		merged = aibridge.Metadata{}
 	}
 
-	// Merge the token usage values into metadata; later we might want to store some of these in their own fields.
+	// Merge remaining extra token types into metadata.
 	for k, v := range req.ExtraTokenTypes {
 		merged[k] = v
 	}
 
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-		InterceptionId: req.InterceptionID,
-		MsgId:          req.MsgID,
-		InputTokens:    req.Input,
-		OutputTokens:   req.Output,
-		Metadata:       marshalForProto(merged),
-		CreatedAt:      timestamppb.New(req.CreatedAt),
+		InterceptionId:        req.InterceptionID,
+		MsgId:                 req.MsgID,
+		InputTokens:           req.Input,
+		OutputTokens:          req.Output,
+		CacheReadInputTokens:  req.CacheReadInputTokens,
+		CacheWriteInputTokens: req.CacheWriteInputTokens,
+		Metadata:              marshalForProto(merged),
+		CreatedAt:             timestamppb.New(req.CreatedAt),
 	})
 	return err
 }

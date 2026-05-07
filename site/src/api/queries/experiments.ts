@@ -1,6 +1,6 @@
-import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { API } from "#/api/api";
 import { type Experiment, Experiments } from "#/api/typesGenerated";
+import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
 
 const experimentsKey = ["experiments"] as const;

@@ -1,9 +1,9 @@
-import { chromatic } from "testHelpers/chromatic";
-import { MockTemplate, MockUserOwner } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { DetailedError } from "#/api/errors";
 import type { PreviewParameter } from "#/api/typesGenerated";
+import { chromatic } from "#/testHelpers/chromatic";
+import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {

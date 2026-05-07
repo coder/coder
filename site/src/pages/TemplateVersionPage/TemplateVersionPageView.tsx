@@ -1,11 +1,6 @@
 import { EditIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
-import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { createDayString } from "utils/createDayString";
-import type { TemplateVersionFiles } from "utils/templateVersion";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -16,8 +11,12 @@ import {
 	PageHeaderCaption,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { Stats, StatsItem } from "#/components/Stats/Stats";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
+import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
+import { createDayString } from "#/utils/createDayString";
+import type { TemplateVersionFiles } from "#/utils/templateVersion";
 
 export interface TemplateVersionPageViewProps {
 	organizationName: string;
@@ -71,7 +70,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 
 			{!currentFiles && !error && <Loader />}
 
-			<Stack spacing={4}>
+			<div className="flex flex-col gap-8">
 				{Boolean(error) && <ErrorAlert error={error} />}
 				{currentVersion?.message && (
 					<TemplateUpdateMessage>
@@ -117,7 +116,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 						/>
 					</>
 				)}
-			</Stack>
+			</div>
 		</Margins>
 	);
 };

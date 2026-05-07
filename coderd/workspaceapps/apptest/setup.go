@@ -515,7 +515,11 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	primaryAppHost, err := client.AppHost(appHostCtx)
 	require.NoError(t, err)
 	if primaryAppHost.Host != "" {
-		rpcConn, err := agentClient.ConnectRPC(appHostCtx)
+		// Fetch the manifest without marking this short-lived helper
+		// connection as the workspace agent. Closing a monitored RPC
+		// connection races with the real agent startup and can
+		// transiently mark the agent disconnected.
+		rpcConn, err := agentClient.ConnectRPCWithRole(appHostCtx, "apptest-manifest")
 		require.NoError(t, err)
 		aAPI := agentproto.NewDRPCAgentClient(rpcConn)
 		manifest, err := aAPI.GetManifest(appHostCtx, &agentproto.GetManifestRequest{})

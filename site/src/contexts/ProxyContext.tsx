@@ -1,5 +1,3 @@
-import { useAuthenticated } from "hooks";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	createContext,
 	type FC,
@@ -13,6 +11,8 @@ import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { cachedQuery } from "#/api/queries/util";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
@@ -228,7 +228,7 @@ export const getPreferredProxy = (
 	);
 
 	// If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
-	if (!selectedProxy || !selectedProxy.healthy) {
+	if (!selectedProxy?.healthy) {
 		// Default to the primary proxy
 		selectedProxy = proxies.find((proxy) => proxy.name === "primary");
 

@@ -776,6 +776,65 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 
+	eg.Go(func() error {
+		chats, err := r.options.Database.GetChatsUpdatedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get chats updated after: %w", err)
+		}
+		snapshot.Chats = make([]Chat, 0, len(chats))
+		for _, chat := range chats {
+			snapshot.Chats = append(snapshot.Chats, ConvertChat(chat))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		summaries, err := r.options.Database.GetChatMessageSummariesPerChat(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get chat message summaries: %w", err)
+		}
+		snapshot.ChatMessageSummaries = make([]ChatMessageSummary, 0, len(summaries))
+		for _, s := range summaries {
+			snapshot.ChatMessageSummaries = append(snapshot.ChatMessageSummaries, ConvertChatMessageSummary(s))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		configs, err := r.options.Database.GetChatModelConfigsForTelemetry(ctx)
+		if err != nil {
+			return xerrors.Errorf("get chat model configs: %w", err)
+		}
+		snapshot.ChatModelConfigs = make([]ChatModelConfig, 0, len(configs))
+		for _, c := range configs {
+			snapshot.ChatModelConfigs = append(snapshot.ChatModelConfigs, ConvertChatModelConfig(c))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		row, err := r.options.Database.GetChatDiffStatusSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("get chat diff status summary: %w", err)
+		}
+		snapshot.ChatDiffStatusSummary = &ChatDiffStatusSummary{
+			Total:  row.Total,
+			Open:   row.Open,
+			Merged: row.Merged,
+			Closed: row.Closed,
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		summary, err := r.collectUserSecretsSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("collect user secrets summary: %w", err)
+		}
+		// summary is nil when another replica already claimed the
+		// telemetry lock for this period.
+		if summary != nil {
+			snapshot.UserSecretsSummary = summary
+		}
+		return nil
+	})
+
 	err := eg.Wait()
 	if err != nil {
 		return nil, err
@@ -902,6 +961,49 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 		DeniedRequests:             summary.DeniedRequests,
 		PeriodStart:                now.Add(-r.options.SnapshotFrequency),
 		PeriodDurationMilliseconds: r.options.SnapshotFrequency.Milliseconds(),
+	}, nil
+}
+
+// collectUserSecretsSummary returns a deployment-wide aggregate of user
+// secrets configuration. Returns nil if another replica has already
+// collected for this period.
+//
+// The summary has no natural per-row UUID for the telemetry server to
+// de-duplicate on, so we elect a single replica per snapshot period
+// via the telemetry_locks table.
+func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSecretsSummary, error) {
+	// Claim the telemetry lock for this period. Use snapshot frequency so
+	// each telemetry snapshot period gets exactly one collection across
+	// replicas.
+	periodEndingAt := dbtime.Time(r.options.Clock.Now()).UTC().Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "user_secrets_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "user secrets telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // This is simple to handle when dealing with telemetry.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert user secrets telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	row, err := r.options.Database.GetUserSecretsTelemetrySummary(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get user secrets telemetry summary: %w", err)
+	}
+	return &UserSecretsSummary{
+		UsersWithSecrets:  row.UsersWithSecrets,
+		TotalSecrets:      row.TotalSecrets,
+		EnvNameOnly:       row.EnvNameOnly,
+		FilePathOnly:      row.FilePathOnly,
+		Both:              row.Both,
+		Neither:           row.Neither,
+		SecretsPerUserMax: row.SecretsPerUserMax,
+		SecretsPerUserP25: row.SecretsPerUserP25,
+		SecretsPerUserP50: row.SecretsPerUserP50,
+		SecretsPerUserP75: row.SecretsPerUserP75,
+		SecretsPerUserP90: row.SecretsPerUserP90,
 	}, nil
 }
 
@@ -1502,6 +1604,12 @@ type Snapshot struct {
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
 	BoundaryUsageSummary                 *BoundaryUsageSummary                 `json:"boundary_usage_summary"`
+	FirstUserOnboarding                  *FirstUserOnboarding                  `json:"first_user_onboarding"`
+	Chats                                []Chat                                `json:"chats"`
+	ChatMessageSummaries                 []ChatMessageSummary                  `json:"chat_message_summaries"`
+	ChatModelConfigs                     []ChatModelConfig                     `json:"chat_model_configs"`
+	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
+	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1549,6 +1657,14 @@ type User struct {
 	GithubComUserID int64               `json:"github_com_user_id"`
 	// Omitempty for backwards compatibility.
 	LoginType string `json:"login_type,omitempty"`
+}
+
+// FirstUserOnboarding contains optional newsletter preference data
+// collected during first user setup. This is sent once when the first
+// user is created.
+type FirstUserOnboarding struct {
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 type Group struct {
@@ -2104,6 +2220,70 @@ func ConvertTask(task database.Task) Task {
 	return t
 }
 
+// ConvertChat converts a database chat row to a telemetry Chat.
+func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
+	c := Chat{
+		ID:                dbChat.ID,
+		OwnerID:           dbChat.OwnerID,
+		CreatedAt:         dbChat.CreatedAt,
+		UpdatedAt:         dbChat.UpdatedAt,
+		Status:            string(dbChat.Status),
+		HasParent:         dbChat.HasParent,
+		Archived:          dbChat.Archived,
+		LastModelConfigID: dbChat.LastModelConfigID,
+	}
+	if dbChat.RootChatID.Valid {
+		c.RootChatID = &dbChat.RootChatID.UUID
+	}
+	if dbChat.WorkspaceID.Valid {
+		c.WorkspaceID = &dbChat.WorkspaceID.UUID
+	}
+	if dbChat.Mode.Valid {
+		mode := string(dbChat.Mode.ChatMode)
+		c.Mode = &mode
+	}
+	c.ClientType = string(dbChat.ClientType)
+	if dbChat.PullRequestState.Valid {
+		c.PullRequestState = &dbChat.PullRequestState.String
+	}
+	return c
+}
+
+// ConvertChatMessageSummary converts a database chat message
+// summary row to a telemetry ChatMessageSummary.
+func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow) ChatMessageSummary {
+	return ChatMessageSummary{
+		ChatID:                   dbRow.ChatID,
+		MessageCount:             dbRow.MessageCount,
+		UserMessageCount:         dbRow.UserMessageCount,
+		AssistantMessageCount:    dbRow.AssistantMessageCount,
+		ToolMessageCount:         dbRow.ToolMessageCount,
+		SystemMessageCount:       dbRow.SystemMessageCount,
+		TotalInputTokens:         dbRow.TotalInputTokens,
+		TotalOutputTokens:        dbRow.TotalOutputTokens,
+		TotalReasoningTokens:     dbRow.TotalReasoningTokens,
+		TotalCacheCreationTokens: dbRow.TotalCacheCreationTokens,
+		TotalCacheReadTokens:     dbRow.TotalCacheReadTokens,
+		TotalCostMicros:          dbRow.TotalCostMicros,
+		TotalRuntimeMs:           dbRow.TotalRuntimeMs,
+		DistinctModelCount:       dbRow.DistinctModelCount,
+		CompressedMessageCount:   dbRow.CompressedMessageCount,
+	}
+}
+
+// ConvertChatModelConfig converts a database model config row to a
+// telemetry ChatModelConfig.
+func ConvertChatModelConfig(dbRow database.GetChatModelConfigsForTelemetryRow) ChatModelConfig {
+	return ChatModelConfig{
+		ID:           dbRow.ID,
+		Provider:     dbRow.Provider,
+		Model:        dbRow.Model,
+		ContextLimit: dbRow.ContextLimit,
+		Enabled:      dbRow.Enabled,
+		IsDefault:    dbRow.IsDefault,
+	}
+}
+
 type telemetryItemKey string
 
 // The comment below gets rid of the warning that the name "TelemetryItemKey" has
@@ -2223,6 +2403,98 @@ type BoundaryUsageSummary struct {
 	// PeriodDurationMilliseconds is the expected duration of the collection
 	// period (the telemetry snapshot frequency).
 	PeriodDurationMilliseconds int64 `json:"period_duration_ms"`
+}
+
+// Chat contains anonymized metadata about a chat for telemetry.
+// Titles and message content are excluded to avoid PII leakage.
+type Chat struct {
+	ID                uuid.UUID  `json:"id"`
+	OwnerID           uuid.UUID  `json:"owner_id"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	Status            string     `json:"status"`
+	HasParent         bool       `json:"has_parent"`
+	RootChatID        *uuid.UUID `json:"root_chat_id"`
+	WorkspaceID       *uuid.UUID `json:"workspace_id"`
+	Mode              *string    `json:"mode"`
+	Archived          bool       `json:"archived"`
+	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
+	ClientType        string     `json:"client_type"`
+	PullRequestState  *string    `json:"pull_request_state"`
+}
+
+// ChatMessageSummary contains per-chat aggregated message metrics
+// for telemetry. Individual message content is never included.
+type ChatMessageSummary struct {
+	ChatID                   uuid.UUID `json:"chat_id"`
+	MessageCount             int64     `json:"message_count"`
+	UserMessageCount         int64     `json:"user_message_count"`
+	AssistantMessageCount    int64     `json:"assistant_message_count"`
+	ToolMessageCount         int64     `json:"tool_message_count"`
+	SystemMessageCount       int64     `json:"system_message_count"`
+	TotalInputTokens         int64     `json:"total_input_tokens"`
+	TotalOutputTokens        int64     `json:"total_output_tokens"`
+	TotalReasoningTokens     int64     `json:"total_reasoning_tokens"`
+	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
+	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
+	TotalCostMicros          int64     `json:"total_cost_micros"`
+	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
+	DistinctModelCount       int64     `json:"distinct_model_count"`
+	CompressedMessageCount   int64     `json:"compressed_message_count"`
+}
+
+// ChatModelConfig contains model configuration metadata for
+// telemetry. Sensitive fields like API keys are excluded.
+type ChatModelConfig struct {
+	ID           uuid.UUID `json:"id"`
+	Provider     string    `json:"provider"`
+	Model        string    `json:"model"`
+	ContextLimit int64     `json:"context_limit"`
+	Enabled      bool      `json:"enabled"`
+	IsDefault    bool      `json:"is_default"`
+}
+
+// ChatDiffStatusSummary contains aggregate PR counts across all
+// agent chats. Total counts unique PRs with a known state
+// (open + merged + closed). Open, Merged, and Closed break that
+// total down by state.
+type ChatDiffStatusSummary struct {
+	Total  int64 `json:"total"`
+	Open   int64 `json:"open"`
+	Merged int64 `json:"merged"`
+	Closed int64 `json:"closed"`
+}
+
+// UserSecretsSummary contains deployment-wide aggregates about user
+// secrets. All counts are scoped to active non-system users so that
+// soft-deleted accounts, dormant or suspended users, and internal
+// subjects (e.g. the prebuilds user) do not skew the results. Status
+// transitions move users in and out of this denominator, so a
+// snapshot's UsersWithSecrets can drop without any secret being
+// deleted.
+//
+// UsersWithSecrets is the count of active non-system users that have
+// at least one secret. TotalSecrets is the count of secrets owned by
+// those users. EnvNameOnly, FilePathOnly, Both, and Neither break
+// TotalSecrets down by which injection fields are populated.
+//
+// The SecretsPerUser* fields describe the distribution of secrets per
+// user across the entire active non-system user base, including users
+// with zero secrets, so the percentiles reflect deployment-wide
+// adoption rather than only the power-user subset. Max and Px are the
+// maximum and the 25th, 50th, 75th, and 90th percentiles.
+type UserSecretsSummary struct {
+	UsersWithSecrets  int64 `json:"users_with_secrets"`
+	TotalSecrets      int64 `json:"total_secrets"`
+	EnvNameOnly       int64 `json:"env_name_only"`
+	FilePathOnly      int64 `json:"file_path_only"`
+	Both              int64 `json:"both"`
+	Neither           int64 `json:"neither"`
+	SecretsPerUserMax int64 `json:"secrets_per_user_max"`
+	SecretsPerUserP25 int64 `json:"secrets_per_user_p25"`
+	SecretsPerUserP50 int64 `json:"secrets_per_user_p50"`
+	SecretsPerUserP75 int64 `json:"secrets_per_user_p75"`
+	SecretsPerUserP90 int64 `json:"secrets_per_user_p90"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

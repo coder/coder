@@ -1,12 +1,13 @@
-import { useTheme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
 import type { FC } from "react";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { cn } from "#/utils/cn";
 
 type PaginationHeaderProps = {
 	paginationUnitLabel: string;
 	limit: number;
 	totalRecords: number | undefined;
 	currentOffsetStart: number | undefined;
+	countIsCapped?: boolean;
 
 	// Temporary escape hatch until Workspaces can be switched over to using
 	// PaginationContainer
@@ -18,25 +19,18 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 	limit,
 	totalRecords,
 	currentOffsetStart,
+	countIsCapped,
 	className,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<div
-			css={{
-				display: "flex",
-				flexFlow: "row nowrap",
-				alignItems: "center",
-				margin: 0,
-				fontSize: "13px",
-				color: theme.palette.text.secondary,
-				height: "36px", // The size of a small button
-				"& strong": {
-					color: theme.palette.text.primary,
-				},
-			}}
-			className={className}
+			className={cn(
+				"flex flex-row flex-nowrap items-center m-0",
+				"text-[13px] text-content-secondary",
+				"h-9", // The size of a small button
+				"[&_strong]:text-content-primary",
+				className,
+			)}
 		>
 			{totalRecords !== undefined ? (
 				<>
@@ -48,12 +42,20 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 
 					{totalRecords !== 0 && currentOffsetStart !== undefined && (
 						<div>
-							Showing <strong>{currentOffsetStart}</strong> to{" "}
+							Showing <strong>{currentOffsetStart.toLocaleString()}</strong> to{" "}
 							<strong>
-								{currentOffsetStart +
-									Math.min(limit - 1, totalRecords - currentOffsetStart)}
+								{(
+									currentOffsetStart +
+									(countIsCapped
+										? limit - 1
+										: Math.min(limit - 1, totalRecords - currentOffsetStart))
+								).toLocaleString()}
 							</strong>{" "}
-							of <strong>{totalRecords.toLocaleString()}</strong>{" "}
+							of{" "}
+							<strong>
+								{totalRecords.toLocaleString()}
+								{countIsCapped && "+"}
+							</strong>{" "}
 							{paginationUnitLabel}
 						</div>
 					)}

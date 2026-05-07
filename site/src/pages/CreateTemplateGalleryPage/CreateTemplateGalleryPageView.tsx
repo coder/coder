@@ -6,7 +6,6 @@ import Stack from "@mui/material/Stack";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -16,6 +15,7 @@ import {
 	PageHeader,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
 interface CreateTemplateGalleryPageViewProps {
@@ -30,55 +30,54 @@ export const CreateTemplateGalleryPageView: FC<
 		<Margins className="pb-12">
 			<PageHeader
 				actions={
-					<Button asChild size="sm" variant="outline">
-						<a
-							href="https://registry.coder.com/templates"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex items-center"
-						>
-							Browse other Templates on the Coder Registry
-							<ExternalLinkIcon className="size-icon-sm ml-1" />
-						</a>
-					</Button>
+					<div className="flex flex-col items-end gap-2">
+						<Button asChild size="sm" variant="outline">
+							<a
+								href="https://registry.coder.com/templates"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center"
+							>
+								Browse other Templates on the Coder Registry
+								<ExternalLinkIcon className="size-icon-sm ml-1" />
+							</a>
+						</Button>
+						<Button asChild size="sm" variant="outline">
+							<a
+								href="https://registry.coder.com/skills/coder-templates"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center"
+							>
+								Use our template agent skill
+								<ExternalLinkIcon className="size-icon-sm ml-1" />
+							</a>
+						</Button>
+					</div>
 				}
 			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
 			</PageHeader>
 			<Stack spacing={8}>
 				<Stack direction="row" spacing={4}>
-					<div css={{ width: 202 }}>
+					<div className="w-[202px]">
 						<h2 css={styles.sectionTitle}>
 							Choose a starting point for your new template
 						</h2>
 					</div>
-					<div
-						css={{
-							display: "flex",
-							flexWrap: "wrap",
-							gap: 32,
-							height: "max-content",
-						}}
-					>
-						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
+					<div className="flex flex-wrap gap-8 h-max">
+						<Card variant="outlined" className="w-[320px] rounded-[6px]">
 							<CardActionArea
 								component={RouterLink}
 								to="/templates/new"
 								sx={{ height: 115, padding: 1 }}
 							>
 								<CardContent>
-									<Stack
-										direction="row"
-										spacing={3}
-										css={{ alignItems: "center" }}
-									>
+									<Stack direction="row" spacing={3} className="items-center">
 										<div css={styles.icon}>
 											<ExternalImage
 												src="/emojis/1f4e1.png"
-												css={{
-													width: "100%",
-													height: "100%",
-												}}
+												className="w-full h-full"
 											/>
 										</div>
 										<div>

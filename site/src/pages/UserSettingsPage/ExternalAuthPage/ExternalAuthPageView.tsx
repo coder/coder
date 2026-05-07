@@ -1,6 +1,4 @@
-import { useTheme } from "@emotion/react";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
+import { EllipsisVerticalIcon, RefreshCcwIcon } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { externalAuthProvider } from "#/api/queries/externalAuth";
@@ -20,7 +18,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -35,6 +32,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 
 type ExternalAuthPageViewProps = {
 	isLoading: boolean;
@@ -114,7 +112,6 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	onUnlinkExternalAuth,
 	onValidateExternalAuth,
 }) => {
-	const theme = useTheme();
 	const name = app.display_name || app.id || app.type;
 	const authURL = `/external-auth/${app.id}`;
 
@@ -132,7 +129,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<Stack direction="row" alignItems="center" spacing={1}>
+				<div className="flex flex-row items-center gap-2">
 					<Avatar variant="icon" src={app.display_icon} fallback={name} />
 					<span className="font-semibold">{name}</span>
 					{/*
@@ -149,20 +146,15 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 							</TooltipContent>
 						</Tooltip>
 					)}
-
 					{link?.validate_error && (
 						<span>
-							<span
-								css={{ paddingLeft: "1em", color: theme.palette.error.light }}
-							>
-								Error:{" "}
-							</span>
+							<span className="pl-[1em] text-content-destructive">Error: </span>
 							{link?.validate_error}
 						</span>
 					)}
-				</Stack>
+				</div>
 			</TableCell>
-			<TableCell css={{ textAlign: "right" }}>
+			<TableCell className="text-right">
 				<Button
 					disabled={authenticated || externalAuthPollingState === "polling"}
 					onClick={() => {
@@ -178,7 +170,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-							<EllipsisVertical aria-hidden="true" />
+							<EllipsisVerticalIcon aria-hidden="true" />
 							<span className="sr-only">Open menu</span>
 						</Button>
 					</DropdownMenuTrigger>

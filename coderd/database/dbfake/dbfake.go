@@ -274,7 +274,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	err := b.db.InTx(func(tx database.Store) error {
 		//nolint:revive // calls do on modified struct
 		b.db = tx
-		resp = b.doInTX()
+		resp = b.doInTX() // intxcheck:ignore // b.db is reassigned to tx on the line above
 		return nil
 	}, nil)
 	require.NoError(b.t, err)

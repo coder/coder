@@ -471,6 +471,57 @@ func (db *dbCrypt) UpdateChatProvider(ctx context.Context, params database.Updat
 	return provider, nil
 }
 
+func (db *dbCrypt) decryptUserChatProviderKey(key *database.UserChatProviderKey) error {
+	return db.decryptField(&key.APIKey, key.ApiKeyKeyID)
+}
+
+func (db *dbCrypt) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
+	keys, err := db.Store.GetUserChatProviderKeys(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range keys {
+		if err := db.decryptUserChatProviderKey(&keys[i]); err != nil {
+			return nil, err
+		}
+	}
+	return keys, nil
+}
+
+func (db *dbCrypt) UpsertUserChatProviderKey(ctx context.Context, params database.UpsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	if strings.TrimSpace(params.APIKey) == "" {
+		params.ApiKeyKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+
+	key, err := db.Store.UpsertUserChatProviderKey(ctx, params)
+	if err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	if err := db.decryptUserChatProviderKey(&key); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) UpdateUserChatProviderKey(ctx context.Context, params database.UpdateUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
+	if strings.TrimSpace(params.APIKey) == "" {
+		params.ApiKeyKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+
+	key, err := db.Store.UpdateUserChatProviderKey(ctx, params)
+	if err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	if err := db.decryptUserChatProviderKey(&key); err != nil {
+		return database.UserChatProviderKey{}, err
+	}
+	return key, nil
+}
+
 // decryptMCPServerConfig decrypts all encrypted fields on a
 // single MCPServerConfig in place.
 func (db *dbCrypt) decryptMCPServerConfig(cfg *database.MCPServerConfig) error {
@@ -666,6 +717,60 @@ func (db *dbCrypt) UpsertMCPServerUserToken(ctx context.Context, params database
 	return tok, nil
 }
 
+func (db *dbCrypt) CreateUserSecret(ctx context.Context, params database.CreateUserSecretParams) (database.UserSecret, error) {
+	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	secret, err := db.Store.CreateUserSecret(ctx, params)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
+}
+
+func (db *dbCrypt) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
+	secret, err := db.Store.GetUserSecretByUserIDAndName(ctx, arg)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
+}
+
+func (db *dbCrypt) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+	secrets, err := db.Store.ListUserSecretsWithValues(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range secrets {
+		if err := db.decryptField(&secrets[i].Value, secrets[i].ValueKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return secrets, nil
+}
+
+func (db *dbCrypt) UpdateUserSecretByUserIDAndName(ctx context.Context, arg database.UpdateUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
+	if arg.UpdateValue {
+		if err := db.encryptField(&arg.Value, &arg.ValueKeyID); err != nil {
+			return database.UserSecret{}, err
+		}
+	}
+	secret, err := db.Store.UpdateUserSecretByUserIDAndName(ctx, arg)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
@@ -770,7 +875,7 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 		}
 
 		// If we get here, then we have a new key that we need to insert.
-		return db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+		return s.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
 			Number:          highestNumber + 1,
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,

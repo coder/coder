@@ -1,11 +1,4 @@
 import type { FC } from "react";
-import { DEFAULT_THEME } from "theme";
-import {
-	DEFAULT_TERMINAL_FONT,
-	terminalFontLabels,
-	terminalFonts,
-} from "theme/constants";
-import { cn } from "utils/cn";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -15,8 +8,18 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { PreviewBadge } from "#/components/Badges/Badges";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Section } from "../Section";
+import { DEFAULT_THEME } from "#/theme";
+import {
+	DEFAULT_TERMINAL_FONT,
+	terminalFontLabels,
+	terminalFonts,
+} from "#/theme/constants";
+import { cn } from "#/utils/cn";
 
 // Display Geist Mono (the default monospace font) first, then the rest
 // alphabetically. TerminalFontNames is auto-generated in alphabetical
@@ -64,19 +67,17 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	};
 
 	return (
-		<form>
+		<form className="flex flex-col gap-12">
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			<Section
-				title={
-					<div className="flex flex-row items-center gap-2">
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>
 						<span>Theme</span>
 						<Spinner loading={isUpdating} size="sm" />
-					</div>
-				}
-				layout="fluid"
-				className="mb-12"
-			>
+					</SettingsHeaderTitle>
+				</SettingsHeader>
+
 				<div className="flex flex-row flex-wrap gap-4">
 					<AutoThemePreviewButton
 						displayName="Auto"
@@ -97,16 +98,16 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						onSelect={() => onChangeTheme("light")}
 					/>
 				</div>
-			</Section>
-			<Section
-				title={
-					<div className="flex flex-row items-center gap-2">
+			</div>
+
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle hierarchy="secondary">
 						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
 						<Spinner loading={isUpdating} size="sm" />
-					</div>
-				}
-				layout="fluid"
-			>
+					</SettingsHeaderTitle>
+				</SettingsHeader>
+
 				<RadioGroup
 					aria-labelledby="fonts-radio-buttons-group-label"
 					defaultValue={currentTerminalFont}
@@ -128,7 +129,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						</div>
 					))}
 				</RadioGroup>
-			</Section>
+			</div>
 		</form>
 	);
 };

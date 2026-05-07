@@ -1,11 +1,3 @@
-import {
-	UserOrGroupAutocomplete,
-	type UserOrGroupAutocompleteValue,
-} from "modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
-import {
-	AddWorkspaceMemberForm,
-	RoleSelectField,
-} from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 import { type FC, useState } from "react";
 import type {
 	Group,
@@ -14,6 +6,14 @@ import type {
 	WorkspaceRole,
 	WorkspaceUser,
 } from "#/api/typesGenerated";
+import {
+	UserOrGroupAutocomplete,
+	type UserOrGroupAutocompleteValue,
+} from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
+import {
+	AddWorkspaceMemberForm,
+	RoleSelectField,
+} from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 
 type AddWorkspaceUserOrGroupProps = {
 	organizationID: string;

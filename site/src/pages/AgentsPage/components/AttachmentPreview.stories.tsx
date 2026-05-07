@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { AttachmentPreview, type UploadState } from "./AgentChatInput";
+import { AttachmentPreview, type UploadState } from "./AttachmentPreview";
 
 // Tiny 1x1 transparent PNG as data URI for previews.
 const TINY_PNG =
@@ -80,6 +80,41 @@ export const Uploading: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByTitle("Loading spinner")).toBeInTheDocument();
+	},
+};
+
+export const PendingUpload: Story = {
+	args: (() => {
+		const file = createMockFile("pending.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([[file, { status: "pending" }]]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTitle("Loading spinner")).toBeInTheDocument();
+	},
+};
+
+export const DraftWarning: Story = {
+	args: (() => {
+		const file = createMockFile("large-draft.txt", "text/plain");
+		const warning =
+			"This file is attached for now, but it could not be saved as a draft.";
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading", draftWarning: warning }],
+			]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(/could not be saved as a draft/i),
+		).toBeInTheDocument();
 	},
 };
 
@@ -164,13 +199,14 @@ export const TextAttachment: Story = {
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		const textCard = await canvas.findByRole("button", {
-			name: "View text attachment",
+			name: "View clipboard.txt",
 		});
 		expect(textCard).toHaveTextContent(/This is the pasted text content\./i);
 		await userEvent.click(textCard);
 		expect(args.onTextPreview).toHaveBeenCalledWith(
 			"This is the pasted text content.\nIt has multiple lines.\nAnd should be displayed in a readable card format.",
 			"clipboard.txt",
+			"text/plain",
 		);
 	},
 };
@@ -207,7 +243,7 @@ export const ThreeTextAttachments: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			await canvas.findAllByRole("button", { name: "View text attachment" }),
+			await canvas.findAllByRole("button", { name: /View paste-[1-3]\.txt/ }),
 		).toHaveLength(3);
 		expect(
 			canvas.getByText(
@@ -269,7 +305,7 @@ export const MixedImageAndText: Story = {
 			await canvas.findByRole("img", { name: "photo.png" }),
 		).toBeInTheDocument();
 		expect(
-			canvas.getByRole("button", { name: "View text attachment" }),
+			canvas.getByRole("button", { name: "View clipboard.txt" }),
 		).toBeInTheDocument();
 	},
 };

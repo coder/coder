@@ -1,11 +1,3 @@
-import {
-	MockGroup,
-	MockGroup2,
-	MockUserMember,
-	MockUserOwner,
-	MockWorkspace,
-	mockApiError,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getWorkspaceSharingSettingsKey } from "#/api/queries/organizations";
 import type {
@@ -13,6 +5,14 @@ import type {
 	WorkspaceGroup,
 	WorkspaceUser,
 } from "#/api/typesGenerated";
+import {
+	MockGroup,
+	MockGroup2,
+	MockUserMember,
+	MockUserOwner,
+	MockWorkspace,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const mockWorkspaceUser: WorkspaceUser = {

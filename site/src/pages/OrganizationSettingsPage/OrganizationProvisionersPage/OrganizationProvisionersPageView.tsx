@@ -1,6 +1,5 @@
 import { XIcon } from "lucide-react";
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -27,6 +26,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
 import { ProvisionerRow } from "./ProvisionerRow";
 

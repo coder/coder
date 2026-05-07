@@ -1,9 +1,9 @@
-import type { MetadataState, MetadataValue } from "hooks/useEmbeddedMetadata";
 import { API } from "#/api/api";
 import type {
 	AuthorizationRequest,
 	AuthorizationResponse,
 } from "#/api/typesGenerated";
+import type { MetadataState, MetadataValue } from "#/hooks/useEmbeddedMetadata";
 import { disabledRefetchOptions } from "./util";
 
 const AUTHORIZATION_KEY = "authorization";

@@ -1,9 +1,4 @@
 import type { JSX } from "react";
-import {
-	deploymentGroupHasParent,
-	useDeploymentOptions,
-} from "utils/deployOptions";
-import { docs } from "utils/docs";
 import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Badges,
@@ -16,7 +11,11 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
+import {
+	deploymentGroupHasParent,
+	useDeploymentOptions,
+} from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type UserAuthSettingsPageViewProps = {
@@ -34,7 +33,7 @@ export const UserAuthSettingsPageView = ({
 	);
 
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>User Authentication</SettingsHeaderTitle>
@@ -90,6 +89,6 @@ export const UserAuthSettingsPageView = ({
 					/>
 				)}
 			</div>
-		</Stack>
+		</div>
 	);
 };

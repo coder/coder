@@ -1,7 +1,7 @@
 import { CircleQuestionMarkIcon } from "lucide-react";
-import { cn } from "utils/cn";
 import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { cn } from "#/utils/cn";
 
 export const AIBridgeClientIcon = ({
 	client,
@@ -68,6 +68,13 @@ export const AIBridgeClientIcon = ({
 			return (
 				<ExternalImage
 					src="/icon/cursor.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "Charm Crush":
+			return (
+				<ExternalImage
+					src="/icon/charm-crush.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);

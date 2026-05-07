@@ -30,9 +30,11 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	var latestMainline *version
-	if len(allTags) > 0 {
-		v := allTags[0]
-		latestMainline = &v
+	for _, t := range allTags {
+		if t.Pre == "" {
+			latestMainline = &t
+			break
+		}
 	}
 
 	stableMinor := -1
@@ -41,7 +43,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		stableMinor = latestMainline.Minor - 1
 		// Find highest tag in the stable minor series.
 		for _, t := range allTags {
-			if t.Major == latestMainline.Major && t.Minor == stableMinor {
+			if t.Major == latestMainline.Major && t.Minor == stableMinor && t.Pre == "" {
 				latestStableStr = t.String()
 				break
 			}
@@ -66,28 +68,110 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("detecting branch: %w", err)
 	}
 
+	// Two modes:
+	//   1. On "main" — for tagging release candidates (RCs).
+	//   2. On "release/X.Y" — for releases and patches.
+	// RCs are tagged directly on main to avoid the toil of
+	// cherry-picking hundreds of commits onto a release branch.
+	// The release/X.Y branch is only cut when the release is
+	// ready.
+	//
+	// Detached HEAD is common: the release manager checks out a
+	// specific commit on main before running the tool. We detect
+	// this by checking whether HEAD is an ancestor of origin/main.
 	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
-	m := branchRe.FindStringSubmatch(currentBranch)
-	if m == nil {
-		warnf(w, "Current branch %q is not a release branch (release/X.Y).", currentBranch)
+	onMain := currentBranch == "main"
+	var branchMajor, branchMinor int
+
+	// Detached HEAD: currentBranch is empty. Check if HEAD is
+	// reachable from origin/main.
+	if currentBranch == "" {
+		if err := gitRun("merge-base", "--is-ancestor", "HEAD", "origin/main"); err == nil {
+			onMain = true
+			currentBranch = "main"
+			successf(w, "Detached HEAD is an ancestor of main — RC tagging mode.")
+		}
+	}
+
+	switch {
+	case onMain:
+		successf(w, "On main branch — RC tagging mode.")
+	case branchRe.MatchString(currentBranch):
+		m := branchRe.FindStringSubmatch(currentBranch)
+		branchMajor, _ = strconv.Atoi(m[1])
+		branchMinor, _ = strconv.Atoi(m[2])
+		successf(w, "Using release branch: %s", currentBranch)
+	default:
+		if currentBranch == "" {
+			warnf(w, "Detached HEAD is not reachable from origin/main.")
+		} else {
+			warnf(w, "Current branch %q is not 'main' or a release branch (release/X.Y).", currentBranch)
+		}
 		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
-			Text: "Enter the release branch to use (e.g. release/2.21)",
+			Text: "Enter the branch to use (e.g. main, release/2.21)",
 			Validate: func(s string) error {
-				if !branchRe.MatchString(s) {
-					return xerrors.New("must be in format release/X.Y (e.g. release/2.21)")
+				if s == "main" || branchRe.MatchString(s) {
+					return nil
 				}
-				return nil
+				return xerrors.New("must be 'main' or release/X.Y (e.g. release/2.21)")
 			},
 		})
 		if err != nil {
 			return err
 		}
 		currentBranch = branchInput
-		m = branchRe.FindStringSubmatch(currentBranch)
+		if currentBranch == "main" {
+			onMain = true
+			successf(w, "On main branch — RC tagging mode.")
+		} else {
+			m := branchRe.FindStringSubmatch(currentBranch)
+			branchMajor, _ = strconv.Atoi(m[1])
+			branchMinor, _ = strconv.Atoi(m[2])
+			successf(w, "Using release branch: %s", currentBranch)
+		}
 	}
-	branchMajor, _ := strconv.Atoi(m[1])
-	branchMinor, _ := strconv.Atoi(m[2])
-	successf(w, "Using release branch: %s", currentBranch)
+
+	// --- Commit selection (RC mode) ---
+	// RCs are always tagged at a specific commit. Show the current
+	// HEAD and let the user confirm or provide a different SHA.
+	// We always checkout the commit so the rest of the flow
+	// operates in detached HEAD at the exact commit being tagged.
+	if onMain {
+		headSHA, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			return xerrors.Errorf("resolving HEAD: %w", err)
+		}
+		headShort := headSHA[:12]
+		headTitle, _ := gitOutput("log", "-1", "--format=%s", "HEAD")
+		fmt.Fprintf(w, "  Current commit: %s %s\n", headShort, headTitle)
+		fmt.Fprintln(w)
+
+		commitInput, err := cliui.Prompt(inv, cliui.PromptOptions{
+			Text:    "Commit SHA to tag (press Enter to use current)",
+			Default: headShort,
+		})
+		if err != nil {
+			return err
+		}
+		commitInput = strings.TrimSpace(commitInput)
+
+		// Resolve the input to a full SHA.
+		targetSHA, err := gitOutput("rev-parse", commitInput)
+		if err != nil {
+			return xerrors.Errorf("resolving %q: %w", commitInput, err)
+		}
+
+		// Always checkout so we're in detached HEAD at the
+		// target commit for the rest of the flow.
+		if err := gitRun("checkout", "--quiet", targetSHA); err != nil {
+			return xerrors.Errorf("checking out %s: %w", commitInput, err)
+		}
+		if targetSHA != headSHA {
+			newTitle, _ := gitOutput("log", "-1", "--format=%s", "HEAD")
+			successf(w, "Checked out %s %s", targetSHA[:12], newTitle)
+		}
+		fmt.Fprintln(w)
+	}
 
 	// --- Fetch & sync check ---
 	infof(w, "Fetching latest from origin...")
@@ -95,20 +179,24 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("fetching: %w", err)
 	}
 
-	localHead, err := gitOutput("rev-parse", "HEAD")
-	if err != nil {
-		return xerrors.Errorf("resolving HEAD: %w", err)
-	}
-	remoteHead, _ := gitOutput("rev-parse", "origin/"+currentBranch)
-
-	if remoteHead != "" && localHead != remoteHead {
-		warnf(w, "Your local branch is not up to date with origin/%s.", currentBranch)
-		fmt.Fprintf(w, "  Local:  %s\n", localHead[:12])
-		fmt.Fprintf(w, "  Remote: %s\n", remoteHead[:12])
-		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
-			return err
+	// Skip the local-vs-remote sync check in RC mode because
+	// we always checkout a specific commit (detached HEAD).
+	if !onMain {
+		localHead, err := gitOutput("rev-parse", "HEAD")
+		if err != nil {
+			return xerrors.Errorf("resolving HEAD: %w", err)
 		}
-		fmt.Fprintln(w)
+		remoteHead, _ := gitOutput("rev-parse", "origin/"+currentBranch)
+
+		if remoteHead != "" && localHead != remoteHead {
+			warnf(w, "Your local branch is not up to date with origin/%s.", currentBranch)
+			fmt.Fprintf(w, "  Local:  %s\n", localHead[:12])
+			fmt.Fprintf(w, "  Remote: %s\n", remoteHead[:12])
+			if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
+				return err
+			}
+			fmt.Fprintln(w)
+		}
 	}
 
 	// --- Find previous version & suggest next ---
@@ -117,26 +205,130 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("listing merged tags: %w", err)
 	}
 
-	// Find the latest tag matching this branch's major.minor.
-	// Without this filter, tags from newer branches (e.g. v2.31.0)
-	// that are reachable via merge history would be picked up
-	// incorrectly on older release branches (e.g. release/2.30).
 	var prevVersion *version
-	for _, t := range mergedTags {
-		if t.Major == branchMajor && t.Minor == branchMinor {
-			v := t
-			prevVersion = &v
-			break
-		}
-	}
-
 	var suggested version
-	if prevVersion == nil {
-		infof(w, "No previous release tag found on this branch.")
-		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
+	var changelogBaseRef string
+
+	if onMain { //nolint:nestif // Sequential release flow with two distinct modes is inherently nested.
+		// On main, suggest the next RC. Find the latest RC tag
+		// across all tags, then suggest the next one. If no RC
+		// tags exist, suggest rc.0 for the next minor after the
+		// latest mainline release.
+		var latestRC *version
+		for _, t := range allTags {
+			if t.IsRC() {
+				v := t
+				latestRC = &v
+				break
+			}
+		}
+
+		switch {
+		case latestRC != nil:
+			prevVersion = latestRC
+			infof(w, "Latest RC tag: %s", latestRC.String())
+
+			// Check if a final release already exists for this
+			// RC's minor series. If so, the series is complete
+			// and we should start the next minor's RC cycle.
+			seriesComplete := false
+			for _, t := range allTags {
+				if t.Major == latestRC.Major && t.Minor == latestRC.Minor && t.Pre == "" {
+					infof(w, "Final release %s already exists for this series, moving to next minor.", t.String())
+					seriesComplete = true
+					break
+				}
+			}
+
+			if seriesComplete {
+				suggested = version{
+					Major: latestRC.Major,
+					Minor: latestRC.Minor + 1,
+					Patch: 0,
+					Pre:   "rc.0",
+				}
+			} else {
+				suggested = version{
+					Major: latestRC.Major,
+					Minor: latestRC.Minor,
+					Patch: latestRC.Patch,
+					Pre:   fmt.Sprintf("rc.%d", latestRC.rcNumber()+1),
+				}
+			}
+		case latestMainline != nil:
+			infof(w, "No RC tags found. Latest mainline: %s", latestMainline.String())
+			suggested = version{
+				Major: latestMainline.Major,
+				Minor: latestMainline.Minor + 1,
+				Patch: 0,
+				Pre:   "rc.0",
+			}
+		default:
+			infof(w, "No previous tags found.")
+			suggested = version{Major: 2, Minor: 0, Patch: 0, Pre: "rc.0"}
+		}
 	} else {
-		infof(w, "Previous release tag: %s", prevVersion.String())
-		suggested = version{Major: prevVersion.Major, Minor: prevVersion.Minor, Patch: prevVersion.Patch + 1}
+		// On a release branch, find the latest tag matching this
+		// branch's major.minor. Without this filter, tags from
+		// newer branches reachable via merge history would be
+		// picked up incorrectly.
+		for _, t := range mergedTags {
+			if t.Major == branchMajor && t.Minor == branchMinor {
+				v := t
+				prevVersion = &v
+				break
+			}
+		}
+
+		// changelogBaseRef is the git ref used as the starting
+		// point for release notes. When a tag exists in this
+		// minor series we use it directly. For the first release
+		// on a new minor no matching tag exists, so we compute
+		// the merge-base with the previous minor's release branch
+		// instead. This works even when that branch has no tags
+		// yet. As a last resort we fall back to the latest
+		// reachable tag from a previous minor.
+		if prevVersion == nil {
+			prevReleaseBranch := fmt.Sprintf("release/%d.%d", branchMajor, branchMinor-1)
+			if err := gitRun("fetch", "--quiet", "origin", prevReleaseBranch); err != nil {
+				warnf(w, "Could not fetch %s: %v", prevReleaseBranch, err)
+			}
+			if mb, mbErr := gitOutput("merge-base", "HEAD", "origin/"+prevReleaseBranch); mbErr == nil && mb != "" {
+				changelogBaseRef = mb
+				infof(w, "Using merge-base with %s as changelog base: %s", prevReleaseBranch, mb[:12])
+			} else {
+				// No previous release branch; fall back to the
+				// latest reachable tag from a previous minor.
+				for _, t := range mergedTags {
+					if t.Major == branchMajor && t.Minor < branchMinor {
+						changelogBaseRef = t.String()
+						break
+					}
+				}
+			}
+		}
+
+		if prevVersion == nil {
+			infof(w, "No previous release tag found on this branch.")
+			suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
+		} else {
+			infof(w, "Previous release tag: %s", prevVersion.String())
+			if prevVersion.IsRC() {
+				// Branch has only RC tags; suggest the
+				// release (same base, no pre-release suffix).
+				suggested = version{
+					Major: prevVersion.Major,
+					Minor: prevVersion.Minor,
+					Patch: prevVersion.Patch,
+				}
+			} else {
+				suggested = version{
+					Major: prevVersion.Major,
+					Minor: prevVersion.Minor,
+					Patch: prevVersion.Patch + 1,
+				}
+			}
+		}
 	}
 
 	fmt.Fprintln(w)
@@ -147,7 +339,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		Default: suggested.String(),
 		Validate: func(s string) error {
 			if _, ok := parseVersion(s); !ok {
-				return xerrors.New("must be in format vMAJOR.MINOR.PATCH (e.g. v2.31.1)")
+				return xerrors.New("must be in format vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-rc.N (e.g. v2.31.1 or v2.31.0-rc.0)")
 			}
 			return nil
 		},
@@ -157,8 +349,13 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	newVersion, _ := parseVersion(versionInput)
 
-	// Warn if version doesn't match branch.
-	if newVersion.Major != branchMajor || newVersion.Minor != branchMinor {
+	// Validate version against branch context.
+	switch {
+	case onMain && !newVersion.IsRC():
+		return xerrors.Errorf("cannot tag a non-RC version (%s) on main; switch to a release/X.Y branch", newVersion)
+	case !onMain && newVersion.IsRC():
+		return xerrors.Errorf("cannot tag an RC (%s) on a release branch; switch to main", newVersion)
+	case !onMain && (newVersion.Major != branchMajor || newVersion.Minor != branchMinor):
 		warnf(w, "Version %s does not match branch %s (expected v%d.%d.X).",
 			newVersion, currentBranch, branchMajor, branchMinor)
 		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
@@ -185,34 +382,37 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	// --- Check open PRs ---
 	// This runs before breaking changes so any last-minute merges
-	// are caught by the subsequent checks.
-	infof(w, "Checking for open PRs against %s...", currentBranch)
-	var openPRs []ghPR
-	if ghAvailable {
-		openPRs, err = ghListOpenPRs(currentBranch)
-		if err != nil {
-			warnf(w, "Failed to check open PRs: %v", err)
+	// are caught by the subsequent checks. Skipped on main since
+	// there are always open PRs targeting main.
+	if !onMain {
+		infof(w, "Checking for open PRs against %s...", currentBranch)
+		var openPRs []ghPR
+		if ghAvailable {
+			openPRs, err = ghListOpenPRs(currentBranch)
+			if err != nil {
+				warnf(w, "Failed to check open PRs: %v", err)
+			}
+		} else {
+			infof(w, "Skipping (no gh CLI).")
 		}
-	} else {
-		infof(w, "Skipping (no gh CLI).")
-	}
 
-	if len(openPRs) > 0 {
-		fmt.Fprintln(w)
-		warnf(w, "There are open PRs targeting %s that may need merging first:", currentBranch)
-		fmt.Fprintln(w)
-		for _, pr := range openPRs {
-			fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
+		if len(openPRs) > 0 {
+			fmt.Fprintln(w)
+			warnf(w, "There are open PRs targeting %s that may need merging first:", currentBranch)
+			fmt.Fprintln(w)
+			for _, pr := range openPRs {
+				fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
+			}
+			fmt.Fprintln(w)
+			if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
+				return err
+			}
+			fmt.Fprintln(w)
+		} else {
+			successf(w, "No open PRs against %s.", currentBranch)
 		}
 		fmt.Fprintln(w)
-		if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
-			return err
-		}
-		fmt.Fprintln(w)
-	} else {
-		successf(w, "No open PRs against %s.", currentBranch)
 	}
-	fmt.Fprintln(w)
 
 	// --- Semver sanity checks ---
 	if prevVersion != nil { //nolint:nestif // Sequential release checks are inherently nested.
@@ -303,38 +503,50 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Channel selection ---
 	// This is done before release notes generation because the
 	// notes format differs between mainline and stable channels.
-	channelDefault := cliui.ConfirmNo
-	channelHint := ""
-	if newVersion.Minor == stableMinor {
-		channelDefault = cliui.ConfirmYes
-		channelHint = " (this looks like a stable release)"
-	}
-
+	// RC releases are always on the "rc" channel and skip the
+	// stable/mainline prompt.
 	channel := "mainline"
-	_, err = cliui.Prompt(inv, cliui.PromptOptions{
-		Text:      fmt.Sprintf("Mark this as the latest stable release on GitHub?%s", channelHint),
-		Default:   channelDefault,
-		IsConfirm: true,
-	})
-	if err == nil {
-		channel = "stable"
-	} else if !errors.Is(err, cliui.ErrCanceled) {
-		return err
-	}
-
-	if channel == "stable" {
-		infof(w, "Channel: stable (will be marked as GitHub Latest).")
+	if newVersion.IsRC() {
+		channel = "rc"
+		infof(w, "Channel: rc (release candidate, will be marked as prerelease on GitHub).")
 	} else {
-		infof(w, "Channel: mainline (will be marked as prerelease).")
+		channelDefault := cliui.ConfirmNo
+		channelHint := ""
+		if newVersion.Minor == stableMinor {
+			channelDefault = cliui.ConfirmYes
+			channelHint = " (this looks like a stable release)"
+		}
+
+		_, err = cliui.Prompt(inv, cliui.PromptOptions{
+			Text:      fmt.Sprintf("Mark this as the latest stable release on GitHub?%s", channelHint),
+			Default:   channelDefault,
+			IsConfirm: true,
+		})
+		if err == nil {
+			channel = "stable"
+		} else if !errors.Is(err, cliui.ErrCanceled) {
+			return err
+		}
+
+		if channel == "stable" {
+			infof(w, "Channel: stable (will be marked as GitHub Latest).")
+		} else {
+			infof(w, "Channel: mainline (will be marked as prerelease).")
+		}
 	}
 	fmt.Fprintln(w)
 
 	// --- Generate release notes ---
 	infof(w, "Generating release notes...")
 
-	commitRange := "HEAD"
-	if prevVersion != nil {
+	var commitRange string
+	switch {
+	case prevVersion != nil:
 		commitRange = prevVersion.String() + "..HEAD"
+	case changelogBaseRef != "":
+		commitRange = changelogBaseRef + "..HEAD"
+	default:
+		commitRange = "HEAD"
 	}
 
 	commits, err := commitLog(commitRange)
@@ -408,15 +620,26 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// scripts/release/generate_release_notes.sh.
 	var notes strings.Builder
 
-	// Stable since header or mainline blurb.
+	// Stable since header, mainline blurb, or RC advisory.
 	if channel == "stable" {
 		fmt.Fprintf(&notes, "> ## Stable (since %s)\n\n", time.Now().Format("January 02, 2006"))
 	}
 	fmt.Fprintln(&notes, "## Changelog")
-	if channel == "mainline" {
+	switch channel {
+	case "rc":
 		fmt.Fprintln(&notes)
 		fmt.Fprintln(&notes, "> [!NOTE]")
-		fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+	case "mainline":
+		// Only show the mainline blurb when the version is
+		// actually the current mainline series. Patches on
+		// older branches (e.g. ESR) are neither mainline nor
+		// stable, so we omit the note entirely.
+		if latestMainline != nil && newVersion.Minor == latestMainline.Minor {
+			fmt.Fprintln(&notes)
+			fmt.Fprintln(&notes, "> [!NOTE]")
+			fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		}
 	}
 
 	hasContent := false
@@ -442,9 +665,13 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	// Compare link.
+	compareBase := changelogBaseRef
 	if prevVersion != nil {
+		compareBase = prevVersion.String()
+	}
+	if compareBase != "" {
 		fmt.Fprintf(&notes, "\nCompare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n",
-			prevVersion, newVersion, owner, repo, prevVersion, newVersion)
+			compareBase, newVersion, owner, repo, compareBase, newVersion)
 	}
 
 	// Container image.
@@ -576,7 +803,13 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	successf(w, "Release workflow triggered!")
 
 	// --- Update release docs ---
-	promptAndUpdateDocs(inv, newVersion, channel, dryRun)
+	// RC releases skip docs updates (calendar, helm versions, etc.)
+	// since they are not production releases.
+	if newVersion.IsRC() {
+		infof(w, "Skipping docs update for release candidate.")
+	} else {
+		promptAndUpdateDocs(inv, newVersion, channel, dryRun)
+	}
 
 	fmt.Fprintln(w)
 	successf(w, "Done! 🎉")

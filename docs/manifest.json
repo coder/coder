@@ -324,8 +324,7 @@
 					"title": "Workspace Sharing",
 					"description": "Sharing workspaces",
 					"path": "./user-guides/shared-workspaces.md",
-					"icon_path": "./images/icons/generic.svg",
-					"state": ["beta"]
+					"icon_path": "./images/icons/generic.svg"
 				},
 				{
 					"title": "Workspace Scheduling",
@@ -367,6 +366,13 @@
 					"description": "Personalize your environment with dotfiles",
 					"path": "./user-guides/workspace-dotfiles.md",
 					"icon_path": "./images/icons/art-pad.svg"
+				},
+				{
+					"title": "User secrets",
+					"description": "Store secret values in Coder and automatically inject them into workspaces",
+					"path": "./user-guides/user-secrets.md",
+					"icon_path": "./images/icons/secrets.svg",
+					"state": ["early access"]
 				}
 			]
 		},
@@ -496,7 +502,8 @@
 						{
 							"title": "Headless Authentication",
 							"description": "Create and manage headless service accounts for automated systems and API integrations",
-							"path": "./admin/users/headless-auth.md"
+							"path": "./admin/users/headless-auth.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Groups \u0026 Roles",
@@ -977,6 +984,284 @@
 					"path": "./ai-coder/ide-agents.md"
 				},
 				{
+					"title": "Coder Agents",
+					"description": "Self-hosted agent by Coder",
+					"path": "./ai-coder/agents/index.md",
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "Getting Started",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
+							"path": "./ai-coder/agents/getting-started.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Architecture",
+							"description": "How the agent in the control plane communicates with workspaces",
+							"path": "./ai-coder/agents/architecture.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Models",
+							"description": "Configure LLM providers and models for Coder Agents",
+							"path": "./ai-coder/agents/models.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Platform Controls",
+							"description": "How platform teams control agent behavior, models, and policies",
+							"path": "./ai-coder/agents/platform-controls/index.md",
+							"state": ["beta"],
+							"children": [
+								{
+									"title": "Template Optimization",
+									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "MCP Servers",
+									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
+									"path": "./ai-coder/agents/platform-controls/mcp-servers.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Spend Management",
+									"description": "Spend limits and cost tracking for Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Git Providers",
+									"description": "Git provider configuration for the in-chat diff viewer",
+									"path": "./ai-coder/agents/platform-controls/git-providers.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Data Retention",
+									"description": "Automatic cleanup of old conversation data",
+									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Debug Data Retention",
+									"description": "Automatic cleanup of old chat debug data",
+									"path": "./ai-coder/agents/platform-controls/chat-debug-retention.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Auto-Archive",
+									"description": "Automatic archiving of inactive conversations",
+									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Experiments",
+									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
+									"path": "./ai-coder/agents/platform-controls/experiments.md",
+									"state": ["beta"]
+								}
+							]
+						},
+						{
+							"title": "Extending Agents",
+							"description": "Add custom skills and MCP tools to agent workspaces",
+							"path": "./ai-coder/agents/extending-agents.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Tasks to Chats API Migration",
+							"description": "Guide for migrating from the Tasks API to the Chats API",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
+							"state": ["beta"]
+						}
+					]
+				},
+				{
+					"title": "AI Governance Add-On",
+					"description": "Features around managing agents at scale",
+					"path": "./ai-coder/ai-governance.md",
+					"state": ["premium"],
+					"children": [
+						{
+							"title": "Agent Firewall",
+							"description": "Understanding Agent Firewall in Coder Tasks",
+							"path": "./ai-coder/agent-firewall/index.md",
+							"state": ["premium"],
+							"children": [
+								{
+									"title": "NS Jail",
+									"description": "Documentation for Namespace Jail",
+									"path": "./ai-coder/agent-firewall/nsjail/index.md",
+									"children": [
+										{
+											"title": "NS Jail on Docker",
+											"description": "Runtime and permission requirements for running NS Jail on Docker",
+											"path": "./ai-coder/agent-firewall/nsjail/docker.md"
+										},
+										{
+											"title": "NS Jail on Kubernetes",
+											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
+											"path": "./ai-coder/agent-firewall/nsjail/k8s.md"
+										},
+										{
+											"title": "NS Jail on ECS",
+											"description": "Runtime and permission requirements for running NS Jail on ECS",
+											"path": "./ai-coder/agent-firewall/nsjail/ecs.md"
+										}
+									]
+								},
+								{
+									"title": "LandJail",
+									"description": "Documentation for LandJail",
+									"path": "./ai-coder/agent-firewall/landjail.md"
+								},
+								{
+									"title": "Rules Engine",
+									"description": "Documentation for the Agent Firewall rules engine",
+									"path": "./ai-coder/agent-firewall/rules-engine.md"
+								},
+								{
+									"title": "Version Compatibility",
+									"description": "Version requirements and compatibility information",
+									"path": "./ai-coder/agent-firewall/version.md"
+								}
+							]
+						},
+						{
+							"title": "AI Gateway",
+							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
+							"path": "./ai-coder/ai-gateway/index.md",
+							"icon_path": "./images/icons/api.svg",
+							"state": ["premium"],
+							"children": [
+								{
+									"title": "Setup",
+									"description": "How to set up and configure AI Gateway",
+									"path": "./ai-coder/ai-gateway/setup.md"
+								},
+								{
+									"title": "Client Configuration",
+									"description": "How to configure your AI coding tools to use AI Gateway",
+									"path": "./ai-coder/ai-gateway/clients/index.md",
+									"children": [
+										{
+											"title": "Coder Agents",
+											"description": "Route Coder Agents traffic through AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/coder-agents.md"
+										},
+										{
+											"title": "Claude Code",
+											"description": "Configure Claude Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/claude-code.md"
+										},
+										{
+											"title": "Codex",
+											"description": "Configure Codex to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/codex.md"
+										},
+										{
+											"title": "Mux",
+											"description": "Configure Mux to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/mux.md"
+										},
+										{
+											"title": "OpenCode",
+											"description": "Configure OpenCode to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/opencode.md"
+										},
+										{
+											"title": "Factory",
+											"description": "Configure Factory to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/factory.md"
+										},
+										{
+											"title": "Cline",
+											"description": "Configure Cline to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/cline.md"
+										},
+										{
+											"title": "Kilo Code",
+											"description": "Configure Kilo Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/kilo-code.md"
+										},
+										{
+											"title": "Roo Code",
+											"description": "Configure Roo Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/roo-code.md"
+										},
+										{
+											"title": "VS Code",
+											"description": "Configure VS Code to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/vscode.md"
+										},
+										{
+											"title": "JetBrains",
+											"description": "Configure JetBrains IDEs to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/jetbrains.md"
+										},
+										{
+											"title": "Zed",
+											"description": "Configure Zed to use AI Gateway",
+											"path": "./ai-coder/ai-gateway/clients/zed.md"
+										},
+										{
+											"title": "GitHub Copilot",
+											"description": "Configure GitHub Copilot to use AI Gateway via AI Gateway Proxy",
+											"path": "./ai-coder/ai-gateway/clients/copilot.md"
+										}
+									]
+								},
+								{
+									"title": "MCP Tools Injection",
+									"description": "How to configure MCP servers for tools injection through AI Gateway",
+									"path": "./ai-coder/ai-gateway/mcp.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "AI Gateway Proxy",
+									"description": "Proxy for AI coding tools without base URL override support",
+									"path": "./ai-coder/ai-gateway/ai-gateway-proxy/index.md",
+									"state": ["premium"],
+									"children": [
+										{
+											"title": "Setup",
+											"description": "How to set up and configure AI Gateway Proxy",
+											"path": "./ai-coder/ai-gateway/ai-gateway-proxy/setup.md"
+										}
+									]
+								},
+								{
+									"title": "Auditing AI Sessions",
+									"description": "How to audit AI sessions",
+									"path": "./ai-coder/ai-gateway/audit.md"
+								},
+								{
+									"title": "Monitoring",
+									"description": "How to monitor AI Gateway",
+									"path": "./ai-coder/ai-gateway/monitoring.md"
+								},
+								{
+									"title": "Reference",
+									"description": "Technical reference for AI Gateway",
+									"path": "./ai-coder/ai-gateway/reference.md"
+								}
+							]
+						},
+						{
+							"title": "Usage Data Reporting",
+							"description": "Configure AI usage data reporting",
+							"path": "./ai-coder/usage-data-reporting.md"
+						}
+					]
+				},
+				{
+					"title": "MCP Server",
+					"description": "Connect AI coding agents to Coder using the MCP server",
+					"path": "./ai-coder/mcp-server.md",
+					"state": ["beta"]
+				},
+				{
 					"title": "Coder Tasks",
 					"description": "Run Coding Agents on your Own Infrastructure",
 					"path": "./ai-coder/tasks.md",
@@ -1007,245 +1292,20 @@
 							"path": "./ai-coder/tasks-migration.md"
 						},
 						{
-							"title": "Security \u0026 Boundaries",
-							"description": "Learn about security and boundaries when running AI coding agents in Coder",
+							"title": "Security \u0026 Agent Firewall",
+							"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
 						},
 						{
 							"title": "Create a GitHub to Coder Tasks Workflow",
 							"description": "How to setup Coder Tasks to run in GitHub",
 							"path": "./ai-coder/github-to-tasks.md"
-						}
-					]
-				},
-				{
-					"title": "AI Governance Add-On",
-					"description": "Features around managing agents at scale",
-					"path": "./ai-coder/ai-governance.md",
-					"state": ["premium"],
-					"children": [
-						{
-							"title": "Agent Boundaries",
-							"description": "Understanding Agent Boundaries in Coder Tasks",
-							"path": "./ai-coder/agent-boundaries/index.md",
-							"state": ["premium"],
-							"children": [
-								{
-									"title": "NS Jail",
-									"description": "Documentation for Namespace Jail",
-									"path": "./ai-coder/agent-boundaries/nsjail/index.md",
-									"children": [
-										{
-											"title": "NS Jail on Docker",
-											"description": "Runtime and permission requirements for running NS Jail on Docker",
-											"path": "./ai-coder/agent-boundaries/nsjail/docker.md"
-										},
-										{
-											"title": "NS Jail on Kubernetes",
-											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
-											"path": "./ai-coder/agent-boundaries/nsjail/k8s.md"
-										},
-										{
-											"title": "NS Jail on ECS",
-											"description": "Runtime and permission requirements for running NS Jail on ECS",
-											"path": "./ai-coder/agent-boundaries/nsjail/ecs.md"
-										}
-									]
-								},
-								{
-									"title": "LandJail",
-									"description": "Documentation for LandJail",
-									"path": "./ai-coder/agent-boundaries/landjail.md"
-								},
-								{
-									"title": "Rules Engine",
-									"description": "Documentation for the Boundary rules engine",
-									"path": "./ai-coder/agent-boundaries/rules-engine.md"
-								},
-								{
-									"title": "Version Compatibility",
-									"description": "Version requirements and compatibility information",
-									"path": "./ai-coder/agent-boundaries/version.md"
-								}
-							]
 						},
 						{
-							"title": "AI Bridge",
-							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
-							"path": "./ai-coder/ai-bridge/index.md",
-							"icon_path": "./images/icons/api.svg",
-							"state": ["premium"],
-							"children": [
-								{
-									"title": "Setup",
-									"description": "How to set up and configure AI Bridge",
-									"path": "./ai-coder/ai-bridge/setup.md"
-								},
-								{
-									"title": "Client Configuration",
-									"description": "How to configure your AI coding tools to use AI Bridge",
-									"path": "./ai-coder/ai-bridge/clients/index.md",
-									"children": [
-										{
-											"title": "Claude Code",
-											"description": "Configure Claude Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
-										},
-										{
-											"title": "Codex",
-											"description": "Configure Codex to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/codex.md"
-										},
-										{
-											"title": "Mux",
-											"description": "Configure Mux to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/mux.md"
-										},
-										{
-											"title": "OpenCode",
-											"description": "Configure OpenCode to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/opencode.md"
-										},
-										{
-											"title": "Factory",
-											"description": "Configure Factory to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/factory.md"
-										},
-										{
-											"title": "Cline",
-											"description": "Configure Cline to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/cline.md"
-										},
-										{
-											"title": "Kilo Code",
-											"description": "Configure Kilo Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
-										},
-										{
-											"title": "Roo Code",
-											"description": "Configure Roo Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/roo-code.md"
-										},
-										{
-											"title": "VS Code",
-											"description": "Configure VS Code to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/vscode.md"
-										},
-										{
-											"title": "JetBrains",
-											"description": "Configure JetBrains IDEs to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/jetbrains.md"
-										},
-										{
-											"title": "Zed",
-											"description": "Configure Zed to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/zed.md"
-										},
-										{
-											"title": "GitHub Copilot",
-											"description": "Configure GitHub Copilot to use AI Bridge via AI Bridge Proxy",
-											"path": "./ai-coder/ai-bridge/clients/copilot.md"
-										}
-									]
-								},
-								{
-									"title": "MCP Tools Injection",
-									"description": "How to configure MCP servers for tools injection through AI Bridge",
-									"path": "./ai-coder/ai-bridge/mcp.md",
-									"state": ["early access"]
-								},
-								{
-									"title": "AI Bridge Proxy",
-									"description": "Proxy for AI coding tools without base URL override support",
-									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
-									"state": ["premium"],
-									"children": [
-										{
-											"title": "Setup",
-											"description": "How to set up and configure AI Bridge Proxy",
-											"path": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md"
-										}
-									]
-								},
-								{
-									"title": "Auditing AI Sessions",
-									"description": "How to audit AI sessions",
-									"path": "./ai-coder/ai-bridge/audit.md"
-								},
-								{
-									"title": "Monitoring",
-									"description": "How to monitor AI Bridge",
-									"path": "./ai-coder/ai-bridge/monitoring.md"
-								},
-								{
-									"title": "Reference",
-									"description": "Technical reference for AI Bridge",
-									"path": "./ai-coder/ai-bridge/reference.md"
-								}
-							]
-						},
-						{
-							"title": "Usage Data Reporting",
-							"description": "Configure AI usage data reporting",
-							"path": "./ai-coder/usage-data-reporting.md"
-						}
-					]
-				},
-				{
-					"title": "MCP Server",
-					"description": "Connect to agents Coder with a MCP server",
-					"path": "./ai-coder/mcp-server.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Coder Agents",
-					"description": "Self-hosted agent by Coder",
-					"path": "./ai-coder/agents/index.md",
-					"state": ["early access"],
-					"children": [
-						{
-							"title": "Getting Started",
-							"description": "Enable Coder Agents, prepare your deployment, and run your first chat",
-							"path": "./ai-coder/agents/getting-started.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Early Access",
-							"description": "About the Coder Agents Early Access program",
-							"path": "./ai-coder/agents/early-access.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Architecture",
-							"description": "How the agent in the control plane communicates with workspaces",
-							"path": "./ai-coder/agents/architecture.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Models",
-							"description": "Configure LLM providers and models for Coder Agents",
-							"path": "./ai-coder/agents/models.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Platform Controls",
-							"description": "How platform teams control agent behavior, models, and policies",
-							"path": "./ai-coder/agents/platform-controls/index.md",
-							"state": ["early access"],
-							"children": [
-								{
-									"title": "Template Optimization",
-									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
-									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
-									"state": ["early access"]
-								}
-							]
-						},
-						{
-							"title": "Chats API",
-							"description": "Programmatic access to Coder Agents via the experimental Chats API",
-							"path": "./ai-coder/agents/chats-api.md",
-							"state": ["early access"]
+							"title": "Tasks to Chats API Migration",
+							"description": "Guide for migrating from the Tasks API to the Chats API",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
+							"state": ["beta"]
 						}
 					]
 				}
@@ -1281,6 +1341,12 @@
 					"title": "Configuring Okta",
 					"description": "Custom claims/scopes with Okta for group/role sync",
 					"path": "./tutorials/configuring-okta.md"
+				},
+				{
+					"title": "Persistent Shared Workspaces",
+					"description": "Set up long-lived shared workspaces with service accounts and workspace sharing",
+					"path": "./tutorials/persistent-shared-workspaces.md",
+					"state": ["premium"]
 				},
 				{
 					"title": "Google to AWS Federation",
@@ -1442,7 +1508,8 @@
 						},
 						{
 							"title": "Chats",
-							"path": "./reference/api/chats.md"
+							"path": "./reference/api/chats.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Debug",
@@ -1495,6 +1562,10 @@
 						{
 							"title": "Schemas",
 							"path": "./reference/api/schemas.md"
+						},
+						{
+							"title": "Secrets",
+							"path": "./reference/api/secrets.md"
 						},
 						{
 							"title": "Tasks",
@@ -1981,6 +2052,31 @@
 							"title": "schedule stop",
 							"description": "Edit workspace stop schedule",
 							"path": "reference/cli/schedule_stop.md"
+						},
+						{
+							"title": "secret",
+							"description": "Manage secrets",
+							"path": "reference/cli/secret.md"
+						},
+						{
+							"title": "secret create",
+							"description": "Create a secret",
+							"path": "reference/cli/secret_create.md"
+						},
+						{
+							"title": "secret update",
+							"description": "Update a secret",
+							"path": "reference/cli/secret_update.md"
+						},
+						{
+							"title": "secret list",
+							"description": "List secrets, or show one by name",
+							"path": "reference/cli/secret_list.md"
+						},
+						{
+							"title": "secret delete",
+							"description": "Delete a secret",
+							"path": "reference/cli/secret_delete.md"
 						},
 						{
 							"title": "server",

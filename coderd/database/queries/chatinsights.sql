@@ -173,11 +173,12 @@ JOIN pr_costs pc ON pc.pr_key = d.pr_key
 GROUP BY d.model_config_id, d.display_name, d.model, d.provider
 ORDER BY total_prs DESC;
 
--- name: GetPRInsightsRecentPRs :many
--- Returns individual PR rows with cost for the recent PRs table.
+-- name: GetPRInsightsPullRequests :many
+-- Returns all individual PR rows with cost for the selected time range.
 -- Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
 -- direct children (that lack their own PR), and deduped picks one row
--- per PR for metadata.
+-- per PR for metadata. A safety-cap LIMIT guards against unexpectedly
+-- large result sets from direct API callers.
 WITH pr_costs AS (
     SELECT
         prc.pr_key,
@@ -264,4 +265,4 @@ SELECT * FROM (
     JOIN pr_costs pc ON pc.pr_key = d.pr_key
 ) sub
 ORDER BY sub.created_at DESC
-LIMIT @limit_val::int;
+LIMIT 500;

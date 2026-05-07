@@ -1,4 +1,3 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
@@ -10,6 +9,7 @@ import {
 	templateVersionLogs,
 	templateVersionVariables,
 } from "#/api/queries/templates";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";

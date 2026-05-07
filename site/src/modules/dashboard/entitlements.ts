@@ -28,3 +28,17 @@ export const selectFeatureVisibility = (
 ): Record<FeatureName, boolean> => {
 	return getFeatureVisibility(entitlements.has_license, entitlements.features);
 };
+
+/**
+ * Keep the AI seats column visible while in grace period so admins can
+ * identify who is consuming seats while remediating overages.
+ */
+export const shouldShowAISeatColumn = (entitlements: Entitlements): boolean => {
+	const aiGovernanceUserLimit = entitlements.features.ai_governance_user_limit;
+	return (
+		entitlements.has_license &&
+		aiGovernanceUserLimit.enabled &&
+		(aiGovernanceUserLimit.entitlement === "entitled" ||
+			aiGovernanceUserLimit.entitlement === "grace_period")
+	);
+};

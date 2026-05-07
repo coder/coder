@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.6"
+      version = "~> 4.0"
     }
   }
 }
@@ -51,7 +51,7 @@ data "coder_workspace_preset" "pittsburgh" {
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -68,7 +68,7 @@ data "coder_workspace_preset" "cpt" {
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "za-cpt"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -85,7 +85,7 @@ data "coder_workspace_preset" "falkenstein" {
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "eu-helsinki"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -102,7 +102,7 @@ data "coder_workspace_preset" "sydney" {
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "ap-sydney"
-    (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
+    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
     (data.coder_parameter.repo_base_dir.name)            = "~"
     (data.coder_parameter.res_mon_memory_threshold.name) = 80
     (data.coder_parameter.res_mon_volume_threshold.name) = 90
@@ -121,14 +121,31 @@ data "coder_parameter" "repo_base_dir" {
   mutable     = true
 }
 
+locals {
+  image_tags = {
+    // Older style option values, where the option value was just supposed to
+    // be the exact name of the image on Docker hub. In practice, this is rather
+    // restrictive because the image_type parameter is immutable.
+    "codercom/oss-dogfood:latest"     = "codercom/oss-dogfood:latest"
+    "codercom/oss-dogfood-nix:latest" = "codercom/oss-dogfood-nix:latest"
+
+    "ubuntu-latest" = "codercom/oss-dogfood:26.04"
+  }
+}
+
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
   default     = "codercom/oss-dogfood:latest"
-  description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
+  description = "The Docker image used to run your workspace."
   option {
     icon  = "/icon/coder.svg"
-    name  = "Dogfood (Default)"
+    name  = "Ubuntu 26.04"
+    value = "ubuntu-latest"
+  }
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Ubuntu 22.04 (Legacy)"
     value = "codercom/oss-dogfood:latest"
   }
   option {
@@ -223,20 +240,27 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
-data "coder_parameter" "use_ai_bridge" {
+data "coder_parameter" "enable_ai_gateway" {
   type        = "bool"
-  name        = "Use AI Bridge"
+  name        = "Use AI Gateway"
   default     = true
-  description = "If enabled, AI requests will be sent via AI Bridge."
+  description = "If enabled, AI requests will be sent via AI Gateway."
   mutable     = true
 }
 
-# Only used if AI Bridge is disabled.
+# Only used if AI Gateway is disabled.
 # dogfood/main.tf injects this value from a GH Actions secret;
-# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY`.
+# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
 variable "anthropic_api_key" {
   type        = string
   description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
+  default     = ""
+  sensitive   = true
+}
+
+variable "openai_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the OpenAI API, if AI Gateway is disabled."
   default     = ""
   sensitive   = true
 }
@@ -394,7 +418,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.3"
+  version                 = "1.4.4"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -416,7 +440,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.3.0"
+  version       = "1.4.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -427,7 +451,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.4"
+  version    = "1.1.5"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -485,7 +509,7 @@ resource "coder_agent" "dev" {
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
     },
-    data.coder_parameter.use_ai_bridge.value ? {
+    data.coder_parameter.enable_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
       OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
@@ -762,15 +786,16 @@ resource "docker_volume" "docker_volume" {
 }
 
 data "docker_registry_image" "dogfood" {
-  name = data.coder_parameter.image_type.value
+  name = local.image_tags[data.coder_parameter.image_type.value]
 }
 
 resource "docker_image" "dogfood" {
-  name = "${data.coder_parameter.image_type.value}@${data.docker_registry_image.dogfood.sha256_digest}"
+  name = "${local.image_tags[data.coder_parameter.image_type.value]}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("Dockerfile"),
+    filesha1("ubuntu-22.04/Dockerfile"),
+    filesha1("ubuntu-26.04/Dockerfile"),
     filesha1("nix.hash"),
   ]
   keep_locally = true
@@ -814,6 +839,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
+    "CODER_AGENT_EXP_MCP_CONFIG_FILES=~/.mcp.json,.mcp.json",
   ]
   host {
     host = "host.docker.internal"
@@ -872,36 +898,6 @@ resource "coder_metadata" "container_info" {
   }
 }
 
-locals {
-  claude_system_prompt = <<-EOT
-    -- Framing --
-    You are a helpful Coding assistant. Aim to autonomously investigate
-    and solve issues the user gives you and test your work, whenever possible.
-
-    Avoid shortcuts like mocking tests. When you get stuck, you can ask the user
-    but opt for autonomy.
-
-    -- Tool Selection --
-    - playwright: previewing your changes after you made them
-      to confirm it worked as expected
-    -	Built-in tools - use for everything else:
-      (file operations, git commands, builds & installs, one-off shell commands)
-
-    -- Workflow --
-    When starting new work:
-    1. If given a GitHub issue URL, use the `gh` CLI to read the full issue details with `gh issue view <issue-number>`.
-    2. Create a feature branch for the work using a descriptive name based on the issue or task.
-       Example: `git checkout -b fix/issue-123-oauth-error` or `git checkout -b feat/add-dark-mode`
-    3. Proceed with implementation following the CLAUDE.md guidelines.
-
-    -- Context --
-    There is an existing application in the current directory.
-    Be sure to read CLAUDE.md before making any changes.
-
-    This is a real-world production application. As such, make sure to think carefully, use TODO lists, and plan carefully before making changes.
-  EOT
-}
-
 resource "coder_script" "boundary_config_setup" {
   agent_id     = coder_agent.dev.id
   display_name = "Boundary Setup Configuration"
@@ -920,76 +916,64 @@ resource "coder_script" "boundary_config_setup" {
 }
 
 module "claude-code" {
-  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.8.1"
-  enable_boundary     = true
-  agent_id            = coder_agent.dev.id
-  workdir             = local.repo_dir
-  claude_code_version = "latest"
-  model               = "opus"
-  order               = 999
-  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
-  agentapi_version    = "latest"
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/claude-code/coder"
+  version           = "5.1.0"
+  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
+  anthropic_api_key = data.coder_parameter.enable_ai_gateway.value ? "" : var.anthropic_api_key
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
+  mcp               = <<-EOF
+    {
+      "mcpServers": {
+        "playwright": {
+          "command": "npx",
+          "args": ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+        }
+      }
+    }
+  EOF
+}
 
-  system_prompt       = local.claude_system_prompt
-  ai_prompt           = data.coder_task.me.prompt
-  post_install_script = <<-EOT
-    cd $HOME/coder
-    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
+resource "coder_app" "claude" {
+  agent_id     = coder_agent.dev.id
+  slug         = "claude"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s claude claude
   EOT
 }
 
-resource "coder_ai_task" "task" {
-  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  app_id = module.claude-code[count.index].task_app_id
-}
-
-resource "coder_app" "develop_sh" {
-  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  agent_id     = coder_agent.dev.id
-  slug         = "develop-sh"
-  display_name = "develop.sh"
-  icon         = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
-  command      = "screen -x develop_sh"
-  share        = "authenticated"
-  open_in      = "tab"
-  order        = 0
-}
-
-resource "coder_script" "develop_sh" {
-  count              = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  display_name       = "develop.sh"
-  agent_id           = coder_agent.dev.id
-  run_on_start       = true
-  start_blocks_login = false
-  icon               = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
-  script             = <<-EOT
-    #!/usr/bin/env bash
-    set -eux -o pipefail
-
-    trap 'coder exp sync complete develop-sh' EXIT
-    coder exp sync want develop-sh install-deps
-    coder exp sync start develop-sh
-
-    cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
+module "codex" {
+  source            = "dev.registry.coder.com/coder-labs/codex/coder"
+  version           = "5.0.0"
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
+  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
+  openai_api_key    = data.coder_parameter.enable_ai_gateway.value ? "" : var.openai_api_key
+  mcp               = <<-EOT
+    [mcp_servers.playwright]
+    command = "npx"
+    args = ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+    type = "stdio"
   EOT
 }
 
-resource "coder_app" "preview" {
-  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+resource "coder_app" "codex" {
   agent_id     = coder_agent.dev.id
-  slug         = "preview"
-  display_name = "Preview"
-  icon         = "${data.coder_workspace.me.access_url}/emojis/1f50e.png" // 🔎
-  url          = "http://localhost:8080"
-  share        = "authenticated"
-  subdomain    = true
-  open_in      = "tab"
-  order        = 1
-  healthcheck {
-    url       = "http://localhost:8080/healthz"
-    interval  = 5
-    threshold = 15
-  }
+  slug         = "codex"
+  display_name = "Codex"
+  icon         = "/icon/openai-codex.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s codex codex
+  EOT
 }

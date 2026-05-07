@@ -1,10 +1,10 @@
 import TextField from "@mui/material/TextField";
 import { PlusIcon } from "lucide-react";
-import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import { type FC, useRef, useState } from "react";
 import * as Yup from "yup";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { ProvisionerTag } from "#/modules/provisioners/ProvisionerTag";
 
 // Users can't delete these tags
 const REQUIRED_TAGS = ["scope", "organization", "user"];

@@ -36,6 +36,7 @@ typ = "typ"
 styl = "styl"
 edn = "edn"
 Inferrable = "Inferrable"
+IIF = "IIF"
 
 [files]
 extend-exclude = [
@@ -56,4 +57,6 @@ extend-exclude = [
 	# notifications' golden files confuse the detector because of quoted-printable encoding
 	"coderd/notifications/testdata/**",
 	"agent/agentcontainers/testdata/devcontainercli/**",
+	# aibridge fixtures contain truncated streaming chunks that look like typos
+	"aibridge/fixtures/**",
 ]

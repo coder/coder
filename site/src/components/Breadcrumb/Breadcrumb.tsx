@@ -2,9 +2,9 @@
  * Copied from shadc/ui on 12/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/breadcrumb}
  */
-import { Slot } from "@radix-ui/react-slot";
-import { MoreHorizontal } from "lucide-react";
-import { cn } from "utils/cn";
+import { MoreHorizontalIcon } from "lucide-react";
+import { Slot } from "radix-ui";
+import { cn } from "#/utils/cn";
 
 type BreadcrumbProps = React.ComponentPropsWithRef<"nav"> & {
 	separator?: React.ReactNode;
@@ -53,7 +53,7 @@ export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
 	className,
 	...props
 }) => {
-	const Comp = asChild ? Slot : "a";
+	const Comp = asChild ? Slot.Root : "a";
 
 	return (
 		<Comp
@@ -110,7 +110,7 @@ export const BreadcrumbEllipsis: React.FC<
 			className={cn("flex h-9 w-9 items-center justify-center", className)}
 			{...props}
 		>
-			<MoreHorizontal className="h-4 w-4" />
+			<MoreHorizontalIcon className="h-4 w-4" />
 			<span className="sr-only">More</span>
 		</span>
 	);

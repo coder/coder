@@ -1,15 +1,3 @@
-import {
-	MockCustomNotificationTemplates,
-	MockNotificationMethodsResponse,
-	MockNotificationPreferences,
-	MockSystemNotificationTemplates,
-	MockUserOwner,
-} from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withToaster,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -20,6 +8,18 @@ import {
 	systemNotificationTemplatesKey,
 	userNotificationPreferencesKey,
 } from "#/api/queries/notifications";
+import {
+	MockCustomNotificationTemplates,
+	MockNotificationMethodsResponse,
+	MockNotificationPreferences,
+	MockSystemNotificationTemplates,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {
@@ -60,6 +60,7 @@ export const Default: Story = {
 
 		await Promise.all([
 			// System notification templates
+			canvas.findByRole("switch", { name: "Chat Events" }),
 			canvas.findByRole("switch", { name: "Task Events" }),
 			canvas.findByRole("switch", { name: "Template Events" }),
 			canvas.findByRole("switch", { name: "User Events" }),
@@ -211,7 +212,10 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 			{
 				// User preferences: alert was previously dismissed
 				key: ["me", "preferences"],
-				data: { task_notification_alert_dismissed: true },
+				data: {
+					task_notification_alert_dismissed: true,
+					thinking_display_mode: "auto" as const,
+				},
 			},
 		],
 	},
@@ -233,6 +237,7 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 			"updateUserPreferenceSettings",
 		).mockResolvedValue({
 			task_notification_alert_dismissed: false,
+			thinking_display_mode: "auto",
 		});
 
 		await step("Enable Task Idle notification", async () => {
@@ -244,9 +249,11 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 
 			// Verify the preferences API was called to clear the alert dismissal
 			await waitFor(() => {
-				expect(updatePreferencesSpy).toHaveBeenCalledWith({
-					task_notification_alert_dismissed: false,
-				});
+				expect(updatePreferencesSpy).toHaveBeenCalledWith(
+					expect.objectContaining({
+						task_notification_alert_dismissed: false,
+					}),
+				);
 			});
 		});
 	},

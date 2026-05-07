@@ -1,43 +1,23 @@
-import dayjs, { type Dayjs } from "dayjs";
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
-import { prInsights } from "#/api/queries/chats";
+import type { FC } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { type PRInsightsTimeRange, PRInsightsView } from "./PRInsightsView";
 
-type TimeRangeSelection = {
+interface InsightsContentProps {
+	data: TypesGen.PRInsightsResponse | undefined;
+	isLoading: boolean;
+	error: unknown;
 	timeRange: PRInsightsTimeRange;
-	anchor: Dayjs;
-};
-
-function timeRangeToDates(range: PRInsightsTimeRange, anchor: Dayjs) {
-	const days = Number.parseInt(range, 10);
-	const start = anchor.subtract(days, "day");
-	return {
-		start_date: start.toISOString(),
-		end_date: anchor.toISOString(),
-	};
+	onTimeRangeChange: (range: PRInsightsTimeRange) => void;
 }
 
-export const InsightsContent: FC = () => {
-	const [selection, setSelection] = useState<TimeRangeSelection>(() => ({
-		timeRange: "30d",
-		anchor: dayjs(),
-	}));
-	const dates = timeRangeToDates(selection.timeRange, selection.anchor);
-
-	const { data, isLoading, error } = useQuery(prInsights(dates));
-
-	const handleTimeRangeChange = (timeRange: PRInsightsTimeRange) =>
-		setSelection((current) =>
-			current.timeRange === timeRange
-				? current
-				: {
-						timeRange,
-						anchor: dayjs(),
-					},
-		);
-
+export const InsightsContent: FC<InsightsContentProps> = ({
+	data,
+	isLoading,
+	error,
+	timeRange,
+	onTimeRangeChange,
+}) => {
 	if (isLoading) {
 		return (
 			<div className="flex min-h-[400px] items-center justify-center">
@@ -63,8 +43,8 @@ export const InsightsContent: FC = () => {
 	return (
 		<PRInsightsView
 			data={data}
-			timeRange={selection.timeRange}
-			onTimeRangeChange={handleTimeRangeChange}
+			timeRange={timeRange}
+			onTimeRangeChange={onTimeRangeChange}
 		/>
 	);
 };

@@ -1,7 +1,7 @@
-import { MockSession } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table, TableBody } from "components/Table/Table";
 import { fn } from "storybook/test";
+import { Table, TableBody } from "#/components/Table/Table";
+import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
 
 const meta: Meta<typeof ListSessionsRow> = {
@@ -74,6 +74,8 @@ export const LargeTokenCounts: Story = {
 			token_usage_summary: {
 				input_tokens: 198_000,
 				output_tokens: 32_000,
+				cache_read_input_tokens: 150_000,
+				cache_write_input_tokens: 12_000,
 			},
 		},
 	},
