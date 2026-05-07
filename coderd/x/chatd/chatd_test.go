@@ -4057,7 +4057,7 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include execute tool output")
 }
 
-func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
+func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -4108,7 +4108,7 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-		Title:          "requires-action-summary-clear",
+		Title:          "requires-action-status-label",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("Please call the dynamic tool."),
@@ -4131,15 +4131,16 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 			return true
 		}
 		return got.Status == database.ChatStatusRequiresAction &&
-			!got.LastTurnSummary.Valid
+			got.LastTurnSummary.Valid &&
+			got.LastTurnSummary.String == "Waiting for user input"
 	}, testutil.IntervalFast)
 	chatd.WaitUntilIdleForTest(server)
 
 	require.Equal(t, database.ChatStatusRequiresAction, fromDB.Status,
 		"expected requires_action, got %s (last_error=%q)",
 		fromDB.Status, string(fromDB.LastError.RawMessage))
-	require.False(t, fromDB.LastTurnSummary.Valid,
-		"requires action chats should clear cached turn summaries")
+	require.Equal(t, sql.NullString{String: "Waiting for user input", Valid: true}, fromDB.LastTurnSummary,
+		"requires action chats should persist a waiting status label")
 	require.Equal(t, int32(0), mockPush.dispatchCount.Load(),
 		"expected no web push dispatch for a requires_action chat")
 }
@@ -6525,7 +6526,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I have completed the task successfully and all tests are passing now."
-	const summaryText = "Completed task and verified all tests pass."
+	const summaryText = "Finished unit tests"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -6595,7 +6596,7 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I fixed the bug and added regression coverage."
-	const summaryText = "Fixed the bug and added regression coverage."
+	const summaryText = "Fixed regression bug"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {

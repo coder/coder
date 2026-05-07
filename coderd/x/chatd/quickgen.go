@@ -802,19 +802,24 @@ func generateManualTitle(
 	return title, usage, nil
 }
 
-const pushSummaryPrompt = "You are a notification assistant. Given a chat title " +
-	"and the agent's last message, write a single short sentence (under 100 characters) " +
-	"summarizing what the agent did. This will be shown as a push notification body. " +
-	"Return plain text only — no quotes, no emoji, no markdown."
+const pushSummaryPrompt = "You write compact chat status labels for a sidebar or push notification. " +
+	"Given a chat title, current chat state, and the agent's latest message, return a 2-5 word status label. " +
+	"Describe the chat's current state, not the agent. " +
+	"Good examples: Finished unit tests, Submitted PR, Still working on API, Waiting for user input. " +
+	"Do not start with Agent, I, We, It, The agent, or The chat. " +
+	"Avoid phrases like Agent asked, Agent identified, Agent found, or Agent explained. " +
+	"Prefer short action or state phrases such as Finished tests, Submitted PR, Fixed bug, Testing changes, Still working, or Waiting for. " +
+	"Return plain text only, no quotes, no emoji, no markdown."
 
-// generatePushSummary calls a cheap model to produce a short push
-// notification body from the chat title and the last assistant
+// generatePushSummary calls a cheap model to produce a short status
+// label from the chat title, current state, and last assistant
 // message text. It follows the same candidate-selection strategy
 // as title generation: try preferred lightweight models first, then
 // fall back to the provided model. Returns "" on any failure.
 func generatePushSummary(
 	ctx context.Context,
 	chat database.Chat,
+	status database.ChatStatus,
 	assistantText string,
 	fallbackProvider string,
 	fallbackModelName string,
@@ -831,7 +836,9 @@ func generatePushSummary(
 	defer cancel()
 
 	assistantText = truncateRunes(assistantText, maxConversationContextRunes)
-	input := "Chat title: " + chat.Title + "\n\nAgent's last message:\n" + assistantText
+	input := "Current chat state: " + pushSummaryStatusContext(status) +
+		"\nChat title: " + chat.Title +
+		"\n\nAgent's latest message:\n" + assistantText
 
 	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
@@ -888,11 +895,89 @@ func generatePushSummary(
 			)
 			continue
 		}
-		if summary != "" {
-			return summary
+		if summary == "" {
+			continue
 		}
+		label, ok := normalizePushStatusLabel(summary)
+		if !ok {
+			logger.Debug(ctx, "push summary model candidate returned invalid status label",
+				slog.F("label_length", len(summary)),
+			)
+			return ""
+		}
+		return label
 	}
 	return ""
+}
+
+func pushSummaryStatusContext(status database.ChatStatus) string {
+	switch status {
+	case database.ChatStatusWaiting:
+		return "The turn finished and the chat is idle."
+	case database.ChatStatusPending:
+		return "Another user message is queued and the chat will continue."
+	case database.ChatStatusRequiresAction:
+		return "The chat is waiting for user input or action."
+	case database.ChatStatusError:
+		return "The chat ended with an error."
+	default:
+		return "The chat state is unknown."
+	}
+}
+
+func normalizePushStatusLabel(text string) (string, bool) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", false
+	}
+
+	text = strings.Trim(text, "\"'`")
+	text = strings.TrimSpace(text)
+	text = strings.TrimRight(text, ".!?")
+	text = strings.Join(strings.Fields(text), " ")
+	if text == "" {
+		return "", false
+	}
+	if strings.Contains(text, "\n") {
+		return "", false
+	}
+	if strings.Count(text, ".") > 0 || strings.Count(text, "!") > 0 || strings.Count(text, "?") > 0 {
+		return "", false
+	}
+
+	words := strings.Fields(text)
+	if len(words) < 2 || len(words) > 5 {
+		return "", false
+	}
+
+	lower := strings.ToLower(text)
+	disallowedPrefixes := []string{
+		"agent ",
+		"the agent ",
+		"i ",
+		"we ",
+		"it ",
+		"the chat ",
+	}
+	for _, prefix := range disallowedPrefixes {
+		if strings.HasPrefix(lower, prefix) || lower == strings.TrimSpace(prefix) {
+			return "", false
+		}
+	}
+
+	disallowedPhrases := []string{
+		"agent asked",
+		"agent identified",
+		"agent found",
+		"agent explained",
+	}
+	for _, phrase := range disallowedPhrases {
+		if strings.Contains(lower, phrase) {
+			return "", false
+		}
+	}
+
+	return text, true
 }
 
 // generateShortText calls a model with a system prompt and user

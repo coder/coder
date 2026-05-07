@@ -5941,6 +5941,7 @@ type runChatResult struct {
 	PushSummaryModel        fantasy.LanguageModel
 	ProviderKeys            chatprovider.ProviderAPIKeys
 	PendingDynamicToolCalls []chatloop.PendingToolCall
+	StatusSignals           []TurnStatusSignal
 	FallbackProvider        string
 	FallbackModel           string
 	TriggerMessageID        int64
@@ -6863,6 +6864,7 @@ func (p *Server) runChat(
 	modelConfigContextLimit := modelConfig.ContextLimit
 	var finalAssistantText string
 	var pendingDynamicCalls []chatloop.PendingToolCall
+	var statusSignals []TurnStatusSignal
 
 	compactionHistoryTipMessageID := int64(0)
 	if len(messages) > 0 {
@@ -6892,6 +6894,7 @@ func (p *Server) runChat(
 		// Capture pending dynamic tool calls so the caller
 		// can surface them after chatloop.Run returns.
 		pendingDynamicCalls = step.PendingDynamicToolCalls
+		stepStatusSignals := turnStatusSignalsFromContent(step.Content)
 
 		// Split the step content into assistant blocks and tool
 		// result blocks so they can be stored as separate messages
@@ -7061,6 +7064,10 @@ func (p *Server) runChat(
 			return nil
 		}, nil); err != nil {
 			return xerrors.Errorf("persist step transaction: %w", err)
+		}
+
+		if len(stepStatusSignals) > 0 {
+			statusSignals = append(statusSignals, stepStatusSignals...)
 		}
 
 		for _, msg := range insertedMessages {
@@ -7590,6 +7597,7 @@ func (p *Server) runChat(
 		// client reacts before the status is committed.
 		result.FinalAssistantText = finalAssistantText
 		result.PendingDynamicToolCalls = pendingDynamicCalls
+		result.StatusSignals = statusSignals
 		return result, nil
 	}
 	if loopErr != nil {
@@ -7597,6 +7605,7 @@ func (p *Server) runChat(
 		return result, chaterror.WithClassification(loopErr, classified)
 	}
 	result.FinalAssistantText = finalAssistantText
+	result.StatusSignals = statusSignals
 	return result, nil
 }
 
@@ -8631,8 +8640,8 @@ func parseDynamicToolNames(raw pqtype.NullRawMessage) (map[string]bool, error) {
 	return names, nil
 }
 
-// maybeFinalizeTurnSummaryAndPush updates the cached turn summary for
-// parent chats and optionally sends a web push notification.
+// maybeFinalizeTurnSummaryAndPush updates the cached turn status label
+// for parent chats and optionally sends a web push notification.
 func (p *Server) maybeFinalizeTurnSummaryAndPush(
 	ctx context.Context,
 	chat database.Chat,
@@ -8647,10 +8656,10 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 
 	switch status {
 	case database.ChatStatusWaiting:
-		p.finalizeSuccessfulTurnSummaryAndPush(ctx, chat, runResult, logger)
+		p.finalizeSuccessfulTurnSummaryAndPush(ctx, chat, status, runResult, logger)
 
 	case database.ChatStatusPending:
-		p.finalizeSuccessfulTurnSummary(ctx, chat, runResult, logger)
+		p.finalizeSuccessfulTurnSummary(ctx, chat, status, runResult, logger)
 
 	case database.ChatStatusError:
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
@@ -8663,11 +8672,11 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 		}
 
 	case database.ChatStatusRequiresAction:
-		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+		p.setLastTurnSummaryAsync(ctx, chat, fallbackPushStatusLabel(status), logger)
 
 	default:
 		// New statuses must be classified before they can safely
-		// preserve or finalize a cached turn summary.
+		// preserve or finalize a cached turn status label.
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
 	}
 }
@@ -8675,19 +8684,21 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 func (p *Server) finalizeSuccessfulTurnSummary(
 	ctx context.Context,
 	chat database.Chat,
+	status database.ChatStatus,
 	runResult runChatResult,
 	logger slog.Logger,
 ) {
-	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(context.Context, string) {})
+	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, status, runResult, logger, func(context.Context, string) {})
 }
 
 func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
 	ctx context.Context,
 	chat database.Chat,
+	status database.ChatStatus,
 	runResult runChatResult,
 	logger slog.Logger,
 ) {
-	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(finalizeCtx context.Context, summary string) {
+	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, status, runResult, logger, func(finalizeCtx context.Context, summary string) {
 		p.dispatchSuccessfulTurnPush(finalizeCtx, chat, summary, logger)
 	})
 }
@@ -8695,32 +8706,25 @@ func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
 func (p *Server) finalizeSuccessfulTurnSummaryWithAfterFunc(
 	ctx context.Context,
 	chat database.Chat,
+	status database.ChatStatus,
 	runResult runChatResult,
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
-	debugSvc := p.existingDebugService()
 	// This helper runs during processChat cleanup, while processChat is
 	// still counted in p.inflight. Do not take inflightMu here because
 	// drainInflight holds it while waiting.
 	p.inflight.Go(func() {
 		finalizeCtx := context.WithoutCancel(ctx)
-		summary := ""
-		assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-		if assistantText != "" && runResult.PushSummaryModel != nil {
-			summary = strings.TrimSpace(generatePushSummary(
-				finalizeCtx,
-				chat,
-				assistantText,
-				runResult.FallbackProvider,
-				runResult.FallbackModel,
-				runResult.PushSummaryModel,
-				runResult.ProviderKeys,
-				logger,
-				debugSvc,
-				runResult.TriggerMessageID,
-				runResult.HistoryTipMessageID,
-			))
+		labelResult := p.deriveTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
+		summary := strings.TrimSpace(labelResult.Label)
+		if labelResult.Source != "" {
+			logger.Debug(finalizeCtx, "derived chat turn status label",
+				slog.F("chat_id", chat.ID),
+				slog.F("source", labelResult.Source),
+				slog.F("status", status),
+				slog.F("label_length", len(summary)),
+			)
 		}
 
 		shouldPersistSummary := summary != "" || chat.LastTurnSummary.Valid
@@ -8757,6 +8761,28 @@ func (p *Server) maybeClearLastTurnSummaryAsync(
 		return
 	}
 	p.clearLastTurnSummaryAsync(ctx, chat, logger)
+}
+
+func (p *Server) setLastTurnSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	summary string,
+	logger slog.Logger,
+) {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+		return
+	}
+	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
+		return
+	}
+	// This helper runs during processChat cleanup, while processChat is
+	// still counted in p.inflight. Do not take inflightMu here because
+	// drainInflight holds it while waiting.
+	p.inflight.Go(func() {
+		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.UpdatedAt, summary, logger)
+	})
 }
 
 func (p *Server) clearLastTurnSummaryAsync(

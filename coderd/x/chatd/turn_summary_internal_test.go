@@ -135,14 +135,16 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	const summary = "Finished the queued turn."
+	const summary = "Still working on request"
+	var generateCalls atomic.Int32
 	model := &chattest.FakeModel{
 		ProviderName: "openai",
 		ModelName:    "test-model",
 		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			generateCalls.Add(1)
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: summary},
+					fantasy.TextContent{Text: "Unexpected label"},
 				},
 			}, nil
 		},
@@ -169,6 +171,7 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	fetched, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, sql.NullString{String: summary, Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, int32(0), generateCalls.Load())
 	require.Equal(t, int32(0), dispatcher.dispatchCount.Load())
 }
 
