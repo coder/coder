@@ -52,7 +52,7 @@ export const ResizableAgentsSidebarFrame = ({
 	useEffect(() => {
 		globalThis.addEventListener("resize", handleResize);
 		return () => globalThis.removeEventListener("resize", handleResize);
-	}, [handleResize]);
+	}, []);
 
 	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		e.preventDefault();
