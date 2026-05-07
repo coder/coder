@@ -18,6 +18,15 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Separator } from "#/components/Separator/Separator";
@@ -29,6 +38,7 @@ import {
 	DynamicParameter,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 
 type ButtonValues = Record<string, string>;
@@ -188,8 +198,8 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	};
 
 	return (
-		<div className="flex items-start gap-12">
-			<div className="w-full flex flex-col gap-5 max-w-screen-md">
+		<div className="flex flow-row items-start gap-12 justify-evenly">
+			<div className="grow flex flex-col gap-5 max-w-screen-md">
 				{isLoading ? (
 					<div className="flex flex-col gap-9">
 						<div className="flex flex-col gap-2">
@@ -263,6 +273,48 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 									})}
 								</div>
 							)}
+
+							<div className="flex flex-row items-center gap-4">
+								<Button asChild>
+									<a
+										target="_blank"
+										href={getButtonUrl(template, {
+											...buttonValues,
+											mode: "manual",
+										})}
+									>
+										Test
+									</a>
+								</Button>
+
+								<HelpPopover>
+									<HelpPopoverIconTrigger size="small" />
+									<HelpPopoverContent>
+										<HelpPopoverTitle>
+											Testing your Open in Coder settings
+										</HelpPopoverTitle>
+										<HelpPopoverText>
+											This button will open the workspace creation page in a new
+											tab with the parameters that you have supplied. Use this
+											to debug your <strong>Open in Coder</strong> button before
+											using it.
+										</HelpPopoverText>
+										<HelpPopoverText>
+											Note: Even if you have set creation mode to auto, this
+											button will not automatically create a workspace so that
+											you have the opportunity to inspect the parameters and
+											check for errors.
+										</HelpPopoverText>
+										<HelpPopoverLinksGroup>
+											<HelpPopoverLink
+												href={docs("/admin/templates/open-in-coder")}
+											>
+												Templates – Open in Coder
+											</HelpPopoverLink>
+										</HelpPopoverLinksGroup>
+									</HelpPopoverContent>
+								</HelpPopover>
+							</div>
 						</div>
 					</>
 				)}
@@ -273,17 +325,23 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	);
 };
 
+const deploymentUrl = `${location.protocol}//${location.host}`;
+
 function getClipboardCopyContent(
-	templateName: string,
-	organization: string,
+	template: Template,
 	buttonValues: ButtonValues | undefined,
 ): string {
-	const deploymentUrl = `${location.protocol}//${location.host}`;
-	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
-	const createWorkspaceParams = new URLSearchParams(buttonValues);
-	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
-
+	const buttonUrl = getButtonUrl(template, buttonValues);
 	return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
+}
+
+function getButtonUrl(
+	template: Template,
+	buttonValues: ButtonValues | undefined,
+): string {
+	const createWorkspaceUrl = `${deploymentUrl}/templates/${template.organization_name}/${template.name}/workspace`;
+	const createWorkspaceParams = new URLSearchParams(buttonValues);
+	return `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 }
 
 interface ButtonPreviewProps {
@@ -294,25 +352,24 @@ interface ButtonPreviewProps {
 const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
 	const clipboard = useClipboard();
 	return (
-		<div
-			className="sticky top-10 flex gap-16 h-96 flex-1 flex-col items-center justify-center
-			 rounded-lg border border-border border-solid bg-surface-secondary"
-		>
-			<img src="/open-in-coder.svg" alt="Open in Coder button" />
+		<div className="flex gap-8 pt-4 flex-col items-center justify-center">
+			<div
+				className="
+				flex flex-col items-center justify-center p-6
+			 	rounded-lg border border-border border-solid bg-surface-secondary"
+			>
+				<img src="/open-in-coder.svg" alt="Open in Coder button" />
+			</div>
 			<Button
 				variant="default"
 				disabled={clipboard.showCopiedSuccess}
 				onClick={() => {
-					const textToCopy = getClipboardCopyContent(
-						template.name,
-						template.organization_name,
-						buttonValues,
-					);
+					const textToCopy = getClipboardCopyContent(template, buttonValues);
 					clipboard.copyToClipboard(textToCopy);
 				}}
 			>
 				{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />} Copy button
-				code
+				Markdown
 			</Button>
 		</div>
 	);
