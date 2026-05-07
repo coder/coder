@@ -4764,6 +4764,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceUniqueOwnerCountByTemplateIDs(gomock.Any(), ids).Return([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetWorkspaceUsageGroupedByTemplateIDForOwner", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetWorkspaceUsageGroupedByTemplateIDForOwnerParams{
+			OwnerID:        uuid.New(),
+			OrganizationID: uuid.New(),
+			TemplateIDs:    []uuid.UUID{uuid.New()},
+		}
+		dbm.EXPECT().GetWorkspaceUsageGroupedByTemplateIDForOwner(gomock.Any(), arg).Return([]database.GetWorkspaceUsageGroupedByTemplateIDForOwnerRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead)
+	}))
 	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
 		dbm.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), ids).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil).AnyTimes()
