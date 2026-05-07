@@ -25,6 +25,7 @@ type ToolOptions struct {
 	Runtime                 *Runtime
 	GetConversationSnapshot func() []fantasy.Message
 	PublishAdviceDelta      func(toolCallID string, delta string)
+	PublishAdviceReset      func(toolCallID string)
 }
 
 // Tool returns a fantasy.AgentTool that asks a nested model for concise
@@ -52,16 +53,22 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			var runOpts []RunAdvisorOptions
-			if opts.PublishAdviceDelta != nil && call.ID != "" {
-				runOpts = append(runOpts, RunAdvisorOptions{
-					OnAdviceDelta: func(delta string) {
+			var runOpts *RunAdvisorOptions
+			if call.ID != "" && (opts.PublishAdviceDelta != nil || opts.PublishAdviceReset != nil) {
+				runOpts = &RunAdvisorOptions{}
+				if opts.PublishAdviceDelta != nil {
+					runOpts.OnAdviceDelta = func(delta string) {
 						opts.PublishAdviceDelta(call.ID, delta)
-					},
-				})
+					}
+				}
+				if opts.PublishAdviceReset != nil {
+					runOpts.OnAdviceReset = func() {
+						opts.PublishAdviceReset(call.ID)
+					}
+				}
 			}
 
-			result, err := opts.Runtime.RunAdvisor(ctx, question, opts.GetConversationSnapshot(), runOpts...)
+			result, err := opts.Runtime.RunAdvisor(ctx, question, opts.GetConversationSnapshot(), runOpts)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}

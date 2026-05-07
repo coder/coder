@@ -7261,6 +7261,17 @@ func (p *Server) runChat(
 					ResultDelta: delta,
 				})
 			},
+			PublishAdviceReset: func(toolCallID string) {
+				if toolCallID == "" {
+					return
+				}
+				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+					Type:        codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID:  toolCallID,
+					ToolName:    chatadvisor.ToolName,
+					ResultReset: true,
+				})
+			},
 		}))
 	}
 

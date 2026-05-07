@@ -139,6 +139,9 @@ export const RunningWithStreamedAdvice: Story = {
 		expect(
 			canvas.queryByText("Advisor returned no guidance."),
 		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText("Reviewing context and preparing guidance."),
+		).not.toBeInTheDocument();
 	},
 };
 

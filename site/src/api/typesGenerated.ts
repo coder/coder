@@ -2621,6 +2621,7 @@ export interface ChatToolResultPart {
 	readonly mcp_server_config_id?: string;
 	readonly result?: Record<string, string>;
 	readonly result_delta?: string;
+	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
 	readonly is_media?: boolean;
 	/**

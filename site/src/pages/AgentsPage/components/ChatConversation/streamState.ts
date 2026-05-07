@@ -106,6 +106,16 @@ export const applyMessagePartToStreamState = (
 					: null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolResults[toolCallID];
+			if (part.result_reset) {
+				const toolResults = { ...nextState.toolResults };
+				delete toolResults[toolCallID];
+				return {
+					...nextState,
+					blocks: ensureToolBlock(nextState.blocks, toolCallID),
+					toolResults,
+				};
+			}
+
 			const nextResult = mergeStreamPayload(
 				existing?.result,
 				existing?.resultRaw,
@@ -113,7 +123,7 @@ export const applyMessagePartToStreamState = (
 				part.result_delta,
 			);
 			const nextToolName = part.tool_name || existing?.name || "Tool";
-			const isFinalResult = part.result !== undefined;
+			const isFinalResult = part.result !== undefined || part.is_error;
 			const isStreaming = isFinalResult
 				? false
 				: existing?.isStreaming || Boolean(part.result_delta);
@@ -132,7 +142,7 @@ export const applyMessagePartToStreamState = (
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
 						isError: nextIsError,
-						...(isStreaming ? { isStreaming: true } : {}),
+						isStreaming: isStreaming || undefined,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
 					},
