@@ -1091,7 +1091,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							</div>
 							{/* Expanded details (inside highlighted area) */}
 							{isExpanded && !isChildNode && (
-								<div className="space-y-2 px-4 pb-3 pt-1 text-xs text-content-secondary">
+								<div className="space-y-3 pb-3 pl-8 pr-4 pt-1 text-xs text-content-secondary">
 									{/* Subagents */}
 									{childIDs.length > 0 && (
 										<div>
@@ -1110,22 +1110,47 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												Subagents ({childIDs.length})
 											</button>
 											{!collapsedSections.has(`subagents-${chatID}`) && (
-												<div className="space-y-0.5 pl-2">
+												<div className="ml-[5px]">
 													{childIDs
 														.map((id) => chatById.get(id))
 														.filter((c): c is Chat => c !== undefined)
-														.map((child) => (
-															<NavLink
-																key={child.id}
-																to={{
-																	pathname: `/agents/${child.id}`,
-																	search: location.search,
-																}}
-																className="block truncate py-0.5 text-xs text-content-secondary no-underline hover:text-content-primary [&[aria-current=page]]:text-content-primary [&[aria-current=page]]:font-medium"
-															>
-																{child.title}
-															</NavLink>
-														))}
+														.map((child, idx, arr) => {
+															const childIsRunning =
+																child.status === "running" ||
+																child.status === "pending";
+															const isLast = idx === arr.length - 1;
+															return (
+																<div
+																	key={child.id}
+																	className="relative flex items-center gap-1 pl-3 text-sm"
+																>
+																	<div className="absolute left-0 top-0 h-[calc(50%-3px)] w-px bg-surface-quaternary" />
+																	<div className="absolute left-0 top-[calc(50%-3px)] h-[6px] w-2.5 border-0 border-b border-l border-solid border-surface-quaternary rounded-bl-[4px]" />
+																	{!isLast && (
+																		<div className="absolute left-0 top-1/2 bottom-0 w-px bg-surface-quaternary" />
+																	)}
+																	<NavLink
+																		to={{
+																			pathname: `/agents/${child.id}`,
+																			search: location.search,
+																		}}
+																		className="min-w-0 flex-1 truncate py-0.5 text-content-secondary no-underline hover:text-content-primary [&[aria-current=page]]:text-content-primary [&[aria-current=page]]:font-medium"
+																	>
+																		{child.title}
+																	</NavLink>
+																	<div className="flex w-7 shrink-0 items-center justify-center">
+																		{childIsRunning ? (
+																			<Loader2Icon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+																		) : child.has_unread &&
+																			activeChatId !== child.id ? (
+																			<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-content-link" />
+																		) : child.status === "error" ? (
+																			<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
+																		) : null}
+																	</div>
+																</div>
+															);
+														})}
 												</div>
 											)}
 										</div>
