@@ -78,8 +78,7 @@ type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 interface TemplateVersionEditorProps {
 	template: Template;
 	templateVersion: TemplateVersion;
-	fileTree: FileTree;
-	onFileTreeChange: (updater: (fileTree: FileTree) => FileTree) => void;
+	defaultFileTree: FileTree;
 	buildLogs?: ProvisionerJobLog[];
 	resources?: WorkspaceResource[];
 	isBuilding: boolean;
@@ -109,8 +108,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	canPublish,
 	template,
 	templateVersion,
-	fileTree,
-	onFileTreeChange,
+	defaultFileTree,
 	onPreview,
 	onPublish,
 	onConfirmPublish,
@@ -135,6 +133,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
+	const [fileTree, setFileTree] = useState(defaultFileTree);
 	const [createFileOpen, setCreateFileOpen] = useState(false);
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
@@ -352,9 +351,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								}}
 								checkExists={(path) => existsFile(path, fileTree)}
 								onConfirm={(path) => {
-									onFileTreeChange((fileTree) =>
-										createFile(path, fileTree, ""),
-									);
+									setFileTree((fileTree) => createFile(path, fileTree, ""));
 									onActivePathChange(path);
 									setCreateFileOpen(false);
 									setDirty(true);
@@ -365,7 +362,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									if (!deleteFileOpen) {
 										throw new Error("delete file must be set");
 									}
-									onFileTreeChange((fileTree) =>
+									setFileTree((fileTree) =>
 										removeFile(deleteFileOpen, fileTree),
 									);
 									setDeleteFileOpen(undefined);
@@ -390,7 +387,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									if (!renameFileOpen) {
 										return;
 									}
-									onFileTreeChange((fileTree) =>
+									setFileTree((fileTree) =>
 										moveFile(renameFileOpen, newPath, fileTree),
 									);
 									onActivePathChange(newPath);
@@ -436,7 +433,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											if (!activePath) {
 												return;
 											}
-											onFileTreeChange((fileTree) =>
+											setFileTree((fileTree) =>
 												updateFile(activePath, value, fileTree),
 											);
 											setDirty(true);
