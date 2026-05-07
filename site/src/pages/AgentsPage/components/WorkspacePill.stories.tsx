@@ -433,3 +433,118 @@ export const EmptyPorts: Story = {
 		});
 	},
 };
+
+// On viewports below the `md` Tailwind breakpoint (< 768 px), the parent
+// dropdown becomes full-width via the `mobile-full-width-dropdown` CSS
+// class, so a flyout sub-menu would clip off the right edge. Selecting
+// "Ports" should swap the same dropdown to an inline panel with a back
+// button, instead of opening a sub-menu flyout.
+export const MobilePortsInlinePanel: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: {
+			...MockWorkspaceAgent,
+			name: "a-workspace-agent",
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+		queries: [
+			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
+			{
+				key: ["portForward", MockWorkspaceAgent.id],
+				data: MockListeningPortsResponse,
+			},
+			{
+				key: ["sharedPorts", MockWorkspace.id],
+				data: MockSharedPortsResponse,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = await canvas.findByRole("button", {
+			name: /workspace menu/,
+		});
+		await userEvent.click(pill);
+
+		const body = within(document.body);
+		const portsItem = await body.findByText(/Ports \(\d+\)/);
+		// Clicking (not hovering) the ports item should swap the dropdown
+		// content to the inline panel without closing the dropdown.
+		await userEvent.click(portsItem);
+
+		await waitFor(() => {
+			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+			expect(body.getByText("Shared Ports")).toBeInTheDocument();
+			expect(body.getByText("Manage sharing")).toBeInTheDocument();
+			expect(body.getByRole("menuitem", { name: /Back/ })).toBeInTheDocument();
+			// Main-view items are no longer rendered.
+			expect(body.queryByText("View Workspace")).not.toBeInTheDocument();
+		});
+
+		// The dropdown content stays within the viewport on mobile.
+		const portsList = body.getByText("Listening Ports");
+		const dropdown = portsList.closest(
+			"[data-radix-popper-content-wrapper]",
+		) as HTMLElement | null;
+		if (dropdown) {
+			const rect = dropdown.getBoundingClientRect();
+			expect(rect.right).toBeLessThanOrEqual(window.innerWidth);
+			expect(rect.left).toBeGreaterThanOrEqual(0);
+		}
+
+		// Pressing Back should restore the main view.
+		await userEvent.click(body.getByRole("menuitem", { name: /Back/ }));
+		await waitFor(() => {
+			expect(body.getByText("View Workspace")).toBeInTheDocument();
+			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
+		});
+	},
+};
+
+// Visual variant of the mobile ports panel: stops at the inline panel
+// view (no Back click) so Storybook / Chromatic captures the panel as
+// rendered.
+export const MobilePortsInlinePanelOpen: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: {
+			...MockWorkspaceAgent,
+			name: "a-workspace-agent",
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+		queries: [
+			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
+			{
+				key: ["portForward", MockWorkspaceAgent.id],
+				data: MockListeningPortsResponse,
+			},
+			{
+				key: ["sharedPorts", MockWorkspace.id],
+				data: MockSharedPortsResponse,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = await canvas.findByRole("button", {
+			name: /workspace menu/,
+		});
+		await userEvent.click(pill);
+
+		const body = within(document.body);
+		const portsItem = await body.findByText(/Ports \(\d+\)/);
+		await userEvent.click(portsItem);
+
+		await waitFor(() => {
+			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+		});
+	},
+};

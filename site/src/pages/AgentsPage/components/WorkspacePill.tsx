@@ -1,6 +1,8 @@
 import {
+	ArrowLeftIcon,
 	BuildingIcon,
 	ChevronDownIcon,
+	ChevronRightIcon,
 	CopyIcon,
 	ExternalLinkIcon,
 	LayoutGridIcon,
@@ -12,7 +14,7 @@ import {
 	SquareTerminalIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -55,6 +57,7 @@ import {
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
+import { isBelowMdViewport } from "#/utils/mobile";
 import {
 	getWorkspaceListeningPortsProtocol,
 	portForwardURL,
@@ -105,8 +108,23 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 		hasTerminal ||
 		portForwardingEnabled;
 
+	// On viewports below the `md` Tailwind breakpoint, the parent dropdown
+	// content takes the full width via the `mobile-full-width-dropdown`
+	// CSS class, so a flyout sub-menu has nowhere to open into and clips
+	// off the right edge of the viewport. On mobile we instead swap the
+	// dropdown's contents to an inline ports panel with a back button,
+	// mirroring the workspace picker pattern in the agent chat input
+	// plus menu.
+	const [view, setView] = useState<"main" | "ports">("main");
+
 	return (
-		<DropdownMenu open={open} onOpenChange={setOpen}>
+		<DropdownMenu
+			open={open}
+			onOpenChange={(next) => {
+				setOpen(next);
+				if (!next) setView("main");
+			}}
+		>
 			<Tooltip
 				open={tooltipOpen}
 				onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -148,82 +166,120 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				align="start"
 				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
-				{hasVSCode && (
-					<VSCodeMenuItem
-						variant="vscode"
-						label="VS Code"
-						workspace={workspace}
-						agent={agent}
-						chatId={chatId}
-						folder={folder}
-						isRunning={isRunning}
-						generateKey={generateKey}
-						isGeneratingKey={isGeneratingKey}
-					/>
-				)}
-				{hasVSCodeInsiders && (
-					<VSCodeMenuItem
-						variant="vscode-insiders"
-						label="VS Code Insiders"
-						workspace={workspace}
-						agent={agent}
-						chatId={chatId}
-						folder={folder}
-						isRunning={isRunning}
-						generateKey={generateKey}
-						isGeneratingKey={isGeneratingKey}
-					/>
-				)}
-				{userApps.map((app) => (
-					<AppMenuItem
-						key={app.id}
-						app={app}
-						workspace={workspace}
-						agent={agent}
-						isRunning={isRunning}
-					/>
-				))}
-				{hasTerminal && (
-					<TerminalMenuItem
-						workspace={workspace}
-						agent={agent}
-						isRunning={isRunning}
-					/>
-				)}
-				{portForwardingEnabled && (
-					<PortsSubMenuItem
+				{view === "ports" ? (
+					<MobilePortsPanel
 						workspace={workspace}
 						agent={agent}
 						host={host}
 						isOpen={open}
-						isRunning={isRunning}
+						onBack={() => setView("main")}
 					/>
-				)}
-				{hasItemsAboveSeparator && <DropdownMenuSeparator className="my-1" />}
+				) : (
+					<>
+						{hasVSCode && (
+							<VSCodeMenuItem
+								variant="vscode"
+								label="VS Code"
+								workspace={workspace}
+								agent={agent}
+								chatId={chatId}
+								folder={folder}
+								isRunning={isRunning}
+								generateKey={generateKey}
+								isGeneratingKey={isGeneratingKey}
+							/>
+						)}
+						{hasVSCodeInsiders && (
+							<VSCodeMenuItem
+								variant="vscode-insiders"
+								label="VS Code Insiders"
+								workspace={workspace}
+								agent={agent}
+								chatId={chatId}
+								folder={folder}
+								isRunning={isRunning}
+								generateKey={generateKey}
+								isGeneratingKey={isGeneratingKey}
+							/>
+						)}
+						{userApps.map((app) => (
+							<AppMenuItem
+								key={app.id}
+								app={app}
+								workspace={workspace}
+								agent={agent}
+								isRunning={isRunning}
+							/>
+						))}
+						{hasTerminal && (
+							<TerminalMenuItem
+								workspace={workspace}
+								agent={agent}
+								isRunning={isRunning}
+							/>
+						)}
+						{portForwardingEnabled && (
+							<PortsMenuItem
+								workspace={workspace}
+								agent={agent}
+								host={host}
+								isOpen={open}
+								isRunning={isRunning}
+								onSelectInline={() => setView("ports")}
+							/>
+						)}
+						{hasItemsAboveSeparator && (
+							<DropdownMenuSeparator className="my-1" />
+						)}
 
-				{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
-				<DropdownMenuItem asChild>
-					<Link to={route} target="_blank" rel="noreferrer">
-						<MonitorIcon className="size-3.5" />
-						View Workspace
-					</Link>
-				</DropdownMenuItem>
+						{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
+						<DropdownMenuItem asChild>
+							<Link to={route} target="_blank" rel="noreferrer">
+								<MonitorIcon className="size-3.5" />
+								View Workspace
+							</Link>
+						</DropdownMenuItem>
+					</>
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
 };
 
-const PortsSubMenuItem: FC<{
-	workspace: Workspace;
-	agent: WorkspaceAgent;
-	host: string;
-	isOpen: boolean;
-	isRunning: boolean;
-}> = ({ workspace, agent, host, isOpen, isRunning }) => {
-	const route = `/@${workspace.owner_name}/${workspace.name}`;
-	const isConnected = agent.status === "connected";
-	const enabled = isOpen && isConnected;
+// Reactive viewport check so the menu trigger swaps between flyout and
+// inline panel modes if the viewport crosses the `md` breakpoint while
+// the dropdown is mounted.
+const useIsBelowMdViewport = (): boolean => {
+	const [matches, setMatches] = useState<boolean>(() =>
+		typeof window !== "undefined" ? isBelowMdViewport() : false,
+	);
+	useEffect(() => {
+		const mediaQuery = window.matchMedia("(max-width: 767px)");
+		const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
+		setMatches(mediaQuery.matches);
+		if (typeof mediaQuery.addEventListener === "function") {
+			mediaQuery.addEventListener("change", onChange);
+			return () => mediaQuery.removeEventListener("change", onChange);
+		}
+		mediaQuery.addListener(onChange);
+		return () => mediaQuery.removeListener(onChange);
+	}, []);
+	return matches;
+};
 
+interface PortsData {
+	listeningPorts: readonly WorkspaceAgentListeningPort[] | undefined;
+	sharedPorts: readonly WorkspaceAgentPortShare[] | undefined;
+	privateListeningPorts: readonly WorkspaceAgentListeningPort[];
+	totalCount: number | undefined;
+	protocol: "http" | "https";
+}
+
+const usePortsData = (
+	workspace: Workspace,
+	agent: WorkspaceAgent,
+	enabled: boolean,
+): PortsData => {
 	const protocol = getWorkspaceListeningPortsProtocol(workspace.id);
 
 	const { data: listeningPorts } = useQuery({
@@ -252,74 +308,175 @@ const PortsSubMenuItem: FC<{
 	const totalCount =
 		listeningPorts !== undefined ? listeningPorts.length : undefined;
 
+	return {
+		listeningPorts,
+		sharedPorts,
+		privateListeningPorts,
+		totalCount,
+		protocol,
+	};
+};
+
+const PortsMenuItem: FC<{
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+	host: string;
+	isOpen: boolean;
+	isRunning: boolean;
+	onSelectInline: () => void;
+}> = ({ workspace, agent, host, isOpen, isRunning, onSelectInline }) => {
+	const isConnected = agent.status === "connected";
+	const enabled = isOpen && isConnected;
+	const isMobile = useIsBelowMdViewport();
+
+	const portsData = usePortsData(workspace, agent, enabled);
+
+	const label =
+		portsData.totalCount !== undefined
+			? `Ports (${portsData.totalCount})`
+			: "Ports";
+
+	if (isMobile) {
+		// Use a regular menu item that swaps the parent dropdown's content
+		// instead of opening a flyout sub-menu, since on mobile the parent
+		// dropdown is full-width and a flyout would clip off-screen.
+		return (
+			<DropdownMenuItem
+				disabled={!isRunning}
+				onSelect={(event) => {
+					event.preventDefault();
+					onSelectInline();
+				}}
+			>
+				<NetworkIcon className="size-3.5" />
+				{label}
+				<ChevronRightIcon className="ml-auto size-3.5" />
+			</DropdownMenuItem>
+		);
+	}
+
 	return (
 		<DropdownMenuSub>
 			<DropdownMenuSubTrigger disabled={!isRunning}>
 				<NetworkIcon className="size-3.5" />
-				{totalCount !== undefined ? `Ports (${totalCount})` : "Ports"}
+				{label}
 			</DropdownMenuSubTrigger>
 			<DropdownMenuSubContent className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5">
-				{/* Listening Ports header: only render when there are ports to list. */}
-				{privateListeningPorts.length > 0 && (
-					<div className="px-2 pb-1.5 pt-1">
-						<span className="text-xs font-semibold text-content-secondary">
-							Listening Ports
-						</span>
-					</div>
-				)}
-
-				{privateListeningPorts.map((port) => (
-					<ListeningPortItem
-						key={port.port}
-						port={port}
-						host={host}
-						agentName={agent.name}
-						workspaceName={workspace.name}
-						ownerName={workspace.owner_name}
-						protocol={protocol}
-					/>
-				))}
-
-				{listeningPorts !== undefined &&
-					sharedPorts !== undefined &&
-					privateListeningPorts.length === 0 &&
-					sharedPorts.length === 0 && (
-						<p className="px-2 py-2 text-center text-xs text-content-tertiary">
-							No open ports detected.
-						</p>
-					)}
-
-				{/* Shared Ports */}
-				{(sharedPorts ?? []).length > 0 && (
-					<>
-						<DropdownMenuSeparator className="my-1" />
-						<div className="px-2 pb-1.5 pt-1">
-							<span className="text-xs font-semibold text-content-secondary">
-								Shared Ports
-							</span>
-						</div>
-						{(sharedPorts ?? []).map((share) => (
-							<SharedPortItem
-								key={share.port}
-								share={share}
-								host={host}
-								agentName={agent.name}
-								workspaceName={workspace.name}
-								ownerName={workspace.owner_name}
-							/>
-						))}
-					</>
-				)}
-
-				<DropdownMenuSeparator className="my-1" />
-				<DropdownMenuItem asChild>
-					<Link to={route} target="_blank" rel="noreferrer">
-						<ExternalLinkIcon className="size-3.5" />
-						Manage sharing
-					</Link>
-				</DropdownMenuItem>
+				<PortsList
+					host={host}
+					agent={agent}
+					workspace={workspace}
+					data={portsData}
+				/>
 			</DropdownMenuSubContent>
 		</DropdownMenuSub>
+	);
+};
+
+const MobilePortsPanel: FC<{
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+	host: string;
+	isOpen: boolean;
+	onBack: () => void;
+}> = ({ workspace, agent, host, isOpen, onBack }) => {
+	const isConnected = agent.status === "connected";
+	const enabled = isOpen && isConnected;
+	const portsData = usePortsData(workspace, agent, enabled);
+
+	return (
+		<>
+			<DropdownMenuItem
+				onSelect={(event) => {
+					event.preventDefault();
+					onBack();
+				}}
+			>
+				<ArrowLeftIcon className="size-3.5" />
+				Back
+			</DropdownMenuItem>
+			<DropdownMenuSeparator className="my-1" />
+			<PortsList
+				host={host}
+				agent={agent}
+				workspace={workspace}
+				data={portsData}
+			/>
+		</>
+	);
+};
+
+const PortsList: FC<{
+	host: string;
+	agent: WorkspaceAgent;
+	workspace: Workspace;
+	data: PortsData;
+}> = ({ host, agent, workspace, data }) => {
+	const route = `/@${workspace.owner_name}/${workspace.name}`;
+	const { listeningPorts, sharedPorts, privateListeningPorts, protocol } = data;
+
+	return (
+		<>
+			{/* Listening Ports header: only render when there are ports to list. */}
+			{privateListeningPorts.length > 0 && (
+				<div className="px-2 pb-1.5 pt-1">
+					<span className="text-xs font-semibold text-content-secondary">
+						Listening Ports
+					</span>
+				</div>
+			)}
+
+			{privateListeningPorts.map((port) => (
+				<ListeningPortItem
+					key={port.port}
+					port={port}
+					host={host}
+					agentName={agent.name}
+					workspaceName={workspace.name}
+					ownerName={workspace.owner_name}
+					protocol={protocol}
+				/>
+			))}
+
+			{listeningPorts !== undefined &&
+				sharedPorts !== undefined &&
+				privateListeningPorts.length === 0 &&
+				sharedPorts.length === 0 && (
+					<p className="px-2 py-2 text-center text-xs text-content-tertiary">
+						No open ports detected.
+					</p>
+				)}
+
+			{/* Shared Ports */}
+			{(sharedPorts ?? []).length > 0 && (
+				<>
+					<DropdownMenuSeparator className="my-1" />
+					<div className="px-2 pb-1.5 pt-1">
+						<span className="text-xs font-semibold text-content-secondary">
+							Shared Ports
+						</span>
+					</div>
+					{(sharedPorts ?? []).map((share) => (
+						<SharedPortItem
+							key={share.port}
+							share={share}
+							host={host}
+							agentName={agent.name}
+							workspaceName={workspace.name}
+							ownerName={workspace.owner_name}
+						/>
+					))}
+				</>
+			)}
+
+			<DropdownMenuSeparator className="my-1" />
+			<DropdownMenuItem asChild>
+				<Link to={route} target="_blank" rel="noreferrer">
+					<ExternalLinkIcon className="size-3.5" />
+					Manage sharing
+				</Link>
+			</DropdownMenuItem>
+		</>
 	);
 };
 
