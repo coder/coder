@@ -283,7 +283,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	// the user originally sent (boundary whitespace can be intentional).
 	const userPromptHistory: string[] = [];
 	for (let index = messages.length - 1; index >= 0; index--) {
-		const message = messages[index];
+		const message = messages.at(index);
 		if (!message || message.role !== "user") {
 			continue;
 		}

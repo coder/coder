@@ -354,19 +354,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
 	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
-	// While we're cycling, currentCycleValueRef holds the text we last
-	// programmatically applied via applyCycleValue. handleContentChange
-	// uses it to distinguish our own update echoing back (which should
-	// keep cycle mode alive) from real user input (which exits the
-	// cycle). Lexical's setEditorState fires several onChange events
-	// per setValue call, so we intentionally compare on every change
-	// rather than consuming a one-shot flag.
+	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
 	const currentCycleValueRef = useRef<string | null>(null);
 	const previousRemountKeyRef = useRef(remountKey);
 
 	const resetPromptCycle = () => {
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
 		currentCycleValueRef.current = null;
 	};
 
@@ -386,6 +381,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// callbacks but biome's react-hooks lint does not.
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
 		currentCycleValueRef.current = null;
 	}, [remountKey]);
 
@@ -406,6 +402,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	}, [speech.transcript, speech.isRecording, preRecordingValue]);
 
 	// Forward a stable delegating handle to the parent-supplied inputRef.
+	// Delegates lazily to internalRef.current so methods see the current
+	// Lexical instance after a remount, not the orphaned ref captured at
+	// factory time.
 	useImperativeHandle(
 		inputRef,
 		() => ({
@@ -639,11 +638,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		serializedEditorState: string,
 		hasRefs: boolean,
 	) => {
-		// While cycling, the editor's content fluctuates as Lexical fires
-		// multiple update events per setValue call. As long as the content
-		// matches the value we last applied, the change is our own update
-		// echoing back; anything else (typing, paste, drop, attach) is
-		// real user input and exits the cycle.
+		// Lexical fires onChange synchronously from editor.setValue().
+		// While cycling, compare incoming content to currentCycleValueRef,
+		// the last value we applied. Different content means user input,
+		// so reset. Matching content is our own setValue echo, so keep cycling.
+		// This works because Lexical fires onChange once per editor.update()
+		// and React 19 flushes discrete-event state synchronously.
 		if (cycleIndex !== null && content !== currentCycleValueRef.current) {
 			resetPromptCycle();
 		}
@@ -756,29 +756,27 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		const savedDraft = cycleSavedDraft ?? "";
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
 		applyCycleValue(savedDraft);
 	};
 
 	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Escape" && cycleIndex !== null) {
+			e.preventDefault();
+			e.stopPropagation();
+			restoreCycleDraft();
+			return;
+		}
+
+		// isStreaming is intentionally excluded. Cycling is allowed while
+		// streaming so the user can prepare the next prompt. Escape is
+		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
 			editingQueuedMessageID !== null ||
 			isEditingHistoryMessage ||
 			isDisabled ||
 			isLoading;
 		if (isPromptCyclingSuppressed) {
-			return;
-		}
-
-		if (e.key === "Escape") {
-			if (cycleIndex === null || isStreaming) {
-				return;
-			}
-			// Stop propagation so the outer composer Escape handler
-			// (interrupt streaming, cancel queue/history edit) doesn't
-			// also fire on the same keystroke.
-			e.preventDefault();
-			e.stopPropagation();
-			restoreCycleDraft();
 			return;
 		}
 
@@ -790,11 +788,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			if (e.key !== "ArrowUp" || !isComposerEffectivelyEmpty) {
 				return;
 			}
-			const latestPrompt = userPromptHistory[0];
+			const cycleHistory = [...userPromptHistory];
+			const latestPrompt = cycleHistory[0];
 			if (latestPrompt === undefined) {
 				return;
 			}
 			e.preventDefault();
+			cycleHistorySnapshotRef.current = cycleHistory;
 			setCycleIndex(0);
 			setCycleSavedDraft(internalRef.current?.getValue() ?? "");
 			applyCycleValue(latestPrompt);
@@ -802,13 +802,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 
 		e.preventDefault();
+		const cycleHistory = cycleHistorySnapshotRef.current ?? userPromptHistory;
 		if (e.key === "ArrowDown") {
 			if (cycleIndex === 0) {
 				restoreCycleDraft();
 				return;
 			}
 			const nextIndex = cycleIndex - 1;
-			const nextPrompt = userPromptHistory[nextIndex];
+			const nextPrompt = cycleHistory[nextIndex];
 			if (nextPrompt === undefined) {
 				restoreCycleDraft();
 				return;
@@ -818,7 +819,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		const lastIndex = userPromptHistory.length - 1;
+		// ArrowUp: load an older prompt.
+		const lastIndex = cycleHistory.length - 1;
 		if (lastIndex < 0) {
 			restoreCycleDraft();
 			return;
@@ -827,7 +829,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (nextIndex === cycleIndex) {
 			return;
 		}
-		const nextPrompt = userPromptHistory[nextIndex];
+		const nextPrompt = cycleHistory[nextIndex];
 		if (nextPrompt === undefined) {
 			restoreCycleDraft();
 			return;
@@ -952,7 +954,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
-				 * is the user's free-form message, we don't silently
+				 * is the user's free-form message — we don't silently
 				 * mutate it. Instead we surface a warning so the user
 				 * can make an informed decision. This guards against
 				 * social engineering attacks where a user is tricked
@@ -1208,7 +1210,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}{" "}
-						{/* Badge row, all badges and the pill always
+						{/* Badge row — all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
 						 * hide and reorder via CSS. The pill is invisible
@@ -1241,7 +1243,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								);
 							})}
-							{/* Pill, always in the DOM so it permanently
+							{/* Pill — always in the DOM so it permanently
 							 * reserves layout space. Invisible when nothing
 							 * overflows. CSS order keeps it before order-1
 							 * (overflow) badges. */}

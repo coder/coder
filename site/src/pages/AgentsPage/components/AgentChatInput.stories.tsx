@@ -50,13 +50,6 @@ const promptHistory = [
 	"Oldest prompt",
 ] as const;
 
-// Realistic prompts used by the UAT walkthrough recording. Newest first.
-const uatPromptHistory = [
-	"Fix the dark-mode contrast on hover",
-	"Add a Storybook story for ChatTopBar",
-	"Refactor the auth flow",
-] as const;
-
 const getEditor = (canvasElement: HTMLElement) =>
 	within(canvasElement).getByTestId("chat-message-input");
 
@@ -67,14 +60,6 @@ const expectEditorText = async (editor: HTMLElement, text: string) => {
 };
 
 export const Default: Story = {};
-
-// Manual demo story used by the CODAGT-319 UAT recording.
-// No play function: this is intentionally interactive for human walkthrough.
-export const PromptHistoryDemo: Story = {
-	args: {
-		userPromptHistory: uatPromptHistory,
-	},
-};
 
 export const PromptHistoryCycling: Story = {
 	args: {
@@ -128,6 +113,8 @@ export const PromptHistoryCyclingExitsOnTyping: Story = {
 		await expectEditorText(editor, "");
 		await userEvent.keyboard("{ArrowUp}");
 		await expectEditorText(editor, "Most recent prompt");
+		await userEvent.keyboard("{ArrowDown}");
+		await expectEditorText(editor, "");
 	},
 };
 
@@ -147,6 +134,34 @@ export const NoPromptHistoryUpArrowIsNoOp: Story = {
 export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	args: {
 		isEditingHistoryMessage: true,
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "");
+	},
+};
+
+export const PromptHistorySuppressedWhileDisabled: Story = {
+	args: {
+		isDisabled: true,
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "");
+	},
+};
+
+export const PromptHistorySuppressedWhileLoading: Story = {
+	args: {
+		isLoading: true,
 		userPromptHistory: promptHistory,
 	},
 	play: async ({ canvasElement }) => {
@@ -688,7 +703,7 @@ const mcpDefaults = {
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Input with multiple MCP servers selected, shows icon stack in toolbar. */
+/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
@@ -697,7 +712,7 @@ export const WithMCPServers: Story = {
 	},
 };
 
-/** MCP server needing OAuth, shows Auth button instead of toggle. */
+/** MCP server needing OAuth — shows Auth button instead of toggle. */
 export const WithMCPNeedingAuth: Story = {
 	args: {
 		...mcpDefaults,
@@ -706,7 +721,7 @@ export const WithMCPNeedingAuth: Story = {
 	},
 };
 
-/** No MCP servers active, shows only "MCP" label with chevron. */
+/** No MCP servers active — shows only "MCP" label with chevron. */
 export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,
@@ -754,10 +769,7 @@ export const PlanFirstMenuItem: Story = {
 		const toggles = await body.findAllByRole("menuitemcheckbox", {
 			name: "Plan first",
 		});
-		const toggle = toggles.at(-1);
-		if (!toggle) {
-			throw new Error("Expected Plan first menu item");
-		}
+		const toggle = toggles.at(-1)!;
 		expect(toggle).toBeInTheDocument();
 	},
 };
@@ -823,10 +835,7 @@ export const PlanFirstCheckedState: Story = {
 		const toggles = await body.findAllByRole("menuitemcheckbox", {
 			name: "Plan first",
 		});
-		const toggle = toggles.at(-1);
-		if (!toggle) {
-			throw new Error("Expected Plan first menu item");
-		}
+		const toggle = toggles.at(-1)!;
 		expect(toggle).toHaveAttribute("aria-checked", "true");
 	},
 };
@@ -908,7 +917,7 @@ const pagerdutyMCP = makeMCPServer({
 	enabled: true,
 });
 
-/** Many tools with a workspace at 414px, forces overflow and "+N" pill. */
+/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
 export const OverflowBadges: Story = {
 	args: {
 		...mcpDefaults,
@@ -1031,7 +1040,7 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-/** Long workspace name at iPhone SE width, verifies truncation. */
+/** Long workspace name at iPhone SE width — verifies truncation. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		...mcpDefaults,
