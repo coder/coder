@@ -55,7 +55,7 @@ func (p *Server) deriveTurnStatusLabel(
 	}
 
 	assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-	if assistantText == "" || runResult.PushSummaryModel == nil {
+	if assistantText == "" || runResult.StatusLabelModel == nil {
 		return turnStatusLabelResult{
 			Label:  fallbackTurnStatusLabel(status),
 			Source: turnStatusLabelSourceFallback,
@@ -69,7 +69,7 @@ func (p *Server) deriveTurnStatusLabel(
 		assistantText,
 		runResult.FallbackProvider,
 		runResult.FallbackModel,
-		runResult.PushSummaryModel,
+		runResult.StatusLabelModel,
 		runResult.ProviderKeys,
 		logger,
 		p.existingDebugService(),
@@ -316,7 +316,7 @@ func isTestCommand(command string) bool {
 func isCommandInvocation(command string, tokens ...string) bool {
 	fields := normalizedCommandFields(command)
 	for i := 0; i+len(tokens) <= len(fields); i++ {
-		if i > 0 && !isShellCommandSeparator(fields[i-1]) {
+		if !canStartCommandAt(fields, i) {
 			continue
 		}
 		matched := true
@@ -334,20 +334,44 @@ func isCommandInvocation(command string, tokens ...string) bool {
 }
 
 func normalizedCommandFields(command string) []string {
-	fields := strings.Fields(strings.ToLower(command))
-	for i, field := range fields {
+	rawFields := strings.Fields(strings.ToLower(command))
+	fields := make([]string, 0, len(rawFields))
+	for _, field := range rawFields {
 		field = strings.Trim(field, "\"'`")
-		if field != ";" {
-			field = strings.TrimRight(field, ";")
+		trimmed := strings.TrimRight(field, ";")
+		if trimmed != "" {
+			fields = append(fields, trimmed)
 		}
-		fields[i] = field
+		if trimmed != field {
+			fields = append(fields, ";")
+		}
 	}
 	return fields
 }
 
+func canStartCommandAt(fields []string, index int) bool {
+	if index == 0 || isShellCommandSeparator(fields[index-1]) {
+		return true
+	}
+	for i := index - 1; i >= 0; i-- {
+		if isShellCommandSeparator(fields[i]) {
+			return true
+		}
+		if !isEnvironmentAssignment(fields[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func isEnvironmentAssignment(field string) bool {
+	separator := strings.Index(field, "=")
+	return separator > 0
+}
+
 func isShellCommandSeparator(field string) bool {
 	switch field {
-	case "&&", "||", ";":
+	case "&&", "||", ";", "|":
 		return true
 	default:
 		return false

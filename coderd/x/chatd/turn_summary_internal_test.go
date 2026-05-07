@@ -153,14 +153,14 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	dispatcher := &recordingWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{db: db, webpushDispatcher: dispatcher}
-	server.maybeFinalizeTurnSummaryAndPush(
+	server.maybeFinalizeTurnStatusLabelAndPush(
 		context.WithoutCancel(ctx),
 		chat,
 		database.ChatStatusPending,
 		"",
 		runChatResult{
 			FinalAssistantText: "I finished the queued turn.",
-			PushSummaryModel:   model,
+			StatusLabelModel:   model,
 			FallbackProvider:   model.Provider(),
 			FallbackModel:      model.Model(),
 		},

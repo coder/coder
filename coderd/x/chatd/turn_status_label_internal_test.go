@@ -115,7 +115,7 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		var generateCalls atomic.Int32
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusRequiresAction, runChatResult{
 			FinalAssistantText: "Need input.",
-			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
+			StatusLabelModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
 		}, logger)
 		require.Equal(t, turnStatusLabelResult{
 			Label:  "Waiting for user input",
@@ -130,7 +130,7 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		var generateCalls atomic.Int32
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusPending, runChatResult{
 			FinalAssistantText: "Continuing.",
-			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
+			StatusLabelModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
 		}, logger)
 		require.Equal(t, turnStatusLabelResult{
 			Label:  "Still working on request",
@@ -145,7 +145,7 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		var generateCalls atomic.Int32
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
 			FinalAssistantText: "Files are updated.",
-			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
+			StatusLabelModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
 			StatusSignals: []turnStatusSignal{{
 				Label:      "Updated files",
 				Source:     turnStatusLabelSourceTool,
@@ -166,7 +166,7 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		var generateCalls atomic.Int32
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
 			FinalAssistantText: "Tests passed.",
-			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
+			StatusLabelModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
 			StatusSignals: []turnStatusSignal{{
 				Label:      "Finished tests",
 				Source:     turnStatusLabelSourceHeuristic,
@@ -187,7 +187,7 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		var generateCalls atomic.Int32
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
 			FinalAssistantText: "   ",
-			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
+			StatusLabelModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
 		}, logger)
 		require.Equal(t, turnStatusLabelResult{
 			Label:  "Finished latest turn",
@@ -196,13 +196,25 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		require.Equal(t, int32(0), generateCalls.Load())
 	})
 
+	t.Run("nil status label model falls back", func(t *testing.T) {
+		t.Parallel()
+
+		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
+			FinalAssistantText: "I fixed the API bug.",
+		}, logger)
+		require.Equal(t, turnStatusLabelResult{
+			Label:  "Finished latest turn",
+			Source: turnStatusLabelSourceFallback,
+		}, result)
+	})
+
 	t.Run("ambiguous turn uses model", func(t *testing.T) {
 		t.Parallel()
 
 		var generateCalls atomic.Int32
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
 			FinalAssistantText: "I fixed the API bug.",
-			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Fixed API bug"),
+			StatusLabelModel:   countingStatusLabelModel(&generateCalls, "Fixed API bug"),
 		}, logger)
 		require.Equal(t, turnStatusLabelResult{
 			Label:  "Fixed API bug",
@@ -217,7 +229,7 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		var generateCalls atomic.Int32
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
 			FinalAssistantText: "I found failing tests.",
-			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Agent identified failing tests"),
+			StatusLabelModel:   countingStatusLabelModel(&generateCalls, "Agent identified failing tests"),
 		}, logger)
 		require.Equal(t, turnStatusLabelResult{
 			Label:  "Finished latest turn",
@@ -276,9 +288,29 @@ func TestTurnStatusSignalsFromContent(t *testing.T) {
 			}},
 		},
 		{
+			name:    "failed pr create ignored",
+			content: failedExecuteToolContent(t, "call-pr", "gh pr create --fill"),
+		},
+		{
+			name:    "failed commit ignored",
+			content: failedExecuteToolContent(t, "call-commit", "git commit -m change"),
+		},
+		{
 			name: "updated files",
 			content: []fantasy.Content{
 				toolResultContent(t, "call-edit", "edit_files", map[string]any{"ok": true}),
+			},
+			want: []turnStatusSignal{{
+				Label:      "Updated files",
+				Source:     turnStatusLabelSourceTool,
+				Success:    true,
+				Confidence: 70,
+			}},
+		},
+		{
+			name: "wrote file",
+			content: []fantasy.Content{
+				toolResultContent(t, "call-write", "write_file", map[string]any{"ok": true}),
 			},
 			want: []turnStatusSignal{{
 				Label:      "Updated files",
@@ -333,6 +365,18 @@ func TestSelectTurnStatusSignalUsesLatestEqualConfidence(t *testing.T) {
 	}, signal)
 }
 
+func TestSelectTurnStatusSignalFiltersLowConfidence(t *testing.T) {
+	t.Parallel()
+
+	_, ok := selectTurnStatusSignal([]turnStatusSignal{{
+		Label:      "Updated files",
+		Source:     turnStatusLabelSourceTool,
+		Success:    true,
+		Confidence: 69,
+	}})
+	require.False(t, ok)
+}
+
 func TestIsTestCommand(t *testing.T) {
 	t.Parallel()
 
@@ -346,7 +390,11 @@ func TestIsTestCommand(t *testing.T) {
 		{name: "npm run test", command: "npm run test", want: true},
 		{name: "pytest", command: "pytest -q", want: true},
 		{name: "after shell separator", command: "cd site && pnpm test", want: true},
+		{name: "after compact semicolon", command: "cd site; go test ./...", want: true},
+		{name: "after pipe", command: "cat config.json | go test ./...", want: true},
+		{name: "after environment assignment", command: "VERBOSE=1 go test ./...", want: true},
 		{name: "pytest as argument", command: "pip install pytest", want: false},
+		{name: "test command after non-assignment", command: "echo foo=bar go test", want: false},
 		{name: "make testing", command: "make testing", want: false},
 	}
 
