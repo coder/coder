@@ -55,14 +55,14 @@ func TestCreateAnotherUserHTTPClient(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	first := coderdtest.CreateFirstUser(t, client)
+	client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
 	other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 	require.NotSame(t, client.HTTPClient, other.HTTPClient)
 	require.Same(t, client.HTTPClient.Transport, other.HTTPClient.Transport)
-
-	client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
 	require.Nil(t, other.HTTPClient.CheckRedirect)
 }
 
