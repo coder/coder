@@ -551,10 +551,10 @@ client:
   # https://coder.com/install.sh | sh'.
   # (default: <unset>, type: string)
   cliUpgradeMessage: ""
-  # The renderer to use when opening a web terminal. Valid values are 'canvas',
-  # 'webgl', or 'dom'.
-  # (default: canvas, type: string)
-  webTerminalRenderer: canvas
+  # The renderer to use when opening a web terminal. Valid values are 'dom' or
+  # 'webgl'. The deprecated 'canvas' value falls back to 'dom'.
+  # (default: dom, type: string)
+  webTerminalRenderer: dom
   # Hide AI tasks from the dashboard.
   # (default: false, type: bool)
   hideAITasks: false

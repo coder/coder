@@ -1309,9 +1309,9 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WEB_TERMINAL_RENDERER</code> |
 | YAML        | <code>client.webTerminalRenderer</code>   |
-| Default     | <code>canvas</code>                       |
+| Default     | <code>dom</code>                          |
 
-The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
+The renderer to use when opening a web terminal. Valid values are 'dom' or 'webgl'. The deprecated 'canvas' value falls back to 'dom'.
 
 ### --allow-workspace-renames
 

@@ -99,21 +99,23 @@ Administrators can configure the terminal renderer for performance optimization:
 
 ```yaml
 # In your Coder deployment configuration
-webTerminalRenderer: "canvas"  # Options: canvas, webgl, dom
+webTerminalRenderer: "dom" # Options: dom, webgl
 ```
 
 Or via environment variable:
 
 ```bash
-CODER_WEB_TERMINAL_RENDERER=canvas
+CODER_WEB_TERMINAL_RENDERER=dom
 ```
 
 **Renderer Options:**
 
-- **`canvas`** (default): Best compatibility, good performance on most systems
+- **`dom`** (default): Best compatibility, useful for accessibility tools or
+  older browsers
 - **`webgl`**: Hardware-accelerated, ideal for high-refresh terminals and
   complex rendering
-- **`dom`**: Fallback option, useful for accessibility tools or older browsers
+
+The previous `canvas` value is deprecated and falls back to `dom`.
 
 > **Note:** The renderer setting is deployment-wide and requires a Coder server
 > restart to take effect.

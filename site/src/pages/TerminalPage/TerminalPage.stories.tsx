@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, waitFor } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -24,6 +25,43 @@ import {
 } from "#/testHelpers/entities";
 import { withWebSocket } from "#/testHelpers/storybook";
 import TerminalPage from "./TerminalPage";
+
+const createDeploymentConfigQuery = (renderer: string) => ({
+	key: ["deployment", "config"],
+	data: {
+		...MockDeploymentConfig,
+		config: {
+			...MockDeploymentConfig.config,
+			web_terminal_renderer: renderer,
+		},
+	},
+});
+
+const expectTerminalOutput = async (
+	canvasElement: HTMLElement,
+	text: string,
+) => {
+	await waitFor(
+		() => {
+			const rows = canvasElement.getElementsByClassName("xterm-rows");
+			expect(rows.length).toBeGreaterThan(0);
+			expect(rows[0]).toHaveTextContent(text);
+		},
+		{ timeout: 5_000 },
+	);
+};
+
+const expectTerminalCanvas = async (canvasElement: HTMLElement) => {
+	await waitFor(
+		() => {
+			const terminal = canvasElement.getElementsByClassName("xterm");
+			const canvases = canvasElement.getElementsByTagName("canvas");
+			expect(terminal.length).toBeGreaterThan(0);
+			expect(canvases.length).toBeGreaterThan(0);
+		},
+		{ timeout: 5_000 },
+	);
+};
 
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 	return {
@@ -79,16 +117,7 @@ const meta = {
 				data: { editWorkspaceProxies: true },
 			},
 			{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
-			{
-				key: ["deployment", "config"],
-				data: {
-					...MockDeploymentConfig,
-					config: {
-						...MockDeploymentConfig.config,
-						web_terminal_renderer: "canvas",
-					},
-				},
-			},
+			createDeploymentConfigQuery("dom"),
 		],
 		chromatic: {
 			diffThreshold: 0.8,
@@ -167,6 +196,61 @@ export const Ready: Story = {
 			},
 		],
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+	play: async ({ canvasElement }) => {
+		await expectTerminalOutput(canvasElement, "coder");
+	},
+};
+
+export const WebGLRenderer: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [{ event: "message", data: "webgl renderer smoke test" }],
+		queries: [
+			...meta.parameters.queries.filter(
+				(query) =>
+					!(
+						Array.isArray(query.key) &&
+						query.key.join("/") === "deployment/config"
+					),
+			),
+			createDeploymentConfigQuery("webgl"),
+			createWorkspaceWithAgent("ready"),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await expectTerminalCanvas(canvasElement);
+	},
+};
+
+export const CanvasRendererFallback: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [
+			{
+				event: "message",
+				data: "canvas fallback renderer smoke test",
+			},
+		],
+		queries: [
+			...meta.parameters.queries.filter(
+				(query) =>
+					!(
+						Array.isArray(query.key) &&
+						query.key.join("/") === "deployment/config"
+					),
+			),
+			createDeploymentConfigQuery("canvas"),
+			createWorkspaceWithAgent("ready"),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await expectTerminalOutput(
+			canvasElement,
+			"canvas fallback renderer smoke test",
+		);
 	},
 };
 

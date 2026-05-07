@@ -1,5 +1,4 @@
 import "@xterm/xterm/css/xterm.css";
-import { CanvasAddon } from "@xterm/addon-canvas";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -172,8 +171,6 @@ export const WorkspaceTerminal = ({
 
 		if (renderer === "webgl") {
 			nextTerminal.loadAddon(new WebglAddon());
-		} else if (renderer === "canvas") {
-			nextTerminal.loadAddon(new CanvasAddon());
 		}
 
 		const fitAddon = new FitAddon();
@@ -391,7 +388,9 @@ export const WorkspaceTerminal = ({
 					}
 					terminal.options = {
 						disableStdin: false,
-						windowsMode: operatingSystem === "windows",
+						...(operatingSystem?.toLowerCase() === "windows"
+							? { windowsPty: { backend: "conpty" } }
+							: {}),
 					};
 					refit();
 					scheduleTerminalResize();

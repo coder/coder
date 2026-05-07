@@ -241,9 +241,9 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           commas.Using this incorrectly can break SSH to your deployment, use
           cautiously.
 
-      --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
+      --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: dom)
           The renderer to use when opening a web terminal. Valid values are
-          'canvas', 'webgl', or 'dom'.
+          'dom' or 'webgl'. The deprecated 'canvas' value falls back to 'dom'.
 
       --workspace-hostname-suffix string, $CODER_WORKSPACE_HOSTNAME_SUFFIX (default: coder)
           Workspace hostnames use this suffix in SSH config and Coder Connect on
