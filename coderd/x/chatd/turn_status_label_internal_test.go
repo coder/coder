@@ -54,6 +54,11 @@ func TestNormalizeTurnStatusLabel(t *testing.T) {
 			ok:    false,
 		},
 		{
+			name:  "rejects agent phrase without prefix",
+			input: "Found agent identified bugs",
+			ok:    false,
+		},
+		{
 			name:  "rejects chat phrasing",
 			input: "The chat is waiting now",
 			ok:    false,
