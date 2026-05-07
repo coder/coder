@@ -175,7 +175,7 @@ newStream:
 		var currentKey *keypool.Key
 		if walker != nil {
 			key, err := walker.Next()
-			if respErr := processKeyPoolError(err); respErr != nil {
+			if respErr := ProcessKeyPoolError(err); respErr != nil {
 				// Pool exhausted in this iteration. Relay the
 				// error to the client: as an SSE event if events
 				// have already been sent, or by direct write
@@ -599,10 +599,10 @@ newStream:
 }
 
 // mapStreamError converts a mid-stream upstream error or
-// processing error into a relayable responseError. Returns nil
+// processing error into a relayable ResponseError. Returns nil
 // when the error is unrecoverable, in which case nothing can be
 // relayed back.
-func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *responseError {
+func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *ResponseError {
 	if streamErr != nil {
 		if eventstream.IsUnrecoverableError(streamErr) {
 			logger.Debug(ctx, "stream terminated", slog.Error(streamErr))

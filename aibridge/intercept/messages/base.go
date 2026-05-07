@@ -433,7 +433,7 @@ func filterBedrockBetaFlags(headers http.Header, model string) {
 }
 
 // writeUpstreamError marshals and writes a given error.
-func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, antErr *responseError) {
+func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, antErr *ResponseError) {
 	if antErr == nil {
 		return
 	}
@@ -537,10 +537,10 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	)
 }
 
-// processKeyPoolError translates a keypool exhaustion error
+// ProcessKeyPoolError translates a keypool exhaustion error
 // into a developer-facing responseError shaped for the Anthropic
 // API. Returns nil if err is not an exhaustion error.
-func processKeyPoolError(err error) *responseError {
+func ProcessKeyPoolError(err error) *ResponseError {
 	var transient *keypool.TransientKeyPoolError
 	switch {
 	case errors.As(err, &transient):
@@ -562,7 +562,7 @@ func processKeyPoolError(err error) *responseError {
 	}
 }
 
-func getErrorResponse(err error) *responseError {
+func getErrorResponse(err error) *ResponseError {
 	var apierr *anthropic.Error
 	if !errors.As(err, &apierr) {
 		return nil
@@ -583,17 +583,17 @@ func getErrorResponse(err error) *responseError {
 	return newErrorResponse(msg, errType, apierr.StatusCode, keypool.ParseRetryAfter(apierr.Response))
 }
 
-var _ error = &responseError{}
+var _ error = &ResponseError{}
 
-type responseError struct {
+type ResponseError struct {
 	*anthropic.ErrorResponse
 
 	StatusCode int           `json:"-"`
 	RetryAfter time.Duration `json:"-"`
 }
 
-func newErrorResponse(msg, errType string, status int, retryAfter time.Duration) *responseError {
-	return &responseError{
+func newErrorResponse(msg, errType string, status int, retryAfter time.Duration) *ResponseError {
+	return &ResponseError{
 		ErrorResponse: &shared.ErrorResponse{
 			Error: shared.ErrorObjectUnion{
 				Message: msg,
@@ -606,9 +606,19 @@ func newErrorResponse(msg, errType string, status int, retryAfter time.Duration)
 	}
 }
 
-func (a *responseError) Error() string {
-	if a.ErrorResponse == nil {
+func (e *ResponseError) Error() string {
+	if e.ErrorResponse == nil {
 		return ""
 	}
-	return a.ErrorResponse.Error.Message
+	return e.ErrorResponse.Error.Message
+}
+
+// ToResponse marshals e into an *http.Response shaped for the
+// Anthropic API.
+func (e *ResponseError) ToResponse() *http.Response {
+	body, err := json.Marshal(e)
+	if err != nil {
+		body = []byte(`{"type":"error","error":{"type":"error","message":"error marshaling upstream error"}}`)
+	}
+	return utils.NewJSONErrorResponse(e.StatusCode, e.RetryAfter, body)
 }

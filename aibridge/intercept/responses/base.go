@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -142,7 +143,7 @@ func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.
 }
 
 // writeUpstreamError marshals and writes a given error.
-func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *responseError) {
+func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *ResponseError) {
 	if oaiErr == nil {
 		return
 	}
@@ -188,10 +189,10 @@ func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *key
 	)
 }
 
-// processKeyPoolError translates a keypool exhaustion error
-// into a developer-facing responseError shaped for the OpenAI
+// ProcessKeyPoolError translates a keypool exhaustion error
+// into a developer-facing ResponseError shaped for the OpenAI
 // API. Returns nil if err is not an exhaustion error.
-func processKeyPoolError(err error) *responseError {
+func ProcessKeyPoolError(err error) *ResponseError {
 	var transient *keypool.TransientKeyPoolError
 	switch {
 	case errors.As(err, &transient):
@@ -215,8 +216,8 @@ func processKeyPoolError(err error) *responseError {
 	}
 }
 
-func newErrorResponse(msg, errType, code string, status int, retryAfter time.Duration) *responseError {
-	return &responseError{
+func newErrorResponse(msg, errType, code string, status int, retryAfter time.Duration) *ResponseError {
+	return &ResponseError{
 		ErrorObject: &shared.ErrorObject{
 			Code:    code,
 			Message: msg,
@@ -227,19 +228,29 @@ func newErrorResponse(msg, errType, code string, status int, retryAfter time.Dur
 	}
 }
 
-var _ error = &responseError{}
+var _ error = &ResponseError{}
 
-type responseError struct {
+type ResponseError struct {
 	ErrorObject *shared.ErrorObject `json:"error"`
 	StatusCode  int                 `json:"-"`
 	RetryAfter  time.Duration       `json:"-"`
 }
 
-func (a *responseError) Error() string {
-	if a.ErrorObject == nil {
+func (e *ResponseError) Error() string {
+	if e.ErrorObject == nil {
 		return ""
 	}
-	return a.ErrorObject.Message
+	return e.ErrorObject.Message
+}
+
+// ToResponse marshals e into an *http.Response shaped for the
+// OpenAI API.
+func (e *ResponseError) ToResponse() *http.Response {
+	body, err := json.Marshal(e)
+	if err != nil {
+		body = []byte(`{"error":{"type":"error","message":"error marshaling upstream error","code":"server_error"}}`)
+	}
+	return utils.NewJSONErrorResponse(e.StatusCode, e.RetryAfter, body)
 }
 
 // sendCustomErr sends custom responses.Error error to the client
