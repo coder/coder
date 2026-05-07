@@ -669,7 +669,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(newHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -677,6 +677,42 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 		client.HTTPClient.CloseIdleConnections()
 	})
 	return client, provisionerCloser, coderAPI
+}
+
+// newHTTPClient gives each coderdtest server an isolated transport.
+// Closing idle connections at test cleanup must not close http.DefaultTransport
+// while another parallel test is using it.
+func newHTTPClient(serverURL *url.URL) *http.Client {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Client{Transport: http.DefaultTransport}
+	}
+	transport := defaultTransport.Clone()
+	if serverURL != nil && serverURL.Scheme == "https" {
+		if transport.TLSClientConfig != nil {
+			transport.TLSClientConfig = transport.TLSClientConfig.Clone()
+		} else {
+			transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		}
+		if transport.TLSClientConfig.MinVersion == 0 {
+			transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+		}
+		//nolint:gosec // The coderdtest server uses test-only TLS certificates.
+		transport.TLSClientConfig.InsecureSkipVerify = true
+	}
+	return &http.Client{Transport: transport}
+}
+
+// newHTTPClientWithTransportFrom returns a fresh client that shares the base
+// transport without sharing mutable per-client state like CheckRedirect.
+func newHTTPClientWithTransportFrom(base *http.Client) *http.Client {
+	if base == nil {
+		return &http.Client{}
+	}
+	return &http.Client{
+		Transport: base.Transport,
+		Timeout:   base.Timeout,
+	}
 }
 
 // ProvisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
@@ -937,10 +973,11 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL, codersdk.WithSessionToken(sessionToken))
-	t.Cleanup(func() {
-		other.HTTPClient.CloseIdleConnections()
-	})
+	other := codersdk.New(
+		client.URL,
+		codersdk.WithSessionToken(sessionToken),
+		codersdk.WithHTTPClient(newHTTPClientWithTransportFrom(client.HTTPClient)),
+	)
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
