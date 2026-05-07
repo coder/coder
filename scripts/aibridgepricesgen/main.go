@@ -59,10 +59,13 @@ func (c *upstreamCost) hasPricing() bool {
 		c.CacheRead != nil || c.CacheWrite != nil
 }
 
-// priceRow is one ai_model_prices row in seed form. JSON tags match table
-// column names so the loader can decode straight into INSERT params. Pointer
-// fields preserve the distinction between "not populated by upstream" (null)
-// and "explicitly zero" (0).
+// Pointer fields preserve the distinction between "not populated by upstream"
+// (null) and "explicitly zero" (0).
+//
+// NOTE: keep these JSON tags in sync with the corresponding type in the price
+// seeder. The two are independently defined and connected only by the JSON
+// wire format; a tag change in one without the other will silently unmarshal
+// as nil on the seeder side.
 type priceRow struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model"`

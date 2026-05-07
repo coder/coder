@@ -16,9 +16,13 @@ import (
 //go:embed data/prices.json
 var seedJSON []byte
 
-// seedRow mirrors the JSON shape produced by scripts/aibridgepricesgen.
 // Pointer fields preserve the distinction between "not populated by upstream"
-// (null) and "explicitly zero" (0) so we can write SQL NULL where appropriate.
+// (null) and "explicitly zero" (0).
+//
+// NOTE: keep these JSON tags in sync with the corresponding type in the price
+// generator. The two are independently defined and connected only by the JSON
+// wire format; a tag change in one without the other will silently unmarshal
+// as nil here.
 type seedRow struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model"`
