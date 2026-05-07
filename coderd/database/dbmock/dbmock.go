@@ -3960,6 +3960,21 @@ func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, userID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, userID)
 }
 
+// GetNextPendingWorkspaceBuildOrchestrationForUpdate mocks base method.
+func (m *MockStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNextPendingWorkspaceBuildOrchestrationForUpdate", ctx)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNextPendingWorkspaceBuildOrchestrationForUpdate indicates an expected call of GetNextPendingWorkspaceBuildOrchestrationForUpdate.
+func (mr *MockStoreMockRecorder) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNextPendingWorkspaceBuildOrchestrationForUpdate", reflect.TypeOf((*MockStore)(nil).GetNextPendingWorkspaceBuildOrchestrationForUpdate), ctx)
+}
+
 // GetNotificationMessagesByStatus mocks base method.
 func (m *MockStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	m.ctrl.T.Helper()
@@ -6450,6 +6465,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildMetricsByResourceID(ctx, id an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildMetricsByResourceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildMetricsByResourceID), ctx, id)
 }
 
+// GetWorkspaceBuildOrchestrationByParentBuildID mocks base method.
+func (m *MockStore) GetWorkspaceBuildOrchestrationByParentBuildID(ctx context.Context, parentBuildID uuid.UUID) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceBuildOrchestrationByParentBuildID", ctx, parentBuildID)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceBuildOrchestrationByParentBuildID indicates an expected call of GetWorkspaceBuildOrchestrationByParentBuildID.
+func (mr *MockStoreMockRecorder) GetWorkspaceBuildOrchestrationByParentBuildID(ctx, parentBuildID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildOrchestrationByParentBuildID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildOrchestrationByParentBuildID), ctx, parentBuildID)
+}
+
 // GetWorkspaceBuildParameters mocks base method.
 func (m *MockStore) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	m.ctrl.T.Helper()
@@ -8008,6 +8038,21 @@ func (m *MockStore) InsertWorkspaceBuild(ctx context.Context, arg database.Inser
 func (mr *MockStoreMockRecorder) InsertWorkspaceBuild(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceBuild", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceBuild), ctx, arg)
+}
+
+// InsertWorkspaceBuildOrchestration mocks base method.
+func (m *MockStore) InsertWorkspaceBuildOrchestration(ctx context.Context, arg database.InsertWorkspaceBuildOrchestrationParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceBuildOrchestration", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceBuildOrchestration indicates an expected call of InsertWorkspaceBuildOrchestration.
+func (mr *MockStoreMockRecorder) InsertWorkspaceBuildOrchestration(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceBuildOrchestration", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceBuildOrchestration), ctx, arg)
 }
 
 // InsertWorkspaceBuildParameters mocks base method.
@@ -10555,6 +10600,66 @@ func (m *MockStore) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildFlagsByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildFlagsByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildFlagsByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationCanceledByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationCanceledByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationCanceledByID indicates an expected call of UpdateWorkspaceBuildOrchestrationCanceledByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationCanceledByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationCanceledByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationCompletedByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationCompletedByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationCompletedByID indicates an expected call of UpdateWorkspaceBuildOrchestrationCompletedByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationCompletedByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationCompletedByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationFailedByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationFailedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationFailedByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationFailedByID indicates an expected call of UpdateWorkspaceBuildOrchestrationFailedByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationFailedByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationFailedByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationFailedByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationRetryByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationRetryByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationRetryByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationRetryByID indicates an expected call of UpdateWorkspaceBuildOrchestrationRetryByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationRetryByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationRetryByID), ctx, arg)
 }
 
 // UpdateWorkspaceBuildProvisionerStateByID mocks base method.

@@ -136,6 +136,17 @@ type CreateWorkspaceBuildRequest struct {
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	// Reason sets the reason for the workspace build.
 	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection task_manual_pause"`
+	// OnSuccess queues a follow-up workspace build after this build succeeds.
+	// It currently supports restarting a workspace by starting it after a
+	// successful stop build.
+	OnSuccess *CreateWorkspaceBuildOnSuccessRequest `json:"on_success,omitempty"`
+}
+
+type CreateWorkspaceBuildOnSuccessRequest struct {
+	TemplateVersionID       uuid.UUID                 `json:"template_version_id,omitempty" format:"uuid"`
+	Transition              WorkspaceTransition       `json:"transition" validate:"oneof=start,required"`
+	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 type WorkspaceOptions struct {

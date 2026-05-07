@@ -17,6 +17,10 @@ import (
 // creating N separate subscriptions.
 const AllWorkspaceEventChannel = "workspace_updates:all"
 
+// WorkspaceBuildOrchestrationWakeChannel wakes the internal worker that
+// processes pending workspace build orchestration rows.
+const WorkspaceBuildOrchestrationWakeChannel = "workspace_build_orchestrations:wake"
+
 // HandleWorkspaceBuildUpdate wraps a callback to parse WorkspaceBuildUpdate
 // messages from the pubsub.
 func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload codersdk.WorkspaceBuildUpdate, err error)) func(ctx context.Context, message []byte, err error) {
@@ -44,6 +48,16 @@ func PublishWorkspaceBuildUpdate(_ context.Context, ps pubsub.Pubsub, update cod
 	}
 	if err := ps.Publish(AllWorkspaceEventChannel, msg); err != nil {
 		return xerrors.Errorf("publish workspace build update: %w", err)
+	}
+	return nil
+}
+
+// PublishWorkspaceBuildOrchestrationWake wakes coderd instances that can
+// process pending workspace build orchestration rows. Call this after any
+// workspace build reaches a terminal state: succeeded, failed, or canceled.
+func PublishWorkspaceBuildOrchestrationWake(_ context.Context, ps pubsub.Pubsub) error {
+	if err := ps.Publish(WorkspaceBuildOrchestrationWakeChannel, []byte("{}")); err != nil {
+		return xerrors.Errorf("publish workspace build orchestration wake: %w", err)
 	}
 	return nil
 }

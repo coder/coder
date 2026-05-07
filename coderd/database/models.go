@@ -6120,6 +6120,29 @@ type WorkspaceBuild struct {
 	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
 }
 
+// Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.
+type WorkspaceBuildOrchestration struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Unique because we only support sequences with one child build per parent build.
+	ParentBuildID uuid.UUID `db:"parent_build_id" json:"parent_build_id"`
+	// Nullable because the child build is created only after the parent build completes successfully.
+	ChildBuildID                 uuid.NullUUID       `db:"child_build_id" json:"child_build_id"`
+	ChildTransition              WorkspaceTransition `db:"child_transition" json:"child_transition"`
+	ChildTemplateVersionID       uuid.NullUUID       `db:"child_template_version_id" json:"child_template_version_id"`
+	ChildTemplateVersionPresetID uuid.NullUUID       `db:"child_template_version_preset_id" json:"child_template_version_preset_id"`
+	ChildRichParameterValues     json.RawMessage     `db:"child_rich_parameter_values" json:"child_rich_parameter_values"`
+	ChildLogLevel                string              `db:"child_log_level" json:"child_log_level"`
+	ChildReason                  NullBuildReason     `db:"child_reason" json:"child_reason"`
+	// Counts retryable child build creation failures for this orchestration row.
+	AttemptCount int32 `db:"attempt_count" json:"attempt_count"`
+	// When set, the orchestrator skips this pending row until the timestamp has passed.
+	NextRetryAfter sql.NullTime   `db:"next_retry_after" json:"next_retry_after"`
+	Status         string         `db:"status" json:"status"`
+	Error          sql.NullString `db:"error" json:"error"`
+}
+
 type WorkspaceBuildParameter struct {
 	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 	// Parameter name
