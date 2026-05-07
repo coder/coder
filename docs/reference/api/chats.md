@@ -6,7 +6,7 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -74,14 +74,7 @@ Experimental: this endpoint is subject to change.
       "property1": "string",
       "property2": "string"
     },
-    "last_error": {
-      "detail": "string",
-      "kind": "string",
-      "message": "string",
-      "provider": "string",
-      "retryable": true,
-      "status_code": 0
-    },
+    "last_error": "string",
     "last_injected_context": [
       {
         "args": [
@@ -210,13 +203,7 @@ Status Code **200**
 | `» id`                            | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
 | `» labels`                        | object                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» [any property]`               | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_error`                    | [codersdk.ChatError](schemas.md#codersdkchaterror)                     | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» detail`                       | string                                                                 | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                  |
-| `»» kind`                         | string                                                                 | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
-| `»» message`                      | string                                                                 | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                      |
-| `»» provider`                     | string                                                                 | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                |
-| `»» retryable`                    | boolean                                                                | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                               |
-| `»» status_code`                  | integer                                                                | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                  |
+| `» last_error`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `» last_injected_context`         | array                                                                  | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
 | `»» args`                         | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» args_delta`                   | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
@@ -291,7 +278,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats \
+curl -X POST http://coder-server:8080/api/v2/experimental/chats \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -401,14 +388,7 @@ Experimental: this endpoint is subject to change.
         "property1": "string",
         "property2": "string"
       },
-      "last_error": {
-        "detail": "string",
-        "kind": "string",
-        "message": "string",
-        "provider": "string",
-        "retryable": true,
-        "status_code": 0
-      },
+      "last_error": "string",
       "last_injected_context": [
         {
           "args": [
@@ -524,14 +504,7 @@ Experimental: this endpoint is subject to change.
     "property1": "string",
     "property2": "string"
   },
-  "last_error": {
-    "detail": "string",
-    "kind": "string",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
+  "last_error": "string",
   "last_injected_context": [
     {
       "args": [
@@ -623,7 +596,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
+curl -X POST http://coder-server:8080/api/v2/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -662,7 +635,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/files/{file} \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/files/{file} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -690,7 +663,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/models \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/models \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -737,7 +710,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/watch \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/watch \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -798,14 +771,7 @@ Experimental: this endpoint is subject to change.
       "property1": "string",
       "property2": "string"
     },
-    "last_error": {
-      "detail": "string",
-      "kind": "string",
-      "message": "string",
-      "provider": "string",
-      "retryable": true,
-      "status_code": 0
-    },
+    "last_error": "string",
     "last_injected_context": [
       {
         "args": [
@@ -906,7 +872,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat} \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -975,14 +941,7 @@ Experimental: this endpoint is subject to change.
         "property1": "string",
         "property2": "string"
       },
-      "last_error": {
-        "detail": "string",
-        "kind": "string",
-        "message": "string",
-        "provider": "string",
-        "retryable": true,
-        "status_code": 0
-      },
+      "last_error": "string",
       "last_injected_context": [
         {
           "args": [
@@ -1098,14 +1057,7 @@ Experimental: this endpoint is subject to change.
     "property1": "string",
     "property2": "string"
   },
-  "last_error": {
-    "detail": "string",
-    "kind": "string",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
+  "last_error": "string",
   "last_injected_context": [
     {
       "args": [
@@ -1197,7 +1149,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/experimental/chats/{chat} \
+curl -X PATCH http://coder-server:8080/api/v2/experimental/chats/{chat} \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -1243,7 +1195,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/diff \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/diff \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -1287,7 +1239,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/interrupt \
+curl -X POST http://coder-server:8080/api/v2/experimental/chats/{chat}/interrupt \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -1356,14 +1308,7 @@ Experimental: this endpoint is subject to change.
         "property1": "string",
         "property2": "string"
       },
-      "last_error": {
-        "detail": "string",
-        "kind": "string",
-        "message": "string",
-        "provider": "string",
-        "retryable": true,
-        "status_code": 0
-      },
+      "last_error": "string",
       "last_injected_context": [
         {
           "args": [
@@ -1479,14 +1424,7 @@ Experimental: this endpoint is subject to change.
     "property1": "string",
     "property2": "string"
   },
-  "last_error": {
-    "detail": "string",
-    "kind": "string",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
+  "last_error": "string",
   "last_injected_context": [
     {
       "args": [
@@ -1578,7 +1516,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/messages \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/messages \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -1761,7 +1699,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/messages \
+curl -X POST http://coder-server:8080/api/v2/experimental/chats/{chat}/messages \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -1966,7 +1904,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/experimental/chats/{chat}/messages/{message} \
+curl -X PATCH http://coder-server:8080/api/v2/experimental/chats/{chat}/messages/{message} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -2102,7 +2040,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/stream \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -2368,7 +2306,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream/desktop \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/stream/desktop \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -2397,7 +2335,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream/git \
+curl -X GET http://coder-server:8080/api/v2/experimental/chats/{chat}/stream/git \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -2447,7 +2385,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/title/regenerate \
+curl -X POST http://coder-server:8080/api/v2/experimental/chats/{chat}/title/regenerate \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -2516,14 +2454,7 @@ Experimental: this endpoint is subject to change.
         "property1": "string",
         "property2": "string"
       },
-      "last_error": {
-        "detail": "string",
-        "kind": "string",
-        "message": "string",
-        "provider": "string",
-        "retryable": true,
-        "status_code": 0
-      },
+      "last_error": "string",
       "last_injected_context": [
         {
           "args": [
@@ -2639,14 +2570,7 @@ Experimental: this endpoint is subject to change.
     "property1": "string",
     "property2": "string"
   },
-  "last_error": {
-    "detail": "string",
-    "kind": "string",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
+  "last_error": "string",
   "last_injected_context": [
     {
       "args": [

@@ -13,7 +13,6 @@ In this quickstart, you'll:
 - ✅ Launch a **workspace** (your actual dev environment)
 - ✅ Connect from your favorite IDE
 
-
 ## Understanding Coder: 30-Second Overview
 
 Before diving in, here are the core concepts that power Coder explained through

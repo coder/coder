@@ -2127,14 +2127,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "property1": "string",
         "property2": "string"
       },
-      "last_error": {
-        "detail": "string",
-        "kind": "string",
-        "message": "string",
-        "provider": "string",
-        "retryable": true,
-        "status_code": 0
-      },
+      "last_error": "string",
       "last_injected_context": [
         {
           "args": [
@@ -2250,14 +2243,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property1": "string",
     "property2": "string"
   },
-  "last_error": {
-    "detail": "string",
-    "kind": "string",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
+  "last_error": "string",
   "last_injected_context": [
     {
       "args": [
@@ -2351,7 +2337,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_error`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_injected_context` | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)   | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
 | `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2484,30 +2470,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `reviewer_count`     | integer | false    |              |             |
 | `stale_at`           | string  | false    |              |             |
 | `url`                | string  | false    |              |             |
-
-## codersdk.ChatError
-
-```json
-{
-  "detail": "string",
-  "kind": "string",
-  "message": "string",
-  "provider": "string",
-  "retryable": true,
-  "status_code": 0
-}
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description                                                                                               |
-|---------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
-| `detail`      | string  | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available. |
-| `kind`        | string  | false    |              | Kind classifies the error for consistent client rendering.                                                |
-| `message`     | string  | false    |              | Message is the normalized, user-facing error message.                                                     |
-| `provider`    | string  | false    |              | Provider identifies the upstream model provider when known.                                               |
-| `retryable`   | boolean | false    |              | Retryable reports whether the underlying error is transient.                                              |
-| `status_code` | integer | false    |              | Status code is the best-effort upstream HTTP status code.                                                 |
 
 ## codersdk.ChatFileMetadata
 
@@ -3206,6 +3168,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
 
+## codersdk.ChatStreamError
+
+```json
+{
+  "detail": "string",
+  "kind": "string",
+  "message": "string",
+  "provider": "string",
+  "retryable": true,
+  "status_code": 0
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description                                                                                               |
+|---------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
+| `detail`      | string  | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available. |
+| `kind`        | string  | false    |              | Kind classifies the error for consistent client rendering.                                                |
+| `message`     | string  | false    |              | Message is the normalized, user-facing error message.                                                     |
+| `provider`    | string  | false    |              | Provider identifies the upstream model provider when known.                                               |
+| `retryable`   | boolean | false    |              | Retryable reports whether the underlying error is transient.                                              |
+| `status_code` | integer | false    |              | Status code is the best-effort upstream HTTP status code.                                                 |
+
 ## codersdk.ChatStreamEvent
 
 ```json
@@ -3447,7 +3433,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
 | `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
 | `chat_id`         | string                                                                 | false    |              |             |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
+| `error`           | [codersdk.ChatStreamError](#codersdkchatstreamerror)                   | false    |              |             |
 | `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
 | `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
 | `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
@@ -3647,14 +3633,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "property1": "string",
       "property2": "string"
     },
-    "last_error": {
-      "detail": "string",
-      "kind": "string",
-      "message": "string",
-      "provider": "string",
-      "retryable": true,
-      "status_code": 0
-    },
+    "last_error": "string",
     "last_injected_context": [
       {
         "args": [
