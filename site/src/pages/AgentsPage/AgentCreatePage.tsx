@@ -23,6 +23,7 @@ import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { useAgentChatSendShortcut } from "./hooks/useAgentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
@@ -35,7 +36,8 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const { permissions } = useAuthenticated();
+	const { permissions, user } = useAuthenticated();
+	const [sendShortcut] = useAgentChatSendShortcut(user.id);
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -148,6 +150,7 @@ const AgentCreatePage: FC = () => {
 			</AgentPageHeader>
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
+				sendShortcut={sendShortcut}
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
 				canCreateChat={permissions.createChat}

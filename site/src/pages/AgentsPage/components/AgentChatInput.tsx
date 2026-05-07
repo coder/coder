@@ -51,6 +51,7 @@ import {
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
+import type { AgentChatSendShortcut } from "../hooks/useAgentChatSendShortcut";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -86,6 +87,7 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
+	sendShortcut?: AgentChatSendShortcut;
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
@@ -281,6 +283,7 @@ const ToolBadge: FC<{
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
+	sendShortcut = "enter",
 	placeholder = "Type a message...",
 	isDisabled,
 	isLoading,
@@ -949,6 +952,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
+					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
 					autoFocus
 				/>

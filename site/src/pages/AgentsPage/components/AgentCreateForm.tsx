@@ -18,6 +18,7 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
+import type { AgentChatSendShortcut } from "../hooks/useAgentChatSendShortcut";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
@@ -125,6 +126,7 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
@@ -146,6 +148,7 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
+	sendShortcut,
 	isCreating,
 	createError,
 	canCreateChat,
@@ -509,6 +512,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
+						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
 							isCreating || isForbidden || isPersonalModelOverridesLoading

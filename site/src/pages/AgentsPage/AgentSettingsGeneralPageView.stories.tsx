@@ -4,8 +4,12 @@ import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
 } from "./AgentSettingsGeneralPageView";
+import { getAgentChatSendShortcutStorageKey } from "./hooks/useAgentChatSendShortcut";
+
+const storyUserId = "user-storybook";
 
 const baseArgs: AgentSettingsGeneralPageViewProps = {
+	userId: storyUserId,
 	userPromptData: {
 		custom_prompt: "Prefer concise answers with clear next steps.",
 	},
@@ -119,6 +123,30 @@ export const RendersChatLayoutSection: Story = {
 		expect(
 			await canvas.findByRole("switch", { name: "Full-width chat" }),
 		).toBeInTheDocument();
+	},
+};
+
+export const TogglesSendShortcut: Story = {
+	beforeEach: () => {
+		localStorage.removeItem(getAgentChatSendShortcutStorageKey(storyUserId));
+	},
+	play: async ({ canvasElement }) => {
+		const storageKey = getAgentChatSendShortcutStorageKey(storyUserId);
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Require Cmd/Ctrl+Enter to send messages",
+		});
+
+		expect(await canvas.findByText("Keyboard Shortcuts")).toBeInTheDocument();
+		expect(toggle).not.toBeChecked();
+
+		await userEvent.click(toggle);
+		expect(toggle).toBeChecked();
+		expect(localStorage.getItem(storageKey)).toBe("modifier-enter");
+
+		await userEvent.click(toggle);
+		expect(toggle).not.toBeChecked();
+		expect(localStorage.getItem(storageKey)).toBeNull();
 	},
 };
 

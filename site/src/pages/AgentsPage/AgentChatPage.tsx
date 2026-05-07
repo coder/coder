@@ -79,6 +79,7 @@ import {
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
+import { useAgentChatSendShortcut } from "./hooks/useAgentChatSendShortcut";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
@@ -711,6 +712,7 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
+	const [sendShortcut] = useAgentChatSendShortcut(currentUser.id);
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -1507,6 +1509,7 @@ const AgentChatPage: FC = () => {
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentChatPageLoadingView
+				sendShortcut={sendShortcut}
 				titleElement={titleElement}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
@@ -1537,6 +1540,7 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			sendShortcut={sendShortcut}
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
+import type { AgentChatSendShortcut } from "../hooks/useAgentChatSendShortcut";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -150,6 +151,7 @@ interface ChatPageInputProps {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => Promise<void> | void;
+	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -214,6 +216,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
+	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
@@ -445,6 +448,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
+			sendShortcut={sendShortcut}
 			attachments={attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}

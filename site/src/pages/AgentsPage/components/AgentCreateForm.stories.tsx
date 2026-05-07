@@ -108,6 +108,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
+		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,

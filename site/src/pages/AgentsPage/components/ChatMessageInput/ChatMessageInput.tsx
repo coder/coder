@@ -31,6 +31,7 @@ import {
 } from "react";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
+import type { AgentChatSendShortcut } from "../../hooks/useAgentChatSendShortcut";
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	$createFileReferenceNode,
@@ -257,13 +258,16 @@ const PasteSanitizationPlugin: FC<{
 	return null;
 };
 
-// Handles Enter key behavior: plain Enter submits via the onEnter
-// callback, Shift+Enter inserts a newline. On mobile viewports, Enter
-// always inserts a newline; users submit via the send button because
+// Handles Enter key behavior. By default, plain Enter submits via
+// the onEnter callback, and Shift+Enter inserts a newline. When the
+// modifier shortcut is selected, Cmd/Ctrl+Enter submits instead, and
+// plain Enter inserts a newline. On mobile viewports, Enter always
+// inserts a newline; users submit via the send button because
 // Shift+Enter is cumbersome on touch keyboards (CODAGT-210).
-const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
-	onEnter,
-}) {
+const EnterKeyPlugin: FC<{
+	onEnter?: () => void;
+	sendShortcut: AgentChatSendShortcut;
+}> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -271,6 +275,12 @@ const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 			KEY_ENTER_COMMAND,
 			(event: KeyboardEvent | null) => {
 				if (event?.shiftKey || isMobileViewport()) {
+					return false;
+				}
+				if (
+					sendShortcut === "modifier-enter" &&
+					!(event?.metaKey || event?.ctrlKey)
+				) {
 					return false;
 				}
 				if (onEnter) {
@@ -281,7 +291,7 @@ const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 			},
 			COMMAND_PRIORITY_HIGH,
 		);
-	}, [editor, onEnter]);
+	}, [editor, onEnter, sendShortcut]);
 
 	return null;
 };
@@ -456,6 +466,7 @@ interface ChatMessageInputProps
 	remountKey?: number;
 	rows?: number;
 	onEnter?: () => void;
+	sendShortcut?: AgentChatSendShortcut;
 	onFilePaste?: (file: File) => void;
 	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
@@ -486,6 +497,7 @@ const ChatMessageInput = ({
 	remountKey,
 	rows,
 	onEnter,
+	sendShortcut = "enter",
 	onFilePaste,
 	allowTextAttachmentPaste,
 	disabled,
@@ -706,7 +718,10 @@ const ChatMessageInput = ({
 					onFilePaste={onFilePaste}
 					allowTextAttachmentPaste={allowTextAttachmentPaste}
 				/>
-				<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
+				<EnterKeyPlugin
+					onEnter={disabled ? undefined : onEnter}
+					sendShortcut={sendShortcut}
+				/>
 				<ContentChangePlugin onChange={onChange} />
 				<ValueSyncPlugin
 					initialValue={initialValue}

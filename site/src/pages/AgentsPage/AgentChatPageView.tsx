@@ -41,6 +41,7 @@ import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
+import type { AgentChatSendShortcut } from "./hooks/useAgentChatSendShortcut";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
@@ -82,6 +83,7 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	sendShortcut: AgentChatSendShortcut;
 	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
@@ -185,6 +187,7 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	sendShortcut,
 	organizationId,
 	chatTitle,
 	parentChat,
@@ -521,6 +524,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}
+								sendShortcut={sendShortcut}
 								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}
@@ -600,6 +604,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 interface AgentChatPageLoadingViewProps {
+	sendShortcut: AgentChatSendShortcut;
 	titleElement: React.ReactNode;
 	isInputDisabled: boolean;
 	effectiveSelectedModel: string;
@@ -616,6 +621,7 @@ interface AgentChatPageLoadingViewProps {
 }
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+	sendShortcut,
 	titleElement,
 	isInputDisabled,
 	effectiveSelectedModel,
@@ -668,6 +674,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
+						sendShortcut={sendShortcut}
 						initialValue=""
 						isDisabled={isInputDisabled}
 						isLoading={false}
