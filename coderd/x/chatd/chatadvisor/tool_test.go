@@ -58,6 +58,55 @@ func TestAdvisorToolSuccess(t *testing.T) {
 	require.Equal(t, 1, result.RemainingUses)
 }
 
+func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
+	t.Parallel()
+
+	type publishedDelta struct {
+		toolCallID string
+		delta      string
+	}
+	var published []publishedDelta
+
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Prefer "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the small diff."},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime:                 runtime,
+		GetConversationSnapshot: func() []fantasy.Message { return nil },
+		PublishAdviceDelta: func(toolCallID string, delta string) {
+			published = append(published, publishedDelta{toolCallID: toolCallID, delta: delta})
+		},
+	})
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "What's safest?"})
+	require.False(t, resp.IsError)
+	require.Equal(t, []publishedDelta{
+		{toolCallID: "call-1", delta: "Prefer "},
+		{toolCallID: "call-1", delta: "the small diff."},
+	}, published)
+
+	var result chatadvisor.AdvisorResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "Prefer the small diff.", result.Advice)
+}
+
 func TestAdvisorToolRejectsEmptyQuestion(t *testing.T) {
 	t.Parallel()
 

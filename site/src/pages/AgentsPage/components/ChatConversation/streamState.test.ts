@@ -195,6 +195,69 @@ describe("applyMessagePartToStreamState", () => {
 		});
 	});
 
+	it("accumulates tool result deltas until a final result arrives", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "Use ",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "small steps.",
+		});
+
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["call-advisor-1"]).toMatchObject({
+			id: "call-advisor-1",
+			name: "advisor",
+			result: "Use small steps.",
+			resultRaw: "Use small steps.",
+			isError: false,
+			isStreaming: true,
+		});
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("running");
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+		});
+
+		expect(state!.toolResults["call-advisor-1"]).toMatchObject({
+			id: "call-advisor-1",
+			name: "advisor",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+			isError: false,
+		});
+		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("completed");
+	});
+
 	it("accumulates multiple tool calls in sequence", () => {
 		let state: StreamState | null = null;
 		state = applyMessagePartToStreamState(state, {

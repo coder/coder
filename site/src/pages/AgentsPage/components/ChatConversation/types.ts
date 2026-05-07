@@ -90,6 +90,7 @@ type StreamToolResult = {
 	result?: unknown;
 	resultRaw?: string;
 	isError: boolean;
+	isStreaming?: boolean;
 	mcpServerConfigId?: string;
 };
 

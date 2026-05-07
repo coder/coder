@@ -24,6 +24,7 @@ const advisorQuestionMaxRunes = 2000
 type ToolOptions struct {
 	Runtime                 *Runtime
 	GetConversationSnapshot func() []fantasy.Message
+	PublishAdviceDelta      func(toolCallID string, delta string)
 }
 
 // Tool returns a fantasy.AgentTool that asks a nested model for concise
@@ -33,7 +34,7 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ToolName,
 		"Ask a separate advisor pass for strategic guidance about planning, architecture, tradeoffs, or debugging strategy. Provide a brief question. The advisor sees recent conversation context, runs without tools for a single step, and responds to the parent agent rather than the end user.",
-		func(ctx context.Context, args AdvisorArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args AdvisorArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if opts.Runtime == nil {
 				return fantasy.NewTextErrorResponse("advisor runtime is not configured"), nil
 			}
@@ -51,7 +52,16 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			result, err := opts.Runtime.RunAdvisor(ctx, question, opts.GetConversationSnapshot())
+			var runOpts []RunAdvisorOptions
+			if opts.PublishAdviceDelta != nil && call.ID != "" {
+				runOpts = append(runOpts, RunAdvisorOptions{
+					OnAdviceDelta: func(delta string) {
+						opts.PublishAdviceDelta(call.ID, delta)
+					},
+				})
+			}
+
+			result, err := opts.Runtime.RunAdvisor(ctx, question, opts.GetConversationSnapshot(), runOpts...)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}

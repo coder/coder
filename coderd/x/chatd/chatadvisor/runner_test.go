@@ -63,6 +63,42 @@ func TestAdvisorRunAdvice(t *testing.T) {
 	require.Equal(t, question, singleText(t, capturedCall.Prompt[len(capturedCall.Prompt)-1]))
 }
 
+func TestAdvisorRunStreamsAdviceDeltas(t *testing.T) {
+	t.Parallel()
+
+	var deltas []string
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Use "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the smaller "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "diff."},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	result, err := runtime.RunAdvisor(t.Context(), "what should I do?", nil, chatadvisor.RunAdvisorOptions{
+		OnAdviceDelta: func(delta string) {
+			deltas = append(deltas, delta)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"Use ", "the smaller ", "diff."}, deltas)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "Use the smaller diff.", result.Advice)
+	require.Equal(t, 1, result.RemainingUses)
+}
+
 func TestAdvisorRunLimitReached(t *testing.T) {
 	t.Parallel()
 

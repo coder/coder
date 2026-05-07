@@ -8,14 +8,25 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/codersdk"
 )
+
+// RunAdvisorOptions configures one advisor invocation.
+type RunAdvisorOptions struct {
+	OnAdviceDelta func(delta string)
+}
 
 // RunAdvisor executes a single, tool-less nested advisor call.
 func (rt *Runtime) RunAdvisor(
 	ctx context.Context,
 	question string,
 	conversationSnapshot []fantasy.Message,
+	opts ...RunAdvisorOptions,
 ) (AdvisorResult, error) {
+	var runOpts RunAdvisorOptions
+	if len(opts) > 0 {
+		runOpts = opts[0]
+	}
 	// Model, MaxUsesPerRun, and MaxOutputTokens are validated by NewRuntime.
 	// Runtime fields are unexported so callers cannot bypass that.
 	if strings.TrimSpace(question) == "" {
@@ -37,7 +48,7 @@ func (rt *Runtime) RunAdvisor(
 	resetProviderOptionsForNestedCall(nestedProviderOptions)
 
 	var persistedStep chatloop.PersistedStep
-	runOpts := chatloop.RunOptions{
+	chatLoopOpts := chatloop.RunOptions{
 		Model:           rt.cfg.Model,
 		Messages:        BuildAdvisorMessages(question, conversationSnapshot),
 		MaxSteps:        1,
@@ -48,8 +59,18 @@ func (rt *Runtime) RunAdvisor(
 			return nil
 		},
 	}
+	if runOpts.OnAdviceDelta != nil {
+		chatLoopOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			if role != codersdk.ChatMessageRoleAssistant ||
+				part.Type != codersdk.ChatMessagePartTypeText ||
+				part.Text == "" {
+				return
+			}
+			runOpts.OnAdviceDelta(part.Text)
+		}
+	}
 
-	if err := chatloop.Run(ctx, runOpts); err != nil {
+	if err := chatloop.Run(ctx, chatLoopOpts); err != nil {
 		// Refund the use so a transient provider failure does not
 		// permanently exhaust the per-run advisor budget.
 		rt.release()

@@ -255,7 +255,7 @@ type ChatMessagePart struct {
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
 	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta       string              `json:"result_delta,omitempty"`
+	ResultDelta       string              `json:"result_delta,omitempty" variants:"tool-result?"`
 	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
 	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
 	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
