@@ -192,16 +192,8 @@ const TerminalPage: FC = () => {
 			</div>
 
 			{latency && isDebugging && (
-				<span
-					css={{
-						position: "absolute",
-						bottom: 24,
-						right: 24,
-						color: theme.palette.text.disabled,
-						fontSize: 14,
-					}}
-				>
-					Latency: {latency.latencyMS.toFixed(0)}ms
+				<span className="absolute bottom-6 right-6 text-content-disabled text-sm">
+					Latency: {latency.latencyMS.toFixed(0)}ms{" "}
 				</span>
 			)}
 
