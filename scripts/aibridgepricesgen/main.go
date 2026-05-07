@@ -48,6 +48,17 @@ type upstreamCost struct {
 	CacheWrite *float64 `json:"cache_write"`
 }
 
+// hasPricing reports whether the cost block has at least one populated price.
+// Returns false for a nil receiver, so callers can pass m.Cost without a
+// preceding nil check.
+func (c *upstreamCost) hasPricing() bool {
+	if c == nil {
+		return false
+	}
+	return c.Input != nil || c.Output != nil ||
+		c.CacheRead != nil || c.CacheWrite != nil
+}
+
 // priceRow is one ai_model_prices row in seed form. JSON tags match table
 // column names so the loader can decode straight into INSERT params. Pointer
 // fields preserve the distinction between "not populated by upstream" (null)
@@ -59,12 +70,6 @@ type priceRow struct {
 	OutputPrice     *int64 `json:"output_price"`
 	CacheReadPrice  *int64 `json:"cache_read_price"`
 	CacheWritePrice *int64 `json:"cache_write_price"`
-}
-
-// hasPricing reports whether the row has at least one non-nil price.
-func (r priceRow) hasPricing() bool {
-	return r.InputPrice != nil || r.OutputPrice != nil ||
-		r.CacheReadPrice != nil || r.CacheWritePrice != nil
 }
 
 func main() {
@@ -138,17 +143,17 @@ func convert(upstream map[string]upstreamProvider, providers []string) ([]priceR
 			continue
 		}
 		for modelID, m := range provider.Models {
-			row := priceRow{Provider: providerID, Model: modelID}
-			if m.Cost != nil {
-				row.InputPrice = toMicros(m.Cost.Input)
-				row.OutputPrice = toMicros(m.Cost.Output)
-				row.CacheReadPrice = toMicros(m.Cost.CacheRead)
-				row.CacheWritePrice = toMicros(m.Cost.CacheWrite)
-			}
-			if !row.hasPricing() {
+			if !m.Cost.hasPricing() {
 				continue
 			}
-			rows = append(rows, row)
+			rows = append(rows, priceRow{
+				Provider:        providerID,
+				Model:           modelID,
+				InputPrice:      toMicros(m.Cost.Input),
+				OutputPrice:     toMicros(m.Cost.Output),
+				CacheReadPrice:  toMicros(m.Cost.CacheRead),
+				CacheWritePrice: toMicros(m.Cost.CacheWrite),
+			})
 		}
 	}
 	if len(missing) > 0 {
