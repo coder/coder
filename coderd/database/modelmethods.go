@@ -932,6 +932,7 @@ func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
 }
 
+// A workspace agent belongs to the owner of the associated workspace.
 func (r GetWorkspaceBuildAgentsByInstanceIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
 }
