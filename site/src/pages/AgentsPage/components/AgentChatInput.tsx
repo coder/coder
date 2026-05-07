@@ -819,7 +819,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
-				 * is the user's free-form message — we don't silently
+				 * is the user's free-form message; we don't silently
 				 * mutate it. Instead we surface a warning so the user
 				 * can make an informed decision. This guards against
 				 * social engineering attacks where a user is tricked
@@ -1074,7 +1074,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}{" "}
-						{/* Badge row — all badges and the pill always
+						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
 						 * hide and reorder via CSS. The pill is invisible
@@ -1107,7 +1107,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								);
 							})}
-							{/* Pill — always in the DOM so it permanently
+							{/* Pill; always in the DOM so it permanently
 							 * reserves layout space. Invisible when nothing
 							 * overflows. CSS order keeps it before order-1
 							 * (overflow) badges. */}
