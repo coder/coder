@@ -8630,6 +8630,10 @@ func (p *Server) updateLastTurnSummary(
 	updatedChat := chat
 	updatedChat.LastTurnSummary = lastTurnSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindSummaryChange, nil)
+
+	// AcquireChats uses SKIP LOCKED; re-wake so a wake racing this
+	// UPDATE's row lock does not strand a freshly-pending chat.
+	p.signalWake()
 }
 
 func (p *Server) webpushConfigured() bool {
