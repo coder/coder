@@ -1233,14 +1233,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	// Collapse all expanded children when switching to table layout.
 	const prevLayoutRef = useRef(layout);
-	const [layoutFading, setLayoutFading] = useState(false);
+	const [layoutTransition, setLayoutTransition] = useState(false);
 	useEffect(() => {
-		if (prevLayoutRef.current === "narrow" && layout !== "narrow") {
+		const prev = prevLayoutRef.current;
+		const crossedBoundary =
+			(prev === "narrow" && layout !== "narrow") ||
+			(prev !== "narrow" && layout === "narrow");
+		if (prev === "narrow" && layout !== "narrow") {
 			setExpandedById({});
 		}
-		if (prevLayoutRef.current !== layout) {
-			setLayoutFading(true);
-			const t = setTimeout(() => setLayoutFading(false), 150);
+		if (crossedBoundary) {
+			setLayoutTransition(true);
+			const t = setTimeout(() => setLayoutTransition(false), 250);
 			prevLayoutRef.current = layout;
 			return () => clearTimeout(t);
 		}
@@ -1586,9 +1590,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											{visibleRootIDs.length > 0 && (
 												<div
 													className={cn(
-														"transition-opacity duration-150",
 														layout !== "narrow" ? "-mx-2 pb-2" : "pb-2",
-														layoutFading && "opacity-0",
+														layoutTransition &&
+															"transition-all duration-250 ease-out",
 													)}
 												>
 													{/* ── Pinned section ── */}
