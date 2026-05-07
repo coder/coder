@@ -1,23 +1,204 @@
-# This workflow triggers a Vercel deploy hook which builds+deploys coder.com
-# (a Next.js app), to keep coder.com/docs URLs in sync with docs/manifest.json
+name: Update coder.com/docs
+
+# Triggers updates to the public docs at coder.com/docs whenever this
+# branch's docs/** content changes. Two paths run from one trigger so
+# that search records, the static cache, and any new routes register
+# at the same time:
+#
+#   1. algolia-and-isr: HMAC-signed POST to coder.com/api/algolia-docs-sync.
+#      The handler re-extracts records for the (corpus, ref) pair and
+#      atomically replaces the slice of the Algolia `docs` index, then
+#      calls `res.revalidate(p)` for every navigable manifest entry to
+#      refresh Vercel's static-page cache without a full rebuild. Runs
+#      on every docs/** push.
+#
+#   2. vercel-rebuild: fires the Vercel deploy hook for a full
+#      build+deploy. Only runs when docs/manifest.json changed, since a
+#      manifest change can introduce or remove routes that Next.js's
+#      `getStaticPaths` only re-evaluates on a full rebuild.
+#
+# Markdown-only edits hit only path 1 and surface in seconds. Manifest
+# edits hit both paths in parallel; the ISR revalidate is harmless
+# against the previous deployment while the new build is in flight,
+# and Vercel only swaps to the new build atomically when ready.
 #
 # https://vercel.com/docs/deploy-hooks#triggering-a-deploy-hook
-
-name: Update coder.com/docs
+# See coder/coder.com/src/pages/api/algolia-docs-sync.ts.
 
 on:
   push:
     branches:
       - main
+      - "release/**"
     paths:
-      - "docs/manifest.json"
+      - "docs/**"
+      - ".github/workflows/deploy-docs.yaml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Algolia action to perform"
+        required: true
+        type: choice
+        default: index
+        options:
+          - index
+          - delete
+      ref:
+        description: "Branch to (re)index or delete (e.g. main, release/2.32). Defaults to the workflow's checkout ref."
+        required: false
+        type: string
 
-permissions: {}
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-docs-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  deploy-docs:
+  # Detect what changed so the dependent jobs know whether a full
+  # rebuild is needed. Runs once and exposes outputs to both jobs.
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      manifest_changed: ${{ steps.diff.outputs.manifest_changed }}
     steps:
-      - name: Deploy docs site
+      - name: Compute changed-files signal
+        id: diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
         run: |
-          curl -X POST "${{ secrets.DEPLOY_DOCS_VERCEL_WEBHOOK }}"
+          set -euo pipefail
+          # workflow_dispatch never has a diff range; treat as
+          # \"manifest unchanged\" so the manual reindex/delete path
+          # doesn't trigger a Vercel rebuild it didn't ask for.
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # First push to a brand-new branch has BEFORE_SHA = all zeros.
+          # In that edge case we conservatively assume the manifest is
+          # part of the initial state and trigger a full rebuild.
+          if [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # We don't need a full checkout for `git diff --name-only`
+          # against two known SHAs. A shallow fetch of just those two
+          # commits is enough.
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c protocol.version=2 fetch --depth=1 origin "$BEFORE_SHA" "$AFTER_SHA" 2>/dev/null || {
+            # Fall back to a wider fetch if the shallow fetch failed
+            # (e.g. force-push rewrote history). Treating an unknown
+            # diff as \"manifest changed\" is the safe default.
+            echo "::warning::Could not fetch BEFORE_SHA=$BEFORE_SHA; assuming manifest changed"
+            echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          if git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" -- docs/manifest.json | grep -q .; then
+            echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Path 1: always run. Notifies coder.com to refresh Algolia records
+  # and ISR-revalidate the affected pages.
+  algolia-and-isr:
+    runs-on: ubuntu-latest
+    needs: changes
+    steps:
+      - name: Compute action and ref
+        id: input
+        env:
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_REF: ${{ inputs.ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ACTION="${INPUT_ACTION:-index}"
+          REF="${INPUT_REF:-$GITHUB_REF_NAME}"
+          case "$REF" in
+            main|release/*) ;;
+            *)
+              echo "::error::Unsupported ref '$REF'. Only main and release/* are eligible."
+              exit 1
+              ;;
+          esac
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: POST to coder.com docs indexer
+        env:
+          ACTION: ${{ steps.input.outputs.action }}
+          REF: ${{ steps.input.outputs.ref }}
+          SECRET: ${{ secrets.ALGOLIA_DOCS_SYNC_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SECRET:-}" ]; then
+            echo "::error::ALGOLIA_DOCS_SYNC_SECRET is not configured."
+            exit 1
+          fi
+          BODY=$(jq -nc \
+            --arg action "$ACTION" \
+            --arg corpus "v2" \
+            --arg ref "$REF" \
+            '{action: $action, corpus: $corpus, ref: $ref}')
+          # SHA-256 HMAC over the exact bytes we POST. The handler verifies
+          # with crypto.timingSafeEqual on the same raw body, so the
+          # prefix and hex casing must match.
+          SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')"
+          echo "Action: $ACTION  Ref: $REF"
+          response=$(mktemp)
+          status=$(curl --fail-with-body -sS \
+            -o "$response" \
+            -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "X-Coder-Signature: $SIG" \
+            --data "$BODY" \
+            https://coder.com/api/algolia-docs-sync) || rc=$?
+          {
+            echo "## Algolia + ISR sync"
+            echo
+            echo "- Action: \`$ACTION\`"
+            echo "- Ref: \`$REF\`"
+            echo "- HTTP status: \`${status:-n/a}\`"
+            echo
+            echo "### Response"
+            echo
+            echo '```json'
+            cat "$response"
+            echo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${rc:-}" ] && [ "${rc}" -ne 0 ]; then
+            exit "$rc"
+          fi
+
+  # Path 2: full Vercel rebuild. Only fires when docs/manifest.json
+  # changed, because manifest changes can introduce or remove routes
+  # that Next.js's `getStaticPaths` only re-evaluates on a full build.
+  # Markdown-only edits don't need this; ISR revalidate covers them.
+  vercel-rebuild:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.manifest_changed == 'true'
+    steps:
+      - name: Trigger Vercel deploy hook
+        env:
+          HOOK: ${{ secrets.DEPLOY_DOCS_VERCEL_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOOK:-}" ]; then
+            echo "::error::DEPLOY_DOCS_VERCEL_WEBHOOK is not configured."
+            exit 1
+          fi
+          curl --fail-with-body -sS -X POST "$HOOK" >/dev/null
+          {
+            echo "## Vercel rebuild"
+            echo
+            echo "- Reason: \`docs/manifest.json\` changed"
+          } >> "$GITHUB_STEP_SUMMARY"
