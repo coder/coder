@@ -277,14 +277,18 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
+	// Newest first. messages are in id-ascending order, so reverse
+	// iteration yields the most recent user prompts first. Store the
+	// original text untouched so cycling and re-sending reproduces what
+	// the user originally sent (boundary whitespace can be intentional).
 	const userPromptHistory: string[] = [];
 	for (let index = messages.length - 1; index >= 0; index--) {
 		const message = messages[index];
 		if (!message || message.role !== "user") {
 			continue;
 		}
-		const text = getEditableUserMessagePayload(message).text.trim();
-		if (text) {
+		const text = getEditableUserMessagePayload(message).text;
+		if (text.trim()) {
 			userPromptHistory.push(text);
 		}
 	}

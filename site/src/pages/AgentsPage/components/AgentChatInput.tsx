@@ -354,24 +354,25 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
 	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
-	const isApplyingCycleValueRef = useRef(false);
-	const applyingCycleValueRef = useRef<string | null>(null);
+	// While we're cycling, currentCycleValueRef holds the text we last
+	// programmatically applied via applyCycleValue. handleContentChange
+	// uses it to distinguish our own update echoing back (which should
+	// keep cycle mode alive) from real user input (which exits the
+	// cycle). Lexical's setEditorState fires several onChange events
+	// per setValue call, so we intentionally compare on every change
+	// rather than consuming a one-shot flag.
 	const currentCycleValueRef = useRef<string | null>(null);
 	const previousRemountKeyRef = useRef(remountKey);
 
 	const resetPromptCycle = () => {
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
-		isApplyingCycleValueRef.current = false;
-		applyingCycleValueRef.current = null;
 		currentCycleValueRef.current = null;
 	};
 
 	const applyCycleValue = (text: string) => {
 		const editor = internalRef.current;
 		if (!editor) return;
-		isApplyingCycleValueRef.current = true;
-		applyingCycleValueRef.current = text;
 		currentCycleValueRef.current = text;
 		editor.setValue(text);
 		editor.focus();
@@ -380,10 +381,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	useEffect(() => {
 		if (previousRemountKeyRef.current === remountKey) return;
 		previousRemountKeyRef.current = remountKey;
+		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
+		// would force it into the dep array; the React Compiler stabilises
+		// callbacks but biome's react-hooks lint does not.
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
-		isApplyingCycleValueRef.current = false;
-		applyingCycleValueRef.current = null;
 		currentCycleValueRef.current = null;
 	}, [remountKey]);
 
@@ -637,17 +639,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		serializedEditorState: string,
 		hasRefs: boolean,
 	) => {
-		let shouldResetCycle =
-			cycleIndex !== null && content !== currentCycleValueRef.current;
-		if (isApplyingCycleValueRef.current) {
-			shouldResetCycle =
-				content !== applyingCycleValueRef.current &&
-				cycleIndex !== null &&
-				content !== currentCycleValueRef.current;
-			isApplyingCycleValueRef.current = false;
-			applyingCycleValueRef.current = null;
-		}
-		if (shouldResetCycle) {
+		// While cycling, the editor's content fluctuates as Lexical fires
+		// multiple update events per setValue call. As long as the content
+		// matches the value we last applied, the change is our own update
+		// echoing back; anything else (typing, paste, drop, attach) is
+		// real user input and exits the cycle.
+		if (cycleIndex !== null && content !== currentCycleValueRef.current) {
 			resetPromptCycle();
 		}
 		setHasContent(Boolean(content.trim()));
@@ -719,6 +716,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 	};
 	const handleStartRecording = () => {
+		resetPromptCycle();
 		setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
 		speech.start();
 	};
@@ -775,7 +773,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			if (cycleIndex === null || isStreaming) {
 				return;
 			}
+			// Stop propagation so the outer composer Escape handler
+			// (interrupt streaming, cancel queue/history edit) doesn't
+			// also fire on the same keystroke.
 			e.preventDefault();
+			e.stopPropagation();
 			restoreCycleDraft();
 			return;
 		}
