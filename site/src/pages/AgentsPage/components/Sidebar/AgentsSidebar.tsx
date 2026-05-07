@@ -960,18 +960,16 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							>
 								{/* Col 1: Chevron */}
 								<div className="flex items-center justify-center self-stretch">
-									{hasChildren ? (
-										<Button
-											variant="subtle"
-											size="icon"
-											onClick={() => toggleExpanded(chatID)}
-											className="h-5 w-5 shrink-0 p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5"
-											aria-label={isExpanded ? "Collapse" : "Expand"}
-											aria-expanded={isExpanded}
-										>
-											{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-										</Button>
-									) : null}
+									<Button
+										variant="subtle"
+										size="icon"
+										onClick={() => toggleExpanded(chatID)}
+										className="h-5 w-5 shrink-0 p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5"
+										aria-label={isExpanded ? "Collapse" : "Expand"}
+										aria-expanded={isExpanded}
+									>
+										{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+									</Button>
 								</div>
 								{/* Col 2: Title */}
 								<NavLink
@@ -1092,7 +1090,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</div>
 							</div>
 							{/* Expanded details (inside highlighted area) */}
-							{hasChildren && isExpanded && !isChildNode && (
+							{isExpanded && !isChildNode && (
 								<div className="space-y-2 px-4 pb-3 pt-1 text-xs text-content-secondary">
 									{/* Subagents */}
 									{childIDs.length > 0 && (
