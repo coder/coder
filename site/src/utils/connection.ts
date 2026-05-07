@@ -14,13 +14,16 @@ export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 			return "Port Forwarding";
 		case "workspace_app":
 			return "Workspace App";
+		case "desktop":
+			return "Desktop";
 	}
 };
 
 export const connectionTypeIsWeb = (type: ConnectionType): boolean => {
 	switch (type) {
 		case "port_forwarding":
-		case "workspace_app": {
+		case "workspace_app":
+		case "desktop": {
 			return true;
 		}
 		case "reconnecting_pty":

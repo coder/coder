@@ -168,7 +168,7 @@ func (s *Server) Close() error {
 
 // logDLPDenial records a Path B DLP denial in the connection log. The
 // workspace + agent identity that connection_logs needs is loaded from
-// the database under a system-restricted context — the user has already
+// the database under a system-restricted context. The user has already
 // authorized at the workspace level by reaching this handler.
 //
 // Errors looking up the agent are tolerated: we still emit a log row
@@ -207,6 +207,10 @@ func (s *Server) logDLPDenial(
 
 	// Best-effort enrichment with workspace + agent names. If the lookup
 	// fails, fall through with the IDs we already have.
+	//nolint:gocritic // System-restricted ctx is intentional: this is a
+	// best-effort enrichment for the connection log entry that records the
+	// DLP denial. The deny decision itself was already made by an authorized
+	// caller.
 	row, err := s.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), token.AgentID)
 	if err == nil {
 		params.OrganizationID = row.WorkspaceTable.OrganizationID

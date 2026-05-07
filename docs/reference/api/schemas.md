@@ -18080,9 +18080,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                        |
-|---------------------------------|
-| `path`, `subdomain`, `terminal` |
+| Value(s)                                   |
+|--------------------------------------------|
+| `desktop`, `path`, `subdomain`, `terminal` |
 
 ## workspaceapps.IssueTokenRequest
 

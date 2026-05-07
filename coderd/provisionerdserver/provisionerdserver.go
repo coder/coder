@@ -3507,6 +3507,7 @@ func insertDevcontainerSubagent(
 		DisplayApps:              []database.DisplayApp{},
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
+		DlpPolicyID:              uuid.NullUUID{},
 	})
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert subagent: %w", err)

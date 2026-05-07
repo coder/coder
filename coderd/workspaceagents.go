@@ -1335,7 +1335,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	// DLP gate. Path A is the single chokepoint for all CLI peering — once a
+	// DLP gate. Path A is the single chokepoint for all CLI peering. Once a
 	// client coordinates, the data plane is peer-to-peer Wireguard and coderd
 	// cannot differentiate ssh from port-forward from cp. So `ssh_access`
 	// here is coarse: false blocks every CLI channel.
