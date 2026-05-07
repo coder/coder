@@ -1,5 +1,10 @@
 # Mux
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Mux makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
 
 Mux can be configured to route OpenAI- and Anthropic-compatible traffic through AI Gateway by setting a custom provider base URL and using a Coder-issued token for authentication.
