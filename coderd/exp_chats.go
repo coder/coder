@@ -5104,14 +5104,6 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	switch req.ReasoningEffort {
-	case "", "low", "medium", "high":
-	default:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(`reasoning_effort %q is not valid; must be one of "", "low", "medium", or "high".`, req.ReasoningEffort),
-		})
-		return
-	}
 	if req.ModelConfigID != uuid.Nil {
 		// Use system context because GetChatModelConfigByID requires
 		// deployment-config read access, which can be broader than the

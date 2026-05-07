@@ -395,16 +395,6 @@ func (p *Server) newAdvisorRuntime(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
 	)
-	// ProviderOptionsFromChatModelConfig returns nil when the model config
-	// has no provider_options block, so the helper seeds a minimal entry
-	// for the advisor model's provider before applying reasoning_effort.
-	// This keeps the per-provider dispatch in chatprovider so adding a new
-	// provider there propagates here automatically.
-	providerOptions = chatprovider.ApplyReasoningEffortToOptions(
-		providerOptions,
-		advisorModel,
-		advisorCfg.ReasoningEffort,
-	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model:           advisorModel,
