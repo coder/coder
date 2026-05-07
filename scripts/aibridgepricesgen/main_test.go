@@ -120,5 +120,32 @@ func TestConvertMissingProvider(t *testing.T) {
 	require.Nil(t, rows)
 }
 
+func TestValidate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PassesWhenAnyRowHasPricing", func(t *testing.T) {
+		t.Parallel()
+		rows := []priceRow{
+			{Provider: "openai", Model: "no-prices"},
+			{Provider: "anthropic", Model: "claude", InputPrice: int64Ptr(3_000_000)},
+		}
+		require.NoError(t, validate(rows))
+	})
+
+	t.Run("FailsWhenNoRowHasPricing", func(t *testing.T) {
+		t.Parallel()
+		// Mirrors what would happen if upstream renamed the `cost` key:
+		// Go's decoder silently drops it, every row gets all-null prices,
+		// and convert returns syntactically valid rows with no pricing.
+		rows := []priceRow{
+			{Provider: "anthropic", Model: "claude-x"},
+			{Provider: "openai", Model: "gpt-x"},
+		}
+		err := validate(rows)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "converted rows have no pricing data")
+	})
+}
+
 func floatPtr(v float64) *float64 { return &v }
 func int64Ptr(v int64) *int64     { return &v }

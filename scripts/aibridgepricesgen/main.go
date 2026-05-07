@@ -77,6 +77,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := validate(rows); err != nil {
+		return err
+	}
 	if err := write(os.Stdout, rows); err != nil {
 		return err
 	}
@@ -150,6 +153,19 @@ func convert(upstream map[string]upstreamProvider, providers []string) ([]priceR
 		return rows[i].Model < rows[j].Model
 	})
 	return rows, nil
+}
+
+// validate checks invariants on the converted rows. Catches upstream
+// changes that produce structurally valid but semantically broken seed
+// data, e.g. a renamed `cost` key that leaves every row with all-null
+// prices.
+func validate(rows []priceRow) error {
+	for _, r := range rows {
+		if r.InputPrice != nil || r.OutputPrice != nil {
+			return nil
+		}
+	}
+	return xerrors.New("converted rows have no pricing data; upstream schema may have changed")
 }
 
 // toMicros scales a price into integer micro-units (1 unit = 1,000,000),
