@@ -763,7 +763,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			resolved.disableModuleCache == template.DisableModuleCache &&
 			maxPortShareLevel == template.MaxPortSharingLevel &&
 			resolved.corsBehavior == template.CorsBehavior &&
-			(req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess && hasEveryoneGroup) {
+			// This condition is a bit tricky. If the request is disabling group access, and group access
+			// is already revoked, it is a no-op
+			(req.DisableEveryoneGroupAccess == nil || !*req.DisableEveryoneGroupAccess ||
+				(req.DisableEveryoneGroupAccess != nil && *req.DisableEveryoneGroupAccess && hasEveryoneGroup)) {
 			return nil
 		}
 
