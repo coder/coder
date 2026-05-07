@@ -1573,24 +1573,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										</div>
 									) : (
 										<div>
-											{layout === "narrow" ? (
-												<div className="mb-2 flex justify-end pr-0.5">
-													{filterDropdown}
-												</div>
-											) : (
-												<div className="mb-2 flex items-center gap-1.5">
-													<div className="relative flex-1">
-														<SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-secondary" />
-														<input
-															type="text"
-															placeholder="Search chats..."
-															className="h-8 w-full rounded-md border border-border bg-transparent pl-8 pr-2 text-xs text-content-primary placeholder:text-content-secondary focus:border-content-link focus:outline-none"
-															readOnly
-														/>
-													</div>
-													{filterDropdown}
-												</div>
-											)}
+											<div className="mb-2 flex justify-end pr-0.5">
+												{filterDropdown}
+											</div>
 											{visibleRootIDs.length > 0 && (
 												<div
 													className={
