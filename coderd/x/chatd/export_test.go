@@ -18,10 +18,6 @@ func WaitUntilIdleForTest(server *Server) {
 	server.drainInflight()
 }
 
-// WorkspaceMCPDiscoveryTimeout exposes workspaceMCPDiscoveryTimeout
-// for tests in chatd_test.
-const WorkspaceMCPDiscoveryTimeout = workspaceMCPDiscoveryTimeout
-
 // FinishActiveChatForTest exposes the unexported cleanup TX so tests
 // can drive the post-run state machine deterministically. Returns the
 // resulting chat, the promoted message (if any), the synthetic

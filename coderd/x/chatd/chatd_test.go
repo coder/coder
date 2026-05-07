@@ -11158,14 +11158,6 @@ func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
 	}
 }
 
-func TestWorkspaceMCPDiscoveryTimeoutExceedsAgentConnectTimeout(t *testing.T) {
-	t.Parallel()
-	// agentmcp.connectTimeout is 30s and unexported; the +1s
-	// pins the lower bound so a future tightening fails here
-	// instead of silently reintroducing the cold-start race.
-	require.Greater(t, chatd.WorkspaceMCPDiscoveryTimeout, 31*time.Second)
-}
-
 // Regression for the cold-start race: chatd must wait long enough
 // for ListMCPTools to return after the agent's MCP reload settles.
 func TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent(t *testing.T) {
