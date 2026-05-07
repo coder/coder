@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 )
 
-func TestNormalizePushStatusLabel(t *testing.T) {
+func TestNormalizeTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -26,14 +26,20 @@ func TestNormalizePushStatusLabel(t *testing.T) {
 	}{
 		{
 			name:  "accepts short label",
-			input: "Finished unit tests",
-			want:  "Finished unit tests",
+			input: "Finished tests",
+			want:  "Finished tests",
 			ok:    true,
 		},
 		{
 			name:  "trims quotes and trailing punctuation",
 			input: `"Submitted PR."`,
 			want:  "Submitted PR",
+			ok:    true,
+		},
+		{
+			name:  "keeps version punctuation",
+			input: "Updated v2.1 config",
+			want:  "Updated v2.1 config",
 			ok:    true,
 		},
 		{
@@ -47,6 +53,16 @@ func TestNormalizePushStatusLabel(t *testing.T) {
 			ok:    false,
 		},
 		{
+			name:  "rejects multiline labels",
+			input: "Fixed bug\nAdded tests",
+			ok:    false,
+		},
+		{
+			name:  "rejects multi sentence labels",
+			input: "Fixed bug. Added tests",
+			ok:    false,
+		},
+		{
 			name:  "rejects long labels",
 			input: "Fixed the bug and added tests",
 			ok:    false,
@@ -57,14 +73,14 @@ func TestNormalizePushStatusLabel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := normalizePushStatusLabel(tt.input)
+			got, ok := normalizeTurnStatusLabel(tt.input)
 			require.Equal(t, tt.ok, ok)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestFallbackPushStatusLabel(t *testing.T) {
+func TestFallbackTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -81,7 +97,7 @@ func TestFallbackPushStatusLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.status), func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, fallbackPushStatusLabel(tt.status))
+			require.Equal(t, tt.want, fallbackTurnStatusLabel(tt.status))
 		})
 	}
 }
@@ -89,7 +105,7 @@ func TestFallbackPushStatusLabel(t *testing.T) {
 func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), Title: "status label"}
 
@@ -130,9 +146,9 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
 			FinalAssistantText: "Files are updated.",
 			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
-			StatusSignals: []TurnStatusSignal{{
+			StatusSignals: []turnStatusSignal{{
 				Label:      "Updated files",
-				Category:   string(turnStatusLabelSourceTool),
+				Source:     turnStatusLabelSourceTool,
 				Success:    true,
 				Confidence: 70,
 			}},
@@ -151,16 +167,31 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
 			FinalAssistantText: "Tests passed.",
 			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
-			StatusSignals: []TurnStatusSignal{{
-				Label:      "Finished unit tests",
-				Category:   string(turnStatusLabelSourceHeuristic),
+			StatusSignals: []turnStatusSignal{{
+				Label:      "Finished tests",
+				Source:     turnStatusLabelSourceHeuristic,
 				Success:    true,
 				Confidence: 100,
 			}},
 		}, logger)
 		require.Equal(t, turnStatusLabelResult{
-			Label:  "Finished unit tests",
+			Label:  "Finished tests",
 			Source: turnStatusLabelSourceHeuristic,
+		}, result)
+		require.Equal(t, int32(0), generateCalls.Load())
+	})
+
+	t.Run("empty assistant text falls back", func(t *testing.T) {
+		t.Parallel()
+
+		var generateCalls atomic.Int32
+		result := (&Server{}).deriveTurnStatusLabel(ctx, chat, database.ChatStatusWaiting, runChatResult{
+			FinalAssistantText: "   ",
+			PushSummaryModel:   countingStatusLabelModel(&generateCalls, "Submitted PR"),
+		}, logger)
+		require.Equal(t, turnStatusLabelResult{
+			Label:  "Finished latest turn",
+			Source: turnStatusLabelSourceFallback,
 		}, result)
 		require.Equal(t, int32(0), generateCalls.Load())
 	})
@@ -199,45 +230,175 @@ func TestDeriveTurnStatusLabelSourceSelection(t *testing.T) {
 func TestTurnStatusSignalsFromContent(t *testing.T) {
 	t.Parallel()
 
-	executeArgs, err := json.Marshal(map[string]string{"command": "go test ./coderd/x/chatd"})
-	require.NoError(t, err)
-	executeResult, err := json.Marshal(map[string]any{"success": true, "exit_code": 0})
-	require.NoError(t, err)
-	editResult, err := json.Marshal(map[string]any{"ok": true})
-	require.NoError(t, err)
-
-	signals := turnStatusSignalsFromContent([]fantasy.Content{
-		fantasy.ToolCallContent{
-			ToolCallID: "call-test",
-			ToolName:   "execute",
-			Input:      string(executeArgs),
-		},
-		fantasy.ToolResultContent{
-			ToolCallID: "call-test",
-			ToolName:   "execute",
-			Result:     fantasy.ToolResultOutputContentText{Text: string(executeResult)},
-		},
-		fantasy.ToolResultContent{
-			ToolCallID: "call-edit",
-			ToolName:   "edit_files",
-			Result:     fantasy.ToolResultOutputContentText{Text: string(editResult)},
-		},
-	})
-
-	require.Equal(t, []TurnStatusSignal{
+	tests := []struct {
+		name    string
+		content []fantasy.Content
+		want    []turnStatusSignal
+	}{
 		{
-			Label:      "Finished unit tests",
-			Category:   string(turnStatusLabelSourceHeuristic),
+			name:    "successful tests",
+			content: successfulExecuteToolContent(t, "call-test", "go test ./coderd/x/chatd"),
+			want: []turnStatusSignal{{
+				Label:      "Finished tests",
+				Source:     turnStatusLabelSourceHeuristic,
+				Success:    true,
+				Confidence: 100,
+			}},
+		},
+		{
+			name:    "failing tests",
+			content: failedExecuteToolContent(t, "call-test", "pytest"),
+			want: []turnStatusSignal{{
+				Label:      "Tests failing",
+				Source:     turnStatusLabelSourceHeuristic,
+				Success:    false,
+				Confidence: 100,
+			}},
+		},
+		{
+			name:    "created pr",
+			content: successfulExecuteToolContent(t, "call-pr", "gh pr create --fill"),
+			want: []turnStatusSignal{{
+				Label:      "Submitted PR",
+				Source:     turnStatusLabelSourceHeuristic,
+				Success:    true,
+				Confidence: 100,
+			}},
+		},
+		{
+			name:    "created commit",
+			content: successfulExecuteToolContent(t, "call-commit", "git commit -m change"),
+			want: []turnStatusSignal{{
+				Label:      "Created commit",
+				Source:     turnStatusLabelSourceHeuristic,
+				Success:    true,
+				Confidence: 100,
+			}},
+		},
+		{
+			name: "updated files",
+			content: []fantasy.Content{
+				toolResultContent(t, "call-edit", "edit_files", map[string]any{"ok": true}),
+			},
+			want: []turnStatusSignal{{
+				Label:      "Updated files",
+				Source:     turnStatusLabelSourceTool,
+				Success:    true,
+				Confidence: 70,
+			}},
+		},
+		{
+			name: "provider executed result is ignored",
+			content: []fantasy.Content{
+				func() fantasy.ToolResultContent {
+					result := toolResultContent(t, "call-edit", "edit_files", map[string]any{"ok": true})
+					result.ProviderExecuted = true
+					return result
+				}(),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, turnStatusSignalsFromContent(tt.content))
+		})
+	}
+}
+
+func TestSelectTurnStatusSignalUsesLatestEqualConfidence(t *testing.T) {
+	t.Parallel()
+
+	signal, ok := selectTurnStatusSignal([]turnStatusSignal{
+		{
+			Label:      "Submitted PR",
+			Source:     turnStatusLabelSourceHeuristic,
 			Success:    true,
 			Confidence: 100,
 		},
 		{
-			Label:      "Updated files",
-			Category:   string(turnStatusLabelSourceTool),
+			Label:      "Finished tests",
+			Source:     turnStatusLabelSourceHeuristic,
 			Success:    true,
-			Confidence: 70,
+			Confidence: 100,
 		},
-	}, signals)
+	})
+	require.True(t, ok)
+	require.Equal(t, turnStatusSignal{
+		Label:      "Finished tests",
+		Source:     turnStatusLabelSourceHeuristic,
+		Success:    true,
+		Confidence: 100,
+	}, signal)
+}
+
+func TestIsTestCommand(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+		want    bool
+	}{
+		{name: "go test", command: "go test ./...", want: true},
+		{name: "pnpm test", command: "pnpm test", want: true},
+		{name: "npm run test", command: "npm run test", want: true},
+		{name: "pytest", command: "pytest -q", want: true},
+		{name: "after shell separator", command: "cd site && pnpm test", want: true},
+		{name: "pytest as argument", command: "pip install pytest", want: false},
+		{name: "make testing", command: "make testing", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, isTestCommand(tt.command))
+		})
+	}
+}
+
+func successfulExecuteToolContent(t *testing.T, callID string, command string) []fantasy.Content {
+	t.Helper()
+	return executeToolContent(t, callID, command, map[string]any{
+		"success":   true,
+		"exit_code": 0,
+	})
+}
+
+func failedExecuteToolContent(t *testing.T, callID string, command string) []fantasy.Content {
+	t.Helper()
+	return executeToolContent(t, callID, command, map[string]any{
+		"success":   false,
+		"exit_code": 1,
+	})
+}
+
+func executeToolContent(t *testing.T, callID string, command string, payload map[string]any) []fantasy.Content {
+	t.Helper()
+
+	executeArgs, err := json.Marshal(map[string]string{"command": command})
+	require.NoError(t, err)
+	return []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID: callID,
+			ToolName:   "execute",
+			Input:      string(executeArgs),
+		},
+		toolResultContent(t, callID, "execute", payload),
+	}
+}
+
+func toolResultContent(t *testing.T, callID string, toolName string, payload map[string]any) fantasy.ToolResultContent {
+	t.Helper()
+
+	result, err := json.Marshal(payload)
+	require.NoError(t, err)
+	return fantasy.ToolResultContent{
+		ToolCallID: callID,
+		ToolName:   toolName,
+		Result:     fantasy.ToolResultOutputContentText{Text: string(result)},
+	}
 }
 
 func countingStatusLabelModel(calls *atomic.Int32, label string) fantasy.LanguageModel {

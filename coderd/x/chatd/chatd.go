@@ -5941,7 +5941,7 @@ type runChatResult struct {
 	PushSummaryModel        fantasy.LanguageModel
 	ProviderKeys            chatprovider.ProviderAPIKeys
 	PendingDynamicToolCalls []chatloop.PendingToolCall
-	StatusSignals           []TurnStatusSignal
+	StatusSignals           []turnStatusSignal
 	FallbackProvider        string
 	FallbackModel           string
 	TriggerMessageID        int64
@@ -6864,7 +6864,7 @@ func (p *Server) runChat(
 	modelConfigContextLimit := modelConfig.ContextLimit
 	var finalAssistantText string
 	var pendingDynamicCalls []chatloop.PendingToolCall
-	var statusSignals []TurnStatusSignal
+	var statusSignals []turnStatusSignal
 
 	compactionHistoryTipMessageID := int64(0)
 	if len(messages) > 0 {
@@ -8672,7 +8672,7 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 		}
 
 	case database.ChatStatusRequiresAction:
-		p.setLastTurnSummaryAsync(ctx, chat, fallbackPushStatusLabel(status), logger)
+		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
 
 	default:
 		// New statuses must be classified before they can safely
@@ -8745,7 +8745,7 @@ func (p *Server) dispatchSuccessfulTurnPush(
 	if !p.webpushConfigured() {
 		return
 	}
-	pushBody := "Agent has finished running."
+	pushBody := fallbackTurnStatusLabel(database.ChatStatusWaiting)
 	if summary != "" {
 		pushBody = summary
 	}

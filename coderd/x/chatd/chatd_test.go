@@ -6526,7 +6526,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I have completed the task successfully and all tests are passing now."
-	const summaryText = "Finished unit tests"
+	const summaryText = "Finished tests"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -6580,13 +6580,11 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 
 	msg := mockPush.getLastMessage()
 	require.Equal(t, summaryText, fromDB.LastTurnSummary.String,
-		"last turn summary should be the LLM-generated summary")
+		"last turn summary should be the LLM-generated status label")
 	require.Equal(t, fromDB.LastTurnSummary.String, msg.Body,
-		"push body should reuse the persisted generated summary")
-	require.NotEqual(t, "Agent has finished running.", msg.Body,
-		"push body should not use the default fallback text")
+		"push body should reuse the persisted generated status label")
 	require.Equal(t, int32(1), nonStreamingRequests.Load(),
-		"expected exactly one non-streaming request for push summary generation")
+		"expected exactly one non-streaming request for status label generation")
 }
 
 func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
@@ -6631,9 +6629,9 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 	}, testutil.IntervalFast)
 
 	require.Equal(t, summaryText, fromDB.LastTurnSummary.String,
-		"summary should persist even when web push is unavailable")
+		"status label should persist even when web push is unavailable")
 	require.Equal(t, int32(1), nonStreamingRequests.Load(),
-		"expected exactly one non-streaming request for summary generation")
+		"expected exactly one non-streaming request for status label generation")
 }
 
 func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t *testing.T) {
@@ -6646,7 +6644,7 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse("unexpected summary request")
+			return chattest.OpenAINonStreamingResponse("unexpected status label request")
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("   ")...,
@@ -6690,14 +6688,14 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.False(t, fromDB.LastTurnSummary.Valid,
-		"fallback push text should not be persisted")
+	require.Equal(t, sql.NullString{String: "Finished latest turn", Valid: true}, fromDB.LastTurnSummary,
+		"fallback status label should be persisted")
 
 	msg := mockPush.getLastMessage()
-	require.Equal(t, "Agent has finished running.", msg.Body,
+	require.Equal(t, "Finished latest turn", msg.Body,
 		"push body should fall back when the final assistant text is empty")
 	require.Equal(t, int32(0), nonStreamingRequests.Load(),
-		"push summary should not be requested when final assistant text has no usable text")
+		"status label model should not run when final assistant text has no usable text")
 }
 
 func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {

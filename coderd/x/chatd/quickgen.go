@@ -802,21 +802,21 @@ func generateManualTitle(
 	return title, usage, nil
 }
 
-const pushSummaryPrompt = "You write compact chat status labels for a sidebar or push notification. " +
+const turnStatusLabelPrompt = "You write compact chat status labels for a sidebar or push notification. " +
 	"Given a chat title, current chat state, and the agent's latest message, return a 2-5 word status label. " +
 	"Describe the chat's current state, not the agent. " +
-	"Good examples: Finished unit tests, Submitted PR, Still working on API, Waiting for user input. " +
+	"Good examples: Finished tests, Submitted PR, Still working on API, Waiting for user input. " +
 	"Do not start with Agent, I, We, It, The agent, or The chat. " +
 	"Avoid phrases like Agent asked, Agent identified, Agent found, or Agent explained. " +
 	"Prefer short action or state phrases such as Finished tests, Submitted PR, Fixed bug, Testing changes, Still working, or Waiting for. " +
 	"Return plain text only, no quotes, no emoji, no markdown."
 
-// generatePushSummary calls a cheap model to produce a short status
+// generateTurnStatusLabel calls a cheap model to produce a short status
 // label from the chat title, current state, and last assistant
 // message text. It follows the same candidate-selection strategy
 // as title generation: try preferred lightweight models first, then
 // fall back to the provided model. Returns "" on any failure.
-func generatePushSummary(
+func generateTurnStatusLabel(
 	ctx context.Context,
 	chat database.Chat,
 	status database.ChatStatus,
@@ -832,11 +832,11 @@ func generatePushSummary(
 ) string {
 	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 
-	summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	labelCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	assistantText = truncateRunes(assistantText, maxConversationContextRunes)
-	input := "Current chat state: " + pushSummaryStatusContext(status) +
+	input := "Current chat state: " + turnStatusLabelStateContext(status) +
 		"\nChat title: " + chat.Title +
 		"\n\nAgent's latest message:\n" + assistantText
 
@@ -861,15 +861,15 @@ func generatePushSummary(
 		lm:       fallbackModel,
 	})
 
-	pushSeedSummary := chatdebug.SeedSummary("Push summary")
+	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
 
 	for _, candidate := range candidates {
-		candidateCtx := summaryCtx
+		candidateCtx := labelCtx
 		candidateModel := candidate.lm
 		finishDebugRun := func(error) {}
 		if debugEnabled {
 			candidateCtx, candidateModel, finishDebugRun = prepareQuickgenDebugCandidate(
-				summaryCtx,
+				labelCtx,
 				chat,
 				keys,
 				debugSvc,
@@ -877,40 +877,40 @@ func generatePushSummary(
 				chatdebug.KindQuickgen,
 				triggerMessageID,
 				historyTipMessageID,
-				pushSeedSummary,
+				statusSeedSummary,
 				logger,
 			)
 		}
 
-		summary, err := generateShortText(
+		generatedLabel, err := generateShortText(
 			candidateCtx,
 			candidateModel,
-			pushSummaryPrompt,
+			turnStatusLabelPrompt,
 			input,
 		)
 		finishDebugRun(err)
 		if err != nil {
-			logger.Debug(ctx, "push summary model candidate failed",
+			logger.Debug(ctx, "turn status label model candidate failed",
 				slog.Error(err),
 			)
 			continue
 		}
-		if summary == "" {
+		if generatedLabel == "" {
 			continue
 		}
-		label, ok := normalizePushStatusLabel(summary)
+		label, ok := normalizeTurnStatusLabel(generatedLabel)
 		if !ok {
-			logger.Debug(ctx, "push summary model candidate returned invalid status label",
-				slog.F("label_length", len(summary)),
+			logger.Debug(ctx, "turn status label model candidate returned invalid label",
+				slog.F("label_length", len(generatedLabel)),
 			)
-			return ""
+			continue
 		}
 		return label
 	}
 	return ""
 }
 
-func pushSummaryStatusContext(status database.ChatStatus) string {
+func turnStatusLabelStateContext(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "The turn finished and the chat is idle."
@@ -925,7 +925,7 @@ func pushSummaryStatusContext(status database.ChatStatus) string {
 	}
 }
 
-func normalizePushStatusLabel(text string) (string, bool) {
+func normalizeTurnStatusLabel(text string) (string, bool) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return "", false
@@ -933,15 +933,12 @@ func normalizePushStatusLabel(text string) (string, bool) {
 
 	text = strings.Trim(text, "\"'`")
 	text = strings.TrimSpace(text)
+	if text == "" || strings.ContainsAny(text, "\r\n") {
+		return "", false
+	}
 	text = strings.TrimRight(text, ".!?")
 	text = strings.Join(strings.Fields(text), " ")
-	if text == "" {
-		return "", false
-	}
-	if strings.Contains(text, "\n") {
-		return "", false
-	}
-	if strings.Count(text, ".") > 0 || strings.Count(text, "!") > 0 || strings.Count(text, "?") > 0 {
+	if text == "" || hasSentenceBoundary(text) {
 		return "", false
 	}
 
@@ -978,6 +975,18 @@ func normalizePushStatusLabel(text string) (string, bool) {
 	}
 
 	return text, true
+}
+
+func hasSentenceBoundary(text string) bool {
+	for i, r := range text {
+		switch r {
+		case '.', '!', '?':
+			if i+1 < len(text) && text[i+1] == ' ' {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // generateShortText calls a model with a system prompt and user

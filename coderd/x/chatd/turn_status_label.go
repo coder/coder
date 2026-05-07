@@ -29,10 +29,9 @@ type turnStatusLabelResult struct {
 	Source turnStatusLabelSource
 }
 
-// TurnStatusSignal records a high-confidence status label from a turn event.
-type TurnStatusSignal struct {
+type turnStatusSignal struct {
 	Label      string
-	Category   string
+	Source     turnStatusLabelSource
 	Success    bool
 	Confidence int
 }
@@ -51,16 +50,19 @@ func (p *Server) deriveTurnStatusLabel(
 	if signal, ok := selectTurnStatusSignal(runResult.StatusSignals); ok {
 		return turnStatusLabelResult{
 			Label:  signal.Label,
-			Source: turnStatusSignalSource(signal),
+			Source: signal.Source,
 		}
 	}
 
 	assistantText := strings.TrimSpace(runResult.FinalAssistantText)
 	if assistantText == "" || runResult.PushSummaryModel == nil {
-		return turnStatusLabelResult{}
+		return turnStatusLabelResult{
+			Label:  fallbackTurnStatusLabel(status),
+			Source: turnStatusLabelSourceFallback,
+		}
 	}
 
-	label := generatePushSummary(
+	label := generateTurnStatusLabel(
 		ctx,
 		chat,
 		status,
@@ -78,23 +80,21 @@ func (p *Server) deriveTurnStatusLabel(
 		return turnStatusLabelResult{Label: label, Source: turnStatusLabelSourceLLM}
 	}
 	return turnStatusLabelResult{
-		Label:  fallbackPushStatusLabel(status),
+		Label:  fallbackTurnStatusLabel(status),
 		Source: turnStatusLabelSourceFallback,
 	}
 }
 
 func forcedTurnStatusLabel(status database.ChatStatus) string {
 	switch status {
-	case database.ChatStatusPending:
-		return "Still working on request"
-	case database.ChatStatusRequiresAction:
-		return "Waiting for user input"
+	case database.ChatStatusPending, database.ChatStatusRequiresAction:
+		return fallbackTurnStatusLabel(status)
 	default:
 		return ""
 	}
 }
 
-func fallbackPushStatusLabel(status database.ChatStatus) string {
+func fallbackTurnStatusLabel(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "Finished latest turn"
@@ -109,14 +109,19 @@ func fallbackPushStatusLabel(status database.ChatStatus) string {
 	}
 }
 
-func selectTurnStatusSignal(signals []TurnStatusSignal) (TurnStatusSignal, bool) {
-	var best TurnStatusSignal
+func selectTurnStatusSignal(signals []turnStatusSignal) (turnStatusSignal, bool) {
+	var best turnStatusSignal
 	for _, signal := range signals {
-		label, ok := normalizePushStatusLabel(signal.Label)
+		label, ok := normalizeTurnStatusLabel(signal.Label)
 		if !ok || signal.Confidence < minTurnStatusSignalConfidence {
 			continue
 		}
 		signal.Label = label
+		if signal.Source == "" {
+			signal.Source = turnStatusLabelSourceTool
+		}
+		// Later signals win confidence ties because they better represent the
+		// current turn state after earlier actions have completed.
 		if best.Label == "" || signal.Confidence >= best.Confidence {
 			best = signal
 		}
@@ -124,16 +129,7 @@ func selectTurnStatusSignal(signals []TurnStatusSignal) (TurnStatusSignal, bool)
 	return best, best.Label != ""
 }
 
-func turnStatusSignalSource(signal TurnStatusSignal) turnStatusLabelSource {
-	switch signal.Category {
-	case string(turnStatusLabelSourceHeuristic):
-		return turnStatusLabelSourceHeuristic
-	default:
-		return turnStatusLabelSourceTool
-	}
-}
-
-func turnStatusSignalsFromContent(content []fantasy.Content) []TurnStatusSignal {
+func turnStatusSignalsFromContent(content []fantasy.Content) []turnStatusSignal {
 	toolCalls := make(map[string]fantasy.ToolCallContent)
 	for _, block := range content {
 		if tc, ok := contentToolCall(block); ok {
@@ -141,7 +137,7 @@ func turnStatusSignalsFromContent(content []fantasy.Content) []TurnStatusSignal 
 		}
 	}
 
-	var signals []TurnStatusSignal
+	var signals []turnStatusSignal
 	for _, block := range content {
 		tr, ok := contentToolResult(block)
 		if !ok || tr.ProviderExecuted {
@@ -177,93 +173,93 @@ func contentToolResult(block fantasy.Content) (fantasy.ToolResultContent, bool) 
 func turnStatusSignalFromToolResult(
 	toolCall fantasy.ToolCallContent,
 	toolResult fantasy.ToolResultContent,
-) (TurnStatusSignal, bool) {
+) (turnStatusSignal, bool) {
 	switch toolResult.ToolName {
 	case "execute":
 		return executeTurnStatusSignal(toolCall, toolResult)
 	case "edit_files", "write_file":
 		return fileUpdateTurnStatusSignal(toolResult)
 	default:
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 }
 
 func executeTurnStatusSignal(
 	toolCall fantasy.ToolCallContent,
 	toolResult fantasy.ToolResultContent,
-) (TurnStatusSignal, bool) {
+) (turnStatusSignal, bool) {
 	if toolCall.ToolCallID == "" {
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 
 	var args chattool.ExecuteArgs
 	if err := json.Unmarshal([]byte(toolCall.Input), &args); err != nil {
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 	command := strings.TrimSpace(args.Command)
 	if command == "" {
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 
 	resultText, isToolError := toolResultText(toolResult)
 	if isToolError {
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 	var result chattool.ExecuteResult
 	if err := json.Unmarshal([]byte(resultText), &result); err != nil {
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 
 	switch {
 	case isPRCreateCommand(command) && result.Success:
-		return TurnStatusSignal{
+		return turnStatusSignal{
 			Label:      "Submitted PR",
-			Category:   string(turnStatusLabelSourceHeuristic),
+			Source:     turnStatusLabelSourceHeuristic,
 			Success:    true,
 			Confidence: 100,
 		}, true
 	case isTestCommand(command):
 		if result.Success {
-			return TurnStatusSignal{
-				Label:      "Finished unit tests",
-				Category:   string(turnStatusLabelSourceHeuristic),
+			return turnStatusSignal{
+				Label:      "Finished tests",
+				Source:     turnStatusLabelSourceHeuristic,
 				Success:    true,
 				Confidence: 100,
 			}, true
 		}
-		return TurnStatusSignal{
+		return turnStatusSignal{
 			Label:      "Tests failing",
-			Category:   string(turnStatusLabelSourceHeuristic),
+			Source:     turnStatusLabelSourceHeuristic,
 			Success:    false,
 			Confidence: 100,
 		}, true
 	case isGitCommitCommand(command) && result.Success:
-		return TurnStatusSignal{
+		return turnStatusSignal{
 			Label:      "Created commit",
-			Category:   string(turnStatusLabelSourceHeuristic),
+			Source:     turnStatusLabelSourceHeuristic,
 			Success:    true,
-			Confidence: 90,
+			Confidence: 100,
 		}, true
 	default:
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 }
 
-func fileUpdateTurnStatusSignal(toolResult fantasy.ToolResultContent) (TurnStatusSignal, bool) {
+func fileUpdateTurnStatusSignal(toolResult fantasy.ToolResultContent) (turnStatusSignal, bool) {
 	resultText, isToolError := toolResultText(toolResult)
 	if isToolError {
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
 
 	var payload struct {
 		OK bool `json:"ok"`
 	}
 	if err := json.Unmarshal([]byte(resultText), &payload); err != nil || !payload.OK {
-		return TurnStatusSignal{}, false
+		return turnStatusSignal{}, false
 	}
-	return TurnStatusSignal{
+	return turnStatusSignal{
 		Label:      "Updated files",
-		Category:   string(turnStatusLabelSourceTool),
+		Source:     turnStatusLabelSourceTool,
 		Success:    true,
 		Confidence: 70,
 	}, true
@@ -288,41 +284,72 @@ func toolResultText(toolResult fantasy.ToolResultContent) (string, bool) {
 }
 
 func isPRCreateCommand(command string) bool {
-	fields := strings.Fields(command)
-	for i := 0; i+2 < len(fields); i++ {
-		if fields[i] == "gh" && fields[i+1] == "pr" && fields[i+2] == "create" {
-			return true
-		}
-	}
-	return false
+	return isCommandInvocation(command, "gh", "pr", "create")
 }
 
 func isGitCommitCommand(command string) bool {
-	fields := strings.Fields(command)
-	for i := 0; i+1 < len(fields); i++ {
-		if fields[i] == "git" && fields[i+1] == "commit" {
+	return isCommandInvocation(command, "git", "commit")
+}
+
+func isTestCommand(command string) bool {
+	testCommands := [][]string{
+		{"go", "test"},
+		{"npm", "test"},
+		{"npm", "run", "test"},
+		{"pnpm", "test"},
+		{"pnpm", "run", "test"},
+		{"yarn", "test"},
+		{"yarn", "run", "test"},
+		{"pytest"},
+		{"vitest"},
+		{"cargo", "test"},
+		{"make", "test"},
+	}
+	for _, tokens := range testCommands {
+		if isCommandInvocation(command, tokens...) {
 			return true
 		}
 	}
 	return false
 }
 
-func isTestCommand(command string) bool {
-	command = strings.ToLower(command)
-	patterns := []string{
-		"go test",
-		"npm test",
-		"pnpm test",
-		"yarn test",
-		"pytest",
-		"vitest",
-		"cargo test",
-		"make test",
-	}
-	for _, pattern := range patterns {
-		if strings.Contains(command, pattern) {
+func isCommandInvocation(command string, tokens ...string) bool {
+	fields := normalizedCommandFields(command)
+	for i := 0; i+len(tokens) <= len(fields); i++ {
+		if i > 0 && !isShellCommandSeparator(fields[i-1]) {
+			continue
+		}
+		matched := true
+		for j, token := range tokens {
+			if fields[i+j] != token {
+				matched = false
+				break
+			}
+		}
+		if matched {
 			return true
 		}
 	}
 	return false
+}
+
+func normalizedCommandFields(command string) []string {
+	fields := strings.Fields(strings.ToLower(command))
+	for i, field := range fields {
+		field = strings.Trim(field, "\"'`")
+		if field != ";" {
+			field = strings.TrimRight(field, ";")
+		}
+		fields[i] = field
+	}
+	return fields
+}
+
+func isShellCommandSeparator(field string) bool {
+	switch field {
+	case "&&", "||", ";":
+		return true
+	default:
+		return false
+	}
 }
