@@ -101,8 +101,7 @@ func TestTemplateEdit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
-
-		require.ErrorContains(t, err, "not modified")
+		require.NoError(t, err)
 
 		// Assert that the template metadata did not change.
 		updated, err := client.Template(context.Background(), template.ID)
@@ -313,15 +312,6 @@ func TestTemplateEdit(t *testing.T) {
 
 					ctx := testutil.Context(t, testutil.WaitLong)
 					err := inv.WithContext(ctx).Run()
-
-					if err != nil && strings.Contains(err.Error(), "template metadata not modified") {
-						// Either a successful no-op or a 304 Not Modified is
-						// acceptable: the request itself is allowed (it does not
-						// require enterprise entitlement), and AGPL silently
-						// ignores enterprise-only schedule fields, so the
-						// effective template state is unchanged.
-						err = nil
-					}
 					if c.ok {
 						require.NoError(t, err)
 					} else {
@@ -438,14 +428,6 @@ func TestTemplateEdit(t *testing.T) {
 
 					ctx := testutil.Context(t, testutil.WaitLong)
 					err := inv.WithContext(ctx).Run()
-					if err != nil && strings.Contains(err.Error(), "template metadata not modified") {
-						// Either a successful no-op or a 304 Not Modified is
-						// acceptable: the request itself is allowed (it does not
-						// require enterprise entitlement), and AGPL silently
-						// ignores enterprise-only schedule fields, so the
-						// effective template state is unchanged.
-						err = nil
-					}
 					if c.ok {
 						require.NoError(t, err)
 					} else {

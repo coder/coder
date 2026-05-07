@@ -2,7 +2,6 @@ package coderdtest
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -125,9 +124,6 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 		tpl, err = client.UpdateTemplateMeta(t.Context(), args.TemplateID, codersdk.UpdateTemplateMeta{
 			UseClassicParameterFlow: ptr.Ref(false),
 		})
-		if err != nil && strings.Contains(err.Error(), "template metadata not modified") {
-			err = nil
-		}
 		require.NoError(t, err)
 
 		tpl, err = client.Template(t.Context(), args.TemplateID)

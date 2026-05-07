@@ -357,7 +357,13 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotModified {
-		return Template{}, xerrors.New("template metadata not modified")
+		// If there is no change, return the original template. This is required because
+		// the golang web server is unable to respond with a 304 and a body.
+		tpl, tplErr := c.Template(ctx, templateID)
+		if tplErr != nil {
+			return Template{}, xerrors.Errorf("fetch template after not modified response: %w", tplErr)
+		}
+		return tpl, nil
 	}
 	if res.StatusCode != http.StatusOK {
 		return Template{}, ReadBodyAsError(res)

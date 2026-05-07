@@ -1262,9 +1262,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		_, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 		})
-		if err != nil && strings.Contains(err.Error(), "template metadata not modified") {
-			err = nil
-		}
 		require.NoError(t, err)
 
 		// Simlute the workspace breaching the threshold.
