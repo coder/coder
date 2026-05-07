@@ -16,6 +16,7 @@ overrides:
   flatted: 3.4.2
   playwright: 1.55.1
   lodash: 4.18.1
+  lodash-es: 4.18.0
   minimatch: 9.0.7
   glob: 10.5.0
   mdast-util-to-hast: 13.2.1
@@ -4426,11 +4427,9 @@ packages:
   lines-and-columns@1.2.4:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==, tarball: https://registry.npmjs.org/lines-and-columns/-/lines-and-columns-1.2.4.tgz}
 
-  lodash-es@4.17.21:
-    resolution: {integrity: sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==, tarball: https://registry.npmjs.org/lodash-es/-/lodash-es-4.17.21.tgz}
-
-  lodash-es@4.17.23:
-    resolution: {integrity: sha512-kVI48u3PZr38HdYz98UmfPnXl2DXrpdctLrFLCd3kOx1xUkOmpFPx7gCWWM5MPkL/fD8zb+Ph0QzjGFs4+hHWg==, tarball: https://registry.npmjs.org/lodash-es/-/lodash-es-4.17.23.tgz}
+  lodash-es@4.18.0:
+    resolution: {integrity: sha512-koAgswPPA+UTaPN64Etp+PGP+WT6oqOS2NMi5yDkMaiGw9qY4VxQbQF0mtKMyr4BlTznWyzePV5UpECTJQmSUA==, tarball: https://registry.npmjs.org/lodash-es/-/lodash-es-4.18.0.tgz}
+    deprecated: Bad release. Please use lodash-es@4.17.23 instead.
 
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==, tarball: https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz}
@@ -6542,12 +6541,12 @@ snapshots:
     dependencies:
       '@chevrotain/gast': 11.1.2
       '@chevrotain/types': 11.1.2
-      lodash-es: 4.17.23
+      lodash-es: 4.18.0
 
   '@chevrotain/gast@11.1.2':
     dependencies:
       '@chevrotain/types': 11.1.2
-      lodash-es: 4.17.23
+      lodash-es: 4.18.0
 
   '@chevrotain/regexp-to-ast@11.1.2': {}
 
@@ -9135,7 +9134,7 @@ snapshots:
   chevrotain-allstar@0.3.1(chevrotain@11.1.2):
     dependencies:
       chevrotain: 11.1.2
-      lodash-es: 4.17.23
+      lodash-es: 4.18.0
 
   chevrotain@11.1.2:
     dependencies:
@@ -9144,7 +9143,7 @@ snapshots:
       '@chevrotain/regexp-to-ast': 11.1.2
       '@chevrotain/types': 11.1.2
       '@chevrotain/utils': 11.1.2
-      lodash-es: 4.17.23
+      lodash-es: 4.18.0
 
   chokidar@3.6.0:
     dependencies:
@@ -9493,7 +9492,7 @@ snapshots:
   dagre-d3-es@7.0.14:
     dependencies:
       d3: 7.9.0
-      lodash-es: 4.17.23
+      lodash-es: 4.18.0
 
   data-urls@6.0.0:
     dependencies:
@@ -9882,7 +9881,7 @@ snapshots:
       deepmerge: 2.2.1
       hoist-non-react-statics: 3.3.2
       lodash: 4.18.1
-      lodash-es: 4.17.21
+      lodash-es: 4.18.0
       react: 19.2.5
       react-fast-compare: 2.0.4
       tiny-warning: 1.0.3
@@ -10505,9 +10504,7 @@ snapshots:
 
   lines-and-columns@1.2.4: {}
 
-  lodash-es@4.17.21: {}
-
-  lodash-es@4.17.23: {}
+  lodash-es@4.18.0: {}
 
   lodash@4.18.1: {}
 
@@ -10745,7 +10742,7 @@ snapshots:
       dompurify: 3.4.0
       katex: 0.16.40
       khroma: 2.1.0
-      lodash-es: 4.17.23
+      lodash-es: 4.18.0
       marked: 16.4.2
       roughjs: 4.6.6
       stylis: 4.3.6
@@ -11460,7 +11457,7 @@ snapshots:
     dependencies:
       '@icons/material': 0.2.4(react@19.2.5)
       lodash: 4.18.1
-      lodash-es: 4.17.21
+      lodash-es: 4.18.0
       material-colors: 1.2.6
       prop-types: 15.8.1
       react: 19.2.5

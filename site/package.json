@@ -208,6 +208,7 @@
 			"flatted": "3.4.2",
 			"playwright": "1.55.1",
 			"lodash": "4.18.1",
+			"lodash-es": "4.18.0",
 			"minimatch": "9.0.7",
 			"glob": "10.5.0",
 			"mdast-util-to-hast": "13.2.1",
