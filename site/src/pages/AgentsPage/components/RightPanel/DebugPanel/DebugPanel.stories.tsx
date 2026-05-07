@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import type { Mock } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DebugPanel } from "./DebugPanel";
@@ -513,6 +514,21 @@ const meta: Meta<typeof DebugPanel> = {
 export default meta;
 type Story = StoryObj<typeof DebugPanel>;
 
+const getLastDownloadCall = (download: unknown): [Blob, string] => {
+	const lastCall = (download as Mock).mock.lastCall;
+	if (!lastCall) {
+		throw new Error("Expected debug export download to be called.");
+	}
+	const [blob, filename] = lastCall;
+	if (!(blob instanceof Blob)) {
+		throw new Error("Expected debug export download to receive a Blob.");
+	}
+	if (typeof filename !== "string") {
+		throw new Error("Expected debug export download to receive a filename.");
+	}
+	return [blob, filename];
+};
+
 export const Empty: Story = {
 	parameters: {
 		queries: [
@@ -743,6 +759,107 @@ export const SingleStepSuccessfulRun: Story = {
 			).toBeVisible();
 		});
 	},
+};
+
+export const ExportAllRuns: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					makeRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+					makeRunSummary({
+						id: richRunDetail.id,
+						summary: richRunDetail.summary,
+					}),
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		const [blob, filename] = getLastDownloadCall(args.download);
+		expect(filename).toMatch(/^coder-agents-debug-chat-debug-ch-.*\.json$/);
+		expect(blob.type).toBe("application/json");
+
+		const payload = JSON.parse(await blob.text());
+		expect(payload).toMatchObject({
+			version: 1,
+			scope: "chat",
+			chat_id: CHAT_ID,
+			run_count: 2,
+			limited_to_most_recent: 100,
+		});
+		expect(payload.runs).toHaveLength(2);
+		expect(payload.runs[0].steps).toHaveLength(1);
+	},
+};
+
+export const ExportSingleRun: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					makeRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+				],
+			},
+			{
+				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				data: successfulRunDetail,
+			},
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(
+			await canvas.findByRole("button", { name: "Export this run" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		const [blob, filename] = getLastDownloadCall(args.download);
+		expect(filename).toMatch(/^coder-agents-debug-run-run-1-.*\.json$/);
+		expect(blob.type).toBe("application/json");
+
+		const payload = JSON.parse(await blob.text());
+		expect(payload).toMatchObject({
+			version: 1,
+			scope: "run",
+			chat_id: CHAT_ID,
+			run_id: successfulRunDetail.id,
+		});
+		expect(payload.run.steps).toHaveLength(1);
+	},
+};
+
+export const ExportAllRunsDogfood: Story = {
+	parameters: ExportAllRuns.parameters,
+};
+
+export const ExportSingleRunDogfood: Story = {
+	parameters: ExportSingleRun.parameters,
 };
 
 export const MultiStepRunWithRetries: Story = {

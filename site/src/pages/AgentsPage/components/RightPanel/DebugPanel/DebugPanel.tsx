@@ -1,20 +1,33 @@
-import type { FC, ReactNode } from "react";
-import { useQuery } from "react-query";
-import { getErrorMessage } from "#/api/errors";
-import { chatDebugRuns } from "#/api/queries/chats";
+import { saveAs } from "file-saver";
+import { DownloadIcon } from "lucide-react";
+import { type FC, type ReactNode, useState } from "react";
+import { useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { chatDebugRun, chatDebugRuns } from "#/api/queries/chats";
+import type { ChatDebugRunSummary } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { DebugRunList } from "./DebugRunList";
+import {
+	buildChatDebugExport,
+	buildDebugExportBlob,
+	type DownloadDebugFile,
+	debugExportFilename,
+} from "./debugExport";
 
 interface DebugPanelProps {
 	chatId: string;
 	isVisible?: boolean;
+	download?: DownloadDebugFile;
 }
 
 export const DebugPanel: FC<DebugPanelProps> = ({
 	chatId,
 	isVisible = false,
+	download = saveAs,
 }) => {
 	const runsQuery = useQuery({
 		...chatDebugRuns(chatId),
@@ -83,7 +96,17 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 		content = (
 			<>
 				{refreshWarning}
-				<DebugRunList runs={sortedRuns} chatId={chatId} isVisible={isVisible} />
+				<ExportAllDebugRunsButton
+					chatId={chatId}
+					runs={sortedRuns}
+					download={download}
+				/>
+				<DebugRunList
+					runs={sortedRuns}
+					chatId={chatId}
+					isVisible={isVisible}
+					download={download}
+				/>
 			</>
 		);
 	}
@@ -98,5 +121,63 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 				{content}
 			</div>
 		</ScrollArea>
+	);
+};
+
+interface ExportAllDebugRunsButtonProps {
+	chatId: string;
+	runs: readonly ChatDebugRunSummary[];
+	download: DownloadDebugFile;
+}
+
+const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
+	chatId,
+	runs,
+	download,
+}) => {
+	const queryClient = useQueryClient();
+	const [isExporting, setIsExporting] = useState(false);
+
+	return (
+		<div className="flex justify-end px-4 pt-4">
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={isExporting || runs.length === 0}
+				onClick={async () => {
+					setIsExporting(true);
+					try {
+						const runDetails = await Promise.all(
+							runs.map((run) =>
+								queryClient.fetchQuery(chatDebugRun(chatId, run.id)),
+							),
+						);
+						const exportedAt = new Date();
+						const payload = buildChatDebugExport(
+							chatId,
+							runDetails,
+							exportedAt,
+						);
+						await download(
+							buildDebugExportBlob(payload),
+							debugExportFilename({ chatId, exportedAt }),
+						);
+					} catch (error) {
+						console.error(error);
+						toast.error("Failed to export debug logs.", {
+							description: getErrorDetail(error),
+						});
+					}
+					setIsExporting(false);
+				}}
+			>
+				{isExporting ? (
+					<Spinner size="sm" loading />
+				) : (
+					<DownloadIcon className="size-4" />
+				)}
+				Export debug logs
+			</Button>
+		</div>
 	);
 };

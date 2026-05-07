@@ -1,11 +1,14 @@
-import { ChevronDownIcon } from "lucide-react";
+import { saveAs } from "file-saver";
+import { ChevronDownIcon, DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { getErrorMessage } from "#/api/errors";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatDebugRun } from "#/api/queries/chats";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -14,6 +17,12 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { DebugStepCard } from "./DebugStepCard";
+import {
+	buildDebugExportBlob,
+	buildRunDebugExport,
+	type DownloadDebugFile,
+	debugExportFilename,
+} from "./debugExport";
 import {
 	clampContent,
 	coerceRunSummary,
@@ -29,6 +38,7 @@ interface DebugRunCardProps {
 	run: ChatDebugRunSummary;
 	chatId: string;
 	isVisible: boolean;
+	download?: DownloadDebugFile;
 }
 
 // Max characters shown in the run header label before truncation.
@@ -43,8 +53,10 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 	run,
 	chatId,
 	isVisible,
+	download = saveAs,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
+	const [isExporting, setIsExporting] = useState(false);
 	const runDetailQuery = useQuery({
 		...chatDebugRun(chatId, run.id),
 		enabled: isVisible && isExpanded,
@@ -168,6 +180,47 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 								<p className="text-sm text-content-secondary">
 									No steps recorded.
 								</p>
+							) : null}
+							{runDetailQuery.data ? (
+								<div className="flex justify-end pt-1">
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={isExporting}
+										onClick={async () => {
+											setIsExporting(true);
+											try {
+												const exportedAt = new Date();
+												const payload = buildRunDebugExport(
+													chatId,
+													runDetailQuery.data,
+													exportedAt,
+												);
+												await download(
+													buildDebugExportBlob(payload),
+													debugExportFilename({
+														chatId,
+														runId: run.id,
+														exportedAt,
+													}),
+												);
+											} catch (error) {
+												console.error(error);
+												toast.error("Failed to export debug run.", {
+													description: getErrorDetail(error),
+												});
+											}
+											setIsExporting(false);
+										}}
+									>
+										{isExporting ? (
+											<Spinner size="sm" loading />
+										) : (
+											<DownloadIcon className="size-4" />
+										)}
+										Export this run
+									</Button>
+								</div>
 							) : null}
 						</div>
 					)}
