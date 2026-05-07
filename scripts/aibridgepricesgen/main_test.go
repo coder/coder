@@ -96,20 +96,39 @@ func TestConvert(t *testing.T) {
 	require.Nil(t, gpt.CacheWritePrice)
 }
 
+// TestConvertMissingProvider covers both shapes of "configured provider has
+// no usable data": the provider's key is absent from upstream, or the key
+// exists but its Models map is empty. Both should fail loud so we never
+// ship a partial seed.
 func TestConvertMissingProvider(t *testing.T) {
 	t.Parallel()
 
-	upstream := map[string]upstreamProvider{
-		"openai": {Models: map[string]upstreamModel{
-			"gpt-4o": {Cost: &upstreamCost{Input: floatPtr(2.5)}},
-		}},
-	}
-	// "anthropic" is configured but absent from upstream. The function must
-	// surface that loudly so we don't ship a partial seed file.
-	rows, err := convert(upstream, []string{"anthropic", "openai"})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "anthropic")
-	require.Nil(t, rows)
+	t.Run("Absent", func(t *testing.T) {
+		t.Parallel()
+		upstream := map[string]upstreamProvider{
+			"openai": {Models: map[string]upstreamModel{
+				"gpt-4o": {Cost: &upstreamCost{Input: floatPtr(2.5)}},
+			}},
+		}
+		rows, err := convert(upstream, []string{"anthropic", "openai"})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "anthropic")
+		require.Nil(t, rows)
+	})
+
+	t.Run("EmptyModels", func(t *testing.T) {
+		t.Parallel()
+		upstream := map[string]upstreamProvider{
+			"anthropic": {Models: map[string]upstreamModel{}},
+			"openai": {Models: map[string]upstreamModel{
+				"gpt-4o": {Cost: &upstreamCost{Input: floatPtr(2.5)}},
+			}},
+		}
+		rows, err := convert(upstream, []string{"anthropic", "openai"})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "anthropic")
+		require.Nil(t, rows)
+	})
 }
 
 func TestValidate(t *testing.T) {

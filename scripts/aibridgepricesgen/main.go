@@ -141,7 +141,7 @@ func convert(upstream map[string]upstreamProvider, providers []string) ([]priceR
 	)
 	for _, providerID := range providers {
 		provider, ok := upstream[providerID]
-		if !ok {
+		if !ok || len(provider.Models) == 0 {
 			missing = append(missing, providerID)
 			continue
 		}
@@ -160,7 +160,7 @@ func convert(upstream map[string]upstreamProvider, providers []string) ([]priceR
 		}
 	}
 	if len(missing) > 0 {
-		return nil, xerrors.Errorf("providers missing from upstream: %v", missing)
+		return nil, xerrors.Errorf("providers missing or empty in upstream: %v", missing)
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
