@@ -946,8 +946,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							className={cn(
 								"group relative grid min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
 								layout === "large"
-									? "grid-cols-[2rem_3fr_2fr_4rem_8rem_2rem_2rem]"
-									: "grid-cols-[2rem_3fr_2fr_7rem_2rem_2rem]",
+									? "grid-cols-[2rem_3fr_2fr_4rem_8rem_2.5rem_2rem]"
+									: "grid-cols-[2rem_3fr_2fr_7rem_2.5rem_2rem]",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary",
 							)}
@@ -1033,7 +1033,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</>
 								) : null}
 							</span>
-							{/* Col 5: Status */}
+							{/* Col 5/6: Status */}
 							<div className="flex items-center justify-center">
 								{isArchivingThisChat ? (
 									<Spinner
@@ -1049,7 +1049,11 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									/>
 								) : chat.status === "error" ? (
 									<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
-								) : null}
+								) : (
+									<span className="text-xs text-content-secondary">
+										{shortRelativeTime(chat.updated_at)}
+									</span>
+								)}
 							</div>
 							{/* Col 6: Kebab */}
 							<div className="flex items-center justify-center pr-2">
