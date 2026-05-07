@@ -10,8 +10,6 @@ export const resolveAgentDisplayState = (
 		case undefined:
 		case "auto":
 			return autoState;
-		case "preview":
-			return "preview";
 		case "always_expanded":
 			return "expanded";
 		case "always_collapsed":

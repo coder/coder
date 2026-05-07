@@ -14926,13 +14926,11 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "auto",
-                "preview",
                 "always_expanded",
                 "always_collapsed"
             ],
             "x-enum-varnames": [
                 "AgentDisplayModeAuto",
-                "AgentDisplayModePreview",
                 "AgentDisplayModeAlwaysExpanded",
                 "AgentDisplayModeAlwaysCollapsed"
             ]

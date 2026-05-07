@@ -294,14 +294,12 @@ type AgentDisplayMode string
 
 const (
 	AgentDisplayModeAuto            AgentDisplayMode = "auto"
-	AgentDisplayModePreview         AgentDisplayMode = "preview"
 	AgentDisplayModeAlwaysExpanded  AgentDisplayMode = "always_expanded"
 	AgentDisplayModeAlwaysCollapsed AgentDisplayMode = "always_collapsed"
 )
 
 var ValidAgentDisplayModes = []AgentDisplayMode{
 	AgentDisplayModeAuto,
-	AgentDisplayModePreview,
 	AgentDisplayModeAlwaysExpanded,
 	AgentDisplayModeAlwaysCollapsed,
 }

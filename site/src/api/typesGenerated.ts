@@ -845,17 +845,12 @@ export interface AgentConnectionTiming {
 }
 
 // From codersdk/users.go
-export type AgentDisplayMode =
-	| "always_collapsed"
-	| "always_expanded"
-	| "auto"
-	| "preview";
+export type AgentDisplayMode = "always_collapsed" | "always_expanded" | "auto";
 
 export const AgentDisplayModes: AgentDisplayMode[] = [
 	"always_collapsed",
 	"always_expanded",
 	"auto",
-	"preview",
 ];
 
 // From codersdk/workspacebuilds.go

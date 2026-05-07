@@ -2001,14 +2001,14 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		defer cancel()
 
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			CodeDiffDisplayMode: codersdk.AgentDisplayModePreview,
+			CodeDiffDisplayMode: codersdk.AgentDisplayModeAlwaysExpanded,
 		})
 		require.NoError(t, err)
-		require.Equal(t, codersdk.AgentDisplayModePreview, updated.CodeDiffDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, updated.CodeDiffDisplayMode)
 
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
-		require.Equal(t, codersdk.AgentDisplayModePreview, settings.CodeDiffDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, settings.CodeDiffDisplayMode)
 	})
 
 	t.Run("updates preserve stored display modes", func(t *testing.T) {
@@ -2021,7 +2021,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 
 		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 			ThinkingDisplayMode: codersdk.ThinkingDisplayModePreview,
-			CodeDiffDisplayMode: codersdk.AgentDisplayModePreview,
+			CodeDiffDisplayMode: codersdk.AgentDisplayModeAlwaysExpanded,
 		})
 		require.NoError(t, err)
 
@@ -2030,12 +2030,12 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, updated.ThinkingDisplayMode)
-		require.Equal(t, codersdk.AgentDisplayModePreview, updated.CodeDiffDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, updated.CodeDiffDisplayMode)
 
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, settings.ThinkingDisplayMode)
-		require.Equal(t, codersdk.AgentDisplayModePreview, settings.CodeDiffDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, settings.CodeDiffDisplayMode)
 	})
 
 	t.Run("rejects invalid code diff display mode", func(t *testing.T) {

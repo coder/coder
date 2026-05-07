@@ -11,7 +11,6 @@ describe("resolveAgentDisplayState", () => {
 		expect(resolveAgentDisplayState(undefined, "preview")).toBe("preview");
 		expect(resolveAgentDisplayState("auto", "collapsed")).toBe("collapsed");
 		expect(resolveAgentDisplayState("auto", "expanded")).toBe("expanded");
-		expect(resolveAgentDisplayState("preview", "collapsed")).toBe("preview");
 		expect(resolveAgentDisplayState("always_expanded", "collapsed")).toBe(
 			"expanded",
 		);

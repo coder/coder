@@ -13,49 +13,53 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 
-type DisplayModeField = "thinking_display_mode" | "code_diff_display_mode";
-type DisplayModeValue = UserPreferenceSettings[DisplayModeField];
+type DisplayModeOption<T extends string> = { value: T; label: string };
 
-const options: { value: DisplayModeValue; label: string }[] = [
+type ThinkingDisplayMode = UserPreferenceSettings["thinking_display_mode"];
+type AgentDisplayMode = UserPreferenceSettings["code_diff_display_mode"];
+
+const thinkingDisplayOptions: DisplayModeOption<ThinkingDisplayMode>[] = [
 	{ value: "auto", label: "Auto" },
 	{ value: "preview", label: "Preview" },
 	{ value: "always_expanded", label: "Always Expanded" },
 	{ value: "always_collapsed", label: "Always Collapsed" },
 ];
 
-const isDisplayModeValue = (value: string): value is DisplayModeValue => {
-	return options.some((opt) => opt.value === value);
-};
+const agentDisplayOptions: DisplayModeOption<AgentDisplayMode>[] = [
+	{ value: "auto", label: "Auto" },
+	{ value: "always_expanded", label: "Always Expanded" },
+	{ value: "always_collapsed", label: "Always Collapsed" },
+];
 
-const updateDisplayMode = (
-	settings: UserPreferenceSettings,
-	field: DisplayModeField,
-	value: DisplayModeValue,
-): UserPreferenceSettings => {
-	switch (field) {
-		case "thinking_display_mode":
-			return { ...settings, thinking_display_mode: value };
-		case "code_diff_display_mode":
-			return { ...settings, code_diff_display_mode: value };
-		default: {
-			const _exhaustive: never = field;
-			return _exhaustive;
-		}
-	}
-};
-
-const DisplayModeSettings: FC<{
-	field: DisplayModeField;
+type DisplayModeSettingsProps<T extends string> = {
 	title: string;
 	description: string;
 	ariaLabel: string;
 	errorMessage: string;
-}> = ({ field, title, description, ariaLabel, errorMessage }) => {
+	defaultValue: T;
+	options: DisplayModeOption<T>[];
+	getMode: (settings: UserPreferenceSettings) => T;
+	updateSettings: (
+		settings: UserPreferenceSettings,
+		value: T,
+	) => UserPreferenceSettings;
+};
+
+const DisplayModeSettings = <T extends string>({
+	title,
+	description,
+	ariaLabel,
+	errorMessage,
+	defaultValue,
+	options,
+	getMode,
+	updateSettings,
+}: DisplayModeSettingsProps<T>) => {
 	const queryClient = useQueryClient();
 	const query = useQuery(preferenceSettings());
 	const mutation = useMutation(updatePreferenceSettings(queryClient));
 
-	const mode: DisplayModeValue = query.data?.[field] || "auto";
+	const mode = query.data ? getMode(query.data) : defaultValue;
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -70,8 +74,9 @@ const DisplayModeSettings: FC<{
 					value={mode}
 					disabled={query.isLoading || !query.data}
 					onValueChange={(value: string) => {
-						if (!query.data || !isDisplayModeValue(value)) return;
-						mutation.mutate(updateDisplayMode(query.data, field, value));
+						const selected = options.find((opt) => opt.value === value);
+						if (!query.data || !selected) return;
+						mutation.mutate(updateSettings(query.data, selected.value));
 					}}
 				>
 					<SelectTrigger className="w-44 shrink-0" aria-label={ariaLabel}>
@@ -96,11 +101,17 @@ const DisplayModeSettings: FC<{
 export const ThinkingDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
-			field="thinking_display_mode"
 			title="Thinking Display"
 			description="How thinking blocks should be displayed by default. 'Auto' fully expands during streaming, then auto-collapses when done. 'Preview' auto-expands with a height constraint during streaming. 'Always Expanded' shows full content. 'Always Collapsed' keeps them collapsed."
 			ariaLabel="Thinking display mode"
 			errorMessage="Failed to save your thinking display preference."
+			defaultValue="auto"
+			options={thinkingDisplayOptions}
+			getMode={(settings) => settings.thinking_display_mode}
+			updateSettings={(settings, value) => ({
+				...settings,
+				thinking_display_mode: value,
+			})}
 		/>
 	);
 };
@@ -108,11 +119,17 @@ export const ThinkingDisplaySettings: FC = () => {
 export const CodeDiffDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
-			field="code_diff_display_mode"
 			title="Code Diff Display"
 			description="How inline code diff tool calls should be displayed by default."
 			ariaLabel="Code diff display mode"
 			errorMessage="Failed to save your code diff display preference."
+			defaultValue="auto"
+			options={agentDisplayOptions}
+			getMode={(settings) => settings.code_diff_display_mode}
+			updateSettings={(settings, value) => ({
+				...settings,
+				code_diff_display_mode: value,
+			})}
 		/>
 	);
 };

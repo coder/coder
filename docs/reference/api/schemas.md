@@ -1441,9 +1441,9 @@
 
 #### Enumerated Values
 
-| Value(s)                                                 |
-|----------------------------------------------------------|
-| `always_collapsed`, `always_expanded`, `auto`, `preview` |
+| Value(s)                                      |
+|-----------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto` |
 
 ## codersdk.AgentScriptTiming
 

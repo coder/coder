@@ -1290,7 +1290,7 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid thinking display mode.",
 			Validations: []codersdk.ValidationError{
-				{Field: "thinking_display_mode", Detail: agentDisplayModeValidationDetail},
+				{Field: "thinking_display_mode", Detail: thinkingDisplayModeValidationDetail},
 			},
 		})
 		return
@@ -1390,7 +1390,10 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-const agentDisplayModeValidationDetail = "must be one of: auto, preview, always_expanded, always_collapsed"
+const (
+	thinkingDisplayModeValidationDetail = "must be one of: auto, preview, always_expanded, always_collapsed"
+	agentDisplayModeValidationDetail    = "must be one of: auto, always_expanded, always_collapsed"
+)
 
 func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
 	mode := codersdk.ThinkingDisplayMode(raw)
