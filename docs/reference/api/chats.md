@@ -140,6 +140,7 @@ Experimental: this endpoint is subject to change.
       }
     ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_turn_summary": "string",
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
@@ -261,6 +262,7 @@ Status Code **200**
 | `»» type`                         | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» url`                          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `» last_model_config_id`          | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
+| `» last_turn_summary`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `» mcp_server_ids`                | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» organization_id`               | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
@@ -468,6 +470,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -591,6 +594,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -865,6 +869,7 @@ Experimental: this endpoint is subject to change.
       }
     ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_turn_summary": "string",
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
@@ -1042,6 +1047,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -1165,6 +1171,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -1423,6 +1430,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -1546,6 +1554,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -2583,6 +2592,7 @@ Experimental: this endpoint is subject to change.
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
@@ -2706,6 +2716,7 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],

@@ -67,6 +67,7 @@ const (
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
 	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	turnSummaryWriteTimeout      = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -1194,6 +1195,9 @@ type PromoteQueuedOptions struct {
 
 // PromoteQueuedResult contains post-promotion message metadata.
 type PromoteQueuedResult struct {
+	// PromotedMessage is the inserted user message. For a chat that
+	// was running at promote time, the insertion is deferred to the
+	// worker's auto-promote and PromotedMessage is the zero value.
 	PromotedMessage database.ChatMessage
 }
 
@@ -2041,7 +2045,10 @@ func (p *Server) DeleteQueued(
 	return nil
 }
 
-// PromoteQueued promotes a queued message into chat history and marks the chat pending.
+// PromoteQueued promotes a queued message into chat history. On a
+// running chat with a fresh worker heartbeat the promote is deferred
+// to the worker's persist+auto-promote so partial assistant output
+// is not lost; otherwise it inserts the user message synchronously.
 func (p *Server) PromoteQueued(
 	ctx context.Context,
 	opts PromoteQueuedOptions,
@@ -2051,10 +2058,12 @@ func (p *Server) PromoteQueued(
 	}
 
 	var (
-		result         PromoteQueuedResult
-		promoted       database.ChatMessage
-		updatedChat    database.Chat
-		remainingQueue []database.ChatQueuedMessage
+		result           PromoteQueuedResult
+		promoted         database.ChatMessage
+		updatedChat      database.Chat
+		remainingQueue   []database.ChatQueuedMessage
+		deferred         bool
+		syntheticResults []database.ChatMessage
 	)
 
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -2086,7 +2095,46 @@ func (p *Server) PromoteQueued(
 			}
 		}
 		if !found {
-			return xerrors.New("queued message not found")
+			return xerrors.Errorf("queued message %d not found in chat %s", opts.QueuedMessageID, opts.ChatID)
+		}
+
+		// Setting pending would trip persistStep's ownership guard
+		// and drop the worker's partial output. Set waiting and
+		// reorder the queued row so the worker's auto-promote picks
+		// it up after the persist.
+		heartbeatFresh := lockedChat.HeartbeatAt.Valid &&
+			p.clock.Now().Sub(lockedChat.HeartbeatAt.Time) < p.inFlightChatStaleAfter
+		if lockedChat.Status == database.ChatStatusRunning && heartbeatFresh {
+			rowsAffected, err := tx.ReorderChatQueuedMessageToFront(ctx, database.ReorderChatQueuedMessageToFrontParams{
+				ChatID:   opts.ChatID,
+				TargetID: opts.QueuedMessageID,
+			})
+			if err != nil {
+				return xerrors.Errorf("reorder queued message to front: %w", err)
+			}
+			// Defensive guard against a future non-chat-locked
+			// queue mutator. The found check above makes this a
+			// no-op on the current code path.
+			if rowsAffected != 1 {
+				return xerrors.Errorf("reorder queued message to front affected %d rows, want 1", rowsAffected)
+			}
+			updatedChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:          opts.ChatID,
+				Status:      database.ChatStatusWaiting,
+				WorkerID:    uuid.NullUUID{},
+				StartedAt:   sql.NullTime{},
+				HeartbeatAt: sql.NullTime{},
+				LastError:   pqtype.NullRawMessage{},
+			})
+			if err != nil {
+				return xerrors.Errorf("set chat to waiting for deferred promote: %w", err)
+			}
+			remainingQueue, err = tx.GetChatQueuedMessages(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("get remaining queue after reorder: %w", err)
+			}
+			deferred = true
+			return nil
 		}
 
 		effectiveModelConfigID, err := resolveQueuedMessageModelConfigID(
@@ -2097,6 +2145,20 @@ func (p *Server) PromoteQueued(
 		)
 		if err != nil {
 			return err
+		}
+
+		// Without synthetic results, the next turn would carry
+		// unresolved tool_call parts; the LLM API rejects this and the
+		// chat dead-ends in error.
+		if lockedChat.Status == database.ChatStatusRequiresAction {
+			inserted, err := insertSyntheticToolResultsTx(
+				ctx, tx, lockedChat,
+				"Tool execution interrupted by queued message promotion",
+			)
+			if err != nil {
+				return xerrors.Errorf("insert synthetic tool results: %w", err)
+			}
+			syntheticResults = inserted
 		}
 
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
@@ -2134,6 +2196,22 @@ func (p *Server) PromoteQueued(
 		return PromoteQueuedResult{}, txErr
 	}
 
+	if deferred {
+		// Skip publishMessage and signalWake: there is no synchronous
+		// user message yet, and the active worker's interrupt path
+		// signals its own auto-promote follow-up.
+		p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
+			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+			QueuedMessages: db2sdk.ChatQueuedMessages(remainingQueue),
+		})
+		p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
+			QueueUpdate: true,
+		})
+		p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		return result, nil
+	}
+
 	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
 		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 		QueuedMessages: db2sdk.ChatQueuedMessages(remainingQueue),
@@ -2141,6 +2219,11 @@ func (p *Server) PromoteQueued(
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
 	})
+	// Publish synth rows before the user message so live viewers
+	// see the interruption inline.
+	for _, msg := range syntheticResults {
+		p.publishMessage(opts.ChatID, msg)
+	}
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
@@ -2409,7 +2492,8 @@ func (p *Server) InterruptChat(
 			if locked.Status != database.ChatStatusRequiresAction {
 				return nil
 			}
-			return insertSyntheticToolResultsTx(ctx, tx, locked, "Tool execution interrupted by user")
+			_, err := insertSyntheticToolResultsTx(ctx, tx, locked, "Tool execution interrupted by user")
+			return err
 		}, nil); txErr != nil {
 			p.logger.Error(ctx, "failed to insert synthetic tool results during interrupt",
 				slog.F("chat_id", chat.ID),
@@ -5222,6 +5306,7 @@ func (p *Server) trackWorkspaceUsage(
 type finishActiveChatResult struct {
 	updatedChat              database.Chat
 	promotedMessage          *database.ChatMessage
+	syntheticToolResults     []database.ChatMessage
 	remainingQueuedMessages  []database.ChatQueuedMessage
 	shouldPublishQueueUpdate bool
 }
@@ -5258,6 +5343,32 @@ func (p *Server) finishActiveChat(
 		switch {
 		case latestChat.Status == database.ChatStatusPending:
 			status = database.ChatStatusPending
+		case latestChat.Status == database.ChatStatusWaiting && status != database.ChatStatusWaiting && !latestChat.Archived:
+			// PromoteQueued's deferred path won the status race.
+			// Insert synthetic tool results before auto-promoting,
+			// or a RequiresAction worker outcome reintroduces the
+			// stops-dead bug this PR exists to fix.
+			inserted, synthErr := insertSyntheticToolResultsTx(
+				ctx, tx, latestChat,
+				"Tool execution interrupted by queued message promotion",
+			)
+			if synthErr != nil {
+				return xerrors.Errorf("insert synthetic tool results during promote-driven cleanup: %w", synthErr)
+			}
+			result.syntheticToolResults = inserted
+			var promoteErr error
+			result.promotedMessage, result.remainingQueuedMessages, result.shouldPublishQueueUpdate, promoteErr = p.tryAutoPromoteQueuedMessage(ctx, tx, latestChat)
+			if promoteErr != nil {
+				logger.Error(ctx, "auto-promote queued message failed during promote-driven cleanup", slog.Error(promoteErr))
+				return xerrors.Errorf("auto-promote queued message: %w", promoteErr)
+			}
+			if result.promotedMessage != nil {
+				status = database.ChatStatusPending
+			} else {
+				// Queue drained between snapshot and lock; honor
+				// the external Waiting.
+				status = database.ChatStatusWaiting
+			}
 		case status == database.ChatStatusWaiting && !latestChat.Archived:
 			// Queued messages were already admitted through SendMessage,
 			// so auto-promotion only preserves FIFO order here. Archived
@@ -5463,6 +5574,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		remainingQueuedMessages = finishResult.remainingQueuedMessages
 		shouldPublishQueueUpdate = finishResult.shouldPublishQueueUpdate
 
+		// Publish synth rows before the promoted user message.
+		for _, msg := range finishResult.syntheticToolResults {
+			p.publishMessage(chat.ID, msg)
+		}
 		if promotedMessage != nil {
 			p.publishMessage(chat.ID, *promotedMessage)
 		}
@@ -5509,12 +5624,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			})
 			p.publishChatActionRequired(finishResult.updatedChat, runResult.PendingDynamicToolCalls)
 		}
-		if !wasInterrupted {
+		if wasInterrupted {
+			p.maybeClearLastTurnSummaryAsync(cleanupCtx, finishResult.updatedChat, logger)
+		} else {
 			lastErrorMessage := ""
 			if lastErrorPayload != nil {
 				lastErrorMessage = lastErrorPayload.Message
 			}
-			p.maybeSendPushNotification(cleanupCtx, finishResult.updatedChat, status, lastErrorMessage, runResult, logger)
+			p.maybeFinalizeTurnSummaryAndPush(
+				cleanupCtx,
+				finishResult.updatedChat,
+				status,
+				lastErrorMessage,
+				runResult,
+				logger,
+			)
 		}
 	}()
 
@@ -5537,6 +5661,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			logger.Info(ctx, "chat canceled during shutdown; returning to pending")
 			status = database.ChatStatusPending
 			lastErrorPayload = nil
+			wasInterrupted = true
 			return
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
@@ -5567,6 +5692,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		logger.Info(ctx, "chat completed during shutdown; returning to pending")
 		status = database.ChatStatusPending
 		lastErrorPayload = nil
+		wasInterrupted = true
 		return
 	}
 }
@@ -8020,7 +8146,7 @@ func formatPlanPathBlock(chatPath, home string) string {
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
-	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
+	staleAfter := p.clock.Now().Add(-p.inFlightChatStaleAfter)
 	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
 	if err != nil {
 		p.logger.Error(ctx, "failed to get stale chats", slog.Error(err))
@@ -8057,6 +8183,14 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 				// Re-check: the chat may have been updated after
 				// our snapshot, similar to the heartbeat check for
 				// running chats.
+				if !locked.UpdatedAt.Before(staleAfter) {
+					p.logger.Debug(ctx, "chat updated since snapshot, skipping recovery",
+						slog.F("chat_id", chat.ID))
+					return nil
+				}
+			case database.ChatStatusWaiting:
+				// Deferred-promote stranding: worker died before its
+				// post-cancel cleanup ran. Re-check freshness.
 				if !locked.UpdatedAt.Before(staleAfter) {
 					p.logger.Debug(ctx, "chat updated since snapshot, skipping recovery",
 						slog.F("chat_id", chat.ID))
@@ -8101,13 +8235,32 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 			// so the LLM history remains valid if the user
 			// retries the chat later.
 			if locked.Status == database.ChatStatusRequiresAction {
-				if synthErr := insertSyntheticToolResultsTx(ctx, tx, locked, "Dynamic tool execution timed out"); synthErr != nil {
+				if _, synthErr := insertSyntheticToolResultsTx(ctx, tx, locked, "Dynamic tool execution timed out"); synthErr != nil {
 					p.logger.Warn(ctx, "failed to insert synthetic tool results during stale recovery",
 						slog.F("chat_id", chat.ID),
 						slog.Error(synthErr),
 					)
 					// Continue with error status even if
 					// synthetic results fail to insert.
+				}
+			}
+
+			if locked.Status == database.ChatStatusWaiting {
+				// Close pending dynamic tool calls; otherwise the
+				// promoted user message would feed the LLM a turn it
+				// rejects. Propagate errors so the next recovery
+				// tick retries instead of promoting incomplete
+				// history.
+				if _, synthErr := insertSyntheticToolResultsTx(ctx, tx, locked, "Tool execution interrupted by queued message promotion"); synthErr != nil {
+					return xerrors.Errorf("insert synthetic tool results during stale recovery: %w", synthErr)
+				}
+				promoted, _, _, promoteErr := p.tryAutoPromoteQueuedMessage(ctx, tx, locked)
+				if promoteErr != nil {
+					return xerrors.Errorf("auto-promote during stale recovery: %w", promoteErr)
+				}
+				if promoted == nil {
+					// Empty queue means nothing to recover.
+					return nil
 				}
 			}
 
@@ -8138,43 +8291,75 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 	}
 }
 
-// insertSyntheticToolResultsTx inserts error tool-result messages for
-// every pending dynamic tool call in the last assistant message. This
-// keeps the LLM message history valid (every tool-call has a matching
-// tool-result) when a requires_action chat times out or is interrupted.
-// It operates on the provided store, which may be a transaction handle.
+// insertSyntheticToolResultsTx inserts IsError tool-result messages
+// for unresolved dynamic tool calls in the last assistant message,
+// skipping calls already handled (e.g. by chatloop dispatching a
+// name-colliding dynamic tool as a built-in). It operates on the
+// provided store, which may be a transaction handle.
 func insertSyntheticToolResultsTx(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	reason string,
-) error {
+) ([]database.ChatMessage, error) {
 	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
 	if err != nil {
-		return xerrors.Errorf("parse dynamic tools: %w", err)
+		return nil, xerrors.Errorf("parse dynamic tools: %w", err)
 	}
 	if len(dynamicToolNames) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	// Get the last assistant message to find pending tool calls.
+	// No assistant means nothing to close: a deferred promote can
+	// race a worker that fails before any persist, and the cleanup
+	// TX must still advance.
 	lastAssistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 		ChatID: chat.ID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
-		return xerrors.Errorf("get last assistant message: %w", err)
+		return nil, xerrors.Errorf("get last assistant message: %w", err)
 	}
 
 	parts, err := chatprompt.ParseContent(lastAssistant)
 	if err != nil {
-		return xerrors.Errorf("parse assistant message: %w", err)
+		return nil, xerrors.Errorf("parse assistant message: %w", err)
+	}
+
+	// Mirrors SubmitToolResults.
+	afterMsgs, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: lastAssistant.ID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get messages after assistant: %w", err)
+	}
+	handledCallIDs := make(map[string]bool)
+	for _, msg := range afterMsgs {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		msgParts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			continue
+		}
+		for _, mp := range msgParts {
+			if mp.Type == codersdk.ChatMessagePartTypeToolResult {
+				handledCallIDs[mp.ToolCallID] = true
+			}
+		}
 	}
 
 	// Collect dynamic tool calls that need synthetic results.
 	var resultContents []pqtype.NullRawMessage
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeToolCall || !dynamicToolNames[part.ToolName] {
+			continue
+		}
+		if handledCallIDs[part.ToolCallID] {
 			continue
 		}
 		resultPart := codersdk.ChatMessagePart{
@@ -8186,13 +8371,13 @@ func insertSyntheticToolResultsTx(
 		}
 		marshaled, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{resultPart})
 		if marshalErr != nil {
-			return xerrors.Errorf("marshal synthetic tool result: %w", marshalErr)
+			return nil, xerrors.Errorf("marshal synthetic tool result: %w", marshalErr)
 		}
 		resultContents = append(resultContents, marshaled)
 	}
 
 	if len(resultContents) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Insert tool-result messages using the same pattern as
@@ -8226,11 +8411,12 @@ func insertSyntheticToolResultsTx(
 		params.ContentVersion[i] = chatprompt.CurrentContentVersion
 		params.Visibility[i] = database.ChatMessageVisibilityBoth
 	}
-	if _, err := store.InsertChatMessages(ctx, params); err != nil {
-		return xerrors.Errorf("insert synthetic tool results: %w", err)
+	inserted, err := store.InsertChatMessages(ctx, params)
+	if err != nil {
+		return nil, xerrors.Errorf("insert synthetic tool results: %w", err)
 	}
 
-	return nil
+	return inserted, nil
 }
 
 // parseDynamicToolNames unmarshals the dynamic tools JSON column
@@ -8251,12 +8437,9 @@ func parseDynamicToolNames(raw pqtype.NullRawMessage) (map[string]bool, error) {
 	return names, nil
 }
 
-// maybeSendPushNotification sends a web push notification when an
-// agent chat reaches a terminal state. For errors it dispatches
-// synchronously; for successful completions it spawns a goroutine
-// that generates a short LLM summary before dispatching. The caller
-// is responsible for skipping interrupted chats.
-func (p *Server) maybeSendPushNotification(
+// maybeFinalizeTurnSummaryAndPush updates the cached turn summary for
+// parent chats and optionally sends a web push notification.
+func (p *Server) maybeFinalizeTurnSummaryAndPush(
 	ctx context.Context,
 	chat database.Chat,
 	status database.ChatStatus,
@@ -8264,54 +8447,197 @@ func (p *Server) maybeSendPushNotification(
 	runResult runChatResult,
 	logger slog.Logger,
 ) {
-	if p.webpushDispatcher == nil || p.webpushDispatcher.PublicKey() == "" {
-		return
-	}
 	if chat.ParentChatID.Valid {
 		return
 	}
 
 	switch status {
-	case database.ChatStatusError:
-		pushBody := "Agent encountered an error."
-		if lastError != "" {
-			pushBody = lastError
-		}
-		p.dispatchPush(ctx, chat, pushBody, status, logger)
-
 	case database.ChatStatusWaiting:
-		// Generate a push notification summary asynchronously
-		// using a cheap LLM model. This avoids blocking the
-		// deferred cleanup path while still providing a
-		// meaningful notification body.
-		debugSvc := p.existingDebugService()
-		p.inflight.Add(1)
-		go func() {
-			defer p.inflight.Done()
-			pushCtx := context.WithoutCancel(ctx)
-			pushBody := "Agent has finished running."
-			assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-			if assistantText != "" && runResult.PushSummaryModel != nil {
-				if summary := generatePushSummary(
-					pushCtx,
-					chat,
-					assistantText,
-					runResult.FallbackProvider,
-					runResult.FallbackModel,
-					runResult.PushSummaryModel,
-					runResult.ProviderKeys,
-					logger,
-					debugSvc,
-					runResult.TriggerMessageID,
-					runResult.HistoryTipMessageID,
-				); summary != "" {
-					pushBody = summary
-				}
-			}
+		p.finalizeSuccessfulTurnSummaryAndPush(ctx, chat, runResult, logger)
 
-			p.dispatchPush(pushCtx, chat, pushBody, status, logger)
-		}()
+	case database.ChatStatusPending:
+		p.finalizeSuccessfulTurnSummary(ctx, chat, runResult, logger)
+
+	case database.ChatStatusError:
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+		if p.webpushConfigured() {
+			pushBody := "Agent encountered an error."
+			if lastError != "" {
+				pushBody = lastError
+			}
+			p.dispatchPush(ctx, chat, pushBody, status, logger)
+		}
+
+	case database.ChatStatusRequiresAction:
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+
+	default:
+		// New statuses must be classified before they can safely
+		// preserve or finalize a cached turn summary.
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
 	}
+}
+
+func (p *Server) finalizeSuccessfulTurnSummary(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+) {
+	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(context.Context, string) {})
+}
+
+func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+) {
+	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(finalizeCtx context.Context, summary string) {
+		p.dispatchSuccessfulTurnPush(finalizeCtx, chat, summary, logger)
+	})
+}
+
+func (p *Server) finalizeSuccessfulTurnSummaryWithAfterFunc(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+	afterFinalize func(context.Context, string),
+) {
+	debugSvc := p.existingDebugService()
+	// This helper runs during processChat cleanup, while processChat is
+	// still counted in p.inflight. Do not take inflightMu here because
+	// drainInflight holds it while waiting.
+	p.inflight.Go(func() {
+		finalizeCtx := context.WithoutCancel(ctx)
+		summary := ""
+		assistantText := strings.TrimSpace(runResult.FinalAssistantText)
+		if assistantText != "" && runResult.PushSummaryModel != nil {
+			summary = strings.TrimSpace(generatePushSummary(
+				finalizeCtx,
+				chat,
+				assistantText,
+				runResult.FallbackProvider,
+				runResult.FallbackModel,
+				runResult.PushSummaryModel,
+				runResult.ProviderKeys,
+				logger,
+				debugSvc,
+				runResult.TriggerMessageID,
+				runResult.HistoryTipMessageID,
+			))
+		}
+
+		shouldPersistSummary := summary != "" || chat.LastTurnSummary.Valid
+		if shouldPersistSummary {
+			p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, summary, logger)
+		}
+
+		afterFinalize(finalizeCtx, summary)
+	})
+}
+
+func (p *Server) dispatchSuccessfulTurnPush(
+	ctx context.Context,
+	chat database.Chat,
+	summary string,
+	logger slog.Logger,
+) {
+	if !p.webpushConfigured() {
+		return
+	}
+	pushBody := "Agent has finished running."
+	if summary != "" {
+		pushBody = summary
+	}
+	p.dispatchPush(ctx, chat, pushBody, database.ChatStatusWaiting, logger)
+}
+
+func (p *Server) maybeClearLastTurnSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+) {
+	if chat.ParentChatID.Valid {
+		return
+	}
+	p.clearLastTurnSummaryAsync(ctx, chat, logger)
+}
+
+func (p *Server) clearLastTurnSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+) {
+	if !chat.LastTurnSummary.Valid {
+		return
+	}
+	// This helper runs during processChat cleanup, while processChat is
+	// still counted in p.inflight. Do not take inflightMu here because
+	// drainInflight holds it while waiting.
+	p.inflight.Go(func() {
+		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.UpdatedAt, "", logger)
+	})
+}
+
+// updateLastTurnSummary writes the cached sidebar summary for a chat.
+// Callers should pass a detached context because this method is used for
+// best-effort background cache writes.
+func (p *Server) updateLastTurnSummary(
+	ctx context.Context,
+	chat database.Chat,
+	expectedUpdatedAt time.Time,
+	summary string,
+	logger slog.Logger,
+) {
+	summary = strings.TrimSpace(summary)
+	lastTurnSummary := sql.NullString{String: summary, Valid: summary != ""}
+
+	//nolint:gocritic // Narrow daemon access for best-effort summary cache writes.
+	updateCtx := dbauthz.AsChatd(ctx)
+	updateCtx, cancel := context.WithTimeout(updateCtx, turnSummaryWriteTimeout)
+	defer cancel()
+
+	affected, err := p.db.UpdateChatLastTurnSummary(updateCtx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: expectedUpdatedAt,
+		LastTurnSummary:   lastTurnSummary,
+	})
+	if err != nil {
+		logger.Warn(updateCtx, "failed to update chat turn summary",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if affected == 0 {
+		if summary != "" {
+			logger.Info(updateCtx, "skipped stale chat turn summary update with non-empty summary",
+				slog.F("chat_id", chat.ID),
+				slog.F("summary_length", len(summary)),
+				slog.F("expected_updated_at", expectedUpdatedAt),
+			)
+			return
+		}
+		logger.Debug(updateCtx, "skipped stale chat turn summary update",
+			slog.F("chat_id", chat.ID),
+			slog.F("expected_updated_at", expectedUpdatedAt),
+		)
+		return
+	}
+
+	updatedChat := chat
+	updatedChat.LastTurnSummary = lastTurnSummary
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindSummaryChange, nil)
+
+	// AcquireChats uses SKIP LOCKED; re-wake so a wake racing this
+	// UPDATE's row lock does not strand a freshly-pending chat.
+	p.signalWake()
+}
+
+func (p *Server) webpushConfigured() bool {
+	return p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != ""
 }
 
 func (p *Server) dispatchPush(

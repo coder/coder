@@ -13938,6 +13938,9 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"last_turn_summary": {
+					"type": "string"
+				},
 				"mcp_server_ids": {
 					"type": "array",
 					"items": {
@@ -14769,6 +14772,7 @@
 			"type": "string",
 			"enum": [
 				"status_change",
+				"summary_change",
 				"title_change",
 				"created",
 				"deleted",
@@ -14777,6 +14781,7 @@
 			],
 			"x-enum-varnames": [
 				"ChatWatchEventKindStatusChange",
+				"ChatWatchEventKindSummaryChange",
 				"ChatWatchEventKindTitleChange",
 				"ChatWatchEventKindCreated",
 				"ChatWatchEventKindDeleted",
@@ -16231,7 +16236,7 @@
 			"type": "object",
 			"properties": {
 				"id": {
-					"description": "ID identifies the request. The response contains the same\nID so that the client can match it to the request.",
+					"description": "ID identifies the request for response ordering. Websocket response\nIDs are monotonically increasing and may exceed the request ID when\nserver-side events trigger additional renders.",
 					"type": "integer"
 				},
 				"inputs": {
@@ -17008,8 +17013,8 @@
 		},
 		"codersdk.JobErrorCode": {
 			"type": "string",
-			"enum": ["REQUIRED_TEMPLATE_VARIABLES"],
-			"x-enum-varnames": ["RequiredTemplateVariables"]
+			"enum": ["REQUIRED_TEMPLATE_VARIABLES", "INSUFFICIENT_QUOTA"],
+			"x-enum-varnames": ["RequiredTemplateVariables", "InsufficientQuota"]
 		},
 		"codersdk.License": {
 			"type": "object",
@@ -19097,7 +19102,7 @@
 					"type": "string"
 				},
 				"error_code": {
-					"enum": ["REQUIRED_TEMPLATE_VARIABLES"],
+					"enum": ["REQUIRED_TEMPLATE_VARIABLES", "INSUFFICIENT_QUOTA"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.JobErrorCode"

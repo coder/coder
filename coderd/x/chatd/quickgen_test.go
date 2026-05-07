@@ -11,9 +11,14 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_extractManualTitleTurns(t *testing.T) {
@@ -352,6 +357,95 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+	})
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "test-model",
+	})
+
+	userPrompt := "summarize failed workspace build logs"
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             fallbackChatTitle(userPrompt),
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+	})
+
+	expectedUpdatedAt := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
+	chat, err := db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
+		ID:        chat.ID,
+		Status:    chat.Status,
+		UpdatedAt: expectedUpdatedAt,
+	})
+	require.NoError(t, err)
+
+	const wantTitle = "Failed workspace logs"
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			require.Equal(t, "propose_title", call.SchemaName)
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": wantTitle},
+			}, nil
+		},
+	}
+
+	message := mustChatMessage(
+		t,
+		database.ChatMessageRoleUser,
+		database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText(userPrompt),
+	)
+	message.ID = 1
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	generated := &generatedChatTitle{}
+	server := &Server{db: db}
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		[]database.ChatMessage{message},
+		"openai",
+		"test-model",
+		model,
+		chatprovider.ProviderAPIKeys{},
+		generated,
+		logger,
+		nil,
+	)
+
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, wantTitle, fetched.Title)
+	require.True(t, fetched.UpdatedAt.Equal(expectedUpdatedAt),
+		"updated_at = %s, want same instant as %s",
+		fetched.UpdatedAt,
+		expectedUpdatedAt,
+	)
+
+	gotTitle, ok := generated.Load()
+	require.True(t, ok)
+	require.Equal(t, wantTitle, gotTitle)
 }
 
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {

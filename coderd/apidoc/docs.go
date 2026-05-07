@@ -15497,6 +15497,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_turn_summary": {
+                    "type": "string"
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -16357,6 +16360,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "status_change",
+                "summary_change",
                 "title_change",
                 "created",
                 "deleted",
@@ -16365,6 +16369,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
+                "ChatWatchEventKindSummaryChange",
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
@@ -17871,7 +17876,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
-                    "description": "ID identifies the request. The response contains the same\nID so that the client can match it to the request.",
+                    "description": "ID identifies the request for response ordering. Websocket response\nIDs are monotonically increasing and may exceed the request ID when\nserver-side events trigger additional renders.",
                     "type": "integer"
                 },
                 "inputs": {
@@ -18665,10 +18670,12 @@ const docTemplate = `{
         "codersdk.JobErrorCode": {
             "type": "string",
             "enum": [
-                "REQUIRED_TEMPLATE_VARIABLES"
+                "REQUIRED_TEMPLATE_VARIABLES",
+                "INSUFFICIENT_QUOTA"
             ],
             "x-enum-varnames": [
-                "RequiredTemplateVariables"
+                "RequiredTemplateVariables",
+                "InsufficientQuota"
             ]
         },
         "codersdk.License": {
@@ -20834,7 +20841,8 @@ const docTemplate = `{
                 },
                 "error_code": {
                     "enum": [
-                        "REQUIRED_TEMPLATE_VARIABLES"
+                        "REQUIRED_TEMPLATE_VARIABLES",
+                        "INSUFFICIENT_QUOTA"
                     ],
                     "allOf": [
                         {

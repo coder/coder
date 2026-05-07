@@ -105,6 +105,7 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
@@ -239,14 +240,6 @@ const getPRIconConfig = (
 		};
 	}
 	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
-};
-
-const asNonEmptyString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
 };
 
 const getModelDisplayName = (
@@ -506,7 +499,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		chat.status === "error"
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
-	const subtitle = errorReason || modelName;
+	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	const subtitle = errorReason || lastTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
@@ -1091,7 +1085,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<NavLink to="/workspaces" className="inline-flex">
 								<ProductLogo className="size-6" />
 							</NavLink>
-							<FeatureStageBadge contentType="beta" size="sm" />
+							<FeatureStageBadge contentType="beta" size="xs" />
 						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button

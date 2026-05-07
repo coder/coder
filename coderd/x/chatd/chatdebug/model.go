@@ -361,10 +361,20 @@ func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uu
 		return
 	}
 	go func() {
+		// Subscribe before reading the interval. The channel invalidates
+		// the interval, so any concurrent SetStaleAfter either happened
+		// before this interval read or will close thresholdCh below.
+		thresholdCh := svc.thresholdChan()
 		interval := svc.heartbeatInterval()
 		ticker := svc.clock.NewTicker(interval, "chatdebug", "heartbeat")
 		defer ticker.Stop()
-		thresholdCh := svc.thresholdChan()
+		resetTicker := func() {
+			if newInterval := svc.heartbeatInterval(); newInterval != interval {
+				interval = newInterval
+				ticker.Reset(interval, "chatdebug", "heartbeat")
+			}
+		}
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -375,10 +385,7 @@ func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uu
 				// SetStaleAfter was called; re-read the interval
 				// and reset the ticker immediately.
 				thresholdCh = svc.thresholdChan()
-				if newInterval := svc.heartbeatInterval(); newInterval != interval {
-					interval = newInterval
-					ticker.Reset(interval, "chatdebug", "heartbeat")
-				}
+				resetTicker()
 			case <-ticker.C:
 				if err := svc.TouchStep(ctx, stepID, runID, chatID); err != nil {
 					svc.log.Debug(ctx, "heartbeat touch failed",
@@ -388,10 +395,7 @@ func launchHeartbeat(ctx context.Context, svc *Service, stepID, runID, chatID uu
 				}
 				// Also re-read interval on every tick as a
 				// secondary check.
-				if newInterval := svc.heartbeatInterval(); newInterval != interval {
-					interval = newInterval
-					ticker.Reset(interval, "chatdebug", "heartbeat")
-				}
+				resetTicker()
 			}
 		}
 	}()

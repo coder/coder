@@ -248,7 +248,7 @@ func (p *Server) maybeGenerateChatTitle(
 			return
 		}
 
-		_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+		_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
 			ID:    chat.ID,
 			Title: title,
 		})
@@ -262,6 +262,10 @@ func (p *Server) maybeGenerateChatTitle(
 		chat.Title = title
 		generatedTitle.Store(title)
 		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+
+		// AcquireChats uses SKIP LOCKED; re-wake so a wake racing this
+		// UPDATE's row lock does not strand a freshly-pending chat.
+		p.signalWake()
 		return
 	}
 

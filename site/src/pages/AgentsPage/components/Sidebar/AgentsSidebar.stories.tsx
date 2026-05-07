@@ -69,6 +69,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -123,6 +124,53 @@ const meta: Meta<typeof AgentsSidebar> = {
 
 export default meta;
 type Story = StoryObj<typeof AgentsSidebar>;
+
+export const ChatWithTurnSummary: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-turn-summary",
+				title: "Update workspace template",
+				last_turn_summary: "Added Docker and Terraform validation",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Added Docker and Terraform validation"),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+	},
+};
+
+export const ChatWithTurnSummaryAndError: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-turn-summary-error",
+				title: "Fix workspace startup",
+				status: "error",
+				last_error: {
+					message: "Workspace startup failed",
+					retryable: false,
+				},
+				last_turn_summary: "Recreated the workspace image",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Workspace startup failed"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Recreated the workspace image"),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const RunningDelegatedChat: Story = {
 	args: {

@@ -51,7 +51,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		}
 
 		db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-		db.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 			ID:    chat.ID,
 			Title: wantTitle,
 		}).Return(chatWithTitle(chat, wantTitle), nil)
@@ -98,7 +98,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		}
 
 		db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-		db.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 			ID:    chat.ID,
 			Title: wantTitle,
 		}).Return(chatWithTitle(chat, wantTitle), nil)
@@ -146,7 +146,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 	}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
-	db.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
 	}).Return(chatWithTitle(chat, wantTitle), nil)
@@ -193,7 +193,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideMalformedFallsThrough(t *
 	}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("not-a-uuid", nil)
-	db.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
 	}).Return(chatWithTitle(chat, wantTitle), nil)
@@ -247,7 +247,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{Provider: "openai"}}, nil)
-	db.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
 	}).Return(chatWithTitle(chat, wantTitle), nil)

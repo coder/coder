@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import { isAxiosError } from "axios";
@@ -72,7 +71,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 	deviceExchangeError,
 }) => {
 	let status = (
-		<p css={styles.status}>
+		<p className="flex items-center justify-center gap-2 text-content-disabled">
 			<CircularProgress size={16} color="secondary" data-chromatic="ignore" />
 			Checking for authentication...
 		</p>
@@ -131,10 +130,12 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 
 	return (
 		<div>
-			<p css={styles.text}>
+			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				Copy your one-time code:&nbsp;
-				<div css={styles.copyCode}>
-					<span css={styles.code}>{externalAuthDevice.user_code}</span>
+				<div className="inline-flex items-center">
+					<span className="font-bold text-content-primary">
+						{externalAuthDevice.user_code}
+					</span>
 					&nbsp;{" "}
 					<CopyButton
 						text={externalAuthDevice.user_code}
@@ -144,9 +145,9 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				<br />
 				Then open the link below and paste it:
 			</p>
-			<div css={styles.links}>
+			<div className="m-4 flex flex-col gap-1">
 				<Link
-					css={styles.link}
+					className="flex items-center justify-center gap-2 text-base"
 					href={externalAuthDevice.verification_uri}
 					target="_blank"
 					rel="noreferrer"
@@ -160,46 +161,3 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	text: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		lineHeight: "160%",
-		margin: 0,
-	}),
-
-	copyCode: {
-		display: "inline-flex",
-		alignItems: "center",
-	},
-
-	code: (theme) => ({
-		fontWeight: "bold",
-		color: theme.palette.text.primary,
-	}),
-
-	links: {
-		display: "flex",
-		gap: 4,
-		margin: 16,
-		flexDirection: "column",
-	},
-
-	link: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		fontSize: 16,
-		gap: 8,
-	},
-
-	status: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		gap: 8,
-		color: theme.palette.text.disabled,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

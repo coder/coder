@@ -66,6 +66,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
+	last_turn_summary: null,
 	mcp_server_ids: [],
 	labels: {},
 	children: [],
@@ -520,5 +521,106 @@ describe("AgentsSidebar model display names", () => {
 		// to the actual model display name, not "Default model".
 		expect(getByText("GPT-4o")).toBeInTheDocument();
 		expect(queryByText("Default model")).not.toBeInTheDocument();
+	});
+});
+
+describe("AgentsSidebar subtitles", () => {
+	const modelOptions = [
+		{
+			id: "model-1",
+			provider: "openai",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+		},
+	];
+
+	it("shows the last turn summary when present and no error exists", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "summary-chat",
+							title: "Summary chat",
+							last_turn_summary: "Updated the Terraform template",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByText("Updated the Terraform template"),
+		).toBeInTheDocument();
+		expect(screen.queryByText("GPT-4o")).not.toBeInTheDocument();
+	});
+
+	it("shows the error when both error and last turn summary exist", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "summary-error-chat",
+							title: "Summary error chat",
+							status: "error",
+							last_error: {
+								message: "Workspace startup failed",
+								retryable: false,
+							},
+							last_turn_summary: "Provisioned a workspace",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("Workspace startup failed")).toBeInTheDocument();
+		expect(
+			screen.queryByText("Provisioned a workspace"),
+		).not.toBeInTheDocument();
+	});
+
+	it("falls back to the model name when no last turn summary exists", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "model-fallback-chat",
+							title: "Model fallback chat",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+
+	it("falls back to the model name when the last turn summary is blank", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "blank-summary-chat",
+							title: "Blank summary chat",
+							last_turn_summary: "   ",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
 	});
 });

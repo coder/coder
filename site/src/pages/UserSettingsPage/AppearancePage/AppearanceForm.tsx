@@ -15,6 +15,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import type { ConcreteThemeName } from "#/theme";
 import {
@@ -29,7 +33,6 @@ import {
 	switchToSingle,
 	type ThemeModeDraft,
 } from "#/theme/themeMode";
-import { Section } from "../Section";
 import { SingleModeSection } from "./SingleModeSection";
 import { SyncModeSection } from "./SyncModeSection";
 
@@ -234,19 +237,17 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	};
 
 	return (
-		<form>
+		<form className="flex flex-col gap-12">
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			<Section
-				title={
-					<div className="flex flex-row items-center gap-2">
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>
 						<span>Theme</span>
 						<Spinner loading={isUpdating} size="sm" />
-					</div>
-				}
-				layout="fluid"
-				className="mb-12"
-			>
+					</SettingsHeaderTitle>
+				</SettingsHeader>
+
 				<div className="flex flex-col gap-4">
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="theme-mode" className="text-sm font-medium">
@@ -287,17 +288,16 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						/>
 					)}
 				</div>
-			</Section>
+			</div>
 
-			<Section
-				title={
-					<div className="flex flex-row items-center gap-2">
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle hierarchy="secondary">
 						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
 						<Spinner loading={isUpdating} size="sm" />
-					</div>
-				}
-				layout="fluid"
-			>
+					</SettingsHeaderTitle>
+				</SettingsHeader>
+
 				<RadioGroup
 					aria-labelledby="fonts-radio-buttons-group-label"
 					value={terminalFontDraft}
@@ -319,7 +319,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						</div>
 					))}
 				</RadioGroup>
-			</Section>
+			</div>
 		</form>
 	);
 };
