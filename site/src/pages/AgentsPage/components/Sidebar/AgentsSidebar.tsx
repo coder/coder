@@ -949,7 +949,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									? "grid-cols-[2rem_3fr_2fr_4rem_8rem_2rem_2rem]"
 									: "grid-cols-[2rem_3fr_2fr_7rem_2rem_2rem]",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
-								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:!border-0",
+								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:border-b-0",
 							)}
 						>
 							{/* Col 1: Chevron */}
@@ -1653,7 +1653,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																			className={
 																				layout === "narrow"
 																					? "flex flex-col gap-0.5"
-																					: "flex flex-col [&>*:first-child]:border-0 [&>*:first-child]:border-t [&>*:first-child]:border-solid [&>*:first-child]:border-border-default/30"
+																					: "flex flex-col border-0 border-t border-solid border-border-default/30"
 																			}
 																		>
 																			{sortedPinnedChats.map((chat) => (
@@ -1718,7 +1718,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																		className={
 																			layout === "narrow"
 																				? "flex flex-col gap-0.5"
-																				: "flex flex-col [&>*:first-child]:border-0 [&>*:first-child]:border-t [&>*:first-child]:border-solid [&>*:first-child]:border-border-default/30"
+																				: "flex flex-col border-0 border-t border-solid border-border-default/30"
 																		}
 																	>
 																		{groupChats.map((chat) => (
