@@ -72,15 +72,12 @@ resource "coder_agent" "main" {
   }
 }
 
-// portabledesktop: installs the noVNC server the dashboard's Desktop button
-// connects to. Pairs with desktop_access=false so the gated denial can be
-// observed alongside the working "kasm-vnc" app.
-module "portabledesktop" {
-  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
-  version  = "0.1.0"
-  agent_id = coder_agent.main.id
-}
-
+// portabledesktop is installed by the agent bootstrap when the dev server
+// was built with BUNDLE_PORTABLEDESKTOP=1; the binary lands at
+// ~/.local/bin/portabledesktop and the agent's PATH is updated to find it.
+// No Terraform module is required. desktop_access=false on the policy
+// above blocks the dashboard's /desktop endpoint, while the kasm-vnc
+// coder_app remains reachable.
 // KasmVNC registry module. Creates a single coder_app with slug "kasm-vnc"
 // and a coder_script that installs and runs the server. subdomain = false
 // makes the app reachable via path-based URLs, which is the access mode that

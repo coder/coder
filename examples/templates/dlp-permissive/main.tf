@@ -69,15 +69,10 @@ resource "coder_agent" "main" {
   }
 }
 
-// portabledesktop: installs the noVNC server the dashboard's Desktop button
-// connects to. Mirrors the dogfood template (dogfood/coder/main.tf) so the
-// Desktop button has something to display.
-module "portabledesktop" {
-  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
-  version  = "0.1.0"
-  agent_id = coder_agent.main.id
-}
-
+// portabledesktop is installed by the agent bootstrap when the dev server
+// was built with BUNDLE_PORTABLEDESKTOP=1; the binary lands at
+// ~/.local/bin/portabledesktop and the agent's PATH is updated to find it.
+// No Terraform module is required.
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
