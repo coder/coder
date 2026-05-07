@@ -1,35 +1,121 @@
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { type FC, useEffect, useId, useState } from "react";
-import { useQuery } from "react-query";
-import { ValidationError } from "yup";
+import {
+	type FC,
+	useEffect,
+	useEffectEvent,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { API } from "#/api/api";
-import type { Template, TemplateVersionParameter } from "#/api/typesGenerated";
+import { DetailedError } from "#/api/errors";
+import type {
+	DynamicParametersRequest,
+	DynamicParametersResponse,
+	FriendlyDiagnostic,
+	PreviewParameter,
+	Template,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FormSection, VerticalForm } from "#/components/Form/Form";
-import { Input } from "#/components/Input/Input";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Label } from "#/components/Label/Label";
-import { Loader } from "#/components/Loader/Loader";
-import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
-import { useDebouncedFunction } from "#/hooks/debounce";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import { Separator } from "#/components/Separator/Separator";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClipboard } from "#/hooks/useClipboard";
+import {
+	Diagnostics,
+	DynamicParameter,
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
-import { nameValidator } from "#/utils/formUtils";
+import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
-import { getInitialRichParameterValues } from "#/utils/richParameters";
-import { paramsUsedToCreateWorkspace } from "#/utils/workspace";
 
 type ButtonValues = Record<string, string>;
 
 const TemplateEmbedPage: FC = () => {
 	const { template } = useTemplateLayoutContext();
-	const { data: templateParameters } = useQuery({
-		queryKey: ["template", template.id, "embed"],
-		queryFn: () =>
-			API.getTemplateVersionRichParameters(template.active_version_id),
+	const { user: me } = useAuthenticated();
+	const [latestResponse, setLatestResponse] =
+		useState<DynamicParametersResponse | null>(null);
+	const wsResponseId = useRef<number>(-1);
+	const ws = useRef<WebSocket | null>(null);
+	const [wsError, setWsError] = useState<Error | null>(null);
+
+	const sendMessage = (formValues: Record<string, string>) => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			owner_id: me.id,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			ws.current.send(JSON.stringify(request));
+			wsResponseId.current = wsResponseId.current + 1;
+		}
+	};
+
+	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
+		if (latestResponse && latestResponse?.id >= response.id) {
+			return;
+		}
+
+		setLatestResponse(response);
 	});
+
+	useEffect(() => {
+		if (!template.active_version_id || !me) {
+			return;
+		}
+
+		const socket = API.templateVersionDynamicParameters(
+			template.active_version_id,
+			me.id,
+			{
+				onMessage,
+				onError: (error) => {
+					if (ws.current === socket) {
+						setWsError(error);
+					}
+				},
+				onClose: () => {
+					if (ws.current === socket) {
+						setWsError(
+							new DetailedError(
+								"Websocket connection for dynamic parameters unexpectedly closed.",
+								"Refresh the page to reset the form.",
+							),
+						);
+					}
+				},
+			},
+		);
+
+		ws.current = socket;
+
+		return () => {
+			socket.close();
+		};
+	}, [template.active_version_id, me]);
+
+	const sortedParams = useMemo(() => {
+		if (!latestResponse?.parameters) {
+			return [];
+		}
+		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+	}, [latestResponse?.parameters]);
+
+	const isLoading =
+		ws.current?.readyState === WebSocket.CONNECTING || !latestResponse;
 
 	return (
 		<>
@@ -37,9 +123,11 @@ const TemplateEmbedPage: FC = () => {
 
 			<TemplateEmbedPageView
 				template={template}
-				templateParameters={templateParameters?.filter(
-					paramsUsedToCreateWorkspace,
-				)}
+				parameters={sortedParams}
+				diagnostics={latestResponse?.diagnostics ?? []}
+				error={wsError}
+				sendMessage={sendMessage}
+				isLoading={isLoading}
 			/>
 		</>
 	);
@@ -47,196 +135,243 @@ const TemplateEmbedPage: FC = () => {
 
 interface TemplateEmbedPageViewProps {
 	template: Template;
-	templateParameters?: TemplateVersionParameter[];
+	parameters: PreviewParameter[];
+	diagnostics: readonly FriendlyDiagnostic[];
+	error: unknown;
+	sendMessage: (message: Record<string, string>) => void;
+	isLoading: boolean;
 }
+
+const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
+	template,
+	parameters,
+	diagnostics,
+	error,
+	sendMessage,
+	isLoading,
+}) => {
+	const [formState, setFormState] = useState<{
+		mode: "manual" | "auto";
+		paramValues: Record<string, string>;
+	}>({
+		mode: "manual",
+		paramValues: {},
+	});
+
+	useEffect(() => {
+		if (parameters) {
+			const serverParamValues: Record<string, string> = {};
+			for (const p of parameters) {
+				const initialVal = p.value?.valid ? p.value.value : "";
+				serverParamValues[p.name] = initialVal;
+			}
+			setFormState((prev) => ({ ...prev, paramValues: serverParamValues }));
+		}
+	}, [parameters]);
+
+	const buttonValues = useMemo(() => {
+		const values: ButtonValues = { mode: formState.mode };
+		for (const [key, value] of Object.entries(formState.paramValues)) {
+			values[`param.${key}`] = value;
+		}
+		return values;
+	}, [formState]);
+
+	const handleChange = (
+		changedParamInfo: PreviewParameter,
+		newValue: string,
+	) => {
+		const newParamValues = {
+			...formState.paramValues,
+			[changedParamInfo.name]: newValue,
+		};
+		setFormState((prev) => ({ ...prev, paramValues: newParamValues }));
+
+		const formInputsToSend: Record<string, string> = { ...newParamValues };
+		for (const p of parameters) {
+			if (!(p.name in formInputsToSend)) {
+				formInputsToSend[p.name] = p.value?.valid ? p.value.value : "";
+			}
+		}
+
+		sendMessage(formInputsToSend);
+	};
+
+	return (
+		<div className="flex flex-col-reverse gap-12 md:flex-row md:items-start md:justify-around">
+			<div className="flex flex-col grow gap-5 max-w-screen-sm">
+				{Boolean(error) && <ErrorAlert error={error} />}
+				{diagnostics.length > 0 && <Diagnostics diagnostics={diagnostics} />}
+				<div className="flex flex-col gap-9">
+					<section className="flex flex-col gap-2">
+						<div>
+							<h2 className="text-lg font-bold m-0">Creation mode</h2>
+							<p className="text-sm text-content-secondary m-0">
+								When set to automatic mode, clicking the button will create the
+								workspace automatically without displaying a form to the user.
+							</p>
+						</div>
+						<RadioGroup
+							value={formState.mode}
+							onValueChange={(v) => {
+								setFormState((prev) => ({
+									...prev,
+									mode: v as "manual" | "auto",
+								}));
+							}}
+						>
+							<div className="flex items-center gap-3">
+								<RadioGroupItem value="manual" id="manual" />
+								<Label htmlFor="manual" className="cursor-pointer">
+									Manual
+								</Label>
+							</div>
+							<div className="flex items-center gap-3">
+								<RadioGroupItem value="auto" id="automatic" />
+								<Label htmlFor="automatic" className="cursor-pointer">
+									Automatic
+								</Label>
+							</div>
+						</RadioGroup>
+					</section>
+
+					<Separator />
+
+					{isLoading ? (
+						<ParametersSkeleton />
+					) : (
+						<>
+							{parameters.length > 0 && (
+								<div className="flex flex-col gap-9">
+									{parameters.map((parameter) => (
+										<DynamicParameter
+											key={parameter.name}
+											parameter={parameter}
+											onChange={(value) => handleChange(parameter, value)}
+											disabled={parameter.styling?.disabled}
+											value={formState.paramValues[parameter.name] || ""}
+										/>
+									))}
+								</div>
+							)}
+							<div className="flex flex-row items-center gap-4">
+								<Button asChild>
+									<a
+										target="_blank"
+										rel="noreferrer"
+										href={getButtonUrl(template, {
+											...buttonValues,
+											mode: "manual",
+										})}
+									>
+										Test
+									</a>
+								</Button>
+
+								<TestHelpPopover />
+							</div>
+						</>
+					)}
+				</div>
+			</div>
+
+			<ButtonPreview template={template} buttonValues={buttonValues} />
+		</div>
+	);
+};
+
+const ParametersSkeleton: React.FC = () => {
+	return (
+		<div role="progressbar" className="flex flex-col gap-9">
+			<div className="flex flex-col gap-2">
+				<Skeleton className="h-5 w-1/3" />
+				<Skeleton className="h-9 w-full" />
+			</div>
+			<div className="flex flex-col gap-2">
+				<Skeleton className="h-5 w-1/3" />
+				<Skeleton className="h-9 w-full" />
+			</div>
+			<div className="flex flex-col gap-2">
+				<Skeleton className="h-5 w-1/3" />
+				<Skeleton className="h-9 w-full" />
+			</div>
+		</div>
+	);
+};
+
+const TestHelpPopover: React.FC = () => {
+	return (
+		<HelpPopover>
+			<HelpPopoverIconTrigger size="small" />
+			<HelpPopoverContent>
+				<HelpPopoverTitle>Testing your Open in Coder settings</HelpPopoverTitle>
+				<HelpPopoverText>
+					This button will open the workspace creation page in a new tab with
+					the parameters that you have supplied. Use this to debug your{" "}
+					<strong>Open in Coder</strong> button before using it.
+				</HelpPopoverText>
+				<HelpPopoverText>
+					Note: Even if you have set creation mode to auto, this button will not
+					automatically create a workspace so that you have the opportunity to
+					inspect the parameters and check for errors.
+				</HelpPopoverText>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink href={docs("/admin/templates/open-in-coder")}>
+						Templates &ndash; Open in Coder
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
+			</HelpPopoverContent>
+		</HelpPopover>
+	);
+};
 
 const deploymentUrl = `${location.protocol}//${location.host}`;
 
 function getClipboardCopyContent(
-	templateName: string,
-	organization: string,
+	template: Template,
 	buttonValues: ButtonValues | undefined,
 ): string {
-	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
-	const createWorkspaceParams = new URLSearchParams(buttonValues);
-	if (createWorkspaceParams.get("name") === "") {
-		createWorkspaceParams.delete("name"); // no default workspace name if empty
-	}
-	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
-
+	const buttonUrl = getButtonUrl(template, buttonValues);
 	return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
 }
 
-const workspaceNameValidator = nameValidator("Workspace name");
+function getButtonUrl(
+	template: Template,
+	buttonValues: ButtonValues | undefined,
+): string {
+	const createWorkspaceUrl = `${deploymentUrl}/templates/${template.organization_name}/${template.name}/workspace`;
+	const createWorkspaceParams = new URLSearchParams(buttonValues);
+	return `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
+}
 
-export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
-	template,
-	templateParameters,
-}) => {
-	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
+interface ButtonPreviewProps {
+	template: Template;
+	buttonValues: ButtonValues | undefined;
+}
+
+const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
 	const clipboard = useClipboard();
-
-	// template parameters is async so we need to initialize the values after it
-	// is loaded
-	useEffect(() => {
-		if (templateParameters && !buttonValues) {
-			const buttonValues: ButtonValues = {
-				mode: "manual",
-				name: "",
-			};
-			for (const parameter of getInitialRichParameterValues(
-				templateParameters,
-			)) {
-				buttonValues[`param.${parameter.name}`] = parameter.value;
-			}
-			setButtonValues(buttonValues);
-		}
-	}, [buttonValues, templateParameters]);
-
-	const [workspaceNameError, setWorkspaceNameError] = useState("");
-	const validateWorkspaceName = (workspaceName: string) => {
-		try {
-			if (workspaceName) {
-				workspaceNameValidator.validateSync(workspaceName);
-			}
-			setWorkspaceNameError("");
-		} catch (e) {
-			if (e instanceof ValidationError) {
-				setWorkspaceNameError(e.message);
-			}
-		}
-	};
-	const { debounced: debouncedValidateWorkspaceName } = useDebouncedFunction(
-		validateWorkspaceName,
-		500,
-	);
-
-	const hookId = useId();
-	const defaultWorkspaceNameID = `${hookId}-default-workspace-name`;
-
 	return (
-		<>
-			<title>{pageTitle(template.name)}</title>
-
-			{!buttonValues || !templateParameters ? (
-				<Loader />
-			) : (
-				<div className="flex items-start gap-12">
-					<div className="max-w-3xl">
-						<VerticalForm>
-							<FormSection
-								title="Creation mode"
-								description="By changing the mode to automatic, when the user clicks the button, the workspace will be created automatically instead of showing a form to the user."
-							>
-								<RadioGroup
-									defaultValue={buttonValues.mode}
-									onChange={(_, v) => {
-										setButtonValues((buttonValues) => ({
-											...buttonValues,
-											mode: v,
-										}));
-									}}
-								>
-									<FormControlLabel
-										value="manual"
-										control={<Radio size="small" />}
-										label="Manual"
-									/>
-									<FormControlLabel
-										value="auto"
-										control={<Radio size="small" />}
-										label="Automatic"
-									/>
-								</RadioGroup>
-							</FormSection>
-
-							<div className="flex flex-col gap-1">
-								<Label className="text-md" htmlFor={defaultWorkspaceNameID}>
-									Workspace name
-								</Label>
-								<div className="text-sm text-content-secondary pb-3">
-									Default name for the new workspace
-								</div>
-								<Input
-									id={defaultWorkspaceNameID}
-									value={buttonValues.name}
-									onChange={(event) => {
-										debouncedValidateWorkspaceName(event.target.value);
-										setButtonValues((buttonValues) => ({
-											...buttonValues,
-											name: event.target.value,
-										}));
-									}}
-								/>
-								<div className="text-sm text-highlight-red mt-1" role="alert">
-									{workspaceNameError}
-								</div>
-							</div>
-
-							{templateParameters.length > 0 && (
-								<div className="flex flex-col gap-9">
-									{templateParameters.map((parameter) => {
-										const parameterValue =
-											buttonValues[`param.${parameter.name}`] ?? "";
-
-										return (
-											<RichParameterInput
-												value={parameterValue}
-												onChange={async (value) => {
-													setButtonValues((buttonValues) => ({
-														...buttonValues,
-														[`param.${parameter.name}`]: value,
-													}));
-												}}
-												key={parameter.name}
-												parameter={parameter}
-											/>
-										);
-									})}
-								</div>
-							)}
-						</VerticalForm>
-					</div>
-
-					<div
-						css={(theme) => ({
-							// 80px for padding, 36px is for the status bar. We want to use `vh`
-							// so that it will be relative to the screen and not the parent layout.
-							height: "calc(100vh - (80px + 36px))",
-							top: 40,
-							position: "sticky",
-							display: "flex",
-							padding: 64,
-							flex: 1,
-							alignItems: "center",
-							justifyContent: "center",
-							borderRadius: 8,
-							backgroundColor: theme.palette.background.paper,
-							border: `1px solid ${theme.palette.divider}`,
-						})}
-					>
-						<img src="/open-in-coder.svg" alt="Open in Coder button" />
-						<div className="px-4 py-12 absolute bottom-0 left-0 flex justify-center w-full">
-							<Button
-								className="rounded-full"
-								disabled={clipboard.showCopiedSuccess}
-								onClick={() => {
-									const textToCopy = getClipboardCopyContent(
-										template.name,
-										template.organization_name,
-										buttonValues,
-									);
-									clipboard.copyToClipboard(textToCopy);
-								}}
-							>
-								{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-								Copy button code
-							</Button>
-						</div>
-					</div>
-				</div>
-			)}
-		</>
+		<div className="flex gap-8 pt-4 flex-col items-center justify-center">
+			<div
+				className="
+				flex flex-col items-center justify-center p-6
+			 	rounded-lg border border-border border-solid bg-surface-secondary"
+			>
+				<img src="/open-in-coder.svg" alt="Open in Coder button" />
+			</div>
+			<Button
+				variant="default"
+				disabled={clipboard.showCopiedSuccess}
+				onClick={() => {
+					const textToCopy = getClipboardCopyContent(template, buttonValues);
+					clipboard.copyToClipboard(textToCopy);
+				}}
+			>
+				{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />} Copy button
+				Markdown
+			</Button>
+		</div>
 	);
 };
 
