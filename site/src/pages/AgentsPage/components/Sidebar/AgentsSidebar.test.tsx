@@ -124,23 +124,25 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 // ---- Tests ----
 
 describe("AgentsSidebar archived filter", () => {
-	it("calls the filter change callback from the dropdown", async () => {
+	it("opens the filter popover with group and filter options", async () => {
 		const user = userEvent.setup();
-		const onArchivedFilterChange = vi.fn();
 
 		render(
 			<Wrapper>
 				<AgentsSidebar
 					{...defaultProps}
-					onArchivedFilterChange={onArchivedFilterChange}
+					onArchivedFilterChange={vi.fn()}
 				/>
 			</Wrapper>,
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("menuitem", { name: /archived/i }));
 
-		expect(onArchivedFilterChange).toHaveBeenCalledWith("archived");
+		expect(screen.getByText("Group")).toBeInTheDocument();
+		expect(screen.getByText("Date")).toBeInTheDocument();
+		expect(screen.getAllByText("Chat status").length).toBeGreaterThanOrEqual(1);
+		expect(screen.getByText("Filter by")).toBeInTheDocument();
+		expect(screen.getByText("PR status")).toBeInTheDocument();
 	});
 
 	it("calls the filter change callback from the empty-state link", async () => {

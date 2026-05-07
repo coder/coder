@@ -44,6 +44,7 @@ import {
 	PlugIcon,
 	ReceiptTextIcon,
 	RefreshCwIcon,
+	SearchIcon,
 	ServerIcon,
 	Settings2Icon,
 	SettingsIcon,
@@ -74,6 +75,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -90,6 +92,12 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -103,6 +111,10 @@ import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/Use
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
+import {
+	CHAT_STATUS_GROUPS,
+	getChatStatusGroup,
+} from "../../utils/chatStatusGroups";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import { asNonEmptyString } from "../ChatConversation/blockUtils";
@@ -110,6 +122,44 @@ import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
 import { RenameChatDialog } from "./RenameChatDialog";
+
+type GroupByOption = "date" | "chat-status";
+
+type PRStatusFilter = "draft" | "open" | "merged" | "closed";
+
+type ChatStatusFilter =
+	| "unread"
+	| "running"
+	| "idle"
+	| "error"
+	| "archived";
+
+interface SidebarFilterState {
+	groupBy: GroupByOption;
+	prStatus: ReadonlySet<PRStatusFilter>;
+	chatStatus: ReadonlySet<ChatStatusFilter>;
+}
+
+const DEFAULT_FILTER_STATE: SidebarFilterState = {
+	groupBy: "date",
+	prStatus: new Set<PRStatusFilter>(),
+	chatStatus: new Set<ChatStatusFilter>(),
+};
+
+const PR_STATUS_OPTIONS: { value: PRStatusFilter; label: string }[] = [
+	{ value: "draft", label: "Draft" },
+	{ value: "open", label: "Open" },
+	{ value: "merged", label: "Merged" },
+	{ value: "closed", label: "Closed" },
+];
+
+const CHAT_STATUS_OPTIONS: { value: ChatStatusFilter; label: string }[] = [
+	{ value: "unread", label: "Unread" },
+	{ value: "running", label: "Running" },
+	{ value: "idle", label: "Idle/awaiting feedback" },
+	{ value: "error", label: "Error" },
+	{ value: "archived", label: "Archived" },
+];
 
 type SidebarView =
 	| { panel: "chats" }
@@ -185,6 +235,8 @@ interface AgentsSidebarProps {
 	isFetchingNextPage?: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
+	filterState?: SidebarFilterState;
+	onFilterStateChange?: (state: SidebarFilterState) => void;
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
@@ -240,6 +292,57 @@ const getPRIconConfig = (
 		};
 	}
 	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
+};
+
+/**
+ * Returns the PR status filter value for a chat based on its diff status.
+ */
+const getPRStatusForChat = (
+	diffStatus: ChatDiffStatus | undefined,
+): PRStatusFilter | undefined => {
+	const state = diffStatus?.pull_request_state;
+	if (!state) return undefined;
+	if (state === "merged") return "merged";
+	if (state === "closed") return "closed";
+	if (diffStatus?.pull_request_draft) return "draft";
+	return "open";
+};
+
+/**
+ * Returns the chat status filter value for a chat.
+ */
+const getChatStatusFilterValue = (chat: Chat): ChatStatusFilter => {
+	if (chat.archived) return "archived";
+	if (chat.status === "pending" || chat.status === "running") return "running";
+	if (chat.has_unread) return "unread";
+	if (chat.status === "error") return "error";
+	return "idle";
+};
+
+/**
+ * Returns true if a chat matches the active filter state.
+ */
+const matchesFilterState = (
+	chat: Chat,
+	filterState: SidebarFilterState,
+): boolean => {
+	if (filterState.prStatus.size > 0) {
+		const prStatus = getPRStatusForChat(chat.diff_status);
+		if (!prStatus || !filterState.prStatus.has(prStatus)) {
+			return false;
+		}
+	}
+	if (filterState.chatStatus.size > 0) {
+		const chatStatusVal = getChatStatusFilterValue(chat);
+		if (!filterState.chatStatus.has(chatStatusVal)) {
+			return false;
+		}
+	}
+	return true;
+};
+
+const hasActiveFilters = (filterState: SidebarFilterState): boolean => {
+	return filterState.prStatus.size > 0 || filterState.chatStatus.size > 0;
 };
 
 const getModelDisplayName = (
@@ -836,6 +939,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isFetchingNextPage,
 		archivedFilter,
 		onArchivedFilterChange,
+		filterState: filterStateProp,
+		onFilterStateChange,
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
@@ -868,6 +973,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
+	const [internalFilterState, setInternalFilterState] =
+		useState<SidebarFilterState>(DEFAULT_FILTER_STATE);
+	const filterState = filterStateProp ?? internalFilterState;
+	const setFilterState = onFilterStateChange ?? setInternalFilterState;
+	const [filterSearch, setFilterSearch] = useState("");
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -876,9 +986,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		search: normalizedSearch,
 		tree: chatTree,
 	});
-	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
-		visibleChatIDs.has(chatID),
-	);
+	const visibleRootIDs = chatTree.rootIds.filter((chatID) => {
+		if (!visibleChatIDs.has(chatID)) return false;
+		if (hasActiveFilters(filterState)) {
+			const chat = chatById.get(chatID);
+			if (chat && !matchesFilterState(chat, filterState)) return false;
+		}
+		return true;
+	});
 
 	const pinnedChats = visibleRootIDs
 		.map((id) => chatById.get(id))
@@ -973,38 +1088,115 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				}),
 			);
 	const filterDropdown = (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
+		<Popover>
+			<PopoverTrigger asChild>
 				<Button
 					variant="subtle"
 					size="icon"
 					aria-label="Filter agents"
 					className={cn(
 						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-						archivedFilter === "archived" && "text-content-primary",
+						(archivedFilter === "archived" ||
+							hasActiveFilters(filterState) ||
+							filterState.groupBy !== "date") &&
+							"text-content-primary",
 					)}
 				>
 					<FilterIcon />
 				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent
+			</PopoverTrigger>
+			<PopoverContent
 				align="end"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header [&_[role=menuitem]]:text-[13px]"
+				className="w-64 p-0"
 			>
-				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
-					Active
-					{archivedFilter === "active" && (
-						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-					)}
-				</DropdownMenuItem>
-				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
-					Archived
-					{archivedFilter === "archived" && (
-						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-					)}
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
+				<div className="flex flex-col">
+					{/* Group section */}
+					<div className="border-0 border-b border-solid border-border-default px-3 py-2.5">
+						<span className="mb-1.5 block text-xs font-medium text-content-secondary">
+							Group
+						</span>
+						<RadioGroup
+							value={filterState.groupBy}
+							onValueChange={(value) =>
+								setFilterState({
+									...filterState,
+									groupBy: value as GroupByOption,
+								})
+							}
+							className="gap-1.5"
+						>
+							<div className="flex items-center gap-2">
+								<RadioGroupItem value="date" id="group-date" />
+								<label
+									htmlFor="group-date"
+									className="cursor-pointer text-[13px] text-content-primary"
+								>
+									Date
+								</label>
+							</div>
+							<div className="flex items-center gap-2">
+								<RadioGroupItem value="chat-status" id="group-status" />
+								<label
+									htmlFor="group-status"
+									className="cursor-pointer text-[13px] text-content-primary"
+								>
+									Chat status
+								</label>
+							</div>
+						</RadioGroup>
+					</div>
+
+					{/* Filter by section */}
+					<div className="px-3 py-2.5">
+						<span className="mb-1.5 block text-xs font-medium text-content-secondary">
+							Filter by
+						</span>
+						<div className="relative mb-2">
+							<SearchIcon className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-content-secondary" />
+							<input
+								type="text"
+								placeholder="Search filters..."
+								value={filterSearch}
+								onChange={(e) => setFilterSearch(e.target.value)}
+								className="h-7 w-full rounded-md border border-border-default bg-surface-primary pl-7 pr-2 text-xs text-content-primary placeholder:text-content-secondary focus:border-border-hover focus:outline-none"
+							/>
+						</div>
+						<ScrollArea className="max-h-52">
+							<FilterCheckboxSection
+								title="PR status"
+								options={PR_STATUS_OPTIONS}
+								selected={filterState.prStatus}
+								searchTerm={filterSearch}
+								onChange={(value, checked) => {
+									const next = new Set(filterState.prStatus);
+									if (checked) {
+										next.add(value as PRStatusFilter);
+									} else {
+										next.delete(value as PRStatusFilter);
+									}
+									setFilterState({ ...filterState, prStatus: next });
+								}}
+							/>
+							<FilterCheckboxSection
+								title="Chat status"
+								options={CHAT_STATUS_OPTIONS}
+								selected={filterState.chatStatus}
+								searchTerm={filterSearch}
+								onChange={(value, checked) => {
+									const next = new Set(filterState.chatStatus);
+									if (checked) {
+										next.add(value as ChatStatusFilter);
+									} else {
+										next.delete(value as ChatStatusFilter);
+									}
+									setFilterState({ ...filterState, chatStatus: next });
+								}}
+							/>
+						</ScrollArea>
+					</div>
+				</div>
+			</PopoverContent>
+		</Popover>
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -1230,39 +1422,70 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															</DndContext>
 														</div>
 													)}
-													{/* ── Time-grouped sections ── */}
-													{TIME_GROUPS.map((group) => {
-														const groupChats = visibleRootIDs
-															.map((id) => chatById.get(id))
-															.filter(
-																(chat): chat is Chat =>
-																	chat !== undefined &&
-																	getTimeGroup(chat.updated_at) === group &&
-																	chat.pin_order === 0,
-															);
-														if (groupChats.length === 0) return null;
-														return (
-															<div
-																key={group}
-																className="[&:not(:first-child)]:mt-3"
-															>
-																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																	<span>{group}</span>
-																	{group === firstNonEmptyGroup &&
-																		filterDropdown}
-																</div>
-																<div className="flex flex-col gap-0.5">
-																	{groupChats.map((chat) => (
-																		<ChatTreeNode
-																			key={chat.id}
-																			chat={chat}
-																			isChildNode={false}
-																		/>
-																	))}
-																</div>
-															</div>
-														);
-													})}
+													{/* ── Grouped sections ── */}
+													{filterState.groupBy === "date"
+														? TIME_GROUPS.map((group) => {
+																	const groupChats = visibleRootIDs
+																		.map((id) => chatById.get(id))
+																		.filter(
+																			(chat): chat is Chat =>
+																				chat !== undefined &&
+																				getTimeGroup(chat.updated_at) === group &&
+																				chat.pin_order === 0,
+																		);
+																	if (groupChats.length === 0) return null;
+																	return (
+																		<div
+																			key={group}
+																			className="[&:not(:first-child)]:mt-3"
+																		>
+																			<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																				<span>{group}</span>
+																				{group === firstNonEmptyGroup &&
+																				filterDropdown}
+																		</div>
+																		<div className="flex flex-col gap-0.5">
+																			{groupChats.map((chat) => (
+																				<ChatTreeNode
+																					key={chat.id}
+																					chat={chat}
+																					isChildNode={false}
+																				/>
+																			))}
+																		</div>
+																	</div>
+																);
+															})
+														: CHAT_STATUS_GROUPS.map((group) => {
+																const groupChats = visibleRootIDs
+																	.map((id) => chatById.get(id))
+																	.filter(
+																		(chat): chat is Chat =>
+																			chat !== undefined &&
+																			getChatStatusGroup(chat) === group &&
+																			chat.pin_order === 0,
+																	);
+																if (groupChats.length === 0) return null;
+																return (
+																	<div
+																		key={group}
+																		className="[&:not(:first-child)]:mt-3"
+																	>
+																		<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																			<span>{group}</span>
+																			</div>
+																			<div className="flex flex-col gap-0.5">
+																				{groupChats.map((chat) => (
+																					<ChatTreeNode
+																						key={chat.id}
+																						chat={chat}
+																						isChildNode={false}
+																					/>
+																				))}
+																			</div>
+																		</div>
+																	);
+																})}
 												</div>
 											)}
 										</div>
@@ -1634,6 +1857,49 @@ const LoadMoreSentinel: FC<{
 			{isFetchingNextPage && (
 				<Spinner className="h-4 w-4 text-content-secondary" loading />
 			)}
+		</div>
+	);
+};
+
+/**
+ * Reusable checkbox section for the filter popover. Renders a titled
+ * group of checkbox options that can be filtered by a search term.
+ */
+const FilterCheckboxSection: FC<{
+	title: string;
+	options: readonly { value: string; label: string }[];
+	selected: ReadonlySet<string>;
+	searchTerm: string;
+	onChange: (value: string, checked: boolean) => void;
+}> = ({ title, options, selected, searchTerm, onChange }) => {
+	const normalizedTerm = searchTerm.toLowerCase();
+	const filtered = normalizedTerm
+		? options.filter((opt) => opt.label.toLowerCase().includes(normalizedTerm))
+		: options;
+	if (filtered.length === 0) return null;
+	return (
+		<div className="mb-2">
+			<span className="mb-1 block text-xs text-content-secondary">
+				{title}
+			</span>
+			<div className="flex flex-col gap-1.5">
+				{filtered.map((opt) => (
+					<label
+						key={opt.value}
+						htmlFor={`filter-${opt.value}`}
+					className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
+				>
+						<Checkbox
+							id={`filter-${opt.value}`}
+							checked={selected.has(opt.value)}
+							onCheckedChange={(checked) =>
+								onChange(opt.value, checked === true)
+							}
+						/>
+						{opt.label}
+					</label>
+				))}
+			</div>
 		</div>
 	);
 };
