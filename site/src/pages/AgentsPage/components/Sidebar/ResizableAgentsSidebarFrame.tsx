@@ -4,6 +4,7 @@ import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
+	useEffectEvent,
 	useRef,
 	useState,
 } from "react";
@@ -28,14 +29,12 @@ export const ResizableAgentsSidebarFrame = ({
 }: ResizableAgentsSidebarFrameProps) => {
 	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
-	const widthRef = useRef(width);
 	const isDragging = useRef(false);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 
 	const setVisualWidth = (nextWidth: number): number => {
 		const clampedWidth = clampLeftSidebarWidth(nextWidth);
-		widthRef.current = clampedWidth;
 		setWidth(clampedWidth);
 		return clampedWidth;
 	};
@@ -45,26 +44,21 @@ export const ResizableAgentsSidebarFrame = ({
 		persistLeftSidebarWidth(clampedWidth);
 	};
 
+	const handleResize = useEffectEvent(() => {
+		const clampedWidth = clampLeftSidebarWidth(width);
+		setVisualWidth(clampedWidth);
+	});
+	
 	useEffect(() => {
-		widthRef.current = width;
-	}, [width]);
-
-	useEffect(() => {
-		const handleResize = () => {
-			const clampedWidth = clampLeftSidebarWidth(widthRef.current);
-			widthRef.current = clampedWidth;
-			setWidth(clampedWidth);
-		};
-
-		window.addEventListener("resize", handleResize);
-		return () => window.removeEventListener("resize", handleResize);
-	}, []);
+		globalThis.addEventListener("resize", handleResize);
+		return () => globalThis.removeEventListener("resize", handleResize);
+	}, [handleResize]);
 
 	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
 		e.preventDefault();
 		isDragging.current = true;
 		startX.current = e.clientX;
-		startWidth.current = widthRef.current;
+		startWidth.current = width;
 		e.currentTarget.setPointerCapture?.(e.pointerId);
 	};
 
@@ -92,11 +86,11 @@ export const ResizableAgentsSidebarFrame = ({
 		switch (e.key) {
 			case "ArrowLeft":
 				e.preventDefault();
-				setUserWidth(widthRef.current - LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP);
+				setUserWidth(width - LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP);
 				break;
 			case "ArrowRight":
 				e.preventDefault();
-				setUserWidth(widthRef.current + LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP);
+				setUserWidth(width + LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP);
 				break;
 			case "Home":
 				e.preventDefault();
@@ -115,11 +109,13 @@ export const ResizableAgentsSidebarFrame = ({
 			style={
 				{
 					"--agents-left-sidebar-width": `${width}px`,
+					"--agents-left-sidebar-min-width": `${LEFT_SIDEBAR_MIN_WIDTH}px`,
+					"--agents-left-sidebar-max-width": `${maxWidth}px`,
 				} as CSSProperties
 			}
 			className={cn(
 				className,
-				"relative sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[240px] sm:max-w-[min(520px,50vw)]",
+				"relative sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[var(--agents-left-sidebar-min-width)] sm:max-w-[var(--agents-left-sidebar-max-width)]",
 			)}
 		>
 			{children}
