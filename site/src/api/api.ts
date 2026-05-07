@@ -2457,23 +2457,17 @@ class ApiMethods {
 		workspace: TypesGen.Workspace,
 		templateVersionId: string,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
-		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const currentBuildParameters = await this.getWorkspaceBuildParameters(
 			workspace.latest_build.id,
 		);
 
-		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
-		if (isDynamicParametersEnabled) {
-			templateParameters = await this.getDynamicParameters(
+		const templateParameters: TypesGen.TemplateVersionParameter[] =
+			await this.getDynamicParameters(
 				templateVersionId,
 				workspace.owner_id,
 				currentBuildParameters,
 			);
-		} else {
-			templateParameters =
-				await this.getTemplateVersionRichParameters(templateVersionId);
-		}
 
 		const missingParameters = getMissingParameters(
 			currentBuildParameters,
@@ -2505,31 +2499,10 @@ class ApiMethods {
 	updateWorkspace = async (
 		workspace: TypesGen.Workspace,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
-		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const [template, oldBuildParameters] = await Promise.all([
-			this.getTemplate(workspace.template_id),
-			this.getWorkspaceBuildParameters(workspace.latest_build.id),
-		]);
+		const template = await this.getTemplate(workspace.template_id);
 
 		const activeVersionId = template.active_version_id;
-
-		if (!isDynamicParametersEnabled) {
-			// Dynamic templates rely on the backend to fully validate parameters.
-			// Legacy templates do not, so do an additional check for any missing params.
-			const templateParameters =
-				await this.getTemplateVersionRichParameters(activeVersionId);
-
-			const missingParameters = getMissingParameters(
-				oldBuildParameters,
-				newBuildParameters,
-				templateParameters,
-			);
-
-			if (missingParameters.length > 0) {
-				throw new MissingBuildParameters(missingParameters, activeVersionId);
-			}
-		}
 
 		// Stop the workspace if it is already running.
 		if (workspace.latest_build.status === "running") {
@@ -2554,7 +2527,6 @@ class ApiMethods {
 			// If the build failed because of a parameter validation error, then we
 			// throw a special sentinel error that can be caught by the caller.
 			if (
-				isDynamicParametersEnabled &&
 				isApiError(error) &&
 				error.response.status === 400 &&
 				error.response.data.validations &&

@@ -70,7 +70,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(workspace, queryClient, true),
+		changeVersion(workspace, queryClient),
 	);
 
 	const handleError = (error: unknown) => {

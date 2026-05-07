@@ -76,7 +76,7 @@ export function useBatchActions(
 			return Promise.all(
 				workspaces
 					.filter((w) => w.outdated && !w.dormant_at)
-					.map((w) => API.updateWorkspace(w, [], isDynamicParametersEnabled)),
+					.map((w) => API.updateWorkspace(w)),
 			);
 		},
 		onSuccess,
