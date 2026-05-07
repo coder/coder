@@ -197,7 +197,8 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 				},
 				override: func(r *templateMetaUpdate) {
 					r.allowUserAutostop = false
-				}},
+				},
+			},
 		},
 		{
 			name: "AllowUserCancelWorkspaceJobs",

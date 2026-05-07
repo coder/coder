@@ -107,7 +107,7 @@ func resolveTemplateMetaUpdate(
 				Detail: err.Error(),
 			})
 		} else {
-			out.autostartRequirementDaysOfWeekParsed = bitmap
+			out.autostopRequirementDaysOfWeekParsed = bitmap
 			out.autostopRequirementWeeks = req.AutostopRequirement.Weeks
 		}
 	}
