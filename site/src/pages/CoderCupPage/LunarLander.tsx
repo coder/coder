@@ -2137,6 +2137,14 @@ export const LunarLander: FC = () => {
 							landerAngle = 0;
 							thrusting = false;
 							landerY = pad.y - 8;
+							// Keep both feet (+-11px) on the pad so the
+							// lander cannot get stuck on the terrain slope
+							// at the pad edge on relaunch.
+							const footHalf = 11;
+							landerX = Math.max(
+								pad.x + footHalf,
+								Math.min(pad.x + pad.width - footHalf, landerX),
+							);
 							landedOnStation = pad.isStation;
 
 							if (pad.isStation) {

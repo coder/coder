@@ -51,7 +51,7 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 		}
 	};
 
-	const matchMedia = ((query: string): MediaQueryList => {
+	const matchMedia = (query: string): MediaQueryList => {
 		const isDesktopQuery = /\(\s*min-width\s*:\s*640px\s*\)/.test(query);
 		return {
 			matches: isDesktopQuery ? desktop : false,
@@ -94,7 +94,7 @@ const createMatchMediaController = (initialDesktop: boolean) => {
 				}
 			},
 		};
-	}) as typeof window.matchMedia;
+	};
 
 	return {
 		matchMedia,

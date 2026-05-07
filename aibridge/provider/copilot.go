@@ -12,10 +12,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -110,6 +112,12 @@ func (*Copilot) AuthHeader() string {
 // rather than a global key configured at the provider level.
 // The original Authorization header flows through untouched from the client.
 func (*Copilot) InjectAuthHeader(_ *http.Header) {}
+
+// KeyFailoverConfig returns a config with a nil Pool, which makes
+// the KeyFailoverTransport short-circuit. Copilot is always BYOK.
+func (*Copilot) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
+	return keypool.KeyFailoverConfig{}
+}
 
 func (p *Copilot) CircuitBreakerConfig() *config.CircuitBreaker {
 	return p.circuitBreaker

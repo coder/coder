@@ -4343,11 +4343,6 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 	return id, nil
 }
 
-const (
-	// maxChatFileSize is the maximum size of a chat file upload (10 MB).
-	maxChatFileSize = 10 << 20
-)
-
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5104,14 +5099,6 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	switch req.ReasoningEffort {
-	case "", "low", "medium", "high":
-	default:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(`reasoning_effort %q is not valid; must be one of "", "low", "medium", or "high".`, req.ReasoningEffort),
-		})
-		return
-	}
 	if req.ModelConfigID != uuid.Nil {
 		// Use system context because GetChatModelConfigByID requires
 		// deployment-config read access, which can be broader than the
@@ -5840,14 +5827,14 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	r.Body = http.MaxBytesReader(rw, r.Body, maxChatFileSize)
+	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxChatFileSizeBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "File too large.",
-				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", maxChatFileSize),
+				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", codersdk.MaxChatFileSizeBytes),
 			})
 			return
 		}

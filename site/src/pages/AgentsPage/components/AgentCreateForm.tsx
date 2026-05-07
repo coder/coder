@@ -22,6 +22,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
+	getProviderForModelOption,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
@@ -382,7 +383,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizationId || undefined, { persist: true });
+	} = useFileAttachments(organizationId || undefined, {
+		persist: true,
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];

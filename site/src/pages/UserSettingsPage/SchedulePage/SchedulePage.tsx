@@ -8,8 +8,12 @@ import {
 import type { UserQuietHoursScheduleResponse } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
 
 const SchedulePage: FC = () => {
@@ -38,11 +42,14 @@ const SchedulePage: FC = () => {
 	}
 
 	return (
-		<Section
-			title="Quiet hours"
-			layout="fluid"
-			description="Workspaces may be automatically updated during your quiet hours, as configured by your administrators."
-		>
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Quiet hours</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Workspaces may be automatically updated during your quiet hours, as
+					configured by your administrators.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 			<ScheduleForm
 				isLoading={mutationLoading}
 				initialValues={quietHoursSchedule as UserQuietHoursScheduleResponse}
@@ -55,7 +62,7 @@ const SchedulePage: FC = () => {
 					});
 				}}
 			/>
-		</Section>
+		</>
 	);
 };
 

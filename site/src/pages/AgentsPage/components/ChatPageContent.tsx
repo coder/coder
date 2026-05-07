@@ -7,6 +7,7 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
+import { getProviderForModelOption } from "../utils/modelOptions";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -305,8 +306,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const composeAttachments = useChatDraftAttachments(organizationId, chatId);
-	const editAttachments = useFileAttachments(organizationId);
+	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
+	const editAttachments = useFileAttachments(organizationId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
 	const {
 		setAttachments: setEditAttachments,
 		setPreviewUrls: setEditPreviewUrls,

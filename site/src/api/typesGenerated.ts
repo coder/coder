@@ -828,11 +828,6 @@ export interface AdvisorConfig {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overlays provider reasoning effort on the advisor
-	 * call config when supported. Allowed: "", "low", "medium", "high".
-	 */
-	readonly reasoning_effort: string;
 }
 
 // From codersdk/workspacebuilds.go
@@ -881,6 +876,14 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"envbuilder",
 	"exectrace",
 ];
+
+// From codersdk/chats.go
+/**
+ * AnthropicInlineImageCapBytes is Anthropic's documented per-image
+ * wire limit; the same cap applies to Bedrock-hosted Claude. Other
+ * providers have no documented per-image cap.
+ */
+export const AnthropicInlineImageCapBytes = 5242880;
 
 // From codersdk/deployment.go
 export interface AppHostResponse {
@@ -4563,9 +4566,12 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 }
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
+export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
 
-export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"];
+export const JobErrorCodes: JobErrorCode[] = [
+	"INSUFFICIENT_QUOTA",
+	"REQUIRED_TEMPLATE_VARIABLES",
+];
 
 // From codersdk/licenses.go
 export interface License {
@@ -4778,6 +4784,13 @@ export interface MatchedProvisioners {
  * this limit than to lower it.
  */
 export const MaxChatFileIDs = 20;
+
+// From codersdk/chats.go
+/**
+ * MaxChatFileSizeBytes is the upload-endpoint cap for chat
+ * attachments.
+ */
+export const MaxChatFileSizeBytes = 10485760;
 
 // From codersdk/usersecretvalidation.go
 /**
@@ -7916,11 +7929,6 @@ export interface UpdateAdvisorConfigRequest {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overlays provider reasoning effort on the advisor
-	 * call config when supported. Allowed: "", "low", "medium", "high".
-	 */
-	readonly reasoning_effort: string;
 }
 
 // From codersdk/deployment.go

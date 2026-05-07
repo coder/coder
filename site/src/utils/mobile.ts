@@ -5,9 +5,6 @@
  * virtual keyboard to pop up unexpectedly.
  */
 export const isMobileViewport = (): boolean => {
-	if (typeof window === "undefined" || !window.matchMedia) {
-		return false;
-	}
 	return window.matchMedia("(max-width: 639px)").matches;
 };
 
@@ -20,8 +17,5 @@ export const isMobileViewport = (): boolean => {
  * mobile branch instead of the desktop flyout branch.
  */
 export const isBelowMdViewport = (): boolean => {
-	if (typeof window === "undefined" || !window.matchMedia) {
-		return false;
-	}
 	return window.matchMedia("(max-width: 767px)").matches;
 };

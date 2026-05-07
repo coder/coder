@@ -125,18 +125,28 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				defer options.WorkspaceMu.Unlock()
 			}
 
+			ownerID := options.OwnerID
+
 			// Check for an existing workspace on the chat.
 			check := options.checkExistingWorkspace(ctx, db, chatID)
+			if check.BuildErr != nil {
+				return buildFailureToolResponse(
+					ctx,
+					options.Logger,
+					db,
+					ownerID,
+					organizationID,
+					check.BuildAction,
+					check.BuildID,
+					check.BuildErr,
+				), nil
+			}
 			if check.Err != nil {
-				if check.FailedBuildID != uuid.Nil {
-					return buildToolResponse(newBuildError(check.Err.Error(), check.FailedBuildID)), nil
-				}
 				return fantasy.NewTextErrorResponse(check.Err.Error()), nil
 			}
 			if check.Done {
 				return toolResponse(check.Result), nil
 			}
-			ownerID := options.OwnerID
 
 			// Set up dbauthz context for DB lookups.
 			ownerCtx, ownerErr := asOwner(ctx, db, ownerID)
@@ -260,10 +270,16 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			buildID := workspace.LatestBuild.ID
 			if buildID != uuid.Nil {
 				if err := waitForBuild(ctx, db, buildID); err != nil {
-					return buildToolResponse(newBuildError(
-						xerrors.Errorf("workspace build failed: %w", err).Error(),
+					return buildFailureToolResponse(
+						ctx,
+						options.Logger,
+						db,
+						ownerID,
+						organizationID,
+						buildFailureActionCreate,
 						buildID,
-					)), nil
+						xerrors.Errorf("workspace build failed: %w", err),
+					), nil
 				}
 			}
 
@@ -323,9 +339,12 @@ type existingWorkspaceResult struct {
 	Result map[string]any
 	// Done indicates the caller should return early.
 	Done bool
-	// FailedBuildID is set when waitForBuild failed, so the
-	// caller can include it in a structured error response.
-	FailedBuildID uuid.UUID
+	// BuildAction, BuildID, and BuildErr are set together when
+	// waitForBuild failed, so the caller can render the build
+	// failure through the shared response path.
+	BuildAction buildFailureAction
+	BuildID     uuid.UUID
+	BuildErr    error
 	// Err is non-nil when the check itself failed.
 	Err error
 }
@@ -397,9 +416,14 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			o.OnChatUpdated(updatedChat)
 		}
 		if err := waitForBuild(ctx, db, build.ID); err != nil {
+			action := buildFailureActionCreate
+			if build.Transition == database.WorkspaceTransitionStart {
+				action = buildFailureActionStart
+			}
 			return existingWorkspaceResult{
-				FailedBuildID: build.ID,
-				Err:           xerrors.Errorf("existing workspace build failed: %w", err),
+				BuildAction: action,
+				BuildID:     build.ID,
+				BuildErr:    xerrors.Errorf("existing workspace build failed: %w", err),
 			}
 		}
 		result := map[string]any{
@@ -517,7 +541,11 @@ func waitForBuild(
 			if job.Error.Valid {
 				errMsg = job.Error.String
 			}
-			return xerrors.New(errMsg)
+			var code codersdk.JobErrorCode
+			if job.ErrorCode.Valid {
+				code = codersdk.JobErrorCode(job.ErrorCode.String)
+			}
+			return &workspaceBuildError{message: errMsg, code: code}
 		case database.ProvisionerJobStatusCanceled:
 			return xerrors.New("build was canceled")
 		case database.ProvisionerJobStatusPending,

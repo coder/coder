@@ -11876,7 +11876,6 @@ func TestChatAdvisorConfig_Update(t *testing.T) {
 		Enabled:         true,
 		MaxUsesPerRun:   5,
 		MaxOutputTokens: 1024,
-		ReasoningEffort: "high",
 	}
 
 	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
@@ -11974,7 +11973,6 @@ func TestChatAdvisorConfig_RoundTripModelConfigID(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 2048,
 		ModelConfigID:   modelConfig.ID,
-		ReasoningEffort: "medium",
 	}
 
 	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
@@ -11983,21 +11981,6 @@ func TestChatAdvisorConfig_RoundTripModelConfigID(t *testing.T) {
 	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
 	require.Equal(t, want, resp)
-}
-
-func TestChatAdvisorConfig_InvalidReasoningEffort(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	adminClient := newChatClient(t)
-	coderdtest.CreateFirstUser(t, adminClient.Client)
-
-	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
-		ReasoningEffort: "ultra",
-	})
-	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-	require.Contains(t, sdkErr.Message, `reasoning_effort "ultra"`)
-	require.Contains(t, sdkErr.Message, "not valid")
 }
 
 func TestChatAdvisorConfig_InvalidModelConfigID(t *testing.T) {
@@ -12055,7 +12038,6 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 		MaxUsesPerRun:   5,
 		MaxOutputTokens: 1024,
 		ModelConfigID:   modelConfig.ID,
-		ReasoningEffort: "high",
 	}
 	err := adminClient.UpdateChatAdvisorConfig(ctx, rich)
 	require.NoError(t, err)
@@ -12117,6 +12099,30 @@ func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {
 		Enabled:         true,
 		MaxUsesPerRun:   0,
 		MaxOutputTokens: 0,
+	}, resp)
+
+	raw, err := db.GetChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx))
+	require.NoError(t, err)
+	require.JSONEq(t, stored, raw)
+}
+
+func TestChatAdvisorConfig_IgnoresLegacyReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient, db := newChatClientWithDatabase(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	stored := `{"enabled":true,"max_uses_per_run":3,"max_output_tokens":2048,"reasoning_effort":"high"}`
+	err := db.UpsertChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx), stored)
+	require.NoError(t, err)
+
+	resp, err := adminClient.GetChatAdvisorConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   3,
+		MaxOutputTokens: 2048,
 	}, resp)
 
 	raw, err := db.GetChatAdvisorConfig(dbauthz.AsSystemRestricted(ctx))

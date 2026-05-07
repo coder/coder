@@ -19,6 +19,7 @@ import (
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -394,16 +395,6 @@ func (p *Server) newAdvisorRuntime(
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
-	)
-	// ProviderOptionsFromChatModelConfig returns nil when the model config
-	// has no provider_options block, so the helper seeds a minimal entry
-	// for the advisor model's provider before applying reasoning_effort.
-	// This keeps the per-provider dispatch in chatprovider so adding a new
-	// provider there propagates here automatically.
-	providerOptions = chatprovider.ApplyReasoningEffortToOptions(
-		providerOptions,
-		advisorModel,
-		advisorCfg.ReasoningEffort,
 	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -5171,16 +5162,50 @@ func (p *Server) subscribeChatControl(
 	return controlCancel
 }
 
-// chatFileResolver returns a FileResolver that fetches chat file
-// content from the database by ID.
-func (p *Server) chatFileResolver() chatprompt.FileResolver {
+// Rejects oversize images on capped providers before any upstream
+// request is issued.
+//
+// Gotcha: a historical oversize image bricks the chat on a capped
+// provider until the user switches providers back, starts a new
+// chat, or edits a message above the offending one (which truncates
+// the prompt forward). A future change should skip the file with a
+// user-facing warning, but that requires altering the FileResolver
+// contract.
+func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
+		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
+		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
+			if hasImageCap &&
+				strings.HasPrefix(f.Mimetype, "image/") &&
+				len(f.Data) >= imageCap {
+				err := xerrors.Errorf(
+					"image attachment %q is %d bytes; %s inline image limit is %d bytes",
+					f.Name, len(f.Data),
+					chatprovider.ProviderDisplayName(normalizedProvider),
+					imageCap,
+				)
+				// User-facing message stays client-agnostic since
+				// older web clients and direct API callers don't
+				// auto-resize; the wrapped error above keeps the
+				// exact byte count for operator logs.
+				return nil, chaterror.WithClassification(err, chaterror.ClassifiedError{
+					Kind:     codersdk.ChatErrorKindConfig,
+					Provider: normalizedProvider,
+					Message: fmt.Sprintf(
+						"Image attachment exceeds %s's %s inline image limit. Replace it with a smaller image.",
+						chatprovider.ProviderDisplayName(normalizedProvider),
+						//nolint:gosec // imageCap is a small positive constant defined in chatprovider.
+						humanize.IBytes(uint64(imageCap)),
+					),
+					Retryable: false,
+				})
+			}
 			result[f.ID] = chatprompt.FileData{
 				Name:      f.Name,
 				Data:      f.Data,
@@ -6488,7 +6513,7 @@ func (p *Server) runChat(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(modelConfig.Provider), logger)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
@@ -7273,7 +7298,7 @@ func (p *Server) runChat(
 			if compactionOptions != nil {
 				compactionOptions.HistoryTipMessageID = compactionHistoryTipMessageID
 			}
-			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(), logger)
+			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(modelConfig.Provider), logger)
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
@@ -8630,6 +8655,10 @@ func (p *Server) updateLastTurnSummary(
 	updatedChat := chat
 	updatedChat.LastTurnSummary = lastTurnSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindSummaryChange, nil)
+
+	// AcquireChats uses SKIP LOCKED; re-wake so a wake racing this
+	// UPDATE's row lock does not strand a freshly-pending chat.
+	p.signalWake()
 }
 
 func (p *Server) webpushConfigured() bool {
