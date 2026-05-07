@@ -18,9 +18,8 @@ func WaitUntilIdleForTest(server *Server) {
 	server.drainInflight()
 }
 
-// WorkspaceMCPDiscoveryTimeout exposes the unexported constant so tests
-// in the chatd_test package can encode the cross-package invariant that
-// this value exceeds agent/x/agentmcp.connectTimeout.
+// WorkspaceMCPDiscoveryTimeout exposes workspaceMCPDiscoveryTimeout
+// for tests in chatd_test.
 const WorkspaceMCPDiscoveryTimeout = workspaceMCPDiscoveryTimeout
 
 // FinishActiveChatForTest exposes the unexported cleanup TX so tests

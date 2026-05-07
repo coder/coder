@@ -66,18 +66,9 @@ const (
 	planPathLookupTimeout        = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
-	// workspaceMCPDiscoveryTimeout bounds the per-turn HTTP call
-	// that asks the workspace agent for its MCP tools. The DB
-	// lookup and the dial that precede the call use the parent
-	// chat-turn context (the dial has its own internal
-	// dialTimeout), so this constant scopes only ListMCPTools.
-	// It must be greater than agent/x/agentmcp.connectTimeout
-	// (30s as of this writing) plus a small buffer so a
-	// cold-start agent has time to finish its first MCP reload
-	// before chatd gives up. The agent constant is unexported,
-	// so this comment is the only contract between the two
-	// values. If agentmcp.connectTimeout changes, bump this
-	// value to match.
+	// Must exceed agent/x/agentmcp.connectTimeout (30s) so a
+	// cold-start agent's first MCP reload can settle before
+	// chatd gives up.
 	workspaceMCPDiscoveryTimeout = 35 * time.Second
 	turnSummaryWriteTimeout      = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
@@ -6576,12 +6567,7 @@ func (p *Server) runChat(
 				}
 			} // Cache miss, agent changed, or no cache: validate
 			// that the workspace still has a live agent before
-			// attempting a dial. The DB lookup and the dial run
-			// under the parent chat-turn context; the dial has
-			// its own internal dialTimeout. Only ListMCPTools is
-			// wrapped in workspaceMCPDiscoveryTimeout because
-			// that is the call that must outlast the agent's
-			// per-server connectTimeout on a cold reload.
+			// attempting a dial.
 			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(ctx)
 			if agentErr != nil {
 				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
