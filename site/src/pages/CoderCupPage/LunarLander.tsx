@@ -1141,11 +1141,6 @@ function tryLanding(
 	const pad = findPadAt(x, pads);
 	if (!pad) return null;
 
-	// Direction: a lander moving upward is taking off, not landing. Without
-	// this check the lander can get stuck on narrow pads when one foot hangs
-	// over the edge onto the rising adjacent terrain: every tiny lift-off is
-	// immediately treated as a fresh landing because the lander's centre is
-	// still over the pad.
 	if (vy < 0) return null;
 
 	// Orientation: must be roughly upright.
