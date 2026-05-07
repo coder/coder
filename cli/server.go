@@ -2926,11 +2926,14 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
-// ReadAIProvidersFromEnv parses CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+// ReadAIProvidersFromEnv parses CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 // environment variables into a slice of AIProviderConfig.
+// Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+// prefix are also accepted for compatibility.
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
 func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
 	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
+	parsed = append(parsed, serpent.ParseEnviron(environ, "CODER_AI_GATEWAY_PROVIDER_")...)
 
 	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
 	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
@@ -3015,7 +3018,7 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			provider.BedrockSmallFastModel = v.Value
 		default:
 			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
-				slog.F("env", fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_%s", providerNum, key)),
+				slog.F("env", fmt.Sprintf("CODER_AI_GATEWAY_PROVIDER_%d_%s", providerNum, key)),
 			)
 		}
 		providers[providerNum] = provider

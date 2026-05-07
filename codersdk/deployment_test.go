@@ -87,16 +87,16 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		},
 		// We don't want these to be configurable via YAML because they are secrets.
 		// However, we do want to allow them to be shown in documentation.
-		"AI Bridge OpenAI Key": {
+		"AI Gateway OpenAI Key": {
 			yaml: true,
 		},
-		"AI Bridge Anthropic Key": {
+		"AI Gateway Anthropic Key": {
 			yaml: true,
 		},
-		"AI Bridge Bedrock Access Key": {
+		"AI Gateway Bedrock Access Key": {
 			yaml: true,
 		},
-		"AI Bridge Bedrock Access Key Secret": {
+		"AI Gateway Bedrock Access Key Secret": {
 			yaml: true,
 		},
 	}
@@ -305,6 +305,195 @@ func must[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
+}
+
+func TestAIConfigUnmarshalJSON_BridgeProxyAlias(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		input       string
+		wantEnabled bool
+	}{
+		{
+			name:        "old_field",
+			input:       `{"aibridge_proxy":{"enabled":true}}`,
+			wantEnabled: true,
+		},
+		{
+			name:        "new_field",
+			input:       `{"ai_gateway_proxy":{"enabled":true}}`,
+			wantEnabled: true,
+		},
+		{
+			name:        "new_field_wins_over_old",
+			input:       `{"ai_gateway_proxy":{"enabled":true},"aibridge_proxy":{"enabled":false}}`,
+			wantEnabled: true,
+		},
+		{
+			name:        "empty",
+			input:       `{}`,
+			wantEnabled: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var cfg codersdk.AIConfig
+			require.NoError(t, json.Unmarshal([]byte(tc.input), &cfg))
+			require.Equal(t, tc.wantEnabled, cfg.BridgeProxyConfig.Enabled.Value())
+		})
+	}
+}
+
+func TestAIGatewayCompatibilityAliases(t *testing.T) {
+	t.Parallel()
+
+	options := (&codersdk.DeploymentValues{}).Options()
+	byFlag := map[string]serpent.Option{}
+	for _, opt := range options {
+		if opt.Flag != "" {
+			byFlag[opt.Flag] = opt
+		}
+	}
+
+	type alias struct {
+		old serpent.Option
+		new serpent.Option
+	}
+	var aliases []alias
+	for _, opt := range options {
+		if !strings.HasPrefix(opt.Flag, "aibridge-") {
+			continue
+		}
+		require.True(t, strings.HasPrefix(opt.Description, "Deprecated:"), "aibridge option %s should have a 'Deprecated:' description", opt.Flag)
+		require.Len(t, opt.UseInstead, 1, "aibridge option %s should point to a single replacement", opt.Flag)
+
+		newOpt, ok := byFlag[opt.UseInstead[0].Flag]
+		require.True(t, ok, "aibridge option %s points to unknown flag %s", opt.Flag, opt.UseInstead[0].Flag)
+		require.NotEqual(t, opt.Flag, newOpt.Flag, "flag %s shares its flag with the new alias option", opt.Flag)
+		require.NotEqual(t, opt.Env, newOpt.Env, "flag %s shares its env with the new alias option", opt.Flag)
+		if oldYAML := opt.YAMLPath(); oldYAML != "" {
+			require.NotEqual(t, oldYAML, newOpt.YAMLPath(), "flag %s shares its YAML path with the new alias option", opt.Flag)
+		} else {
+			require.Empty(t, newOpt.YAMLPath(), "flag %s has no YAML path but the new alias option %s does", opt.Flag, newOpt.Flag)
+		}
+		aliases = append(aliases, alias{old: opt, new: newOpt})
+	}
+	// Update this count when adding or removing aibridge alias options.
+	require.Len(t, aliases, 33, "unexpected number of aibridge alias options")
+
+	sampleVal := func(opt serpent.Option) any {
+		switch opt.Value.Type() {
+		case "bool":
+			return opt.Default != "true"
+		case "int":
+			return 7
+		case "duration":
+			return "2h"
+		case "string-array":
+			return []string{"10.0.0.0/8", "172.16.0.0/12"}
+		default:
+			return "alias-value"
+		}
+	}
+	sampleArg := func(opt serpent.Option) string {
+		v := sampleVal(opt)
+		if arr, ok := v.([]string); ok {
+			return strings.Join(arr, ",")
+		}
+		return fmt.Sprint(v)
+	}
+
+	aiConfFromOpts := func(t *testing.T, apply func(opts serpent.OptionSet) error) codersdk.AIConfig {
+		t.Helper()
+		dv := &codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.SetDefaults())
+		require.NoError(t, apply(opts))
+		return dv.AI
+	}
+
+	t.Run("FlagParity", func(t *testing.T) {
+		t.Parallel()
+
+		var oldArgs, newArgs []string
+		for _, a := range aliases {
+			value := sampleArg(a.old)
+			oldArgs = append(oldArgs, "--"+a.old.Flag, value)
+			newArgs = append(newArgs, "--"+a.new.Flag, value)
+		}
+		oldAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.FlagSet().Parse(oldArgs)
+		})
+		newAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.FlagSet().Parse(newArgs)
+		})
+		require.Equal(t, newAI, oldAI)
+	})
+
+	t.Run("EnvParity", func(t *testing.T) {
+		t.Parallel()
+
+		var oldEnv, newEnv []serpent.EnvVar
+		for _, a := range aliases {
+			value := sampleArg(a.old)
+			oldEnv = append(oldEnv, serpent.EnvVar{Name: a.old.Env, Value: value})
+			newEnv = append(newEnv, serpent.EnvVar{Name: a.new.Env, Value: value})
+		}
+		oldAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.ParseEnv(oldEnv)
+		})
+		newAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.ParseEnv(newEnv)
+		})
+		require.Equal(t, newAI, oldAI)
+	})
+
+	t.Run("YAMLParity", func(t *testing.T) {
+		t.Parallel()
+
+		setPath := func(doc map[string]any, path string, value any) {
+			parts := strings.Split(path, ".")
+			for _, field := range parts[:len(parts)-1] {
+				next, ok := doc[field].(map[string]any)
+				if !ok {
+					next = map[string]any{}
+					doc[field] = next
+				}
+				doc = next
+			}
+			doc[parts[len(parts)-1]] = value
+		}
+
+		oldYAML := map[string]any{}
+		newYAML := map[string]any{}
+		for _, a := range aliases {
+			oldPath := a.old.YAMLPath()
+			newPath := a.new.YAMLPath()
+			if oldPath == "" {
+				require.Empty(t, newPath)
+				continue
+			}
+			require.NotEmpty(t, newPath, "new flag %s has no YAML path", a.old.Flag)
+
+			value := sampleVal(a.old)
+			setPath(oldYAML, oldPath, value)
+			setPath(newYAML, newPath, value)
+		}
+
+		parse := func(doc map[string]any) codersdk.AIConfig {
+			var node yaml.Node
+			require.NoError(t, node.Encode(doc))
+			return aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+				return opts.UnmarshalYAML(&node)
+			})
+		}
+
+		require.Equal(t, parse(newYAML), parse(oldYAML))
+	})
 }
 
 func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {

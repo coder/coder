@@ -14408,7 +14408,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
@@ -14416,7 +14416,7 @@ const docTemplate = `{
                     ]
                 },
                 "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
@@ -14457,7 +14457,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "openai": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
@@ -14465,7 +14465,7 @@ const docTemplate = `{
                     ]
                 },
                 "providers": {
-                    "description": "Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
+                    "description": "Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AIProviderConfig"
@@ -14959,7 +14959,7 @@ const docTemplate = `{
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
-                "aibridge_proxy": {
+                "ai_gateway_proxy": {
                     "$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
                 },
                 "bridge": {

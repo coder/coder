@@ -54,7 +54,7 @@ export interface AIBridgeConfig {
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
-	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	 * Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	 */
 	readonly providers?: readonly AIProviderConfig[];
@@ -294,7 +294,7 @@ export type AIBudgetPolicy = "highest";
 // From codersdk/deployment.go
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
-	readonly aibridge_proxy?: AIBridgeProxyConfig;
+	readonly ai_gateway_proxy?: AIBridgeProxyConfig;
 	readonly chat?: ChatConfig;
 }
 
