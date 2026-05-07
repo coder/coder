@@ -341,13 +341,13 @@ const getActionSummary = (chat: Chat): string | undefined => {
 		return "Working...";
 	}
 	if (chat.status === "completed") {
-		return "Finished";
+		return "Task completed";
 	}
 	if (chat.status === "paused" || chat.status === "waiting") {
-		return "Paused";
+		return "Awaiting instructions";
 	}
 	if (chat.status === "requires_action") {
-		return "Needs input";
+		return "Action required";
 	}
 	return undefined;
 };
