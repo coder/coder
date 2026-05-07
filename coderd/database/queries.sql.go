@@ -1815,16 +1815,18 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 	return i, err
 }
 
-const upsertAIModelPrice = `-- name: UpsertAIModelPrice :exec
+const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price
-) VALUES (
-	$1, $2,
-	$3::bigint,
-	$4::bigint,
-	$5::bigint,
-	$6::bigint
 )
+SELECT
+	elem->>'provider',
+	elem->>'model',
+	(elem->>'input_price')::bigint,
+	(elem->>'output_price')::bigint,
+	(elem->>'cache_read_price')::bigint,
+	(elem->>'cache_write_price')::bigint
+FROM jsonb_array_elements($1::jsonb) AS elem
 ON CONFLICT (provider, model) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
@@ -1833,26 +1835,11 @@ ON CONFLICT (provider, model) DO UPDATE SET
 	updated_at        = NOW()
 `
 
-type UpsertAIModelPriceParams struct {
-	Provider        string        `db:"provider" json:"provider"`
-	Model           string        `db:"model" json:"model"`
-	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
-	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
-	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
-	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
-}
-
-// Insert a row for (provider, model), or replace its price columns if the
-// pair already exists.
-func (q *sqlQuerier) UpsertAIModelPrice(ctx context.Context, arg UpsertAIModelPriceParams) error {
-	_, err := q.db.ExecContext(ctx, upsertAIModelPrice,
-		arg.Provider,
-		arg.Model,
-		arg.InputPrice,
-		arg.OutputPrice,
-		arg.CacheReadPrice,
-		arg.CacheWritePrice,
-	)
+// Upsert a batch of (provider, model) rows from a JSON array. Each element
+// must have provider, model, and the four price fields; null prices are
+// written as SQL NULL.
+func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
+	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, seed)
 	return err
 }
 

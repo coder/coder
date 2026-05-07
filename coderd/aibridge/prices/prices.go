@@ -4,7 +4,6 @@ package prices
 
 import (
 	"context"
-	"database/sql"
 	_ "embed"
 	"encoding/json"
 
@@ -36,9 +35,6 @@ type seedRow struct {
 // price columns of any existing (provider, model) row and inserting new ones.
 // Rows already in the table that no longer appear in the seed are left
 // untouched, so historical entries persist across upstream model deprecations.
-//
-// The whole batch runs inside a single transaction: either every row lands or
-// none do, so a failure mid-seed can't leave the table half-updated.
 func Seed(ctx context.Context, db database.Store) error {
 	return SeedFromBytes(ctx, db, seedJSON)
 }
@@ -54,23 +50,7 @@ func SeedFromBytes(ctx context.Context, db database.Store, data []byte) error {
 	if len(rows) == 0 {
 		return xerrors.New("price seed is empty")
 	}
-
-	return db.InTx(func(tx database.Store) error {
-		for _, r := range rows {
-			err := tx.UpsertAIModelPrice(ctx, database.UpsertAIModelPriceParams{
-				Provider:        r.Provider,
-				Model:           r.Model,
-				InputPrice:      nullInt64(r.InputPrice),
-				OutputPrice:     nullInt64(r.OutputPrice),
-				CacheReadPrice:  nullInt64(r.CacheReadPrice),
-				CacheWritePrice: nullInt64(r.CacheWritePrice),
-			})
-			if err != nil {
-				return xerrors.Errorf("upsert %s/%s: %w", r.Provider, r.Model, err)
-			}
-		}
-		return nil
-	}, nil)
+	return db.UpsertAIModelPrices(ctx, data)
 }
 
 func parseSeed(data []byte) ([]seedRow, error) {
@@ -79,11 +59,4 @@ func parseSeed(data []byte) ([]seedRow, error) {
 		return nil, err
 	}
 	return rows, nil
-}
-
-func nullInt64(p *int64) sql.NullInt64 {
-	if p == nil {
-		return sql.NullInt64{}
-	}
-	return sql.NullInt64{Int64: *p, Valid: true}
 }

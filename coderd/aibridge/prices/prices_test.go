@@ -1,7 +1,6 @@
 package prices_test
 
 import (
-	"database/sql"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -106,14 +105,14 @@ func TestSeedFromBytes(t *testing.T) {
 		// cache_write_price is set to a non-NULL value here even though the
 		// embedded seed leaves it NULL for OpenAI; Seed must replace it with
 		// NULL to keep the table in sync with the seed.
-		require.NoError(t, db.UpsertAIModelPrice(ctx, database.UpsertAIModelPriceParams{
-			Provider:        "openai",
-			Model:           "gpt-4o",
-			InputPrice:      sql.NullInt64{Int64: 1, Valid: true},
-			OutputPrice:     sql.NullInt64{Int64: 2, Valid: true},
-			CacheReadPrice:  sql.NullInt64{Int64: 3, Valid: true},
-			CacheWritePrice: sql.NullInt64{Int64: 4, Valid: true},
-		}))
+		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
+			"provider": "openai",
+			"model": "gpt-4o",
+			"input_price": 1,
+			"output_price": 2,
+			"cache_read_price": 3,
+			"cache_write_price": 4
+		}]`)))
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
@@ -134,12 +133,14 @@ func TestSeedFromBytes(t *testing.T) {
 
 		// Insert a row for a (provider, model) the seed doesn't cover. After
 		// Seed it should still be there with its values intact.
-		require.NoError(t, db.UpsertAIModelPrice(ctx, database.UpsertAIModelPriceParams{
-			Provider:    "test-provider",
-			Model:       "test-model-not-in-seed",
-			InputPrice:  sql.NullInt64{Int64: 12345, Valid: true},
-			OutputPrice: sql.NullInt64{Int64: 67890, Valid: true},
-		}))
+		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
+			"provider": "test-provider",
+			"model": "test-model-not-in-seed",
+			"input_price": 12345,
+			"output_price": 67890,
+			"cache_read_price": null,
+			"cache_write_price": null
+		}]`)))
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 

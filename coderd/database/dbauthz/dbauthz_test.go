@@ -6114,9 +6114,9 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(t).Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
 	}))
 
-	s.Run("UpsertAIModelPrice", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		db.EXPECT().UpsertAIModelPrice(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		check.Args(database.UpsertAIModelPriceParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionUpdate)
+	s.Run("UpsertAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		db.EXPECT().UpsertAIModelPrices(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(json.RawMessage(`[]`)).Asserts(rbac.ResourceAiModelPrice, policy.ActionUpdate)
 	}))
 
 	s.Run("GetAIModelPriceByProviderModel", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

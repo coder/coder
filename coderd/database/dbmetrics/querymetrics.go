@@ -5,6 +5,7 @@ package dbmetrics
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"time"
 
@@ -5360,11 +5361,11 @@ func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, 
 	return r0
 }
 
-func (m queryMetricsStore) UpsertAIModelPrice(ctx context.Context, arg database.UpsertAIModelPriceParams) error {
+func (m queryMetricsStore) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
 	start := time.Now()
-	r0 := m.s.UpsertAIModelPrice(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertAIModelPrice").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIModelPrice").Inc()
+	r0 := m.s.UpsertAIModelPrices(ctx, seed)
+	m.queryLatencies.WithLabelValues("UpsertAIModelPrices").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAIModelPrices").Inc()
 	return r0
 }
 

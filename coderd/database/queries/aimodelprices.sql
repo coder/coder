@@ -1,15 +1,18 @@
--- name: UpsertAIModelPrice :exec
--- Insert a row for (provider, model), or replace its price columns if the
--- pair already exists.
+-- name: UpsertAIModelPrices :exec
+-- Upsert a batch of (provider, model) rows from a JSON array. Each element
+-- must have provider, model, and the four price fields; null prices are
+-- written as SQL NULL.
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price
-) VALUES (
-	@provider, @model,
-	sqlc.narg('input_price')::bigint,
-	sqlc.narg('output_price')::bigint,
-	sqlc.narg('cache_read_price')::bigint,
-	sqlc.narg('cache_write_price')::bigint
 )
+SELECT
+	elem->>'provider',
+	elem->>'model',
+	(elem->>'input_price')::bigint,
+	(elem->>'output_price')::bigint,
+	(elem->>'cache_read_price')::bigint,
+	(elem->>'cache_write_price')::bigint
+FROM jsonb_array_elements(@seed::jsonb) AS elem
 ON CONFLICT (provider, model) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,

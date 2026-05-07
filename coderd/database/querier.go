@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -1238,9 +1239,10 @@ type sqlcQuerier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
-	// Insert a row for (provider, model), or replace its price columns if the
-	// pair already exists.
-	UpsertAIModelPrice(ctx context.Context, arg UpsertAIModelPriceParams) error
+	// Upsert a batch of (provider, model) rows from a JSON array. Each element
+	// must have provider, model, and the four price fields; null prices are
+	// written as SQL NULL.
+	UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error
