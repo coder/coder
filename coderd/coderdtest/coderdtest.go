@@ -669,7 +669,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
-	client := codersdk.New(serverURL, codersdk.WithHTTPClient(newHTTPClient(serverURL)))
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -679,27 +679,26 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	return client, provisionerCloser, coderAPI
 }
 
-// newHTTPClient gives each coderdtest server an isolated transport.
+// NewIsolatedHTTPClient returns a test client with its own transport.
 // Closing idle connections at test cleanup must not close http.DefaultTransport
 // while another parallel test is using it.
-func newHTTPClient(serverURL *url.URL) *http.Client {
-	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		return &http.Client{Transport: http.DefaultTransport}
+func NewIsolatedHTTPClient(serverURL *url.URL) *http.Client {
+	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
 	}
-	transport := defaultTransport.Clone()
-	if serverURL != nil && serverURL.Scheme == "https" {
-		if transport.TLSClientConfig != nil {
-			transport.TLSClientConfig = transport.TLSClientConfig.Clone()
-		} else {
-			transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-		}
-		if transport.TLSClientConfig.MinVersion == 0 {
-			transport.TLSClientConfig.MinVersion = tls.VersionTLS12
-		}
-		//nolint:gosec // The coderdtest server uses test-only TLS certificates.
-		transport.TLSClientConfig.InsecureSkipVerify = true
+	if serverURL == nil || serverURL.Scheme != "https" {
+		transport.TLSClientConfig = nil
+		return &http.Client{Transport: transport}
 	}
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	if transport.TLSClientConfig.MinVersion == 0 {
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
+	//nolint:gosec // The coderdtest server uses test-only TLS certificates.
+	transport.TLSClientConfig.InsecureSkipVerify = true
 	return &http.Client{Transport: transport}
 }
 
