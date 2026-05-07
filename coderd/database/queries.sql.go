@@ -7036,7 +7036,7 @@ type GetChatsParams struct {
 	Archived    sql.NullBool          `db:"archived" json:"archived"`
 	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	DiffUrl     sql.NullString        `db:"diff_url" json:"diff_url"`
+	DiffURL     sql.NullString        `db:"diff_url" json:"diff_url"`
 	OffsetOpt   int32                 `db:"offset_opt" json:"offset_opt"`
 	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
 }
@@ -7052,7 +7052,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,
-		arg.DiffUrl,
+		arg.DiffURL,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

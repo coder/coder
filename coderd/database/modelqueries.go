@@ -764,7 +764,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,
-		arg.DiffUrl,
+		arg.DiffURL,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

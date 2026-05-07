@@ -1464,6 +1464,18 @@ func TestListChats(t *testing.T) {
 		// Root chat with no diff status at all.
 		_ = create("no diff", "", uuid.NullUUID{})
 
+		// Archived root chat that points at the same URL as `rootWithPR`.
+		// Used to verify the archived filter and the diff_url filter
+		// compose at the SQL layer rather than ignoring each other.
+		archivedWithPR := create(
+			"archived with pr",
+			"https://github.com/coder/coder/pull/3",
+			uuid.NullUUID{},
+		)
+		require.NoError(t, client.UpdateChat(ctx, archivedWithPR.ID, codersdk.UpdateChatRequest{
+			Archived: ptr.Ref(true),
+		}))
+
 		t.Run("MatchesRoot", func(t *testing.T) {
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"https://github.com/coder/coder/pull/1"`,
@@ -1503,7 +1515,28 @@ func TestListChats(t *testing.T) {
 			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"ftp://example.com/x"`,
 			})
-			requireSDKError(t, err, http.StatusBadRequest)
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.NotEmpty(t, sdkErr.Validations, "expected validation error")
+			require.Equal(t, "diff_url", sdkErr.Validations[0].Field)
+		})
+
+		t.Run("ArchivedFilteredOut", func(t *testing.T) {
+			// Default archived filter is false, so an archived chat with
+			// a matching diff URL must not surface.
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `diff_url:"https://github.com/coder/coder/pull/3"`,
+			})
+			require.NoError(t, err)
+			require.Empty(t, chats, "archived chat must not match the default filter")
+		})
+
+		t.Run("ArchivedTrueComposes", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `archived:true diff_url:"https://github.com/coder/coder/pull/3"`,
+			})
+			require.NoError(t, err)
+			require.Len(t, chats, 1)
+			require.Equal(t, archivedWithPR.ID, chats[0].ID)
 		})
 	})
 }

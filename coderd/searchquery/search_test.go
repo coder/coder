@@ -1240,6 +1240,17 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
+			// Documents that uppercase boolean values still parse. The Chats
+			// parser intentionally does not pre-lowercase the query because
+			// diff_url path segments are case-meaningful, so this guards
+			// against regressions if the blanket lowercase is ever re-added.
+			Name:  "ArchivedTrueUpperCase",
+			Query: "archived:TRUE",
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
 			Name:  "ArchivedFalse",
 			Query: "archived:false",
 			Expected: database.GetChatsParams{
@@ -1271,7 +1282,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `diff_url:"https://github.com/coder/coder/pull/123"`,
 			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: false, Valid: true},
-				DiffUrl: sql.NullString{
+				DiffURL: sql.NullString{
 					String: "https://github.com/coder/coder/pull/123",
 					Valid:  true,
 				},
@@ -1282,7 +1293,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `diff_url:"https://github.com/Coder/Coder/pull/123"`,
 			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: false, Valid: true},
-				DiffUrl: sql.NullString{
+				DiffURL: sql.NullString{
 					String: "https://github.com/Coder/Coder/pull/123",
 					Valid:  true,
 				},
@@ -1293,7 +1304,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `Diff_URL:"https://github.com/coder/coder/pull/1"`,
 			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: false, Valid: true},
-				DiffUrl: sql.NullString{
+				DiffURL: sql.NullString{
 					String: "https://github.com/coder/coder/pull/1",
 					Valid:  true,
 				},
@@ -1304,7 +1315,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `archived:true diff_url:"https://gitlab.com/foo/bar/-/merge_requests/9"`,
 			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: true, Valid: true},
-				DiffUrl: sql.NullString{
+				DiffURL: sql.NullString{
 					String: "https://gitlab.com/foo/bar/-/merge_requests/9",
 					Valid:  true,
 				},

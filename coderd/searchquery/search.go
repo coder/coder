@@ -577,7 +577,7 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 				Detail: err.Error(),
 			})
 		} else {
-			filter.DiffUrl = sql.NullString{String: diffURL, Valid: true}
+			filter.DiffURL = sql.NullString{String: diffURL, Valid: true}
 		}
 	}
 
