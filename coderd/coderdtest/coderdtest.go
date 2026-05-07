@@ -706,7 +706,7 @@ func NewIsolatedHTTPClient(serverURL *url.URL) *http.Client {
 // transport without sharing mutable per-client state like CheckRedirect.
 func newHTTPClientWithTransportFrom(base *http.Client) *http.Client {
 	if base == nil {
-		return &http.Client{}
+		return NewIsolatedHTTPClient(nil)
 	}
 	return &http.Client{
 		Transport: base.Transport,

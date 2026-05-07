@@ -36,6 +36,18 @@ func TestNewIsolatedHTTPSClient(t *testing.T) {
 	require.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
 }
 
+func TestNewIsolatedHTTPClientNilURL(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.NewIsolatedHTTPClient(nil)
+	require.NotNil(t, client.Transport)
+	require.NotSame(t, http.DefaultTransport, client.Transport)
+
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.Nil(t, transport.TLSClientConfig)
+}
+
 func TestCreateAnotherUserHTTPClient(t *testing.T) {
 	t.Parallel()
 
