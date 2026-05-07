@@ -183,6 +183,15 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	zip \
 	zsh \
 	zstd && \
+	# Keep Docker's engine, CLI, runtime, and plugins on the versions selected by
+	# the apt pins copied above. Future apt operations in this image should not
+	# upgrade Docker 27 or containerd.io 1.7.23 out from under sysbox / DinD.
+	apt-mark hold \
+		containerd.io \
+		docker-buildx-plugin \
+		docker-ce \
+		docker-ce-cli \
+		docker-compose-plugin && \
 	# Delete package cache to avoid consuming space in layer
 	apt-get clean && \
 	# Configure FIPS-compliant policies
