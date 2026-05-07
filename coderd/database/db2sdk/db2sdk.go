@@ -901,6 +901,13 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
+	if role == codersdk.ChatRoleRead {
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
 	switch typ {
 	case agentproto.Connection_SSH:
@@ -1664,6 +1671,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
+		OwnerUsername:     c.OwnerUsername,
+		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),

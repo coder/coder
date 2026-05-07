@@ -4740,9 +4740,8 @@ func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]
 	return q.db.GetAuthorizedUsers(ctx, arg, prep)
 }
 
-// GetUsersByIDs is only used for usernames on workspace return data.
-// This function should be replaced by joining this data to the workspace query
-// itself.
+// GetUsersByIDs is used for sparse display-name lookups.
+// Prefer resource-specific joins for bulk response data.
 func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
 	for _, uid := range ids {
 		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(uid)); err != nil {
