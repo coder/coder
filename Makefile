@@ -282,6 +282,21 @@ CODER_FAT_NOVERSION_BINARIES      := $(addprefix build/coder_,$(OS_ARCHES))
 CODER_ALL_NOVERSION_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_linux_$(arch).tag) build/coder_linux.tag
 CODER_ALL_NOVERSION_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_NOVERSION_IMAGES))
 
+# Optional portabledesktop bundling. When BUNDLE_PORTABLEDESKTOP=1, the
+# fat binary at $(PORTABLEDESKTOP_BIN) is staged into site/out/bin/ as
+# portabledesktop-linux-amd64 so it ends up in coder.tar.zst alongside
+# the agent slim binaries. Workspaces fetch it via /bin/...
+#
+# Off by default to keep day-to-day developer builds slim. CI release
+# builds opt in by setting BUNDLE_PORTABLEDESKTOP=1 in the environment.
+BUNDLE_PORTABLEDESKTOP ?= 0
+PORTABLEDESKTOP_BIN    ?=
+ifeq ($(BUNDLE_PORTABLEDESKTOP),1)
+PORTABLEDESKTOP_BINARIES := site/out/bin/portabledesktop-linux-amd64
+else
+PORTABLEDESKTOP_BINARIES :=
+endif
+
 # If callers are only building Docker images and not the packages and archives,
 # we can skip those prerequisites as they are not actually required and only
 # specified to avoid concurrent write failures.
@@ -315,21 +330,41 @@ release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(COD
 build/coder-slim_$(VERSION)_checksums.sha1: site/out/bin/coder.sha1
 	cp "$<" "$@"
 
-site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
+site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES) $(PORTABLEDESKTOP_BINARIES)
 	pushd ./site/out/bin
-		openssl dgst -r -sha1 coder-* | tee coder.sha1
+		shopt -s nullglob
+		openssl dgst -r -sha1 coder-* portabledesktop-* | tee coder.sha1
 	popd
 
-build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
+build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES) $(PORTABLEDESKTOP_BINARIES)
 	pushd ./site/out/bin
-		tar cf "../../../build/$(@F)" coder-*
+		shopt -s nullglob
+		files=(coder-* portabledesktop-*)
+		tar cf "../../../build/$(@F)" "$${files[@]}"
 	popd
 
 	# delete the uncompressed binaries from the embedded dir
-	rm -f site/out/bin/coder-*
+	rm -f site/out/bin/coder-* site/out/bin/portabledesktop-*
 
 site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar.zst
 	cp "$<" "$@"
+
+# Stage the portabledesktop fat binary into site/out/bin so the existing
+# tarball + sha1 + serve-from-/bin path picks it up. Off unless
+# BUNDLE_PORTABLEDESKTOP=1 and PORTABLEDESKTOP_BIN points at a real file
+# (typically /home/coder/portabledesktop/pd/dist/portabledesktop-linux-amd64
+# during local dev, or a CI-fetched release artifact).
+site/out/bin/portabledesktop-linux-amd64:
+	if [[ -z "$(PORTABLEDESKTOP_BIN)" ]]; then
+		echo "BUNDLE_PORTABLEDESKTOP=1 requires PORTABLEDESKTOP_BIN to point at a built portabledesktop binary" >&2
+		exit 1
+	fi
+	if [[ ! -f "$(PORTABLEDESKTOP_BIN)" ]]; then
+		echo "PORTABLEDESKTOP_BIN=$(PORTABLEDESKTOP_BIN) does not exist" >&2
+		exit 1
+	fi
+	cp "$(PORTABLEDESKTOP_BIN)" "$@"
+	chmod +x "$@"
 
 build/coder-slim_$(VERSION).tar.zst: build/coder-slim_$(VERSION).tar
 	zstd $(ZSTDFLAGS) \

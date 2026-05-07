@@ -43,6 +43,34 @@ if ! chmod +x $BINARY_NAME; then
 	exit 1
 fi
 
+# Best-effort: stage the portabledesktop binary alongside the agent. The
+# server only publishes it when BUNDLE_PORTABLEDESKTOP=1 was set at build
+# time and only for linux-amd64 today, so failures here are non-fatal.
+# Workspaces that get the binary expose `portabledesktop` on PATH for the
+# dashboard Desktop button and scripted automation.
+if [ "${ARCH}" = "amd64" ]; then
+	PD_URL="${ACCESS_URL}bin/portabledesktop-linux-amd64"
+	PD_DEST="${HOME}/.local/bin/portabledesktop"
+	mkdir -p "$(dirname "${PD_DEST}")"
+	pd_status=""
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --compressed "${PD_URL}" -o "${PD_DEST}" || pd_status=$?
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q "${PD_URL}" -O "${PD_DEST}" || pd_status=$?
+	elif command -v busybox >/dev/null 2>&1; then
+		busybox wget -q "${PD_URL}" -O "${PD_DEST}" || pd_status=$?
+	else
+		pd_status=127
+	fi
+	if [ -z "${pd_status}" ] && [ -s "${PD_DEST}" ]; then
+		chmod +x "${PD_DEST}" || true
+		echo "portabledesktop staged at ${PD_DEST}"
+	else
+		echo "portabledesktop not available (status=${pd_status:-empty}); skipping"
+		rm -f "${PD_DEST}"
+	fi
+fi
+
 haslibcap2() {
 	command -v setcap /dev/null 2>&1
 	command -v capsh /dev/null 2>&1
@@ -86,6 +114,11 @@ fi
 
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
+# Ensure ~/.local/bin is on PATH so the staged portabledesktop binary
+# (and anything else dropped there) is reachable by the agent and by
+# users who exec into the workspace. Prepend so workspace-installed
+# binaries take precedence over distro defaults.
+export PATH="${HOME}/.local/bin:${PATH}"
 
 output=$(./${BINARY_NAME} --version | head -n1)
 if ! echo "${output}" | grep -q Coder; then
