@@ -105,6 +105,33 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 		: run.status;
 	const running = isActiveStatus(effectiveStatus);
 
+	const exportDebugRun = async () => {
+		if (!runDetailQuery.data) {
+			return;
+		}
+		try {
+			const exportedAt = new Date();
+			const payload = buildRunDebugExport(
+				chatId,
+				runDetailQuery.data,
+				exportedAt,
+			);
+			await download(
+				buildDebugExportBlob(payload),
+				debugExportFilename({
+					chatId,
+					runId: run.id,
+					exportedAt,
+				}),
+			);
+		} catch (error) {
+			console.error(error);
+			toast.error("Failed to export debug run.", {
+				description: getErrorDetail(error),
+			});
+		}
+	};
+
 	return (
 		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
 			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40">
@@ -187,30 +214,11 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 										variant="outline"
 										size="sm"
 										disabled={isExporting}
-										onClick={async () => {
+										onClick={() => {
 											setIsExporting(true);
-											try {
-												const exportedAt = new Date();
-												const payload = buildRunDebugExport(
-													chatId,
-													runDetailQuery.data,
-													exportedAt,
-												);
-												await download(
-													buildDebugExportBlob(payload),
-													debugExportFilename({
-														chatId,
-														runId: run.id,
-														exportedAt,
-													}),
-												);
-											} catch (error) {
-												console.error(error);
-												toast.error("Failed to export debug run.", {
-													description: getErrorDetail(error),
-												});
-											}
-											setIsExporting(false);
+											void exportDebugRun().finally(() =>
+												setIsExporting(false),
+											);
 										}}
 									>
 										{isExporting ? (

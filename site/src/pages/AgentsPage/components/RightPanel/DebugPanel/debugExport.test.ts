@@ -4,7 +4,7 @@ import {
 	buildChatDebugExport,
 	buildDebugExportBlob,
 	buildRunDebugExport,
-	DEBUG_RUN_EXPORT_LIST_LIMIT,
+	DEBUG_RUN_LIST_LIMIT,
 	debugExportFilename,
 } from "./debugExport";
 
@@ -74,9 +74,23 @@ describe("buildChatDebugExport", () => {
 		expect(payload.exported_at).toBe("2026-05-07T10:45:00.000Z");
 		expect(payload.chat_id).toBe(runs[0].chat_id);
 		expect(payload.run_count).toBe(2);
-		expect(payload.limited_to_most_recent).toBe(DEBUG_RUN_EXPORT_LIST_LIMIT);
+		expect(payload.requested_run_count).toBe(2);
+		expect(payload.limited_to_most_recent).toBe(DEBUG_RUN_LIST_LIMIT);
 		expect(payload.runs).toEqual(runs);
 		expect(payload.runs[0].steps).toHaveLength(1);
+	});
+
+	it("includes failed run metadata when some detail fetches fail", () => {
+		const runs = [makeRun()];
+		const failedRuns = [{ run_id: "run-2", message: "not found" }];
+		const payload = buildChatDebugExport(runs[0].chat_id, runs, exportedAt, {
+			failedRuns,
+			requestedRunCount: 2,
+		});
+
+		expect(payload.run_count).toBe(1);
+		expect(payload.requested_run_count).toBe(2);
+		expect(payload.failed_runs).toEqual(failedRuns);
 	});
 });
 

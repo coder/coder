@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { toast } from "sonner";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type { Mock } from "vitest";
 import { API } from "#/api/api";
@@ -804,7 +805,86 @@ export const ExportAllRuns: Story = {
 			limited_to_most_recent: 100,
 		});
 		expect(payload.runs).toHaveLength(2);
+		expect(payload.runs[0].id).toBe(successfulRunDetail.id);
+		expect(payload.runs[1].id).toBe(richRunDetail.id);
 		expect(payload.runs[0].steps).toHaveLength(1);
+	},
+};
+
+export const ExportAllRunsPartialFailure: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: ExportAllRuns.parameters,
+	beforeEach: () => {
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockImplementation(async (_chatID, runID) => {
+			if (runID === richRunDetail.id) {
+				throw new Error("run detail unavailable");
+			}
+			return successfulRunDetail;
+		});
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const warningSpy = spyOn(toast, "warning");
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		expect(warningSpy).toHaveBeenCalledWith(
+			"Exported debug logs with missing runs.",
+			expect.objectContaining({
+				description: expect.stringContaining("1 run"),
+			}),
+		);
+		warningSpy.mockRestore();
+		const [blob] = getLastDownloadCall(args.download);
+		const payload = JSON.parse(await blob.text());
+		expect(payload.runs).toHaveLength(1);
+		expect(payload.run_count).toBe(1);
+		expect(payload.requested_run_count).toBe(2);
+		expect(payload.failed_runs).toEqual([
+			{ run_id: richRunDetail.id, message: "run detail unavailable" },
+		]);
+		expect(
+			canvas.getByRole("button", { name: "Export debug logs" }),
+		).toBeEnabled();
+	},
+};
+
+export const ExportAllRunsDownloadError: Story = {
+	args: {
+		download: fn(async () => {
+			throw new Error("download failed");
+		}),
+	},
+	parameters: ExportAllRuns.parameters,
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const errorSpy = spyOn(toast, "error");
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		expect(errorSpy).toHaveBeenCalledWith("Failed to export debug logs.", {
+			description: "Please check the developer console for more details.",
+		});
+		errorSpy.mockRestore();
+		expect(
+			canvas.getByRole("button", { name: "Export debug logs" }),
+		).toBeEnabled();
 	},
 };
 
@@ -854,6 +934,36 @@ export const ExportSingleRun: Story = {
 	},
 };
 
+export const ExportSingleRunDownloadError: Story = {
+	args: {
+		download: fn(async () => {
+			throw new Error("download failed");
+		}),
+	},
+	parameters: ExportSingleRun.parameters,
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		const errorSpy = spyOn(toast, "error");
+		await user.click(
+			await canvas.findByRole("button", { name: "Export this run" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		expect(errorSpy).toHaveBeenCalledWith("Failed to export debug run.", {
+			description: "Please check the developer console for more details.",
+		});
+		errorSpy.mockRestore();
+		expect(
+			canvas.getByRole("button", { name: "Export this run" }),
+		).toBeEnabled();
+	},
+};
+
+// These stories intentionally use the real saveAs default for manual
+// agent-browser dogfooding of browser downloads.
 export const ExportAllRunsDogfood: Story = {
 	parameters: ExportAllRuns.parameters,
 };
