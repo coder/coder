@@ -2354,15 +2354,6 @@ class ApiMethods {
 		}));
 	};
 
-	/** Steps to change the workspace version
-	 * - Get the latest template to access the latest active version
-	 * - Get the current build parameters
-	 * - Get the template parameters
-	 * - Update the build parameters and check if there are missed parameters for
-	 *   the new version
-	 *   - If there are missing parameters raise an error
-	 * - Create a build with the version and updated build parameters
-	 */
 	changeWorkspaceVersion = async (
 		workspace: TypesGen.Workspace,
 		templateVersionId: string,
@@ -2405,16 +2396,6 @@ class ApiMethods {
 		}
 	};
 
-	/** Steps to update the workspace
-	 * - Get the latest template to access the latest active version
-	 * - Get the current build parameters
-	 * - Get the template parameters
-	 * - Update the build parameters and check if there are missed parameters for
-	 *   the newest version
-	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace with the current template version if it is already running
-	 * - Create a build with the latest version and updated build parameters
-	 */
 	updateWorkspace = async (
 		workspace: TypesGen.Workspace,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
