@@ -3672,6 +3672,13 @@ func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uui
 	return q.db.GetMCPServerUserTokensByUserID(ctx, userID)
 }
 
+func (q *querier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx)
+}
+
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return nil, err
@@ -5137,6 +5144,13 @@ func (q *querier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id u
 	return q.db.GetWorkspaceBuildMetricsByResourceID(ctx, id)
 }
 
+func (q *querier) GetWorkspaceBuildOrchestrationByParentBuildID(ctx context.Context, parentBuildID uuid.UUID) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, parentBuildID)
+}
+
 func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	// Authorized call to get the workspace build. If we can read the build,
 	// we can read the params.
@@ -6020,6 +6034,64 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 	}
 
 	return q.db.InsertWorkspaceBuild(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceBuildOrchestration(ctx context.Context, arg database.InsertWorkspaceBuildOrchestrationParams) (database.WorkspaceBuildOrchestration, error) {
+	parentBuild, err := q.db.GetWorkspaceBuildByID(ctx, arg.ParentBuildID)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("get parent workspace build by id: %w", err)
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, parentBuild.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("get workspace by id: %w", err)
+	}
+	if workspace.IsPrebuild() {
+		return database.WorkspaceBuildOrchestration{}, xerrors.New("cannot orchestrate prebuild workspace builds")
+	}
+
+	// The current API flow inserts this row immediately after
+	// creating the parent build, so the parent transition has already
+	// been authorized. Still, make sure future callers cannot attach
+	// the child intent to a parent build the actor could not initiate.
+	parentAction, err := workspaceTransitionAction(parentBuild.Transition)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	if err := q.authorizeContext(ctx, parentAction, workspace); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+
+	// The orchestrator uses system authority to create the child
+	// build after the parent succeeds, so the initiating actor must
+	// be authorized now.
+	childAction, err := workspaceTransitionAction(arg.ChildTransition)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	if err := q.authorizeContext(ctx, childAction, workspace); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+
+	if arg.ChildTransition == database.WorkspaceTransitionStart && arg.ChildTemplateVersionID.Valid {
+		// Only template admins may queue child builds with a durable
+		// template version pin, since the active version can change
+		// before the worker creates the child build.
+		template, err := q.db.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("get template by id: %w", err)
+		}
+
+		err = q.authorizeContext(ctx, policy.ActionUpdate, template)
+		var notAuthorized NotAuthorizedError
+		if xerrors.As(err, &notAuthorized) {
+			arg.ChildTemplateVersionID = uuid.NullUUID{}
+		} else if err != nil {
+			return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("cannot pin template version for child build: %w", err)
+		}
+	}
+
+	return q.db.InsertWorkspaceBuildOrchestration(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
@@ -7865,6 +7937,34 @@ func (q *querier) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg databas
 		return err
 	}
 	return q.db.UpdateWorkspaceBuildFlagsByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationCanceledByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationFailedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationFailedByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationRetryByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {

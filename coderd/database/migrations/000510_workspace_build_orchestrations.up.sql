@@ -1,0 +1,58 @@
+CREATE TABLE workspace_build_orchestrations (
+    id UUID PRIMARY KEY NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    parent_build_id UUID UNIQUE NOT NULL REFERENCES workspace_builds(id) ON DELETE CASCADE,
+    child_build_id UUID UNIQUE REFERENCES workspace_builds(id) ON DELETE CASCADE,
+    child_transition workspace_transition NOT NULL,
+    child_template_version_id UUID REFERENCES template_versions(id) ON DELETE CASCADE,
+    child_template_version_preset_id UUID REFERENCES template_version_presets(id) ON DELETE SET NULL,
+    child_rich_parameter_values JSONB DEFAULT '[]'::JSONB NOT NULL,
+    child_log_level TEXT DEFAULT '' NOT NULL,
+    child_reason build_reason,
+    attempt_count INTEGER DEFAULT 0 NOT NULL,
+    next_retry_after TIMESTAMPTZ,
+    status TEXT DEFAULT 'pending' NOT NULL,
+    error TEXT,
+    CONSTRAINT workspace_build_orchestrations_status_check CHECK (
+        status IN ('pending', 'completed', 'failed', 'canceled')
+    ),
+    CONSTRAINT workspace_build_orchestrations_completed_child_check CHECK (
+        status <> 'completed' OR child_build_id IS NOT NULL
+    ),
+    CONSTRAINT workspace_build_orchestrations_child_rich_parameter_values_check CHECK (
+        jsonb_typeof(child_rich_parameter_values) = 'array'
+    ),
+    CONSTRAINT workspace_build_orchestrations_attempt_count_check CHECK (
+        attempt_count >= 0
+    ),
+    CONSTRAINT workspace_build_orchestrations_next_retry_after_check CHECK (
+        status = 'pending' OR next_retry_after IS NULL
+    ),
+    -- Mirrors CreateWorkspaceBuildRequest validation, where the optional
+    -- log level is either unset or debug.
+    CONSTRAINT workspace_build_orchestrations_child_log_level_check CHECK (
+        child_log_level IN ('', 'debug')
+    )
+);
+
+-- The orchestrator scans eligible pending rows oldest first and skips
+-- terminal rows and retry rows whose delay has not elapsed.
+CREATE INDEX idx_workspace_build_orchestrations_pending
+    ON workspace_build_orchestrations (created_at)
+    WHERE status = 'pending';
+
+COMMENT ON TABLE workspace_build_orchestrations IS
+    'Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.parent_build_id IS
+    'Unique because we only support sequences with one child build per parent build.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.child_build_id IS
+    'Nullable because the child build is created only after the parent build completes successfully.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.attempt_count IS
+    'Counts retryable child build creation failures for this orchestration row.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.next_retry_after IS
+    'When set, the orchestrator skips this pending row until the timestamp has passed.';

@@ -8423,6 +8423,228 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	}
 }
 
+func TestUpdateWorkspaceBuildOrchestrationRetryByIDMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	buildJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             buildJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+
+	// Given: a pending orchestration row.
+	now := dbtime.Now()
+	orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:                       uuid.New(),
+		CreatedAt:                now,
+		UpdatedAt:                now,
+		ParentBuildID:            parentBuild.ID,
+		ChildTransition:          database.WorkspaceTransitionStart,
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+	require.NoError(t, err)
+
+	const maxAttemptCount = 3
+	const retryError = "some retryable child build failure"
+	recordRetry := func(t *testing.T, wantAttempt int32, wantStatus string, wantNextRetry bool) {
+		t.Helper()
+
+		now := dbtime.Now()
+		nextRetryAfter := now.Add(time.Minute)
+		got, err := db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+			Error: sql.NullString{
+				String: retryError,
+				Valid:  true,
+			},
+			NextRetryAfter:  nextRetryAfter,
+			UpdatedAt:       now,
+			ID:              orchestration.ID,
+			MaxAttemptCount: maxAttemptCount,
+		})
+		require.NoError(t, err)
+		require.Equal(t, wantAttempt, got.AttemptCount)
+		require.Equal(t, wantStatus, got.Status)
+		require.True(t, got.Error.Valid)
+		require.Equal(t, retryError, got.Error.String)
+		require.Equal(t, wantNextRetry, got.NextRetryAfter.Valid)
+		if wantNextRetry {
+			require.False(t, got.NextRetryAfter.Time.Before(nextRetryAfter))
+		}
+	}
+
+	// When: retryable child build failures are recorded until one
+	// attempt remains.
+	recordRetry(t, 1, "pending", true)
+	recordRetry(t, 2, "pending", true)
+
+	// Then: the next attempt fails the row, clears its retry delay,
+	// and prevents further retry updates.
+	recordRetry(t, 3, "failed", false)
+	_, err = db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+		Error: sql.NullString{
+			String: retryError,
+			Valid:  true,
+		},
+		NextRetryAfter:  dbtime.Now().Add(time.Minute),
+		UpdatedAt:       dbtime.Now(),
+		ID:              orchestration.ID,
+		MaxAttemptCount: maxAttemptCount,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestGetNextPendingWorkspaceBuildOrchestrationForUpdateRetryDelay(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+
+	var buildNumber int32
+	createOrchestration := func(t *testing.T, createdAt time.Time) database.WorkspaceBuildOrchestration {
+		t.Helper()
+
+		buildNumber++
+		buildJob := database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		}
+		setJobStatus(t, database.ProvisionerJobStatusSucceeded, &buildJob)
+		buildJob = dbgen.ProvisionerJob(t, db, nil, buildJob)
+		parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: version.ID,
+			InitiatorID:       user.ID,
+			JobID:             buildJob.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStop,
+		})
+
+		orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+			ID:                       uuid.New(),
+			CreatedAt:                createdAt,
+			UpdatedAt:                createdAt,
+			ParentBuildID:            parentBuild.ID,
+			ChildTransition:          database.WorkspaceTransitionStart,
+			ChildRichParameterValues: json.RawMessage("[]"),
+		})
+		require.NoError(t, err)
+		return orchestration
+	}
+
+	claimNext := func(t *testing.T) (database.WorkspaceBuildOrchestration, error) {
+		t.Helper()
+
+		var orchestration database.WorkspaceBuildOrchestration
+		err := db.InTx(func(tx database.Store) error {
+			var err error
+			orchestration, err = tx.GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx)
+			return err
+		}, nil)
+		return orchestration, err
+	}
+
+	baseTime := dbtime.Now().Add(-time.Hour)
+
+	// Given: an old pending orchestration row with a future retry delay.
+	delayed := createOrchestration(t, baseTime)
+	_, err := db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+		Error: sql.NullString{
+			String: "retry later",
+			Valid:  true,
+		},
+		NextRetryAfter:  dbtime.Now().Add(time.Hour),
+		UpdatedAt:       dbtime.Now(),
+		ID:              delayed.ID,
+		MaxAttemptCount: 3,
+	})
+	require.NoError(t, err)
+
+	// When: the orchestrator claims the next eligible row.
+	_, err = claimNext(t)
+
+	// Then: no row is claimed before the retry time.
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// When: a later row is eligible immediately.
+	eligible := createOrchestration(t, baseTime.Add(time.Minute))
+
+	// Then: the old delayed row does not block the later eligible row.
+	got, err := claimNext(t)
+	require.NoError(t, err)
+	require.Equal(t, eligible.ID, got.ID)
+
+	// When: the delayed row's retry time has passed.
+	_, err = db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+		Error: sql.NullString{
+			String: "retry now",
+			Valid:  true,
+		},
+		NextRetryAfter:  dbtime.Now().Add(-time.Minute),
+		UpdatedAt:       dbtime.Now(),
+		ID:              delayed.ID,
+		MaxAttemptCount: 3,
+	})
+	require.NoError(t, err)
+
+	// Then: the delayed row is eligible again and is claimed first
+	// because it is older than the later row.
+	got, err = claimNext(t)
+	require.NoError(t, err)
+	require.Equal(t, delayed.ID, got.ID)
+}
+
 func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 	t.Parallel()
 
