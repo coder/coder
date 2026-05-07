@@ -6032,6 +6032,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAppsCreatedAfter(ctx, createdAt any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAppsCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAppsCreatedAfter), ctx, createdAt)
 }
 
+// GetWorkspaceBuildAgentsByInstanceID mocks base method.
+func (m *MockStore) GetWorkspaceBuildAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.GetWorkspaceBuildAgentsByInstanceIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceBuildAgentsByInstanceID", ctx, authInstanceID)
+	ret0, _ := ret[0].([]database.GetWorkspaceBuildAgentsByInstanceIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceBuildAgentsByInstanceID indicates an expected call of GetWorkspaceBuildAgentsByInstanceID.
+func (mr *MockStoreMockRecorder) GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildAgentsByInstanceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildAgentsByInstanceID), ctx, authInstanceID)
+}
+
 // GetWorkspaceBuildByID mocks base method.
 func (m *MockStore) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	m.ctrl.T.Helper()

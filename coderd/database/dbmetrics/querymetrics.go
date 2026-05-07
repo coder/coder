@@ -3224,6 +3224,14 @@ func (m queryMetricsStore) GetWorkspaceAppsCreatedAfter(ctx context.Context, cre
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceBuildAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.GetWorkspaceBuildAgentsByInstanceIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildAgentsByInstanceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildAgentsByInstanceID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceBuildByID(ctx, id)

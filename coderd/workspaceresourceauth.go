@@ -1,13 +1,11 @@
 package coderd
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/coder/coder/v2/coderd/awsidentity"
@@ -15,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -136,7 +133,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	agentName = strings.TrimSpace(agentName)
 
-	agents, err := api.Database.GetWorkspaceAgentsByInstanceID(systemCtx, instanceID)
+	agents, err := api.Database.GetWorkspaceBuildAgentsByInstanceID(systemCtx, instanceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job agent.",
@@ -144,76 +141,38 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-
-	// Template version agents can share an instance ID with workspace build
-	// agents. Keep only workspace build agents before resolving ambiguity so
-	// template version agents do not force CODER_AGENT_NAME.
-	//
-	// We attach the provisioner job to each candidate during the filter
-	// loop so the post-selection code below can read it directly from the
-	// chosen candidate instead of re-querying. The previous code re-fetched
-	// the resource and job for the surviving agent, firing the
-	// resource->job->build->workspace dbauthz cascade twice and saturating
-	// the pgx pool under load.
-	type instanceCandidate struct {
-		agent database.WorkspaceAgent
-		job   database.ProvisionerJob
-	}
-	buildCandidates := make([]instanceCandidate, 0, len(agents))
-	for _, candidate := range agents {
-		resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, candidate.ResourceID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job resource.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		job, err := api.Database.GetProvisionerJobByID(systemCtx, resource.JobID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
-			buildCandidates = append(buildCandidates, instanceCandidate{
-				agent: candidate,
-				job:   job,
-			})
-		}
-	}
-	if len(buildCandidates) == 0 {
+	if len(agents) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
 		})
 		return
 	}
 
-	var selected instanceCandidate
+	var selected database.GetWorkspaceBuildAgentsByInstanceIDRow
+	found := false
 	if agentName != "" {
-		for _, candidate := range buildCandidates {
-			if candidate.agent.Name == agentName {
+		for _, candidate := range agents {
+			if candidate.WorkspaceAgent.Name == agentName {
 				selected = candidate
+				found = true
 				break
 			}
 		}
-		if selected.agent.ID == uuid.Nil {
+		if !found {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No agent found with instance ID %q and name %q.", instanceID, agentName),
 			})
 			return
 		}
 	} else {
-		if len(buildCandidates) != 1 {
+		if len(agents) != 1 {
 			// Include agent names in the error message to help operators
 			// configure CODER_AGENT_NAME. The caller has already proven
 			// cloud instance identity, so agent names are not sensitive
 			// here.
-			names := make([]string, len(buildCandidates))
-			for i, candidate := range buildCandidates {
-				names[i] = candidate.agent.Name
+			names := make([]string, len(agents))
+			for i, candidate := range agents {
+				names[i] = candidate.WorkspaceAgent.Name
 			}
 			sort.Strings(names)
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -225,31 +184,13 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			})
 			return
 		}
-		selected = buildCandidates[0]
+		selected = agents[0]
 	}
-	agent := selected.agent
-	job := selected.job
-	var jobData provisionerdserver.WorkspaceProvisionJob
-	err = json.Unmarshal(job.Input, &jobData)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error extracting job data.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	resourceHistory, err := api.Database.GetWorkspaceBuildByID(systemCtx, jobData.WorkspaceBuildID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	agent := selected.WorkspaceAgent
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
 	// we'd hate to leak access to a user's workspace.
-	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, resourceHistory.WorkspaceID)
+	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, selected.WorkspaceTable.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching the latest workspace build.",
@@ -257,7 +198,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	if latestHistory.ID != resourceHistory.ID {
+	if latestHistory.ID != selected.WorkspaceBuildID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Resource found for id %q, but isn't registered on the latest history.", instanceID),
 		})

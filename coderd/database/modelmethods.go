@@ -932,6 +932,10 @@ func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
 }
 
+func (r GetWorkspaceBuildAgentsByInstanceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}
+
 // UpsertConnectionLogParams contains the parameters for upserting a
 // connection log entry. This struct is hand-maintained (not generated
 // by sqlc) because the single-row UpsertConnectionLog query was

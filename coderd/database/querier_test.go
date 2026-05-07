@@ -7187,6 +7187,103 @@ func markWorkspaceAgentDeleted(ctx context.Context, t *testing.T, sqlDB *sql.DB,
 	require.NoError(t, err)
 }
 
+type workspaceBuildAgentQueryFixture struct {
+	Workspace database.WorkspaceTable
+	Build     database.WorkspaceBuild
+	Agent     database.WorkspaceAgent
+}
+
+func setupWorkspaceBuildAgentQueryWorkspace(t testing.TB, db database.Store, deleted bool) database.WorkspaceTable {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	return dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		Deleted:        deleted,
+	})
+}
+
+func setupWorkspaceBuildAgentQueryFixture(
+	t testing.TB,
+	db database.Store,
+	authInstanceID string,
+	name string,
+	createdAt time.Time,
+	workspace database.WorkspaceTable,
+) workspaceBuildAgentQueryFixture {
+	t.Helper()
+
+	if workspace.ID == uuid.Nil {
+		workspace = setupWorkspaceBuildAgentQueryWorkspace(t, db, false)
+	}
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: workspace.TemplateID, Valid: true},
+		OrganizationID: workspace.OrganizationID,
+		CreatedBy:      workspace.OwnerID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: workspace.OrganizationID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		JobID:             job.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:       name,
+		ResourceID: resource.ID,
+		CreatedAt:  createdAt,
+		AuthInstanceID: sql.NullString{
+			String: authInstanceID,
+			Valid:  true,
+		},
+	})
+
+	return workspaceBuildAgentQueryFixture{
+		Workspace: workspace,
+		Build:     build,
+		Agent:     agent,
+	}
+}
+
+func setupProvisionerJobAgentQueryFixture(
+	t testing.TB,
+	db database.Store,
+	authInstanceID string,
+	name string,
+	createdAt time.Time,
+	jobType database.ProvisionerJobType,
+) database.WorkspaceAgent {
+	t.Helper()
+
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type: jobType,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:       name,
+		ResourceID: resource.ID,
+		CreatedAt:  createdAt,
+		AuthInstanceID: sql.NullString{
+			String: authInstanceID,
+			Valid:  true,
+		},
+	})
+}
+
 func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 	t.Parallel()
 
@@ -7301,6 +7398,86 @@ func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 		require.Len(t, agents, 2)
 		assert.Equal(t, newerAgent.ID, agents[0].ID)
 		assert.Equal(t, olderAgent.ID, agents[1].ID)
+	})
+}
+
+func TestGetWorkspaceBuildAgentsByInstanceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsWorkspaceBuildRootAgentsNewestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		older := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "older", olderCreatedAt, database.WorkspaceTable{})
+		newer := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "newer", newerCreatedAt, database.WorkspaceTable{})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, []uuid.UUID{newer.Agent.ID, older.Agent.ID}, []uuid.UUID{agents[0].WorkspaceAgent.ID, agents[1].WorkspaceAgent.ID})
+		assert.Equal(t, []uuid.UUID{newer.Build.ID, older.Build.ID}, []uuid.UUID{agents[0].WorkspaceBuildID, agents[1].WorkspaceBuildID})
+		assert.Equal(t, newer.Workspace.ID, agents[0].WorkspaceTable.ID)
+		assert.Equal(t, newer.Workspace.OwnerID, agents[0].WorkspaceTable.OwnerID)
+		assert.Equal(t, newer.Workspace.OrganizationID, agents[0].WorkspaceTable.OrganizationID)
+		assert.False(t, agents[0].WorkspaceTable.Deleted)
+	})
+
+	t.Run("ExcludesDeletedAgentsSubAgentsAndNonWorkspaceBuildJobs", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		root := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "root", baseCreatedAt.Add(-time.Hour), database.WorkspaceTable{})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: root.Agent.ID, Valid: true},
+			Name:       "sub",
+			ResourceID: root.Agent.ResourceID,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedAgent := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "deleted", baseCreatedAt.Add(2*time.Minute), database.WorkspaceTable{})
+		_ = setupProvisionerJobAgentQueryFixture(t, db, authInstanceID, "template-import", baseCreatedAt.Add(3*time.Minute), database.ProvisionerJobTypeTemplateVersionImport)
+		_ = setupProvisionerJobAgentQueryFixture(t, db, authInstanceID, "dry-run", baseCreatedAt.Add(4*time.Minute), database.ProvisionerJobTypeTemplateVersionDryRun)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedAgent.Agent.ID)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, root.Agent.ID, agents[0].WorkspaceAgent.ID)
+		assert.False(t, agents[0].WorkspaceAgent.ParentID.Valid)
+		assert.Equal(t, root.Build.ID, agents[0].WorkspaceBuildID)
+	})
+
+	t.Run("ExcludesDeletedWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+		active := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "active", baseCreatedAt, database.WorkspaceTable{})
+		deletedWorkspace := setupWorkspaceBuildAgentQueryWorkspace(t, db, true)
+		_ = setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "deleted-workspace", baseCreatedAt.Add(time.Minute), deletedWorkspace)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, active.Agent.ID, agents[0].WorkspaceAgent.ID)
+		assert.Equal(t, active.Workspace.ID, agents[0].WorkspaceTable.ID)
 	})
 }
 
