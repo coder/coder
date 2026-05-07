@@ -16,6 +16,7 @@ interface StartWorkspaceToolProps {
 	isError: boolean;
 	errorMessage?: string;
 	noBuild?: boolean;
+	quotaFailure?: { title: string; message: string };
 }
 
 export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
@@ -25,16 +26,19 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	isError,
 	errorMessage,
 	noBuild,
+	quotaFailure,
 }) => {
 	const isRunning = status === "running";
 
 	const label = isRunning
 		? "Starting workspace…"
-		: isError
-			? `Failed to start ${workspaceName || "workspace"}`
-			: workspaceName
-				? `Started ${workspaceName}`
-				: "Started workspace";
+		: quotaFailure
+			? quotaFailure.title
+			: isError
+				? `Failed to start ${workspaceName || "workspace"}`
+				: workspaceName
+					? `Started ${workspaceName}`
+					: "Started workspace";
 
 	const header = (
 		<>

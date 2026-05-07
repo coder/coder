@@ -1999,6 +1999,41 @@ export const StartWorkspaceBuildFailed: Story = {
 	},
 };
 
+export const StartWorkspaceQuotaReached: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace start build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not start this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // create_workspace stories
 // ---------------------------------------------------------------------------
@@ -2060,6 +2095,41 @@ export const CreateWorkspaceCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceQuotaReached: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not create this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
 	},
 };
 

@@ -30,6 +30,7 @@ export const CreateWorkspaceTool: React.FC<{
 	errorMessage?: string;
 	buildId?: string;
 	created?: boolean;
+	quotaFailure?: { title: string; message: string };
 }> = ({
 	workspaceName,
 	resultJson,
@@ -38,6 +39,7 @@ export const CreateWorkspaceTool: React.FC<{
 	errorMessage,
 	buildId,
 	created = true,
+	quotaFailure,
 }) => {
 	const isRunning = status === "running";
 	let rec: Record<string, unknown> | null = null;
@@ -56,13 +58,15 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const label = isRunning
 		? "Creating workspace…"
-		: isError
-			? `Failed to create ${wsName || "workspace"}`
-			: created === false
-				? `Workspace ${wsName} already exists`
-				: wsName
-					? `Created ${wsName}`
-					: "Created workspace";
+		: quotaFailure
+			? quotaFailure.title
+			: isError
+				? `Failed to create ${wsName || "workspace"}`
+				: created === false
+					? `Workspace ${wsName} already exists`
+					: wsName
+						? `Created ${wsName}`
+						: "Created workspace";
 
 	const hasBuildLogs = isRunning || Boolean(buildId);
 
