@@ -74,6 +74,35 @@ describe("TemplateEmbedPage", () => {
 		expect(cpuInput).toBeInTheDocument();
 	});
 
+	it("ignores ephemeral parameters", async () => {
+		const paramEphemeral = {
+			...MockPreviewParameter,
+			name: "breakfast",
+			display_name: "Breakfast",
+			form_type: "input" as const,
+			value: { value: "eggs", valid: true },
+			default_value: { value: "eggs", valid: true },
+			order: 0,
+			ephemeral: true,
+		};
+		mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [paramRegion, paramEphemeral],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
+		});
+
+		// The ephemeral parameter should be ignored. Ephemeral params don't make
+		// sense in this context because they need to be reprovided on every
+		// workspace start.
+		expect(screen.queryByDisplayValue("eggs")).not.toBeInTheDocument();
+	});
+
 	it("includes mode and param.* params in the test link and markdown", async () => {
 		const param = {
 			...MockPreviewParameter,

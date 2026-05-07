@@ -111,7 +111,9 @@ const TemplateEmbedPage: FC = () => {
 		if (!latestResponse?.parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+		return [...latestResponse.parameters]
+			.filter((it) => !it.ephemeral)
+			.sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
 	const isLoading =

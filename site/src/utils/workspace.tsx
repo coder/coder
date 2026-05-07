@@ -295,10 +295,6 @@ export const getDisplayWorkspaceStatus = (
 	}
 };
 
-export const paramsUsedToCreateWorkspace = (
-	param: TypesGen.TemplateVersionParameter,
-) => !param.ephemeral;
-
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,
