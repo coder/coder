@@ -406,6 +406,7 @@ func TestIsTestCommand(t *testing.T) {
 		{name: "after environment assignment", command: "VERBOSE=1 go test ./...", want: true},
 		{name: "pytest as argument", command: "pip install pytest", want: false},
 		{name: "test command after non-assignment", command: "echo foo=bar go test", want: false},
+		{name: "flag assignments before command", command: "--format=json --output=file go test", want: false},
 		{name: "make testing", command: "make testing", want: false},
 	}
 

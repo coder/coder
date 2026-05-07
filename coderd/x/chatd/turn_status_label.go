@@ -376,7 +376,19 @@ func canStartCommandAt(fields []string, index int) bool {
 
 func isEnvironmentAssignment(field string) bool {
 	separator := strings.Index(field, "=")
-	return separator > 0
+	if separator <= 0 {
+		return false
+	}
+	for i, r := range field[:separator] {
+		switch {
+		case r == '_':
+		case 'a' <= r && r <= 'z':
+		case i > 0 && '0' <= r && r <= '9':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func isShellCommandSeparator(field string) bool {
