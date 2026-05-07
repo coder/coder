@@ -2051,10 +2051,26 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			CodeDiffDisplayMode: codersdk.AgentDisplayMode("bogus"),
-		})
-		requireValidationField(t, err, "code_diff_display_mode")
+		for _, tt := range []struct {
+			name string
+			mode codersdk.AgentDisplayMode
+		}{
+			{
+				name: "bogus",
+				mode: codersdk.AgentDisplayMode("bogus"),
+			},
+			{
+				name: "thinking preview",
+				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+					CodeDiffDisplayMode: tt.mode,
+				})
+				requireValidationField(t, err, "code_diff_display_mode")
+			})
+		}
 	})
 }
 
