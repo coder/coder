@@ -162,6 +162,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	openssh-server \
 	openssl \
 	pkg-config \
+	procps \
 	postgresql-18 \
 	python3 \
 	python3-pip \
@@ -286,7 +287,10 @@ ARG GOLANGCI_LINT_VERSION=1.64.8 \
 	KUBECTX_VERSION=0.9.4 \
 	SYFT_VERSION=1.20.0 \
 	COSIGN_VERSION=2.4.3 \
-	BUN_VERSION=1.2.15
+	BUN_VERSION=1.2.15 \
+	MISE_VERSION=v2026.4.19 \
+	MISE_SHA256=6b58ff5f1e1ce98ed2b7e5372c344ea48182c460e5b6df12d9e0def35aad4438 \
+	MISE_INSTALL_DIR=/opt/mise/bin
 
 RUN \
 	# golangci-lint performs static code analysis for our Go code
@@ -325,6 +329,25 @@ RUN userdel -r ubuntu && \
 	--uid=1000 \
 	--user-group
 
+# Install mise to a stable path outside /home/coder, but keep its target
+# directory writable so `mise self-update` can replace the binary as coder.
+RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_DIR}" && \
+	curl --silent --show-error --location --fail \
+		"https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
+		--output "${MISE_INSTALL_DIR}/mise" && \
+	echo "${MISE_SHA256}  ${MISE_INSTALL_DIR}/mise" | sha256sum -c && \
+	chown coder:coder "${MISE_INSTALL_DIR}/mise" && \
+	chmod 0755 "${MISE_INSTALL_DIR}/mise" && \
+	ln --symbolic "${MISE_INSTALL_DIR}/mise" /usr/local/bin/mise && \
+	test -x /usr/local/bin/mise && \
+	sudo --login --user=coder /bin/bash -lc 'set -euo pipefail && mise_bin="$(readlink --canonicalize /usr/local/bin/mise)" && test -w "$(dirname "$mise_bin")" && /usr/local/bin/mise --version && /usr/local/bin/mise self-update --help >/dev/null && /usr/local/bin/mise upgrade --help >/dev/null'
+
+# Install Homebrew as the coder user so the supported Linux prefix remains
+# writable after the image build.
+RUN sudo --login --user=coder env NONINTERACTIVE=1 CI=1 /bin/bash -lc 'set -euo pipefail && curl --silent --show-error --location --fail https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | /bin/bash' && \
+	test -x /home/linuxbrew/.linuxbrew/bin/brew && \
+	sudo --login --user=coder /bin/bash -lc '/home/linuxbrew/.linuxbrew/bin/brew --version'
+
 # Adjust OpenSSH config
 RUN echo "PermitUserEnvironment yes" >>/etc/ssh/sshd_config && \
 	echo "X11Forwarding yes" >>/etc/ssh/sshd_config && \
@@ -347,10 +370,15 @@ COPY --from=proto /tmp/include /usr/local/bin/include
 
 USER coder
 
-# Ensure go bins are in the 'coder' user's path. Note that no go bins are
-# installed in this docker file, as they'd be mounted over by the persistent
-# home volume.
-ENV PATH="/home/coder/go/bin:${PATH}"
+# Configure Homebrew and mise for the coder user. mise shims must stay first
+# so `command -v` and `mise doctor` resolve mise-managed tools ahead of
+# Homebrew and system binaries. Note that no go bins are installed in this
+# docker file, as they'd be mounted over by the persistent home volume.
+ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew" \
+	HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar" \
+	HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew" \
+	MISE_DATA_DIR="/home/coder/.local/share/mise"
+ENV PATH="${MISE_DATA_DIR}/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
 
 # Override CARGO_HOME so cargo registry/cache writes go to the coder
 # user's home directory instead of the root-owned /usr/local/cargo.
