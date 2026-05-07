@@ -50,6 +50,13 @@ const promptHistory = [
 	"Oldest prompt",
 ] as const;
 
+// Realistic prompts used by the UAT walkthrough recording. Newest first.
+const uatPromptHistory = [
+	"Fix the dark-mode contrast on hover",
+	"Add a Storybook story for ChatTopBar",
+	"Refactor the auth flow",
+] as const;
+
 const getEditor = (canvasElement: HTMLElement) =>
 	within(canvasElement).getByTestId("chat-message-input");
 
@@ -60,6 +67,14 @@ const expectEditorText = async (editor: HTMLElement, text: string) => {
 };
 
 export const Default: Story = {};
+
+// Manual demo story used by the CODAGT-319 UAT recording.
+// No play function: this is intentionally interactive for human walkthrough.
+export const PromptHistoryDemo: Story = {
+	args: {
+		userPromptHistory: uatPromptHistory,
+	},
+};
 
 export const PromptHistoryCycling: Story = {
 	args: {
