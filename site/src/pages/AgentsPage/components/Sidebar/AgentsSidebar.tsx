@@ -1176,6 +1176,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										</span>
 									</div>
 									<div className="flex items-center gap-2">
+										<span className="w-16 shrink-0 font-medium">Cost</span>
+										<span>{formatCostDollars(getFakeCostMicros(chat))}</span>
+									</div>
+									<div className="flex items-center gap-2">
 										<span className="w-16 shrink-0 font-medium">Tokens</span>
 										<TokenBadges
 											size="xs"
