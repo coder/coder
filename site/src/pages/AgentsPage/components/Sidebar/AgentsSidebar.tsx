@@ -946,7 +946,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							className={cn(
 								"group relative grid min-w-0 select-none items-center border-0 border-b border-solid border-border-default/30 text-content-secondary",
 								layout === "large"
-									? "grid-cols-[2rem_3fr_2fr_8rem_2rem_2rem]"
+									? "grid-cols-[2rem_3fr_2fr_4rem_8rem_2rem_2rem]"
 									: "grid-cols-[2rem_3fr_2fr_7rem_2rem_2rem]",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:border-y-0",
@@ -989,7 +989,18 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							>
 								{subtitle}
 							</span>
-							{/* Col 4: PR stats (always rendered, may be empty) */}
+							{/* Col 4: Subagents (large only) */}
+							{layout === "large" && (
+								<span className="inline-flex items-center gap-1 pl-2 text-xs text-content-secondary">
+									{childIDs.length > 0 && (
+										<>
+											<span>{childIDs.length}</span>
+											<BotIcon className="h-3.5 w-3.5" />
+										</>
+									)}
+								</span>
+							)}
+							{/* Col 5: PR stats (always rendered, may be empty) */}
 							<span
 								className="inline-flex items-center gap-2 truncate pl-3 text-sm tabular-nums"
 								title={
