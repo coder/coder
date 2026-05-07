@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/azureidentity"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -136,7 +135,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	agents, err := api.Database.GetWorkspaceBuildAgentsByInstanceID(systemCtx, instanceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job agent.",
+			Message: "Internal error fetching workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
@@ -148,17 +147,15 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		return
 	}
 
-	var selected database.GetWorkspaceBuildAgentsByInstanceIDRow
-	found := false
+	selectedIndex := -1
 	if agentName != "" {
-		for _, candidate := range agents {
+		for i, candidate := range agents {
 			if candidate.WorkspaceAgent.Name == agentName {
-				selected = candidate
-				found = true
+				selectedIndex = i
 				break
 			}
 		}
-		if !found {
+		if selectedIndex == -1 {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No agent found with instance ID %q and name %q.", instanceID, agentName),
 			})
@@ -184,8 +181,9 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			})
 			return
 		}
-		selected = agents[0]
+		selectedIndex = 0
 	}
+	selected := agents[selectedIndex]
 	agent := selected.WorkspaceAgent
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
