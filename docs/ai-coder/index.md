@@ -14,35 +14,43 @@ for agents such as GitHub Copilot and Roo Code.
 These agents work well inside existing Coder workspaces as they can simply be
 enabled via an extension or are built-into the editor.
 
-## Agents with Coder Tasks
+## Coder Agents
 
-In cases where the IDE is secondary, such as prototyping or long-running
-background jobs, agents like Claude Code or Aider are better for the job and new
-SaaS interfaces like [Devin](https://devin.ai) and
-[ChatGPT Codex](https://openai.com/index/introducing-codex/) are emerging.
+In cases where the IDE is secondary, such as prototyping, research, or
+long-running background jobs, [Coder Agents](./agents/index.md) is the
+recommended way to delegate development work to coding agents in your Coder
+deployment.
 
-[Coder Tasks](./tasks.md) is an interface inside Coder to run and manage coding
-agents with a chat-based UI. Unlike SaaS-based products, Coder Tasks is
-self-hosted (included in your Coder deployment) and allows you to run any
-terminal-based agent such as Claude Code or Codex's Open Source CLI.
+Coder Agents is a native AI coding agent built into Coder. The agent loop runs
+in the Coder control plane on your infrastructure rather than inside the
+workspace, so workspaces can be completely network isolated. Developers
+interact with agents through the web UI, the CLI (`coder agents`), or the
+REST API.
 
-![Coder Tasks UI](../images/guides/ai-agents/tasks-ui.png)
+![Coder Agents chat interface with git diff sidebar](../images/agents-hero-image.png)
 
-[Learn more about Coder Tasks](./tasks.md) for best practices and how to get
-started.
+[Learn more about Coder Agents](./agents/index.md) for architecture details,
+supported LLM providers, and how to get started.
 
-## Secure Your Workflows with Agent Firewall
+## Govern AI activity with the AI Governance Add-On
 
-AI agents can be powerful teammates, but must be treated as untrusted and
-unpredictable interns as opposed to tools. Without the right controls, they can
-go rogue.
+AI coding tools are quickly becoming core to how engineering teams ship
+software. As adoption grows, platform teams want a clear picture of how AI is
+being used, consistent guardrails across teams, and predictable cost controls
+so they can confidently scale AI tooling to the whole organization.
 
-[Agent Firewall](./agent-firewall/index.md) is a new tool that offers
-process-level safeguards that detect and prevent destructive actions. Unlike
-traditional mitigation methods like firewalls, service meshes, and RBAC systems,
-Agent Firewall is an agent-aware, centralized control point that can either be
-embedded in the same secure Coder Workspaces that enterprises already trust, or
-used through an open source CLI.
+The [AI Governance Add-On](./ai-governance.md) is a per-user license that adds
+observability, management, and policy controls for AI tooling across your
+Coder deployment. It includes:
 
-To learn more about features, implementation details, and how to get started,
-check out the [Agent Firewall documentation](./agent-firewall/index.md).
+- [AI Gateway](./ai-gateway/index.md) for centralized authentication, audit
+  trails of prompts and tool invocations, and policy enforcement against
+  upstream LLM providers.
+- [Agent Firewall](./agent-firewall/index.md) for process-level network and
+  command policies that restrict what agents can reach and do inside a
+  workspace.
+- Expanded Agent Workspace Build allowances for teams running AI-driven
+  background work at scale.
+
+[Learn more about the AI Governance Add-On](./ai-governance.md) for use cases,
+entitlements, and how to enable it in your deployment.

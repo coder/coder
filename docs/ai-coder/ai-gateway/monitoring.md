@@ -46,6 +46,7 @@ Available query filters:
   - `GitHub Copilot (VS Code)`
   - `GitHub Copilot (CLI)`
   - `Kilo Code`
+  - `Coder Agents`
   - `Mux`
   - `Roo Code`
   - `Cursor`
