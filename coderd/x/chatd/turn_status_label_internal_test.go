@@ -316,6 +316,14 @@ func TestTurnStatusSignalsFromContent(t *testing.T) {
 			content: failedExecuteToolContent(t, "call-commit", "git commit -m change"),
 		},
 		{
+			name: "background execute result ignored",
+			content: executeToolContent(t, "call-test", "go test ./...", map[string]any{
+				"success":               true,
+				"exit_code":             0,
+				"background_process_id": "process-id",
+			}),
+		},
+		{
 			name:    "unrecognized execute command ignored",
 			content: successfulExecuteToolContent(t, "call-ls", "ls -la"),
 		},

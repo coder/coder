@@ -210,6 +210,10 @@ func executeTurnStatusSignal(
 		return turnStatusSignal{}, false
 	}
 
+	if result.BackgroundProcessID != "" {
+		return turnStatusSignal{}, false
+	}
+
 	containsPRCreateCommand := isPRCreateCommand(command)
 	containsGitCommitCommand := isGitCommitCommand(command)
 	containsTestCommand := isTestCommand(command)
