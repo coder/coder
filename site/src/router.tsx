@@ -96,6 +96,7 @@ const WorkspaceSharingPage = lazy(
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
+const DesktopPage = lazy(() => import("./pages/DesktopPage/DesktopPage"));
 const TemplatePermissionsPage = lazy(
 	() =>
 		import(
@@ -713,6 +714,7 @@ export const router = createBrowserRouter(
 					path="/:username/:workspace/terminal"
 					element={<TerminalPage />}
 				/>
+				<Route path="/:username/:workspace/desktop" element={<DesktopPage />} />
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />

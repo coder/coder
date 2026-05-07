@@ -30,6 +30,7 @@ export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	vscode: "VS Code Desktop",
 	vscode_insiders: "VS Code Insiders",
 	web_terminal: "Terminal",
+	desktop: "Desktop",
 };
 
 interface AppLinkProps {

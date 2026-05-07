@@ -12,7 +12,11 @@ export function isDLPBypassed(): boolean {
 	return new URLSearchParams(window.location.search).has("dlp_bypass");
 }
 
-type DLPField = "ssh_access" | "web_terminal_access" | "port_forwarding_access";
+type DLPField =
+	| "ssh_access"
+	| "web_terminal_access"
+	| "port_forwarding_access"
+	| "desktop_access";
 
 /**
  * Returns the user-facing tooltip reason for a field-gated DLP denial, or

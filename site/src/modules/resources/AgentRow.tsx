@@ -70,6 +70,7 @@ import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
+import { DesktopLink } from "./DesktopLink/DesktopLink";
 import { DLPGate } from "./DLPGate";
 import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
 import { dlpDenialReason } from "./dlpBypass";
@@ -482,6 +483,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 								)}
 							>
 								<TerminalLink
+									workspaceName={workspace.name}
+									agentName={agent.name}
+									userName={workspace.owner_name}
+								/>
+							</DLPGate>
+						)}
+						{agent.display_apps.includes("desktop") && (
+							<DLPGate
+								reason={dlpDenialReason(agent.dlp_policy, "desktop_access")}
+							>
+								<DesktopLink
 									workspaceName={workspace.name}
 									agentName={agent.name}
 									userName={workspace.owner_name}

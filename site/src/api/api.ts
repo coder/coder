@@ -188,6 +188,12 @@ export const watchChatDesktop = (chatId: string): WebSocket => {
 	return socket;
 };
 
+export const watchAgentDesktop = (agentId: string): WebSocket => {
+	const socket = createWebSocket(`/api/v2/workspaceagents/${agentId}/desktop`);
+	socket.binaryType = "arraybuffer";
+	return socket;
+};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {

@@ -4205,6 +4205,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 					SshHelper:            true,
 					PortForwardingHelper: true,
 					WebTerminal:          true,
+					Desktop:              true,
 				},
 			}},
 		})

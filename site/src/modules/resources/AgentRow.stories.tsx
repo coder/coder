@@ -161,6 +161,7 @@ const denyAllPolicy = {
 	ssh_access: false,
 	web_terminal_access: false,
 	port_forwarding_access: false,
+	desktop_access: false,
 	allowed_applications: [] as string[],
 };
 
@@ -169,6 +170,7 @@ const codeServerOnlyPolicy = {
 	ssh_access: true,
 	web_terminal_access: true,
 	port_forwarding_access: true,
+	desktop_access: true,
 	allowed_applications: ["code-server"],
 };
 
@@ -189,8 +191,9 @@ export const WithDLPPolicyDenyAll: Story = {
 		// Each gated UI element is wrapped in DLPGate, which renders a
 		// span with data-testid="dlp-gate" when the field is denied.
 		const gates = await canvas.findAllByTestId("dlp-gate");
-		// SSH, port-forward, web terminal, VS Code Desktop, and two app
-		// tiles all gated; allow for slight variation in display state.
+		// SSH, port-forward, web terminal, desktop, VS Code Desktop, and
+		// two app tiles all gated; allow for slight variation in display
+		// state.
 		await waitFor(() => expect(gates.length).toBeGreaterThanOrEqual(4));
 		for (const gate of gates) {
 			await expect(gate).toHaveAttribute("aria-disabled", "true");

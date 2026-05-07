@@ -42,6 +42,7 @@ import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 import { AgentLatency } from "./AgentLatency";
 import { DevcontainerStatus } from "./AgentStatus";
+import { DesktopLink } from "./DesktopLink/DesktopLink";
 import { DLPGate } from "./DLPGate";
 import { dlpDenialReason } from "./dlpBypass";
 import { PortForwardButton } from "./PortForwardButton";
@@ -81,7 +82,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const displayApps =
 		subAgent?.display_apps.filter((app) => {
 			if (browser_only) {
-				return ["web_terminal", "port_forwarding_helper"].includes(app);
+				return ["web_terminal", "port_forwarding_helper", "desktop"].includes(
+					app,
+				);
 			}
 			return true;
 		}) || [];
@@ -90,6 +93,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		(displayApps.includes("vscode") || displayApps.includes("vscode_insiders"));
 	const hasAppsToDisplay =
 		displayApps.includes("web_terminal") ||
+		displayApps.includes("desktop") ||
 		showVSCode ||
 		appSections.some((it) => it.apps.length > 0);
 
@@ -352,6 +356,21 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 									)}
 								>
 									<TerminalLink
+										workspaceName={workspace.name}
+										agentName={subAgent.name}
+										userName={workspace.owner_name}
+									/>
+								</DLPGate>
+							)}
+
+							{displayApps.includes("desktop") && (
+								<DLPGate
+									reason={dlpDenialReason(
+										subAgent.dlp_policy,
+										"desktop_access",
+									)}
+								>
+									<DesktopLink
 										workspaceName={workspace.name}
 										agentName={subAgent.name}
 										userName={workspace.owner_name}
