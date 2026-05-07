@@ -944,141 +944,228 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<div
 							data-testid={`agents-tree-node-${chat.id}`}
 							className={cn(
-								"group relative grid min-w-0 select-none items-center border-0 border-y border-solid border-border-default/30 text-content-secondary",
-								layout === "large"
-									? "grid-cols-[2rem_3fr_2fr_4rem_8rem_2.5rem_2rem]"
-									: "grid-cols-[2rem_3fr_2fr_7rem_2.5rem_2rem]",
+								"group relative min-w-0 select-none border-0 border-y border-solid border-border-default/30 text-content-secondary",
 								"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary",
 								"has-[[aria-current=page]]:bg-surface-secondary has-[[aria-current=page]]:text-content-primary",
 							)}
 						>
-							{/* Col 1: Chevron */}
-							<div className="flex items-center justify-center self-stretch">
-								{hasChildren ? (
-									<Button
-										variant="subtle"
-										size="icon"
-										onClick={() => toggleExpanded(chatID)}
-										className="h-5 w-5 shrink-0 p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5"
-										aria-label={isExpanded ? "Collapse" : "Expand"}
-										aria-expanded={isExpanded}
-									>
-										{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-									</Button>
-								) : null}
-							</div>
-							{/* Col 2: Title */}
-							<NavLink
-								to={{ pathname: `/agents/${chat.id}`, search: location.search }}
+							{/* Table row */}
+							<div
 								className={cn(
-									"min-w-0 truncate py-2 text-sm text-content-primary no-underline",
-									isActiveChat && "font-medium",
+									"grid items-center",
+									layout === "large"
+										? "grid-cols-[2rem_3fr_2fr_4rem_8rem_2.5rem_2rem]"
+										: "grid-cols-[2rem_3fr_2fr_7rem_2.5rem_2rem]",
 								)}
 							>
-								{chat.title}
-							</NavLink>
-							{/* Col 3: Subtitle */}
-							<span
-								className={cn(
-									"truncate px-2 text-sm",
-									errorReason
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-								title={subtitle}
-							>
-								{subtitle}
-							</span>
-							{/* Col 4: Subagents (large only) */}
-							{layout === "large" && (
-								<span className="inline-flex items-center gap-1 pl-2 text-xs text-content-secondary">
-									{childIDs.length > 0 && (
-										<>
-											<span>{childIDs.length}</span>
-											<BotIcon className="h-3.5 w-3.5" />
-										</>
+								{/* Col 1: Chevron */}
+								<div className="flex items-center justify-center self-stretch">
+									{hasChildren ? (
+										<Button
+											variant="subtle"
+											size="icon"
+											onClick={() => toggleExpanded(chatID)}
+											className="h-5 w-5 shrink-0 p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5"
+											aria-label={isExpanded ? "Collapse" : "Expand"}
+											aria-expanded={isExpanded}
+										>
+											{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+										</Button>
+									) : null}
+								</div>
+								{/* Col 2: Title */}
+								<NavLink
+									to={{
+										pathname: `/agents/${chat.id}`,
+										search: location.search,
+									}}
+									className={cn(
+										"min-w-0 truncate py-2 text-sm text-content-primary no-underline",
+										isActiveChat && "font-medium",
 									)}
+								>
+									{chat.title}
+								</NavLink>
+								{/* Col 3: Subtitle */}
+								<span
+									className={cn(
+										"truncate px-2 text-sm",
+										errorReason
+											? "text-content-destructive"
+											: "text-content-secondary",
+									)}
+									title={subtitle}
+								>
+									{subtitle}
 								</span>
-							)}
-							{/* Col 5: PR stats (always rendered, may be empty) */}
-							<span
-								className="inline-flex items-center gap-2 truncate pl-3 text-sm tabular-nums"
-								title={
-									hasLinkedDiffStatus && hasLineStats
-										? `${filesChangedLabel}, +${additions} -${deletions}`
-										: undefined
-								}
-							>
-								{hasLinkedDiffStatus && hasLineStats ? (
-									<>
-										{(() => {
-											const prIcon = getPRIconConfig(diffStatus);
-											if (prIcon) {
-												const PrIcon = prIcon.icon;
-												return (
-													<PrIcon
-														className={cn(
-															"h-3.5 w-3.5 shrink-0",
-															prIcon.className,
-														)}
-													/>
-												);
-											}
-											return null;
-										})()}
-										<span className="text-git-added-bright">+{additions}</span>
-										<span className="text-git-deleted-bright">
-											&minus;{deletions}
-										</span>
-									</>
-								) : null}
-							</span>
-							{/* Col 5/6: Status */}
-							<div className="flex items-center justify-center">
-								{isArchivingThisChat ? (
-									<Spinner
-										className="h-3.5 w-3.5 text-content-secondary"
-										loading
-									/>
-								) : isMainRunning || hasRunningChildren ? (
-									<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
-								) : chat.has_unread && !isActiveChat ? (
-									<span
-										className="h-2.5 w-2.5 rounded-full bg-content-link"
-										data-testid={`unread-indicator-wide-${chat.id}`}
-									/>
-								) : chat.status === "error" ? (
-									<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
-								) : (
-									<span className="text-xs text-content-secondary">
-										{shortRelativeTime(chat.updated_at)}
+								{/* Col 4: Subagents (large only) */}
+								{layout === "large" && (
+									<span className="inline-flex items-center gap-1 pl-2 text-xs text-content-secondary">
+										{childIDs.length > 0 && (
+											<>
+												<span>{childIDs.length}</span>
+												<BotIcon className="h-3.5 w-3.5" />
+											</>
+										)}
 									</span>
 								)}
-							</div>
-							{/* Col 6: Kebab */}
-							<div className="flex items-center justify-center pr-2">
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className="h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary"
-											aria-label={`Open actions for ${chat.title}`}
+								{/* Col 5: PR stats */}
+								<span
+									className="inline-flex items-center gap-2 truncate pl-3 text-sm tabular-nums"
+									title={
+										hasLinkedDiffStatus && hasLineStats
+											? `${filesChangedLabel}, +${additions} -${deletions}`
+											: undefined
+									}
+								>
+									{hasLinkedDiffStatus && hasLineStats ? (
+										<>
+											{(() => {
+												const prIcon = getPRIconConfig(diffStatus);
+												if (prIcon) {
+													const PrIcon = prIcon.icon;
+													return (
+														<PrIcon
+															className={cn(
+																"h-3.5 w-3.5 shrink-0",
+																prIcon.className,
+															)}
+														/>
+													);
+												}
+												return null;
+											})()}
+											<span className="text-git-added-bright">
+												+{additions}
+											</span>
+											<span className="text-git-deleted-bright">
+												&minus;{deletions}
+											</span>
+										</>
+									) : null}
+								</span>
+								{/* Col 6: Status */}
+								<div className="flex items-center justify-center">
+									{isArchivingThisChat ? (
+										<Spinner
+											className="h-3.5 w-3.5 text-content-secondary"
+											loading
+										/>
+									) : isMainRunning || hasRunningChildren ? (
+										<Loader2Icon className="h-4 w-4 animate-spin text-content-link" />
+									) : chat.has_unread && !isActiveChat ? (
+										<span
+											className="h-2.5 w-2.5 rounded-full bg-content-link"
+											data-testid={`unread-indicator-wide-${chat.id}`}
+										/>
+									) : chat.status === "error" ? (
+										<AlertTriangleIcon className="h-3.5 w-3.5 text-content-destructive" />
+									) : (
+										<span className="text-xs text-content-secondary">
+											{shortRelativeTime(chat.updated_at)}
+										</span>
+									)}
+								</div>
+								{/* Col 7: Kebab */}
+								<div className="flex items-center justify-center pr-2">
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="h-6 w-6 min-w-0 shrink-0 p-0 text-content-secondary hover:text-content-primary"
+												aria-label={`Open actions for ${chat.title}`}
+											>
+												<EllipsisVerticalIcon className="h-3.5 w-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
 										>
-											<EllipsisVerticalIcon className="h-3.5 w-3.5" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent
-										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
-									>
-										{renderMenuItems({
-											Item: DropdownMenuItem,
-											Separator: DropdownMenuSeparator,
-										})}
-									</DropdownMenuContent>
-								</DropdownMenu>
+											{renderMenuItems({
+												Item: DropdownMenuItem,
+												Separator: DropdownMenuSeparator,
+											})}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</div>
 							</div>
+							{/* Expanded details (inside highlighted area) */}
+							{hasChildren && isExpanded && !isChildNode && (
+								<div className="space-y-2 px-4 pb-3 pt-1 text-xs text-content-secondary">
+									{/* Subagents */}
+									{childIDs.length > 0 && (
+										<div>
+											<button
+												type="button"
+												onClick={() => toggleSection(`subagents-${chatID}`)}
+												className="mb-1 flex items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary hover:text-content-primary cursor-pointer"
+											>
+												<ChevronUpIcon
+													className={cn(
+														"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+														collapsedSections.has(`subagents-${chatID}`) &&
+															"rotate-180",
+													)}
+												/>
+												Subagents ({childIDs.length})
+											</button>
+											{!collapsedSections.has(`subagents-${chatID}`) && (
+												<div className="space-y-0.5 pl-2">
+													{childIDs
+														.map((id) => chatById.get(id))
+														.filter((c): c is Chat => c !== undefined)
+														.map((child) => (
+															<NavLink
+																key={child.id}
+																to={{
+																	pathname: `/agents/${child.id}`,
+																	search: location.search,
+																}}
+																className="block truncate py-0.5 text-xs text-content-secondary no-underline hover:text-content-primary [&[aria-current=page]]:text-content-primary [&[aria-current=page]]:font-medium"
+															>
+																{child.title}
+															</NavLink>
+														))}
+												</div>
+											)}
+										</div>
+									)}
+									{/* Metadata */}
+									<div className="flex gap-2">
+										<span className="w-16 shrink-0 font-medium">Created</span>
+										<span>
+											{new Date(chat.created_at).toLocaleString("en-US", {
+												month: "short",
+												day: "numeric",
+												year: "numeric",
+												hour: "2-digit",
+												minute: "2-digit",
+												second: "2-digit",
+											})}
+										</span>
+									</div>
+									<div className="flex items-center gap-2">
+										<span className="w-16 shrink-0 font-medium">Tokens</span>
+										<span className="inline-flex items-center gap-1">
+											<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-[11px]">
+												↓ 123132
+											</span>
+											<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-[11px]">
+												↑ 233
+											</span>
+										</span>
+									</div>
+									<div className="flex items-center gap-2">
+										<span className="w-16 shrink-0 font-medium">Model</span>
+										<span className="inline-flex items-center gap-1.5">
+											<span className="h-2 w-2 rounded-full bg-content-link" />
+											<span>{modelName}</span>
+										</span>
+									</div>
+								</div>
+							)}
 						</div>
 					)}
 				</ContextMenuTrigger>
@@ -1089,57 +1176,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					})}
 				</ContextMenuContent>
 			</ContextMenu>
-			{hasChildren && isExpanded && !isChildNode && layout !== "narrow" && (
-				<div className="ml-4 mt-1 space-y-1 border-l border-border-default/60 pl-2.5 text-xs text-content-secondary">
-					<div className="flex gap-2">
-						<span className="w-16 shrink-0 font-medium">Created</span>
-						<span>
-							{new Date(chat.created_at).toLocaleString("en-US", {
-								month: "short",
-								day: "numeric",
-								year: "numeric",
-								hour: "2-digit",
-								minute: "2-digit",
-								second: "2-digit",
-							})}
-						</span>
-					</div>
-					{layout !== "large" && (
-						<div className="flex gap-2">
-							<span className="w-16 shrink-0 font-medium">Cost</span>
-							<span>{formatCostDollars(getFakeCostMicros(chat))}</span>
-						</div>
-					)}
-					<div className="flex items-center gap-2">
-						<span className="w-16 shrink-0 font-medium">Tokens</span>
-						<span className="inline-flex items-center gap-1">
-							<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-[11px]">
-								↓ 123132
-							</span>
-							<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-[11px]">
-								↑ 233
-							</span>
-						</span>
-					</div>
-					<div className="flex items-center gap-2">
-						<span className="w-16 shrink-0 font-medium">Model</span>
-						<span className="inline-flex items-center gap-1.5">
-							<span className="h-2 w-2 rounded-full bg-content-link" />
-							<span>{modelName}</span>
-						</span>
-					</div>
-					{layout === "large" && (
-						<div className="flex gap-2">
-							<span className="w-16 shrink-0 font-medium">Initial prompt</span>
-							<p className="min-w-0 flex-1 overflow-hidden rounded border border-border bg-surface-secondary p-2 text-[12px] leading-relaxed text-content-primary line-clamp-3">
-								I want to create a new github workflow that is based on this
-								existing one. The main purpose of my new workflow is to run when
-								I assign a label...
-							</p>
-						</div>
-					)}
-				</div>
-			)}
 		</div>
 	);
 };
