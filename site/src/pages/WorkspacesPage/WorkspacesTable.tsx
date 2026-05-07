@@ -509,7 +509,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<CloudIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -522,7 +522,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -535,7 +535,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<CloudIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 
@@ -548,7 +548,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 						>
 							<PlayIcon />
 						</PrimaryAction>
-						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
 				)}
 

@@ -38,82 +38,6 @@ import type {
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
-const getMissingParameters = (
-	oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
-	newBuildParameters: TypesGen.WorkspaceBuildParameter[],
-	templateParameters: TypesGen.TemplateVersionParameter[],
-) => {
-	const missingParameters: TypesGen.TemplateVersionParameter[] = [];
-	const requiredParameters: TypesGen.TemplateVersionParameter[] = [];
-
-	for (const p of templateParameters) {
-		// It is mutable and required. Mutable values can be changed after so we
-		// don't need to ask them if they are not required.
-		const isMutableAndRequired = p.mutable && p.required;
-		// Is immutable, so we can check if it is its first time on the build
-		const isImmutable = !p.mutable;
-
-		if (isMutableAndRequired || isImmutable) {
-			requiredParameters.push(p);
-		}
-	}
-
-	for (const parameter of requiredParameters) {
-		// Check if there is a new value
-		let buildParameter = newBuildParameters.find(
-			(p) => p.name === parameter.name,
-		);
-
-		// If not, get the old one
-		if (!buildParameter) {
-			buildParameter = oldBuildParameters.find(
-				(p) => p.name === parameter.name,
-			);
-		}
-
-		// If there is a value from the new or old one, it is not missed
-		if (buildParameter) {
-			continue;
-		}
-
-		missingParameters.push(parameter);
-	}
-
-	// Check if parameter "options" changed and we can't use old build parameters.
-	for (const templateParameter of templateParameters) {
-		if (templateParameter.options.length === 0) {
-			continue;
-		}
-		// For multi-select, extra steps are necessary to JSON parse the value.
-		if (templateParameter.form_type === "multi-select") {
-			continue;
-		}
-		let buildParameter = newBuildParameters.find(
-			(p) => p.name === templateParameter.name,
-		);
-
-		// If not, get the old one
-		if (!buildParameter) {
-			buildParameter = oldBuildParameters.find(
-				(p) => p.name === templateParameter.name,
-			);
-		}
-
-		if (!buildParameter) {
-			continue;
-		}
-
-		const matchingOption = templateParameter.options.find(
-			(option) => option.value === buildParameter?.value,
-		);
-		if (!matchingOption) {
-			missingParameters.push(templateParameter);
-		}
-	}
-
-	return missingParameters;
-};
-
 /**
  * Originally from codersdk/client.go.
  * The below declaration is required to stop Knip from complaining.
@@ -454,20 +378,6 @@ export type InsightsParams = {
 export type InsightsTemplateParams = InsightsParams & {
 	interval: "day" | "week";
 };
-
-export class MissingBuildParameters extends Error {
-	parameters: TypesGen.TemplateVersionParameter[] = [];
-	versionId: string;
-
-	constructor(
-		parameters: TypesGen.TemplateVersionParameter[],
-		versionId: string,
-	) {
-		super("Missing build parameters.");
-		this.parameters = parameters;
-		this.versionId = versionId;
-	}
-}
 
 export class ParameterValidationError extends Error {
 	constructor(

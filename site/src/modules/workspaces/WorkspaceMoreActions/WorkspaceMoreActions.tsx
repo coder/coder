@@ -33,9 +33,9 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
+import { UpdateBuildParametersDialog } from "../WorkspaceUpdateDialogs";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
@@ -196,24 +196,15 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			<UpdateBuildParametersDialog
-				validations={
-					changeVersionMutation.error instanceof ParameterValidationError
-						? changeVersionMutation.error.validations
-						: []
-				}
-				open={changeVersionMutation.error instanceof ParameterValidationError}
-				onClose={() => {
-					changeVersionMutation.reset();
-				}}
-				workspaceOwnerName={workspace.owner_name}
-				workspaceName={workspace.name}
-				templateVersionId={
-					changeVersionMutation.error instanceof ParameterValidationError
-						? changeVersionMutation.error.versionId
-						: undefined
-				}
-			/>
+			{changeVersionMutation.error instanceof ParameterValidationError && (
+				<UpdateBuildParametersDialog
+					workspace={workspace}
+					error={changeVersionMutation.error}
+					onClose={() => {
+						changeVersionMutation.reset();
+					}}
+				/>
+			)}
 
 			<ChangeWorkspaceVersionDialog
 				workspace={workspace}

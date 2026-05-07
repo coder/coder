@@ -142,7 +142,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					</HelpPopoverAction>
 				</HelpPopoverLinksGroup>
 			</HelpPopoverContent>
-			<WorkspaceUpdateDialogs {...updateWorkspace.dialogs} />
+			<WorkspaceUpdateDialogs {...updateWorkspace.dialogProps} />
 		</>
 	);
 };

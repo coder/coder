@@ -147,11 +147,9 @@ type UpdateBuildParametersDialogProps = {
 	onClose: () => void;
 };
 
-const UpdateBuildParametersDialog: FC<UpdateBuildParametersDialogProps> = ({
-	workspace,
-	error,
-	onClose,
-}) => {
+export const UpdateBuildParametersDialog: FC<
+	UpdateBuildParametersDialogProps
+> = ({ workspace, error, onClose }) => {
 	const templateVersionId = error.versionId;
 	const validations = error.validations;
 

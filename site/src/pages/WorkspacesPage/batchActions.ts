@@ -10,7 +10,6 @@ interface UseBatchActionsOptions {
 
 type UpdateAllPayload = Readonly<{
 	workspaces: readonly Workspace[];
-	isDynamicParametersEnabled: boolean;
 }>;
 
 type UseBatchActionsResult = Readonly<{
@@ -72,7 +71,7 @@ export function useBatchActions(
 
 	const updateAllMutation = useMutation({
 		mutationFn: (payload: UpdateAllPayload) => {
-			const { workspaces, isDynamicParametersEnabled } = payload;
+			const { workspaces } = payload;
 			return Promise.all(
 				workspaces
 					.filter((w) => w.outdated && !w.dormant_at)

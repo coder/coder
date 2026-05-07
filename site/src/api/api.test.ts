@@ -2,13 +2,10 @@ import {
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockTemplateVersion2,
-	MockTemplateVersionParameter1,
-	MockTemplateVersionParameter2,
 	MockWorkspace,
 	MockWorkspaceBuild,
-	MockWorkspaceBuildParameter1,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
+import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
@@ -194,16 +191,33 @@ describe("api.ts", () => {
 				});
 			});
 
-			it("fails when having missing parameters", async () => {
-				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(
-					MockWorkspaceBuild,
-				);
+			it("fails when the server returns parameter validation errors", async () => {
+				const validationErrors = [
+					{ field: "first_parameter", detail: "First parameter is required" },
+					{
+						field: "second_parameter",
+						detail: "Second parameter is not valid",
+					},
+				];
+
+				vi.spyOn(API, "postWorkspaceBuild")
+					// First postWorkspaceBuild call is for the stop (succeeds)
+					.mockResolvedValueOnce({
+						...MockWorkspaceBuild,
+						transition: "stop",
+					})
+					// Second postWorkspaceBuild call is for the start (fails with 400)
+					.mockRejectedValueOnce({
+						isAxiosError: true,
+						response: {
+							status: 400,
+							data: {
+								message: "Invalid build parameters",
+								validations: validationErrors,
+							},
+						},
+					});
 				vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
-				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
-				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
-					MockTemplateVersionParameter1,
-					{ ...MockTemplateVersionParameter2, mutable: false },
-				]);
 
 				let error = new Error();
 				try {
@@ -212,35 +226,26 @@ describe("api.ts", () => {
 					error = e as Error;
 				}
 
-				expect(error).toBeInstanceOf(MissingBuildParameters);
-				// Verify if the correct missing parameters are being passed
-				expect((error as MissingBuildParameters).parameters).toEqual([
-					MockTemplateVersionParameter1,
-					{ ...MockTemplateVersionParameter2, mutable: false },
-				]);
+				expect(error).toBeInstanceOf(ParameterValidationError);
+				expect((error as ParameterValidationError).versionId).toBe(
+					MockTemplate.active_version_id,
+				);
+				expect((error as ParameterValidationError).validations).toEqual(
+					validationErrors,
+				);
 			});
 
-			it("creates a build with no parameters if it is already filled", async () => {
+			it("succeeds when the server accepts the build parameters", async () => {
 				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
 					transition: "stop",
 				});
 				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
-					template_version_id: MockTemplateVersion2.id,
+					template_version_id: MockTemplate.active_version_id,
 					transition: "start",
 				});
 				vi.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
-				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([
-					MockWorkspaceBuildParameter1,
-				]);
-				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
-					{
-						...MockTemplateVersionParameter1,
-						required: true,
-						mutable: false,
-					},
-				]);
 				await API.updateWorkspace(MockWorkspace);
 				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
 					transition: "stop",

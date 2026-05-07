@@ -429,7 +429,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				templateVersionId={workspace.latest_build.template_version_id}
 			/>
 
-			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 
 			<WorkspaceErrorDialog
 				open={workspaceErrorDialog.open}
