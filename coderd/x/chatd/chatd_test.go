@@ -11158,6 +11158,25 @@ func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
 	}
 }
 
+// TestWorkspaceMCPDiscoveryTimeoutExceedsAgentConnectTimeout encodes
+// the cross-package contract that workspaceMCPDiscoveryTimeout must
+// be greater than agent/x/agentmcp.connectTimeout (30s as of this
+// writing) so a cold-start agent finishes its first MCP reload before
+// chatd's per-turn dial gives up. agentmcp.connectTimeout is
+// unexported, so this test asserts the lower bound directly. If
+// connectTimeout ever changes, both this lower bound and the comment
+// on workspaceMCPDiscoveryTimeout must be updated together.
+func TestWorkspaceMCPDiscoveryTimeoutExceedsAgentConnectTimeout(t *testing.T) {
+	t.Parallel()
+
+	// 31s = agentmcp.connectTimeout (30s) + a 1s minimum buffer.
+	// The production constant is 35s; this lower bound exists to
+	// catch a future tightening that would re-introduce the cold
+	// start race documented on the constant itself.
+	require.GreaterOrEqual(t, chatd.WorkspaceMCPDiscoveryTimeout, 31*time.Second,
+		"workspaceMCPDiscoveryTimeout must exceed agent/x/agentmcp.connectTimeout (30s) plus a small buffer")
+}
+
 // TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent verifies that
 // chatd's per-turn workspace MCP discovery waits long enough for a
 // cold-start agent to finish its first MCP reload. The agent's
@@ -11170,9 +11189,11 @@ func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
 func TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent(t *testing.T) {
 	t.Parallel()
 
-	// slowAgentMCPListDelay must be greater than the old 5s
-	// workspaceMCPDiscoveryTimeout and less than the new bound.
-	// Any value in that band proves the constant bump.
+	// slowAgentMCPListDelay must be smaller than
+	// workspaceMCPDiscoveryTimeout so the mock returns before
+	// chatd gives up, but large enough that any reasonable
+	// regression in the chatd timeout (back below the agent's
+	// connectTimeout) makes the test fail.
 	const slowAgentMCPListDelay = 7 * time.Second
 
 	db, ps := dbtestutil.NewDB(t)
@@ -11219,8 +11240,8 @@ func TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent(t *testing.T) {
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
 	// Block ListMCPTools to simulate a cold-start agent whose
 	// first MCP reload has not finished yet. Honor caller-side
-	// cancellation so the goroutine exits when chatd's per-turn
-	// context is canceled by the old 5s timeout.
+	// cancellation so the goroutine exits cleanly if the parent
+	// context is canceled.
 	mockConn.EXPECT().ListMCPTools(gomock.Any()).
 		DoAndReturn(func(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
 			select {
