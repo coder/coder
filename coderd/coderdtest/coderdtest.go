@@ -708,6 +708,11 @@ func newHTTPClientWithTransportFrom(base *http.Client) *http.Client {
 	if base == nil {
 		return NewIsolatedHTTPClient(nil)
 	}
+	if base.Transport == nil {
+		client := NewIsolatedHTTPClient(nil)
+		client.Timeout = base.Timeout
+		return client
+	}
 	return &http.Client{
 		Transport: base.Transport,
 		Timeout:   base.Timeout,

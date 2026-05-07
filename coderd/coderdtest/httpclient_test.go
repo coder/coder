@@ -4,10 +4,12 @@ import (
 	"crypto/tls"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -62,4 +64,23 @@ func TestCreateAnotherUserHTTPClient(t *testing.T) {
 		return http.ErrUseLastResponse
 	}
 	require.Nil(t, other.HTTPClient.CheckRedirect)
+}
+
+func TestCreateAnotherUserHTTPClientDefaultTransport(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+	base := codersdk.New(
+		client.URL,
+		codersdk.WithSessionToken(client.SessionToken()),
+		codersdk.WithHTTPClient(&http.Client{Timeout: time.Second}),
+	)
+
+	other, _ := coderdtest.CreateAnotherUser(t, base, first.OrganizationID)
+
+	require.NotSame(t, base.HTTPClient, other.HTTPClient)
+	require.NotNil(t, other.HTTPClient.Transport)
+	require.NotSame(t, http.DefaultTransport, other.HTTPClient.Transport)
+	require.Equal(t, base.HTTPClient.Timeout, other.HTTPClient.Timeout)
 }
