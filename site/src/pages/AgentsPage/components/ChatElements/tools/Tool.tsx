@@ -170,34 +170,13 @@ const parseAskUserQuestions = (value: unknown): AskUserQuestion[] | null => {
 
 const insufficientQuotaErrorCode = "INSUFFICIENT_QUOTA";
 
-interface WorkspaceQuotaFailureDetails {
-	title: string;
-	message: string;
-}
-
-const parseWorkspaceQuotaFailure = (
+const getWorkspaceQuotaTitle = (
 	rec: Record<string, unknown> | null,
-): WorkspaceQuotaFailureDetails | undefined => {
+): string | undefined => {
 	if (!rec || asString(rec.error_code) !== insufficientQuotaErrorCode) {
 		return undefined;
 	}
-
-	const quota = asRecord(rec.quota);
-	const creditsConsumed = quota
-		? asNumber(quota.credits_consumed, { parseString: true })
-		: undefined;
-	const budget = quota
-		? asNumber(quota.budget, { parseString: true })
-		: undefined;
-	const message =
-		creditsConsumed !== undefined && budget !== undefined
-			? `You're using ${creditsConsumed.toLocaleString("en-US")} of ${budget.toLocaleString("en-US")} workspace ${budget === 1 ? "credit" : "credits"}.`
-			: asString(rec.message).trim() ||
-				"Coder could not create this workspace because your workspace quota is full.";
-	return {
-		title: asString(rec.title).trim() || "Workspace quota reached",
-		message,
-	};
+	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
 const parseAskUserQuestionResult = (
@@ -462,7 +441,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
 	const hasErrorInResult = Boolean(rec?.error);
 	const created = rec?.created !== false;
-	const quotaFailure = parseWorkspaceQuotaFailure(rec);
+	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
 		<CreateWorkspaceTool
@@ -470,13 +449,10 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 			resultJson={resultJson}
 			status={status}
 			isError={isError || hasErrorInResult}
-			errorMessage={
-				quotaFailure?.message ??
-				(rec ? asString(rec.error || rec.reason) : undefined)
-			}
+			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 			created={created}
-			quotaFailure={quotaFailure}
+			quotaTitle={quotaTitle}
 		/>
 	);
 };
@@ -1004,7 +980,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const hasErrorInResult = Boolean(rec?.error);
 	const noBuild = Boolean(rec?.no_build);
-	const quotaFailure = parseWorkspaceQuotaFailure(rec);
+	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
 		<StartWorkspaceTool
@@ -1012,12 +988,9 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 			buildId={buildId}
 			workspaceName={wsName}
 			isError={isError || hasErrorInResult}
-			errorMessage={
-				quotaFailure?.message ??
-				(rec ? asString(rec.error || rec.reason) : undefined)
-			}
+			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			noBuild={noBuild}
-			quotaFailure={quotaFailure}
+			quotaTitle={quotaTitle}
 		/>
 	);
 };
