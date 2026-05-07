@@ -383,6 +383,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setCycleSavedDraft(null);
 		cycleHistorySnapshotRef.current = null;
 		currentCycleValueRef.current = null;
+		// Keep in sync with resetPromptCycle above.
 	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
@@ -613,14 +614,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		setIsDragging(false);
-		resetPromptCycle();
 		if (!onAttach || !e.dataTransfer.files.length) return;
 		const attachable = Array.from(e.dataTransfer.files).filter(
 			isChatAttachmentFile,
 		);
-		if (attachable.length > 0) {
-			onAttach(attachable);
-		}
+		if (attachable.length === 0) return;
+		resetPromptCycle();
+		onAttach(attachable);
 	};
 
 	// Track whether the editor has content so we can gate the
