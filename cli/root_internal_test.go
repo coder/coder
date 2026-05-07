@@ -3,8 +3,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,11 +15,9 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/pretty"
-	"github.com/coder/serpent"
 )
 
 func TestMain(m *testing.M) {
@@ -159,36 +155,6 @@ func Test_wrapTransportWithVersionMismatchCheck(t *testing.T) {
 		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, fmtOutput))
 		require.Equal(t, expectedOutput, buf.String())
 	})
-}
-
-func Test_wrapTransportWithTelemetryHeader(t *testing.T) {
-	t.Parallel()
-
-	rt := wrapTransportWithTelemetryHeader(roundTripper(func(req *http.Request) (*http.Response, error) {
-		return &http.Response{
-			Body: io.NopCloser(nil),
-		}, nil
-	}), &serpent.Invocation{
-		Command: &serpent.Command{
-			Use: "test",
-			Options: serpent.OptionSet{{
-				Name:        "bananas",
-				Description: "hey",
-			}},
-		},
-	})
-	req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
-	res, err := rt.RoundTrip(req)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	resp := req.Header.Get(codersdk.CLITelemetryHeader)
-	require.NotEmpty(t, resp)
-	data, err := base64.StdEncoding.DecodeString(resp)
-	require.NoError(t, err)
-	var ti telemetry.Invocation
-	err = json.Unmarshal(data, &ti)
-	require.NoError(t, err)
-	require.Equal(t, ti.Command, "test")
 }
 
 func Test_wrapTransportWithEntitlementsCheck(t *testing.T) {

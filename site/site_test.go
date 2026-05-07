@@ -33,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
@@ -49,9 +48,8 @@ func TestInjection(t *testing.T) {
 	}
 	db, _ := dbtestutil.NewDB(t)
 	handler, err := site.New(&site.Options{
-		Telemetry: telemetry.NewNoop(),
-		Database:  db,
-		SiteFS:    siteFS,
+		Database: db,
+		SiteFS:   siteFS,
 	})
 	require.NoError(t, err)
 
@@ -95,7 +93,6 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
 	handler, err := site.New(&site.Options{
-		Telemetry:  telemetry.NewNoop(),
 		Database:   db,
 		SiteFS:     siteFS,
 		Authorizer: authorizer,
@@ -177,7 +174,6 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		},
 	}
 	handler, err := site.New(&site.Options{
-		Telemetry: telemetry.NewNoop(),
 		Database:  db,
 		SiteFS:    siteFS,
 
@@ -225,7 +221,6 @@ func TestCaching(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	s, err := site.New(&site.Options{
-		Telemetry: telemetry.NewNoop(),
 		SiteFS:    rootFS,
 		Database:  db,
 	})
@@ -294,7 +289,6 @@ func TestServingFiles(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	handler, err := site.New(&site.Options{
-		Telemetry: telemetry.NewNoop(),
 		SiteFS:    rootFS,
 		Database:  db,
 	})
@@ -578,7 +572,6 @@ func TestServingBin(t *testing.T) {
 			testFS := maps.Clone(rootFS)
 			maps.Copy(testFS, tt.fs)
 			handler, err := site.New(&site.Options{
-				Telemetry: telemetry.NewNoop(),
 				SiteFS:    testFS,
 				CacheDir:  dest,
 			})

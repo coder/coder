@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/cli/sessionstore"
-	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
@@ -1486,51 +1483,6 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 			_, _ = fmt.Fprintln(inv.Stderr, warning)
 		})
 		return res, err
-	})
-}
-
-// wrapTransportWithTelemetryHeader adds telemetry headers to report command usage
-// to an HTTP transport.
-func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.Invocation) http.RoundTripper {
-	var (
-		value string
-		once  sync.Once
-	)
-	return roundTripper(func(req *http.Request) (*http.Response, error) {
-		once.Do(func() {
-			// We only want to compute this header once when a request
-			// first goes out, hence the complexity with locking here.
-			var topts []telemetry.Option
-			for _, opt := range inv.Command.FullOptions() {
-				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
-					continue
-				}
-				topts = append(topts, telemetry.Option{
-					Name:        opt.Name,
-					ValueSource: string(opt.ValueSource),
-				})
-			}
-			ti := telemetry.Invocation{
-				Command:   inv.Command.FullName(),
-				Options:   topts,
-				InvokedAt: time.Now(),
-			}
-
-			byt, err := json.Marshal(ti)
-			if err != nil {
-				// Should be impossible
-				panic(err)
-			}
-			s := base64.StdEncoding.EncodeToString(byt)
-			// Don't send the header if it's too long!
-			if len(s) <= 4096 {
-				value = s
-			}
-		})
-		if value != "" {
-			req.Header.Add(codersdk.CLITelemetryHeader, value)
-		}
-		return transport.RoundTrip(req)
 	})
 }
 
