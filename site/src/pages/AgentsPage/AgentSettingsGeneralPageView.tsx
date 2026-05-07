@@ -2,12 +2,12 @@ import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
-import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
-import { SectionHeader } from "./components/SectionHeader";
 import {
 	CodeDiffDisplaySettings,
 	ThinkingDisplaySettings,
-} from "./components/ThinkingDisplaySettings";
+} from "./components/DisplayModeSettings";
+import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
+import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
 
 export interface AgentSettingsGeneralPageViewProps {
