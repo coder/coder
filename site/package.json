@@ -117,7 +117,7 @@
 		"ua-parser-js": "1.0.41",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
 		"unique-names-generator": "4.7.1",
-		"uuid": "9.0.1",
+		"uuid": "14.0.0",
 		"websocket-ts": "2.3.0",
 		"yup": "1.7.1"
 	},
