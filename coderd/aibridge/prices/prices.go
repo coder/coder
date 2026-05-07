@@ -36,9 +36,19 @@ type seedRow struct {
 // The whole batch runs inside a single transaction: either every row lands or
 // none do, so a failure mid-load can't leave the table half-updated.
 func Load(ctx context.Context, db database.Store) error {
-	rows, err := parseSeed(seedJSON)
+	return LoadFromBytes(ctx, db, seedJSON)
+}
+
+// LoadFromBytes applies an arbitrary JSON seed. Most callers should use Load,
+// which applies the seed embedded in this binary; LoadFromBytes is exposed
+// for tests that need to inject a deterministic seed.
+func LoadFromBytes(ctx context.Context, db database.Store, data []byte) error {
+	rows, err := parseSeed(data)
 	if err != nil {
-		return xerrors.Errorf("parse embedded price seed: %w", err)
+		return xerrors.Errorf("parse price seed: %w", err)
+	}
+	if len(rows) == 0 {
+		return xerrors.New("price seed is empty")
 	}
 
 	return db.InTx(func(tx database.Store) error {
