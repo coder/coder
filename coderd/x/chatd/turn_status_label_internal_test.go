@@ -43,6 +43,12 @@ func TestNormalizeTurnStatusLabel(t *testing.T) {
 			ok:    true,
 		},
 		{
+			name:  "accepts five word label",
+			input: "Updated workspace proxy routing rules",
+			want:  "Updated workspace proxy routing rules",
+			ok:    true,
+		},
+		{
 			name:  "rejects agent phrasing",
 			input: "Agent identified failing tests",
 			ok:    false,
@@ -270,6 +276,16 @@ func TestTurnStatusSignalsFromContent(t *testing.T) {
 		{
 			name:    "created pr",
 			content: successfulExecuteToolContent(t, "call-pr", "gh pr create --fill"),
+			want: []turnStatusSignal{{
+				Label:      "Submitted PR",
+				Source:     turnStatusLabelSourceHeuristic,
+				Success:    true,
+				Confidence: 100,
+			}},
+		},
+		{
+			name:    "created pr after tests",
+			content: successfulExecuteToolContent(t, "call-pr", "go test ./... && gh pr create --fill"),
 			want: []turnStatusSignal{{
 				Label:      "Submitted PR",
 				Source:     turnStatusLabelSourceHeuristic,
