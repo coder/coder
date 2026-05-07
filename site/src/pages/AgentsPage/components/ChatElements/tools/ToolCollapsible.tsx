@@ -1,7 +1,7 @@
 import { ChevronDownIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useState } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentDisplayMode } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import {
 	type AgentDisplayState,
@@ -16,65 +16,38 @@ interface ToolCollapsibleProps {
 	header: ToolCollapsibleHeader;
 	hasContent?: boolean;
 	defaultExpanded?: boolean;
-	displayMode?: TypesGen.AgentDisplayMode;
-	autoDisplayState?: AgentDisplayState;
 	className?: string;
 	headerClassName?: string;
 }
 
-interface ToolCollapsibleInnerProps extends ToolCollapsibleProps {
-	defaultOpen: boolean;
+interface AgentDisplayModeToolCollapsibleProps
+	extends Omit<ToolCollapsibleProps, "defaultExpanded"> {
+	displayMode: AgentDisplayMode | undefined;
+	autoDisplayState: AgentDisplayState;
 }
 
-const getDisplayModeResetKey = (
-	displayMode: TypesGen.AgentDisplayMode | undefined,
-	autoDisplayState: AgentDisplayState | undefined,
-): string => {
-	if (displayMode === undefined && autoDisplayState === undefined) {
-		return "legacy";
-	}
-	return `${displayMode ?? "auto"}:${autoDisplayState ?? "collapsed"}`;
-};
-
-const getDefaultOpen = ({
-	displayMode,
-	autoDisplayState,
-	defaultExpanded = false,
-}: Pick<
-	ToolCollapsibleProps,
-	"displayMode" | "autoDisplayState" | "defaultExpanded"
->): boolean => {
-	if (displayMode === undefined && autoDisplayState === undefined) {
-		return defaultExpanded;
-	}
-	return isAgentDisplayOpen(
-		resolveAgentDisplayState(displayMode, autoDisplayState ?? "collapsed"),
-	);
-};
-
-export const ToolCollapsible: FC<ToolCollapsibleProps> = (props) => {
-	const resetKey = getDisplayModeResetKey(
-		props.displayMode,
-		props.autoDisplayState,
-	);
+export const AgentDisplayModeToolCollapsible: FC<
+	AgentDisplayModeToolCollapsibleProps
+> = ({ displayMode, autoDisplayState, ...props }) => {
+	const displayState = resolveAgentDisplayState(displayMode, autoDisplayState);
 	return (
-		<ToolCollapsibleInner
-			key={resetKey}
+		<ToolCollapsible
+			key={`${displayMode ?? "auto"}:${autoDisplayState}`}
 			{...props}
-			defaultOpen={getDefaultOpen(props)}
+			defaultExpanded={isAgentDisplayOpen(displayState)}
 		/>
 	);
 };
 
-const ToolCollapsibleInner: FC<ToolCollapsibleInnerProps> = ({
+export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	children,
 	header,
 	hasContent = true,
-	defaultOpen,
+	defaultExpanded = false,
 	className,
 	headerClassName,
 }) => {
-	const [expanded, setExpanded] = useState(defaultOpen);
+	const [expanded, setExpanded] = useState(defaultExpanded);
 	const renderedHeader =
 		typeof header === "function" ? header(expanded) : header;
 	return (

@@ -14,7 +14,7 @@ import {
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { ToolCollapsible } from "./ToolCollapsible";
+import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
 	type EditFilesFileEntry,
@@ -56,10 +56,9 @@ export const EditFilesTool: React.FC<{
 	}
 
 	return (
-		<ToolCollapsible
+		<AgentDisplayModeToolCollapsible
 			className="w-full"
 			hasContent={hasDiffs}
-			defaultExpanded
 			displayMode={codeDiffDisplayMode}
 			autoDisplayState="preview"
 			header={
@@ -104,6 +103,6 @@ export const EditFilesTool: React.FC<{
 					) : null,
 				)}
 			</div>
-		</ToolCollapsible>
+		</AgentDisplayModeToolCollapsible>
 	);
 };

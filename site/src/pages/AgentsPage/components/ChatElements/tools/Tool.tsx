@@ -43,7 +43,10 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "./subagentDescriptor";
-import { ToolCollapsible } from "./ToolCollapsible";
+import {
+	AgentDisplayModeToolCollapsible,
+	ToolCollapsible,
+} from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
 import {
@@ -865,48 +868,43 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 
-	return (
-		<ToolCollapsible
-			hasContent={hasContent}
-			displayMode={writeFileDiff ? codeDiffDisplayMode : undefined}
-			autoDisplayState={writeFileDiff ? "collapsed" : undefined}
-			header={
-				<>
-					<ToolIcon
-						name={name}
-						isError={status === "error" || isError}
-						iconUrl={mcpServer?.icon_url}
-						isRunning={isRunning}
-						serverName={mcpServer?.display_name}
-					/>
-					{modelIntent ? (
-						<span className="truncate text-[13px]">
-							{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
-						</span>
-					) : (
-						<ToolLabel
-							name={name}
-							args={args}
-							result={result}
-							mcpSlug={mcpServer?.slug}
-						/>
-					)}
-					{isError && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
-							</TooltipTrigger>
-							<TooltipContent>
-								{errorMessage || "Tool call failed"}
-							</TooltipContent>
-						</Tooltip>
-					)}
-					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-					)}
-				</>
-			}
-		>
+	const toolHeader = (
+		<>
+			<ToolIcon
+				name={name}
+				isError={status === "error" || isError}
+				iconUrl={mcpServer?.icon_url}
+				isRunning={isRunning}
+				serverName={mcpServer?.display_name}
+			/>
+			{modelIntent ? (
+				<span className="truncate text-[13px]">
+					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+				</span>
+			) : (
+				<ToolLabel
+					name={name}
+					args={args}
+					result={result}
+					mcpSlug={mcpServer?.slug}
+				/>
+			)}
+			{isError && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+					</TooltipTrigger>
+					<TooltipContent>{errorMessage || "Tool call failed"}</TooltipContent>
+				</Tooltip>
+			)}
+			{isRunning && (
+				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+			)}
+		</>
+	);
+
+	const toolContent = (
+		<>
 			{writeFileDiff ? (
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
@@ -956,6 +954,25 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					</ScrollArea>
 				)
 			)}
+		</>
+	);
+
+	if (writeFileDiff) {
+		return (
+			<AgentDisplayModeToolCollapsible
+				hasContent={hasContent}
+				displayMode={codeDiffDisplayMode}
+				autoDisplayState="collapsed"
+				header={toolHeader}
+			>
+				{toolContent}
+			</AgentDisplayModeToolCollapsible>
+		);
+	}
+
+	return (
+		<ToolCollapsible hasContent={hasContent} header={toolHeader}>
+			{toolContent}
 		</ToolCollapsible>
 	);
 };

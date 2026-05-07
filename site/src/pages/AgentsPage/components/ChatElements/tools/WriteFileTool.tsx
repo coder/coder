@@ -14,7 +14,7 @@ import {
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { ToolCollapsible } from "./ToolCollapsible";
+import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
@@ -43,7 +43,7 @@ export const WriteFileTool: React.FC<{
 	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
 
 	return (
-		<ToolCollapsible
+		<AgentDisplayModeToolCollapsible
 			className="w-full"
 			hasContent={hasDiff}
 			displayMode={codeDiffDisplayMode}
@@ -83,6 +83,6 @@ export const WriteFileTool: React.FC<{
 					/>
 				</ScrollArea>
 			)}
-		</ToolCollapsible>
+		</AgentDisplayModeToolCollapsible>
 	);
 };
