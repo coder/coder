@@ -3440,6 +3440,14 @@ func (m queryMetricsStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDForOwnerParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDForOwnerRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceUsageGroupedByTemplateIDForOwner").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceUsageGroupedByTemplateIDForOwner").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaces(ctx, arg)

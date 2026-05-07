@@ -497,6 +497,24 @@ LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.del
 WHERE templates.id = ANY(@template_ids :: uuid[])
 GROUP BY templates.id;
 
+-- name: GetWorkspaceUsageGroupedByTemplateIDForOwner :many
+SELECT
+	template_id,
+	COUNT(*) AS workspace_count,
+	MAX(last_used_at)::timestamptz AS last_used_at
+FROM
+	workspaces
+WHERE
+	owner_id = @owner_id
+	AND deleted = false
+	AND CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = @organization_id
+		ELSE true
+	END
+	AND template_id = ANY(@template_ids :: uuid[])
+GROUP BY template_id;
+
 -- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (

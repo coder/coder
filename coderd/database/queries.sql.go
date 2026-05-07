@@ -32389,6 +32389,60 @@ func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Conte
 	return items, nil
 }
 
+const getWorkspaceUsageGroupedByTemplateIDForOwner = `-- name: GetWorkspaceUsageGroupedByTemplateIDForOwner :many
+SELECT
+	template_id,
+	COUNT(*) AS workspace_count,
+	MAX(last_used_at)::timestamptz AS last_used_at
+FROM
+	workspaces
+WHERE
+	owner_id = $1
+	AND deleted = false
+	AND CASE
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = $2
+		ELSE true
+	END
+	AND template_id = ANY($3 :: uuid[])
+GROUP BY template_id
+`
+
+type GetWorkspaceUsageGroupedByTemplateIDForOwnerParams struct {
+	OwnerID        uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	TemplateIDs    []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetWorkspaceUsageGroupedByTemplateIDForOwnerRow struct {
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	WorkspaceCount int64     `db:"workspace_count" json:"workspace_count"`
+	LastUsedAt     time.Time `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx context.Context, arg GetWorkspaceUsageGroupedByTemplateIDForOwnerParams) ([]GetWorkspaceUsageGroupedByTemplateIDForOwnerRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceUsageGroupedByTemplateIDForOwner, arg.OwnerID, arg.OrganizationID, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceUsageGroupedByTemplateIDForOwnerRow
+	for rows.Next() {
+		var i GetWorkspaceUsageGroupedByTemplateIDForOwnerRow
+		if err := rows.Scan(&i.TemplateID, &i.WorkspaceCount, &i.LastUsedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaces = `-- name: GetWorkspaces :many
 WITH
 build_params AS (

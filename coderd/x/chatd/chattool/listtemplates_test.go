@@ -3,7 +3,9 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -121,6 +123,231 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 	})
 }
 
+func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	displayTemplate := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "data-science",
+		DisplayName:    "Data Science Lab",
+	})
+	descriptionTemplate := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "node-general",
+		Description:    "A JavaScript and TypeScript workspace.",
+	})
+	_ = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "unrelated",
+		Description:    "A plain Linux workspace.",
+	})
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+	})
+
+	result := runListTemplates(ctx, t, tool, `{"query":"Data Science"}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 1)
+	require.Equal(t, displayTemplate.ID.String(), templates[0]["id"])
+	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, displayTemplate.ID.String(), result["recommended_template_id"])
+	require.Equal(t, "matches_query", templates[0]["rank_reason"])
+
+	result = runListTemplates(ctx, t, tool, `{"query":"TypeScript"}`)
+	templates = listTemplateItems(t, result)
+	require.Len(t, templates, 1)
+	require.Equal(t, descriptionTemplate.ID.String(), templates[0]["id"])
+	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, descriptionTemplate.ID.String(), result["recommended_template_id"])
+}
+
+func TestListTemplates_RanksAllCandidatesBeforePagination(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	var target database.Template
+	for i := range 11 {
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Name:           fmt.Sprintf("template-%02d", i),
+		})
+		if i == 10 {
+			target = tpl
+		}
+	}
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     target.ID,
+		LastUsedAt:     time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC),
+	})
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+	})
+	result := runListTemplates(ctx, t, tool, `{}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 10)
+	require.Equal(t, float64(11), result["total_count"])
+	require.Equal(t, float64(2), result["total_pages"])
+	require.Equal(t, target.ID.String(), templates[0]["id"])
+	require.Equal(t, float64(1), templates[0]["rank"])
+	require.Equal(t, float64(1), templates[0]["your_workspace_count"])
+	require.NotEmpty(t, templates[0]["last_used_by_you"])
+	require.Equal(t, true, templates[0]["recommended"])
+	require.Equal(t, "used_by_you", templates[0]["rank_reason"])
+	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, target.ID.String(), result["recommended_template_id"])
+}
+
+func TestListTemplates_QueryRelevanceOutranksPersonalUsage(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	target := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "python-gpu",
+		Description:    "GPU workspace.",
+	})
+	used := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "generic-dev",
+		Description:    "Python-capable general environment.",
+	})
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     used.ID,
+		LastUsedAt:     time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+	})
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+	})
+	result := runListTemplates(ctx, t, tool, `{"query":"python"}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 2)
+	require.Equal(t, target.ID.String(), templates[0]["id"])
+	require.Equal(t, used.ID.String(), templates[1]["id"])
+	require.Equal(t, "matches_query", templates[0]["rank_reason"])
+	require.Equal(t, "matches_query_and_used_by_you", templates[1]["rank_reason"])
+	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, target.ID.String(), result["recommended_template_id"])
+}
+
+func TestListTemplates_OrgPopularityFallback(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	popular := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "popular-template",
+	})
+	lessPopular := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "less-popular-template",
+	})
+	for range 2 {
+		otherUser := dbgen.User(t, db, database.User{})
+		dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        otherUser.ID,
+			OrganizationID: org.ID,
+			TemplateID:     popular.ID,
+		})
+	}
+	otherUser := dbgen.User(t, db, database.User{})
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        otherUser.ID,
+		OrganizationID: org.ID,
+		TemplateID:     lessPopular.ID,
+	})
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+	})
+	result := runListTemplates(ctx, t, tool, `{}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 2)
+	require.Equal(t, popular.ID.String(), templates[0]["id"])
+	require.Equal(t, float64(2), templates[0]["active_developers"])
+	require.Equal(t, "popular_in_org", templates[0]["rank_reason"])
+	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, popular.ID.String(), result["recommended_template_id"])
+}
+
+func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	_ = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "go-alpha",
+	})
+	_ = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "go-beta",
+	})
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+	})
+	result := runListTemplates(ctx, t, tool, `{"query":"go"}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 2)
+	require.Equal(t, "ambiguous_top_matches", result["selection_hint"])
+	_, ok := result["recommended_template_id"]
+	require.False(t, ok)
+	_, ok = templates[0]["recommended"]
+	require.False(t, ok)
+}
+
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.
 func TestTemplateAllowlistEnforcement(t *testing.T) {
 	t.Parallel()
@@ -187,6 +414,10 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			require.Len(t, templates, 1)
 			m := templates[0].(map[string]any)
 			require.Equal(t, t1.ID.String(), m["id"].(string))
+			require.Equal(t, "only_available_template", result["selection_hint"])
+			require.Equal(t, t1.ID.String(), result["recommended_template_id"])
+			require.Equal(t, true, m["recommended"])
+			require.Equal(t, float64(1), m["rank"])
 		})
 
 		t.Run("NoMatches", func(t *testing.T) {
@@ -300,4 +531,39 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			require.False(t, createCalled, "CreateFn should not be called for blocked template")
 		})
 	})
+}
+
+func runListTemplates(
+	ctx context.Context,
+	t *testing.T,
+	tool fantasy.AgentTool,
+	input string,
+) map[string]any {
+	t.Helper()
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    uuid.NewString(),
+		Name:  "list_templates",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	return result
+}
+
+func listTemplateItems(t *testing.T, result map[string]any) []map[string]any {
+	t.Helper()
+
+	rawTemplates, ok := result["templates"].([]any)
+	require.True(t, ok)
+	templates := make([]map[string]any, 0, len(rawTemplates))
+	for _, raw := range rawTemplates {
+		template, ok := raw.(map[string]any)
+		require.True(t, ok)
+		templates = append(templates, template)
+	}
+	return templates
 }

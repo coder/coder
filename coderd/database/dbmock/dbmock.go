@@ -6437,6 +6437,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceUniqueOwnerCountByTemplateIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceUniqueOwnerCountByTemplateIDs), ctx, templateIds)
 }
 
+// GetWorkspaceUsageGroupedByTemplateIDForOwner mocks base method.
+func (m *MockStore) GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDForOwnerParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDForOwnerRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceUsageGroupedByTemplateIDForOwner", ctx, arg)
+	ret0, _ := ret[0].([]database.GetWorkspaceUsageGroupedByTemplateIDForOwnerRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceUsageGroupedByTemplateIDForOwner indicates an expected call of GetWorkspaceUsageGroupedByTemplateIDForOwner.
+func (mr *MockStoreMockRecorder) GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceUsageGroupedByTemplateIDForOwner", reflect.TypeOf((*MockStore)(nil).GetWorkspaceUsageGroupedByTemplateIDForOwner), ctx, arg)
+}
+
 // GetWorkspaces mocks base method.
 func (m *MockStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	m.ctrl.T.Helper()

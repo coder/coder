@@ -73,10 +73,10 @@ type CreateWorkspaceOptions struct {
 }
 
 type createWorkspaceArgs struct {
-	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
+	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates recommended_template_id or a ranked template."`
 	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
-	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template."`
-	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
+	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template when needed."`
+	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template when needed. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
 }
 
 // CreateWorkspace returns a tool that creates a new workspace from a
@@ -89,10 +89,11 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 	return fantasy.NewAgentTool(
 		"create_workspace",
 		"Create a new workspace from a template. Requires a "+
-			"template_id (from list_templates). Optionally provide "+
-			"a name and parameter values (from read_template). "+
-			"If no name is given, one will be generated. "+
-			"Provide a preset_id (from read_template) to apply "+
+			"template_id from list_templates. Use recommended_template_id "+
+			"or rank 1 when list_templates reports a confident choice. "+
+			"Optionally provide a name and parameter values from "+
+			"read_template. If no name is given, one will be generated. "+
+			"Provide a preset_id from read_template to apply "+
 			"preset parameters and potentially claim a prebuilt "+
 			"workspace for faster startup. "+
 			"This tool is idempotent. If the chat already has a "+
