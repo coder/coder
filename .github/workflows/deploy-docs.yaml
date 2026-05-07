@@ -56,12 +56,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Detect what changed so the dependent jobs know whether a full
-  # rebuild is needed. Runs once and exposes outputs to both jobs.
+  # Detect what changed so the dependent jobs know:
+  #  - whether a Vercel full rebuild is needed (manifest changed), and
+  #  - which markdown pages to surgically reindex (the changed set).
+  #
+  # Outputs:
+  #   manifest_changed: "true" | "false"
+  #   paths_json:        a JSON array of {path, status} objects, or "[]"
+  #                      when no markdown changes are eligible for
+  #                      surgical mode (manifest-only push, an
+  #                      uncomputable diff, a workflow_dispatch trigger,
+  #                      or a diff that exceeds the surgical-mode cap).
+  #                      An empty array tells the handler to fall back
+  #                      to whole-branch reindex.
   changes:
     runs-on: ubuntu-latest
     outputs:
       manifest_changed: ${{ steps.diff.outputs.manifest_changed }}
+      paths_json: ${{ steps.diff.outputs.paths_json }}
     steps:
       - name: Compute changed-files signal
         id: diff
@@ -71,38 +83,122 @@ jobs:
           AFTER_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          emit_full_branch_fallback() {
+            # Tells the algolia-and-isr job to operate in whole-branch
+            # mode by sending an empty paths array. The handler treats
+            # the absence of paths (or an empty list) as "reindex
+            # everything for this (corpus, ref)".
+            echo "paths_json=[]" >> "$GITHUB_OUTPUT"
+          }
           # workflow_dispatch never has a diff range; treat as
-          # \"manifest unchanged\" so the manual reindex/delete path
-          # doesn't trigger a Vercel rebuild it didn't ask for.
+          # "manifest unchanged" so the manual reindex/delete path
+          # doesn't trigger a Vercel rebuild it didn't ask for, and as
+          # whole-branch so a manual reindex is exhaustive.
           if [ "$EVENT_NAME" != "push" ]; then
             echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
+            emit_full_branch_fallback
             exit 0
           fi
           # First push to a brand-new branch has BEFORE_SHA = all zeros.
           # In that edge case we conservatively assume the manifest is
-          # part of the initial state and trigger a full rebuild.
+          # part of the initial state and trigger a full rebuild + a
+          # whole-branch reindex.
           if [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
             echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            emit_full_branch_fallback
             exit 0
           fi
-          # We don't need a full checkout for `git diff --name-only`
-          # against two known SHAs. A shallow fetch of just those two
-          # commits is enough.
+          # We don't need a full checkout for `git diff` against two
+          # known SHAs. A shallow fetch of just those two commits is
+          # enough.
           git init -q
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git -c protocol.version=2 fetch --depth=1 origin "$BEFORE_SHA" "$AFTER_SHA" 2>/dev/null || {
             # Fall back to a wider fetch if the shallow fetch failed
             # (e.g. force-push rewrote history). Treating an unknown
-            # diff as \"manifest changed\" is the safe default.
+            # diff as "manifest changed" + whole-branch is the safe
+            # default.
             echo "::warning::Could not fetch BEFORE_SHA=$BEFORE_SHA; assuming manifest changed"
             echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            emit_full_branch_fallback
             exit 0
           }
+          # Manifest signal.
           if git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" -- docs/manifest.json | grep -q .; then
             echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            # Manifest changes can rename or restructure routes, so
+            # surgical mode is not safe -- a per-path delete keyed off
+            # the new canonical URL would miss records under old URLs.
+            # Whole-branch reindex is the right behavior here.
+            emit_full_branch_fallback
+            exit 0
           else
             echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
           fi
+          # Surgical mode: emit the changed markdown set as a JSON
+          # array of {path, status} objects. We use --name-status so
+          # the handler can distinguish modified/added (re-extract +
+          # save) from deleted/renamed-old-side (delete only).
+          DIFF_FILE=$(mktemp)
+          git diff --name-status "$BEFORE_SHA" "$AFTER_SHA" -- 'docs/**/*.md' > "$DIFF_FILE"
+          # Cap at 50 changed files. Above that a whole-branch reindex
+          # is faster (one deleteBy + one saveObjects vs N deleteBy
+          # calls), and the surgical-mode payload also stays well under
+          # GitHub Actions' output size limit.
+          CHANGED=$(wc -l < "$DIFF_FILE")
+          if [ "$CHANGED" -eq 0 ]; then
+            # Markdown-only path filter on the trigger means we should
+            # only get here on edits to non-markdown files under docs/
+            # (e.g., images). Whole-branch reindex is overkill for
+            # those, but it is also harmless and avoids a special case;
+            # an empty paths array makes the handler skip both the
+            # save and the revalidate when no manifest entry maps to
+            # the changed file.
+            emit_full_branch_fallback
+            exit 0
+          fi
+          if [ "$CHANGED" -gt 50 ]; then
+            echo "::notice::$CHANGED markdown files changed; falling back to whole-branch reindex (cap is 50 for surgical mode)"
+            emit_full_branch_fallback
+            exit 0
+          fi
+          # Map each `git diff --name-status` line to a {path, status}
+          # JSON object. Statuses: A=added, M=modified, D=deleted,
+          # R<n>=renamed (with similarity score, e.g. R100). We
+          # collapse R into "renamed" so the handler can treat both
+          # sides of a rename uniformly.
+          PATHS_JSON=$(awk '
+            BEGIN { print "[" }
+            {
+              code = substr($1, 1, 1)
+              status = "modified"
+              if (code == "A") status = "added"
+              else if (code == "M") status = "modified"
+              else if (code == "D") status = "deleted"
+              else if (code == "R") status = "renamed"
+              else if (code == "T") status = "modified"
+              else next
+              # For renames the second field is the new path; the
+              # first path field is the old path. We index by the new
+              # path for renames since that is the live route. The old
+              # path will be cleaned up by the manifest walk if the
+              # rename also touched manifest.json (handled above) or
+              # via natural record expiry on the next whole-branch
+              # reindex. We do not attempt to delete-by-old-canonical
+              # in surgical mode because the canonical URL of the old
+              # path is no longer reachable through the manifest.
+              if (code == "R") path = $3
+              else path = $2
+              if (NR > 1) printf ","
+              printf "{\"path\":\"%s\",\"status\":\"%s\"}", path, status
+            }
+            END { print "]" }
+          ' "$DIFF_FILE")
+          # Single-line, no whitespace: jq normalizes for the webhook
+          # body later. Fail loudly if jq cannot parse what we built.
+          PATHS_JSON=$(printf '%s' "$PATHS_JSON" | jq -c .)
+          echo "paths_json=$PATHS_JSON" >> "$GITHUB_OUTPUT"
+          echo "Surgical mode: $CHANGED path(s) changed."
 
   # Path 1: always run. Notifies coder.com to refresh Algolia records
   # and ISR-revalidate the affected pages.
@@ -134,6 +230,7 @@ jobs:
         env:
           ACTION: ${{ steps.input.outputs.action }}
           REF: ${{ steps.input.outputs.ref }}
+          PATHS_JSON: ${{ needs.changes.outputs.paths_json }}
           SECRET: ${{ secrets.ALGOLIA_DOCS_SYNC_SECRET }}
         run: |
           set -euo pipefail
@@ -141,16 +238,29 @@ jobs:
             echo "::error::ALGOLIA_DOCS_SYNC_SECRET is not configured."
             exit 1
           fi
+          # Build the webhook body. paths_json is always a valid JSON
+          # array (possibly empty) thanks to the changes job. An empty
+          # array tells the handler to do a whole-branch reindex; a
+          # non-empty array triggers surgical per-page mode.
+          if [ -z "${PATHS_JSON:-}" ]; then
+            PATHS_JSON='[]'
+          fi
           BODY=$(jq -nc \
             --arg action "$ACTION" \
             --arg corpus "v2" \
             --arg ref "$REF" \
-            '{action: $action, corpus: $corpus, ref: $ref}')
+            --argjson paths "$PATHS_JSON" \
+            '{action: $action, corpus: $corpus, ref: $ref, paths: $paths}')
           # SHA-256 HMAC over the exact bytes we POST. The handler verifies
           # with crypto.timingSafeEqual on the same raw body, so the
           # prefix and hex casing must match.
           SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')"
-          echo "Action: $ACTION  Ref: $REF"
+          PATHS_COUNT=$(printf '%s' "$PATHS_JSON" | jq 'length')
+          MODE="whole-branch"
+          if [ "$PATHS_COUNT" -gt 0 ]; then
+            MODE="surgical ($PATHS_COUNT path(s))"
+          fi
+          echo "Action: $ACTION  Ref: $REF  Mode: $MODE"
           response=$(mktemp)
           status=$(curl --fail-with-body -sS \
             -o "$response" \
@@ -165,6 +275,7 @@ jobs:
             echo
             echo "- Action: \`$ACTION\`"
             echo "- Ref: \`$REF\`"
+            echo "- Mode: \`$MODE\`"
             echo "- HTTP status: \`${status:-n/a}\`"
             echo
             echo "### Response"
