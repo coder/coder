@@ -92,6 +92,10 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
+import { Badge } from "#/components/Badge/Badge";
+import { TokenBadges } from "#/pages/AIBridgePage/TokenBadges";
+import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
+import { getProviderIconName } from "#/pages/AIBridgePage/utils";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -1173,21 +1177,27 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="w-16 shrink-0 font-medium">Tokens</span>
-										<span className="inline-flex items-center gap-1">
-											<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-[11px]">
-												↓ 123132
-											</span>
-											<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-[11px]">
-												↑ 233
-											</span>
-										</span>
+										<TokenBadges
+											size="xs"
+											inputTokens={123132}
+											outputTokens={233}
+										/>
 									</div>
 									<div className="flex items-center gap-2">
 										<span className="w-16 shrink-0 font-medium">Model</span>
-										<span className="inline-flex items-center gap-1.5">
-											<span className="h-2 w-2 rounded-full bg-content-link" />
-											<span>{modelName}</span>
-										</span>
+										<Badge className="gap-1.5">
+											<AIBridgeProviderIcon
+												provider={getProviderIconName(
+													modelName.includes("claude")
+														? "anthropic"
+														: modelName.includes("gpt")
+															? "openai"
+															: "unknown",
+												)}
+												className="size-icon-xs"
+											/>
+											<span className="truncate min-w-0">{modelName}</span>
+										</Badge>
 									</div>
 								</div>
 							)}
