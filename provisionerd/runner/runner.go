@@ -685,6 +685,22 @@ type templateImportProvision struct {
 	HasExternalAgents     bool
 }
 
+// templateImportProvisionError carries structured diagnostics
+// from a failed template import provision so they can be passed
+// through to the FailedJob proto.
+type templateImportProvisionError struct {
+	error
+	diagnostics []*sdkproto.Diagnostic
+}
+
+func (e *templateImportProvisionError) Error() string {
+	return e.error.Error()
+}
+
+func (e *templateImportProvisionError) Unwrap() error {
+	return e.error
+}
+
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
@@ -726,7 +742,10 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		return nil, xerrors.New("plan during template import provision returned nil response")
 	}
 	if planComplete.Error != "" {
-		return nil, xerrors.Errorf("plan during template import provision error: %s", planComplete.Error)
+		return nil, &templateImportProvisionError{
+			error:       xerrors.Errorf("plan during template import provision error: %s", planComplete.Error),
+			diagnostics: planComplete.Diagnostics,
+		}
 	}
 
 	graphComplete, failed := r.graph(ctx, &sdkproto.GraphRequest{
@@ -1122,10 +1141,27 @@ func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob
 			break
 		}
 	}
+
+	// Extract structured diagnostics if the error carries them.
+	var diags []*sdkproto.Diagnostic
+	for _, arg := range args {
+		if derr, ok := arg.(*templateImportProvisionError); ok {
+			diags = derr.diagnostics
+			break
+		}
+		if derr, ok := arg.(interface{ Unwrap() error }); ok {
+			var tipErr *templateImportProvisionError
+			if xerrors.As(derr.Unwrap(), &tipErr) {
+				diags = tipErr.diagnostics
+			}
+		}
+	}
+
 	return &proto.FailedJob{
-		JobId:     r.job.JobId,
-		Error:     message,
-		ErrorCode: code,
+		JobId:       r.job.JobId,
+		Error:       message,
+		ErrorCode:   code,
+		Diagnostics: diags,
 	}
 }
 
