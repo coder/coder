@@ -162,6 +162,7 @@ const denyAllPolicy = {
 	web_terminal_access: false,
 	port_forwarding_access: false,
 	desktop_access: false,
+	clipboard_access: false,
 	allowed_applications: [] as string[],
 };
 
@@ -171,6 +172,7 @@ const codeServerOnlyPolicy = {
 	web_terminal_access: true,
 	port_forwarding_access: true,
 	desktop_access: true,
+	clipboard_access: true,
 	allowed_applications: ["code-server"],
 };
 

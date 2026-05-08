@@ -3661,6 +3661,7 @@ export interface DLPPolicy {
 	readonly web_terminal_access: boolean;
 	readonly port_forwarding_access: boolean;
 	readonly desktop_access: boolean;
+	readonly clipboard_access: boolean;
 	/**
 	 * AllowedApplications lists the `coder_app` slugs the workspace user is
 	 * permitted to access. Apps whose slugs are not in this list are blocked.

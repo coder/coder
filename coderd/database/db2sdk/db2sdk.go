@@ -507,6 +507,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 			WebTerminalAccess:    dlpPolicy.WebTerminalAccess,
 			PortForwardingAccess: dlpPolicy.PortForwardingAccess,
 			DesktopAccess:        dlpPolicy.DesktopAccess,
+			ClipboardAccess:      dlpPolicy.ClipboardAccess,
 			AllowedApplications:  dlpPolicy.AllowedApplications,
 		}
 	}

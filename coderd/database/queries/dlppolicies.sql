@@ -7,6 +7,7 @@ INSERT INTO template_version_dlp_policies (
 	web_terminal_access,
 	port_forwarding_access,
 	desktop_access,
+	clipboard_access,
 	allowed_applications,
 	display_name,
 	created_at
@@ -19,6 +20,7 @@ VALUES (
 	@web_terminal_access,
 	@port_forwarding_access,
 	@desktop_access,
+	@clipboard_access,
 	@allowed_applications,
 	@display_name,
 	@created_at

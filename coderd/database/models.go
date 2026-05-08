@@ -5478,6 +5478,7 @@ type TemplateVersionDlpPolicy struct {
 	DisplayName          string    `db:"display_name" json:"display_name"`
 	CreatedAt            time.Time `db:"created_at" json:"created_at"`
 	DesktopAccess        bool      `db:"desktop_access" json:"desktop_access"`
+	ClipboardAccess      bool      `db:"clipboard_access" json:"clipboard_access"`
 }
 
 type TemplateVersionParameter struct {

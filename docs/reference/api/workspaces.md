@@ -194,6 +194,7 @@ of the template will be used.
               "allowed_applications": [
                 "string"
               ],
+              "clipboard_access": true,
               "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
@@ -570,6 +571,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "allowed_applications": [
                 "string"
               ],
+              "clipboard_access": true,
               "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
@@ -913,6 +915,7 @@ of the template will be used.
               "allowed_applications": [
                 "string"
               ],
+              "clipboard_access": true,
               "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
@@ -1217,6 +1220,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   "allowed_applications": [
                     "string"
                   ],
+                  "clipboard_access": true,
                   "desktop_access": true,
                   "name": "string",
                   "port_forwarding_access": true,
@@ -1536,6 +1540,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
               "allowed_applications": [
                 "string"
               ],
+              "clipboard_access": true,
               "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
@@ -2115,6 +2120,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
               "allowed_applications": [
                 "string"
               ],
+              "clipboard_access": true,
               "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,

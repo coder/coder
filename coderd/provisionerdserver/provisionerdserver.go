@@ -2710,6 +2710,7 @@ func InsertTemplateVersionDLPPolicies(ctx context.Context, logger slog.Logger, d
 			WebTerminalAccess:    p.WebTerminalAccess,
 			PortForwardingAccess: p.PortForwardingAccess,
 			DesktopAccess:        p.DesktopAccess,
+			ClipboardAccess:      p.ClipboardAccess,
 			AllowedApplications:  p.AllowedApplications,
 			DisplayName:          "",
 			CreatedAt:            t,

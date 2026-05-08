@@ -416,6 +416,7 @@ export interface DLPPolicy {
   allowedApplications: string[];
   name: string;
   desktopAccess: boolean;
+  clipboardAccess: boolean;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
@@ -1394,6 +1395,9 @@ export const DLPPolicy = {
     }
     if (message.desktopAccess !== false) {
       writer.uint32(56).bool(message.desktopAccess);
+    }
+    if (message.clipboardAccess !== false) {
+      writer.uint32(64).bool(message.clipboardAccess);
     }
     return writer;
   },

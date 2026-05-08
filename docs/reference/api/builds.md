@@ -139,6 +139,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "allowed_applications": [
               "string"
             ],
+            "clipboard_access": true,
             "desktop_access": true,
             "name": "string",
             "port_forwarding_access": true,
@@ -392,6 +393,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
             "allowed_applications": [
               "string"
             ],
+            "clipboard_access": true,
             "desktop_access": true,
             "name": "string",
             "port_forwarding_access": true,
@@ -763,6 +765,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
           "allowed_applications": [
             "string"
           ],
+          "clipboard_access": true,
           "desktop_access": true,
           "name": "string",
           "port_forwarding_access": true,
@@ -913,6 +916,7 @@ Status Code **200**
 | `»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» dlp_policy`                 | [codersdk.DLPPolicy](schemas.md#codersdkdlppolicy)                                                     | false    |              | Dlp policy is the data loss prevention policy attached to this agent via `coder_agent.dlp_policy`. Nil when no policy is configured.                                                                                                           |
 | `»»» allowed_applications`      | array                                                                                                  | false    |              | Allowed applications lists the `coder_app` slugs the workspace user is permitted to access. Apps whose slugs are not in this list are blocked.                                                                                                 |
+| `»»» clipboard_access`          | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» desktop_access`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» name`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» port_forwarding_access`    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1134,6 +1138,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
             "allowed_applications": [
               "string"
             ],
+            "clipboard_access": true,
             "desktop_access": true,
             "name": "string",
             "port_forwarding_access": true,
@@ -1498,6 +1503,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "allowed_applications": [
                 "string"
               ],
+              "clipboard_access": true,
               "desktop_access": true,
               "name": "string",
               "port_forwarding_access": true,
@@ -1711,6 +1717,7 @@ Status Code **200**
 | `»»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» dlp_policy`                 | [codersdk.DLPPolicy](schemas.md#codersdkdlppolicy)                                                     | false    |              | Dlp policy is the data loss prevention policy attached to this agent via `coder_agent.dlp_policy`. Nil when no policy is configured.                                                                                                           |
 | `»»»» allowed_applications`      | array                                                                                                  | false    |              | Allowed applications lists the `coder_app` slugs the workspace user is permitted to access. Apps whose slugs are not in this list are blocked.                                                                                                 |
+| `»»»» clipboard_access`          | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» desktop_access`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» name`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» port_forwarding_access`    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1973,6 +1980,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "allowed_applications": [
               "string"
             ],
+            "clipboard_access": true,
             "desktop_access": true,
             "name": "string",
             "port_forwarding_access": true,

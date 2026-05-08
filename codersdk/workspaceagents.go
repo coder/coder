@@ -192,6 +192,7 @@ type DLPPolicy struct {
 	WebTerminalAccess    bool   `json:"web_terminal_access"`
 	PortForwardingAccess bool   `json:"port_forwarding_access"`
 	DesktopAccess        bool   `json:"desktop_access"`
+	ClipboardAccess      bool   `json:"clipboard_access"`
 	// AllowedApplications lists the `coder_app` slugs the workspace user is
 	// permitted to access. Apps whose slugs are not in this list are blocked.
 	AllowedApplications []string `json:"allowed_applications"`

@@ -365,6 +365,7 @@ message DLPPolicy {
   repeated string allowed_applications = 5;
   string name = 6;
   bool desktop_access = 7;
+  bool clipboard_access = 8;
 }
 
 // Metadata is information about a workspace used in the execution of a build

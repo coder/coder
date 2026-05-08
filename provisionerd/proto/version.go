@@ -98,6 +98,7 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.19:
 //   - Added `desktop` to `provisioner.DisplayApps`.
 //   - Added `desktop_access` to `provisioner.DLPPolicy`.
+//   - Added `clipboard_access` to `provisioner.DLPPolicy`.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 19
