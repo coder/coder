@@ -91,8 +91,12 @@ type Manager struct {
 	// startupSettled is closed once startup scripts reach a terminal
 	// state. Before that, missing MCP config files are unknown
 	// because startup scripts may still create them.
-	startupSettled   chan struct{}
-	startupOnce      sync.Once
+	startupSettled chan struct{}
+	startupOnce    sync.Once
+
+	// firstSyncSettled records that a reload body reached a
+	// terminal result, successful or not. It gates whether callers
+	// may receive cached tools after reload errors.
 	firstSyncSettled bool
 
 	// closedCh is closed by Close to unblock waiters that do not
@@ -147,7 +151,7 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 		return err
 	}
 	if !started {
-		return ctx.Err()
+		return nil
 	}
 	return m.waitReload(ctx, ch, 0)
 }
@@ -179,9 +183,6 @@ func (m *Manager) Tools(ctx context.Context, paths []string) ([]workspacesdk.MCP
 		return m.toolsAfterReloadError(err)
 	}
 	if !started {
-		if err := ctx.Err(); err != nil {
-			return m.toolsAfterReloadError(err)
-		}
 		return normalizeTools(m.cachedTools()), nil
 	}
 
@@ -267,6 +268,8 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 }
 
 func (m *Manager) waitReload(ctx context.Context, ch <-chan reloadResult, timeout time.Duration) error {
+	// Prefer caller cancellation when it already happened before the
+	// wait. Otherwise select may choose a ready reload result instead.
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -611,6 +614,7 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 	return snap
 }
 
+// cachedTools returns the cached tool list. Thread-safe.
 func (m *Manager) cachedTools() []workspacesdk.MCPToolInfo {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -753,7 +757,6 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	defer m.cancel()
 
 	m.closed = true
 	m.closeOnce.Do(func() { close(m.closedCh) })
@@ -770,8 +773,14 @@ func (m *Manager) Close() error {
 		}
 	}
 	m.servers = make(map[string]*serverEntry)
+	// Prevent an in-flight RefreshTools from repopulating tools
+	// after Close clears the cache.
 	m.serverGen++
 	m.tools = nil
+
+	// Cancel while holding the lock so waiters that observe
+	// m.ctx.Done also observe m.closed when checking closeErr.
+	m.cancel()
 	return errors.Join(errs...)
 }
 

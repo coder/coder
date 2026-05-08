@@ -474,7 +474,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 		assert.Empty(t, tools)
 	})
 
-	t.Run("CanceledAfterFirstSyncReturnsCachedTools", func(t *testing.T) {
+	t.Run("CanceledAfterFirstSyncNoopReturnsCachedTools", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -493,8 +493,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 		callerCtx, cancel := context.WithCancel(ctx)
 		cancel()
 		tools, err = m.Tools(callerCtx, []string{configPath})
-		require.Error(t, err)
-		assert.ErrorIs(t, err, context.Canceled)
+		require.NoError(t, err)
 		require.Len(t, tools, 1)
 		assert.Contains(t, tools[0].Name, "echo")
 	})

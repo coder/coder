@@ -673,6 +673,11 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 	err = m.Reload(ctx, []string{configPath})
 	require.NoError(t, err)
 
+	callerCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	err = m.Reload(callerCtx, []string{configPath})
+	require.NoError(t, err)
+
 	m.mu.RLock()
 	sameClient := m.servers["srv"].client
 	m.mu.RUnlock()
