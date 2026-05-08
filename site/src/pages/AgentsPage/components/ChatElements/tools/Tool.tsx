@@ -168,6 +168,17 @@ const parseAskUserQuestions = (value: unknown): AskUserQuestion[] | null => {
 	return questions;
 };
 
+const insufficientQuotaErrorCode = "INSUFFICIENT_QUOTA";
+
+const getWorkspaceQuotaTitle = (
+	rec: Record<string, unknown> | null,
+): string | undefined => {
+	if (!rec || asString(rec.error_code) !== insufficientQuotaErrorCode) {
+		return undefined;
+	}
+	return asString(rec.title).trim() || "Workspace quota reached";
+};
+
 const parseAskUserQuestionResult = (
 	result: unknown,
 ): AskUserQuestion[] | null => {
@@ -434,6 +445,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
 	const hasErrorInResult = Boolean(rec?.error);
 	const created = rec?.created !== false;
+	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
 		<CreateWorkspaceTool
@@ -444,6 +456,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 			created={created}
+			labelOverride={quotaTitle}
 		/>
 	);
 };
@@ -959,6 +972,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const hasErrorInResult = Boolean(rec?.error);
 	const noBuild = Boolean(rec?.no_build);
+	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
 		<StartWorkspaceTool
@@ -968,6 +982,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			noBuild={noBuild}
+			labelOverride={quotaTitle}
 		/>
 	);
 };
