@@ -2716,6 +2716,251 @@ func TestEditFiles_DuplicatePath_SymlinkAliasRejects(t *testing.T) {
 	require.Equal(t, original, string(data))
 }
 
+// TestEditFiles_BatchDuplicateSearch_Rejects pins that two edits in
+// the same file with byte-identical search strings are rejected by
+// the per-file pre-flight check, before the matcher runs. The error
+// names both edit indices so the caller can locate the duplicate
+// group quickly.
+//
+// This is the cause of two doctrine-forming chats observed in
+// CODAGT-312 (df422652, f5a6afa5): the model emitted the same search
+// snippet across multiple edits in one batch without setting
+// replace_all, and the original "matches N occurrences" message did
+// not signal that the duplicate was within the batch itself.
+func TestEditFiles_BatchDuplicateSearch_Rejects(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "batch-dup-search")
+	original := "alpha\nbeta\ngamma\n"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: path, Edits: []workspacesdk.FileEdit{
+				{Search: "alpha", Replace: "ALPHA"},
+				{Search: "alpha", Replace: "AAA"},
+			}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+	got := &codersdk.Error{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+	// The error must name both offending edit indices and quote the
+	// shared search string so the caller can find the duplicate.
+	require.ErrorContains(t, got, "edits 0, 1")
+	require.ErrorContains(t, got, "share an identical search string")
+	require.ErrorContains(t, got, `"alpha"`)
+	require.ErrorContains(t, got, "replace_all=true")
+
+	// File on disk must be untouched: pre-flight runs before any
+	// write, and the duplicate group prevents any edit from
+	// applying.
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, original, string(data))
+}
+
+// TestEditFiles_BatchDuplicateSearch_NamesAllIndices pins that the
+// pre-flight error lists every edit index in the duplicate group, in
+// input order, even when the duplicates are not contiguous.
+func TestEditFiles_BatchDuplicateSearch_NamesAllIndices(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "batch-dup-three")
+	original := "alpha\nbeta\ngamma\ndelta\n"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
+
+	// Edits 0, 2, 4 share "alpha"; edits 1, 3 are interleaved with
+	// distinct searches so the index list must explicitly name 0, 2,
+	// 4 and skip 1, 3.
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: path, Edits: []workspacesdk.FileEdit{
+				{Search: "alpha", Replace: "A0"},
+				{Search: "beta", Replace: "B"},
+				{Search: "alpha", Replace: "A2"},
+				{Search: "gamma", Replace: "G"},
+				{Search: "alpha", Replace: "A4"},
+			}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+	got := &codersdk.Error{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+	require.ErrorContains(t, got, "edits 0, 2, 4")
+}
+
+// TestEditFiles_FileLevelDuplicateMatch_PreservesMatcherMessage pins
+// that a single edit whose search appears multiple times in the file
+// (not duplicated within the batch) still falls through to the
+// existing matcher message. The pre-flight check must not eclipse
+// the file-level ambiguity error: the call site is what tells the
+// caller whether to disambiguate via context or collapse duplicate
+// edits.
+func TestEditFiles_FileLevelDuplicateMatch_PreservesMatcherMessage(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "file-level-dup")
+	original := "foo bar foo baz foo"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: path, Edits: []workspacesdk.FileEdit{
+				{Search: "foo", Replace: "qux"},
+			}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+	got := &codersdk.Error{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+	// The existing matcher message must be returned unchanged so the
+	// caller still gets the same disambiguation hint for file-level
+	// duplicates.
+	require.ErrorContains(t, got, "matches 3 occurrences")
+	require.ErrorContains(t, got, "set replace_all to true")
+	// And the new pre-flight wording must NOT leak into this case.
+	require.NotContains(t, got.Message, "share an identical search string")
+
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, original, string(data))
+}
+
+// TestEditFiles_BatchDuplicateSearch_ReplaceAllIdenticalAccepted pins
+// the "redundant but harmless" exception: two edits in the same
+// batch with byte-identical search and replace AND replace_all=true
+// are accepted. The duplicates collapse to a single logical edit at
+// pre-flight, so the matcher sees one replace_all=true edit and
+// rewrites every occurrence of the search.
+//
+// This sub-decision (collapse the redundant copies in pre-flight
+// rather than letting both run through the matcher, which today
+// would reject the second with "search string not found" once the
+// first has consumed every match) is documented in the
+// dedupeBatchedEdits helper.
+func TestEditFiles_BatchDuplicateSearch_ReplaceAllIdenticalAccepted(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "batch-dup-ra")
+	original := "hello hello world\n"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: path, Edits: []workspacesdk.FileEdit{
+				{Search: "hello", Replace: "hi", ReplaceAll: true},
+				{Search: "hello", Replace: "hi", ReplaceAll: true},
+			}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, "hi hi world\n", string(data))
+}
+
+// TestEditFiles_BatchDuplicateSearch_ReplaceAllDifferentReplaceRejects
+// pins that two edits with the same search and replace_all=true but
+// DIFFERENT replace text are rejected. Collapsing them would silently
+// pick one replace and discard the other, so this case must surface
+// the conflict to the caller.
+func TestEditFiles_BatchDuplicateSearch_ReplaceAllDifferentReplaceRejects(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	path := filepath.Join(tmpdir, "batch-dup-ra-conflict")
+	original := "hello hello world\n"
+	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: path, Edits: []workspacesdk.FileEdit{
+				{Search: "hello", Replace: "hi", ReplaceAll: true},
+				{Search: "hello", Replace: "howdy", ReplaceAll: true},
+			}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+	got := &codersdk.Error{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+	require.ErrorContains(t, got, "edits 0, 1")
+	require.ErrorContains(t, got, "share an identical search string")
+
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, original, string(data))
+}
+
 // TestEditFiles_ReplaceAll_FuzzyIndentGap locks the CURRENT output
 // of a known foot-gun, it doesn't bless it.
 //

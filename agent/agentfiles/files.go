@@ -509,6 +509,17 @@ func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int
 		return http.StatusBadRequest, nil, xerrors.New("must specify at least one edit")
 	}
 
+	// Reject duplicate search strings within a single file's edits
+	// before any I/O or matching runs. This isolates the
+	// "matches N occurrences" signal to actual file-level ambiguity
+	// and removes a known foot-gun where the model emits the same
+	// search snippet across multiple edits in one batch without
+	// setting replace_all.
+	edits, err := dedupeBatchedEdits(edits)
+	if err != nil {
+		return http.StatusBadRequest, nil, xerrors.Errorf("edit %s: %w", path, err)
+	}
+
 	resolved, err := api.resolvePath(path)
 	if err != nil {
 		return http.StatusInternalServerError, nil, xerrors.Errorf("resolve symlink %q: %w", path, err)
@@ -1074,6 +1085,113 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 		_, _ = b.WriteString(ending)
 	}
 	return b.String()
+}
+
+// dedupeBatchedEdits checks for two or more edits in the same
+// batch that carry byte-identical search strings. The duplicates
+// are foot-guns: each edit consumes one match, so the second and
+// later edits either trigger the matcher's "matches N occurrences"
+// (when replace_all is unset, the common case observed in
+// CODAGT-312) or a "search string not found" once the earlier
+// edit has already consumed every match.
+//
+// Behavior:
+//
+//   - When every edit in a duplicate group has replace_all=true and
+//     identical replace text, the group is collapsed to one edit:
+//     the duplicates are redundant and harmless.
+//   - Otherwise the request is rejected with an error that names
+//     the offending indices and a short head of the search string
+//     so the caller can locate the duplicate group quickly.
+func dedupeBatchedEdits(edits []workspacesdk.FileEdit) ([]workspacesdk.FileEdit, error) {
+	if len(edits) < 2 {
+		return edits, nil
+	}
+
+	// Group edit indices by search string while preserving input
+	// order. We only care about searches that occur more than once;
+	// keep the index list per group to populate the error message.
+	type group struct {
+		indices []int
+	}
+	groups := make(map[string]*group, len(edits))
+	order := make([]string, 0, len(edits))
+	for i, e := range edits {
+		g, ok := groups[e.Search]
+		if !ok {
+			g = &group{}
+			groups[e.Search] = g
+			order = append(order, e.Search)
+		}
+		g.indices = append(g.indices, i)
+	}
+
+	// Walk groups in first-seen order so the rejection error is
+	// stable across runs.
+	drop := make(map[int]bool)
+	for _, search := range order {
+		g := groups[search]
+		if len(g.indices) < 2 {
+			continue
+		}
+		first := edits[g.indices[0]]
+		collapsible := first.ReplaceAll
+		if collapsible {
+			for _, idx := range g.indices[1:] {
+				e := edits[idx]
+				if !e.ReplaceAll || e.Replace != first.Replace {
+					collapsible = false
+					break
+				}
+			}
+		}
+		if collapsible {
+			for _, idx := range g.indices[1:] {
+				drop[idx] = true
+			}
+			continue
+		}
+		return nil, xerrors.Errorf("edits %s share an identical search string %s; "+
+			"combine them into one edit with replace_all=true, or include "+
+			"surrounding context to make each search unique",
+			formatEditIndices(g.indices), formatSearchHead(search))
+	}
+
+	if len(drop) == 0 {
+		return edits, nil
+	}
+	out := make([]workspacesdk.FileEdit, 0, len(edits)-len(drop))
+	for i, e := range edits {
+		if drop[i] {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+// formatEditIndices renders a list of edit indices for the duplicate
+// search error, e.g. "0, 2, 4".
+func formatEditIndices(indices []int) string {
+	parts := make([]string, len(indices))
+	for i, idx := range indices {
+		parts[i] = strconv.Itoa(idx)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// formatSearchHead returns a Go-quoted prefix of the search string,
+// truncated so the error message stays readable for large multi-line
+// snippets. The truncation is byte-based since search strings are
+// matched byte-for-byte; truncating at a UTF-8 continuation byte is
+// fine because the result is fed through %q which escapes the
+// trailing partial rune.
+func formatSearchHead(search string) string {
+	const maxHead = 40
+	if len(search) <= maxHead {
+		return fmt.Sprintf("%q", search)
+	}
+	return fmt.Sprintf("%q...", search[:maxHead])
 }
 
 // fuzzyReplace attempts to find `search` inside `content` and replace it
