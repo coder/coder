@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 // ToolNameSep separates the server name from the original tool name
@@ -81,6 +82,7 @@ type Manager struct {
 
 	mu        sync.RWMutex
 	logger    slog.Logger
+	clock     quartz.Clock
 	closed    bool
 	servers   map[string]*serverEntry
 	tools     []workspacesdk.MCPToolInfo
@@ -127,6 +129,7 @@ func NewManager(
 		ctx:            managerCtx,
 		cancel:         cancel,
 		logger:         logger,
+		clock:          quartz.NewReal(),
 		execer:         execer,
 		updateEnv:      updateEnv,
 		servers:        make(map[string]*serverEntry),
@@ -276,7 +279,7 @@ func (m *Manager) waitReload(ctx context.Context, ch <-chan reloadResult, timeou
 
 	var timeoutC <-chan time.Time
 	if timeout > 0 {
-		timer := time.NewTimer(timeout)
+		timer := m.clock.NewTimer(timeout, "agentmcp", "tools_reload")
 		defer timer.Stop()
 		timeoutC = timer.C
 	}
@@ -287,7 +290,7 @@ func (m *Manager) waitReload(ctx context.Context, ch <-chan reloadResult, timeou
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-timeoutC:
-		return context.DeadlineExceeded
+		return xerrors.Errorf("tools reload timed out after %s: %w", timeout, context.DeadlineExceeded)
 	case <-m.ctx.Done():
 		if err := m.closeErr(); err != nil {
 			return err

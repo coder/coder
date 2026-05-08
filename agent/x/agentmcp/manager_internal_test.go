@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestSplitToolName(t *testing.T) {
@@ -246,6 +248,35 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	require.NoError(t, err, "ListTools should succeed, server must be alive after connect")
 	require.Len(t, result.Tools, 1)
 	assert.Equal(t, "echo", result.Tools[0].Name)
+}
+
+func TestManager_WaitReloadTimeout(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
+	defer timerTrap.Close()
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m.clock = clock
+	t.Cleanup(func() { _ = m.Close() })
+
+	done := make(chan error, 1)
+	go func() {
+		done <- m.waitReload(ctx, make(chan reloadResult), time.Minute)
+	}()
+
+	call := timerTrap.MustWait(ctx)
+	require.Equal(t, time.Minute, call.Duration)
+	call.MustRelease(ctx)
+
+	clock.Advance(time.Minute).MustWait(ctx)
+	err := testutil.RequireReceive(ctx, t, done)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "tools reload timed out after 1m0s")
 }
 
 func TestManager_ToolsStartupGate(t *testing.T) {

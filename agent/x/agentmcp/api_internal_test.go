@@ -255,9 +255,10 @@ func TestHandleListTools_LogsListErrors(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name    string
-		ctx     func() context.Context
-		message string
+		name         string
+		ctx          func() context.Context
+		closeManager bool
+		message      string
 	}{
 		{
 			name: "Canceled",
@@ -277,6 +278,12 @@ func TestHandleListTools_LogsListErrors(t *testing.T) {
 			},
 			message: "mcp tool list timed out",
 		},
+		{
+			name:         "ManagerClosed",
+			ctx:          context.Background,
+			closeManager: true,
+			message:      "mcp tool list failed",
+		},
 	}
 
 	for _, tc := range cases {
@@ -292,6 +299,9 @@ func TestHandleListTools_LogsListErrors(t *testing.T) {
 			m := NewManager(context.Background(), logger, agentexec.DefaultExecer, nil)
 			m.MarkStartupSettled()
 			t.Cleanup(func() { _ = m.Close() })
+			if tc.closeManager {
+				require.NoError(t, m.Close())
+			}
 
 			api := NewAPI(logger, m, func() []string {
 				return []string{configPath}
