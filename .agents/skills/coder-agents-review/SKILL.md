@@ -102,7 +102,8 @@ Use repository conventions first. Otherwise use these defaults.
 - `LOCAL_VALIDATE_CMD`: repo-standard validation command.
 - `LOCAL_TEST_CMD`: optional targeted validation for the touched area.
 - `POLL_INTERVAL_SEC`: default `30`.
-- `MAX_THREADS`: default `100`.
+- `PAGE_SIZE`: default `100`. Use it for each GitHub pagination
+  request, not as a cap on the total activity fetched.
 
 If the app login does not match the default regex, discover the real
 login from existing PR activity and continue with that exact login. Do
@@ -138,17 +139,39 @@ REPO="$(gh repo view --json name --jq .name)"
 
 ## Collect app activity
 
-Inspect top-level PR comments, PR reviews, and review threads. Example:
+Inspect top-level PR comments, PR reviews, and review threads. Fetch all
+pages before deriving review state. GitHub GraphQL connections are
+paginated, so a single `first:100` request can miss newer review-app
+activity on busy PRs.
+
+Page these connections until `pageInfo.hasNextPage` is false:
+
+- `comments`, for top-level PR comments
+- `reviews`, for PR reviews
+- `reviewThreads`, for review thread metadata
+- each review thread's `comments`, when its nested comment connection has
+  more pages
+
+Example page query:
 
 ```bash
-gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $threads:Int!) {
-  repository(owner:$owner, name:$repo) {
-    pullRequest(number:$number) {
+gh api graphql -f query='query(
+  $owner: String!
+  $repo: String!
+  $number: Int!
+  $pageSize: Int!
+  $commentsAfter: String
+  $reviewsAfter: String
+  $threadsAfter: String
+) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
       number
       url
       headRefName
       headRefOid
-      comments(first:100) {
+      comments(first: $pageSize, after: $commentsAfter) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           body
           createdAt
@@ -156,7 +179,8 @@ gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $thr
           author { login }
         }
       }
-      reviews(first:100) {
+      reviews(first: $pageSize, after: $reviewsAfter) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           body
           state
@@ -166,11 +190,13 @@ gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $thr
           commit { oid }
         }
       }
-      reviewThreads(first:$threads) {
+      reviewThreads(first: $pageSize, after: $threadsAfter) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           id
           isResolved
-          comments(first:50) {
+          comments(first: $pageSize) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               body
               createdAt
@@ -186,10 +212,14 @@ gh api graphql -f query='query($owner:String!, $repo:String!, $number:Int!, $thr
 -F owner="$OWNER" \
 -F repo="$REPO" \
 -F number="$PR_NUMBER" \
--F threads="${MAX_THREADS:-100}"
+-F pageSize="${PAGE_SIZE:-100}"
 ```
 
-Build these facts from the response:
+If a review thread's nested `comments.pageInfo.hasNextPage` is true,
+fetch that thread by node ID and keep paging its comments before using
+that thread to decide whether feedback remains unresolved.
+
+Build these facts from the complete paginated activity set:
 
 - latest exact trigger comment with body `/coder-agents-review`
 - latest top-level comment from the review app
@@ -343,4 +373,5 @@ When the loop finishes, report:
 - Never claim success without explicit app approval evidence.
 - Never ignore unresolved actionable app feedback.
 - Never skip validation after making changes.
+- Never derive approval or completion from unpaginated PR activity.
 - Prefer `gh` and repo-native helpers over manual browser work.
