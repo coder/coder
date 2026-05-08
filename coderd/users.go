@@ -1374,18 +1374,13 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	var err error
-
-	var updatedTaskAlertDismissed bool
-	if params.TaskNotificationAlertDismissed != nil {
-		updatedTaskAlertDismissed, err = api.Database.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
-			UserID:                         user.ID,
-			TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
-		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error updating user task notification alert dismissed.",
-				Detail:  err.Error(),
+	var settings codersdk.UserPreferenceSettings
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		if params.TaskNotificationAlertDismissed != nil {
+			settings.TaskNotificationAlertDismissed, err = tx.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
+				UserID:                         user.ID,
+				TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
 			})
 			return
 		}
@@ -1396,7 +1391,14 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				Message: "Error reading task notification alert dismissed.",
 				Detail:  err.Error(),
 			})
-			return
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating user task notification alert dismissed.", err)
+			}
+		} else {
+			settings.TaskNotificationAlertDismissed, err = tx.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading task notification alert dismissed.", err)
+			}
 		}
 	}
 
@@ -1423,40 +1425,40 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			})
 			return
 		}
-		resolvedThinkingMode = sanitizeThinkingDisplayMode(stored)
-	}
-
-	var resolvedCodeDiffMode codersdk.AgentDisplayMode
-	if params.CodeDiffDisplayMode != "" {
-		updated, err := api.Database.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
-			UserID:              user.ID,
-			CodeDiffDisplayMode: string(params.CodeDiffDisplayMode),
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user preference settings.",
+			Detail:  err.Error(),
 		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error updating code diff display mode.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		resolvedCodeDiffMode = codersdk.AgentDisplayMode(updated)
-	} else {
-		stored, err := api.Database.GetUserCodeDiffDisplayMode(ctx, user.ID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading code diff display mode.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		resolvedCodeDiffMode = sanitizeAgentDisplayMode(stored)
+		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
-		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
-		ThinkingDisplayMode:            resolvedThinkingMode,
-		CodeDiffDisplayMode:            resolvedCodeDiffMode,
-	})
+	httpapi.Write(ctx, rw, http.StatusOK, settings)
+}
+
+type userPreferenceSettingsAPIError struct {
+	statusCode int
+	response   codersdk.Response
+	err        error
+}
+
+func newUserPreferenceSettingsAPIError(message string, err error) userPreferenceSettingsAPIError {
+	return userPreferenceSettingsAPIError{
+		statusCode: http.StatusInternalServerError,
+		response: codersdk.Response{
+			Message: message,
+			Detail:  err.Error(),
+		},
+		err: err,
+	}
+
+}
+
+func (e userPreferenceSettingsAPIError) Error() string {
+	return fmt.Sprintf("%s: %s", e.response.Message, e.err)
+}
+
+func (e userPreferenceSettingsAPIError) Unwrap() error {
+	return e.err
 }
 
 const (
