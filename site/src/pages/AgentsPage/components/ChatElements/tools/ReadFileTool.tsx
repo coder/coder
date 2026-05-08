@@ -15,6 +15,31 @@ import {
 	type ToolStatus,
 } from "./utils";
 
+export const ReadFileContent: React.FC<{
+	path: string;
+	content: string;
+}> = ({ path, content }) => {
+	const theme = useTheme();
+	const isDark = theme.palette.mode === "dark";
+
+	return (
+		<ScrollArea
+			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			viewportClassName="max-h-64"
+			scrollBarClassName="w-1.5"
+		>
+			<FileViewer
+				file={{
+					name: path,
+					contents: content,
+				}}
+				options={getFileViewerOptionsMinimal(isDark)}
+				style={DIFFS_FONT_STYLE}
+			/>
+		</ScrollArea>
+	);
+};
+
 /**
  * Collapsed-by-default rendering for `read_file` tool calls. Shows
  * "Read <filename>" with a chevron; expanding reveals the file viewer.
@@ -26,8 +51,6 @@ export const ReadFileTool: React.FC<{
 	isError: boolean;
 	errorMessage?: string;
 }> = ({ path, content, status, isError, errorMessage }) => {
-	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
 	const hasContent = content.length > 0;
 	const isRunning = status === "running";
 	const filename = path.split("/").pop() || path;
@@ -56,20 +79,7 @@ export const ReadFileTool: React.FC<{
 				</>
 			}
 		>
-			<ScrollArea
-				className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-				viewportClassName="max-h-64"
-				scrollBarClassName="w-1.5"
-			>
-				<FileViewer
-					file={{
-						name: path,
-						contents: content,
-					}}
-					options={getFileViewerOptionsMinimal(isDark)}
-					style={DIFFS_FONT_STYLE}
-				/>
-			</ScrollArea>
+			<ReadFileContent path={path} content={content} />
 		</ToolCollapsible>
 	);
 };

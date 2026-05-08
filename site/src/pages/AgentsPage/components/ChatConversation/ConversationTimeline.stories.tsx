@@ -2207,6 +2207,112 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 	},
 };
 
+export const SequentialReadFilesCollapsed: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [{ type: "text", text: "I'll inspect the relevant files." }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "read-1",
+						tool_name: "read_file",
+						args: { path: "site/src/a.ts" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "read-1",
+						tool_name: "read_file",
+						result: { content: "export const a = 1;" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "read-2",
+						tool_name: "read_file",
+						args: { path: "site/src/b.ts" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 5,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "read-2",
+						tool_name: "read_file",
+						result: { content: "export const b = 2;" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 6,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "read-3",
+						tool_name: "read_file",
+						args: { path: "site/src/c.ts" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 7,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "read-3",
+						tool_name: "read_file",
+						result: { content: "export const c = 3;" },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const groupButton = canvas.getByRole("button", { name: /read 3 files/i });
+		expect(groupButton).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /read a\.ts/i }),
+		).not.toBeInTheDocument();
+		await userEvent.click(groupButton);
+		await waitFor(() => {
+			expect(canvas.getByText("site/src/a.ts")).toBeVisible();
+			expect(canvas.getByText("site/src/b.ts")).toBeVisible();
+			expect(canvas.getByText("site/src/c.ts")).toBeVisible();
+		});
+	},
+};
+
 /** Collapsed thinking should visually align with adjacent tool calls. */
 export const ThinkingBlockWithToolCall: Story = {
 	parameters: {

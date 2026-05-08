@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { appendTextBlock, asNonEmptyString } from "./blockUtils";
-import type { RenderBlock } from "./types";
+import {
+	appendTextBlock,
+	asNonEmptyString,
+	groupSequentialReadFileBlocks,
+} from "./blockUtils";
+import type { MergedTool, RenderBlock } from "./types";
 
 // ---------------------------------------------------------------------------
 // asNonEmptyString
@@ -94,5 +98,112 @@ describe("appendTextBlock", () => {
 		expect(blocks).toHaveLength(1);
 		expect((blocks[0] as { text: string }).text).toBe("original");
 		expect(result).not.toBe(blocks);
+	});
+});
+
+describe("groupSequentialReadFileBlocks", () => {
+	const tools: MergedTool[] = [
+		{
+			id: "read-1",
+			name: "read_file",
+			args: { path: "a.ts" },
+			result: { content: "a" },
+			isError: false,
+			status: "completed",
+		},
+		{
+			id: "read-2",
+			name: "read_file",
+			args: { path: "b.ts" },
+			result: { content: "b" },
+			isError: false,
+			status: "completed",
+		},
+		{
+			id: "execute-1",
+			name: "execute",
+			args: { command: "pwd" },
+			result: { output: "/home/coder" },
+			isError: false,
+			status: "completed",
+		},
+	];
+
+	it("collapses consecutive read_file tool blocks", () => {
+		const result = groupSequentialReadFileBlocks(
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "read-2" },
+			],
+			tools,
+		);
+
+		expect(result).toEqual([
+			{
+				type: "tool-group",
+				toolName: "read_file",
+				ids: ["read-1", "read-2"],
+			},
+		]);
+	});
+
+	it("leaves a single read_file tool block ungrouped", () => {
+		const result = groupSequentialReadFileBlocks(
+			[{ type: "tool", id: "read-1" }],
+			tools,
+		);
+
+		expect(result).toEqual([{ type: "tool", id: "read-1" }]);
+	});
+
+	it("does not collapse read_file blocks across other content", () => {
+		const result = groupSequentialReadFileBlocks(
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "response", text: "middle" },
+				{ type: "tool", id: "read-2" },
+			],
+			tools,
+		);
+
+		expect(result).toEqual([
+			{ type: "tool", id: "read-1" },
+			{ type: "response", text: "middle" },
+			{ type: "tool", id: "read-2" },
+		]);
+	});
+
+	it("does not collapse read_file blocks across another tool", () => {
+		const result = groupSequentialReadFileBlocks(
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "execute-1" },
+				{ type: "tool", id: "read-2" },
+			],
+			tools,
+		);
+
+		expect(result).toEqual([
+			{ type: "tool", id: "read-1" },
+			{ type: "tool", id: "execute-1" },
+			{ type: "tool", id: "read-2" },
+		]);
+	});
+
+	it("keeps unresolved tool blocks ungrouped", () => {
+		const result = groupSequentialReadFileBlocks(
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "missing" },
+				{ type: "tool", id: "read-2" },
+			],
+			tools,
+		);
+
+		expect(result).toEqual([
+			{ type: "tool", id: "read-1" },
+			{ type: "tool", id: "missing" },
+			{ type: "tool", id: "read-2" },
+		]);
 	});
 });
