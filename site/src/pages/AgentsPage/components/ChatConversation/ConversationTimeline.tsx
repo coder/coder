@@ -215,9 +215,6 @@ const SmoothedResponse = memo<{
 	);
 });
 
-const READ_FILE_TIMELINE_BLOCK_CLASS_NAME =
-	"py-0.5 [&:has(+[data-tool-call])]:pb-0 [[data-tool-call]+&]:pt-0";
-
 const ReadFileTimelineBlock = memo<{
 	tools: readonly MergedTool[];
 }>(({ tools }) => {
@@ -233,7 +230,10 @@ const ReadFileTimelineBlock = memo<{
 		const result = asRecord(firstTool.result);
 		const content = result ? asString(result.content).trim() : "";
 		return (
-			<div data-tool-call="" className={READ_FILE_TIMELINE_BLOCK_CLASS_NAME}>
+			<div
+				data-tool-call=""
+				className="py-0.5 [&:has(+[data-tool-call])]:pb-0 [[data-tool-call]+&]:pt-0"
+			>
 				<ReadFileTool
 					path={path || "file"}
 					content={content}
