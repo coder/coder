@@ -14922,6 +14922,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentDisplayMode": {
+            "type": "string",
+            "enum": [
+                "auto",
+                "always_expanded",
+                "always_collapsed"
+            ],
+            "x-enum-varnames": [
+                "AgentDisplayModeAuto",
+                "AgentDisplayModeAlwaysExpanded",
+                "AgentDisplayModeAlwaysCollapsed"
+            ]
+        },
         "codersdk.AgentScriptTiming": {
             "type": "object",
             "properties": {
@@ -23434,6 +23447,9 @@ const docTemplate = `{
         "codersdk.UpdateUserPreferenceSettingsRequest": {
             "type": "object",
             "properties": {
+                "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
                 },
@@ -23916,6 +23932,9 @@ const docTemplate = `{
         "codersdk.UserPreferenceSettings": {
             "type": "object",
             "properties": {
+                "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
                 },

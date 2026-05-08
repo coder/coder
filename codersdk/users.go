@@ -318,11 +318,13 @@ type UpdateUserAppearanceSettingsRequest struct {
 type UserPreferenceSettings struct {
 	TaskNotificationAlertDismissed bool                `json:"task_notification_alert_dismissed"`
 	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode"`
+	CodeDiffDisplayMode            AgentDisplayMode    `json:"code_diff_display_mode"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
 	TaskNotificationAlertDismissed *bool               `json:"task_notification_alert_dismissed,omitempty"`
 	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode,omitempty"`
+	CodeDiffDisplayMode            AgentDisplayMode    `json:"code_diff_display_mode,omitempty"`
 }
 
 type ThinkingDisplayMode string
@@ -339,6 +341,20 @@ var ValidThinkingDisplayModes = []ThinkingDisplayMode{
 	ThinkingDisplayModePreview,
 	ThinkingDisplayModeAlwaysExpanded,
 	ThinkingDisplayModeAlwaysCollapsed,
+}
+
+type AgentDisplayMode string
+
+const (
+	AgentDisplayModeAuto            AgentDisplayMode = "auto"
+	AgentDisplayModeAlwaysExpanded  AgentDisplayMode = "always_expanded"
+	AgentDisplayModeAlwaysCollapsed AgentDisplayMode = "always_collapsed"
+)
+
+var ValidAgentDisplayModes = []AgentDisplayMode{
+	AgentDisplayModeAuto,
+	AgentDisplayModeAlwaysExpanded,
+	AgentDisplayModeAlwaysCollapsed,
 }
 
 type UpdateUserPasswordRequest struct {

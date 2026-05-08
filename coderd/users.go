@@ -1317,9 +1317,19 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	codeDiffMode, err := api.Database.GetUserCodeDiffDisplayMode(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
+		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
 	})
 }
 
@@ -1349,7 +1359,17 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid thinking display mode.",
 			Validations: []codersdk.ValidationError{
-				{Field: "thinking_display_mode", Detail: "must be one of: auto, preview, always_expanded, always_collapsed"},
+				{Field: "thinking_display_mode", Detail: thinkingDisplayModeValidationDetail},
+			},
+		})
+		return
+	}
+	if params.CodeDiffDisplayMode != "" &&
+		!slices.Contains(codersdk.ValidAgentDisplayModes, params.CodeDiffDisplayMode) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid code diff display mode.",
+			Validations: []codersdk.ValidationError{
+				{Field: "code_diff_display_mode", Detail: agentDisplayModeValidationDetail},
 			},
 		})
 		return
@@ -1406,11 +1426,43 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		resolvedThinkingMode = sanitizeThinkingDisplayMode(stored)
 	}
 
+	var resolvedCodeDiffMode codersdk.AgentDisplayMode
+	if params.CodeDiffDisplayMode != "" {
+		updated, err := api.Database.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
+			UserID:              user.ID,
+			CodeDiffDisplayMode: string(params.CodeDiffDisplayMode),
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating code diff display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resolvedCodeDiffMode = codersdk.AgentDisplayMode(updated)
+	} else {
+		stored, err := api.Database.GetUserCodeDiffDisplayMode(ctx, user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading code diff display mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resolvedCodeDiffMode = sanitizeAgentDisplayMode(stored)
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: updatedTaskAlertDismissed,
 		ThinkingDisplayMode:            resolvedThinkingMode,
+		CodeDiffDisplayMode:            resolvedCodeDiffMode,
 	})
 }
+
+const (
+	thinkingDisplayModeValidationDetail = "must be one of: auto, preview, always_expanded, always_collapsed"
+	agentDisplayModeValidationDetail    = "must be one of: auto, always_expanded, always_collapsed"
+)
 
 func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
 	mode := codersdk.ThinkingDisplayMode(raw)
@@ -1418,6 +1470,14 @@ func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
 		return mode
 	}
 	return codersdk.ThinkingDisplayModeAuto
+}
+
+func sanitizeAgentDisplayMode(raw string) codersdk.AgentDisplayMode {
+	mode := codersdk.AgentDisplayMode(raw)
+	if slices.Contains(codersdk.ValidAgentDisplayModes, mode) {
+		return mode
+	}
+	return codersdk.AgentDisplayModeAuto
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {

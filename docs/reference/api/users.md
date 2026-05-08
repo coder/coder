@@ -1310,6 +1310,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
+  "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -1341,6 +1342,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
+  "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -1359,6 +1361,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
+  "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }

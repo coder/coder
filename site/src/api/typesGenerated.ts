@@ -839,6 +839,15 @@ export interface AgentConnectionTiming {
 	readonly workspace_agent_name: string;
 }
 
+// From codersdk/users.go
+export type AgentDisplayMode = "always_collapsed" | "always_expanded" | "auto";
+
+export const AgentDisplayModes: AgentDisplayMode[] = [
+	"always_collapsed",
+	"always_expanded",
+	"auto",
+];
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
@@ -8385,6 +8394,7 @@ export interface UpdateUserPasswordRequest {
 export interface UpdateUserPreferenceSettingsRequest {
 	readonly task_notification_alert_dismissed?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
+	readonly code_diff_display_mode?: AgentDisplayMode;
 }
 
 // From codersdk/users.go
@@ -8782,6 +8792,7 @@ export interface UserParameter {
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
+	readonly code_diff_display_mode: AgentDisplayMode;
 }
 
 // From codersdk/deployment.go
