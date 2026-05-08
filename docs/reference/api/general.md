@@ -585,6 +585,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "user": {}
       }
     },
+    "template_builder": {
+      "enabled": true,
+      "registry_url": "string"
+    },
     "terms_of_service_url": "string",
     "tls": {
       "address": {

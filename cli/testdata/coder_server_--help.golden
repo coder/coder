@@ -847,6 +847,15 @@ when required by your organization's security policy.
           Whether telemetry is enabled or not. Coder collects anonymized usage
           data to help improve our product.
 
+TEMPLATE BUILDER OPTIONS: 
+      --template-builder-enabled bool, $CODER_TEMPLATE_BUILDER_ENABLED (default: false)
+          Whether to enable the template builder feature for guided template
+          creation.
+
+      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
+          The base URL of the module registry used by the template builder for
+          module source paths.
+
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template scheduling.

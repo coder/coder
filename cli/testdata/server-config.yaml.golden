@@ -911,3 +911,11 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+templateBuilder:
+  # Whether to enable the template builder feature for guided template creation.
+  # (default: false, type: bool)
+  enabled: false
+  # The base URL of the module registry used by the template builder for module
+  # source paths.
+  # (default: https://registry.coder.com, type: string)
+  registryURL: https://registry.coder.com
