@@ -1175,7 +1175,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								className="h-7 w-full rounded-md border border-solid border-border bg-transparent pl-7 pr-2 text-xs text-content-primary placeholder:text-content-disabled focus:border-border-hover focus:outline-none"
 							/>
 						</div>
-						<div className="max-h-40 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-quaternary [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surface-tertiary">
+						<div
+								className="max-h-40 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-quaternary [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surface-tertiary"
+								style={{ scrollbarColor: "hsl(var(--surface-quaternary)) hsl(var(--surface-tertiary))", scrollbarWidth: "thin" }}
+							>
 							<FilterCheckboxSection
 								title="PR status"
 								options={PR_STATUS_OPTIONS}
