@@ -1148,7 +1148,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	}
 
 	const filterDropdown = (
-		<Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+		<Popover open={filterPopoverOpen} onOpenChange={(open) => {
+				if (open) setFilterPopoverOpen(true);
+			}}>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -1174,6 +1176,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				sideOffset={2}
 				alignOffset={6}
 				className="w-[225px] overflow-y-hidden p-0"
+				onPointerDownOutside={() => setFilterPopoverOpen(false)}
+				onEscapeKeyDown={() => setFilterPopoverOpen(false)}
 			>
 				<div className="flex flex-col">
 					{/* Group section */}
