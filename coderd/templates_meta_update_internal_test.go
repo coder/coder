@@ -335,8 +335,8 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			},
 			expected: expected{
 				override: func(r *templateMetaUpdate) {
-					r.autostopRequirementDaysOfWeekParsed = 0
-					r.autostopRequirementWeeks = 1
+					r.autostopRequirementDaysOfWeekParsed = 1
+					r.autostopRequirementWeeks = 2
 				},
 				validErrFields: []string{"autostop_requirement.days_of_week"},
 			},
@@ -361,7 +361,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			},
 			expected: expected{
 				override: func(r *templateMetaUpdate) {
-					r.autostartRequirementDaysOfWeekParsed = 0
+					r.autostartRequirementDaysOfWeekParsed = 64
 				},
 				validErrFields: []string{"autostart_requirement.days_of_week"},
 			},
