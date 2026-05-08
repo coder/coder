@@ -38,6 +38,7 @@ type process struct {
 	cmd        *exec.Cmd
 	cancel     context.CancelFunc
 	buf        *HeadTailBuffer
+	logger     slog.Logger
 	running    bool
 	exitCode   *int
 	startedAt  int64
@@ -105,6 +106,10 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	m.mu.Unlock()
 
 	id := uuid.New().String()
+	logger := m.logger
+	if chatID != "" {
+		logger = logger.With(slog.F("chat_id", chatID))
+	}
 
 	// Use a cancellable context so Close() can terminate
 	// all processes. context.Background() is the parent so
@@ -132,7 +137,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	if m.updateEnv != nil {
 		updated, err := m.updateEnv(baseEnv)
 		if err != nil {
-			m.logger.Warn(
+			logger.Warn(
 				context.Background(),
 				"failed to update command environment, falling back to os env",
 				slog.Error(err),
@@ -169,6 +174,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		cmd:        cmd,
 		cancel:     cancel,
 		buf:        buf,
+		logger:     logger,
 		running:    true,
 		startedAt:  now,
 		done:       make(chan struct{}),
@@ -202,7 +208,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 			} else {
 				// Unknown error; use -1 as a sentinel.
 				code = -1
-				m.logger.Warn(
+				proc.logger.Warn(
 					context.Background(),
 					"process wait returned non-exit error",
 					slog.F("id", id),
