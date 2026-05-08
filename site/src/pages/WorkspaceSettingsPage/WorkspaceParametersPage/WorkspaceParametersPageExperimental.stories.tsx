@@ -14,10 +14,11 @@ import {
 import { API } from "#/api/api";
 import { workspaceBuildParametersKey } from "#/api/queries/workspaceBuilds";
 import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
-import type { SecretRequirementStatus, Workspace } from "#/api/typesGenerated";
+import type { Workspace } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockDropdownParameter,
+	MockMissingSecretRequirement,
 	MockPermissions,
 	MockPreviewParameter,
 	MockStoppedWorkspace,
@@ -77,6 +78,33 @@ export const NoParameters: Story = {
 				}),
 			},
 		],
+	},
+};
+
+export const NoParametersWithMissingSecretRequirement: Story = {
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify({
+					id: 0,
+					diagnostics: [],
+					parameters: [],
+					secret_requirements: [MockMissingSecretRequirement],
+				}),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const updateBtn = await canvas.findByRole("button", {
+			name: "Update and restart",
+		});
+		await expect(updateBtn).toBeDisabled();
+		await expect(
+			canvas.getByRole("table", { name: /required secrets/i }),
+		).toBeVisible();
+		expect(canvas.queryByText("This workspace has no parameters")).toBeNull();
 	},
 };
 
@@ -156,10 +184,42 @@ export const StartWorkspace: Story = {
 	},
 };
 
-const missingDeployKeySecret: SecretRequirementStatus = {
-	file: "~/.ssh/id_deploy",
-	help_message: "Add an SSH deploy key with file=~/.ssh/id_deploy",
-	satisfied: false,
+export const SecretRequirementResolved: Story = {
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify({
+					id: 0,
+					diagnostics: [],
+					parameters: [],
+					secret_requirements: [MockMissingSecretRequirement],
+				}),
+			},
+			{
+				event: "message",
+				data: JSON.stringify({
+					id: 1,
+					diagnostics: [],
+					parameters: [],
+					secret_requirements: [
+						{
+							...MockMissingSecretRequirement,
+							satisfied: true,
+						},
+					],
+				}),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const updateBtn = await canvas.findByRole("button", {
+			name: "Update and restart",
+		});
+		await waitFor(() => expect(updateBtn).toBeEnabled());
+		await expect(canvas.getByText("Satisfied")).toBeInTheDocument();
+	},
 };
 
 export const MissingSecretRequirement: Story = {
@@ -177,7 +237,7 @@ export const MissingSecretRequirement: Story = {
 						},
 						MockDropdownParameter,
 					],
-					secret_requirements: [missingDeployKeySecret],
+					secret_requirements: [MockMissingSecretRequirement],
 				}),
 			},
 		],

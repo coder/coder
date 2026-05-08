@@ -30,6 +30,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { hasMissingSecrets } from "#/modules/workspaces/SecretsTable/SecretsTable";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
@@ -148,6 +149,13 @@ const CreateWorkspacePage: FC = () => {
 		if (latestResponse && latestResponse?.id >= response.id) {
 			return;
 		}
+
+		// Skip stale responses. If we've already sent a newer request, this
+		// response contains outdated parameter values that would overwrite the
+		// user's more recent input.
+		if (response.id < wsResponseId.current) {
+			return;
+		}
 		wsResponseId.current = Math.max(wsResponseId.current, response.id);
 
 		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
@@ -244,27 +252,34 @@ const CreateWorkspacePage: FC = () => {
 		!isLoadingExternalAuth &&
 			externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
+	const secretRequirements = latestResponse?.secret_requirements ?? [];
+	const hasAllRequiredSecrets = Boolean(
+		latestResponse && !hasMissingSecrets(secretRequirements),
+	);
 
 	let autoCreateReady =
-		mode === "auto" && hasAllRequiredExternalAuth && autoCreateConsented;
+		mode === "auto" &&
+		hasAllRequiredExternalAuth &&
+		autoCreateConsented &&
+		hasAllRequiredSecrets;
 
 	const showAutoCreateConsent =
 		mode === "auto" && !autoCreateConsented && !autoCreateError;
 
-	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
+	// `mode=auto` was set, but a prerequisite has failed.
 	if (
 		Boolean(realizedVersionId) &&
 		mode === "auto" &&
 		!isLoadingExternalAuth &&
 		!hasAllRequiredExternalAuth
 	) {
-		// Prevent suddenly resuming auto-mode if the user connects to all of the required
-		// external auth providers.
+		// Prevent suddenly resuming auto-mode if the user connects to all
+		// required external auth providers.
 		setMode("form");
-		// Ensure this is always false, so that we don't ever let `automateWorkspaceCreation`
-		// fire when we're trying to disable it.
+		// Ensure `automateWorkspaceCreation` does not fire while we are
+		// trying to disable auto-mode.
 		autoCreateReady = false;
-		// Show an error message to explain _why_ the workspace was not created automatically.
+		// Show why the workspace was not created automatically.
 		const subject =
 			externalAuth?.length === 1
 				? "an external authentication provider that is"
@@ -273,6 +288,26 @@ const CreateWorkspacePage: FC = () => {
 			message: `This template requires ${subject} not connected.`,
 			detail:
 				"Auto-creation has been disabled. Please connect all required external authentication providers before continuing.",
+		});
+	}
+
+	if (
+		Boolean(realizedVersionId) &&
+		mode === "auto" &&
+		latestResponse &&
+		hasMissingSecrets(secretRequirements)
+	) {
+		// Prevent suddenly resuming auto-mode if the user creates the required
+		// secrets while this page is still open.
+		setMode("form");
+		// Ensure `automateWorkspaceCreation` does not fire while we are
+		// trying to disable auto-mode.
+		autoCreateReady = false;
+		// Show why the workspace was not created automatically.
+		setAutoCreateError({
+			message: "This template requires secrets that are missing.",
+			detail:
+				"Auto-creation has been disabled. Please create or update all required secrets for the workspace owner before continuing.",
 		});
 	}
 
@@ -286,7 +321,7 @@ const CreateWorkspacePage: FC = () => {
 		if (!latestResponse?.parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+		return latestResponse.parameters.toSorted((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
 	const shouldShowLoader =
@@ -338,7 +373,7 @@ const CreateWorkspacePage: FC = () => {
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={sortedParams}
 					presets={templateVersionPresetsQuery.data ?? []}
-					secretRequirements={latestResponse?.secret_requirements ?? []}
+					secretRequirements={secretRequirements}
 					creatingWorkspace={createWorkspaceMutation.isPending}
 					sendMessage={sendMessage}
 					onCancel={() => {

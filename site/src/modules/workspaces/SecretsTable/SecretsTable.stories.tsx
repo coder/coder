@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { SecretRequirementStatus } from "#/api/typesGenerated";
-import { SecretsTable } from "./SecretsTable";
+import { SecretsTable, secretRequirementLabel } from "./SecretsTable";
 
 const meta: Meta<typeof SecretsTable> = {
 	title: "modules/workspaces/SecretsTable",
@@ -42,24 +42,32 @@ const expectSecretsTable = async (
 ) => {
 	const canvas = within(canvasElement);
 	const table = canvas.getByRole("table", { name: /required secrets/i });
-	const rows = canvas.getAllByRole("row");
-	const missingCount = requirements.filter(
-		(requirement) => !requirement.satisfied,
-	).length;
-
-	expect(table).toBeVisible();
-	expect(rows).toHaveLength(requirements.length);
-
+	const rows = within(table).getAllByRole("row");
 	const expectedRequirements = [
 		...requirements.filter((requirement) => !requirement.satisfied),
 		...requirements.filter((requirement) => requirement.satisfied),
-	];
-	for (const [index, requirement] of expectedRequirements.entries()) {
-		expect(rows[index]).toHaveTextContent(secretRequirementTarget(requirement));
+	].flatMap((requirement) => {
+		const label = secretRequirementLabel(requirement);
+		return label ? [{ requirement, label }] : [];
+	});
+	const missingCount = expectedRequirements.filter(
+		({ requirement }) => !requirement.satisfied,
+	).length;
+
+	expect(table).toBeVisible();
+	expect(rows).toHaveLength(expectedRequirements.length + 1);
+	expect(rows[0]).toHaveTextContent(/status/i);
+	expect(rows[0]).toHaveTextContent(/secret/i);
+	expect(rows[0]).toHaveTextContent(/description/i);
+	expect(rows[0]).toHaveTextContent(/action/i);
+
+	const bodyRows = rows.slice(1);
+	for (const [index, { label }] of expectedRequirements.entries()) {
+		expect(bodyRows[index]).toHaveTextContent(label);
 	}
 
 	const manageSecretsLink = canvas.getByRole("link", {
-		name: /manage secrets/i,
+		name: /view cli documentation/i,
 	});
 	expect(manageSecretsLink).toBeVisible();
 	expect(manageSecretsLink).toHaveAttribute(
@@ -69,11 +77,14 @@ const expectSecretsTable = async (
 	expect(manageSecretsLink).toHaveAttribute("target", "_blank");
 
 	if (missingCount >= 1) {
-		const addSecretLinks = canvas.getAllByRole("link", {
-			name: /add secret/i,
+		const copyCommandButtons = canvas.getAllByRole("button", {
+			name: /copy command for/i,
 		});
-		expect(addSecretLinks).toHaveLength(missingCount);
-		for (const link of addSecretLinks) {
+		expect(copyCommandButtons).toHaveLength(missingCount);
+
+		const docsLinks = canvas.getAllByRole("link", { name: "Docs" });
+		expect(docsLinks).toHaveLength(missingCount);
+		for (const link of docsLinks) {
 			expect(link).toHaveAttribute(
 				"href",
 				expect.stringContaining("/reference/cli/secret_create"),
@@ -83,11 +94,10 @@ const expectSecretsTable = async (
 		return;
 	}
 
-	expect(canvas.queryByRole("link", { name: /add secret/i })).toBeNull();
-};
-
-const secretRequirementTarget = (requirement: SecretRequirementStatus) => {
-	return requirement.file || requirement.env || "Unknown secret";
+	expect(
+		canvas.queryByRole("button", { name: /copy command for/i }),
+	).toBeNull();
+	expect(canvas.queryByRole("link", { name: "Docs" })).toBeNull();
 };
 
 const githubTokenHelpMessage = "Add a GitHub PAT with env=GITHUB_TOKEN";
@@ -102,6 +112,18 @@ const awsCredentials: SecretRequirementStatus = {
 	file: "~/.aws/credentials",
 	help_message: "Add AWS credentials file",
 	satisfied: true,
+};
+
+export const Empty: Story = {
+	args: {
+		requirements: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("table", { name: /required secrets/i }),
+		).toBeNull();
+	},
 };
 
 export const AllSatisfied: Story = {
@@ -149,7 +171,7 @@ export const TooltipOnlyWhenTruncated: Story = {
 		requirements: [githubToken, awsCredentials],
 	},
 	render: (args) => (
-		<div style={{ width: 640 }}>
+		<div style={{ width: 1024 }}>
 			<SecretsTable {...args} />
 		</div>
 	),

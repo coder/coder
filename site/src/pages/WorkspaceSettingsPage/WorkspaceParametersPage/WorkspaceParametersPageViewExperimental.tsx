@@ -18,7 +18,10 @@ import {
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
-import { SecretsTable } from "#/modules/workspaces/SecretsTable/SecretsTable";
+import {
+	hasMissingSecrets,
+	SecretsTable,
+} from "#/modules/workspaces/SecretsTable/SecretsTable";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -56,13 +59,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	onCancel,
 	templateVersionId,
 }) => {
-	const secretsBlocking = secretRequirements.some(
-		(requirement) => !requirement.satisfied,
-	);
+	const hasAllRequiredSecrets = !hasMissingSecrets(secretRequirements);
 
 	const form = useFormik({
 		onSubmit: (values) => {
-			if (secretsBlocking) {
+			if (!hasAllRequiredSecrets) {
+				// The submit button is disabled in this state. Keep the guard in
+				// case the form is submitted programmatically or stale state wins
+				// a race with a websocket update.
 				return;
 			}
 			onSubmit(values);
@@ -231,7 +235,10 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				className="flex flex-col gap-8"
 				data-testid="form"
 			>
-				<SecretsTable requirements={secretRequirements} />
+				<SecretsTable
+					requirements={secretRequirements}
+					ownerName={workspace.owner_name}
+				/>
 
 				{parameters.length > 0 && (
 					<section className="flex flex-col gap-9">
@@ -298,7 +305,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						disabled={
 							isSubmitting ||
 							disabled ||
-							secretsBlocking ||
+							!hasAllRequiredSecrets ||
 							hasUnsyncedParameters ||
 							diagnostics.some(
 								(diagnostic) => diagnostic.severity === "error",

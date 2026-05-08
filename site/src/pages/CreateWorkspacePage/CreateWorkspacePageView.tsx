@@ -49,7 +49,10 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
-import { SecretsTable } from "#/modules/workspaces/SecretsTable/SecretsTable";
+import {
+	hasMissingSecrets,
+	SecretsTable,
+} from "#/modules/workspaces/SecretsTable/SecretsTable";
 import { docs } from "#/utils/docs";
 import { nameValidator } from "#/utils/formUtils";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -124,9 +127,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
-	const secretsBlocking = secretRequirements.some(
-		(requirement) => !requirement.satisfied,
-	);
+	const hasAllRequiredSecrets = !hasMissingSecrets(secretRequirements);
 
 	const autofillByName = Object.fromEntries(
 		autofillParameters.map((param) => [param.name, param]),
@@ -171,7 +172,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				if (!hasAllRequiredExternalAuth) {
 					return;
 				}
-				if (secretsBlocking) {
+				if (!hasAllRequiredSecrets) {
+					// The submit button is disabled in this state. Keep the guard in
+					// case the form is submitted programmatically or stale state wins
+					// a race with a websocket update.
 					return;
 				}
 
@@ -379,7 +383,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const disabled =
 		creatingWorkspace ||
 		!hasAllRequiredExternalAuth ||
-		secretsBlocking ||
+		!hasAllRequiredSecrets ||
 		diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
 		parameters.some((parameter) =>
 			parameter.diagnostics.some(
@@ -578,7 +582,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 						</section>
 					)}
 
-					<SecretsTable requirements={secretRequirements} />
+					<SecretsTable
+						requirements={secretRequirements}
+						ownerName={owner.username}
+					/>
 
 					{parameters.length === 0 && diagnostics.length > 0 && (
 						<Diagnostics diagnostics={diagnostics} />

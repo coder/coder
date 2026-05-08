@@ -7,6 +7,7 @@ import {
 	MockDropdownParameter,
 	MockDynamicParametersResponse,
 	MockDynamicParametersResponseWithError,
+	MockMissingSecretRequirement,
 	MockPermissions,
 	MockPreviewParameter,
 	MockSliderParameter,
@@ -198,6 +199,51 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => {
 				expect(screen.queryByText("CPU Count")).toBeInTheDocument();
 				expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
+			});
+		});
+
+		it("ignores stale responses after newer requests are sent", async () => {
+			const [mockWebSocket, mockPublisher] = mockDynamicParameterWebSocket([
+				MockDropdownParameter,
+			]);
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			const instanceTypeField = screen.getByTestId(
+				"parameter-field-instance_type",
+			);
+			const instanceTypeSelect =
+				within(instanceTypeField).getByRole("combobox");
+
+			await userEvent.click(instanceTypeSelect);
+			await userEvent.click(
+				await screen.findByRole("option", { name: /t3\.small/i }),
+			);
+			await waitFor(() => expect(mockWebSocket.send).toHaveBeenCalledTimes(1));
+
+			await userEvent.click(instanceTypeSelect);
+			await userEvent.click(
+				await screen.findByRole("option", { name: /t3\.medium/i }),
+			);
+			await waitFor(() => expect(mockWebSocket.send).toHaveBeenCalledTimes(2));
+
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 1,
+							parameters: [MockSliderParameter],
+							diagnostics: [],
+							secret_requirements: [],
+						}),
+					}),
+				);
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText("Instance Type")).toBeInTheDocument();
+				expect(screen.queryByText("CPU Count")).not.toBeInTheDocument();
 			});
 		});
 
@@ -438,6 +484,31 @@ describe("CreateWorkspacePage", () => {
 	});
 
 	describe("Auto-creation Mode", () => {
+		it("prevents auto-creation when required secrets are missing", async () => {
+			mockDynamicParameterWebSocket({
+				...MockDynamicParametersResponse,
+				secret_requirements: [MockMissingSecretRequirement],
+			});
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?mode=auto`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				expect(
+					screen.getByText(/requires secrets that are missing/i),
+				).toBeInTheDocument();
+				expect(
+					screen.getByText(/auto-creation has been disabled/i),
+				).toBeInTheDocument();
+			});
+			expect(
+				screen.getByRole("button", { name: /create workspace/i }),
+			).toBeDisabled();
+			expect(API.createWorkspace).not.toHaveBeenCalled();
+		});
+
 		it("falls back to form mode when auto-creation fails", async () => {
 			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 				MockTemplateVersionExternalAuthGithubAuthenticated,
@@ -450,7 +521,7 @@ describe("CreateWorkspacePage", () => {
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
 
-			// Consent dialog appears for mode=auto — confirm to proceed.
+			// Consent dialog appears for mode=auto, confirm to proceed.
 			const confirmButton = await screen.findByRole("button", {
 				name: /confirm and create/i,
 			});

@@ -21,6 +21,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { hasMissingSecrets } from "#/modules/workspaces/SecretsTable/SecretsTable";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -192,11 +193,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (!latestResponse?.parameters) {
 			return;
 		}
-		if (
-			latestResponse.secret_requirements?.some(
-				(requirement) => !requirement.satisfied,
-			)
-		) {
+		if (hasMissingSecrets(latestResponse.secret_requirements)) {
 			return;
 		}
 
@@ -228,11 +225,12 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (!latestResponse?.parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+		return latestResponse.parameters.toSorted((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
 	const error =
 		wsError || startWithParameters.error || restartWithParameters.error;
+	const secretRequirements = latestResponse?.secret_requirements ?? [];
 
 	if (
 		latestBuildParametersLoading ||
@@ -285,7 +283,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			{sortedParams.length > 0 ? (
+			{sortedParams.length > 0 || secretRequirements.length > 0 ? (
 				<WorkspaceParametersPageViewExperimental
 					templateVersionId={templateVersionId}
 					workspace={workspace}
@@ -293,7 +291,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
 					diagnostics={latestResponse?.diagnostics ?? []}
-					secretRequirements={latestResponse?.secret_requirements ?? []}
+					secretRequirements={secretRequirements}
 					isSubmitting={
 						startWithParameters.isPending || restartWithParameters.isPending
 					}

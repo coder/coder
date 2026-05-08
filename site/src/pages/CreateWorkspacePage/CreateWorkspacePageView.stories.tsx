@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { DetailedError } from "#/api/errors";
-import type {
-	PreviewParameter,
-	SecretRequirementStatus,
-} from "#/api/typesGenerated";
+import type { PreviewParameter } from "#/api/typesGenerated";
 import { chromatic } from "#/testHelpers/chromatic";
-import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockMissingSecretRequirement,
+	MockTemplate,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
@@ -22,6 +23,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		externalAuthPollingState: "idle",
 		hasAllRequiredExternalAuth: true,
 		mode: "form",
+		owner: MockUserOwner,
 		parameters: [],
 		permissions: {
 			createWorkspaceForAny: true,
@@ -30,6 +32,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		presets: [],
 		secretRequirements: [],
 		sendMessage: () => {},
+		setOwner: () => {},
 		template: MockTemplate,
 	},
 };
@@ -361,15 +364,9 @@ export const WithPresets: Story = {
 	},
 };
 
-const missingDeployKeySecret: SecretRequirementStatus = {
-	file: "~/.ssh/id_deploy",
-	help_message: "Add an SSH deploy key with file=~/.ssh/id_deploy",
-	satisfied: false,
-};
-
 export const MissingSecretRequirement: Story = {
 	args: {
-		secretRequirements: [missingDeployKeySecret],
+		secretRequirements: [MockMissingSecretRequirement],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -386,7 +383,7 @@ export const MissingSecretRequirement: Story = {
 		await expect(
 			canvas.getByText("Add an SSH deploy key with file=~/.ssh/id_deploy"),
 		).toBeVisible();
-		const link = canvas.getByRole("link", { name: /manage secrets/i });
+		const link = canvas.getByRole("link", { name: /view cli documentation/i });
 		// The link goes through docs(), which resolves to the coder.com docs
 		// URL at runtime. Match on the path suffix so versioned builds
 		// (`/@vX.Y.Z/`) don't break the assertion.
@@ -398,10 +395,31 @@ export const MissingSecretRequirement: Story = {
 	},
 };
 
+export const SatisfiedSecretRequirement: Story = {
+	args: {
+		secretRequirements: [
+			{
+				...MockMissingSecretRequirement,
+				satisfied: true,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const createBtn = canvas.getByRole("button", {
+			name: /create workspace/i,
+		});
+		await expect(createBtn).toBeEnabled();
+		await expect(
+			canvas.getByRole("table", { name: /required secrets/i }),
+		).toBeVisible();
+	},
+};
+
 export const MissingSecretRequirementWithParameters: Story = {
 	args: {
 		...WithParameters.args,
-		secretRequirements: [missingDeployKeySecret],
+		secretRequirements: [MockMissingSecretRequirement],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

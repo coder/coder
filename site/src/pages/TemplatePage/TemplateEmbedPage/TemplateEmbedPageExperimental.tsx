@@ -61,6 +61,12 @@ const TemplateEmbedPageExperimental: FC = () => {
 		if (latestResponse && latestResponse?.id >= response.id) {
 			return;
 		}
+		// Skip stale responses. If we've already sent a newer request, this
+		// response contains outdated parameter values that would overwrite the
+		// user's more recent input.
+		if (response.id < wsResponseId.current) {
+			return;
+		}
 		wsResponseId.current = Math.max(wsResponseId.current, response.id);
 
 		setLatestResponse(response);
@@ -105,7 +111,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 		if (!latestResponse?.parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+		return latestResponse.parameters.toSorted((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
 	const isLoading =

@@ -3533,6 +3533,12 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
+export const MockMissingSecretRequirement: TypesGen.SecretRequirementStatus = {
+	file: "~/.ssh/id_deploy",
+	help_message: "Add an SSH deploy key with file=~/.ssh/id_deploy",
+	satisfied: false,
+};
+
 export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
 	{
 		id: 1,
