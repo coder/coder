@@ -43,7 +43,7 @@ func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := api.logger.With(agentchat.Fields(ctx)...)
 
-	tools, err := api.manager.ListTools(ctx, api.mcpConfigFiles())
+	tools, err := api.manager.Tools(ctx, api.mcpConfigFiles())
 	if err != nil {
 		switch {
 		case errors.Is(err, context.Canceled):

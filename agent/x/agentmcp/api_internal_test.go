@@ -174,7 +174,7 @@ func TestHandleListTools_ReloadsAfterStartupSettled(t *testing.T) {
 	t.Cleanup(func() { _ = m.Close() })
 
 	// No prior m.Reload: snapshot empty and tools unset.
-	require.Empty(t, m.Tools(), "manager should start with no tools")
+	require.Empty(t, m.cachedTools(), "manager should start with no tools")
 
 	api := NewAPI(logger, m, func() []string {
 		return []string{configPath}

@@ -248,7 +248,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	assert.Equal(t, "echo", result.Tools[0].Name)
 }
 
-func TestManager_ListToolsStartupGate(t *testing.T) {
+func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Parallel()
 
 	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
@@ -272,7 +272,7 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 		}
 		done := make(chan result, 1)
 		go func() {
-			tools, err := m.ListTools(ctx, []string{configPath})
+			tools, err := m.Tools(ctx, []string{configPath})
 			done <- result{tools: tools, err: err}
 		}()
 
@@ -286,7 +286,7 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 			require.Len(t, got.tools, 1)
 			assert.Contains(t, got.tools[0].Name, "echo")
 		case <-ctx.Done():
-			t.Fatalf("ListTools did not return after startup settled: %v", ctx.Err())
+			t.Fatalf("Tools did not return after startup settled: %v", ctx.Err())
 		}
 	})
 
@@ -301,14 +301,14 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 		m.MarkStartupSettled()
 		t.Cleanup(func() { _ = m.Close() })
 
-		tools, err := m.ListTools(ctx, []string{configPath})
+		tools, err := m.Tools(ctx, []string{configPath})
 		require.NoError(t, err)
 		assert.Empty(t, tools)
 
 		m.mu.RLock()
-		firstSyncDone := m.firstSyncDone
+		firstSyncSettled := m.firstSyncSettled
 		m.mu.RUnlock()
-		assert.True(t, firstSyncDone)
+		assert.True(t, firstSyncSettled)
 	})
 
 	t.Run("ConfigAppearsAfterEmptySyncReloads", func(t *testing.T) {
@@ -322,14 +322,14 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 		m.MarkStartupSettled()
 		t.Cleanup(func() { _ = m.Close() })
 
-		tools, err := m.ListTools(ctx, []string{configPath})
+		tools, err := m.Tools(ctx, []string{configPath})
 		require.NoError(t, err)
 		require.Empty(t, tools)
 
 		_, entry := fakeMCPServerConfig(t, "srv")
 		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		tools, err = m.ListTools(ctx, []string{configPath})
+		tools, err = m.Tools(ctx, []string{configPath})
 		require.NoError(t, err)
 		require.Len(t, tools, 1)
 		assert.Contains(t, tools[0].Name, "echo")
@@ -353,7 +353,7 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 		toolCounts := make([]int, callers)
 		for i := range callers {
 			wg.Go(func() {
-				tools, err := m.ListTools(ctx, []string{configPath})
+				tools, err := m.Tools(ctx, []string{configPath})
 				errs[i] = err
 				toolCounts[i] = len(tools)
 			})
@@ -377,7 +377,7 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			_, err := m.ListTools(ctx, []string{configPath})
+			_, err := m.Tools(ctx, []string{configPath})
 			done <- err
 		}()
 		require.NoError(t, m.Close())
@@ -387,7 +387,7 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrManagerClosed)
 		case <-ctx.Done():
-			t.Fatalf("ListTools did not return after Close: %v", ctx.Err())
+			t.Fatalf("Tools did not return after Close: %v", ctx.Err())
 		}
 	})
 
@@ -403,7 +403,7 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 
 		callerCtx, cancel := context.WithCancel(ctx)
 		cancel()
-		tools, err := m.ListTools(callerCtx, []string{configPath})
+		tools, err := m.Tools(callerCtx, []string{configPath})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.Canceled)
 		assert.Nil(t, tools)
@@ -420,7 +420,7 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 		t.Cleanup(func() { _ = m.Close() })
 
 		cancel()
-		tools, err := m.ListTools(testutil.Context(t, testutil.WaitLong), []string{configPath})
+		tools, err := m.Tools(testutil.Context(t, testutil.WaitLong), []string{configPath})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.Canceled)
 		assert.Nil(t, tools)
@@ -437,18 +437,19 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 		m.MarkStartupSettled()
 		require.NoError(t, m.Close())
 
-		tools, err := m.ListTools(ctx, []string{configPath})
+		tools, err := m.Tools(ctx, []string{configPath})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrManagerClosed)
 		assert.Nil(t, tools)
 	})
 
-	t.Run("CanceledBeforeFirstSyncReturnsNoTools", func(t *testing.T) {
+	t.Run("CanceledBeforeFirstSyncStillStartsReload", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
+		paths := []string{configPath}
 
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 		m.MarkStartupSettled()
@@ -456,10 +457,21 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 
 		callerCtx, cancel := context.WithCancel(ctx)
 		cancel()
-		tools, err := m.ListTools(callerCtx, []string{configPath})
+		tools, err := m.Tools(callerCtx, paths)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.Canceled)
-		assert.Nil(t, tools)
+		assert.Empty(t, tools)
+
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			m.mu.RLock()
+			firstSyncSettled := m.firstSyncSettled
+			m.mu.RUnlock()
+			return firstSyncSettled && !m.SnapshotChanged(paths)
+		}, testutil.IntervalFast)
+
+		tools, err = m.Tools(ctx, paths)
+		require.NoError(t, err)
+		assert.Empty(t, tools)
 	})
 
 	t.Run("CanceledAfterFirstSyncReturnsCachedTools", func(t *testing.T) {
@@ -474,13 +486,13 @@ func TestManager_ListToolsStartupGate(t *testing.T) {
 		m.MarkStartupSettled()
 		t.Cleanup(func() { _ = m.Close() })
 
-		tools, err := m.ListTools(ctx, []string{configPath})
+		tools, err := m.Tools(ctx, []string{configPath})
 		require.NoError(t, err)
 		require.Len(t, tools, 1)
 
 		callerCtx, cancel := context.WithCancel(ctx)
 		cancel()
-		tools, err = m.ListTools(callerCtx, []string{configPath})
+		tools, err = m.Tools(callerCtx, []string{configPath})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.Canceled)
 		require.Len(t, tools, 1)
