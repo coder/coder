@@ -1006,18 +1006,8 @@ func normalizeTurnStatusLabel(text string) (string, bool) {
 	}
 
 	lower := strings.ToLower(text)
-	disallowedPrefixes := []string{
-		"agent ",
-		"the agent ",
-		"i ",
-		"we ",
-		"it ",
-		"the chat ",
-	}
-	for _, prefix := range disallowedPrefixes {
-		if strings.HasPrefix(lower, prefix) || lower == strings.TrimSpace(prefix) {
-			return "", false
-		}
+	if hasDisallowedTurnStatusLabelSubject(lower) {
+		return "", false
 	}
 
 	disallowedPhrases := []string{
@@ -1033,6 +1023,25 @@ func normalizeTurnStatusLabel(text string) (string, bool) {
 	}
 
 	return text, true
+}
+
+func hasDisallowedTurnStatusLabelSubject(text string) bool {
+	subject := leadingLetters(text)
+	switch subject {
+	case "agent", "i", "it", "the", "we":
+		return true
+	default:
+		return false
+	}
+}
+
+func leadingLetters(text string) string {
+	for i, r := range text {
+		if r < 'a' || r > 'z' {
+			return text[:i]
+		}
+	}
+	return text
 }
 
 func hasSentenceBoundary(text string) bool {

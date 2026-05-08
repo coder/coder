@@ -8704,10 +8704,7 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 			slog.F("label_length", len(statusLabel)),
 		)
 
-		shouldPersistStatusLabel := statusLabel != "" || chat.LastTurnSummary.Valid
-		if shouldPersistStatusLabel {
-			p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, statusLabel, logger)
-		}
+		p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, statusLabel, logger)
 
 		afterFinalize(finalizeCtx, statusLabel)
 	})

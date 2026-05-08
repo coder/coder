@@ -610,6 +610,10 @@ func TestNormalizeTurnStatusLabel(t *testing.T) {
 		{name: "keeps version punctuation", input: "Updated v2.1 config", want: "Updated v2.1 config", ok: true},
 		{name: "accepts five word label", input: "Updated workspace proxy routing rules", want: "Updated workspace proxy routing rules", ok: true},
 		{name: "rejects agent phrasing", input: "Agent identified failing tests", ok: false},
+		{name: "rejects agent possessive", input: "Agent's findings reviewed", ok: false},
+		{name: "rejects i contraction", input: "I've fixed tests", ok: false},
+		{name: "rejects it contraction", input: "It's still running", ok: false},
+		{name: "rejects we contraction", input: "We're almost done", ok: false},
 		{name: "rejects agent phrase without prefix", input: "Found agent identified bugs", ok: false},
 		{name: "rejects chat phrasing", input: "The chat is waiting now", ok: false},
 		{name: "rejects multiline labels", input: "Fixed bug\nAdded tests", ok: false},
@@ -684,6 +688,14 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 
 		_, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "generated turn status label was invalid")
+	})
+
+	t.Run("rejects empty input", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{}
+		_, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "  ")
+		require.ErrorContains(t, err, "turn status label input was empty")
 	})
 }
 
