@@ -1138,7 +1138,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				align="end"
 				sideOffset={2}
 				alignOffset={6}
-				className="w-64 overflow-y-hidden p-0"
+				className="w-[200px] overflow-y-hidden p-0"
 			>
 				<div className="flex flex-col">
 					{/* Group section */}
