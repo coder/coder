@@ -1180,7 +1180,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							/>
 						</div>
 						<div
-								className="max-h-64 overflow-y-auto [scrollbar-color:initial] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-quaternary [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surface-secondary"
+								className="max-h-40 overflow-y-auto [scrollbar-color:initial] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-quaternary [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surface-secondary"
 							>
 							<FilterCheckboxSection
 								title="PR status"
