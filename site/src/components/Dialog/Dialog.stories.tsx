@@ -26,7 +26,7 @@ const meta: Meta<typeof Dialog> = {
 						<DialogDescription>Dialog Description text</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
-						<Button>Ok</Button>
+						<Button>OK</Button>
 					</DialogFooter>
 				</DialogContent>
 			</>

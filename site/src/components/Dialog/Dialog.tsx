@@ -110,7 +110,7 @@ export const DialogFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 
 type DialogActionsProps = {
 	/** Text to display in the confirm button */
-	confirmText?: React.ReactNode;
+	confirmAction?: React.ReactNode;
 	/** Whether or not confirm is loading, also disables cancel when true */
 	confirmLoading?: boolean;
 	/** Whether or not the submit button is disabled */
@@ -130,7 +130,7 @@ type DialogActionsProps = {
  * Quickly handles most modals actions, some combination of a cancel and confirm button
  */
 export const DialogActions: React.FC<DialogActionsProps> = ({
-	confirmText = "Confirm",
+	confirmAction = "Confirm",
 	confirmLoading = false,
 	confirmDisabled = false,
 	confirmVariant,
@@ -163,7 +163,7 @@ export const DialogActions: React.FC<DialogActionsProps> = ({
 					type="submit"
 				>
 					<Spinner loading={confirmLoading} />
-					{confirmText}
+					{confirmAction}
 				</Button>
 			)}
 		</>
