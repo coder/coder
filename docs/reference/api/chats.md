@@ -6,12 +6,12 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats \
+curl -X GET http://coder-server:8080/api/experimental/chats \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats`
+`GET /api/experimental/chats`
 
 Experimental: this endpoint is subject to change.
 
@@ -294,13 +294,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats \
+curl -X POST http://coder-server:8080/api/experimental/chats \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats`
+`POST /api/experimental/chats`
 
 Experimental: this endpoint is subject to change.
 
@@ -628,12 +628,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
+curl -X POST http://coder-server:8080/api/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/files`
+`POST /api/experimental/chats/files`
 
 Experimental: this endpoint is subject to change.
 
@@ -667,11 +667,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/files/{file} \
+curl -X GET http://coder-server:8080/api/experimental/chats/files/{file} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/files/{file}`
+`GET /api/experimental/chats/files/{file}`
 
 Experimental: this endpoint is subject to change.
 
@@ -695,12 +695,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/models \
+curl -X GET http://coder-server:8080/api/experimental/chats/models \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/models`
+`GET /api/experimental/chats/models`
 
 Experimental: this endpoint is subject to change.
 
@@ -742,12 +742,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/watch \
+curl -X GET http://coder-server:8080/api/experimental/chats/watch \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/watch`
+`GET /api/experimental/chats/watch`
 
 Experimental: this endpoint is subject to change.
 
@@ -912,12 +912,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat} \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}`
+`GET /api/experimental/chats/{chat}`
 
 Experimental: this endpoint is subject to change.
 
@@ -1205,12 +1205,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/experimental/chats/{chat} \
+curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /experimental/chats/{chat}`
+`PATCH /api/experimental/chats/{chat}`
 
 Experimental: this endpoint is subject to change.
 
@@ -1251,12 +1251,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/diff \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/diff \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/diff`
+`GET /api/experimental/chats/{chat}/diff`
 
 Experimental: this endpoint is subject to change.
 
@@ -1295,12 +1295,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/interrupt \
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/interrupt \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/{chat}/interrupt`
+`POST /api/experimental/chats/{chat}/interrupt`
 
 Experimental: this endpoint is subject to change.
 
@@ -1588,12 +1588,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/messages \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/messages`
+`GET /api/experimental/chats/{chat}/messages`
 
 Experimental: this endpoint is subject to change.
 
@@ -1771,13 +1771,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/messages \
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/{chat}/messages`
+`POST /api/experimental/chats/{chat}/messages`
 
 Experimental: this endpoint is subject to change.
 
@@ -1976,13 +1976,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/experimental/chats/{chat}/messages/{message} \
+curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat}/messages/{message} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /experimental/chats/{chat}/messages/{message}`
+`PATCH /api/experimental/chats/{chat}/messages/{message}`
 
 Experimental: this endpoint is subject to change.
 
@@ -2112,12 +2112,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/stream`
+`GET /api/experimental/chats/{chat}/stream`
 
 Experimental: this endpoint is subject to change.
 
@@ -2378,11 +2378,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream/desktop \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/desktop \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/stream/desktop`
+`GET /api/experimental/chats/{chat}/stream/desktop`
 
 Raw binary WebSocket stream of the chat workspace desktop.
 Experimental: this endpoint is subject to change.
@@ -2407,12 +2407,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream/git \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/git \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/stream/git`
+`GET /api/experimental/chats/{chat}/stream/git`
 
 Experimental: this endpoint is subject to change.
 
@@ -2457,12 +2457,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/title/regenerate \
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/title/regenerate \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/{chat}/title/regenerate`
+`POST /api/experimental/chats/{chat}/title/regenerate`
 
 Experimental: this endpoint is subject to change.
 

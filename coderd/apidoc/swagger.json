@@ -49,6 +49,77 @@
 				}
 			}
 		},
+		"/api/experimental/chats": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "List chats",
+				"operationId": "list-chats",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Search query",
+						"name": "q",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Filter by label as key:value. Repeat for multiple (AND logic).",
+						"name": "label",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.Chat"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Create chat",
+				"operationId": "create-chat",
+				"parameters": [
+					{
+						"description": "Create chat request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateChatRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Chat"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/experimental/chats/config/retention-days": {
 			"get": {
 				"produces": ["application/json"],
@@ -103,6 +174,88 @@
 				}
 			}
 		},
+		"/api/experimental/chats/files": {
+			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": [
+					"image/png",
+					"image/jpeg",
+					"image/gif",
+					"image/webp",
+					"text/plain",
+					"text/markdown",
+					"text/csv",
+					"application/json",
+					"application/pdf"
+				],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Upload chat file",
+				"operationId": "upload-chat-file",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.UploadChatFileResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/files/{file}": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": [
+					"image/png",
+					"image/jpeg",
+					"image/gif",
+					"image/webp",
+					"text/plain",
+					"text/markdown",
+					"text/csv",
+					"application/json",
+					"application/pdf"
+				],
+				"tags": ["Chats"],
+				"summary": "Get chat file",
+				"operationId": "get-chat-file",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "File ID",
+						"name": "file",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/experimental/chats/insights/pull-requests": {
 			"get": {
 				"produces": ["application/json"],
@@ -141,6 +294,446 @@
 				"x-apidocgen": {
 					"skip": true
 				}
+			}
+		},
+		"/api/experimental/chats/models": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "List chat models",
+				"operationId": "list-chat-models",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatModelsResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/watch": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Watch chat events for a user via WebSockets",
+				"operationId": "watch-chat-events-for-a-user-via-websockets",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatWatchEvent"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Get chat by ID",
+				"operationId": "get-chat-by-id",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Chat"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"patch": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Update chat",
+				"operationId": "update-chat",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Update chat request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateChatRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/diff": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Get chat diff contents",
+				"operationId": "get-chat-diff-contents",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatDiffContents"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/interrupt": {
+			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Interrupt chat",
+				"operationId": "interrupt-chat",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Chat"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/messages": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "List chat messages",
+				"operationId": "list-chat-messages",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "Return messages with id \u003c before_id",
+						"name": "before_id",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Return messages with id \u003e after_id",
+						"name": "after_id",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page size, 1 to 200. Defaults to 50.",
+						"name": "limit",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatMessagesResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Send chat message",
+				"operationId": "send-chat-message",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Create chat message request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateChatMessageRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateChatMessageResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/messages/{message}": {
+			"patch": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Edit chat message",
+				"operationId": "edit-chat-message",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "Message ID",
+						"name": "message",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Edit chat message request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.EditChatMessageRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.EditChatMessageResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/stream": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Stream chat events via WebSockets",
+				"operationId": "stream-chat-events-via-websockets",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatStreamEvent"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/stream/desktop": {
+			"get": {
+				"description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
+				"produces": ["application/octet-stream"],
+				"tags": ["Chats"],
+				"summary": "Connect to chat workspace desktop via WebSockets",
+				"operationId": "connect-to-chat-workspace-desktop-via-websockets",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"101": {
+						"description": "Switching Protocols"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/stream/git": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Watch chat workspace git state via WebSockets",
+				"operationId": "watch-chat-workspace-git-state-via-websockets",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/experimental/chats/{chat}/title/regenerate": {
+			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Regenerate chat title",
+				"operationId": "regenerate-chat-title",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Chat"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
 			}
 		},
 		"/api/experimental/watch-all-workspacebuilds": {
@@ -10845,599 +11438,6 @@
 				]
 			}
 		},
-		"/experimental/chats": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "List chats",
-				"operationId": "list-chats",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Search query",
-						"name": "q",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "Filter by label as key:value. Repeat for multiple (AND logic).",
-						"name": "label",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/codersdk.Chat"
-							}
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			},
-			"post": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"consumes": ["application/json"],
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Create chat",
-				"operationId": "create-chat",
-				"parameters": [
-					{
-						"description": "Create chat request",
-						"name": "request",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/codersdk.CreateChatRequest"
-						}
-					}
-				],
-				"responses": {
-					"201": {
-						"description": "Created",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Chat"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/files": {
-			"post": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"consumes": [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"text/plain",
-					"text/markdown",
-					"text/csv",
-					"application/json",
-					"application/pdf"
-				],
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Upload chat file",
-				"operationId": "upload-chat-file",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Organization ID",
-						"name": "organization",
-						"in": "query",
-						"required": true
-					}
-				],
-				"responses": {
-					"201": {
-						"description": "Created",
-						"schema": {
-							"$ref": "#/definitions/codersdk.UploadChatFileResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/files/{file}": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": [
-					"image/png",
-					"image/jpeg",
-					"image/gif",
-					"image/webp",
-					"text/plain",
-					"text/markdown",
-					"text/csv",
-					"application/json",
-					"application/pdf"
-				],
-				"tags": ["Chats"],
-				"summary": "Get chat file",
-				"operationId": "get-chat-file",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "File ID",
-						"name": "file",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK"
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/models": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "List chat models",
-				"operationId": "list-chat-models",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.ChatModelsResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/watch": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Watch chat events for a user via WebSockets",
-				"operationId": "watch-chat-events-for-a-user-via-websockets",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.ChatWatchEvent"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Get chat by ID",
-				"operationId": "get-chat-by-id",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Chat"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			},
-			"patch": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"consumes": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Update chat",
-				"operationId": "update-chat",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					},
-					{
-						"description": "Update chat request",
-						"name": "request",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/codersdk.UpdateChatRequest"
-						}
-					}
-				],
-				"responses": {
-					"204": {
-						"description": "No Content"
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/diff": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Get chat diff contents",
-				"operationId": "get-chat-diff-contents",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.ChatDiffContents"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/interrupt": {
-			"post": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Interrupt chat",
-				"operationId": "interrupt-chat",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Chat"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/messages": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "List chat messages",
-				"operationId": "list-chat-messages",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "integer",
-						"description": "Return messages with id \u003c before_id",
-						"name": "before_id",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Return messages with id \u003e after_id",
-						"name": "after_id",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Page size, 1 to 200. Defaults to 50.",
-						"name": "limit",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.ChatMessagesResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			},
-			"post": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"consumes": ["application/json"],
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Send chat message",
-				"operationId": "send-chat-message",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					},
-					{
-						"description": "Create chat message request",
-						"name": "request",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/codersdk.CreateChatMessageRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.CreateChatMessageResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/messages/{message}": {
-			"patch": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"consumes": ["application/json"],
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Edit chat message",
-				"operationId": "edit-chat-message",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "integer",
-						"description": "Message ID",
-						"name": "message",
-						"in": "path",
-						"required": true
-					},
-					{
-						"description": "Edit chat message request",
-						"name": "request",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/codersdk.EditChatMessageRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.EditChatMessageResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/stream": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Stream chat events via WebSockets",
-				"operationId": "stream-chat-events-via-websockets",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.ChatStreamEvent"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/stream/desktop": {
-			"get": {
-				"description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
-				"produces": ["application/octet-stream"],
-				"tags": ["Chats"],
-				"summary": "Connect to chat workspace desktop via WebSockets",
-				"operationId": "connect-to-chat-workspace-desktop-via-websockets",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"101": {
-						"description": "Switching Protocols"
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/stream/git": {
-			"get": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Watch chat workspace git state via WebSockets",
-				"operationId": "watch-chat-workspace-git-state-via-websockets",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.WorkspaceAgentGitServerMessage"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/chats/{chat}/title/regenerate": {
-			"post": {
-				"description": "Experimental: this endpoint is subject to change.",
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Regenerate chat title",
-				"operationId": "regenerate-chat-title",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Chat"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
 		"/oauth2/authorize": {
 			"get": {
 				"tags": ["Enterprise"],
@@ -13387,6 +13387,15 @@
 					"type": "string"
 				}
 			}
+		},
+		"codersdk.AgentDisplayMode": {
+			"type": "string",
+			"enum": ["auto", "always_expanded", "always_collapsed"],
+			"x-enum-varnames": [
+				"AgentDisplayModeAuto",
+				"AgentDisplayModeAlwaysExpanded",
+				"AgentDisplayModeAlwaysCollapsed"
+			]
 		},
 		"codersdk.AgentScriptTiming": {
 			"type": "object",
@@ -21529,6 +21538,9 @@
 		"codersdk.UpdateUserPreferenceSettingsRequest": {
 			"type": "object",
 			"properties": {
+				"code_diff_display_mode": {
+					"$ref": "#/definitions/codersdk.AgentDisplayMode"
+				},
 				"task_notification_alert_dismissed": {
 					"type": "boolean"
 				},
@@ -21970,6 +21982,9 @@
 		"codersdk.UserPreferenceSettings": {
 			"type": "object",
 			"properties": {
+				"code_diff_display_mode": {
+					"$ref": "#/definitions/codersdk.AgentDisplayMode"
+				},
 				"task_notification_alert_dismissed": {
 					"type": "boolean"
 				},

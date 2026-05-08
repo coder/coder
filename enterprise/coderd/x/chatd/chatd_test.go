@@ -1444,6 +1444,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	workerID := uuid.New()
 	subscriberID := uuid.New()
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -1458,16 +1459,19 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// Freeze the worker's clock so streamJanitorLoop cannot race the
 	// buffer-retained assertion on slow CI.
 	workerClock := quartz.NewMock(t)
+	trapAcquire := workerClock.Trap().NewTicker("chatd", "acquire")
+	defer trapAcquire.Close()
 	worker := osschatd.New(osschatd.Config{
 		Logger:                     workerLogger,
 		Database:                   db,
 		ReplicaID:                  workerID,
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: time.Hour,
+		PendingChatAcquireInterval: time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Clock:                      workerClock,
 	})
 	worker.Start()
+	trapAcquire.MustWait(ctx).MustRelease(ctx)
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})
@@ -1501,23 +1505,41 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		return snapshot, relayEvents, cancel, nil
 	}, subscriberClock)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-drain-characterization")
+
+	// Seed the pending turn directly instead of using SendMessage.
+	// SendMessage publishes a pending control notification that is
+	// irrelevant to this relay-retention case. Under CI that
+	// notification can arrive after processChat arms its control
+	// subscription and interrupt the worker before it emits parts.
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`[{"type":"text","text":"hello"}]`),
+			Valid:      true,
+		},
+	})
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusPending,
+	})
+	require.NoError(t, err)
 
 	// Attach before processing so the relay opens as soon as
 	// status=running arrives.
 	_, events, subCancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 
-	_, err := worker.SendMessage(ctx, osschatd.SendMessageOptions{
-		ChatID:    chat.ID,
-		CreatedBy: user.ID,
-		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
+	// Wake the worker with the acquire ticker. This keeps the
+	// setup free of pending control notifications while still
+	// exercising the normal processing loop.
+	workerClock.Advance(time.Millisecond).MustWait(ctx)
 
 	// Drain events until processing has clearly completed: we need
 	// the assistant message and at least one message_part so we know

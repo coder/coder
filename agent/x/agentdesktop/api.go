@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -85,6 +86,7 @@ func (a *API) Routes() http.Handler {
 
 func (a *API) handleDesktopVNC(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := a.logger.With(agentchat.Fields(ctx)...)
 
 	// Start the desktop session (idempotent).
 	_, err := a.desktop.Start(ctx)
@@ -112,7 +114,7 @@ func (a *API) handleDesktopVNC(rw http.ResponseWriter, r *http.Request) {
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		a.logger.Error(ctx, "failed to accept websocket", slog.Error(err))
+		logger.Error(ctx, "failed to accept websocket", slog.Error(err))
 		return
 	}
 
@@ -128,6 +130,7 @@ func (a *API) handleDesktopVNC(rw http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := a.logger.With(agentchat.Fields(ctx)...)
 	handlerStart := a.clock.Now()
 
 	// Update last desktop action timestamp for idle recording monitor.
@@ -136,7 +139,7 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 	// Ensure the desktop is running and grab native dimensions.
 	cfg, err := a.desktop.Start(ctx)
 	if err != nil {
-		a.logger.Warn(ctx, "handleAction: desktop.Start failed",
+		logger.Warn(ctx, "handleAction: desktop.Start failed",
 			slog.Error(err),
 			slog.F("elapsed_ms", a.clock.Since(handlerStart).Milliseconds()),
 		)
@@ -156,7 +159,7 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.logger.Info(ctx, "handleAction: started",
+	logger.Info(ctx, "handleAction: started",
 		slog.F("action", action.Action),
 		slog.F("elapsed_ms", a.clock.Since(handlerStart).Milliseconds()),
 	)
@@ -272,7 +275,7 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		x, y = scaleXY(x, y)
 		stepStart := a.clock.Now()
 		if err := a.desktop.Click(ctx, x, y, MouseButtonLeft); err != nil {
-			a.logger.Warn(ctx, "handleAction: Click failed",
+			logger.Warn(ctx, "handleAction: Click failed",
 				slog.F("action", "left_click"),
 				slog.F("step", "click"),
 				slog.F("step_ms", time.Since(stepStart).Milliseconds()),
@@ -285,7 +288,7 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		a.logger.Debug(ctx, "handleAction: Click completed",
+		logger.Debug(ctx, "handleAction: Click completed",
 			slog.F("action", "left_click"),
 			slog.F("step_ms", time.Since(stepStart).Milliseconds()),
 			slog.F("elapsed_ms", a.clock.Since(handlerStart).Milliseconds()),
@@ -473,7 +476,7 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			// Context canceled; release the key immediately.
 			if err := a.desktop.KeyUp(ctx, *action.Text); err != nil {
-				a.logger.Warn(ctx, "handleAction: KeyUp after context cancel", slog.Error(err))
+				logger.Warn(ctx, "handleAction: KeyUp after context cancel", slog.Error(err))
 			}
 			return
 		case <-timer.C:
@@ -513,14 +516,14 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 
 	elapsedMs := a.clock.Since(handlerStart).Milliseconds()
 	if ctx.Err() != nil {
-		a.logger.Error(ctx, "handleAction: context canceled before writing response",
+		logger.Error(ctx, "handleAction: context canceled before writing response",
 			slog.F("action", action.Action),
 			slog.F("elapsed_ms", elapsedMs),
 			slog.Error(ctx.Err()),
 		)
 		return
 	}
-	a.logger.Info(ctx, "handleAction: writing response",
+	logger.Info(ctx, "handleAction: writing response",
 		slog.F("action", action.Action),
 		slog.F("elapsed_ms", elapsedMs),
 	)
@@ -609,6 +612,7 @@ func (a *API) handleRecordingStart(rw http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := a.logger.With(agentchat.Fields(ctx)...)
 
 	recordingID, ok := a.decodeRecordingRequest(rw, r)
 	if !ok {
@@ -661,7 +665,7 @@ func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
 	}()
 
 	if artifact.Size > workspacesdk.MaxRecordingSize {
-		a.logger.Warn(ctx, "recording file exceeds maximum size",
+		logger.Warn(ctx, "recording file exceeds maximum size",
 			slog.F("recording_id", recordingID),
 			slog.F("size", artifact.Size),
 			slog.F("max_size", workspacesdk.MaxRecordingSize),
@@ -677,7 +681,7 @@ func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
 	// rejecting it here avoids streaming a large thumbnail over
 	// the wire for nothing.
 	if artifact.ThumbnailReader != nil && artifact.ThumbnailSize > workspacesdk.MaxThumbnailSize {
-		a.logger.Warn(ctx, "thumbnail file exceeds maximum size, omitting",
+		logger.Warn(ctx, "thumbnail file exceeds maximum size, omitting",
 			slog.F("recording_id", recordingID),
 			slog.F("size", artifact.ThumbnailSize),
 			slog.F("max_size", workspacesdk.MaxThumbnailSize),
@@ -701,13 +705,13 @@ func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
 		"Content-Type": {"video/mp4"},
 	})
 	if err != nil {
-		a.logger.Warn(ctx, "failed to create video multipart part",
+		logger.Warn(ctx, "failed to create video multipart part",
 			slog.F("recording_id", recordingID),
 			slog.Error(err))
 		return
 	}
 	if _, err := io.Copy(videoPart, artifact.Reader); err != nil {
-		a.logger.Warn(ctx, "failed to write video multipart part",
+		logger.Warn(ctx, "failed to write video multipart part",
 			slog.F("recording_id", recordingID),
 			slog.Error(err))
 		return
@@ -719,7 +723,7 @@ func (a *API) handleRecordingStop(rw http.ResponseWriter, r *http.Request) {
 			"Content-Type": {"image/jpeg"},
 		})
 		if err != nil {
-			a.logger.Warn(ctx, "failed to create thumbnail multipart part",
+			logger.Warn(ctx, "failed to create thumbnail multipart part",
 				slog.F("recording_id", recordingID),
 				slog.Error(err))
 			return

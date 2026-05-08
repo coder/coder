@@ -1,5 +1,10 @@
 # Factory
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Factort's Droid agent can be configured to use AI Gateway by setting up custom models for OpenAI and Anthropic.
 
 ## Centralized API Key
