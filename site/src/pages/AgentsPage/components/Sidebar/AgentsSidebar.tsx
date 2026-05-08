@@ -1380,28 +1380,47 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								<ChatTreeContext value={chatTreeCtx}>
 									{visibleRootIDs.length === 0 ? (
 										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">
-												{normalizedSearch
-													? "No matching agents"
-													: archivedFilter === "archived"
-														? "No archived agents"
-														: "No agents yet"}
-											</p>
-											<button
-												type="button"
-												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-												onClick={() =>
-													onArchivedFilterChange?.(
-														archivedFilter === "archived"
-															? "active"
-															: "archived",
-													)
-												}
-											>
-												{archivedFilter === "archived"
-													? "← Back to active"
-													: "View archived →"}
-											</button>
+											{hasActiveFilters(filterState) ? (
+												<>
+													<p className="m-0">
+														No results for your selection.
+													</p>
+													<button
+														type="button"
+														className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+														onClick={() =>
+															setFilterState(DEFAULT_FILTER_STATE)
+														}
+													>
+														Reset filters
+													</button>
+												</>
+											) : (
+												<>
+													<p className="m-0">
+														{normalizedSearch
+															? "No matching agents"
+															: archivedFilter === "archived"
+																? "No archived agents"
+																: "No agents yet"}
+													</p>
+													<button
+														type="button"
+														className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+														onClick={() =>
+															onArchivedFilterChange?.(
+																archivedFilter === "archived"
+																	? "active"
+																	: "archived",
+															)
+														}
+													>
+														{archivedFilter === "archived"
+															? "← Back to active"
+															: "View archived →"}
+													</button>
+												</>
+											)}
 										</div>
 									) : (
 										<div>
