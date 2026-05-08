@@ -1,12 +1,13 @@
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import { API } from "#/api/api";
 import {
+	MockPreviewParameter,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockTemplateVersionParameter4,
+	MockValidationParameter,
 	MockWorkspace,
-	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
 	MockWorkspaceBuildParameter2,
 	MockWorkspaceBuildParameter4,
@@ -15,119 +16,84 @@ import {
 	renderWithWorkspaceSettingsLayout,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
+import { mockDynamicParameterWebSocket } from "#/testHelpers/websockets";
 import WorkspaceParametersPage from "./WorkspaceParametersPage";
 
-test("Submit the workspace settings page successfully", async () => {
-	// Mock the API calls that loads data
-	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
-		MockWorkspace,
-	);
-	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-		MockTemplateVersionParameter1,
-		MockTemplateVersionParameter2,
-		// Immutable parameters
-		MockTemplateVersionParameter4,
-	]);
-	vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
-		MockWorkspaceBuildParameter1,
-		MockWorkspaceBuildParameter2,
-		// Immutable value
-		MockWorkspaceBuildParameter4,
-	]);
-	// Mock the API calls that submit data
-	const postWorkspaceBuildSpy = vi
-		.spyOn(API, "postWorkspaceBuild")
-		.mockResolvedValue(MockWorkspaceBuild);
-	// Setup event and rendering
-	const user = userEvent.setup();
-	renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
-		route: "/@test-user/test-workspace/settings",
-		path: "/:username/:workspace/settings",
-		// Need this because after submit the user is redirected
-		extraRoutes: [{ path: "/:username/:workspace", element: <div /> }],
-	});
-	await waitForLoaderToBeRemoved();
-	// Fill the form and submit
-	const form = screen.getByTestId("form");
-	const parameter1 = within(form).getByLabelText(
-		MockWorkspaceBuildParameter1.name,
-		{ exact: false },
-	);
-	await user.clear(parameter1);
-	await user.type(parameter1, "new-value");
-	const parameter2 = within(form).getByLabelText(
-		MockWorkspaceBuildParameter2.name,
-		{ exact: false },
-	);
-	await user.clear(parameter2);
-	await user.type(parameter2, "3");
-	await user.click(
-		within(form).getByRole("button", { name: "Submit and restart" }),
-	);
-	// Assert that the API calls were made with the correct data
-	await waitFor(() => {
-		expect(postWorkspaceBuildSpy).toHaveBeenCalledWith(MockWorkspace.id, {
-			reason: "dashboard",
-			transition: "start",
-			rich_parameter_values: [
-				{ name: MockTemplateVersionParameter1.name, value: "new-value" },
-				{ name: MockTemplateVersionParameter2.name, value: "3" },
+describe("WorkspaceParametersPage", () => {
+	const renderWorkspaceParametersPage = (
+		route = `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/settings`,
+	) => {
+		return renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
+			route,
+			path: "/:username/:workspace/settings",
+			extraRoutes: [
+				{
+					// Need this because after submit the user is redirected.
+					path: "/:username/:workspace",
+					element: <div>Workspace Page</div>,
+				},
 			],
 		});
-	});
-});
+	};
 
-test("Submit button is only enabled when changes are made", async () => {
-	// Mock the API calls that loads data
-	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
-		MockWorkspace,
-	);
-	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-		MockTemplateVersionParameter1,
-		MockTemplateVersionParameter2,
-		// Immutable parameters
-		MockTemplateVersionParameter4,
-	]);
-	vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
-		MockWorkspaceBuildParameter1,
-		MockWorkspaceBuildParameter2,
-		// Immutable value
-		MockWorkspaceBuildParameter4,
-	]);
-	// Setup event and rendering
-	const user = userEvent.setup();
-	renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
-		route: "/@test-user/test-workspace/settings",
-		path: "/:username/:workspace/settings",
-		// Need this because after submit the user is redirected
-		extraRoutes: [{ path: "/:username/:workspace", element: <div /> }],
-	});
-	await waitForLoaderToBeRemoved();
-
-	const submitButton: HTMLButtonElement = screen.getByRole("button", {
-		name: "Submit and restart",
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+			MockWorkspace,
+		);
+		vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+			MockTemplateVersionParameter1,
+			MockTemplateVersionParameter2,
+			MockTemplateVersionParameter4,
+		]);
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+			MockWorkspaceBuildParameter1,
+			MockWorkspaceBuildParameter2,
+			MockWorkspaceBuildParameter4,
+		]);
 	});
 
-	const form = screen.getByTestId("form");
-	const parameter1 = within(form).getByLabelText(
-		MockWorkspaceBuildParameter1.name,
-		{ exact: false },
-	);
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
 
-	// There are no changes, the button should be disabled.
-	expect(submitButton.disabled).toBeTruthy();
+	it("does not clobber touched parameters", async () => {
+		const [, mockPublisher] = mockDynamicParameterWebSocket([
+			{
+				...MockPreviewParameter,
+				name: MockWorkspaceBuildParameter1.name,
+			},
+		]);
 
-	// Make changes to the form
-	await user.clear(parameter1);
-	await user.type(parameter1, "new-value");
+		renderWorkspaceParametersPage();
+		await waitForLoaderToBeRemoved();
 
-	// There are now changes, the button should be enabled.
-	expect(submitButton.disabled).toBeFalsy();
+		// Simulate a stale response.
+		await act(async () => {
+			mockPublisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 2,
+						parameters: [
+							{
+								...MockPreviewParameter,
+								name: MockWorkspaceBuildParameter1.name,
+							},
+							MockValidationParameter,
+						],
+					}),
+				}),
+			);
+		});
 
-	// Change form value back to default
-	await user.clear(parameter1);
-	await user.type(parameter1, MockWorkspaceBuildParameter1.value);
-
-	// There are now no changes, the button should be disabled.
-	expect(submitButton.disabled).toBeTruthy();
+		// Should have the new field, but keep the existing auto-filled values.
+		const form = screen.getByTestId("form");
+		await waitFor(() => {
+			expect(within(form).getByDisplayValue("50")).toBeInTheDocument();
+			expect(
+				within(form).getByDisplayValue(MockWorkspaceBuildParameter1.value),
+			).toBeInTheDocument();
+		});
+	});
 });

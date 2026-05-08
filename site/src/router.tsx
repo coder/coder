@@ -83,10 +83,10 @@ const WorkspaceSchedulePage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
 		),
 );
-const WorkspaceParametersExperimentRouter = lazy(
+const WorkspaceParametersPage = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
+			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
 		),
 );
 const WorkspaceSharingPage = lazy(
@@ -656,10 +656,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route path="settings" element={<WorkspaceSettingsLayout />}>
 							<Route index element={<WorkspaceSettingsPage />} />
-							<Route
-								path="parameters"
-								element={<WorkspaceParametersExperimentRouter />}
-							/>
+							<Route path="parameters" element={<WorkspaceParametersPage />} />
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
 							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
