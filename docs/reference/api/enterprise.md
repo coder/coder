@@ -256,6 +256,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
       },
       "type": "ssh",
       "web_info": {
+        "disconnect_reason": "string",
         "slug_or_port": "string",
         "status_code": 0,
         "user": {

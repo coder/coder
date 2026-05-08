@@ -3908,6 +3908,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "type": "ssh",
   "web_info": {
+    "disconnect_reason": "string",
     "slug_or_port": "string",
     "status_code": 0,
     "user": {
@@ -3955,7 +3956,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                                          |
 | `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
 | `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                                          |
-| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp`                                              |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeDesktop`                    |
 | `workspace_id`             | string                                                         | false    |              |                                                                                                                                                          |
 | `workspace_name`           | string                                                         | false    |              |                                                                                                                                                          |
 | `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                          |
@@ -3985,6 +3986,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "type": "ssh",
       "web_info": {
+        "disconnect_reason": "string",
         "slug_or_port": "string",
         "status_code": 0,
         "user": {
@@ -4057,6 +4059,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "disconnect_reason": "string",
   "slug_or_port": "string",
   "status_code": 0,
   "user": {
@@ -4090,12 +4093,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                           | Required | Restrictions | Description                                                               |
-|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
-| `slug_or_port` | string                         | false    |              |                                                                           |
-| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
-| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
-| `user_agent`   | string                         | false    |              |                                                                           |
+| Name                | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                             |
+|---------------------|--------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `disconnect_reason` | string                         | false    |              | Disconnect reason is a free-form, human-readable description of why the request ended. Used by `desktop` rows to surface DLP drop summaries such as `DLP policy "strict" dropped 2 clipboard message(s) (56 bytes) server-to-client`. Older row types leave this empty. |
+| `slug_or_port`      | string                         | false    |              |                                                                                                                                                                                                                                                                         |
+| `status_code`       | integer                        | false    |              | Status code is the HTTP status code of the request.                                                                                                                                                                                                                     |
+| `user`              | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user.                                                                                                                                                                                               |
+| `user_agent`        | string                         | false    |              |                                                                                                                                                                                                                                                                         |
 
 ## codersdk.ConnectionType
 

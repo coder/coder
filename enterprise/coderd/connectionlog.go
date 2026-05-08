@@ -134,12 +134,14 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 
 	switch dblog.ConnectionLog.Type {
 	case database.ConnectionTypeWorkspaceApp,
-		database.ConnectionTypePortForwarding:
+		database.ConnectionTypePortForwarding,
+		database.ConnectionTypeDesktop:
 		webInfo = &codersdk.ConnectionLogWebInfo{
-			UserAgent:  dblog.ConnectionLog.UserAgent.String,
-			User:       user,
-			SlugOrPort: dblog.ConnectionLog.SlugOrPort.String,
-			StatusCode: dblog.ConnectionLog.Code.Int32,
+			UserAgent:        dblog.ConnectionLog.UserAgent.String,
+			User:             user,
+			SlugOrPort:       dblog.ConnectionLog.SlugOrPort.String,
+			StatusCode:       dblog.ConnectionLog.Code.Int32,
+			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
 		}
 	case database.ConnectionTypeSsh,
 		database.ConnectionTypeReconnectingPty,

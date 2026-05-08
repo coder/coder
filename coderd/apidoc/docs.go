@@ -16539,7 +16539,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ConnectionType"
                 },
                 "web_info": {
-                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `",
+                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `\n- ` + "`" + `ConnectionTypeDesktop` + "`" + `",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
@@ -16604,6 +16604,10 @@ const docTemplate = `{
         "codersdk.ConnectionLogWebInfo": {
             "type": "object",
             "properties": {
+                "disconnect_reason": {
+                    "description": "DisconnectReason is a free-form, human-readable description of why the\nrequest ended. Used by ` + "`" + `desktop` + "`" + ` rows to surface DLP drop summaries\nsuch as ` + "`" + `DLP policy \"strict\" dropped 2 clipboard message(s) (56 bytes)\nserver-to-client` + "`" + `. Older row types leave this empty.",
+                    "type": "string"
+                },
                 "slug_or_port": {
                     "type": "string"
                 },

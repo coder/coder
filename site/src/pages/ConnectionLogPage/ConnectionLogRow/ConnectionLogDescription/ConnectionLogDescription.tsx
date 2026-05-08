@@ -72,6 +72,37 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			);
 		}
 
+		case "desktop": {
+			if (!web_info) return null;
+
+			const { user, status_code } = web_info;
+			const isOwnWorkspace = user
+				? workspace_owner_username === user.username
+				: false;
+
+			// Desktop rows are emitted by the noVNC proxy. A row with
+			// status_code >= 400 is a DLP gate firing (e.g. clipboard
+			// drops); a 0/200 row is a clean session with no DLP
+			// activity. Phrase both cases the same way other web rows do.
+			const actionText: ReactNode =
+				(status_code ?? 0) >= 400
+					? "had clipboard activity blocked by DLP policy in"
+					: "had a desktop session in";
+
+			return (
+				<span>
+					{user ? user.username : "Unauthenticated user"} {actionText}{" "}
+					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
+					</Link>{" "}
+					workspace
+				</span>
+			);
+		}
+
 		case "reconnecting_pty":
 		case "ssh":
 		case "jetbrains":

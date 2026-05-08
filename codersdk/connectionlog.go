@@ -26,6 +26,7 @@ type ConnectionLog struct {
 	// WebInfo is only set when `type` is one of:
 	// - `ConnectionTypePortForwarding`
 	// - `ConnectionTypeWorkspaceApp`
+	// - `ConnectionTypeDesktop`
 	WebInfo *ConnectionLogWebInfo `json:"web_info,omitempty"`
 
 	// SSHInfo is only set when `type` is one of:
@@ -74,6 +75,11 @@ type ConnectionLogWebInfo struct {
 	SlugOrPort string `json:"slug_or_port"`
 	// StatusCode is the HTTP status code of the request.
 	StatusCode int32 `json:"status_code"`
+	// DisconnectReason is a free-form, human-readable description of why the
+	// request ended. Used by `desktop` rows to surface DLP drop summaries
+	// such as `DLP policy "strict" dropped 2 clipboard message(s) (56 bytes)
+	// server-to-client`. Older row types leave this empty.
+	DisconnectReason string `json:"disconnect_reason,omitempty"`
 }
 
 type ConnectionLogSSHInfo struct {

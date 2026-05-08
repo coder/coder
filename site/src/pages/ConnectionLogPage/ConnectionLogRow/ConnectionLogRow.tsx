@@ -129,6 +129,14 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 													<div>{connectionLog.ssh_info?.disconnect_reason}</div>
 												</div>
 											)}
+											{connectionLog.web_info?.disconnect_reason && (
+												<div>
+													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
+														Close Reason:
+													</h4>
+													<div>{connectionLog.web_info.disconnect_reason}</div>
+												</div>
+											)}
 										</div>
 									</TooltipContent>
 								</Tooltip>
