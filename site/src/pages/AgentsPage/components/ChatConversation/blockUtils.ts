@@ -67,7 +67,7 @@ export const groupSequentialReadFileBlocks = (
 		if (block.type === "tool") {
 			const tool = toolByID.get(block.id);
 			if (tool?.name === "read_file") {
-				currentReadFileIDs = [...currentReadFileIDs, block.id];
+				currentReadFileIDs.push(block.id);
 				continue;
 			}
 		}

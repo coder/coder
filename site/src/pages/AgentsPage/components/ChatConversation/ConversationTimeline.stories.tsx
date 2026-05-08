@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import {
 	expect,
 	fireEvent,
@@ -235,6 +236,67 @@ const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
 	...defaultArgs,
 	parsedMessages: buildMessages(messages),
 });
+
+const buildParsedReadFileEntry = ({
+	messageId,
+	toolId,
+	path,
+	status,
+	content = "",
+	errorMessage,
+	isError = status === "error",
+}: {
+	messageId: number;
+	toolId: string;
+	path: string;
+	status: "completed" | "error" | "running";
+	content?: string;
+	errorMessage?: string;
+	isError?: boolean;
+}): ParsedMessageEntry => {
+	const args = { path };
+	const result =
+		content || errorMessage
+			? {
+					...(content ? { content } : {}),
+					...(errorMessage ? { error: errorMessage } : {}),
+				}
+			: undefined;
+
+	return {
+		message: {
+			...baseMessage,
+			id: messageId,
+			role: "assistant",
+			content: [
+				{
+					type: "tool-call",
+					tool_call_id: toolId,
+					tool_name: "read_file",
+					args,
+				},
+			],
+		},
+		parsed: {
+			markdown: "",
+			reasoning: "",
+			toolCalls: [{ id: toolId, name: "read_file", args }],
+			toolResults: [],
+			tools: [
+				{
+					id: toolId,
+					name: "read_file",
+					args,
+					result,
+					isError,
+					status,
+				},
+			],
+			blocks: [{ type: "tool", id: toolId }],
+			sources: [],
+		},
+	};
+};
 
 const LONG_USER_MESSAGE = [
 	"This is a deliberately long user message that should stay pinned to the",
@@ -2309,6 +2371,169 @@ export const SequentialReadFilesCollapsed: Story = {
 			expect(canvas.getByText("site/src/a.ts")).toBeVisible();
 			expect(canvas.getByText("site/src/b.ts")).toBeVisible();
 			expect(canvas.getByText("site/src/c.ts")).toBeVisible();
+		});
+	},
+};
+
+export const SequentialReadFilesErrorStates: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-error-1",
+				path: "site/src/missing-a.ts",
+				status: "error",
+				errorMessage: "ENOENT: no such file or directory",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-error-2",
+				path: "site/src/missing-b.ts",
+				status: "error",
+				errorMessage: "permission denied",
+			}),
+			...buildMessages([
+				{
+					...baseMessage,
+					id: 3,
+					role: "assistant",
+					content: [{ type: "text", text: "Trying a different file set." }],
+				},
+			]),
+			buildParsedReadFileEntry({
+				messageId: 4,
+				toolId: "read-mixed-1",
+				path: "site/src/ok.ts",
+				status: "completed",
+				content: "export const ok = true;",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 5,
+				toolId: "read-mixed-2",
+				path: "site/src/missing-c.ts",
+				status: "error",
+				errorMessage: "not found",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const buttons = canvas.getAllByRole("button", { name: /read 2 files/i });
+		expect(buttons).toHaveLength(2);
+
+		await userEvent.click(buttons[0]);
+		await waitFor(() => {
+			expect(canvas.getByText("site/src/missing-a.ts")).toBeVisible();
+			expect(
+				canvas.getByText("ENOENT: no such file or directory"),
+			).toBeVisible();
+			expect(canvas.getByText("site/src/missing-b.ts")).toBeVisible();
+			expect(canvas.getByText("permission denied")).toBeVisible();
+		});
+
+		await userEvent.click(buttons[1]);
+		await waitFor(() => {
+			expect(canvas.getByText("site/src/ok.ts")).toBeVisible();
+			expect(canvas.getByText("site/src/missing-c.ts")).toBeVisible();
+			expect(canvas.getByText("not found")).toBeVisible();
+		});
+	},
+};
+
+export const SequentialReadFilesRunningState: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-running-1",
+				path: "site/src/one.ts",
+				status: "running",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-running-2",
+				path: "site/src/two.ts",
+				status: "running",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 3,
+				toolId: "read-running-3",
+				path: "site/src/three.ts",
+				status: "running",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/reading 3 files/i)).toBeInTheDocument();
+	},
+};
+
+export const SequentialReadFilesExpansionPersistsAcrossGrouping: Story = {
+	render: function Render(args) {
+		const [parsedMessages, setParsedMessages] = useState<ParsedMessageEntry[]>([
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-stream-1",
+				path: "site/src/a.ts",
+				status: "completed",
+				content: "export const a = 1;",
+			}),
+		]);
+
+		return (
+			<div className="space-y-4">
+				<button
+					type="button"
+					onClick={() =>
+						setParsedMessages([
+							buildParsedReadFileEntry({
+								messageId: 1,
+								toolId: "read-stream-1",
+								path: "site/src/a.ts",
+								status: "completed",
+								content: "export const a = 1;",
+							}),
+							buildParsedReadFileEntry({
+								messageId: 2,
+								toolId: "read-stream-2",
+								path: "site/src/b.ts",
+								status: "completed",
+								content: "export const b = 2;",
+							}),
+						])
+					}
+					className="rounded border border-border-default px-2 py-1 text-xs"
+				>
+					Add second read_file
+				</button>
+				<ConversationTimeline {...args} parsedMessages={parsedMessages} />
+			</div>
+		);
+	},
+	args: {
+		...defaultArgs,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const singleReadButton = canvas.getByRole("button", {
+			name: /read a\.ts/i,
+		});
+		await userEvent.click(singleReadButton);
+		expect(singleReadButton).toHaveAttribute("aria-expanded", "true");
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /add second read_file/i }),
+		);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: /read 2 files/i }),
+			).toHaveAttribute("aria-expanded", "true");
+			expect(canvas.getByText("site/src/a.ts")).toBeVisible();
+			expect(canvas.getByText("site/src/b.ts")).toBeVisible();
 		});
 	},
 };

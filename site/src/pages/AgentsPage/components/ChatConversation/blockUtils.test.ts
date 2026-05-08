@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	appendTextBlock,
 	asNonEmptyString,
+	getToolIDsForBlock,
 	groupSequentialReadFileBlocks,
 } from "./blockUtils";
 import type { MergedTool, RenderBlock } from "./types";
@@ -98,6 +99,28 @@ describe("appendTextBlock", () => {
 		expect(blocks).toHaveLength(1);
 		expect((blocks[0] as { text: string }).text).toBe("original");
 		expect(result).not.toBe(blocks);
+	});
+});
+
+describe("getToolIDsForBlock", () => {
+	it("returns the tool ID for tool blocks", () => {
+		expect(getToolIDsForBlock({ type: "tool", id: "read-1" })).toEqual([
+			"read-1",
+		]);
+	});
+
+	it("returns all tool IDs for tool-group blocks", () => {
+		expect(
+			getToolIDsForBlock({
+				type: "tool-group",
+				toolName: "read_file",
+				ids: ["read-1", "read-2"],
+			}),
+		).toEqual(["read-1", "read-2"]);
+	});
+
+	it("returns an empty list for non-tool blocks", () => {
+		expect(getToolIDsForBlock({ type: "response", text: "hello" })).toEqual([]);
 	});
 });
 

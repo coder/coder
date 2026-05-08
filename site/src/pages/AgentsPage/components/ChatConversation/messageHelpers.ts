@@ -166,6 +166,12 @@ const mergeReadFileMessageGroup = (
 	};
 };
 
+// Real transcripts place hidden tool-result-only messages between
+// sequential read_file assistant messages. Those hidden entries stay
+// transparent so the visible timeline reflects one file-reading run instead
+// of one row per persisted message. Synthetic grouped entries deliberately
+// render from merged parsed fields because their raw message payload still
+// belongs to the first persisted message.
 export const groupSequentialReadFileMessages = (
 	entries: readonly ParsedMessageEntry[],
 ): ParsedMessageEntry[] => {
@@ -191,7 +197,7 @@ export const groupSequentialReadFileMessages = (
 			continue;
 		}
 		if (isReadFileOnlyMessage(entry)) {
-			currentReadFileEntries = [...currentReadFileEntries, entry];
+			currentReadFileEntries.push(entry);
 			continue;
 		}
 

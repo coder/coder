@@ -34,11 +34,15 @@ const getReadFileItem = (tool: MergedTool): ReadFileItem => {
 
 export const ReadFilesTool: React.FC<{
 	tools: readonly MergedTool[];
-}> = ({ tools }) => {
+	expanded?: boolean;
+	onExpandedChange?: (expanded: boolean) => void;
+}> = ({ tools, expanded, onExpandedChange }) => {
 	const items = tools.map(getReadFileItem);
 	const isRunning = tools.some((tool) => tool.status === "running");
 	const isError = tools.some((tool) => tool.isError);
-	const hasContent = items.some((item) => item.content.length > 0);
+	const hasContent = items.some(
+		(item) => item.content.length > 0 || item.isError,
+	);
 	const label = isRunning
 		? `Reading ${tools.length} files…`
 		: `Read ${tools.length} files`;
@@ -52,6 +56,8 @@ export const ReadFilesTool: React.FC<{
 			<ToolCollapsible
 				className="w-full"
 				hasContent={hasContent}
+				expanded={expanded}
+				onExpandedChange={onExpandedChange}
 				header={
 					<>
 						<span className="text-[13px]">{label}</span>

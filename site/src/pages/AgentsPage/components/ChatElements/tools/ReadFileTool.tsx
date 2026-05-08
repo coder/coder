@@ -50,7 +50,17 @@ export const ReadFileTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ path, content, status, isError, errorMessage }) => {
+	expanded?: boolean;
+	onExpandedChange?: (expanded: boolean) => void;
+}> = ({
+	path,
+	content,
+	status,
+	isError,
+	errorMessage,
+	expanded,
+	onExpandedChange,
+}) => {
 	const hasContent = content.length > 0;
 	const isRunning = status === "running";
 	const filename = path.split("/").pop() || path;
@@ -60,6 +70,8 @@ export const ReadFileTool: React.FC<{
 		<ToolCollapsible
 			className="w-full"
 			hasContent={hasContent}
+			expanded={expanded}
+			onExpandedChange={onExpandedChange}
 			header={
 				<>
 					<span className="text-[13px]">{label}</span>

@@ -31,10 +31,13 @@ import {
 	Shimmer,
 	Tool,
 } from "../ChatElements";
+import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import { WebSearchSources } from "../ChatElements/tools";
 import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";
+import { ReadFileTool } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
+import { parseArgs } from "../ChatElements/tools/utils";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -212,6 +215,49 @@ const SmoothedResponse = memo<{
 	);
 });
 
+const READ_FILE_TIMELINE_BLOCK_CLASS_NAME =
+	"py-0.5 [&:has(+[data-tool-call])]:pb-0 [[data-tool-call]+&]:pt-0";
+
+const ReadFileTimelineBlock = memo<{
+	tools: readonly MergedTool[];
+}>(({ tools }) => {
+	const [expanded, setExpanded] = useState(false);
+	const [firstTool] = tools;
+	if (!firstTool) {
+		return null;
+	}
+
+	if (tools.length === 1) {
+		const parsedArgs = parseArgs(firstTool.args);
+		const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
+		const result = asRecord(firstTool.result);
+		const content = result ? asString(result.content).trim() : "";
+		return (
+			<div data-tool-call="" className={READ_FILE_TIMELINE_BLOCK_CLASS_NAME}>
+				<ReadFileTool
+					path={path || "file"}
+					content={content}
+					status={firstTool.status}
+					isError={firstTool.isError}
+					errorMessage={
+						result ? asString(result.error || result.message) : undefined
+					}
+					expanded={expanded}
+					onExpandedChange={setExpanded}
+				/>
+			</div>
+		);
+	}
+
+	return (
+		<ReadFilesTool
+			tools={tools}
+			expanded={expanded}
+			onExpandedChange={setExpanded}
+		/>
+	);
+});
+
 // Shared block renderer used by both ChatMessageItem (historical
 // messages) and StreamingOutput (live stream). Encapsulates the
 // response / thinking / tool / file / sources switch so both
@@ -345,13 +391,14 @@ export const BlockList: FC<{
 					case "tool-group": {
 						const groupTools = block.ids
 							.map((id) => toolByID.get(id))
-							.filter((tool): tool is MergedTool => Boolean(tool));
-						if (groupTools.length === 0) {
+							.filter((tool) => tool !== undefined);
+						const [firstGroupTool] = groupTools;
+						if (!firstGroupTool) {
 							return null;
 						}
 						return (
-							<ReadFilesTool
-								key={`${keyPrefix}-tool-group-${index}`}
+							<ReadFileTimelineBlock
+								key={firstGroupTool.id}
 								tools={groupTools}
 							/>
 						);
@@ -377,6 +424,9 @@ export const BlockList: FC<{
 									mcpServers={mcpServers}
 								/>
 							);
+						}
+						if (tool.name === "read_file") {
+							return <ReadFileTimelineBlock key={tool.id} tools={[tool]} />;
 						}
 						return (
 							<Tool
