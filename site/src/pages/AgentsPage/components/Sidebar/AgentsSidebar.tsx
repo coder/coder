@@ -1144,12 +1144,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"text-content-primary",
 					)}
 				>
-					<FilterIcon className="h-3.5 w-3.5" />
 					{showFilterCount && (
 						<span className="text-xs text-content-secondary">
 							({filteredCount} of {totalRootCount})
 						</span>
 					)}
+					<FilterIcon className="h-3.5 w-3.5" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
