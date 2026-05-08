@@ -1,6 +1,7 @@
 package chatprovider_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/eventstreamapi"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1081,8 +1084,12 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 			ReadError:     err,
 		}
 
-		w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
-		w.WriteHeader(http.StatusOK)
+		if err := writeBedrockAnthropicStream(w,
+			`{"type":"message_start","message":{}}`,
+			`{"type":"message_stop"}`,
+		); err != nil {
+			t.Errorf("write bedrock stream: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -1129,6 +1136,47 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
 	require.Contains(t, got.Authorization, "x-amzn-bedrock-accept")
 	require.Contains(t, got.Body, `"anthropic_version":"bedrock-2023-05-31"`)
+}
+
+func writeBedrockAnthropicStream(w http.ResponseWriter, events ...string) error {
+	w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
+	w.WriteHeader(http.StatusOK)
+
+	encoder := eventstream.NewEncoder()
+	for _, event := range events {
+		payload, err := json.Marshal(map[string]string{
+			"bytes": base64.StdEncoding.EncodeToString([]byte(event)),
+		})
+		if err != nil {
+			return err
+		}
+
+		err = encoder.Encode(w, eventstream.Message{
+			Headers: eventstream.Headers{
+				{
+					Name:  eventstreamapi.MessageTypeHeader,
+					Value: eventstream.StringValue(eventstreamapi.EventMessageType),
+				},
+				{
+					Name:  eventstreamapi.EventTypeHeader,
+					Value: eventstream.StringValue("chunk"),
+				},
+				{
+					Name:  eventstreamapi.ContentTypeHeader,
+					Value: eventstream.StringValue("application/json"),
+				},
+			},
+			Payload: payload,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
 }
 
 func bedrockNonStreamingResponse() map[string]any {
