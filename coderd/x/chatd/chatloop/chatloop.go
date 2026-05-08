@@ -469,6 +469,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// classified payload handed to OnRetry.
 				classified = classified.WithProvider(provider)
 				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
+				if classified.ChainBroken {
+					recoverFromChainBroken(ctx, &opts, &call, &messages)
+				}
 				if opts.OnRetry != nil {
 					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
@@ -1525,6 +1528,52 @@ func flushActiveState(
 		result.content = append(result.content, flushed)
 		result.toolCalls = append(result.toolCalls, flushed)
 	}
+}
+
+// recoverFromChainBroken handles a stream failure where the provider
+// reported that the chain anchor (e.g. OpenAI previous_response_id) is
+// no longer retrievable. It drops the poisoned options, exits chain
+// mode via the caller-supplied callback, and reloads full history so
+// the next retry attempt sends a normal request.
+//
+// Recovery is best-effort: if reloading fails the chain options are
+// still cleared and chain mode is still disabled, giving the next
+// attempt a chance to succeed against the original (chain-mode
+// filtered) prompt without the poisoned anchor. The caller already
+// classified the error as Retryable, so chatretry will retry
+// regardless.
+//
+// Today only OpenAI Responses uses chain mode, so the prompt rebuild
+// does not need to re-run the Anthropic prompt-cache or sanitize
+// passes. If chain mode ever extends to Anthropic this helper must
+// run those passes on the rebuilt prompt.
+func recoverFromChainBroken(
+	ctx context.Context,
+	opts *RunOptions,
+	call *fantasy.Call,
+	messages *[]fantasy.Message,
+) {
+	if chatopenai.HasPreviousResponseID(call.ProviderOptions) {
+		call.ProviderOptions = chatopenai.ClearPreviousResponseID(call.ProviderOptions)
+		opts.ProviderOptions = call.ProviderOptions
+	}
+	if opts.DisableChainMode != nil {
+		opts.DisableChainMode()
+	}
+	if opts.ReloadMessages == nil {
+		return
+	}
+	reloaded, err := opts.ReloadMessages(ctx)
+	if err != nil {
+		opts.Logger.Warn(ctx,
+			"chain-broken recovery: reload messages failed",
+			slog.Error(err))
+		return
+	}
+	*messages = reloaded
+	rebuilt := make([]fantasy.Message, len(reloaded))
+	copy(rebuilt, reloaded)
+	call.Prompt = rebuilt
 }
 
 // persistInterruptedStep saves durable content from a partial stream.
