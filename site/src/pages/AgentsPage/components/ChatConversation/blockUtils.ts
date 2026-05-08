@@ -33,7 +33,6 @@ export const appendTextBlock = (
 
 type ToolGroupRenderBlock = {
 	type: "tool-group";
-	toolName: "read_file";
 	ids: string[];
 };
 
@@ -56,7 +55,6 @@ export const groupSequentialReadFileBlocks = (
 		} else {
 			grouped.push({
 				type: "tool-group",
-				toolName: "read_file",
 				ids: currentReadFileIDs,
 			});
 		}
@@ -78,16 +76,4 @@ export const groupSequentialReadFileBlocks = (
 
 	flushReadFileIDs();
 	return grouped;
-};
-
-export const getToolIDsForBlock = (
-	block: TimelineRenderBlock,
-): readonly string[] => {
-	if (block.type === "tool") {
-		return [block.id];
-	}
-	if (block.type === "tool-group") {
-		return block.ids;
-	}
-	return [];
 };

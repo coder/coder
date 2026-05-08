@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	appendTextBlock,
 	asNonEmptyString,
-	getToolIDsForBlock,
 	groupSequentialReadFileBlocks,
 } from "./blockUtils";
 import type { MergedTool, RenderBlock } from "./types";
@@ -102,55 +101,14 @@ describe("appendTextBlock", () => {
 	});
 });
 
-describe("getToolIDsForBlock", () => {
-	it("returns the tool ID for tool blocks", () => {
-		expect(getToolIDsForBlock({ type: "tool", id: "read-1" })).toEqual([
-			"read-1",
-		]);
-	});
-
-	it("returns all tool IDs for tool-group blocks", () => {
-		expect(
-			getToolIDsForBlock({
-				type: "tool-group",
-				toolName: "read_file",
-				ids: ["read-1", "read-2"],
-			}),
-		).toEqual(["read-1", "read-2"]);
-	});
-
-	it("returns an empty list for non-tool blocks", () => {
-		expect(getToolIDsForBlock({ type: "response", text: "hello" })).toEqual([]);
-	});
-});
-
 describe("groupSequentialReadFileBlocks", () => {
-	const tools: MergedTool[] = [
-		{
-			id: "read-1",
-			name: "read_file",
-			args: { path: "a.ts" },
-			result: { content: "a" },
-			isError: false,
-			status: "completed",
-		},
-		{
-			id: "read-2",
-			name: "read_file",
-			args: { path: "b.ts" },
-			result: { content: "b" },
-			isError: false,
-			status: "completed",
-		},
-		{
-			id: "execute-1",
-			name: "execute",
-			args: { command: "pwd" },
-			result: { output: "/home/coder" },
-			isError: false,
-			status: "completed",
-		},
-	];
+	const tool = (id: string, name = "read_file"): MergedTool => ({
+		id,
+		name,
+		isError: false,
+		status: "completed",
+	});
+	const tools = [tool("read-1"), tool("read-2"), tool("execute-1", "execute")];
 
 	it("collapses consecutive read_file tool blocks", () => {
 		const result = groupSequentialReadFileBlocks(
@@ -164,7 +122,6 @@ describe("groupSequentialReadFileBlocks", () => {
 		expect(result).toEqual([
 			{
 				type: "tool-group",
-				toolName: "read_file",
 				ids: ["read-1", "read-2"],
 			},
 		]);
@@ -179,54 +136,34 @@ describe("groupSequentialReadFileBlocks", () => {
 		expect(result).toEqual([{ type: "tool", id: "read-1" }]);
 	});
 
-	it("does not collapse read_file blocks across other content", () => {
-		const result = groupSequentialReadFileBlocks(
+	it.each([
+		[
+			"response content",
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "response", text: "middle" },
 				{ type: "tool", id: "read-2" },
 			],
-			tools,
-		);
-
-		expect(result).toEqual([
-			{ type: "tool", id: "read-1" },
-			{ type: "response", text: "middle" },
-			{ type: "tool", id: "read-2" },
-		]);
-	});
-
-	it("does not collapse read_file blocks across another tool", () => {
-		const result = groupSequentialReadFileBlocks(
+		],
+		[
+			"another tool",
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "execute-1" },
 				{ type: "tool", id: "read-2" },
 			],
-			tools,
-		);
-
-		expect(result).toEqual([
-			{ type: "tool", id: "read-1" },
-			{ type: "tool", id: "execute-1" },
-			{ type: "tool", id: "read-2" },
-		]);
-	});
-
-	it("keeps unresolved tool blocks ungrouped", () => {
-		const result = groupSequentialReadFileBlocks(
+		],
+		[
+			"an unresolved tool",
 			[
 				{ type: "tool", id: "read-1" },
 				{ type: "tool", id: "missing" },
 				{ type: "tool", id: "read-2" },
 			],
-			tools,
-		);
-
-		expect(result).toEqual([
-			{ type: "tool", id: "read-1" },
-			{ type: "tool", id: "missing" },
-			{ type: "tool", id: "read-2" },
-		]);
+		],
+	] satisfies Array<
+		[string, RenderBlock[]]
+	>)("does not collapse read_file blocks across %s", (_, blocks) => {
+		expect(groupSequentialReadFileBlocks(blocks, tools)).toEqual(blocks);
 	});
 });

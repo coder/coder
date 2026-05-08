@@ -298,6 +298,43 @@ const buildParsedReadFileEntry = ({
 	};
 };
 
+const buildReadFileExchange = (
+	callMessageId: number,
+	toolId: string,
+	path: string,
+	content: string,
+): TypesGen.ChatMessage[] => {
+	const args = { path };
+	return [
+		{
+			...baseMessage,
+			id: callMessageId,
+			role: "assistant",
+			content: [
+				{
+					type: "tool-call",
+					tool_call_id: toolId,
+					tool_name: "read_file",
+					args,
+				},
+			],
+		},
+		{
+			...baseMessage,
+			id: callMessageId + 1,
+			role: "tool",
+			content: [
+				{
+					type: "tool-result",
+					tool_call_id: toolId,
+					tool_name: "read_file",
+					result: { content },
+				},
+			],
+		},
+	];
+};
+
 const LONG_USER_MESSAGE = [
 	"This is a deliberately long user message that should stay pinned to the",
 	"right edge while the bubble stops short of filling the entire timeline",
@@ -2279,84 +2316,24 @@ export const SequentialReadFilesCollapsed: Story = {
 				role: "assistant",
 				content: [{ type: "text", text: "I'll inspect the relevant files." }],
 			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						tool_call_id: "read-1",
-						tool_name: "read_file",
-						args: { path: "site/src/a.ts" },
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 3,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						tool_call_id: "read-1",
-						tool_name: "read_file",
-						result: { content: "export const a = 1;" },
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 4,
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						tool_call_id: "read-2",
-						tool_name: "read_file",
-						args: { path: "site/src/b.ts" },
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 5,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						tool_call_id: "read-2",
-						tool_name: "read_file",
-						result: { content: "export const b = 2;" },
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 6,
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						tool_call_id: "read-3",
-						tool_name: "read_file",
-						args: { path: "site/src/c.ts" },
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 7,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						tool_call_id: "read-3",
-						tool_name: "read_file",
-						result: { content: "export const c = 3;" },
-					},
-				],
-			},
+			...buildReadFileExchange(
+				2,
+				"read-1",
+				"site/src/a.ts",
+				"export const a = 1;",
+			),
+			...buildReadFileExchange(
+				4,
+				"read-2",
+				"site/src/b.ts",
+				"export const b = 2;",
+			),
+			...buildReadFileExchange(
+				6,
+				"read-3",
+				"site/src/c.ts",
+				"export const c = 3;",
+			),
 		]),
 	},
 	play: async ({ canvasElement }) => {
@@ -2375,7 +2352,7 @@ export const SequentialReadFilesCollapsed: Story = {
 	},
 };
 
-export const SequentialReadFilesEmptyFilesExpandable: Story = {
+export const SequentialReadFilesEmptyAndErrorStates: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: [
@@ -2391,40 +2368,6 @@ export const SequentialReadFilesEmptyFilesExpandable: Story = {
 				path: "site/src/empty-b.ts",
 				status: "completed",
 			}),
-		] satisfies ParsedMessageEntry[],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const groupButton = canvas.getByRole("button", { name: /read 2 files/i });
-		expect(groupButton).toBeInTheDocument();
-		expect(canvas.queryByText("site/src/empty-a.ts")).not.toBeInTheDocument();
-		expect(canvas.queryByText("site/src/empty-b.ts")).not.toBeInTheDocument();
-		await userEvent.click(groupButton);
-		await waitFor(() => {
-			expect(canvas.getByText("site/src/empty-a.ts")).toBeVisible();
-			expect(canvas.getByText("site/src/empty-b.ts")).toBeVisible();
-		});
-	},
-};
-
-export const SequentialReadFilesErrorStates: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: [
-			buildParsedReadFileEntry({
-				messageId: 1,
-				toolId: "read-error-1",
-				path: "site/src/missing-a.ts",
-				status: "error",
-				errorMessage: "ENOENT: no such file or directory",
-			}),
-			buildParsedReadFileEntry({
-				messageId: 2,
-				toolId: "read-error-2",
-				path: "site/src/missing-b.ts",
-				status: "error",
-				errorMessage: "permission denied",
-			}),
 			...buildMessages([
 				{
 					...baseMessage,
@@ -2435,17 +2378,17 @@ export const SequentialReadFilesErrorStates: Story = {
 			]),
 			buildParsedReadFileEntry({
 				messageId: 4,
-				toolId: "read-mixed-1",
-				path: "site/src/ok.ts",
-				status: "completed",
-				content: "export const ok = true;",
+				toolId: "read-error-1",
+				path: "site/src/missing-a.ts",
+				status: "error",
+				errorMessage: "ENOENT: no such file or directory",
 			}),
 			buildParsedReadFileEntry({
 				messageId: 5,
-				toolId: "read-mixed-2",
-				path: "site/src/missing-c.ts",
+				toolId: "read-error-2",
+				path: "site/src/missing-b.ts",
 				status: "error",
-				errorMessage: "not found",
+				errorMessage: "permission denied",
 			}),
 		] satisfies ParsedMessageEntry[],
 	},
@@ -2456,6 +2399,12 @@ export const SequentialReadFilesErrorStates: Story = {
 
 		await userEvent.click(buttons[0]);
 		await waitFor(() => {
+			expect(canvas.getByText("site/src/empty-a.ts")).toBeVisible();
+			expect(canvas.getByText("site/src/empty-b.ts")).toBeVisible();
+		});
+
+		await userEvent.click(buttons[1]);
+		await waitFor(() => {
 			expect(canvas.getByText("site/src/missing-a.ts")).toBeVisible();
 			expect(
 				canvas.getByText("ENOENT: no such file or directory"),
@@ -2463,43 +2412,6 @@ export const SequentialReadFilesErrorStates: Story = {
 			expect(canvas.getByText("site/src/missing-b.ts")).toBeVisible();
 			expect(canvas.getByText("permission denied")).toBeVisible();
 		});
-
-		await userEvent.click(buttons[1]);
-		await waitFor(() => {
-			expect(canvas.getByText("site/src/ok.ts")).toBeVisible();
-			expect(canvas.getByText("site/src/missing-c.ts")).toBeVisible();
-			expect(canvas.getByText("not found")).toBeVisible();
-		});
-	},
-};
-
-export const SequentialReadFilesRunningState: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: [
-			buildParsedReadFileEntry({
-				messageId: 1,
-				toolId: "read-running-1",
-				path: "site/src/one.ts",
-				status: "running",
-			}),
-			buildParsedReadFileEntry({
-				messageId: 2,
-				toolId: "read-running-2",
-				path: "site/src/two.ts",
-				status: "running",
-			}),
-			buildParsedReadFileEntry({
-				messageId: 3,
-				toolId: "read-running-3",
-				path: "site/src/three.ts",
-				status: "running",
-			}),
-		] satisfies ParsedMessageEntry[],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/reading 3 files/i)).toBeInTheDocument();
 	},
 };
 

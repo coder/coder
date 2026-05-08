@@ -45,10 +45,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import {
-	getToolIDsForBlock,
-	groupSequentialReadFileBlocks,
-} from "./blockUtils";
+import { groupSequentialReadFileBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	deriveMessageDisplayState,
@@ -310,10 +307,13 @@ export const BlockList: FC<{
 	// we can render "remaining" (block-less) tools afterwards.
 	const blockToolIDs = new Set(
 		displayBlocks.flatMap((block) => {
-			if (block.type === "tool" && !(toolByID.has(block.id) || isStreaming)) {
-				return [];
+			if (block.type === "tool") {
+				return toolByID.has(block.id) || isStreaming ? [block.id] : [];
 			}
-			return [...getToolIDsForBlock(block)];
+			if (block.type === "tool-group") {
+				return block.ids;
+			}
+			return [];
 		}),
 	);
 
