@@ -24,6 +24,10 @@ import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import {
+	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
+} from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
@@ -151,7 +155,10 @@ const AgentCreatePage: FC = () => {
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
 				sendShortcut={
-					preferencesQuery.data?.agent_chat_send_shortcut ?? "enter"
+					preferencesQuery.data?.agent_chat_send_shortcut ??
+					(preferencesQuery.isLoading
+						? MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+						: DEFAULT_AGENT_CHAT_SEND_SHORTCUT)
 				}
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}

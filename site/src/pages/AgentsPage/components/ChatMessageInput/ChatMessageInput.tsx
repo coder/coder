@@ -32,6 +32,10 @@ import {
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
+import {
+	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
+} from "../../utils/agentChatSendShortcut";
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	$createFileReferenceNode,
@@ -274,14 +278,24 @@ const EnterKeyPlugin: FC<{
 		return editor.registerCommand(
 			KEY_ENTER_COMMAND,
 			(event: KeyboardEvent | null) => {
-				if (event?.shiftKey || isMobileViewport()) {
-					return false;
-				}
-				if (
-					sendShortcut === "modifier_enter" &&
-					!(event?.metaKey || event?.ctrlKey)
-				) {
-					return false;
+				const shouldInsertLineBreak =
+					event?.shiftKey ||
+					isMobileViewport() ||
+					(sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT &&
+						!(event?.metaKey || event?.ctrlKey));
+				if (shouldInsertLineBreak) {
+					event?.preventDefault();
+					editor.update(() => {
+						let selection = $getSelection();
+						if (!$isRangeSelection(selection)) {
+							$getRoot().selectEnd();
+							selection = $getSelection();
+						}
+						if ($isRangeSelection(selection)) {
+							selection.insertLineBreak();
+						}
+					});
+					return true;
 				}
 				if (onEnter) {
 					event?.preventDefault();
@@ -497,7 +511,7 @@ const ChatMessageInput = ({
 	remountKey,
 	rows,
 	onEnter,
-	sendShortcut = "enter",
+	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	onFilePaste,
 	allowTextAttachmentPaste,
 	disabled,

@@ -59,6 +59,10 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
+	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
+} from "../utils/agentChatSendShortcut";
+import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
@@ -286,7 +290,7 @@ const ToolBadge: FC<{
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
-	sendShortcut = "enter",
+	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	placeholder = "Type a message...",
 	isDisabled,
 	isLoading,
@@ -851,6 +855,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			: isEditingHistoryMessage
 				? "Save Edit"
 				: "Send";
+	const sendShortcutLabel =
+		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+			? "Cmd/Ctrl+Enter"
+			: "Enter";
+	const sendButtonKeyShortcuts =
+		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+			? "Control+Enter Meta+Enter"
+			: "Enter";
 
 	const content = (
 		<div
@@ -1341,26 +1353,38 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</Button>
 						)}
 						{!(isStreaming && editingQueuedMessageID === null) && (
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
-								onClick={
-									speech.isRecording ? handleAcceptRecording : handleSubmit
-								}
-								disabled={speech.isRecording ? false : !canSend}
-							>
-								{isLoading ? (
-									<Spinner size="sm" loading aria-hidden="true" />
-								) : speech.isRecording ? (
-									<CheckIcon />
-								) : (
-									<ArrowUpIcon />
-								)}
-								<span className="sr-only">
-									{speech.isRecording ? "Accept voice input" : sendButtonLabel}
-								</span>
-							</Button>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										size="icon"
+										variant="default"
+										className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+										onClick={
+											speech.isRecording ? handleAcceptRecording : handleSubmit
+										}
+										disabled={speech.isRecording ? false : !canSend}
+										aria-keyshortcuts={sendButtonKeyShortcuts}
+									>
+										{isLoading ? (
+											<Spinner size="sm" loading aria-hidden="true" />
+										) : speech.isRecording ? (
+											<CheckIcon />
+										) : (
+											<ArrowUpIcon />
+										)}
+										<span className="sr-only">
+											{speech.isRecording
+												? "Accept voice input"
+												: sendButtonLabel}
+										</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									{speech.isRecording
+										? "Accept voice input"
+										: `${sendButtonLabel}: ${sendShortcutLabel}`}
+								</TooltipContent>
+							</Tooltip>
 						)}
 					</div>
 				</div>

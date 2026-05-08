@@ -242,12 +242,15 @@ export const ModifierEnterSendsWhenRequired: Story = {
 		const canvas = within(canvasElement);
 		const editor = canvas.getByTestId("chat-message-input");
 		await waitFor(() => {
-			expect(editor.textContent).toContain("Run focused tests");
+			expect(editor.textContent).toBe("Run focused tests");
 		});
 
 		await userEvent.click(editor);
 		await userEvent.keyboard("{Enter}");
 		expect(args.onSend).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(editor.querySelectorAll("br").length).toBeGreaterThan(0);
+		});
 
 		await userEvent.keyboard("{Control>}{Enter}{/Control}");
 		await waitFor(() => {

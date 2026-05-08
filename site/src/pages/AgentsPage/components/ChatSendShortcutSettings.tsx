@@ -4,21 +4,20 @@ import {
 	preferenceSettings,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
-import type { UserPreferenceSettings } from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
-
-type AgentChatSendShortcut = UserPreferenceSettings["agent_chat_send_shortcut"];
-
-const defaultShortcut: AgentChatSendShortcut = "enter";
-const modifierShortcut: AgentChatSendShortcut = "modifier_enter";
+import {
+	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
+} from "../utils/agentChatSendShortcut";
 
 export const ChatSendShortcutSettings: FC = () => {
 	const queryClient = useQueryClient();
 	const query = useQuery(preferenceSettings());
 	const mutation = useMutation(updatePreferenceSettings(queryClient));
 	const descriptionId = useId();
-	const shortcut = query.data?.agent_chat_send_shortcut ?? defaultShortcut;
-	const requiresModifierEnter = shortcut === modifierShortcut;
+	const shortcut =
+		query.data?.agent_chat_send_shortcut ?? DEFAULT_AGENT_CHAT_SEND_SHORTCUT;
+	const requiresModifierEnter = shortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT;
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -38,8 +37,8 @@ export const ChatSendShortcutSettings: FC = () => {
 					onCheckedChange={(checked) =>
 						mutation.mutate({
 							agent_chat_send_shortcut: checked
-								? modifierShortcut
-								: defaultShortcut,
+								? MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+								: DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 						})
 					}
 					aria-label="Require Cmd/Ctrl+Enter to send messages"

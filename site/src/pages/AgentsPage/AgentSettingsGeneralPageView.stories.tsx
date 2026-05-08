@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
@@ -135,11 +136,22 @@ export const RendersChatLayoutSection: Story = {
 
 export const TogglesSendShortcut: Story = {
 	beforeEach: () => {
-		spyOn(API, "getUserPreferenceSettings").mockResolvedValue(preferencesData);
-		spyOn(API, "updateUserPreferenceSettings").mockResolvedValue({
+		let agentChatSendShortcut: AgentChatSendShortcut =
+			preferencesData.agent_chat_send_shortcut;
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(async () => ({
 			...preferencesData,
-			agent_chat_send_shortcut: "modifier_enter",
-		});
+			agent_chat_send_shortcut: agentChatSendShortcut,
+		}));
+		spyOn(API, "updateUserPreferenceSettings").mockImplementation(
+			async (req) => {
+				agentChatSendShortcut =
+					req.agent_chat_send_shortcut ?? agentChatSendShortcut;
+				return {
+					...preferencesData,
+					agent_chat_send_shortcut: agentChatSendShortcut,
+				};
+			},
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -155,6 +167,7 @@ export const TogglesSendShortcut: Story = {
 			expect(API.updateUserPreferenceSettings).toHaveBeenCalledWith({
 				agent_chat_send_shortcut: "modifier_enter",
 			});
+			expect(toggle).toBeChecked();
 		});
 	},
 };
