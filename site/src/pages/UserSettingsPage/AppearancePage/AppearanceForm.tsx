@@ -16,6 +16,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Section } from "#/pages/UserSettingsPage/Section";
 import type { ConcreteThemeName } from "#/theme";
 import {
 	DEFAULT_TERMINAL_FONT,
@@ -29,7 +30,6 @@ import {
 	switchToSingle,
 	type ThemeModeDraft,
 } from "#/theme/themeMode";
-import { Section } from "#/pages/UserSettingsPage/Section";
 import { SingleModeSection } from "./SingleModeSection";
 import { SyncModeSection } from "./SyncModeSection";
 
