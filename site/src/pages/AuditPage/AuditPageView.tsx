@@ -1,6 +1,5 @@
 import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -63,8 +62,8 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
 			</PageHeader>
 
-			<ChooseOne>
-				<Cond condition={isAuditLogVisible}>
+			{isAuditLogVisible ? (
+				<>
 					<AuditFilter {...filterProps} />
 
 					<PaginationContainer
@@ -73,69 +72,85 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 					>
 						<Table>
 							<TableBody>
-								<ChooseOne>
-									{/* Error condition should just show an empty table. */}
-									<Cond condition={Boolean(error)}>
-										<TableRow>
-											<TableCell colSpan={999}>
-												<EmptyState message="An error occurred while loading audit logs" />
-											</TableCell>
-										</TableRow>
-									</Cond>
-
-									<Cond condition={isLoading}>
-										<TableLoader />
-									</Cond>
-
-									<Cond condition={isEmpty}>
-										<ChooseOne>
-											<Cond condition={isNonInitialPage}>
-												<TableRow>
-													<TableCell colSpan={999}>
-														<EmptyState message="No audit logs available on this page" />
-													</TableCell>
-												</TableRow>
-											</Cond>
-
-											<Cond>
-												<TableRow>
-													<TableCell colSpan={999}>
-														<EmptyState message="No audit logs available" />
-													</TableCell>
-												</TableRow>
-											</Cond>
-										</ChooseOne>
-									</Cond>
-
-									<Cond>
-										{auditLogs && (
-											<Timeline
-												items={auditLogs}
-												getDate={(log) => new Date(log.time)}
-												row={(log) => (
-													<AuditLogRow
-														key={log.id}
-														auditLog={log}
-														showOrgDetails={showOrgDetails}
-													/>
-												)}
-											/>
-										)}
-									</Cond>
-								</ChooseOne>
+								<AuditTableBody
+									auditLogs={auditLogs}
+									error={error}
+									isLoading={isLoading}
+									isEmpty={isEmpty}
+									isNonInitialPage={isNonInitialPage}
+									showOrgDetails={showOrgDetails}
+								/>
 							</TableBody>
 						</Table>
 					</PaginationContainer>
-				</Cond>
-
-				<Cond>
-					<PaywallPremium
-						message="Audit logs"
-						description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/security/audit-logs")}
-					/>
-				</Cond>
-			</ChooseOne>
+				</>
+			) : (
+				<PaywallPremium
+					message="Audit logs"
+					description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
+					documentationLink={docs("/admin/security/audit-logs")}
+				/>
+			)}
 		</Margins>
+	);
+};
+
+interface AuditTableBodyProps {
+	auditLogs: readonly AuditLog[] | undefined;
+	error: unknown;
+	isLoading: boolean;
+	isEmpty: boolean;
+	isNonInitialPage: boolean;
+	showOrgDetails: boolean;
+}
+
+const AuditTableBody: FC<AuditTableBodyProps> = ({
+	auditLogs,
+	error,
+	isLoading,
+	isEmpty,
+	isNonInitialPage,
+	showOrgDetails,
+}) => {
+	// An error renders as an empty table.
+	if (error) {
+		return (
+			<TableRow>
+				<TableCell colSpan={999}>
+					<EmptyState message="An error occurred while loading audit logs" />
+				</TableCell>
+			</TableRow>
+		);
+	}
+	if (isLoading) {
+		return <TableLoader />;
+	}
+	if (isEmpty) {
+		const emptyMessage = isNonInitialPage
+			? "No audit logs available on this page"
+			: "No audit logs available";
+		return (
+			<TableRow>
+				<TableCell colSpan={999}>
+					<EmptyState message={emptyMessage} />
+				</TableCell>
+			</TableRow>
+		);
+	}
+	if (!auditLogs) {
+		return null;
+	}
+	return (
+		<Timeline
+			items={auditLogs}
+			getDate={(log) => new Date(log.time)}
+			row={(log) => (
+				<AuditLogRow
+					key={log.id}
+					auditLog={log}
+					showOrgDetails={showOrgDetails}
+				/>
+			)}
+		/>
 	);
 };

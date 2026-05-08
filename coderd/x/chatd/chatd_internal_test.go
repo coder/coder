@@ -1808,6 +1808,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 
 	workspaceID := uuid.New()
 	staleAgentID := uuid.New()
+	resourceID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
 		WorkspaceID: uuid.NullUUID{
@@ -1820,7 +1821,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 		},
 	}
 
-	staleAgent := database.WorkspaceAgent{ID: staleAgentID}
+	staleAgent := database.WorkspaceAgent{ID: staleAgentID, ResourceID: resourceID}
 
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).
 		Return(staleAgent, nil).
@@ -1828,6 +1829,12 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{}, nil).
 		Times(1)
+	db.EXPECT().GetWorkspaceResourceByID(gomock.Any(), resourceID).
+		Return(database.WorkspaceResource{
+			ID:   resourceID,
+			Type: chattool.ExternalAgentResourceType,
+		}, nil).
+		AnyTimes()
 
 	server := &Server{
 		db:                             db,
@@ -1852,6 +1859,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
 	require.Nil(t, gotConn)
 	require.ErrorIs(t, err, errChatHasNoWorkspaceAgent)
+	require.NotErrorIs(t, err, errChatExternalAgentUnavailable)
 
 	workspaceCtx.mu.Lock()
 	defer workspaceCtx.mu.Unlock()
@@ -4538,12 +4546,10 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
-	// Regression test: a non-timeout dial error (e.g. auth
-	// failure) with the parent context still alive must NOT be
-	// converted to errChatDialTimeout. Before the fix,
-	// dialCancel() poisoned dialCtx.Err(), causing all errors
-	// to be misclassified.
+func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
+	// External agent never connected and the connection window has
+	// elapsed (Timeout). Preflight must short-circuit before any
+	// dial attempt and return the external-agent error.
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -4551,6 +4557,151 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 
 	workspaceID := uuid.New()
 	agentID := uuid.New()
+	resourceID := uuid.New()
+	agent := database.WorkspaceAgent{
+		ID:                       agentID,
+		Name:                     "main",
+		ResourceID:               resourceID,
+		CreatedAt:                time.Now().Add(-10 * time.Minute),
+		ConnectionTimeoutSeconds: 60,
+	}
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(agent, nil).
+		Times(1)
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{agent}, nil).
+		Times(1)
+	db.EXPECT().GetWorkspaceResourceByID(gomock.Any(), resourceID).
+		Return(database.WorkspaceResource{
+			ID:   resourceID,
+			Type: chattool.ExternalAgentResourceType,
+		}, nil).
+		Times(1)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		t.Fatal("unexpected agent dial for external agent preflight")
+		return nil, nil, xerrors.New("unexpected agent dial")
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatExternalAgentUnavailable)
+	require.Equal(t, chattool.ExternalAgentUnavailableMessage(agent), err.Error())
+}
+
+func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
+	// External agent in the Connecting state (never connected yet,
+	// still inside ConnectionTimeoutSeconds) must fall through to the
+	// dial so the user can succeed in the same turn if they just
+	// started the agent on their host.
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	resourceID := uuid.New()
+	agent := database.WorkspaceAgent{
+		ID:                       agentID,
+		Name:                     "main",
+		ResourceID:               resourceID,
+		CreatedAt:                time.Now().Add(-1 * time.Second),
+		ConnectionTimeoutSeconds: 600,
+	}
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(agent, nil).
+		Times(1)
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	dialed := false
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(_ context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		dialed = true
+		require.Equal(t, agentID, id)
+		return conn, func() {}, nil
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err)
+	require.Same(t, conn, gotConn)
+	require.True(t, dialed, "preflight must let Connecting external agents reach the dial")
+}
+
+func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
+	// Regression test: a non-timeout dial error (e.g. auth
+	// failure) with the parent context still alive must NOT be
+	// converted to errChatDialTimeout or masked as external-agent
+	// unavailability.
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	resourceID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
 		WorkspaceID: uuid.NullUUID{
@@ -4564,7 +4715,8 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	}
 
 	connectedAgent := database.WorkspaceAgent{
-		ID: agentID,
+		ID:         agentID,
+		ResourceID: resourceID,
 		FirstConnectedAt: sql.NullTime{
 			Time:  time.Now().Add(-1 * time.Minute),
 			Valid: true,
@@ -4584,6 +4736,12 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	// redial that also returns the error.
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{connectedAgent}, nil).
+		AnyTimes()
+	db.EXPECT().GetWorkspaceResourceByID(gomock.Any(), resourceID).
+		Return(database.WorkspaceResource{
+			ID:   resourceID,
+			Type: chattool.ExternalAgentResourceType,
+		}, nil).
 		AnyTimes()
 
 	dialErr := xerrors.New("authentication failed")
@@ -4613,9 +4771,11 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
 	require.Nil(t, gotConn)
-	// Must NOT be misclassified as a dial timeout.
+	// Must NOT be misclassified as a dial timeout or external-agent outage.
 	require.NotErrorIs(t, err, errChatDialTimeout)
+	require.NotErrorIs(t, err, errChatExternalAgentUnavailable)
 	// The original dial error should propagate.
+	require.ErrorIs(t, err, dialErr)
 	require.ErrorContains(t, err, "authentication failed")
 }
 

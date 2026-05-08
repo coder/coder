@@ -1,16 +1,43 @@
 import { ChevronDownIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useState } from "react";
+import type { AgentDisplayMode } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
+import {
+	type AgentDisplayState,
+	isAgentDisplayOpen,
+	resolveAgentDisplayState,
+} from "./displayMode";
+
+type ToolCollapsibleHeader = ReactNode | ((expanded: boolean) => ReactNode);
 
 interface ToolCollapsibleProps {
 	children: ReactNode;
-	header: ReactNode;
+	header: ToolCollapsibleHeader;
 	hasContent?: boolean;
 	defaultExpanded?: boolean;
 	className?: string;
 	headerClassName?: string;
 }
+
+interface AgentDisplayModeToolCollapsibleProps
+	extends Omit<ToolCollapsibleProps, "defaultExpanded"> {
+	displayMode: AgentDisplayMode | undefined;
+	autoDisplayState: AgentDisplayState;
+}
+
+export const AgentDisplayModeToolCollapsible: FC<
+	AgentDisplayModeToolCollapsibleProps
+> = ({ displayMode, autoDisplayState, ...props }) => {
+	const displayState = resolveAgentDisplayState(displayMode, autoDisplayState);
+	return (
+		<ToolCollapsible
+			key={`${displayMode ?? "auto"}:${autoDisplayState}`}
+			{...props}
+			defaultExpanded={isAgentDisplayOpen(displayState)}
+		/>
+	);
+};
 
 export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	children,
@@ -21,6 +48,8 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	headerClassName,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
+	const renderedHeader =
+		typeof header === "function" ? header(expanded) : header;
 	return (
 		<div className={className}>
 			{hasContent ? (
@@ -35,7 +64,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 						headerClassName,
 					)}
 				>
-					{header}
+					{renderedHeader}
 					<ChevronDownIcon
 						className={cn(
 							"h-3 w-3 shrink-0 text-current transition-transform",
@@ -50,7 +79,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 						headerClassName,
 					)}
 				>
-					{header}
+					{renderedHeader}
 				</div>
 			)}
 			{expanded && hasContent && children}

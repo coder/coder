@@ -47,7 +47,14 @@
 	"pnpm": {
 		"overrides": {
 			"@babel/runtime": "7.26.10",
-			"brace-expansion": "1.1.12"
+			"brace-expansion": "1.1.13",
+			"minimatch": "5.1.8",
+			"glob@>=10": "10.5.0",
+			"postcss": "8.5.10",
+			"js-yaml": "3.14.2",
+			"yaml": "1.10.3",
+			"flatted": "3.4.2",
+			"mdast-util-to-hast": "13.2.1"
 		}
 	}
 }

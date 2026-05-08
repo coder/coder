@@ -303,6 +303,30 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_thinking_display_mode'
 RETURNING value AS thinking_display_mode;
 
+
+-- name: GetUserCodeDiffDisplayMode :one
+SELECT
+	value AS code_diff_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_code_diff_display_mode';
+
+-- name: UpdateUserCodeDiffDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_code_diff_display_mode', @code_diff_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @code_diff_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_code_diff_display_mode'
+RETURNING value AS code_diff_display_mode;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users

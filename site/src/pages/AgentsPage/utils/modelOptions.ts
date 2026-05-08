@@ -210,6 +210,16 @@ export const getModelOptionsFromConfigs = (
 	});
 };
 
+// getProviderForModelOption returns the provider string for the
+// currently-selected model option, or undefined when the selection
+// is not (yet) in the options list. Extracted so resize/budget logic
+// has one place to resolve provider from the selector state.
+export const getProviderForModelOption = (
+	modelOptions: readonly ModelSelectorOption[],
+	selectedModel: string,
+): string | undefined =>
+	modelOptions.find((option) => option.id === selectedModel)?.provider;
+
 export const formatProviderLabel = (provider: string): string => {
 	const normalized = provider.trim().toLowerCase();
 	switch (normalized) {

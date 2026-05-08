@@ -20,9 +20,12 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -137,7 +140,35 @@ func newTestAPIWithOptions(t *testing.T, updateEnv func([]string) ([]string, err
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
-	return api.Routes()
+	return agentchat.Middleware(api.Routes())
+}
+
+func TestAccessLogIncludesChatID(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger()
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, nil)
+	t.Cleanup(func() {
+		_ = api.Close()
+	})
+	handler := tracing.StatusWriterMiddleware(loggermw.Logger(logger)(
+		agentchat.Middleware(api.Routes()),
+	))
+
+	chatID := uuid.New().String()
+	w := getListWithChatHeader(t, handler, chatID)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	entries := sink.Entries(func(entry slog.SinkEntry) bool {
+		return entry.Message == http.MethodGet
+	})
+	require.Len(t, entries, 1)
+	fields := make(map[string]any, len(entries[0].Fields))
+	for _, field := range entries[0].Fields {
+		fields[field.Name] = field.Value
+	}
+	require.Equal(t, chatID, fields["chat_id"])
 }
 
 // waitForExit polls the output endpoint until the process is
@@ -1058,7 +1089,7 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 	}, pathStore, nil)
 	defer api.Close()
 
-	routes := api.Routes()
+	routes := agentchat.Middleware(api.Routes())
 
 	body, err := json.Marshal(workspacesdk.StartProcessRequest{
 		Command: "echo hello",

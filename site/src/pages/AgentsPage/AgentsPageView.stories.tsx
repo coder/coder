@@ -4,6 +4,7 @@ import { type ComponentProps, useState } from "react";
 import { Navigate, useOutletContext } from "react-router";
 import {
 	expect,
+	fireEvent,
 	fn,
 	screen,
 	spyOn,
@@ -38,6 +39,14 @@ import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { ChatTopBar } from "./components/ChatTopBar";
+import {
+	clampLeftSidebarWidth,
+	getLeftSidebarMaxWidth,
+	LEFT_SIDEBAR_DEFAULT_WIDTH,
+	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
+	LEFT_SIDEBAR_MIN_WIDTH,
+	LEFT_SIDEBAR_STORAGE_KEY,
+} from "./components/Sidebar/sidebarWidth";
 
 const defaultModelConfigID = "model-config-1";
 
@@ -292,6 +301,7 @@ const meta: Meta<typeof AgentsPageView> = {
 	},
 	args: defaultArgs,
 	beforeEach: () => {
+		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
 			count: 0,
@@ -483,6 +493,180 @@ export const WithChatList: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
+	},
+};
+
+export const ResizableSidebar: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-resize",
+				title: "Resizable sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sidebar = canvas.getByTestId("agents-sidebar-panel");
+		const handle = canvas.getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+
+		handle.setPointerCapture = () => {};
+		handle.releasePointerCapture = () => {};
+		handle.hasPointerCapture = () => true;
+
+		const sidebarWidth = () =>
+			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+		const dragSidebar = (fromX: number, toX: number) => {
+			fireEvent.pointerDown(handle, { clientX: fromX, pointerId: 1 });
+			fireEvent.pointerMove(handle, { clientX: toX, pointerId: 1 });
+			fireEvent.pointerUp(handle, { clientX: toX, pointerId: 1 });
+		};
+
+		const initialWidth = clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
+		const expandedWidth = Math.min(getLeftSidebarMaxWidth(), initialWidth + 40);
+
+		await expect(handle).toBeVisible();
+		await expect(handle).toHaveAttribute("aria-valuenow", String(initialWidth));
+		await expect(sidebarWidth()).toBe(`${initialWidth}px`);
+
+		dragSidebar(initialWidth, initialWidth + 40);
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${expandedWidth}px`);
+		});
+
+		dragSidebar(expandedWidth, 0);
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${LEFT_SIDEBAR_MIN_WIDTH}px`);
+		});
+
+		const maxWidth = getLeftSidebarMaxWidth();
+		dragSidebar(LEFT_SIDEBAR_MIN_WIDTH, maxWidth + 1000);
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${maxWidth}px`);
+		});
+		await waitFor(() => {
+			expect(localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY)).toBe(
+				String(maxWidth),
+			);
+		});
+	},
+};
+
+const persistedLeftSidebarWidth = 380;
+
+export const PersistedResizableSidebarWidth: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-resize-persisted",
+				title: "Persisted sidebar width agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	decorators: [
+		(Story) => {
+			localStorage.setItem(
+				LEFT_SIDEBAR_STORAGE_KEY,
+				String(persistedLeftSidebarWidth),
+			);
+			return <Story />;
+		},
+	],
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sidebar = canvas.getByTestId("agents-sidebar-panel");
+		const handle = canvas.getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+		const sidebarWidth = () =>
+			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+
+		await expect(handle).toHaveAttribute(
+			"aria-valuenow",
+			String(persistedLeftSidebarWidth),
+		);
+		await expect(sidebarWidth()).toBe(`${persistedLeftSidebarWidth}px`);
+	},
+};
+
+export const ResizableSidebarKeyboard: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-resize-keyboard",
+				title: "Keyboard resizable sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sidebar = canvas.getByTestId("agents-sidebar-panel");
+		const handle = canvas.getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+		const sidebarWidth = () =>
+			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+		const initialWidth = clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
+		const keyboardExpandedWidth = Math.min(
+			getLeftSidebarMaxWidth(),
+			initialWidth + LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
+		);
+		const maxWidth = getLeftSidebarMaxWidth();
+
+		handle.focus();
+		await expect(handle).toHaveFocus();
+
+		fireEvent.keyDown(handle, { key: "ArrowRight" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${keyboardExpandedWidth}px`);
+			expect(handle).toHaveAttribute(
+				"aria-valuenow",
+				String(keyboardExpandedWidth),
+			);
+		});
+
+		fireEvent.keyDown(handle, { key: "Home" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${LEFT_SIDEBAR_MIN_WIDTH}px`);
+			expect(handle).toHaveAttribute(
+				"aria-valuenow",
+				String(LEFT_SIDEBAR_MIN_WIDTH),
+			);
+		});
+
+		fireEvent.keyDown(handle, { key: "ArrowLeft" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${LEFT_SIDEBAR_MIN_WIDTH}px`);
+			expect(handle).toHaveAttribute(
+				"aria-valuenow",
+				String(LEFT_SIDEBAR_MIN_WIDTH),
+			);
+		});
+
+		fireEvent.keyDown(handle, { key: "End" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${maxWidth}px`);
+			expect(handle).toHaveAttribute("aria-valuenow", String(maxWidth));
+		});
+		await waitFor(() => {
+			expect(localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY)).toBe(
+				String(maxWidth),
+			);
+		});
 	},
 };
 

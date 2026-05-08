@@ -2857,6 +2857,14 @@ func (m queryMetricsStore) GetUserChatSpendInPeriod(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserCodeDiffDisplayMode(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserCodeDiffDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserCodeDiffDisplayMode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserCount(ctx, includeSystem)
@@ -5014,6 +5022,14 @@ func (m queryMetricsStore) UpdateUserChatProviderKey(ctx context.Context, arg da
 	r0, r1 := m.s.UpdateUserChatProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserChatProviderKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserChatProviderKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg database.UpdateUserCodeDiffDisplayModeParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserCodeDiffDisplayMode(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserCodeDiffDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserCodeDiffDisplayMode").Inc()
 	return r0, r1
 }
 

@@ -38,6 +38,7 @@ import {
 	DateRangePicker as DailyPicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -335,7 +336,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 						.map((row) => (
 							<div
 								key={row.user_id}
-								className="flex justify-between items-center text-[14px] py-2"
+								className="flex justify-between items-center text-sm py-2"
 							>
 								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
@@ -391,7 +392,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 						.map((row) => (
 							<div
 								key={row.user_id}
-								className="flex justify-between items-center text-[14px] py-2"
+								className="flex justify-between items-center text-sm py-2"
 							>
 								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
@@ -452,7 +453,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 								<div key={usage.slug} className="flex items-center gap-6">
 									<div className="flex items-center gap-2">
 										<div className="flex justify-center items-center w-5 h-5">
-											<img
+											<ExternalImage
 												src={usage.icon}
 												alt=""
 												className="h-full w-full object-contain"
@@ -526,7 +527,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
-								<p className="text-[14px] m-0 text-content-secondary max-w-[400px]">
+								<p className="text-sm m-0 text-content-secondary max-w-[400px]">
 									{parameter.description}
 								</p>
 							</div>
@@ -705,7 +706,7 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	...attrs
 }) => {
 	return (
-		<div {...attrs} className={cn("text-[14px] font-medium", className)}>
+		<div {...attrs} className={cn("text-sm font-medium", className)}>
 			{children}
 		</div>
 	);

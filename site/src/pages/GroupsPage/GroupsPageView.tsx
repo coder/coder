@@ -7,7 +7,6 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -37,68 +36,76 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	canCreateGroup,
 	groupsEnabled,
 }) => {
-	const isLoading = Boolean(groups === undefined);
-	const isEmpty = Boolean(groups && groups.length === 0);
+	if (!groupsEnabled) {
+		return (
+			<PaywallPremium
+				message="Groups"
+				description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
+				documentationLink={docs("/admin/users/groups-roles")}
+			/>
+		);
+	}
 
 	return (
-		<ChooseOne>
-			<Cond condition={!groupsEnabled}>
-				<PaywallPremium
-					message="Groups"
-					description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
-					documentationLink={docs("/admin/users/groups-roles")}
-				/>
-			</Cond>
-			<Cond>
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead className="w-2/5">Name</TableHead>
-							<TableHead className="w-3/5">Users</TableHead>
-							<TableHead className="w-auto" />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						<ChooseOne>
-							<Cond condition={isLoading}>
-								<TableLoader />
-							</Cond>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-2/5">Name</TableHead>
+					<TableHead className="w-3/5">Users</TableHead>
+					<TableHead className="w-auto" />
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				<GroupsTableBody groups={groups} canCreateGroup={canCreateGroup} />
+			</TableBody>
+		</Table>
+	);
+};
 
-							<Cond condition={isEmpty}>
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState
-											message="No groups yet"
-											description={
-												canCreateGroup
-													? "Create your first group"
-													: "You don't have permission to create a group"
-											}
-											cta={
-												canCreateGroup && (
-													<Button asChild>
-														<RouterLink to="create">
-															<PlusIcon className="size-icon-sm" />
-															Create group
-														</RouterLink>
-													</Button>
-												)
-											}
-										/>
-									</TableCell>
-								</TableRow>
-							</Cond>
+interface GroupsTableBodyProps {
+	groups: Group[] | undefined;
+	canCreateGroup: boolean;
+}
 
-							<Cond>
-								{groups?.map((group) => (
-									<GroupRow key={group.id} group={group} />
-								))}
-							</Cond>
-						</ChooseOne>
-					</TableBody>
-				</Table>
-			</Cond>
-		</ChooseOne>
+const GroupsTableBody: FC<GroupsTableBodyProps> = ({
+	groups,
+	canCreateGroup,
+}) => {
+	if (groups === undefined) {
+		return <TableLoader />;
+	}
+	if (groups.length === 0) {
+		return (
+			<TableRow>
+				<TableCell colSpan={999}>
+					<EmptyState
+						message="No groups yet"
+						description={
+							canCreateGroup
+								? "Create your first group"
+								: "You don't have permission to create a group"
+						}
+						cta={
+							canCreateGroup && (
+								<Button asChild>
+									<RouterLink to="create">
+										<PlusIcon className="size-icon-sm" />
+										Create group
+									</RouterLink>
+								</Button>
+							)
+						}
+					/>
+				</TableCell>
+			</TableRow>
+		);
+	}
+	return (
+		<>
+			{groups.map((group) => (
+				<GroupRow key={group.id} group={group} />
+			))}
+		</>
 	);
 };
 

@@ -73,6 +73,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   directly. Do not prefix them with `window.` (e.g., write
   `location.href`, not `window.location.href`). They are globally
   available in every browser context.
+- Do not use `typeof window`, `typeof document`, or similar runtime checks for browser globals. Coder is a pure SPA so these globals are always available.
 - Always use react-query for data fetching. Do not attempt to manage any
   data life cycle manually. Do not ever call an `API` function directly
   within a component.
