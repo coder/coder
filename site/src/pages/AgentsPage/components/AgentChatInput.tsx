@@ -22,7 +22,11 @@ import {
 } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
+import type {
+	AgentChatSendShortcut,
+	ChatMessagePart,
+	ChatQueuedMessage,
+} from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -51,7 +55,6 @@ import {
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
-import type { AgentChatSendShortcut } from "../hooks/useAgentChatSendShortcut";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";

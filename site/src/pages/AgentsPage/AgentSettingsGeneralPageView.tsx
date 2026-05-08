@@ -12,7 +12,6 @@ import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
 
 export interface AgentSettingsGeneralPageViewProps {
-	userId: string;
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	onSaveUserPrompt: UseMutateFunction<
 		TypesGen.UserChatCustomPrompt,
@@ -36,7 +35,6 @@ export interface AgentSettingsGeneralPageViewProps {
 export const AgentSettingsGeneralPageView: FC<
 	AgentSettingsGeneralPageViewProps
 > = ({
-	userId,
 	userPromptData,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
@@ -60,7 +58,7 @@ export const AgentSettingsGeneralPageView: FC<
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
-			<ChatSendShortcutSettings userId={userId} />
+			<ChatSendShortcutSettings />
 			<ThinkingDisplaySettings />
 			<CodeDiffDisplaySettings />
 			<UserChatDebugLoggingSettings

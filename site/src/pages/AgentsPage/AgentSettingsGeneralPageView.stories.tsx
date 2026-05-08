@@ -1,15 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
 } from "./AgentSettingsGeneralPageView";
-import { getAgentChatSendShortcutStorageKey } from "./hooks/useAgentChatSendShortcut";
 
-const storyUserId = "user-storybook";
+const preferencesData = {
+	task_notification_alert_dismissed: false,
+	thinking_display_mode: "auto" as const,
+	code_diff_display_mode: "auto" as const,
+	agent_chat_send_shortcut: "enter" as const,
+};
 
 const baseArgs: AgentSettingsGeneralPageViewProps = {
-	userId: storyUserId,
 	userPromptData: {
 		custom_prompt: "Prefer concise answers with clear next steps.",
 	},
@@ -30,6 +34,9 @@ const meta = {
 	title: "pages/AgentsPage/AgentSettingsGeneralPageView",
 	component: AgentSettingsGeneralPageView,
 	args: baseArgs,
+	parameters: {
+		queries: [{ key: ["me", "preferences"], data: preferencesData }],
+	},
 } satisfies Meta<typeof AgentSettingsGeneralPageView>;
 
 export default meta;
@@ -128,10 +135,13 @@ export const RendersChatLayoutSection: Story = {
 
 export const TogglesSendShortcut: Story = {
 	beforeEach: () => {
-		localStorage.removeItem(getAgentChatSendShortcutStorageKey(storyUserId));
+		spyOn(API, "getUserPreferenceSettings").mockResolvedValue(preferencesData);
+		spyOn(API, "updateUserPreferenceSettings").mockResolvedValue({
+			...preferencesData,
+			agent_chat_send_shortcut: "modifier_enter",
+		});
 	},
 	play: async ({ canvasElement }) => {
-		const storageKey = getAgentChatSendShortcutStorageKey(storyUserId);
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
 			name: "Require Cmd/Ctrl+Enter to send messages",
@@ -141,28 +151,15 @@ export const TogglesSendShortcut: Story = {
 		expect(toggle).not.toBeChecked();
 
 		await userEvent.click(toggle);
-		expect(toggle).toBeChecked();
-		expect(localStorage.getItem(storageKey)).toBe("modifier-enter");
-
-		await userEvent.click(toggle);
-		expect(toggle).not.toBeChecked();
-		expect(localStorage.getItem(storageKey)).toBeNull();
+		await waitFor(() => {
+			expect(API.updateUserPreferenceSettings).toHaveBeenCalledWith({
+				agent_chat_send_shortcut: "modifier_enter",
+			});
+		});
 	},
 };
 
 export const RendersAgentDisplayModeSettings: Story = {
-	parameters: {
-		queries: [
-			{
-				key: ["me", "preferences"],
-				data: {
-					task_notification_alert_dismissed: false,
-					thinking_display_mode: "auto" as const,
-					code_diff_display_mode: "auto" as const,
-				},
-			},
-		],
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 

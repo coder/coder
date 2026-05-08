@@ -6,12 +6,10 @@ import {
 	updateUserChatDebugLogging,
 	userChatDebugLogging,
 } from "#/api/queries/chats";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AgentSettingsGeneralPageView } from "./AgentSettingsGeneralPageView";
 
 const AgentSettingsGeneralPage: FC = () => {
 	const queryClient = useQueryClient();
-	const { user } = useAuthenticated();
 	const userPromptQuery = useQuery(chatUserCustomPrompt());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const saveUserPromptMutation = useMutation(
@@ -23,7 +21,6 @@ const AgentSettingsGeneralPage: FC = () => {
 
 	return (
 		<AgentSettingsGeneralPageView
-			userId={user.id}
 			userPromptData={userPromptQuery.data}
 			onSaveUserPrompt={saveUserPromptMutation.mutate}
 			isSavingUserPrompt={saveUserPromptMutation.isPending}

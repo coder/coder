@@ -25550,6 +25550,23 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 	return i, err
 }
 
+const getUserAgentChatSendShortcut = `-- name: GetUserAgentChatSendShortcut :one
+SELECT
+	value AS agent_chat_send_shortcut
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_agent_chat_send_shortcut'
+`
+
+func (q *sqlQuerier) GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserAgentChatSendShortcut, userID)
+	var agent_chat_send_shortcut string
+	err := row.Scan(&agent_chat_send_shortcut)
+	return agent_chat_send_shortcut, err
+}
+
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
@@ -26268,6 +26285,33 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateUserAgentChatSendShortcut = `-- name: UpdateUserAgentChatSendShortcut :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_agent_chat_send_shortcut', $2::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_agent_chat_send_shortcut'
+RETURNING value AS agent_chat_send_shortcut
+`
+
+type UpdateUserAgentChatSendShortcutParams struct {
+	UserID                uuid.UUID `db:"user_id" json:"user_id"`
+	AgentChatSendShortcut string    `db:"agent_chat_send_shortcut" json:"agent_chat_send_shortcut"`
+}
+
+func (q *sqlQuerier) UpdateUserAgentChatSendShortcut(ctx context.Context, arg UpdateUserAgentChatSendShortcutParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, updateUserAgentChatSendShortcut, arg.UserID, arg.AgentChatSendShortcut)
+	var agent_chat_send_shortcut string
+	err := row.Scan(&agent_chat_send_shortcut)
+	return agent_chat_send_shortcut, err
 }
 
 const updateUserChatCompactionThreshold = `-- name: UpdateUserChatCompactionThreshold :one

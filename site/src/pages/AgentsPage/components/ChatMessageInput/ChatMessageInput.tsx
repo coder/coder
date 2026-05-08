@@ -29,9 +29,9 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
-import type { AgentChatSendShortcut } from "../../hooks/useAgentChatSendShortcut";
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	$createFileReferenceNode,
@@ -278,7 +278,7 @@ const EnterKeyPlugin: FC<{
 					return false;
 				}
 				if (
-					sendShortcut === "modifier-enter" &&
+					sendShortcut === "modifier_enter" &&
 					!(event?.metaKey || event?.ctrlKey)
 				) {
 					return false;

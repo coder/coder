@@ -235,7 +235,7 @@ export const EnterSendsByDefault: Story = {
 export const ModifierEnterSendsWhenRequired: Story = {
 	args: {
 		onSend: fn(),
-		sendShortcut: "modifier-enter",
+		sendShortcut: "modifier_enter",
 		initialValue: "Run focused tests",
 	},
 	play: async ({ canvasElement, args }) => {

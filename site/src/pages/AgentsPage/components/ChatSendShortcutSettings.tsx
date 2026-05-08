@@ -1,17 +1,24 @@
 import { type FC, useId } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "#/api/queries/users";
+import type { UserPreferenceSettings } from "#/api/typesGenerated";
 import { Switch } from "#/components/Switch/Switch";
-import { useAgentChatSendShortcut } from "../hooks/useAgentChatSendShortcut";
 
-interface ChatSendShortcutSettingsProps {
-	userId: string;
-}
+type AgentChatSendShortcut = UserPreferenceSettings["agent_chat_send_shortcut"];
 
-export const ChatSendShortcutSettings: FC<ChatSendShortcutSettingsProps> = ({
-	userId,
-}) => {
-	const [shortcut, setShortcut] = useAgentChatSendShortcut(userId);
+const defaultShortcut: AgentChatSendShortcut = "enter";
+const modifierShortcut: AgentChatSendShortcut = "modifier_enter";
+
+export const ChatSendShortcutSettings: FC = () => {
+	const queryClient = useQueryClient();
+	const query = useQuery(preferenceSettings());
+	const mutation = useMutation(updatePreferenceSettings(queryClient));
 	const descriptionId = useId();
-	const requiresModifierEnter = shortcut === "modifier-enter";
+	const shortcut = query.data?.agent_chat_send_shortcut ?? defaultShortcut;
+	const requiresModifierEnter = shortcut === modifierShortcut;
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -29,12 +36,22 @@ export const ChatSendShortcutSettings: FC<ChatSendShortcutSettingsProps> = ({
 				<Switch
 					checked={requiresModifierEnter}
 					onCheckedChange={(checked) =>
-						setShortcut(checked ? "modifier-enter" : "enter")
+						mutation.mutate({
+							agent_chat_send_shortcut: checked
+								? modifierShortcut
+								: defaultShortcut,
+						})
 					}
 					aria-label="Require Cmd/Ctrl+Enter to send messages"
 					aria-describedby={descriptionId}
+					disabled={query.isLoading || !query.data || mutation.isPending}
 				/>
 			</div>
+			{mutation.isError && (
+				<p className="m-0 text-xs text-content-destructive">
+					Failed to save your keyboard shortcut preference.
+				</p>
+			)}
 		</div>
 	);
 };

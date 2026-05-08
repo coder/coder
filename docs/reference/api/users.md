@@ -1301,6 +1301,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
+  "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
@@ -1333,6 +1334,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
+  "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
@@ -1352,6 +1354,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 
 ```json
 {
+  "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
