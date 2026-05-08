@@ -110,6 +110,11 @@ func resolveTemplateMetaUpdate(
 			out.autostopRequirementDaysOfWeekParsed = bitmap
 			out.autostopRequirementWeeks = req.AutostopRequirement.Weeks
 		}
+
+		// Always force <= 0 -> 1
+		if out.autostopRequirementWeeks <= 0 {
+			out.autostopRequirementWeeks = 1
+		}
 	}
 
 	// Override autostart if provided is non-nil
