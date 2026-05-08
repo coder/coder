@@ -2930,10 +2930,76 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 // environment variables into a slice of AIProviderConfig.
 // Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
 // prefix are also accepted for compatibility.
+//
+// The two prefixes are parsed as independent lists: matching numeric
+// indices across prefixes produce distinct providers rather than being
+// merged. Providers from the deprecated CODER_AIBRIDGE_PROVIDER_* prefix
+// come first, followed by providers from CODER_AI_GATEWAY_PROVIDER_*.
+//
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
 func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
-	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
-	parsed = append(parsed, serpent.ParseEnviron(environ, "CODER_AI_GATEWAY_PROVIDER_")...)
+	providers, err := readAIProvidersForPrefix(logger, environ, "CODER_AIBRIDGE_PROVIDER_")
+	if err != nil {
+		return nil, err
+	}
+	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, "CODER_AI_GATEWAY_PROVIDER_")
+	if err != nil {
+		return nil, err
+	}
+	providers = append(providers, gatewayProviders...)
+
+	// Post-parse validation.
+	names := make(map[string]int, len(providers))
+	for i := range providers {
+		p := &providers[i]
+		if p.Type == "" {
+			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
+		}
+
+		switch p.Type {
+		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
+		default:
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
+				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+		}
+
+		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
+				i, p.Type, aibridge.ProviderAnthropic)
+		}
+
+		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
+				i, p.Type, aibridge.ProviderCopilot)
+		}
+
+		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
+			return nil, err
+		}
+
+		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
+			return nil, err
+		}
+
+		if p.Name == "" {
+			p.Name = p.Type
+		}
+		if other, exists := names[p.Name]; exists {
+			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
+		}
+		names[p.Name] = i
+	}
+
+	return providers, nil
+}
+
+// readAIProvidersForPrefix parses provider env vars under a single
+// indexed prefix (e.g. CODER_AI_GATEWAY_PROVIDER_) into a slice of
+// AIProviderConfig. Per-field syntax errors and unknown keys are
+// reported using the original env var name so the prefix stays visible
+// to the operator.
+func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix string) ([]codersdk.AIProviderConfig, error) {
+	parsed := serpent.ParseEnviron(environ, prefix)
 
 	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
 	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
@@ -2947,14 +3013,15 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 
 	var providers []codersdk.AIProviderConfig
 	for _, v := range parsed {
+		fullName := prefix + v.Name
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
-			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+			return nil, xerrors.Errorf("invalid env var: %s", fullName)
 		}
 
 		providerNum, err := strconv.Atoi(tokens[0])
 		if err != nil {
-			return nil, xerrors.Errorf("parse number: %s", v.Name)
+			return nil, xerrors.Errorf("parse number: %s", fullName)
 		}
 
 		var provider codersdk.AIProviderConfig
@@ -2963,7 +3030,7 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			return nil, xerrors.Errorf(
 				"provider num %v skipped: %s",
 				len(providers),
-				v.Name,
+				fullName,
 			)
 		case len(providers) == providerNum: // First observation of this index, create a new provider.
 			providers = append(providers, provider)
@@ -3018,52 +3085,10 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			provider.BedrockSmallFastModel = v.Value
 		default:
 			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
-				slog.F("env", fmt.Sprintf("CODER_AI_GATEWAY_PROVIDER_%d_%s", providerNum, key)),
+				slog.F("env", fullName),
 			)
 		}
 		providers[providerNum] = provider
-	}
-
-	// Post-parse validation.
-	names := make(map[string]int, len(providers))
-	for i := range providers {
-		p := &providers[i]
-		if p.Type == "" {
-			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
-		}
-
-		switch p.Type {
-		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
-		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
-				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
-		}
-
-		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
-			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
-				i, p.Type, aibridge.ProviderAnthropic)
-		}
-
-		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
-			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
-				i, p.Type, aibridge.ProviderCopilot)
-		}
-
-		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
-			return nil, err
-		}
-
-		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
-			return nil, err
-		}
-
-		if p.Name == "" {
-			p.Name = p.Type
-		}
-		if other, exists := names[p.Name]; exists {
-			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
-		}
-		names[p.Name] = i
 	}
 
 	return providers, nil

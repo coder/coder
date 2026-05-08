@@ -328,6 +328,27 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			errContains: "BEDROCK_ACCESS_KEYS count (2) must match BEDROCK_ACCESS_KEY_SECRETS count (1)",
 		},
 		{
+			name: "MixedPrefixesAreIndependent",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-2",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{Type: aibridge.ProviderAnthropic, Name: "anthropic-1"},
+				{Type: aibridge.ProviderAnthropic, Name: "anthropic-2"},
+			},
+		},
+		{
+			name: "MixedPrefixesDuplicateNameConflict",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+			},
+			errContains: "duplicate NAME",
+		},
+		{
 			name: "BedrockKeysTooMany",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
@@ -379,23 +400,47 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 
 	t.Run("UnknownFieldWarnsButSucceeds", func(t *testing.T) {
 		t.Parallel()
-		// A typo like TPYE instead of TYPE should not prevent startup;
+		// A typo like TYYYPPOO instead of TYPE should not prevent startup;
 		// the function logs a warning and continues.
-		sink := testutil.NewFakeSink(t)
-		providers, err := ReadAIProvidersFromEnv(sink.Logger(), []string{
-			"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
-			"CODER_AI_GATEWAY_PROVIDER_0_TPYE=openai",
-		})
-		require.NoError(t, err)
-		require.Equal(t, []codersdk.AIProviderConfig{
-			{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI},
-		}, providers)
+		tests := []struct {
+			name             string
+			env              []string
+			expectedWarnings []string
+		}{
+			{
+				name: "AIGatewayPrefix",
+				env: []string{
+					"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+					"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expectedWarnings: []string{"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO"},
+			},
+			{
+				name: "AIBridgePrefix",
+				env: []string{
+					"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+					"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expectedWarnings: []string{"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO"},
+			},
+		}
 
-		warnings := sink.Entries(func(e slog.SinkEntry) bool {
-			return e.Message == "ignoring unknown AI provider field (check for typos)"
-		})
-		require.Len(t, warnings, 1)
-		require.Len(t, warnings[0].Fields, 1)
-		assert.Equal(t, "CODER_AI_GATEWAY_PROVIDER_0_TPYE", warnings[0].Fields[0].Value)
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				sink := testutil.NewFakeSink(t)
+				_, err := ReadAIProvidersFromEnv(sink.Logger(), tt.env)
+				require.NoError(t, err)
+
+				warnings := sink.Entries(func(e slog.SinkEntry) bool {
+					return e.Message == "ignoring unknown AI provider field (check for typos)"
+				})
+				require.Len(t, warnings, len(tt.expectedWarnings))
+				for i, want := range tt.expectedWarnings {
+					require.Len(t, warnings[i].Fields, 1)
+					assert.Equal(t, want, warnings[i].Fields[0].Value)
+				}
+			})
+		}
 	})
 }
