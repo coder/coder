@@ -27,13 +27,14 @@ const iconByTransition: Record<
 };
 
 const statusColors: Record<ProvisionerJobStatus, string> = {
+	pending: "text-content-secondary",
+	running: "text-content-primary",
 	succeeded: "text-content-success",
-	pending: "text-content-success",
-	running: "text-content-success",
-	failed: "text-content-success",
-	canceling: "text-content-success",
-	canceled: "text-content-success",
-	unknown: "text-content-success",
+
+	canceling: "text-content-warning",
+	canceled: "text-content-warning",
+	failed: "text-content-destructive",
+	unknown: "text-content-disabled",
 };
 
 export const BuildIcon: React.FC<BuildIconProps> = ({
