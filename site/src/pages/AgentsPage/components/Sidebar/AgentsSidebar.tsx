@@ -130,6 +130,7 @@ type PRStatusFilter = "draft" | "open" | "merged" | "closed";
 type ChatStatusFilter =
 	| "unread"
 	| "running"
+	| "awaiting-feedback"
 	| "idle"
 	| "error"
 	| "archived";
@@ -156,7 +157,8 @@ const PR_STATUS_OPTIONS: { value: PRStatusFilter; label: string }[] = [
 const CHAT_STATUS_OPTIONS: { value: ChatStatusFilter; label: string }[] = [
 	{ value: "unread", label: "Unread" },
 	{ value: "running", label: "Running" },
-	{ value: "idle", label: "Idle/awaiting feedback" },
+	{ value: "awaiting-feedback", label: "Awaiting feedback" },
+	{ value: "idle", label: "Idle" },
 	{ value: "error", label: "Error" },
 	{ value: "archived", label: "Archived" },
 ];
@@ -316,6 +318,8 @@ const getChatStatusFilterValue = (chat: Chat): ChatStatusFilter => {
 	if (chat.status === "pending" || chat.status === "running") return "running";
 	if (chat.has_unread) return "unread";
 	if (chat.status === "error") return "error";
+	if (chat.status === "requires_action" || chat.status === "paused")
+		return "awaiting-feedback";
 	return "idle";
 };
 

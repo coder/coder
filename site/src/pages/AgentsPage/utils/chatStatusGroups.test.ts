@@ -65,27 +65,27 @@ describe("getChatStatusGroup", () => {
 		).toBe("Archived");
 	});
 
-	it("returns Idle/awaiting feedback for completed status", () => {
-		expect(getChatStatusGroup({ ...baseChat, status: "completed" })).toBe(
-			"Idle/awaiting feedback",
-		);
-	});
-
-	it("returns Idle/awaiting feedback for paused status", () => {
+	it("returns Awaiting feedback for paused status", () => {
 		expect(getChatStatusGroup({ ...baseChat, status: "paused" })).toBe(
-			"Idle/awaiting feedback",
+			"Awaiting feedback",
 		);
 	});
 
-	it("returns Idle/awaiting feedback for requires_action status", () => {
+	it("returns Awaiting feedback for requires_action status", () => {
 		expect(
 			getChatStatusGroup({ ...baseChat, status: "requires_action" }),
-		).toBe("Idle/awaiting feedback");
+		).toBe("Awaiting feedback");
 	});
 
-	it("returns Idle/awaiting feedback for waiting status", () => {
+	it("returns Idle for completed status", () => {
+		expect(getChatStatusGroup({ ...baseChat, status: "completed" })).toBe(
+			"Idle",
+		);
+	});
+
+	it("returns Idle for waiting status", () => {
 		expect(getChatStatusGroup({ ...baseChat, status: "waiting" })).toBe(
-			"Idle/awaiting feedback",
+			"Idle",
 		);
 	});
 });

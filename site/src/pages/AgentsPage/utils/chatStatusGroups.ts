@@ -8,7 +8,8 @@ export const CHAT_STATUS_GROUPS = [
 	"Running",
 	"Unread",
 	"Error",
-	"Idle/awaiting feedback",
+	"Awaiting feedback",
+	"Idle",
 	"Archived",
 ] as const;
 
@@ -27,5 +28,8 @@ export function getChatStatusGroup(chat: Chat): ChatStatusGroup {
 	if (chat.status === "error") {
 		return "Error";
 	}
-	return "Idle/awaiting feedback";
+	if (chat.status === "requires_action" || chat.status === "paused") {
+		return "Awaiting feedback";
+	}
+	return "Idle";
 }
