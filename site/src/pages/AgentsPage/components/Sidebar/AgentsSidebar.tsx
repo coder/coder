@@ -318,7 +318,11 @@ const getChatStatusFilterValue = (chat: Chat): ChatStatusFilter => {
 	if (chat.status === "pending" || chat.status === "running") return "running";
 	if (chat.has_unread) return "unread";
 	if (chat.status === "error") return "error";
-	if (chat.status === "requires_action" || chat.status === "paused")
+	if (
+		chat.status === "requires_action" ||
+		chat.status === "paused" ||
+		chat.status === "waiting"
+	)
 		return "awaiting-feedback";
 	return "idle";
 };

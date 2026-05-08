@@ -83,9 +83,9 @@ describe("getChatStatusGroup", () => {
 		);
 	});
 
-	it("returns Idle for waiting status", () => {
+	it("returns Awaiting feedback for waiting status", () => {
 		expect(getChatStatusGroup({ ...baseChat, status: "waiting" })).toBe(
-			"Idle",
+			"Awaiting feedback",
 		);
 	});
 });

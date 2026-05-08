@@ -28,7 +28,11 @@ export function getChatStatusGroup(chat: Chat): ChatStatusGroup {
 	if (chat.status === "error") {
 		return "Error";
 	}
-	if (chat.status === "requires_action" || chat.status === "paused") {
+	if (
+		chat.status === "requires_action" ||
+		chat.status === "paused" ||
+		chat.status === "waiting"
+	) {
 		return "Awaiting feedback";
 	}
 	return "Idle";
