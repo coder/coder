@@ -67,7 +67,10 @@ const (
 	planPathLookupTimeout        = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
-	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	// Must exceed agent/x/agentmcp.connectTimeout (30s) so a
+	// cold-start agent's first MCP reload can settle before
+	// chatd gives up.
+	workspaceMCPDiscoveryTimeout = 35 * time.Second
 	turnSummaryWriteTimeout      = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
@@ -6658,13 +6661,7 @@ func (p *Server) runChat(
 			} // Cache miss, agent changed, or no cache: validate
 			// that the workspace still has a live agent before
 			// attempting a dial.
-			workspaceMCPCtx, cancel := context.WithTimeout(
-				ctx,
-				workspaceMCPDiscoveryTimeout,
-			)
-			defer cancel()
-
-			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(workspaceMCPCtx)
+			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(ctx)
 			if agentErr != nil {
 				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
 					p.workspaceMCPToolsCache.Delete(chat.ID)
@@ -6676,13 +6673,15 @@ func (p *Server) runChat(
 			}
 
 			// List workspace MCP tools via the agent conn.
-			conn, connErr := workspaceCtx.getWorkspaceConn(workspaceMCPCtx)
+			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
 			if connErr != nil {
 				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
 					slog.Error(connErr))
 				return nil
 			}
-			toolsResp, listErr := conn.ListMCPTools(workspaceMCPCtx)
+			listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
+			defer cancel()
+			toolsResp, listErr := conn.ListMCPTools(listCtx)
 			if listErr != nil {
 				logger.Warn(ctx, "failed to list workspace MCP tools",
 					slog.Error(listErr))
@@ -6694,7 +6693,7 @@ func (p *Server) runChat(
 			// caching an empty list would hide tools
 			// permanently.
 			if len(toolsResp.Tools) > 0 {
-				if agent, agentErr := workspaceCtx.getWorkspaceAgent(workspaceMCPCtx); agentErr == nil {
+				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
 					p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
 						agentID: agent.ID,
 						tools:   toolsResp.Tools,
