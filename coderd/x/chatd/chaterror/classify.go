@@ -32,6 +32,11 @@ type responsesAPIDiagnosticMatch struct {
 	detail  string
 }
 
+type streamIncompleteMatch struct {
+	pattern  string
+	provider string
+}
+
 // responsesAPIDiagnosticMatches maps provider error fragments to safe
 // diagnostics. Details must not include provider item IDs because they are
 // returned to clients and used by operators for grepping.
@@ -43,6 +48,20 @@ var responsesAPIDiagnosticMatches = []responsesAPIDiagnosticMatch{
 	{
 		pattern: "was provided without its required 'reasoning' item",
 		detail:  "OpenAI Responses API request continuity diagnostic: match=web_search_reasoning_missing.",
+	},
+}
+
+// streamIncompleteMatches maps provider stream-truncation errors from
+// fantasy to clearer user-facing messages before broad EOF handling
+// classifies them as generic transport timeouts.
+var streamIncompleteMatches = []streamIncompleteMatch{
+	{
+		pattern:  "anthropic stream closed before message_stop",
+		provider: "anthropic",
+	},
+	{
+		pattern:  "openai responses stream closed before terminal event",
+		provider: "openai",
 	},
 }
 
@@ -137,6 +156,15 @@ func Classify(err error) ClassifiedError {
 		})
 	}
 
+	if classified, ok := streamIncompleteClassification(
+		lower,
+		provider,
+		statusCode,
+		structured,
+	); ok {
+		return classified
+	}
+
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
@@ -216,6 +244,36 @@ func Classify(err error) ClassifiedError {
 		StatusCode: statusCode,
 		RetryAfter: structured.retryAfter,
 	})
+}
+
+func streamIncompleteClassification(
+	lowerMessage string,
+	provider string,
+	statusCode int,
+	structured providerErrorDetails,
+) (ClassifiedError, bool) {
+	for _, match := range streamIncompleteMatches {
+		if !strings.Contains(lowerMessage, match.pattern) {
+			continue
+		}
+		if provider == "" {
+			provider = match.provider
+		}
+		return normalizeClassification(ClassifiedError{
+			Message:    streamIncompleteMessage(provider),
+			Detail:     structured.detail,
+			Kind:       codersdk.ChatErrorKindTimeout,
+			Provider:   provider,
+			Retryable:  true,
+			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
+		}), true
+	}
+	return ClassifiedError{}, false
+}
+
+func streamIncompleteMessage(provider string) string {
+	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
 }
 
 func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {
