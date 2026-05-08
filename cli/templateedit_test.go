@@ -464,7 +464,7 @@ func TestTemplateEdit(t *testing.T) {
 
 			// Make a proxy server that will return a valid entitlements
 			// response, including a valid advanced scheduling entitlement.
-			var updateTemplateCalled int64
+			var updateTemplateCalled atomic.Int64
 			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
@@ -499,7 +499,7 @@ func TestTemplateEdit(t *testing.T) {
 					assert.EqualValues(t, req.AutostopRequirement.Weeks, 3)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
-					atomic.AddInt64(&updateTemplateCalled, 1)
+					updateTemplateCalled.Add(1)
 					// We still want to call the real route.
 				}
 
@@ -534,7 +534,7 @@ func TestTemplateEdit(t *testing.T) {
 			err = inv.WithContext(ctx).Run()
 			require.NoError(t, err)
 
-			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))
+			require.EqualValues(t, 1, updateTemplateCalled.Load())
 
 			// Assert that the template metadata did not change. We verify the
 			// correct request gets sent to the server already.
@@ -720,7 +720,7 @@ func TestTemplateEdit(t *testing.T) {
 
 			// Make a proxy server that will return a valid entitlements
 			// response, including a valid advanced scheduling entitlement.
-			var updateTemplateCalled int64
+			var updateTemplateCalled atomic.Int64
 			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
@@ -755,7 +755,7 @@ func TestTemplateEdit(t *testing.T) {
 					assert.False(t, req.AllowUserAutostop)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
-					atomic.AddInt64(&updateTemplateCalled, 1)
+					updateTemplateCalled.Add(1)
 					// We still want to call the real route.
 				}
 
@@ -790,7 +790,7 @@ func TestTemplateEdit(t *testing.T) {
 			err = inv.WithContext(ctx).Run()
 			require.NoError(t, err)
 
-			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))
+			require.EqualValues(t, 1, updateTemplateCalled.Load())
 
 			// Assert that the template metadata did not change. We verify the
 			// correct request gets sent to the server already.
