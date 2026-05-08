@@ -1382,15 +1382,6 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				UserID:                         user.ID,
 				TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
 			})
-			return
-		}
-	} else {
-		updatedTaskAlertDismissed, err = api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading task notification alert dismissed.",
-				Detail:  err.Error(),
-			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating user task notification alert dismissed.", err)
 			}
@@ -1400,12 +1391,11 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				return newUserPreferenceSettingsAPIError("Error reading task notification alert dismissed.", err)
 			}
 		}
-	}
 
-	if params.ThinkingDisplayMode != "" {
-		updated, err := tx.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
-			UserID:              user.ID,
-			ThinkingDisplayMode: string(params.ThinkingDisplayMode),
+		if params.ThinkingDisplayMode != "" {
+			updated, err := tx.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+				UserID:              user.ID,
+				ThinkingDisplayMode: string(params.ThinkingDisplayMode),
 			})
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating thinking display mode.", err)
@@ -1418,6 +1408,7 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			}
 			settings.ThinkingDisplayMode = sanitizeThinkingDisplayMode(stored)
 		}
+
 		if params.CodeDiffDisplayMode != "" {
 			updated, err := tx.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
 				UserID:              user.ID,
@@ -1467,7 +1458,6 @@ func newUserPreferenceSettingsAPIError(message string, err error) userPreference
 		},
 		err: err,
 	}
-
 }
 
 func (e userPreferenceSettingsAPIError) Error() string {
