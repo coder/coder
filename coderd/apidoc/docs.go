@@ -14922,19 +14922,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AgentDisplayMode": {
-            "type": "string",
-            "enum": [
-                "auto",
-                "always_expanded",
-                "always_collapsed"
-            ],
-            "x-enum-varnames": [
-                "AgentDisplayModeAuto",
-                "AgentDisplayModeAlwaysExpanded",
-                "AgentDisplayModeAlwaysCollapsed"
-            ]
-        },
         "codersdk.AgentScriptTiming": {
             "type": "object",
             "properties": {
@@ -23034,6 +23021,19 @@ const docTemplate = `{
                 "TerminalFontJetBrainsMono"
             ]
         },
+        "codersdk.ThemeMode": {
+            "type": "string",
+            "enum": [
+                "",
+                "sync",
+                "single"
+            ],
+            "x-enum-varnames": [
+                "ThemeModeUnset",
+                "ThemeModeSync",
+                "ThemeModeSingle"
+            ]
+        },
         "codersdk.ThinkingDisplayMode": {
             "type": "string",
             "enum": [
@@ -23365,6 +23365,42 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "theme_dark": {
+                    "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan",
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
+                    ]
+                },
+                "theme_light": {
+                    "description": "ThemeLight is required when ThemeMode is \"sync\". In \"single\"\nmode an empty value means \"preserve the previously persisted\nslot\" rather than \"clear the slot\", so partial updates that send\nonly one slot keep the other intact.",
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan",
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
+                    ]
+                },
+                "theme_mode": {
+                    "description": "ThemeMode is optional for backward compatibility. When empty,\nthe server leaves theme_mode, theme_light, and theme_dark\nunchanged so older CLI clients do not erase sync-mode settings.\nLegacy auto preferences are the exception: they clear theme_mode\nso clients can migrate the old sync-with-system setting.",
+                    "enum": [
+                        "sync",
+                        "single"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ThemeMode"
+                        }
+                    ]
+                },
                 "theme_preference": {
                     "type": "string"
                 }
@@ -23398,9 +23434,6 @@ const docTemplate = `{
         "codersdk.UpdateUserPreferenceSettingsRequest": {
             "type": "object",
             "properties": {
-                "code_diff_display_mode": {
-                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
-                },
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
                 },
@@ -23784,7 +23817,19 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "theme_dark": {
+                    "description": "ThemeDark is the theme applied when the OS color scheme is dark\nand ThemeMode is \"sync\". Ignored in \"single\" mode but still stored.",
+                    "type": "string"
+                },
+                "theme_light": {
+                    "description": "ThemeLight is the theme applied when the OS color scheme is light\nand ThemeMode is \"sync\". Ignored in \"single\" mode but still stored\nso switching modes preserves the slot value.",
+                    "type": "string"
+                },
+                "theme_mode": {
+                    "$ref": "#/definitions/codersdk.ThemeMode"
+                },
                 "theme_preference": {
+                    "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the active OS slot, but older clients can\nupdate only this field, so it may diverge from ThemeLight or\nThemeDark until a modern client saves the full appearance state\nagain.",
                     "type": "string"
                 }
             }
@@ -23871,9 +23916,6 @@ const docTemplate = `{
         "codersdk.UserPreferenceSettings": {
             "type": "object",
             "properties": {
-                "code_diff_display_mode": {
-                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
-                },
                 "task_notification_alert_dismissed": {
                     "type": "boolean"
                 },

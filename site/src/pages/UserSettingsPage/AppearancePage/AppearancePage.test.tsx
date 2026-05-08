@@ -12,6 +12,9 @@ describe("appearance page", () => {
 		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUserOwner,
 			theme_preference: "dark",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
 			terminal_font: "fira-code",
 		});
 
@@ -29,6 +32,9 @@ describe("appearance page", () => {
 			...MockUserOwner,
 			terminal_font: "geist-mono",
 			theme_preference: "light",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
 		});
 
 		const light = await screen.findByText("Light");
@@ -49,6 +55,9 @@ describe("appearance page", () => {
 			...MockUserOwner,
 			terminal_font: "fira-code",
 			theme_preference: "dark",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
 		});
 
 		const firaCode = await screen.findByText("Fira Code");
@@ -71,11 +80,17 @@ describe("appearance page", () => {
 				...MockUserOwner,
 				terminal_font: "fira-code",
 				theme_preference: "dark",
+				theme_mode: "single",
+				theme_light: "light",
+				theme_dark: "dark",
 			})
 			.mockResolvedValueOnce({
 				...MockUserOwner,
 				terminal_font: "geist-mono",
 				theme_preference: "dark",
+				theme_mode: "single",
+				theme_light: "light",
+				theme_dark: "dark",
 			});
 
 		// when

@@ -839,15 +839,6 @@ export interface AgentConnectionTiming {
 	readonly workspace_agent_name: string;
 }
 
-// From codersdk/users.go
-export type AgentDisplayMode = "always_collapsed" | "always_expanded" | "auto";
-
-export const AgentDisplayModes: AgentDisplayMode[] = [
-	"always_collapsed",
-	"always_expanded",
-	"auto",
-];
-
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
@@ -7833,6 +7824,11 @@ export const TerminalFontNames: TerminalFontName[] = [
 ];
 
 // From codersdk/users.go
+export type ThemeMode = "single" | "sync" | "";
+
+export const ThemeModes: ThemeMode[] = ["single", "sync", ""];
+
+// From codersdk/users.go
 export type ThinkingDisplayMode =
 	| "always_collapsed"
 	| "always_expanded"
@@ -8310,8 +8306,39 @@ export interface UpdateTemplateMeta {
 }
 
 // From codersdk/users.go
+/**
+ * UpdateUserAppearanceSettingsRequest is the payload for updating a
+ * user's theme and terminal-font preferences. ThemePreference is the
+ * legacy mirror field and is intentionally not validated against a
+ * server-side allowlist; clients should treat unknown values as the
+ * default theme. ThemeLight and ThemeDark are concrete sync slots.
+ * They are required in sync mode and may be any concrete theme name
+ * when present.
+ */
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	/**
+	 * ThemeMode is optional for backward compatibility. When empty,
+	 * the server leaves theme_mode, theme_light, and theme_dark
+	 * unchanged so older CLI clients do not erase sync-mode settings.
+	 * Legacy auto preferences are the exception: they clear theme_mode
+	 * so clients can migrate the old sync-with-system setting.
+	 */
+	readonly theme_mode: ThemeMode;
+	/**
+	 * ThemeLight is required when ThemeMode is "sync". In "single"
+	 * mode an empty value means "preserve the previously persisted
+	 * slot" rather than "clear the slot", so partial updates that send
+	 * only one slot keep the other intact.
+	 */
+	readonly theme_light: string;
+	/**
+	 * ThemeDark is required when ThemeMode is "sync". In "single" mode
+	 * an empty value means "preserve the previously persisted slot"
+	 * rather than "clear the slot", so partial updates that send only
+	 * one slot keep the other intact.
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8358,7 +8385,6 @@ export interface UpdateUserPasswordRequest {
 export interface UpdateUserPreferenceSettingsRequest {
 	readonly task_notification_alert_dismissed?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
-	readonly code_diff_display_mode?: AgentDisplayMode;
 }
 
 // From codersdk/users.go
@@ -8612,7 +8638,27 @@ export interface UserActivityInsightsResponse {
 
 // From codersdk/users.go
 export interface UserAppearanceSettings {
+	/**
+	 * ThemePreference is the legacy single-field appearance setting. In
+	 * "single" mode it mirrors the active theme. In "sync" mode modern
+	 * clients normally mirror the active OS slot, but older clients can
+	 * update only this field, so it may diverge from ThemeLight or
+	 * ThemeDark until a modern client saves the full appearance state
+	 * again.
+	 */
 	readonly theme_preference: string;
+	readonly theme_mode: ThemeMode;
+	/**
+	 * ThemeLight is the theme applied when the OS color scheme is light
+	 * and ThemeMode is "sync". Ignored in "single" mode but still stored
+	 * so switching modes preserves the slot value.
+	 */
+	readonly theme_light: string;
+	/**
+	 * ThemeDark is the theme applied when the OS color scheme is dark
+	 * and ThemeMode is "sync". Ignored in "single" mode but still stored.
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8736,7 +8782,6 @@ export interface UserParameter {
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
-	readonly code_diff_display_mode: AgentDisplayMode;
 }
 
 // From codersdk/deployment.go

@@ -124,14 +124,24 @@ SET
 WHERE
 	id = $1;
 
--- name: GetUserThemePreference :one
+-- name: GetUserAppearanceSettings :one
 SELECT
-	value as theme_preference
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_preference'), '')::text AS theme_preference,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
 FROM
 	user_configs
 WHERE
 	user_id = @user_id
-	AND key = 'theme_preference';
+	AND key IN (
+		'theme_preference',
+		'theme_mode',
+		'theme_light',
+		'theme_dark',
+		'terminal_font'
+	);
 
 -- name: UpdateUserThemePreference :one
 INSERT INTO
@@ -147,15 +157,6 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_preference'
 RETURNING *;
 
--- name: GetUserTerminalFont :one
-SELECT
-	value as terminal_font
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'terminal_font';
-
 -- name: UpdateUserTerminalFont :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -168,6 +169,48 @@ SET
 	value = @terminal_font
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
+RETURNING *;
+
+-- name: UpdateUserThemeMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_mode', @theme_mode)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_mode'
+RETURNING *;
+
+-- name: UpdateUserThemeLight :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_light', @theme_light)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_light
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_light'
+RETURNING *;
+
+-- name: UpdateUserThemeDark :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_dark', @theme_dark)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_dark
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_dark'
 RETURNING *;
 
 -- name: GetUserChatCustomPrompt :one
@@ -302,30 +345,6 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_thinking_display_mode'
 RETURNING value AS thinking_display_mode;
-
-
--- name: GetUserCodeDiffDisplayMode :one
-SELECT
-	value AS code_diff_display_mode
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'preference_code_diff_display_mode';
-
--- name: UpdateUserCodeDiffDisplayMode :one
-INSERT INTO
-	user_configs (user_id, key, value)
-VALUES
-	(@user_id, 'preference_code_diff_display_mode', @code_diff_display_mode::text)
-ON CONFLICT
-	ON CONSTRAINT user_configs_pkey
-DO UPDATE
-SET
-	value = @code_diff_display_mode
-WHERE user_configs.user_id = @user_id
-	AND user_configs.key = 'preference_code_diff_display_mode'
-RETURNING value AS code_diff_display_mode;
 
 -- name: UpdateUserRoles :one
 UPDATE
