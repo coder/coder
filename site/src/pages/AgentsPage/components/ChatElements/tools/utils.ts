@@ -332,11 +332,27 @@ const DIFF_HEADER_CSS = [
 	"}",
 ].join(" ");
 
+const CHANGE_LINE_CSS = [
+	":host {",
+	"  --diffs-addition-color-override: hsl(var(--git-added));",
+	"  --diffs-deletion-color-override: hsl(var(--git-deleted));",
+	"  --diffs-bg-addition-override: hsl(var(--surface-git-added));",
+	"  --diffs-bg-deletion-override: hsl(var(--surface-git-deleted));",
+	"  --diffs-bg-addition-number-override: hsl(var(--surface-git-added));",
+	"  --diffs-bg-deletion-number-override: hsl(var(--surface-git-deleted));",
+	"}",
+	"[data-line-type='change-addition']:not([data-selected-line]) {",
+	"  background-color: hsl(var(--surface-git-added)) !important;",
+	"}",
+	"[data-line-type='change-deletion']:not([data-selected-line]) {",
+	"  background-color: hsl(var(--surface-git-deleted)) !important;",
+	"}",
+].join(" ");
+
 export const diffViewerCSS = [
 	// Make context lines transparent so they blend with the page,
-	// but preserve the library's colored backgrounds on changed
-	// lines (change-addition / change-deletion) so the line-level
-	// tint and word-level emphasis highlights remain visible.
+	// while changed lines use the same theme-aware git surfaces as
+	// the file headers and stats.
 	"pre, [data-line]:not([data-selected-line]):not([data-line-type='change-addition']):not([data-line-type='change-deletion']), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
 	// The library reserves a 6 px horizontal scrollbar track on
@@ -345,6 +361,7 @@ export const diffViewerCSS = [
 	"[data-code] { scrollbar-width: none !important; }",
 	"[data-code]::-webkit-scrollbar { height: 0 !important; }",
 	DIFF_HEADER_CSS,
+	CHANGE_LINE_CSS,
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,
 ].join(" ");

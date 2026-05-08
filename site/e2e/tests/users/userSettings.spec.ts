@@ -28,8 +28,14 @@ test("adjust user theme preference", async ({ page }) => {
 
 	await page.goto("/settings/appearance", { waitUntil: "domcontentloaded" });
 
-	await page.getByText("Light", { exact: true }).click();
-	await expect(page.getByLabel("Light")).toBeChecked();
+	// Switch the theme-mode dropdown to "Single theme" so we can pick a
+	// specific variant, independent of the test runner's OS color scheme.
+	await page.getByRole("combobox", { name: /theme mode/i }).click();
+	await page.getByRole("option", { name: /single theme/i }).click();
+
+	// Pick the default light theme by clicking its tile. The tile label
+	// matches the title string used by SingleModeSection.
+	await page.getByText("Light default", { exact: true }).click();
 
 	expectLightThemeClasses(await rootClassNames(page));
 

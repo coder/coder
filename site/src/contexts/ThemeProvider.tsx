@@ -16,57 +16,50 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useEffect,
-	useMemo,
-	useState,
 } from "react";
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, {
-	baseModeFor,
-	CONCRETE_THEMES,
-	DEFAULT_THEME,
-	resolveThemeName,
-	type Theme,
-} from "#/theme";
+import themes, { baseModeFor, CONCRETE_THEMES, type Theme } from "#/theme";
+import {
+	migrateLegacyPreference,
+	resolveActiveThemeName,
+} from "#/theme/themeMode";
+import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 
+/**
+ * Root theme provider for the web UI.
+ *
+ * Decodes the stored appearance settings, including the legacy `auto`
+ * value and colorblind-friendly variants, into a concrete theme via
+ * `migrateLegacyPreference` and `resolveActiveThemeName`, then:
+ *
+ * - Applies the concrete theme class to `<html>` (e.g. `dark-tritan`)
+ *   plus its base mode class (`dark` or `light`) so Tailwind `dark:`
+ *   utilities and any selector-based theming (`.dark` in `Chart.tsx`)
+ *   continue to match when a colorblind variant is active.
+ * - Watches `prefers-color-scheme` so `auto` preferences follow the
+ *   OS.
+ * - Skips class manipulation when an embed page has claimed
+ *   `<html>` via `data-embed-theme`.
+ * - Selects the matching MUI/Emotion theme object and delegates to
+ *   the MUI/Emotion providers.
+ */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
 	);
-	const themeQuery = useMemo(
-		() => window.matchMedia?.("(prefers-color-scheme: light)"),
-		[],
-	);
-	const [preferredColorScheme, setPreferredColorScheme] = useState<
-		"dark" | "light"
-	>(themeQuery?.matches ? "light" : "dark");
+	const preferredColorScheme = usePreferredColorScheme();
 
-	useEffect(() => {
-		if (!themeQuery) {
-			return;
-		}
-
-		const listener = (event: MediaQueryListEvent) => {
-			setPreferredColorScheme(event.matches ? "light" : "dark");
-		};
-
-		// `addEventListener` here is a recent API that isn't mocked in tests.
-		themeQuery.addEventListener?.("change", listener);
-		return () => {
-			themeQuery.removeEventListener?.("change", listener);
-		};
-	}, [themeQuery]);
-
-	// We might not be logged in yet, or the `theme_preference` could be an
-	// empty string. Prefer the JS-fetched value, fall back to the
-	// server-rendered meta tag, then to DEFAULT_THEME.
-	const storedPreference =
-		appearanceSettingsQuery.data?.theme_preference ||
-		metadata.userAppearance?.value?.theme_preference ||
-		DEFAULT_THEME;
-	const concreteName = resolveThemeName(storedPreference, preferredColorScheme);
+	// Prefer the JS-fetched settings; fall back to the SSR meta tag so
+	// the first paint picks the right theme even before the React Query
+	// response arrives. migrateLegacyPreference tolerates any mix of
+	// new/legacy/missing fields.
+	const settings =
+		appearanceSettingsQuery.data ?? metadata.userAppearance?.value ?? {};
+	const state = migrateLegacyPreference(settings);
+	const concreteName = resolveActiveThemeName(state, preferredColorScheme);
 
 	useEffect(() => {
 		const root = document.documentElement;

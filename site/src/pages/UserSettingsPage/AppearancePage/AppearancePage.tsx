@@ -7,6 +7,7 @@ import {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 import { AppearanceForm } from "./AppearanceForm";
 
 const AppearancePage: FC = () => {
@@ -19,6 +20,7 @@ const AppearancePage: FC = () => {
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
 	);
+	const osColorScheme = usePreferredColorScheme();
 
 	if (appearanceSettingsQuery.isLoading) {
 		return <Loader />;
@@ -32,13 +34,8 @@ const AppearancePage: FC = () => {
 		<AppearanceForm
 			isUpdating={updateAppearanceSettingsMutation.isPending}
 			error={updateAppearanceSettingsMutation.error}
-			initialValues={{
-				theme_preference: appearanceSettingsQuery.data.theme_preference,
-				theme_mode: appearanceSettingsQuery.data.theme_mode,
-				theme_light: appearanceSettingsQuery.data.theme_light,
-				theme_dark: appearanceSettingsQuery.data.theme_dark,
-				terminal_font: appearanceSettingsQuery.data.terminal_font,
-			}}
+			initialValues={appearanceSettingsQuery.data}
+			activeScheme={osColorScheme}
 			onSubmit={updateAppearanceSettingsMutation.mutateAsync}
 		/>
 	);
