@@ -353,6 +353,25 @@ const hasActiveFilters = (filterState: SidebarFilterState): boolean => {
 	return filterState.prStatus.size > 0 || filterState.chatStatus.size > 0;
 };
 
+const setsEqual = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean => {
+	if (a.size !== b.size) return false;
+	for (const v of a) {
+		if (!b.has(v)) return false;
+	}
+	return true;
+};
+
+const filterStatesEqual = (
+	a: SidebarFilterState,
+	b: SidebarFilterState,
+): boolean => {
+	return (
+		a.groupBy === b.groupBy &&
+		setsEqual(a.prStatus, b.prStatus) &&
+		setsEqual(a.chatStatus, b.chatStatus)
+	);
+};
+
 const getModelDisplayName = (
 	lastModelConfigID: Chat["last_model_config_id"] | undefined,
 	modelConfigs: readonly ChatModelConfig[],
@@ -1254,6 +1273,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<Button
 							variant="outline"
 							size="sm"
+							disabled={filterStatesEqual(stagedFilterState, filterState)}
 							onClick={() => {
 								setFilterState(stagedFilterState);
 								setFilterPopoverOpen(false);
