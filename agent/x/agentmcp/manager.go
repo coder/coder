@@ -42,6 +42,10 @@ const connectTimeout = 30 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+// listToolsReloadTimeout bounds how long ListTools waits for a
+// post-startup reload to settle.
+const listToolsReloadTimeout = 35 * time.Second
+
 var (
 	// ErrInvalidToolName is returned when the tool name format
 	// is not "server__tool".
@@ -49,6 +53,11 @@ var (
 	// ErrUnknownServer is returned when no MCP server matches
 	// the prefix in the tool name.
 	ErrUnknownServer = xerrors.New("unknown MCP server")
+	// ErrManagerClosed is returned by Reload and ListTools after
+	// Close. Close does not cancel the parent ctx, so this sentinel
+	// is the only signal callers see for a closed-but-not-canceled
+	// Manager.
+	ErrManagerClosed = xerrors.New("manager closed")
 )
 
 // fileSnapshot records the identity of a config file at the time
@@ -75,6 +84,19 @@ type Manager struct {
 	snapshot  map[string]fileSnapshot
 	serverGen uint64
 	sf        tailscalesingleflight.Group[string, struct{}]
+
+	// startupSettled is closed once startup scripts reach a terminal
+	// state. Before that, missing MCP config files are unknown
+	// because startup scripts may still create them.
+	startupSettled chan struct{}
+	startupOnce    sync.Once
+	firstSyncDone  bool
+
+	// closedCh is closed by Close to unblock waiters that do not
+	// otherwise observe Close (the parent ctx is owned by the
+	// caller and may outlive Close).
+	closedCh  chan struct{}
+	closeOnce sync.Once
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -94,26 +116,38 @@ func NewManager(
 	updateEnv func([]string) ([]string, error),
 ) *Manager {
 	return &Manager{
-		ctx:       ctx,
-		logger:    logger,
-		execer:    execer,
-		updateEnv: updateEnv,
-		servers:   make(map[string]*serverEntry),
-		snapshot:  make(map[string]fileSnapshot),
+		ctx:            ctx,
+		logger:         logger,
+		execer:         execer,
+		updateEnv:      updateEnv,
+		servers:        make(map[string]*serverEntry),
+		snapshot:       make(map[string]fileSnapshot),
+		startupSettled: make(chan struct{}),
+		closedCh:       make(chan struct{}),
 	}
 }
 
-// Reload checks whether config files have changed and, if so,
-// performs a differential reconnect. Concurrent callers are
-// coalesced via singleflight; the reload body runs under the
-// Manager's lifetime context so it survives caller cancellation.
+// Reload ensures the tool cache reflects the current config.
+//
+// If config files differ from the last snapshot, a singleflight
+// differential reconnect is driven and Reload waits for it. If the
+// snapshot is current, Reload returns immediately.
+//
+// The reload body runs under the Manager's lifetime context, so
+// caller cancellation does not abort it. Returns ctx.Err() on
+// caller cancel, m.ctx.Err() if the Manager's parent ctx is
+// canceled, ErrManagerClosed if the Manager is Closed, or the
+// body's error.
 func (m *Manager) Reload(ctx context.Context, paths []string) error {
 	m.mu.RLock()
 	closed := m.closed
 	hasSnapshot := len(m.snapshot) > 0
 	m.mu.RUnlock()
 	if closed {
-		return xerrors.New("manager closed")
+		return ErrManagerClosed
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	// Double-check: another goroutine may have completed a
@@ -123,23 +157,111 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 		return nil
 	}
 
-	// All concurrent callers share one in-flight reload keyed
-	// by "". If a concurrent caller resolves different paths
-	// (e.g. after a manifest reconnect), its paths are not
-	// consulted; the next SnapshotChanged check after this
-	// reload completes will detect the mismatch and trigger
-	// a fresh reload.
-	ch := m.sf.DoChan("reload", func() (struct{}, error) {
-		err := m.doReload(m.ctx, paths)
-		return struct{}{}, err
-	})
+	ch := m.startReload(paths)
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case res := <-ch:
-		return res.Err
+	case err := <-ch:
+		return err
 	}
+}
+
+// MarkStartupSettled marks startup scripts as terminal for MCP
+// config purposes. Missing config files after this point are a real
+// empty config, not an unknown startup state.
+func (m *Manager) MarkStartupSettled() {
+	m.startupOnce.Do(func() { close(m.startupSettled) })
+}
+
+// ListTools returns the current MCP tool cache, blocking if
+// necessary to ensure config files have been read at least once.
+//
+// Before startup has settled via MarkStartupSettled, ListTools blocks
+// until settlement or ctx cancels. After settlement, it drives a config
+// reload bounded by listToolsReloadTimeout.
+//
+// On error before the first successful sync, ListTools returns nil
+// tools and the error. On error after a prior sync, it returns cached
+// tools and the error so callers can degrade gracefully.
+func (m *Manager) ListTools(ctx context.Context, paths []string) ([]workspacesdk.MCPToolInfo, error) {
+	if err := m.waitForStartupSettled(ctx); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return m.toolsAfterReloadError(err)
+	}
+
+	reloadCtx, cancel := context.WithTimeout(ctx, listToolsReloadTimeout)
+	defer cancel()
+	if err := m.Reload(reloadCtx, paths); err != nil {
+		return m.toolsAfterReloadError(err)
+	}
+
+	m.mu.Lock()
+	m.firstSyncDone = true
+	m.mu.Unlock()
+	return normalizeTools(m.Tools()), nil
+}
+
+func (m *Manager) waitForStartupSettled(ctx context.Context) error {
+	select {
+	case <-m.startupSettled:
+		return nil
+	default:
+	}
+
+	select {
+	case <-m.startupSettled:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-m.ctx.Done():
+		return m.ctx.Err()
+	case <-m.closedCh:
+		return ErrManagerClosed
+	}
+}
+
+func (m *Manager) toolsAfterReloadError(err error) ([]workspacesdk.MCPToolInfo, error) {
+	m.mu.RLock()
+	firstSyncDone := m.firstSyncDone
+	tools := slices.Clone(m.tools)
+	m.mu.RUnlock()
+	if !firstSyncDone {
+		return nil, err
+	}
+	return normalizeTools(tools), err
+}
+
+func normalizeTools(tools []workspacesdk.MCPToolInfo) []workspacesdk.MCPToolInfo {
+	if tools == nil {
+		return []workspacesdk.MCPToolInfo{}
+	}
+	return tools
+}
+
+// startReload registers the reload with the singleflight group
+// using a fixed key so concurrent triggers share one body. The
+// body always runs under m.ctx. The returned channel yields the
+// body's error exactly once.
+//
+// All concurrent callers share one in-flight reload keyed by
+// "reload". If a concurrent caller resolves different paths
+// (e.g. after a manifest reconnect), its paths are not
+// consulted; the next SnapshotChanged check after this reload
+// completes will detect the mismatch and trigger a fresh reload.
+func (m *Manager) startReload(paths []string) <-chan error {
+	result := make(chan error, 1)
+	ch := m.sf.DoChan("reload", func() (struct{}, error) {
+		err := m.doReload(m.ctx, paths)
+		return struct{}{}, err
+	})
+	go func() {
+		res := <-ch
+		result <- res.Err
+	}()
+	return result
 }
 
 // SnapshotChanged checks whether any config file has changed
@@ -306,7 +428,7 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 	defer m.mu.RUnlock()
 
 	if m.closed {
-		return nil, xerrors.New("manager closed")
+		return nil, ErrManagerClosed
 	}
 
 	diff := &serverDiff{
@@ -385,7 +507,7 @@ func (m *Manager) installServers(
 		for _, cs := range connected {
 			_ = cs.client.Close()
 		}
-		return nil, xerrors.New("manager closed")
+		return nil, ErrManagerClosed
 	}
 
 	newConnected := make(map[string]connectedServer, len(connected))
@@ -587,6 +709,7 @@ func (m *Manager) Close() error {
 	defer m.mu.Unlock()
 
 	m.closed = true
+	m.closeOnce.Do(func() { close(m.closedCh) })
 	var errs []error
 	for _, entry := range m.servers {
 		if err := entry.client.Close(); err != nil {

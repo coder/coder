@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -239,9 +243,249 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	listCtx, listCancel := context.WithTimeout(ctx, testutil.WaitShort)
 	defer listCancel()
 	result, err := client.ListTools(listCtx, mcp.ListToolsRequest{})
-	require.NoError(t, err, "ListTools should succeed — server must be alive after connect")
+	require.NoError(t, err, "ListTools should succeed, server must be alive after connect")
 	require.Len(t, result.Tools, 1)
 	assert.Equal(t, "echo", result.Tools[0].Name)
+}
+
+func TestManager_ListToolsStartupGate(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	t.Run("MissingBeforeStartupCanAppearBeforeSettlement", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		t.Cleanup(func() { _ = m.Close() })
+
+		type result struct {
+			tools []workspacesdk.MCPToolInfo
+			err   error
+		}
+		done := make(chan result, 1)
+		go func() {
+			tools, err := m.ListTools(ctx, []string{configPath})
+			done <- result{tools: tools, err: err}
+		}()
+
+		_, entry := fakeMCPServerConfig(t, "srv")
+		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+		m.MarkStartupSettled()
+
+		select {
+		case got := <-done:
+			require.NoError(t, got.err)
+			require.Len(t, got.tools, 1)
+			assert.Contains(t, got.tools[0].Name, "echo")
+		case <-ctx.Done():
+			t.Fatalf("ListTools did not return after startup settled: %v", ctx.Err())
+		}
+	})
+
+	t.Run("MissingAfterStartupReturnsEmptyAndMarksFirstSync", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
+		t.Cleanup(func() { _ = m.Close() })
+
+		tools, err := m.ListTools(ctx, []string{configPath})
+		require.NoError(t, err)
+		assert.Empty(t, tools)
+
+		m.mu.RLock()
+		firstSyncDone := m.firstSyncDone
+		m.mu.RUnlock()
+		assert.True(t, firstSyncDone)
+	})
+
+	t.Run("ConfigAppearsAfterEmptySyncReloads", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
+		t.Cleanup(func() { _ = m.Close() })
+
+		tools, err := m.ListTools(ctx, []string{configPath})
+		require.NoError(t, err)
+		require.Empty(t, tools)
+
+		_, entry := fakeMCPServerConfig(t, "srv")
+		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+
+		tools, err = m.ListTools(ctx, []string{configPath})
+		require.NoError(t, err)
+		require.Len(t, tools, 1)
+		assert.Contains(t, tools[0].Name, "echo")
+	})
+
+	t.Run("ConcurrentFirstListToolsCallsAllSucceed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		_, entry := fakeMCPServerConfig(t, "srv")
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
+		t.Cleanup(func() { _ = m.Close() })
+
+		const callers = 5
+		var wg sync.WaitGroup
+		errs := make([]error, callers)
+		toolCounts := make([]int, callers)
+		for i := range callers {
+			wg.Go(func() {
+				tools, err := m.ListTools(ctx, []string{configPath})
+				errs[i] = err
+				toolCounts[i] = len(tools)
+			})
+		}
+		wg.Wait()
+
+		for i := range callers {
+			assert.NoError(t, errs[i], "caller %d should not fail", i)
+			assert.Equal(t, 1, toolCounts[i], "caller %d should see tools", i)
+		}
+	})
+
+	t.Run("CloseUnblocksStartupWait", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := m.ListTools(ctx, []string{configPath})
+			done <- err
+		}()
+		require.NoError(t, m.Close())
+
+		select {
+		case err := <-done:
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrManagerClosed)
+		case <-ctx.Done():
+			t.Fatalf("ListTools did not return after Close: %v", ctx.Err())
+		}
+	})
+
+	t.Run("CallerCanceledBeforeStartupReturnsNoTools", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		t.Cleanup(func() { _ = m.Close() })
+
+		callerCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		tools, err := m.ListTools(callerCtx, []string{configPath})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, tools)
+	})
+
+	t.Run("ManagerCanceledBeforeStartupReturnsNoTools", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		t.Cleanup(func() { _ = m.Close() })
+
+		cancel()
+		tools, err := m.ListTools(testutil.Context(t, testutil.WaitLong), []string{configPath})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, tools)
+	})
+
+	t.Run("ClosedBeforeFirstSyncReturnsNoTools", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
+		require.NoError(t, m.Close())
+
+		tools, err := m.ListTools(ctx, []string{configPath})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrManagerClosed)
+		assert.Nil(t, tools)
+	})
+
+	t.Run("CanceledBeforeFirstSyncReturnsNoTools", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, ".mcp.json")
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
+		t.Cleanup(func() { _ = m.Close() })
+
+		callerCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		tools, err := m.ListTools(callerCtx, []string{configPath})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, tools)
+	})
+
+	t.Run("CanceledAfterFirstSyncReturnsCachedTools", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		_, entry := fakeMCPServerConfig(t, "srv")
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
+		t.Cleanup(func() { _ = m.Close() })
+
+		tools, err := m.ListTools(ctx, []string{configPath})
+		require.NoError(t, err)
+		require.Len(t, tools, 1)
+
+		callerCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		tools, err = m.ListTools(callerCtx, []string{configPath})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		require.Len(t, tools, 1)
+		assert.Contains(t, tools[0].Name, "echo")
+	})
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
