@@ -31,13 +31,14 @@ import {
 	Shimmer,
 	Tool,
 } from "../ChatElements";
-import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import { WebSearchSources } from "../ChatElements/tools";
 import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";
-import { ReadFileTool } from "../ChatElements/tools/ReadFileTool";
+import {
+	getReadFileToolData,
+	ReadFileTool,
+} from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
-import { parseArgs } from "../ChatElements/tools/utils";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -225,23 +226,15 @@ const ReadFileTimelineBlock = memo<{
 	}
 
 	if (tools.length === 1) {
-		const parsedArgs = parseArgs(firstTool.args);
-		const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
-		const result = asRecord(firstTool.result);
-		const content = result ? asString(result.content).trim() : "";
+		const readFile = getReadFileToolData(firstTool);
 		return (
 			<div
 				data-tool-call=""
 				className="py-0.5 [&:has(+[data-tool-call])]:pb-0 [[data-tool-call]+&]:pt-0"
 			>
 				<ReadFileTool
-					path={path || "file"}
-					content={content}
+					{...readFile}
 					status={firstTool.status}
-					isError={firstTool.isError}
-					errorMessage={
-						result ? asString(result.error || result.message) : undefined
-					}
 					expanded={expanded}
 					onExpandedChange={setExpanded}
 				/>

@@ -6,10 +6,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { MergedTool } from "../../ChatConversation/types";
-import { asRecord, asString } from "../runtimeTypeUtils";
-import { ReadFileContent } from "./ReadFileTool";
+import { getReadFileToolData, ReadFileContent } from "./ReadFileTool";
 import { ToolCollapsible } from "./ToolCollapsible";
-import { parseArgs } from "./utils";
 
 type ReadFileItem = {
 	id: string;
@@ -19,18 +17,10 @@ type ReadFileItem = {
 	errorMessage?: string;
 };
 
-const getReadFileItem = (tool: MergedTool): ReadFileItem => {
-	const parsedArgs = parseArgs(tool.args);
-	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
-	const rec = asRecord(tool.result);
-	return {
-		id: tool.id,
-		path: path || "file",
-		content: rec ? asString(rec.content).trim() : "",
-		isError: tool.isError,
-		errorMessage: rec ? asString(rec.error || rec.message) : undefined,
-	};
-};
+const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
+	id: tool.id,
+	...getReadFileToolData(tool),
+});
 
 export const ReadFilesTool: React.FC<{
 	tools: readonly MergedTool[];
@@ -40,9 +30,7 @@ export const ReadFilesTool: React.FC<{
 	const items = tools.map(getReadFileItem);
 	const isRunning = tools.some((tool) => tool.status === "running");
 	const isError = tools.some((tool) => tool.isError);
-	const hasContent = items.some(
-		(item) => item.content.length > 0 || item.isError,
-	);
+	const hasContent = items.length > 0;
 	const label = isRunning
 		? `Reading ${tools.length} files…`
 		: `Read ${tools.length} files`;

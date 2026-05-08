@@ -2375,6 +2375,38 @@ export const SequentialReadFilesCollapsed: Story = {
 	},
 };
 
+export const SequentialReadFilesEmptyFilesExpandable: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-empty-1",
+				path: "site/src/empty-a.ts",
+				status: "completed",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-empty-2",
+				path: "site/src/empty-b.ts",
+				status: "completed",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const groupButton = canvas.getByRole("button", { name: /read 2 files/i });
+		expect(groupButton).toBeInTheDocument();
+		expect(canvas.queryByText("site/src/empty-a.ts")).not.toBeInTheDocument();
+		expect(canvas.queryByText("site/src/empty-b.ts")).not.toBeInTheDocument();
+		await userEvent.click(groupButton);
+		await waitFor(() => {
+			expect(canvas.getByText("site/src/empty-a.ts")).toBeVisible();
+			expect(canvas.getByText("site/src/empty-b.ts")).toBeVisible();
+		});
+	},
+};
+
 export const SequentialReadFilesErrorStates: Story = {
 	args: {
 		...defaultArgs,

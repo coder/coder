@@ -8,10 +8,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { asRecord, asString } from "../runtimeTypeUtils";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
 	getFileViewerOptionsMinimal,
+	parseArgs,
 	type ToolStatus,
 } from "./utils";
 
@@ -38,6 +40,26 @@ export const ReadFileContent: React.FC<{
 			/>
 		</ScrollArea>
 	);
+};
+
+export const getReadFileToolData = ({
+	args,
+	result,
+	isError,
+}: {
+	args?: unknown;
+	result?: unknown;
+	isError: boolean;
+}) => {
+	const parsedArgs = parseArgs(args);
+	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
+	const rec = asRecord(result);
+	return {
+		path: path || "file",
+		content: rec ? asString(rec.content).trim() : "",
+		isError,
+		errorMessage: rec ? asString(rec.error || rec.message) : undefined,
+	};
 };
 
 /**
