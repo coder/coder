@@ -42,7 +42,7 @@ func (*RootCmd) syncWant(socketPath *string) *serpent.Command {
 				}
 			}
 
-			cliui.Info(i.Stdout, fmt.Sprintf("Unit %q waited for: [%s]", dependentUnit, strings.Join(i.Args[1:], ", ")))
+			cliui.Info(i.Stdout, fmt.Sprintf("Unit %q declared dependencies: [%s]", dependentUnit, strings.Join(i.Args[1:], ", ")))
 
 			return nil
 		},

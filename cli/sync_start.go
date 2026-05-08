@@ -56,11 +56,11 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 			}
 			ready := statusResp.IsReady
 
-			var waitingFor []string
+			var waitedFor []string
 			if !ready {
 				for _, dep := range statusResp.Dependencies {
 					if !dep.IsSatisfied {
-						waitingFor = append(waitingFor, string(dep.DependsOn))
+						waitedFor = append(waitedFor, string(dep.DependsOn))
 					}
 				}
 
@@ -93,10 +93,10 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 				return xerrors.Errorf("start unit failed: %w", err)
 			}
 
-			if len(waitingFor) == 0 {
+			if len(waitedFor) == 0 {
 				cliui.Info(i.Stdout, "Success")
 			} else {
-				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q is waiting for: [%s]", unitName, strings.Join(waitingFor, ", ")))
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q waited for: [%s]", unitName, strings.Join(waitedFor, ", ")))
 			}
 
 			return nil

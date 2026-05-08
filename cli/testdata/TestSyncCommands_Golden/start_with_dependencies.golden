@@ -1,2 +1,2 @@
 Waiting for dependencies of unit 'test-unit' to be satisfied...
-Unit "test-unit" is waiting for: [dep-unit, dep-unit-2]
+Unit "test-unit" waited for: [dep-unit, dep-unit-2]

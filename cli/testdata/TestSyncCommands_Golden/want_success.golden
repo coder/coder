@@ -1,1 +1,1 @@
-Unit "test-unit" waited for: [dep-unit]
+Unit "test-unit" declared dependencies: [dep-unit]

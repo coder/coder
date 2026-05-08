@@ -190,7 +190,7 @@ func TestSyncCommands_Golden(t *testing.T) {
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		require.Contains(t, outBuf.String(), "Unit \"test-unit\" waited for: [dep-1, dep-2, dep-3]")
+		require.Contains(t, outBuf.String(), "Unit \"test-unit\" declared dependencies: [dep-1, dep-2, dep-3]")
 		require.Contains(t, outBuf.String(), "dep-1")
 		require.Contains(t, outBuf.String(), "dep-2")
 		require.Contains(t, outBuf.String(), "dep-3")
