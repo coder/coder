@@ -4,6 +4,9 @@ import { BuildIcon } from "./BuildIcon";
 const meta: Meta<typeof BuildIcon> = {
 	title: "components/BuildIcon",
 	component: BuildIcon,
+	args: {
+		jobStatus: "succeeded",
+	},
 };
 
 export default meta;
@@ -21,8 +24,22 @@ export const Stop: Story = {
 	},
 };
 
+export const PendingStop: Story = {
+	args: {
+		transition: "stop",
+		jobStatus: "pending",
+	},
+};
+
 export const Delete: Story = {
 	args: {
 		transition: "delete",
+	},
+};
+
+export const FailedDelete: Story = {
+	args: {
+		transition: "delete",
+		jobStatus: "failed",
 	},
 };
