@@ -6950,6 +6950,72 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 	return i, err
 }
 
+const getChatUserPromptsByChatID = `-- name: GetChatUserPromptsByChatID :many
+SELECT
+    cm.id,
+    string_agg(part->>'text', '' ORDER BY ordinality)::text AS text
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = $1::uuid
+    AND cm.role = 'user'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND jsonb_typeof(cm.content) = 'array'
+    AND part->>'type' = 'text'
+GROUP BY
+    cm.id
+HAVING
+    string_agg(part->>'text', '') ~ '\S'
+ORDER BY
+    cm.id DESC
+LIMIT
+    COALESCE(NULLIF($2::int, 0), 500)
+`
+
+type GetChatUserPromptsByChatIDParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	LimitVal int32     `db:"limit_val" json:"limit_val"`
+}
+
+type GetChatUserPromptsByChatIDRow struct {
+	ID   int64  `db:"id" json:"id"`
+	Text string `db:"text" json:"text"`
+}
+
+// Returns the concatenated text of each user-visible user prompt in a
+// chat, newest first. Used by the composer to populate the up/down
+// arrow prompt-history cycle. Non-text parts (tool calls, files,
+// attachments, ...) are excluded; messages whose text payload is
+// entirely whitespace are dropped so cycling never lands on a blank
+// entry. The jsonb_typeof guard skips legacy V0 rows whose content is
+// a scalar JSON string (predates migration 000434) so the lateral
+// jsonb_array_elements never raises "cannot extract elements from a
+// scalar". Backed by idx_chat_messages_user_prompts.
+func (q *sqlQuerier) GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatUserPromptsByChatID, arg.ChatID, arg.LimitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatUserPromptsByChatIDRow
+	for rows.Next() {
+		var i GetChatUserPromptsByChatIDRow
+		if err := rows.Scan(&i.ID, &i.Text); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChats = `-- name: GetChats :many
 SELECT
     chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type, chats.last_turn_summary,
