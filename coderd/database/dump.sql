@@ -1065,7 +1065,6 @@ END;
 $$;
 
 CREATE TABLE ai_model_prices (
-    id bigint NOT NULL,
     provider text NOT NULL,
     model text NOT NULL,
     input_price bigint,
@@ -1081,15 +1080,6 @@ CREATE TABLE ai_model_prices (
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
-
-CREATE SEQUENCE ai_model_prices_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE ai_model_prices_id_seq OWNED BY ai_model_prices.id;
 
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
@@ -3367,8 +3357,6 @@ CREATE VIEW workspaces_expanded AS
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
-ALTER TABLE ONLY ai_model_prices ALTER COLUMN id SET DEFAULT nextval('ai_model_prices_id_seq'::regclass);
-
 ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
 
 ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_queued_messages_id_seq'::regclass);
@@ -3391,10 +3379,7 @@ ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_model_prices
-    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY ai_model_prices
-    ADD CONSTRAINT ai_model_prices_provider_model_key UNIQUE (provider, model);
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);

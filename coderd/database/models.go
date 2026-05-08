@@ -4318,7 +4318,6 @@ type APIKey struct {
 
 // Per-model token prices used by AI Bridge to compute interception cost.
 type AiModelPrice struct {
-	ID              int64         `db:"id" json:"id"`
 	Provider        string        `db:"provider" json:"provider"`
 	Model           string        `db:"model" json:"model"`
 	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`

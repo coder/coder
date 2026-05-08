@@ -1,5 +1,4 @@
 CREATE TABLE ai_model_prices (
-    id                BIGSERIAL   PRIMARY KEY,
     provider          TEXT        NOT NULL,
     model             TEXT        NOT NULL,
     -- Prices per million tokens, in micro-units (1 unit = 1,000,000).
@@ -10,7 +9,7 @@ CREATE TABLE ai_model_prices (
     cache_write_price BIGINT      CHECK (cache_write_price >= 0),
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (provider, model)
+    PRIMARY KEY (provider, model)
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';

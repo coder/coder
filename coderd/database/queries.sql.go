@@ -1788,7 +1788,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 }
 
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
-SELECT id, provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
 FROM ai_model_prices
 WHERE provider = $1 AND model = $2
 `
@@ -1802,7 +1802,6 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model)
 	var i AiModelPrice
 	err := row.Scan(
-		&i.ID,
 		&i.Provider,
 		&i.Model,
 		&i.InputPrice,
