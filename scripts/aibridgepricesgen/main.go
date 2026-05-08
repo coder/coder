@@ -25,6 +25,11 @@ import (
 const (
 	sourceURL    = "https://models.dev/api.json"
 	fetchTimeout = 30 * time.Second
+	// Cap the upstream body read. The current api.json is ~2 MiB, so 100
+	// MiB is pure defense-in-depth against a misbehaving upstream eating
+	// arbitrary memory on developer or CI machines. An overflow surfaces
+	// as a JSON parse error (LimitReader truncates silently at the cap).
+	maxBodyBytes = 100 << 20
 )
 
 // supportedProviders lists the providers we ship prices for. Adding a
@@ -117,13 +122,8 @@ func fetch() (map[string]upstreamProvider, error) {
 		return nil, xerrors.Errorf("status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, xerrors.Errorf("read body: %w", err)
-	}
-
 	var data map[string]upstreamProvider
-	if err := json.Unmarshal(body, &data); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBodyBytes)).Decode(&data); err != nil {
 		return nil, xerrors.Errorf("parse: %w", err)
 	}
 	return data, nil
