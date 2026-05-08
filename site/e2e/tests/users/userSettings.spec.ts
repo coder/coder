@@ -33,9 +33,11 @@ test("adjust user theme preference", async ({ page }) => {
 	await page.getByRole("combobox", { name: /theme mode/i }).click();
 	await page.getByRole("option", { name: /single theme/i }).click();
 
-	// Pick the default light theme by clicking its tile. The tile label
-	// matches the title string used by SingleModeSection.
-	await page.getByText("Light default", { exact: true }).click();
+	// Wait for the single-mode section, then pick the light theme radio
+	// inside that group. This avoids matching the sync-mode preview text.
+	const singleThemeGroup = page.getByRole("radiogroup", { name: "Theme" });
+	await expect(singleThemeGroup).toBeVisible();
+	await singleThemeGroup.getByRole("radio", { name: /light default/i }).click();
 
 	expectLightThemeClasses(await rootClassNames(page));
 
