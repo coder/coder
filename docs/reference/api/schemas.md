@@ -6569,15 +6569,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "text": "string",
       "type": "text"
     }
-  ]
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                      | Required | Restrictions | Description |
-|-----------|-----------------------------------------------------------|----------|--------------|-------------|
-| `content` | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |             |
+| Name              | Type                                                      | Required | Restrictions | Description                                                                                                                                                                  |
+|-------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                              |
+| `model_config_id` | string                                                    | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved. |
 
 ## codersdk.EditChatMessageResponse
 

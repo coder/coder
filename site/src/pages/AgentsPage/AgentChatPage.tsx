@@ -1372,7 +1372,11 @@ const AgentChatPage: FC = () => {
 		]);
 
 		if (editedMessageID !== undefined) {
-			const request: TypesGen.EditChatMessageRequest = { content };
+			const editSelectedModelConfigID = effectiveSelectedModel || undefined;
+			const request: TypesGen.EditChatMessageRequest = {
+				content,
+				model_config_id: editSelectedModelConfigID,
+			};
 			const originalEditedMessage = chatMessagesList?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
@@ -1404,6 +1408,17 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
+			// Persist the user's choice so the next chat created from this
+			// browser keeps the same default model. Mirrors the new-message
+			// branch below.
+			if (editSelectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					editSelectedModelConfigID,
+				);
+			} else {
+				localStorage.removeItem(lastModelConfigIDStorageKey);
+			}
 			return;
 		}
 

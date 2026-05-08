@@ -16325,6 +16325,11 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.ChatInputPart"
 					}
+				},
+				"model_config_id": {
+					"description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
+					"type": "string",
+					"format": "uuid"
 				}
 			}
 		},

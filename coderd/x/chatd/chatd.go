@@ -1301,6 +1301,10 @@ type EditMessageOptions struct {
 	CreatedBy       uuid.UUID
 	EditedMessageID int64
 	Content         []codersdk.ChatMessagePart
+	// ModelConfigID, when non-nil, overrides the model used for the
+	// replacement user message. When nil the original message's
+	// model is preserved.
+	ModelConfigID uuid.UUID
 }
 
 // EditMessageResult contains the replacement user message and chat status.
@@ -1864,7 +1868,36 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("soft-delete later chat messages: %w", err)
 		}
 
-		// Insert a new message with the updated content.
+		// Resolve the model for the replacement message. When the
+		// caller does not specify a model, preserve the original
+		// message's model so an edit that only changes text keeps
+		// behaving as before.
+		messageModelConfigID := editedMsg.ModelConfigID.UUID
+		if opts.ModelConfigID != uuid.Nil {
+			if _, err := tx.GetChatModelConfigByID(
+				chatdModelConfigLookupContext(ctx),
+				opts.ModelConfigID,
+			); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf(
+						"%w: %s",
+						ErrInvalidModelConfigID,
+						opts.ModelConfigID,
+					)
+				}
+				return xerrors.Errorf(
+					"get requested model config %s: %w",
+					opts.ModelConfigID,
+					err,
+				)
+			}
+			messageModelConfigID = opts.ModelConfigID
+		}
+
+		// Insert a new message with the updated content. The
+		// InsertChatMessages CTE updates chats.last_model_config_id
+		// when the new message's model differs, so the assistant turn
+		// that follows picks up the new selection.
 		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: opts.ChatID,
 		}
@@ -1872,7 +1905,7 @@ func (p *Server) EditMessage(
 			database.ChatMessageRoleUser,
 			content,
 			editedMsg.Visibility,
-			editedMsg.ModelConfigID.UUID,
+			messageModelConfigID,
 			chatprompt.CurrentContentVersion,
 		).withCreatedBy(opts.CreatedBy))
 		newMessages, err := insertChatMessageWithStore(ctx, tx, msgParams)
