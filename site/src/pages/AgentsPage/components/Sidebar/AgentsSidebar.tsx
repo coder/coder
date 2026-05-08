@@ -2003,12 +2003,7 @@ const FilterCheckboxSection: FC<{
 								onChange(opt.value, checked === true)
 							}
 						/>
-						{opt.label}
-						{counts && (
-							<span className="ml-auto text-xs text-content-disabled">
-								{counts.get(opt.value) ?? 0}
-							</span>
-						)}
+							{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
 					</label>
 				))}
 			</div>
