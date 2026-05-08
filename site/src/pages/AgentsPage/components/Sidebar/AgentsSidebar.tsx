@@ -1244,7 +1244,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<button
 							type="button"
 							className="cursor-pointer border-0 bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary"
-							onClick={() => setStagedFilterState(DEFAULT_FILTER_STATE)}
+							onClick={() => {
+								setFilterState(DEFAULT_FILTER_STATE);
+								setFilterPopoverOpen(false);
+							}}
 						>
 							Clear all
 						</button>
