@@ -353,25 +353,6 @@ const hasActiveFilters = (filterState: SidebarFilterState): boolean => {
 	return filterState.prStatus.size > 0 || filterState.chatStatus.size > 0;
 };
 
-const setsEqual = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean => {
-	if (a.size !== b.size) return false;
-	for (const v of a) {
-		if (!b.has(v)) return false;
-	}
-	return true;
-};
-
-const filterStatesEqual = (
-	a: SidebarFilterState,
-	b: SidebarFilterState,
-): boolean => {
-	return (
-		a.groupBy === b.groupBy &&
-		setsEqual(a.prStatus, b.prStatus) &&
-		setsEqual(a.chatStatus, b.chatStatus)
-	);
-};
-
 const getModelDisplayName = (
 	lastModelConfigID: Chat["last_model_config_id"] | undefined,
 	modelConfigs: readonly ChatModelConfig[],
@@ -1999,20 +1980,24 @@ const FilterCheckboxSection: FC<{
 			</span>
 			<div className="flex flex-col gap-1.5">
 				{filtered.map((opt) => (
-					<label
+					<div
 						key={opt.value}
-						htmlFor={`filter-${opt.value}`}
-					className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
-				>
+						className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
+						onClick={() => onChange(opt.value, !selected.has(opt.value))}
+							tabIndex={0}
+							role="checkbox"
+							aria-checked={selected.has(opt.value)}
+							onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onChange(opt.value, !selected.has(opt.value)); }}
+					>
 						<Checkbox
-							id={`filter-${opt.value}`}
 							checked={selected.has(opt.value)}
+							onClick={(e) => e.stopPropagation()}
 							onCheckedChange={(checked) =>
 								onChange(opt.value, checked === true)
 							}
 						/>
-							{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
-					</label>
+						{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
+					</div>
 				))}
 			</div>
 		</div>
