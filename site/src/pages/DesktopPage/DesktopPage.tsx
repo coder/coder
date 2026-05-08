@@ -65,6 +65,54 @@ const DesktopPage: FC = () => {
 		};
 		socket.addEventListener("close", handleSocketClose);
 
+		// Bridge the OS clipboard to the remote VNC clipboard.
+		//
+		// Server -> client: when the remote desktop emits a CutText, the
+		// RFB instance fires a `clipboard` event whose detail.text we
+		// mirror to the browser clipboard via writeText. Subject to the
+		// browser's secure-context and user-gesture rules; we silently
+		// no-op on rejection rather than surfacing toasts the user
+		// cannot action (the DLP proxy may even be dropping the message
+		// upstream).
+		//
+		// Client -> server: on tab focus and visibility transitions we
+		// read the OS clipboard and forward via rfb.clipboardPasteFrom
+		// so the remote sees a ClientCutText shortly after the user
+		// copies on their local machine. Permission denial is silently
+		// ignored. A `lastSynced` cell tracks the last text we routed
+		// in either direction so the two sides do not echo each other
+		// into a loop.
+		const lastSynced: { text: string | null } = { text: null };
+		const handleRemoteClipboard = (event: Event) => {
+			const detail = (event as CustomEvent<{ text?: string }>).detail;
+			const text = detail?.text;
+			if (typeof text !== "string") return;
+			if (text === lastSynced.text) return;
+			lastSynced.text = text;
+			navigator.clipboard?.writeText?.(text).catch(() => {
+				// Silent no-op: clipboard permission denied or unsupported.
+			});
+		};
+		const pushLocalClipboard = async () => {
+			if (!rfb) return;
+			const reader = navigator.clipboard?.readText?.bind(navigator.clipboard);
+			if (!reader) return;
+			try {
+				const text = await reader();
+				if (typeof text !== "string") return;
+				if (text === lastSynced.text) return;
+				lastSynced.text = text;
+				rfb.clipboardPasteFrom(text);
+			} catch {
+				// Silent no-op: clipboard permission denied or unsupported.
+			}
+		};
+		const handleVisibility = () => {
+			if (document.visibilityState === "visible") {
+				void pushLocalClipboard();
+			}
+		};
+
 		try {
 			rfb = new RFB(container, socket, { shared: true });
 			rfb.scaleViewport = true;
@@ -88,6 +136,10 @@ const DesktopPage: FC = () => {
 					event.detail.reason || "Desktop security handshake failed.",
 				);
 			});
+			rfb.addEventListener("clipboard", handleRemoteClipboard);
+
+			window.addEventListener("focus", pushLocalClipboard);
+			document.addEventListener("visibilitychange", handleVisibility);
 		} catch (err) {
 			setStatus("error");
 			setErrorMessage(err instanceof Error ? err.message : String(err));
@@ -96,6 +148,13 @@ const DesktopPage: FC = () => {
 
 		return () => {
 			socket.removeEventListener("close", handleSocketClose);
+			window.removeEventListener("focus", pushLocalClipboard);
+			document.removeEventListener("visibilitychange", handleVisibility);
+			try {
+				rfb?.removeEventListener("clipboard", handleRemoteClipboard);
+			} catch {
+				// Ignore errors during teardown.
+			}
 			try {
 				rfb?.disconnect();
 			} catch {
