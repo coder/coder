@@ -5941,7 +5941,6 @@ type runChatResult struct {
 	StatusLabelModel        fantasy.LanguageModel
 	ProviderKeys            chatprovider.ProviderAPIKeys
 	PendingDynamicToolCalls []chatloop.PendingToolCall
-	StatusSignals           []turnStatusSignal
 	FallbackProvider        string
 	FallbackModel           string
 	TriggerMessageID        int64
@@ -6864,7 +6863,6 @@ func (p *Server) runChat(
 	modelConfigContextLimit := modelConfig.ContextLimit
 	var finalAssistantText string
 	var pendingDynamicCalls []chatloop.PendingToolCall
-	var statusSignals []turnStatusSignal
 
 	compactionHistoryTipMessageID := int64(0)
 	if len(messages) > 0 {
@@ -6894,7 +6892,6 @@ func (p *Server) runChat(
 		// Capture pending dynamic tool calls so the caller
 		// can surface them after chatloop.Run returns.
 		pendingDynamicCalls = step.PendingDynamicToolCalls
-		stepStatusSignals := turnStatusSignalsFromContent(step.Content)
 
 		// Split the step content into assistant blocks and tool
 		// result blocks so they can be stored as separate messages
@@ -7064,10 +7061,6 @@ func (p *Server) runChat(
 			return nil
 		}, nil); err != nil {
 			return xerrors.Errorf("persist step transaction: %w", err)
-		}
-
-		if len(stepStatusSignals) > 0 {
-			statusSignals = append(statusSignals, stepStatusSignals...)
 		}
 
 		for _, msg := range insertedMessages {
@@ -7597,7 +7590,6 @@ func (p *Server) runChat(
 		// client reacts before the status is committed.
 		result.FinalAssistantText = finalAssistantText
 		result.PendingDynamicToolCalls = pendingDynamicCalls
-		result.StatusSignals = statusSignals
 		return result, nil
 	}
 	if loopErr != nil {
@@ -7605,7 +7597,6 @@ func (p *Server) runChat(
 		return result, chaterror.WithClassification(loopErr, classified)
 	}
 	result.FinalAssistantText = finalAssistantText
-	result.StatusSignals = statusSignals
 	return result, nil
 }
 
@@ -8659,7 +8650,7 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
 
 	case database.ChatStatusPending:
-		p.finalizeSuccessfulTurnStatusLabel(ctx, chat, status, runResult, logger)
+		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
 
 	case database.ChatStatusError:
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
@@ -8679,16 +8670,6 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 		// preserve or finalize a cached turn status label.
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
 	}
-}
-
-func (p *Server) finalizeSuccessfulTurnStatusLabel(
-	ctx context.Context,
-	chat database.Chat,
-	status database.ChatStatus,
-	runResult runChatResult,
-	logger slog.Logger,
-) {
-	p.finalizeSuccessfulTurnStatusLabelWithAfterFunc(ctx, chat, status, runResult, logger, func(context.Context, string) {})
 }
 
 func (p *Server) finalizeSuccessfulTurnStatusLabelAndPush(
@@ -8716,16 +8697,12 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	// drainInflight holds it while waiting.
 	p.inflight.Go(func() {
 		finalizeCtx := context.WithoutCancel(ctx)
-		labelResult := p.deriveTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
-		statusLabel := strings.TrimSpace(labelResult.Label)
-		if labelResult.Source != "" {
-			logger.Debug(finalizeCtx, "derived chat turn status label",
-				slog.F("chat_id", chat.ID),
-				slog.F("source", labelResult.Source),
-				slog.F("status", status),
-				slog.F("label_length", len(statusLabel)),
-			)
-		}
+		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
+		logger.Debug(finalizeCtx, "generated chat turn status label",
+			slog.F("chat_id", chat.ID),
+			slog.F("status", status),
+			slog.F("label_length", len(statusLabel)),
+		)
 
 		shouldPersistStatusLabel := statusLabel != "" || chat.LastTurnSummary.Valid
 		if shouldPersistStatusLabel {
@@ -8734,6 +8711,42 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 
 		afterFinalize(finalizeCtx, statusLabel)
 	})
+}
+
+func (p *Server) generateFinalTurnStatusLabel(
+	ctx context.Context,
+	chat database.Chat,
+	status database.ChatStatus,
+	runResult runChatResult,
+	logger slog.Logger,
+) string {
+	if status != database.ChatStatusWaiting {
+		return fallbackTurnStatusLabel(status)
+	}
+
+	assistantText := strings.TrimSpace(runResult.FinalAssistantText)
+	if assistantText == "" || runResult.StatusLabelModel == nil {
+		return fallbackTurnStatusLabel(status)
+	}
+
+	statusLabel := generateTurnStatusLabel(
+		ctx,
+		chat,
+		status,
+		assistantText,
+		runResult.FallbackProvider,
+		runResult.FallbackModel,
+		runResult.StatusLabelModel,
+		runResult.ProviderKeys,
+		logger,
+		p.existingDebugService(),
+		runResult.TriggerMessageID,
+		runResult.HistoryTipMessageID,
+	)
+	if statusLabel == "" {
+		return fallbackTurnStatusLabel(status)
+	}
+	return statusLabel
 }
 
 func (p *Server) dispatchSuccessfulTurnPush(

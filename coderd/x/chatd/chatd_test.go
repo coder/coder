@@ -6526,13 +6526,16 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I have completed the task successfully and all tests are passing now."
-	const summaryText = "Finished tests"
+	const summaryText = "Finished unit tests"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse(summaryText)
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(fmt.Sprintf(`{"label":%q}`, summaryText))
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks(assistantText)...,
@@ -6599,8 +6602,11 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse(summaryText)
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(fmt.Sprintf(`{"label":%q}`, summaryText))
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks(assistantText)...,
@@ -6643,8 +6649,11 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse("unexpected status label request")
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(`{"label":"Unexpected label"}`)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Empty summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("   ")...,

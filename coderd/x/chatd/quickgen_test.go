@@ -595,23 +595,96 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	})
 }
 
-func Test_generateShortText_NormalizesQuotedOutput(t *testing.T) {
+func TestNormalizeTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
-	model := &chattest.FakeModel{
-		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "  \"Quoted summary\"  "},
-				},
-				Usage: fantasy.Usage{InputTokens: 3, OutputTokens: 2, TotalTokens: 5},
-			}, nil
-		},
+	tests := []struct {
+		name  string
+		input string
+		want  string
+		ok    bool
+	}{
+		{name: "accepts short label", input: "Finished unit tests", want: "Finished unit tests", ok: true},
+		{name: "accepts two word label", input: "Submitted PR", want: "Submitted PR", ok: true},
+		{name: "trims quotes and trailing punctuation", input: `"Submitted PR."`, want: "Submitted PR", ok: true},
+		{name: "keeps version punctuation", input: "Updated v2.1 config", want: "Updated v2.1 config", ok: true},
+		{name: "accepts five word label", input: "Updated workspace proxy routing rules", want: "Updated workspace proxy routing rules", ok: true},
+		{name: "rejects agent phrasing", input: "Agent identified failing tests", ok: false},
+		{name: "rejects agent phrase without prefix", input: "Found agent identified bugs", ok: false},
+		{name: "rejects chat phrasing", input: "The chat is waiting now", ok: false},
+		{name: "rejects multiline labels", input: "Fixed bug\nAdded tests", ok: false},
+		{name: "rejects multi sentence labels", input: "Fixed bug. Added tests", ok: false},
+		{name: "rejects single word", input: "Fixed", ok: false},
+		{name: "rejects long labels", input: "Fixed the bug and added tests", ok: false},
 	}
 
-	text, err := generateShortText(context.Background(), model, "system", "user")
-	require.NoError(t, err)
-	require.Equal(t, "Quoted summary", text)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := normalizeTurnStatusLabel(tt.input)
+			require.Equal(t, tt.ok, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFallbackTurnStatusLabel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		status database.ChatStatus
+		want   string
+	}{
+		{status: database.ChatStatusWaiting, want: "Finished latest turn"},
+		{status: database.ChatStatusPending, want: "Still working on request"},
+		{status: database.ChatStatusRequiresAction, want: "Waiting for user input"},
+		{status: database.ChatStatusError, want: "Hit an error"},
+		{status: database.ChatStatus("unknown"), want: "Updated chat status"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, fallbackTurnStatusLabel(tt.status))
+		})
+	}
+}
+
+func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns compact label", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				require.Equal(t, "propose_turn_status_label", call.SchemaName)
+				return &fantasy.ObjectResponse{
+					Object: map[string]any{"label": "Submitted PR"},
+				}, nil
+			},
+		}
+
+		label, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
+		require.NoError(t, err)
+		require.Equal(t, "Submitted PR", label)
+	})
+
+	t.Run("rejects narrative label", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				return &fantasy.ObjectResponse{
+					Object: map[string]any{"label": "Agent identified failing tests"},
+				}, nil
+			},
+		}
+
+		_, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
+		require.ErrorContains(t, err, "generated turn status label was invalid")
+	})
 }
 
 func mustChatMessage(
