@@ -1005,9 +1005,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const filterState = filterStateProp ?? internalFilterState;
 	const setFilterState = onFilterStateChange ?? setInternalFilterState;
 	const [filterSearch, setFilterSearch] = useState("");
-	const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
-	const [stagedFilterState, setStagedFilterState] =
-		useState<SidebarFilterState>(filterState);
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -1134,16 +1131,23 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const showFilterCount =
 		hasActiveFilters(filterState) && totalRootCount > 0;
 
+	// Compute per-option counts from all root chats (unfiltered).
+	const allRootChats = chatTree.rootIds
+		.map((id) => chatById.get(id))
+		.filter((c): c is Chat => c !== undefined);
+	const prStatusCounts = new Map<string, number>();
+	const chatStatusCounts = new Map<string, number>();
+	for (const chat of allRootChats) {
+		const pr = getPRStatusForChat(chat.diff_status);
+		if (pr) {
+			prStatusCounts.set(pr, (prStatusCounts.get(pr) ?? 0) + 1);
+		}
+		const cs = getChatStatusFilterValue(chat);
+		chatStatusCounts.set(cs, (chatStatusCounts.get(cs) ?? 0) + 1);
+	}
+
 	const filterDropdown = (
-		<Popover
-			open={filterPopoverOpen}
-			onOpenChange={(open) => {
-				setFilterPopoverOpen(open);
-				if (open) {
-					setStagedFilterState(filterState);
-				}
-			}}
-		>
+		<Popover>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -1177,10 +1181,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							Group
 						</span>
 						<RadioGroup
-							value={stagedFilterState.groupBy}
+							value={filterState.groupBy}
 							onValueChange={(value) =>
-								setStagedFilterState({
-									...stagedFilterState,
+								setFilterState({
+									...filterState,
 									groupBy: value as GroupByOption,
 								})
 							}
@@ -1228,59 +1232,47 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<FilterCheckboxSection
 								title="PR status"
 								options={PR_STATUS_OPTIONS}
-								selected={stagedFilterState.prStatus}
+								selected={filterState.prStatus}
+								counts={prStatusCounts}
 								searchTerm={filterSearch}
 								onChange={(value, checked) => {
-									const next = new Set(stagedFilterState.prStatus);
+									const next = new Set(filterState.prStatus);
 									if (checked) {
 										next.add(value as PRStatusFilter);
 									} else {
 										next.delete(value as PRStatusFilter);
 									}
-									setStagedFilterState({ ...stagedFilterState, prStatus: next });
+									setFilterState({ ...filterState, prStatus: next });
 								}}
 							/>
 							<FilterCheckboxSection
 								title="Chat status"
 								options={CHAT_STATUS_OPTIONS}
-								selected={stagedFilterState.chatStatus}
+								selected={filterState.chatStatus}
+								counts={chatStatusCounts}
 								searchTerm={filterSearch}
 								onChange={(value, checked) => {
-									const next = new Set(stagedFilterState.chatStatus);
+									const next = new Set(filterState.chatStatus);
 									if (checked) {
 										next.add(value as ChatStatusFilter);
 									} else {
 										next.delete(value as ChatStatusFilter);
 									}
-									setStagedFilterState({ ...stagedFilterState, chatStatus: next });
+									setFilterState({ ...filterState, chatStatus: next });
 								}}
 							/>
 						</div>
 					</div>
 
-					{/* Footer with Clear all / Apply */}
-					<div className="flex items-center justify-between border-0 border-t border-solid border-border-default px-3 py-2">
+					{/* Footer */}
+					<div className="border-0 border-t border-solid border-border-default px-3 py-2">
 						<button
 							type="button"
 							className="cursor-pointer border-0 bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary"
-							onClick={() => {
-								setFilterState(DEFAULT_FILTER_STATE);
-								setFilterPopoverOpen(false);
-							}}
+							onClick={() => setFilterState(DEFAULT_FILTER_STATE)}
 						>
 							Clear all
 						</button>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={filterStatesEqual(stagedFilterState, filterState)}
-							onClick={() => {
-								setFilterState(stagedFilterState);
-								setFilterPopoverOpen(false);
-							}}
-						>
-							Apply
-						</Button>
 					</div>
 				</div>
 			</PopoverContent>
@@ -1983,9 +1975,10 @@ const FilterCheckboxSection: FC<{
 	title: string;
 	options: readonly { value: string; label: string }[];
 	selected: ReadonlySet<string>;
+	counts?: ReadonlyMap<string, number>;
 	searchTerm: string;
 	onChange: (value: string, checked: boolean) => void;
-}> = ({ title, options, selected, searchTerm, onChange }) => {
+}> = ({ title, options, selected, counts, searchTerm, onChange }) => {
 	const normalizedTerm = searchTerm.toLowerCase();
 	const filtered = normalizedTerm
 		? options.filter((opt) => opt.label.toLowerCase().includes(normalizedTerm))
@@ -2011,6 +2004,11 @@ const FilterCheckboxSection: FC<{
 							}
 						/>
 						{opt.label}
+						{counts && (
+							<span className="ml-auto text-xs text-content-disabled">
+								{counts.get(opt.value) ?? 0}
+							</span>
+						)}
 					</label>
 				))}
 			</div>
