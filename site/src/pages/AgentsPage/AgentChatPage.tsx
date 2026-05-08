@@ -80,10 +80,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
-import {
-	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
-} from "./utils/agentChatSendShortcut";
+import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -1512,12 +1509,10 @@ const AgentChatPage: FC = () => {
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentChatPageLoadingView
-				sendShortcut={
-					preferencesQuery.data?.agent_chat_send_shortcut ??
-					(preferencesQuery.isLoading
-						? MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-						: DEFAULT_AGENT_CHAT_SEND_SHORTCUT)
-				}
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
 				titleElement={titleElement}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
@@ -1548,12 +1543,10 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
-			sendShortcut={
-				preferencesQuery.data?.agent_chat_send_shortcut ??
-				(preferencesQuery.isLoading
-					? MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-					: DEFAULT_AGENT_CHAT_SEND_SHORTCUT)
-			}
+			sendShortcut={getAgentChatSendShortcut(
+				preferencesQuery.data?.agent_chat_send_shortcut,
+				preferencesQuery.isLoading,
+			)}
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
