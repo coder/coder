@@ -1,9 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
-import { API } from "#/api/api";
+import { action } from "storybook/actions";
 import { MockPreviewParameter, MockTemplate } from "#/testHelpers/entities";
 import { TemplateEmbedPageView } from "./TemplateEmbedPageView";
-import { action } from "storybook/actions";
 
 const meta: Meta<typeof TemplateEmbedPageView> = {
 	title: "pages/TemplatePage/TemplateEmbedPageView",

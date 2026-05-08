@@ -6,8 +6,8 @@ import type {
 	DynamicParametersResponse,
 } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useTemplateLayoutContext } from "../TemplateLayout";
 import { pageTitle } from "#/utils/page";
+import { useTemplateLayoutContext } from "../TemplateLayout";
 import { TemplateEmbedPageView } from "./TemplateEmbedPageView";
 
 const TemplateEmbedPage: React.FC = () => {
