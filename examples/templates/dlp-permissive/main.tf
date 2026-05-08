@@ -36,6 +36,7 @@ resource "coder_dlp_policy" "policy" {
   web_terminal_access    = true
   port_forwarding_access = true
   desktop_access         = true
+  clipboard_access       = true
   allowed_applications   = ["code-server", "helloworld"]
 }
 
@@ -53,6 +54,13 @@ resource "coder_agent" "main" {
     # `allowed_applications` admits the "helloworld" slug and that
     # `port_forwarding_access` permits the dashboard Ports tab.
     (cd /tmp && python3 -m http.server 8000 >/tmp/helloworld.log 2>&1) &
+    # zutty: pulled in transitively by GTK/x-terminal-emulator. Hide it
+    # from the dock so the only terminal launcher is the bundled xterm.
+    if [ -f /usr/share/applications/zutty.desktop ] && ! grep -q '^NoDisplay=true' /usr/share/applications/zutty.desktop; then
+      sudo tee -a /usr/share/applications/zutty.desktop >/dev/null <<'ZUTTY'
+NoDisplay=true
+ZUTTY
+    fi
   EOT
 
   # Match the strict and kasmvnc templates: hide the VS Code Desktop, SSH,
