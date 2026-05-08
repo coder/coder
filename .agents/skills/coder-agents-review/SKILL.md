@@ -86,18 +86,16 @@ Use repository conventions first. Otherwise use these defaults.
   ^coder-agents-review(\[bot\])?$
   ```
 
-- `REVIEW_APP_SLUG`: fallback case-insensitive substring match when the
-  login format differs.
+- `APPROVED_REGEX`: case-insensitive match for an explicit approving
+  status line from the app.
 
   ```text
-  coder-agents-review
+  ^[[:space:]>]*approved[[:space:].!]*$
   ```
 
-- `APPROVED_REGEX`: case-insensitive approval match.
-
-  ```text
-  (^|[^[:alpha:]])approved([^[:alpha:]]|$)
-  ```
+  Apply this only to individual status lines from the app response, not
+  to arbitrary body text. Negative phrases such as `not approved` or
+  `cannot be approved yet` are feedback, not approval.
 
 - `LOCAL_VALIDATE_CMD`: repo-standard validation command.
 - `LOCAL_TEST_CMD`: optional targeted validation for the touched area.
@@ -105,9 +103,9 @@ Use repository conventions first. Otherwise use these defaults.
 - `PAGE_SIZE`: default `100`. Use it for each GitHub pagination
   request, not as a cap on the total activity fetched.
 
-If the app login does not match the default regex, discover the real
-login from existing PR activity and continue with that exact login. Do
-not guess when the evidence is unclear.
+If the app login does not match the default regex, discover the exact
+app author login from trusted GitHub activity or metadata, then match
+only that login. Do not guess when the evidence is unclear.
 
 ## Discover PR context
 
@@ -230,9 +228,8 @@ Build these facts from the complete paginated activity set:
   the review app
 
 Treat the app as matched when the author login matches
-`REVIEW_APP_LOGIN_REGEX`, or when the login contains
-`REVIEW_APP_SLUG` case-insensitively and the surrounding evidence makes
-it clear that it is the review app.
+`REVIEW_APP_LOGIN_REGEX`, or when it exactly equals a discovered app
+login. Do not treat a substring match as sufficient.
 
 ## Request rules
 
@@ -348,7 +345,12 @@ current work.
 A valid approval is either:
 
 - a review from the app with state `APPROVED`, or
-- a top-level app comment whose body matches `APPROVED_REGEX`
+- a top-level app comment with an explicit approving status line that
+  matches `APPROVED_REGEX`
+
+When checking `APPROVED_REGEX`, split the comment body into lines and
+match a complete line. Do not search arbitrary prose for the word
+`approved`.
 
 If the latest app response is anything else, keep iterating.
 
@@ -371,6 +373,7 @@ When the loop finishes, report:
   already reviewing or has already left feedback you have not handled yet.
 - Never treat silence as approval.
 - Never claim success without explicit app approval evidence.
+- Never accept review-app activity from a substring author match.
 - Never ignore unresolved actionable app feedback.
 - Never skip validation after making changes.
 - Never derive approval or completion from unpaginated PR activity.
