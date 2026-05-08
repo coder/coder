@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { SecretRequirementStatus } from "#/api/typesGenerated";
 import { SecretsTable } from "./SecretsTable";
 
@@ -58,19 +58,6 @@ const expectSecretsTable = async (
 		expect(rows[index]).toHaveTextContent(secretRequirementTarget(requirement));
 	}
 
-	const requirementsWithHelp = requirements.filter(
-		(requirement) => requirement.help_message,
-	);
-	const descriptionButtons = canvas.getAllByRole("button", {
-		name: /show full description/i,
-	});
-	expect(descriptionButtons).toHaveLength(requirementsWithHelp.length);
-
-	await userEvent.hover(descriptionButtons[0]);
-	const tooltip = await within(document.body).findByRole("tooltip");
-	expect(tooltip).toHaveTextContent(expectedRequirements[0].help_message);
-	await userEvent.unhover(descriptionButtons[0]);
-
 	const manageSecretsLink = canvas.getByRole("link", {
 		name: /manage secrets/i,
 	});
@@ -101,6 +88,20 @@ const expectSecretsTable = async (
 
 const secretRequirementTarget = (requirement: SecretRequirementStatus) => {
 	return requirement.file || requirement.env || "Unknown secret";
+};
+
+const githubTokenHelpMessage = "Add a GitHub PAT with env=GITHUB_TOKEN";
+
+const githubToken: SecretRequirementStatus = {
+	env: "GITHUB_TOKEN",
+	help_message: githubTokenHelpMessage,
+	satisfied: false,
+};
+
+const awsCredentials: SecretRequirementStatus = {
+	file: "~/.aws/credentials",
+	help_message: "Add AWS credentials file",
+	satisfied: true,
 };
 
 export const AllSatisfied: Story = {
@@ -140,5 +141,37 @@ export const SingleRow: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		await expectSecretsTable(canvasElement, args.requirements);
+	},
+};
+
+export const TooltipOnlyWhenTruncated: Story = {
+	args: {
+		requirements: [githubToken, awsCredentials],
+	},
+	render: (args) => (
+		<div style={{ width: 640 }}>
+			<SecretsTable {...args} />
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const githubTooltipButton = await canvas.findByRole("button", {
+			name: /show full description for github_token/i,
+		});
+		expect(githubTooltipButton).toBeVisible();
+		expect(
+			canvas.queryByRole("button", {
+				name: /show full description for ~\/\.aws\/credentials/i,
+			}),
+		).toBeNull();
+
+		await userEvent.hover(githubTooltipButton);
+		await waitFor(() =>
+			expect(
+				within(document.body).getByText(githubTokenHelpMessage),
+			).toBeVisible(),
+		);
+		await userEvent.unhover(githubTooltipButton);
 	},
 };
