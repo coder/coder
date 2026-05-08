@@ -1107,23 +1107,32 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					);
 				}),
 			);
+	const totalRootCount = chatTree.rootIds.length;
+	const filteredCount = visibleRootIDs.length;
+	const showFilterCount =
+		hasActiveFilters(filterState) && totalRootCount > 0;
+
 	const filterDropdown = (
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button
-					variant="subtle"
-					size="icon"
+				<button
+					type="button"
 					aria-label="Filter agents"
 					className={cn(
-						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+						"inline-flex items-center gap-1 rounded-md border-0 bg-transparent p-0 text-content-secondary hover:text-content-primary cursor-pointer",
 						(archivedFilter === "archived" ||
 							hasActiveFilters(filterState) ||
 							filterState.groupBy !== "date") &&
 							"text-content-primary",
 					)}
 				>
-					<FilterIcon />
-				</Button>
+					<FilterIcon className="h-3.5 w-3.5" />
+					{showFilterCount && (
+						<span className="text-xs text-content-secondary">
+							({filteredCount} of {totalRootCount})
+						</span>
+					)}
+				</button>
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
