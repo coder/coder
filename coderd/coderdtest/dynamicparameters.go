@@ -125,9 +125,6 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 			UseClassicParameterFlow: ptr.Ref(false),
 		})
 		require.NoError(t, err)
-
-		tpl, err = client.Template(t.Context(), args.TemplateID)
-		require.NoError(t, err)
 	}
 
 	err = client.UpdateActiveTemplateVersion(t.Context(), tpl.ID, codersdk.UpdateActiveTemplateVersion{

@@ -65,27 +65,29 @@ func baselineScheduleOpts() schedule.TemplateScheduleOptions {
 // baselineResolved returns the templateMetaUpdate that resolveTemplateMetaUpdate
 // produces for an empty request against baselineTemplate / baselineScheduleOpts.
 func baselineResolved() templateMetaUpdate {
+	tpl := baselineTemplate()
 	return templateMetaUpdate{
-		name:                                 "baseline",
-		displayName:                          "Baseline Template",
-		description:                          "An existing description.",
-		icon:                                 "/baseline.svg",
-		defaultTTLMillis:                     60 * 60 * 1000,
-		activityBumpMillis:                   30 * 60 * 1000,
-		failureTTLMillis:                     120 * 60 * 1000,
-		timeTilDormantMillis:                 240 * 60 * 1000,
-		timeTilDormantAutoDeleteMillis:       480 * 60 * 1000,
-		allowUserAutostart:                   false,
-		allowUserAutostop:                    false,
-		allowUserCancelWorkspaceJobs:         false,
-		requireActiveVersion:                 true,
-		deprecationMessage:                   "deprecated",
-		classicTemplateFlow:                  true,
-		disableModuleCache:                   true,
-		corsBehavior:                         database.CorsBehaviorPassthru,
+		name:                                 tpl.Name,
+		displayName:                          tpl.DisplayName,
+		description:                          tpl.Description,
+		icon:                                 tpl.Icon,
+		defaultTTLMillis:                     tpl.DefaultTTL / 1e6,
+		activityBumpMillis:                   tpl.ActivityBump / 1e6,
+		failureTTLMillis:                     tpl.FailureTTL / 1e6,
+		timeTilDormantMillis:                 tpl.TimeTilDormant / 1e6,
+		timeTilDormantAutoDeleteMillis:       tpl.TimeTilDormantAutoDelete / 1e6,
+		allowUserAutostart:                   tpl.AllowUserAutostart,
+		allowUserAutostop:                    tpl.AllowUserAutostop,
+		allowUserCancelWorkspaceJobs:         tpl.AllowUserCancelWorkspaceJobs,
+		requireActiveVersion:                 tpl.RequireActiveVersion,
+		deprecationMessage:                   tpl.Deprecated,
+		classicTemplateFlow:                  tpl.UseClassicParameterFlow,
+		disableModuleCache:                   tpl.DisableModuleCache,
+		corsBehavior:                         tpl.CorsBehavior,
 		autostopRequirementDaysOfWeekParsed:  0b0000001,
 		autostartRequirementDaysOfWeekParsed: 0b1000000,
-		autostopRequirementWeeks:             2,
+		autostopRequirementWeeks:             tpl.AutostopRequirementWeeks,
+		groupACL:                             tpl.GroupACL,
 	}
 }
 
