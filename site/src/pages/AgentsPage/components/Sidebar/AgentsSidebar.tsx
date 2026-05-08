@@ -1075,7 +1075,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	// When the list is empty, fall back to contextual empty-state links
 	// instead of a floating standalone icon.
 	const showFilterOnPinned = pinnedChats.length > 0;
-	const firstNonEmptyGroup = showFilterOnPinned
+	const firstNonEmptyDateGroup = showFilterOnPinned
 		? undefined
 		: TIME_GROUPS.find((group) =>
 				visibleRootIDs.some((id) => {
@@ -1083,6 +1083,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					return (
 						chat !== undefined &&
 						getTimeGroup(chat.updated_at) === group &&
+						chat.pin_order === 0
+					);
+				}),
+			);
+	const firstNonEmptyStatusGroup = showFilterOnPinned
+		? undefined
+		: CHAT_STATUS_GROUPS.find((group) =>
+				visibleRootIDs.some((id) => {
+					const chat = chatById.get(id);
+					return (
+						chat !== undefined &&
+						getChatStatusGroup(chat) === group &&
 						chat.pin_order === 0
 					);
 				}),
@@ -1443,7 +1455,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																		>
 																			<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																				<span>{group}</span>
-																				{group === firstNonEmptyGroup &&
+																				{group === firstNonEmptyDateGroup &&
 																				filterDropdown}
 																		</div>
 																		<div className="flex flex-col gap-0.5">
@@ -1475,7 +1487,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	>
 																		<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																			<span>{group}</span>
-																			</div>
+																			{group === firstNonEmptyStatusGroup &&
+																				filterDropdown}
+																		</div>
 																			<div className="flex flex-col gap-0.5">
 																				{groupChats.map((chat) => (
 																					<ChatTreeNode
