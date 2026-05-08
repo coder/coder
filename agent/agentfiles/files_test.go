@@ -3183,3 +3183,237 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, string(data))
 }
+
+// baseFuzzyNotFoundMessage is the leading sentence the matcher
+// returns when all three passes miss. It must remain the leading
+// sentence even when diagnostic hints are appended, so existing log
+// scrapers continue to match.
+const baseFuzzyNotFoundMessage = "search string not found in file. " +
+	"Verify the search string matches the file content exactly, " +
+	"including whitespace and indentation"
+
+// TestFuzzyReplace_Hints pins the post-fail diagnostic hints that
+// fire after pass 3 misses. Two detectors run in order:
+//
+//  1. Inversion. The search did not match anywhere, but the
+//     replace string occurs at a single anchor; the agent likely
+//     swapped the two fields.
+//  2. Repeated-character miscount. A search line agrees with one
+//     content line on every rune except for the count of one
+//     repeated rune; the agent miscounted a decorative run.
+//
+// Both detectors only run on the failing path, after pass 3 has
+// already missed. Both can fire in the same response. The base
+// error string must remain the leading sentence so existing log
+// scrapers continue to match it.
+func TestFuzzyReplace_Hints(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type edit struct {
+		search, replace string
+	}
+	tests := []struct {
+		name string
+		// content is the on-disk file content.
+		content string
+		edit    edit
+		// wantSubs are substrings the error must contain. The
+		// base error is always present unless overridden by the
+		// test's intent; tests assert on the hint text plus any
+		// rune/count details they care about.
+		wantSubs []string
+		// notWantSubs are substrings the error must NOT contain.
+		// Used to pin the suppression cases.
+		notWantSubs []string
+	}{
+		// Inversion: the search clearly is not in the file but the
+		// replace is the file's actual content. Replace is well
+		// over the 20-byte threshold and matches at one anchor.
+		{
+			name: "Inversion_HintIncludesSwapAndLine",
+			content: "package main\n" +
+				"\n" +
+				"func adder(a int, b int) int { return a + b }\n" +
+				"\n" +
+				"// trailing comment\n",
+			edit: edit{
+				// Search is what the agent intends the new state
+				// to be (does not exist in the file).
+				search: "func adder(a, b int) int {\n\treturn a + b\n}\n",
+				// Replace is the actual file content (inversion).
+				replace: "func adder(a int, b int) int { return a + b }\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"?`,
+				"line 3",
+			},
+		},
+		// Inversion suppressed: replace is too short to be a
+		// confident anchor.
+		{
+			name:    "Inversion_ReplaceTooShort_NoHint",
+			content: "alpha\nbeta\ngamma\n",
+			edit: edit{
+				search:  "missing line that does not occur anywhere\n",
+				replace: "beta\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"swap", "appears at line"},
+		},
+		// Inversion suppressed: replace appears at >5 distinct
+		// anchors. The line-equivalent passes are too generic to
+		// pick "the" anchor.
+		{
+			name: "Inversion_TooManyAnchors_NoHint",
+			content: "\trepeated line of fixed text\n" +
+				"\trepeated line of fixed text\n" +
+				"\trepeated line of fixed text\n" +
+				"\trepeated line of fixed text\n" +
+				"\trepeated line of fixed text\n" +
+				"\trepeated line of fixed text\n" +
+				"\trepeated line of fixed text\n",
+			edit: edit{
+				search:  "unrelated text the agent invented out of thin air\n",
+				replace: "repeated line of fixed text\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"swap", "appears at line"},
+		},
+		// Miscount: search reconstructs a JSX-style decorative
+		// comment line with the wrong number of box-drawing
+		// dashes. Names U+2500 and both counts.
+		{
+			name: "Miscount_BoxDrawingDashes_HintNamesCodepoint",
+			content: "<header>\n" +
+				"{/* SECTION HEADING " + strings.Repeat("\u2500", 37) + " */}\n" +
+				"<body/>\n",
+			edit: edit{
+				search:  "{/* SECTION HEADING " + strings.Repeat("\u2500", 32) + " */}\n",
+				replace: "{/* REPLACED */}\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				"your search has 32 \"\u2500\" (U+2500)",
+				"line 2",
+				"has 37",
+				"Adjust the run length",
+			},
+		},
+		// Miscount: ASCII case. Search line has 5 `=` runs,
+		// content has 7. Hint format works for ASCII codepoints.
+		{
+			name: "Miscount_ASCIIEquals_HintWorks",
+			content: "title\n" +
+				"section =======\n" +
+				"body\n",
+			edit: edit{
+				search:  "section =====\n",
+				replace: "section *****\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`your search has 5 "=" (U+003D)`,
+				"line 2",
+				"has 7",
+				"Adjust the run length",
+			},
+		},
+		// Miscount suppressed: search and content differ in two
+		// distinct rune classes. Not a clean repeated-char
+		// miscount.
+		{
+			name: "Miscount_TwoDistinctChanges_NoHint",
+			content: "first\n" +
+				"a===b\n" +
+				"last\n",
+			edit: edit{
+				// Search differs from content in BOTH the count
+				// of '=' (5 vs 3) and the presence of '!' (the
+				// content line has none).
+				search:  "a=====b!\n",
+				replace: "unused\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"Adjust the run length", "closest match"},
+		},
+		// Miscount suppressed: search and content are unrelated.
+		// No content line shares a non-r multiset with the search
+		// line, so no candidate emerges.
+		{
+			name:    "Miscount_Unrelated_NoHint",
+			content: "package foo\n\nfunc bar() {}\n",
+			edit: edit{
+				search:  "this content is wholly different from the file\n",
+				replace: "unused\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"Adjust the run length", "closest match"},
+		},
+		// Search legitimately not in file: short replace, no
+		// near-miscount candidate. Base error returned with no
+		// hints appended.
+		{
+			name: "NoHints_BaseErrorOnly",
+			content: "package foo\n" +
+				"\n" +
+				"func bar() {}\n",
+			edit: edit{
+				search:  "func zzzz() {}\n",
+				replace: "new\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"swap", "Adjust the run length", "appears at line", "closest match"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "hint-"+tt.name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
+
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{
+					Path: path,
+					Edits: []workspacesdk.FileEdit{{
+						Search:  tt.edit.search,
+						Replace: tt.edit.replace,
+					}},
+				}},
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			require.NoError(t, enc.Encode(req))
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+			got := &codersdk.Error{}
+			require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+			msg := got.Error()
+			for _, sub := range tt.wantSubs {
+				require.Contains(t, msg, sub, "want substring missing")
+			}
+			for _, sub := range tt.notWantSubs {
+				require.NotContains(t, msg, sub, "unwanted substring present")
+			}
+
+			// File on disk is untouched: hints fire only on the
+			// failing path, no partial writes.
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, tt.content, string(data))
+		})
+	}
+}
