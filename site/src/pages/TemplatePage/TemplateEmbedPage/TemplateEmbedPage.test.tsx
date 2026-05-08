@@ -1,7 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
-import { API } from "#/api/api";
 import type { DynamicParametersResponse } from "#/api/typesGenerated";
 import { MockPreviewParameter, MockTemplate } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
