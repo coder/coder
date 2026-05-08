@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useEffect,
-	useEffectEvent,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { DetailedError } from "#/api/errors";
 import type {
@@ -17,7 +10,7 @@ import { useTemplateLayoutContext } from "../TemplateLayout";
 import { pageTitle } from "#/utils/page";
 import { TemplateEmbedPageView } from "./TemplateEmbedPageView";
 
-const TemplateEmbedPage: FC = () => {
+const TemplateEmbedPage: React.FC = () => {
 	const { template } = useTemplateLayoutContext();
 	const { user: me } = useAuthenticated();
 	const [latestResponse, setLatestResponse] =

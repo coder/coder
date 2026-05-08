@@ -1,5 +1,5 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { type FC, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
@@ -38,7 +38,7 @@ type TemplateEmbedPageViewProps = {
 	isLoading: boolean;
 };
 
-export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
+export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 	template,
 	parameters,
 	diagnostics,
@@ -244,12 +244,15 @@ function getButtonUrl(
 	return `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 }
 
-interface ButtonPreviewProps {
+type ButtonPreviewProps = {
 	template: Template;
 	buttonValues: ButtonValues | undefined;
-}
+};
 
-const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
+const ButtonPreview: React.FC<ButtonPreviewProps> = ({
+	template,
+	buttonValues,
+}) => {
 	const clipboard = useClipboard();
 	return (
 		<div className="flex gap-8 pt-4 flex-col items-center justify-center">
