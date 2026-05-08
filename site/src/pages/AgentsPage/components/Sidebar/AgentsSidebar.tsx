@@ -1176,8 +1176,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							/>
 						</div>
 						<div
-								className="max-h-40 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-quaternary [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surface-tertiary"
-								style={{ scrollbarColor: "hsl(var(--surface-quaternary)) hsl(var(--surface-tertiary))", scrollbarWidth: "thin" }}
+								className="max-h-40 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-quaternary [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surface-secondary"
+								style={{ scrollbarColor: "auto", scrollbarWidth: "auto" }}
 							>
 							<FilterCheckboxSection
 								title="PR status"
