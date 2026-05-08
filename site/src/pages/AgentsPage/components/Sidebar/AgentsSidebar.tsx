@@ -1979,26 +1979,31 @@ const FilterCheckboxSection: FC<{
 				{title}
 			</span>
 			<div className="flex flex-col gap-1.5">
-				{filtered.map((opt) => (
-					<div
-						key={opt.value}
-						className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
-						onClick={() => onChange(opt.value, !selected.has(opt.value))}
-							tabIndex={0}
+				{filtered.map((opt) => {
+					const checked = selected.has(opt.value);
+					return (
+						<div
+							key={opt.value}
+							className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
+							onMouseDown={(e) => {
+								e.preventDefault();
+								onChange(opt.value, !checked);
+							}}
 							role="checkbox"
-							aria-checked={selected.has(opt.value)}
-							onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onChange(opt.value, !selected.has(opt.value)); }}
-					>
-						<Checkbox
-							checked={selected.has(opt.value)}
-							onClick={(e) => e.stopPropagation()}
-							onCheckedChange={(checked) =>
-								onChange(opt.value, checked === true)
-							}
-						/>
-						{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
-					</div>
-				))}
+							aria-checked={checked}
+							tabIndex={0}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onChange(opt.value, !checked);
+								}
+							}}
+						>
+							<Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
+							{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
+						</div>
+					);
+				})}
 			</div>
 		</div>
 	);
