@@ -986,6 +986,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const filterState = filterStateProp ?? internalFilterState;
 	const setFilterState = onFilterStateChange ?? setInternalFilterState;
 	const [filterSearch, setFilterSearch] = useState("");
+	const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+	const [stagedFilterState, setStagedFilterState] =
+		useState<SidebarFilterState>(filterState);
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -1113,7 +1116,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		hasActiveFilters(filterState) && totalRootCount > 0;
 
 	const filterDropdown = (
-		<Popover>
+		<Popover
+			open={filterPopoverOpen}
+			onOpenChange={(open) => {
+				setFilterPopoverOpen(open);
+				if (open) {
+					setStagedFilterState(filterState);
+				}
+			}}
+		>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -1147,10 +1158,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							Group
 						</span>
 						<RadioGroup
-							value={filterState.groupBy}
+							value={stagedFilterState.groupBy}
 							onValueChange={(value) =>
-								setFilterState({
-									...filterState,
+								setStagedFilterState({
+									...stagedFilterState,
 									groupBy: value as GroupByOption,
 								})
 							}
@@ -1198,34 +1209,54 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<FilterCheckboxSection
 								title="PR status"
 								options={PR_STATUS_OPTIONS}
-								selected={filterState.prStatus}
+								selected={stagedFilterState.prStatus}
 								searchTerm={filterSearch}
 								onChange={(value, checked) => {
-									const next = new Set(filterState.prStatus);
+									const next = new Set(stagedFilterState.prStatus);
 									if (checked) {
 										next.add(value as PRStatusFilter);
 									} else {
 										next.delete(value as PRStatusFilter);
 									}
-									setFilterState({ ...filterState, prStatus: next });
+									setStagedFilterState({ ...stagedFilterState, prStatus: next });
 								}}
 							/>
 							<FilterCheckboxSection
 								title="Chat status"
 								options={CHAT_STATUS_OPTIONS}
-								selected={filterState.chatStatus}
+								selected={stagedFilterState.chatStatus}
 								searchTerm={filterSearch}
 								onChange={(value, checked) => {
-									const next = new Set(filterState.chatStatus);
+									const next = new Set(stagedFilterState.chatStatus);
 									if (checked) {
 										next.add(value as ChatStatusFilter);
 									} else {
 										next.delete(value as ChatStatusFilter);
 									}
-									setFilterState({ ...filterState, chatStatus: next });
+									setStagedFilterState({ ...stagedFilterState, chatStatus: next });
 								}}
 							/>
 						</div>
+					</div>
+
+					{/* Footer with Clear all / Apply */}
+					<div className="flex items-center justify-between border-0 border-t border-solid border-border-default px-3 py-2">
+						<button
+							type="button"
+							className="cursor-pointer border-0 bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary"
+							onClick={() => setStagedFilterState(DEFAULT_FILTER_STATE)}
+						>
+							Clear all
+						</button>
+						<Button
+							size="sm"
+							onClick={() => {
+								setFilterState(stagedFilterState);
+								setFilterPopoverOpen(false);
+							}}
+						>
+							Apply
+						</Button>
 					</div>
 				</div>
 			</PopoverContent>
