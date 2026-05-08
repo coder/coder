@@ -1124,6 +1124,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				sideOffset={2}
 				alignOffset={6}
 				className="w-[225px] overflow-y-hidden p-0"
+				onPointerDownOutside={() => setFilterSearch("")}
+				onEscapeKeyDown={() => setFilterSearch("")}
 			>
 				<div className="flex flex-col">
 					{/* Group section */}
