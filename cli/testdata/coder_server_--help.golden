@@ -848,9 +848,9 @@ when required by your organization's security policy.
           data to help improve our product.
 
 TEMPLATE BUILDER OPTIONS: 
-      --template-builder-enabled bool, $CODER_TEMPLATE_BUILDER_ENABLED (default: false)
-          Whether to enable the template builder feature for guided template
-          creation.
+      --disable-template-builder bool, $CODER_DISABLE_TEMPLATE_BUILDER (default: false)
+          Disable the template builder feature for guided template creation.
+          When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
       --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
           The base URL of the module registry used by the template builder for

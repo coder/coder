@@ -5652,7 +5652,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       }
     },
     "template_builder": {
-      "enabled": true,
+      "disabled": true,
       "registry_url": "string"
     },
     "terms_of_service_url": "string",
@@ -6248,7 +6248,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     }
   },
   "template_builder": {
-    "enabled": true,
+    "disabled": true,
     "registry_url": "string"
   },
   "terms_of_service_url": "string",
@@ -11833,7 +11833,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "enabled": true,
+  "disabled": true,
   "registry_url": "string"
 }
 ```
@@ -11842,7 +11842,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name           | Type    | Required | Restrictions | Description |
 |----------------|---------|----------|--------------|-------------|
-| `enabled`      | boolean | false    |              |             |
+| `disabled`     | boolean | false    |              |             |
 | `registry_url` | string  | false    |              |             |
 
 ## codersdk.TemplateExample

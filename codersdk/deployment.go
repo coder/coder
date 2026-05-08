@@ -4065,14 +4065,14 @@ Write out the current server config as YAML to stdout.`,
 			Hidden: true,
 		},
 		{
-			Name:        "Template Builder Enabled",
-			Description: "Whether to enable the template builder feature for guided template creation.",
-			Flag:        "template-builder-enabled",
-			Env:         "CODER_TEMPLATE_BUILDER_ENABLED",
-			Value:       &c.TemplateBuilder.Enabled,
+			Name:        "Disable Template Builder",
+			Description: "Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.",
+			Flag:        "disable-template-builder",
+			Env:         "CODER_DISABLE_TEMPLATE_BUILDER",
+			Value:       &c.TemplateBuilder.Disabled,
 			Default:     "false",
 			Group:       &deploymentGroupTemplateBuilder,
-			YAML:        "enabled",
+			YAML:        "disabled",
 		},
 		{
 			Name:        "Template Builder Registry URL",
@@ -4194,7 +4194,7 @@ type AIConfig struct {
 }
 
 type TemplateBuilderConfig struct {
-	Enabled     serpent.Bool   `json:"enabled,omitempty"`
+	Disabled    serpent.Bool   `json:"disabled,omitempty"`
 	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 

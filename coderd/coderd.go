@@ -1541,14 +1541,16 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/templatebuilder", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.RequireTemplateBuilderEnabled(&api.DeploymentValues.TemplateBuilder.Enabled),
-			)
-			// Endpoints added by DEVEX-275 (bases), DEVEX-276
-			// (modules), DEVEX-277/279 (compose).
-		})
+		if !api.DeploymentValues.TemplateBuilder.Disabled.Value() {
+			r.Route("/templatebuilder", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				// Endpoints added by DEVEX-275 (bases), DEVEX-276
+				// (modules), DEVEX-277/279 (compose).
+			})
+		}
+
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)

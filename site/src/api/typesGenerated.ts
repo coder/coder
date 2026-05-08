@@ -7596,7 +7596,7 @@ export type TemplateBuildTimeStats = Record<
 
 // From codersdk/deployment.go
 export interface TemplateBuilderConfig {
-	readonly enabled?: boolean;
+	readonly disabled?: boolean;
 	readonly registry_url?: string;
 }
 

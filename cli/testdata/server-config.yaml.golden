@@ -912,9 +912,10 @@ retention:
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
 templateBuilder:
-  # Whether to enable the template builder feature for guided template creation.
+  # Disable the template builder feature for guided template creation. When
+  # disabled, all /api/v2/templatebuilder/* endpoints return 404.
   # (default: false, type: bool)
-  enabled: false
+  disabled: false
   # The base URL of the module registry used by the template builder for module
   # source paths.
   # (default: https://registry.coder.com, type: string)
