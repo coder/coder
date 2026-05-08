@@ -187,11 +187,6 @@ interface ChatPageInputProps {
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
-	onEditUserMessage: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
@@ -246,7 +241,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
-	onEditUserMessage,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -284,23 +278,21 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
-	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {
-		const message = messagesByID.get(orderedMessageIDs[index]);
-		if (message?.role === "user") {
-			lastEditableUserMessage = message;
-			break;
+	// Newest first. messages are in id-ascending order, so reverse
+	// iteration yields the most recent user prompts first. Store the
+	// original text untouched so cycling and re-sending reproduces what
+	// the user originally sent (boundary whitespace can be intentional).
+	const userPromptHistory: string[] = [];
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages.at(index);
+		if (!message || message.role !== "user") {
+			continue;
+		}
+		const text = getEditableUserMessagePayload(message).text;
+		if (text.trim()) {
+			userPromptHistory.push(text);
 		}
 	}
-
-	const handleEditLastUserMessage = lastEditableUserMessage
-		? () => {
-				const { text, fileBlocks } = getEditableUserMessagePayload(
-					lastEditableUserMessage,
-				);
-				onEditUserMessage(lastEditableUserMessage.id, text, fileBlocks);
-			}
-		: undefined;
 
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage = rawUsage
@@ -472,7 +464,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelQueueEdit={onCancelQueueEdit}
 			isEditingHistoryMessage={isEditingHistoryMessage}
 			onCancelHistoryEdit={onCancelHistoryEdit}
-			onEditLastUserMessage={handleEditLastUserMessage}
+			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}

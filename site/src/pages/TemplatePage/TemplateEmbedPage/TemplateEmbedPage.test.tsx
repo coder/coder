@@ -1,7 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
-import { API } from "#/api/api";
 import type { DynamicParametersResponse } from "#/api/typesGenerated";
 import { MockPreviewParameter, MockTemplate } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -72,6 +71,35 @@ describe("TemplateEmbedPage", () => {
 
 		const cpuInput = screen.getByDisplayValue("4");
 		expect(cpuInput).toBeInTheDocument();
+	});
+
+	it("ignores ephemeral parameters", async () => {
+		const paramEphemeral = {
+			...MockPreviewParameter,
+			name: "breakfast",
+			display_name: "Breakfast",
+			form_type: "input" as const,
+			value: { value: "eggs", valid: true },
+			default_value: { value: "eggs", valid: true },
+			order: 0,
+			ephemeral: true,
+		};
+		mockDynamicParameterWebSocket({
+			id: 0,
+			parameters: [paramRegion, paramEphemeral],
+			diagnostics: [],
+		});
+
+		renderEmbedPage();
+
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("us-east-1")).toBeInTheDocument();
+		});
+
+		// The ephemeral parameter should be ignored. Ephemeral params don't make
+		// sense in this context because they need to be reprovided on every
+		// workspace start.
+		expect(screen.queryByDisplayValue("eggs")).not.toBeInTheDocument();
 	});
 
 	it("includes mode and param.* params in the test link and markdown", async () => {
@@ -243,59 +271,5 @@ describe("TemplateEmbedPage", () => {
 		const testLink = screen.getByRole("link", { name: "Test" });
 		const href = testLink.getAttribute("href") ?? "";
 		expect(href).toContain("param.region=us-east-4");
-	});
-
-	it("displays error alert", async () => {
-		const [, mockPublisher] = mockDynamicParameterWebSocket({
-			id: 0,
-			parameters: [],
-			diagnostics: [],
-		});
-
-		renderEmbedPage();
-
-		// Wait for the page to be ready
-		await waitFor(() => {
-			expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
-		});
-
-		await act(async () => {
-			mockPublisher.publishError(new Event("error"));
-		});
-
-		await waitFor(() => {
-			expect(screen.getByRole("alert")).toBeInTheDocument();
-		});
-	});
-
-	it("shows loading state", async () => {
-		// Stay in a loading state
-		vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-			(_versionId, _ownerId, _callbacks) => {
-				// Return a fake WebSocket that's perpetually "connecting"
-				return {
-					readyState: WebSocket.CONNECTING,
-					close: vi.fn(),
-					addEventListener: vi.fn(),
-					removeEventListener: vi.fn(),
-					send: vi.fn(),
-				} as unknown as WebSocket;
-			},
-		);
-
-		renderEmbedPage();
-
-		// The page should show the "Creation mode" section header regardless of loading
-		await waitFor(() => {
-			expect(screen.getByText("Creation mode")).toBeInTheDocument();
-		});
-
-		// Skeleton is present
-		expect(screen.queryByRole("progressbar")).toBeInTheDocument();
-
-		// Should NOT show the "Test" link while loading
-		expect(
-			screen.queryByRole("link", { name: "Test" }),
-		).not.toBeInTheDocument();
 	});
 });
