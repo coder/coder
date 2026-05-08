@@ -659,7 +659,7 @@ export const OrgPickerTightSpacing: Story = {
 export const OrgChangeConfirmation: Story = {
 	render: () => (
 		<ConfirmDialog
-			open={true}
+			open
 			title="Change organization?"
 			description="Changing organization will remove your current attachments."
 			type="info"
