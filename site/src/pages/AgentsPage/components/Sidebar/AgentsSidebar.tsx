@@ -1079,34 +1079,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
-	// Attach the archived filter to the first visible section header.
-	// When the list is empty, fall back to contextual empty-state links
-	// instead of a floating standalone icon.
-	const showFilterOnPinned = pinnedChats.length > 0;
-	const firstNonEmptyDateGroup = showFilterOnPinned
-		? undefined
-		: TIME_GROUPS.find((group) =>
-				visibleRootIDs.some((id) => {
-					const chat = chatById.get(id);
-					return (
-						chat !== undefined &&
-						getTimeGroup(chat.updated_at) === group &&
-						chat.pin_order === 0
-					);
-				}),
-			);
-	const firstNonEmptyStatusGroup = showFilterOnPinned
-		? undefined
-		: CHAT_STATUS_GROUPS.find((group) =>
-				visibleRootIDs.some((id) => {
-					const chat = chatById.get(id);
-					return (
-						chat !== undefined &&
-						getChatStatusGroup(chat) === group &&
-						chat.pin_order === 0
-					);
-				}),
-			);
 	const totalRootCount = chatTree.rootIds.length;
 	const filteredCount = visibleRootIDs.length;
 	const showFilterCount =
@@ -1423,12 +1395,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								</>
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
+									<div className="mb-1 ml-2.5 -mr-0.5 flex justify-end">
+										{filterDropdown}
+									</div>
 									{visibleRootIDs.length === 0 ? (
-										<>
-											<div className="mb-1 -mr-0.5 flex justify-end">
-												{filterDropdown}
-											</div>
-											<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											{hasActiveFilters(filterState) ? (
 												<>
 													<p className="m-0">
@@ -1471,7 +1442,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												</>
 											)}
 											</div>
-										</>
 									) : (
 										<div>
 											{visibleRootIDs.length > 0 && (
@@ -1481,7 +1451,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														<div className="[&:not(:first-child)]:mt-3">
 															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																<span>Pinned</span>
-																{showFilterOnPinned && filterDropdown}
 															</div>
 															<DndContext
 																sensors={sensors}
@@ -1526,8 +1495,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																		>
 																			<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																				<span>{group}</span>
-																				{group === firstNonEmptyDateGroup &&
-																				filterDropdown}
 																		</div>
 																		<div className="flex flex-col gap-0.5">
 																			{groupChats.map((chat) => (
@@ -1558,8 +1525,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	>
 																		<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																			<span>{group}</span>
-																			{group === firstNonEmptyStatusGroup &&
-																				filterDropdown}
 																		</div>
 																			<div className="flex flex-col gap-0.5">
 																				{groupChats.map((chat) => (
