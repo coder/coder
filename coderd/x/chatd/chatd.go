@@ -902,7 +902,11 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 					)
 					// On DB error the check re-runs on the
 					// next tool call.
-				} else if isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
+				} else if _, disconnected := agentDisconnectedFor(
+					c.server.clock.Now(),
+					freshAgent,
+					c.server.agentInactiveDisconnectTimeout,
+				); disconnected {
 					c.clearCachedWorkspaceState()
 					continue
 				}
