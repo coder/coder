@@ -1005,6 +1005,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const filterState = filterStateProp ?? internalFilterState;
 	const setFilterState = onFilterStateChange ?? setInternalFilterState;
 	const [filterSearch, setFilterSearch] = useState("");
+	const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -1147,7 +1148,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	}
 
 	const filterDropdown = (
-		<Popover>
+		<Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -1269,7 +1270,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<button
 							type="button"
 							className="cursor-pointer border-0 bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary"
-							onClick={() => setFilterState(DEFAULT_FILTER_STATE)}
+							onClick={() => {
+								setFilterState(DEFAULT_FILTER_STATE);
+								setFilterPopoverOpen(false);
+							}}
 						>
 							Clear all
 						</button>
