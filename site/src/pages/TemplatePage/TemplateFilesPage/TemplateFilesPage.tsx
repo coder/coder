@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import {
@@ -21,13 +21,21 @@ const TemplateFilesPage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const locationState = location.state as { justCreated?: boolean } | null;
-	const justCreated = locationState?.justCreated === true;
 
+	// Capture the flag in local state so the navigate() call that
+	// cleans up the history entry does not kill the alert on re-render.
+	const [showCreatedAlert, setShowCreatedAlert] = useState(
+		() => locationState?.justCreated === true,
+	);
+
+	// Clean the router state so a page refresh will not re-show the
+	// alert, but leave showCreatedAlert intact for this visit.
 	useEffect(() => {
-		if (justCreated) {
+		if (locationState?.justCreated) {
 			navigate(location.pathname, { replace: true, state: {} });
 		}
-	}, [justCreated, navigate, location.pathname]);
+	}, [locationState?.justCreated, navigate, location.pathname]);
+
 	const { template, activeVersion } = useTemplateLayoutContext();
 	const { data: currentFiles } = useQuery(
 		templateFiles(activeVersion.job.file_id),
@@ -53,8 +61,13 @@ const TemplateFilesPage: FC = () => {
 		<>
 			<title>{getTemplatePageTitle("Source Code", template)}</title>
 
-			{justCreated && (
-				<Alert severity="info" dismissible className="mb-6">
+			{showCreatedAlert && (
+				<Alert
+					severity="info"
+					dismissible
+					onDismiss={() => setShowCreatedAlert(false)}
+					className="mb-6"
+				>
 					<AlertTitle className="font-semibold">
 						Awesome, you just created a new template!
 					</AlertTitle>
