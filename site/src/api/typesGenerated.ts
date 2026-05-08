@@ -343,6 +343,9 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_model_price:*"
+	| "ai_model_price:read"
+	| "ai_model_price:update"
 	| "ai_seat:*"
 	| "ai_seat:create"
 	| "ai_seat:read"
@@ -555,6 +558,9 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_model_price:*",
+	"ai_model_price:read",
+	"ai_model_price:update",
 	"ai_seat:*",
 	"ai_seat:create",
 	"ai_seat:read",
@@ -6334,6 +6340,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_model_price"
 	| "ai_seat"
 	| "aibridge_interception"
 	| "api_key"
@@ -6381,6 +6388,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_model_price",
 	"ai_seat",
 	"aibridge_interception",
 	"api_key",

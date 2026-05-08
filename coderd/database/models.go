@@ -227,6 +227,9 @@ const (
 	ApiKeyScopeAiSeat                              APIKeyScope = "ai_seat:*"
 	ApiKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
 	ApiKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
+	ApiKeyScopeAiModelPrice                        APIKeyScope = "ai_model_price:*"
+	ApiKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
+	ApiKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -473,7 +476,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChat,
 		ApiKeyScopeAiSeat,
 		ApiKeyScopeAiSeatCreate,
-		ApiKeyScopeAiSeatRead:
+		ApiKeyScopeAiSeatRead,
+		ApiKeyScopeAiModelPrice,
+		ApiKeyScopeAiModelPriceRead,
+		ApiKeyScopeAiModelPriceUpdate:
 		return true
 	}
 	return false
@@ -689,6 +695,9 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiSeat,
 		ApiKeyScopeAiSeatCreate,
 		ApiKeyScopeAiSeatRead,
+		ApiKeyScopeAiModelPrice,
+		ApiKeyScopeAiModelPriceRead,
+		ApiKeyScopeAiModelPriceUpdate,
 	}
 }
 
@@ -4305,6 +4314,18 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+// Per-model token prices used by AI Bridge to compute interception cost.
+type AiModelPrice struct {
+	Provider        string        `db:"provider" json:"provider"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 type AiSeatState struct {

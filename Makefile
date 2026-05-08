@@ -168,6 +168,10 @@ _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FIL
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
 
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/aibridgepricesgen
+
 _gen/bin/metricsdocgen: $(wildcard scripts/metricsdocgen/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/metricsdocgen
@@ -988,6 +992,16 @@ gen: gen/db gen/golden-files $(GEN_FILES)
 
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
+
+# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
+# `make gen`. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+	@mkdir -p $(dir $@)
+	$(call atomic_write,_gen/bin/aibridgepricesgen)
+.PHONY: coderd/aibridge/prices/data/prices.json
+
+gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+.PHONY: gen/aibridge-prices
 
 gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
