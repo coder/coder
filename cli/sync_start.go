@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,8 +64,10 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 						waitedFor = append(waitedFor, string(dep.DependsOn))
 					}
 				}
+				slices.Sort(waitedFor)
+				waitedForList := strings.Join(waitedFor, ", ")
 
-				cliui.Infof(i.Stdout, "Waiting for dependencies of unit '%s' to be satisfied...", unitName)
+				cliui.Infof(i.Stdout, "Unit %q is waiting for dependencies to be satisfied: [%s]", unitName, waitedForList)
 
 				ticker := time.NewTicker(syncPollInterval)
 				defer ticker.Stop()
@@ -96,7 +99,7 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 			if len(waitedFor) == 0 {
 				cliui.Info(i.Stdout, "Success")
 			} else {
-				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q waited for: [%s]", unitName, strings.Join(waitedFor, ", ")))
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q finished waiting for dependencies: [%s]", unitName, strings.Join(waitedFor, ", ")))
 			}
 
 			return nil

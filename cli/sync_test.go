@@ -106,7 +106,7 @@ func TestSyncCommands_Golden(t *testing.T) {
 		outBuf := testutil.NewWaitBuffer()
 		done := make(chan error, 1)
 		go func() {
-			if err := outBuf.WaitFor(ctx, "Waiting"); err != nil {
+			if err := outBuf.WaitFor(ctx, "is waiting for dependencies"); err != nil {
 				done <- err
 				return
 			}
