@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/vncproxy"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspaceapps/cors"
 	"github.com/coder/coder/v2/codersdk"
@@ -222,6 +223,87 @@ func (s *Server) logDLPDenial(
 	}
 
 	dlppolicy.LogDenial(ctx, s.Logger, connLogger, params)
+}
+
+// proxyDesktopRFB pumps RFB bytes between the dashboard's noVNC client and
+// the agent's desktop server. When the agent's DLP policy permits clipboard
+// traffic (or no policy is attached), it falls back to the byte-for-byte
+// `agentssh.Bicopy`. Otherwise it runs the clipboard-aware parser in
+// `vncproxy`, which drops `ClientCutText` and `ServerCutText` messages and
+// records one connection_logs row per direction summarizing the drops.
+func (s *Server) proxyDesktopRFB(
+	ctx context.Context,
+	log slog.Logger,
+	r *http.Request,
+	token *SignedToken,
+	dlp *database.TemplateVersionDlpPolicy,
+	wsNetConn, desktopConn net.Conn,
+) {
+	if dlp == nil || dlp.ClipboardAccess {
+		agentssh.Bicopy(ctx, wsNetConn, desktopConn)
+		return
+	}
+
+	// Per-direction-per-connection drop accounting. We log at most one
+	// connection_logs row per direction; subsequent drops on the same
+	// direction increment its count. The counts are emitted at
+	// connection close so the row's reason string includes the final
+	// drop count without a write per CutText.
+	var (
+		dropCounts [2]int
+		dropBytes  [2]int64
+		dropMu     sync.Mutex
+	)
+	onDrop := func(ev vncproxy.DropEvent) {
+		dropMu.Lock()
+		defer dropMu.Unlock()
+		if int(ev.Direction) >= 0 && int(ev.Direction) < len(dropCounts) {
+			dropCounts[ev.Direction]++
+			dropBytes[ev.Direction] += int64(ev.PayloadLen)
+		}
+	}
+
+	err := vncproxy.BicopyDropClipboard(ctx, wsNetConn, desktopConn, onDrop)
+	if err != nil {
+		// The parser aborted because the stream desynced or hit an
+		// unsupported message. Log it; the connections are already
+		// closed by BicopyDropClipboard's defers. A clean close
+		// (context-cancel from the closing WebSocket, EOF on the
+		// agent side) returns nil and falls through to the audit
+		// emission below.
+		log.Warn(ctx, "vnc clipboard proxy error", slog.Error(err))
+	}
+
+	dropMu.Lock()
+	defer dropMu.Unlock()
+	if dropCounts[0] == 0 && dropCounts[1] == 0 {
+		return
+	}
+
+	// The request context is almost certainly canceled by the time we
+	// get here (the user closed the desktop tab and the WebSocket
+	// teardown canceled it). Use a fresh background context with a
+	// short deadline so the audit row still reaches Postgres.
+	auditCtx, auditCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer auditCancel()
+
+	for dir, count := range dropCounts {
+		if count == 0 {
+			continue
+		}
+		reason := fmt.Sprintf(
+			"DLP policy %q dropped %d clipboard message(s) (%d bytes) %s",
+			dlp.Name,
+			count,
+			dropBytes[dir],
+			vncproxy.Direction(dir),
+		)
+		s.logDLPDenial(auditCtx, r, token, dlp,
+			database.ConnectionTypeDesktop,
+			reason,
+			sql.NullString{},
+		)
+	}
 }
 
 func (s *Server) Attach(r chi.Router) {
@@ -1054,7 +1136,7 @@ func (s *Server) workspaceAgentDesktop(rw http.ResponseWriter, r *http.Request) 
 		s.collectStats(report)
 	}()
 
-	agentssh.Bicopy(ctx, wsNetConn, desktopConn)
+	s.proxyDesktopRFB(ctx, log, r, appToken, dlp, wsNetConn, desktopConn)
 	log.Debug(ctx, "desktop Bicopy finished")
 }
 
