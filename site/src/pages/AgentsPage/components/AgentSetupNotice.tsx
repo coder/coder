@@ -92,7 +92,10 @@ const AgentSetupStep: FC<AgentSetupStepProps> = ({
 				)}
 			</span>
 			<span className="text-content-secondary">{label}</span>
-			<Link to={linkTo} className="text-content-link transition-colors hover:text-content-link/80">
+			<Link
+				to={linkTo}
+				className="text-content-link transition-colors hover:text-content-link/80"
+			>
 				{linkText}
 			</Link>
 		</div>
