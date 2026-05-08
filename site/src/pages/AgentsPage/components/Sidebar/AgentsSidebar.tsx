@@ -986,7 +986,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const filterState = filterStateProp ?? internalFilterState;
 	const setFilterState = onFilterStateChange ?? setInternalFilterState;
 	const [filterSearch, setFilterSearch] = useState("");
-	const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -1129,9 +1128,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	}
 
 	const filterDropdown = (
-		<Popover open={filterPopoverOpen} onOpenChange={(open) => {
-				if (open) setFilterPopoverOpen(true);
-			}}>
+		<Popover>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -1157,8 +1154,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				sideOffset={2}
 				alignOffset={6}
 				className="w-[225px] overflow-y-hidden p-0"
-				onPointerDownOutside={() => setFilterPopoverOpen(false)}
-				onEscapeKeyDown={() => setFilterPopoverOpen(false)}
 			>
 				<div className="flex flex-col">
 					{/* Group section */}
@@ -1255,10 +1250,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<button
 							type="button"
 							className="cursor-pointer border-0 bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary"
-							onClick={() => {
-								setFilterState(DEFAULT_FILTER_STATE);
-								setFilterPopoverOpen(false);
-							}}
+							onClick={() => setFilterState(DEFAULT_FILTER_STATE)}
 						>
 							Clear all
 						</button>
@@ -1979,31 +1971,20 @@ const FilterCheckboxSection: FC<{
 				{title}
 			</span>
 			<div className="flex flex-col gap-1.5">
-				{filtered.map((opt) => {
-					const checked = selected.has(opt.value);
-					return (
-						<div
-							key={opt.value}
-							className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
-							onMouseDown={(e) => {
-								e.preventDefault();
-								onChange(opt.value, !checked);
-							}}
-							role="checkbox"
-							aria-checked={checked}
-							tabIndex={0}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									onChange(opt.value, !checked);
-								}
-							}}
-						>
-							<Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
-							{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
-						</div>
-					);
-				})}
+				{filtered.map((opt) => (
+					<div
+						key={opt.value}
+						className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
+					>
+						<Checkbox
+							checked={selected.has(opt.value)}
+							onCheckedChange={(checked) =>
+								onChange(opt.value, checked === true)
+							}
+						/>
+						{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
+					</div>
+				))}
 			</div>
 		</div>
 	);
