@@ -1175,7 +1175,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								className="h-7 w-full rounded-md border border-solid border-border bg-transparent pl-7 pr-2 text-xs text-content-primary placeholder:text-content-disabled focus:border-border-hover focus:outline-none"
 							/>
 						</div>
-						<ScrollArea className="max-h-52" scrollBarClassName="w-1.5" type="auto">
+						<ScrollArea className="max-h-40" scrollBarClassName="w-1.5" type="auto">
 							<FilterCheckboxSection
 								title="PR status"
 								options={PR_STATUS_OPTIONS}
