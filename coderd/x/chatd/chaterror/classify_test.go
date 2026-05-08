@@ -2,6 +2,7 @@ package chaterror_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -41,6 +42,34 @@ func TestClassify(t *testing.T) {
 				Message:    "Anthropic is temporarily overloaded.",
 				Kind:       codersdk.ChatErrorKindOverloaded,
 				Provider:   "anthropic",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "AnthropicMissingMessageStop",
+			err: xerrors.Errorf(
+				"anthropic stream closed before message_stop: %w",
+				io.EOF,
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "Anthropic stream closed unexpectedly before the response completed.",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "anthropic",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "OpenAIResponsesMissingTerminalEvent",
+			err: xerrors.Errorf(
+				"openai responses stream closed before terminal event: %w",
+				io.EOF,
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "OpenAI stream closed unexpectedly before the response completed.",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "openai",
 				Retryable:  true,
 				StatusCode: 0,
 			},

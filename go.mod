@@ -86,8 +86,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 7) coder/fantasy#mike/openai-responses-continuity, OpenAI Responses replay safety:
 //    replay stored reasoning item references, only replay web_search references
 //    when paired with reasoning, and validate function_call output pairing.
-// See: https://github.com/coder/fantasy/commits/f83367a4a205
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260427164812-d0e6ce2243af
+// 8) coder/fantasy#33, fail closed when Anthropic or OpenAI Responses
+//    streams close before their terminal events.
+// See: https://github.com/coder/fantasy/commits/246c4ae7aff9e
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260507124503-246c4ae7aff9
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.

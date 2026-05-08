@@ -1,6 +1,7 @@
 package chaterror_test
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -45,6 +46,25 @@ func TestTerminalErrorPayloadNilForEmptyClassification(t *testing.T) {
 	t.Parallel()
 
 	require.Nil(t, chaterror.TerminalErrorPayload(chaterror.ClassifiedError{}))
+}
+
+func TestStreamRetryPayloadPreservesRetryableMessage(t *testing.T) {
+	t.Parallel()
+
+	delay := 3 * time.Second
+	classified := chaterror.Classify(xerrors.Errorf(
+		"anthropic stream closed before message_stop: %w",
+		io.EOF,
+	))
+	payload := chaterror.StreamRetryPayload(2, delay, classified)
+
+	require.NotNil(t, payload)
+	require.Equal(t,
+		"Anthropic stream closed unexpectedly before the response completed.",
+		payload.Error,
+	)
+	require.Equal(t, codersdk.ChatErrorKindTimeout, payload.Kind)
+	require.Equal(t, "anthropic", payload.Provider)
 }
 
 func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
