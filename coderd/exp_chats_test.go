@@ -4468,7 +4468,7 @@ func TestPatchChat(t *testing.T) {
 	t.Run("WorkspaceBinding", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("BindValidWorkspace", func(t *testing.T) {
+		t.Run("BindExistingExternalWorkspace", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -4482,6 +4482,8 @@ func TestPatchChat(t *testing.T) {
 			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: firstUser.OrganizationID,
 				OwnerID:        firstUser.UserID,
+			}).Seed(database.WorkspaceBuild{
+				HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
 			}).WithAgent().Do()
 			chat := createStoredChat(
 				ctx,

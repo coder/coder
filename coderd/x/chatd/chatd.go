@@ -143,7 +143,26 @@ var (
 		"connection to the workspace agent timed out. " +
 			"The workspace may need to be restarted from the Coder dashboard",
 	)
+	errChatExternalAgentUnavailable = xerrors.New("external workspace agent unavailable")
 )
+
+type chatExternalAgentUnavailableError struct {
+	message string
+}
+
+func (e chatExternalAgentUnavailableError) Error() string {
+	return e.message
+}
+
+func (chatExternalAgentUnavailableError) Is(target error) bool {
+	return target == errChatExternalAgentUnavailable
+}
+
+func newChatExternalAgentUnavailableError(agent database.WorkspaceAgent) error {
+	return chatExternalAgentUnavailableError{
+		message: chattool.ExternalAgentUnavailableMessage(agent),
+	}
+}
 
 // Server handles background processing of pending chats.
 type Server struct {
@@ -764,6 +783,46 @@ func isAgentUnreachable(now time.Time, agent database.WorkspaceAgent, inactiveTi
 		status.Status == database.WorkspaceAgentStatusTimeout
 }
 
+func (c *turnWorkspaceContext) externalAgentError(
+	ctx context.Context,
+	agent database.WorkspaceAgent,
+	fallback error,
+) error {
+	isExternal, err := chattool.IsExternalWorkspaceAgent(ctx, c.server.db, agent)
+	if err != nil || !isExternal {
+		return fallback
+	}
+	return newChatExternalAgentUnavailableError(agent)
+}
+
+func (c *turnWorkspaceContext) externalAgentPreflightError(
+	ctx context.Context,
+	chatSnapshot database.Chat,
+	agent database.WorkspaceAgent,
+) error {
+	// Mirror the cache-hit gate: only short-circuit on clearly offline
+	// states (Disconnected/Timeout). Connecting is allowed through so
+	// an external agent the user just started can still connect inside
+	// the normal dial window.
+	if !isAgentUnreachable(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout) {
+		return nil
+	}
+
+	isExternal, err := chattool.IsExternalWorkspaceAgent(ctx, c.server.db, agent)
+	if err != nil || !isExternal || !chatSnapshot.WorkspaceID.Valid {
+		return nil
+	}
+
+	// Stale agent bindings rely on dialWithLazyValidation to discover
+	// replacement agents, so only skip the dial when this agent is still
+	// the latest selected chat agent for the workspace.
+	latestAgentID, err := c.latestWorkspaceAgentID(ctx, chatSnapshot.WorkspaceID.UUID)
+	if err != nil || latestAgentID != agent.ID {
+		return nil
+	}
+	return newChatExternalAgentUnavailableError(agent)
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
@@ -793,7 +852,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 					// next tool call.
 				} else if isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
 					c.clearCachedWorkspaceState()
-					return nil, errChatAgentDisconnected
+					return nil, c.externalAgentError(ctx, freshAgent, errChatAgentDisconnected)
 				}
 			}
 			return currentConn, nil
@@ -804,6 +863,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
+			return nil, err
+		}
+		if err := c.externalAgentPreflightError(ctx, chatSnapshot, agent); err != nil {
 			return nil, err
 		}
 
@@ -833,7 +895,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			// canceled (e.g. ErrInterrupted), its error must
 			// propagate unchanged so the chatloop can detect it.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
-				return nil, errChatDialTimeout
+				return nil, c.externalAgentError(ctx, agent, errChatDialTimeout)
 			}
 			return nil, err
 		}
