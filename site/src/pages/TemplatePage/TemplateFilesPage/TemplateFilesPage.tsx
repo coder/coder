@@ -31,7 +31,7 @@ const TemplateFilesPage: FC = () => {
 	// Clean the router state so a page refresh will not re-show the
 	// alert, but leave showCreatedAlert intact for this visit.
 	useEffect(() => {
-		if (locationState?.justCreated) {
+		if (locationState?.justCreated === true) {
 			navigate(location.pathname, { replace: true, state: {} });
 		}
 	}, [locationState?.justCreated, navigate, location.pathname]);
