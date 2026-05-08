@@ -1070,6 +1070,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Mobile PWA",
+							"description": "Install Coder Agents as a Progressive Web App on iOS and Android",
+							"path": "./ai-coder/agents/mobile-pwa.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Tasks to Chats API Migration",
 							"description": "Guide for migrating from the Tasks API to the Chats API",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
