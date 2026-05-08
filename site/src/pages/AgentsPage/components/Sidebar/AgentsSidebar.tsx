@@ -1249,6 +1249,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							Clear all
 						</button>
 						<Button
+							variant="outline"
 							size="sm"
 							onClick={() => {
 								setFilterState(stagedFilterState);
