@@ -1402,27 +1402,44 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	var resolvedThinkingMode codersdk.ThinkingDisplayMode
 	if params.ThinkingDisplayMode != "" {
-		updated, err := api.Database.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
+		updated, err := tx.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
 			UserID:              user.ID,
 			ThinkingDisplayMode: string(params.ThinkingDisplayMode),
-		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error updating thinking display mode.",
-				Detail:  err.Error(),
 			})
-			return
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating thinking display mode.", err)
+			}
+			settings.ThinkingDisplayMode = sanitizeThinkingDisplayMode(updated)
+		} else {
+			stored, err := tx.GetUserThinkingDisplayMode(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading thinking display mode.", err)
+			}
+			settings.ThinkingDisplayMode = sanitizeThinkingDisplayMode(stored)
 		}
-		resolvedThinkingMode = codersdk.ThinkingDisplayMode(updated)
-	} else {
-		stored, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading thinking display mode.",
-				Detail:  err.Error(),
+		if params.CodeDiffDisplayMode != "" {
+			updated, err := tx.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
+				UserID:              user.ID,
+				CodeDiffDisplayMode: string(params.CodeDiffDisplayMode),
 			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating code diff display mode.", err)
+			}
+			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(updated)
+		} else {
+			stored, err := tx.GetUserCodeDiffDisplayMode(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading code diff display mode.", err)
+			}
+			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(stored)
+		}
+		return nil
+	}, database.DefaultTXOptions().WithID("user_preference_settings"))
+	if err != nil {
+		var apiErr userPreferenceSettingsAPIError
+		if errors.As(err, &apiErr) {
+			httpapi.Write(ctx, rw, apiErr.statusCode, apiErr.response)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
