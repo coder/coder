@@ -1379,7 +1379,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
 									{visibleRootIDs.length === 0 ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+										<>
+											<div className="mb-1 -mr-0.5 flex justify-end">
+												{filterDropdown}
+											</div>
+											<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											{hasActiveFilters(filterState) ? (
 												<>
 													<p className="m-0">
@@ -1421,7 +1425,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													</button>
 												</>
 											)}
-										</div>
+											</div>
+										</>
 									) : (
 										<div>
 											{visibleRootIDs.length > 0 && (
