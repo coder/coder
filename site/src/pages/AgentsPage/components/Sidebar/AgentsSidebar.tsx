@@ -1172,7 +1172,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				align="end"
 				sideOffset={2}
 				alignOffset={6}
-				className="w-[200px] overflow-y-hidden p-0"
+				className="w-[225px] overflow-y-hidden p-0"
 			>
 				<div className="flex flex-col">
 					{/* Group section */}
@@ -1212,7 +1212,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 
 					{/* Filter by section */}
-					<div className="px-3 pt-2.5 pb-3">
+					<div className="px-3 pt-2.5 pb-0">
 						<span className="mb-1.5 block text-xs font-medium text-content-secondary">
 							Filter by
 						</span>
@@ -1985,7 +1985,7 @@ const FilterCheckboxSection: FC<{
 		: options;
 	if (filtered.length === 0) return null;
 	return (
-		<div className="mb-2">
+		<div className="mb-2 last:mb-0">
 			<span className="mb-1 block text-xs text-content-secondary">
 				{title}
 			</span>
