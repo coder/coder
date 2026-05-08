@@ -1113,11 +1113,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							"text-content-primary",
 					)}
 				>
-					{showFilterCount && (
-						<span className="text-xs text-content-secondary">
-							({filteredCount} of {totalRootCount})
-						</span>
-					)}
+					<span className={cn("text-xs text-content-secondary", !showFilterCount && "invisible")}>
+						({filteredCount} of {totalRootCount})
+					</span>
 					<FilterIcon className="h-3.5 w-3.5" />
 				</button>
 			</PopoverTrigger>
