@@ -121,6 +121,13 @@ const (
 	// streamJanitorInterval.
 	streamJanitorInterval = 30 * time.Second
 
+	// agentDisconnectedRecoveryThreshold is how long the latest
+	// workspace agent must be disconnected before chatd suggests
+	// destructive stop/start recovery. This is intentionally longer
+	// than the inactive-disconnect timeout so short heartbeat gaps do
+	// not prompt a workspace restart.
+	agentDisconnectedRecoveryThreshold = 90 * time.Second
+
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
@@ -139,15 +146,14 @@ const (
 var (
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
 	errChatAgentDisconnected   = xerrors.New(
-		"workspace agent is no longer connected and cannot execute tools. " +
-			"Use stop_workspace to stop the workspace, then start_workspace " +
-			"to start it again",
+		"workspace agent has been disconnected for at least 90 seconds " +
+			"and cannot execute tools. To recover, call stop_workspace " +
+			"to stop the workspace, then start_workspace to start it " +
+			"again",
 	)
 	errChatDialTimeout = xerrors.New(
 		"connection to the workspace agent timed out. " +
-			"The agent may still be reachable on the next attempt. Retry " +
-			"the tool call once; if it times out again, tell the user " +
-			"the agent likely failed to start or is unreachable",
+			"The agent may still be reachable on the next attempt.",
 	)
 	errChatExternalAgentUnavailable = xerrors.New("external workspace agent unavailable")
 )
@@ -790,16 +796,20 @@ func isAgentUnreachable(now time.Time, agent database.WorkspaceAgent, inactiveTi
 		status.Status == database.WorkspaceAgentStatusTimeout
 }
 
-// isAgentDisconnected reports whether the given agent row is
-// disconnected according to database heartbeat state. Timeout is
-// intentionally excluded because an agent that never connected is a
-// weaker signal than an agent lifecycle that connected and then died.
-func isAgentDisconnected(now time.Time, agent database.WorkspaceAgent, inactiveTimeout time.Duration) bool {
+func agentDisconnectedFor(now time.Time, agent database.WorkspaceAgent, inactiveTimeout time.Duration) (time.Duration, bool) {
 	status := agent.Status(now, inactiveTimeout)
-	return status.Status == database.WorkspaceAgentStatusDisconnected
+	if status.Status != database.WorkspaceAgentStatusDisconnected || status.DisconnectedAt == nil {
+		return 0, false
+	}
+
+	disconnectedFor := now.Sub(*status.DisconnectedAt)
+	if disconnectedFor < 0 {
+		disconnectedFor = 0
+	}
+	return disconnectedFor, true
 }
 
-func (c *turnWorkspaceContext) latestWorkspaceAgentDisconnected(
+func (c *turnWorkspaceContext) latestWorkspaceAgentNeedsRestart(
 	ctx context.Context,
 	workspaceID uuid.UUID,
 ) (bool, error) {
@@ -821,7 +831,8 @@ func (c *turnWorkspaceContext) latestWorkspaceAgentDisconnected(
 		return false, nil
 	}
 
-	return isAgentDisconnected(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout), nil
+	disconnectedFor, disconnected := agentDisconnectedFor(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout)
+	return disconnected && disconnectedFor >= agentDisconnectedRecoveryThreshold, nil
 }
 
 func (c *turnWorkspaceContext) externalAgentError(
@@ -937,11 +948,11 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			// propagate unchanged so the chatloop can detect it.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
-				disconnected, statusErr := c.latestWorkspaceAgentDisconnected(ctx, chatSnapshot.WorkspaceID.UUID)
+				needsRestart, statusErr := c.latestWorkspaceAgentNeedsRestart(ctx, chatSnapshot.WorkspaceID.UUID)
 				if statusErr != nil {
 					return nil, statusErr
 				}
-				if disconnected {
+				if needsRestart {
 					return nil, c.externalAgentError(ctx, agent, errChatAgentDisconnected)
 				}
 				return nil, c.externalAgentError(ctx, agent, errChatDialTimeout)

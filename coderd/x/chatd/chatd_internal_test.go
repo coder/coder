@@ -298,10 +298,11 @@ func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 func TestChatWorkspaceRecoveryErrorsDifferentiateSignalStrength(t *testing.T) {
 	t.Parallel()
 
-	// Disconnected is a strong DB-confirmed signal: the model should
-	// recover directly via stop_workspace + start_workspace without
-	// asking the user.
+	// Disconnected recovery is gated by a DB-confirmed duration
+	// threshold, so the message can give direct stop/start guidance
+	// without asking the user.
 	disconnected := errChatAgentDisconnected.Error()
+	require.Contains(t, disconnected, "90 seconds")
 	require.Contains(t, disconnected, "stop_workspace")
 	require.Contains(t, disconnected, "start_workspace")
 	require.NotContains(t, disconnected, "ask_user_question")
@@ -4383,83 +4384,118 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 	}
 }
 
-func TestGetWorkspaceConn_DialTimeoutDisconnectedStatusEscalates(t *testing.T) {
-	// The recovery sentinel requires both a failed dial and a fresh
-	// disconnected status check. A disconnected DB row alone is not
-	// enough to trigger stop/start recovery.
+func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T) {
+	// The recovery sentinel requires a failed dial and a fresh
+	// disconnected status check past the recovery threshold. A
+	// disconnected DB row alone is not enough to trigger stop/start
+	// recovery.
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-
-	workspaceID := uuid.New()
-	agentID := uuid.New()
-	chat := database.Chat{
-		ID: uuid.New(),
-		WorkspaceID: uuid.NullUUID{
-			UUID:  workspaceID,
-			Valid: true,
+	testCases := []struct {
+		name            string
+		disconnectedFor time.Duration
+		wantErr         error
+		wantRecovery    bool
+	}{
+		{
+			name:            "RecentDisconnectReturnsDialTimeout",
+			disconnectedFor: agentDisconnectedRecoveryThreshold / 2,
+			wantErr:         errChatDialTimeout,
+			wantRecovery:    false,
 		},
-		AgentID: uuid.NullUUID{
-			UUID:  agentID,
-			Valid: true,
-		},
-	}
-
-	disconnectedAgent := database.WorkspaceAgent{
-		ID: agentID,
-		FirstConnectedAt: sql.NullTime{
-			Time:  time.Now().Add(-10 * time.Minute),
-			Valid: true,
-		},
-		LastConnectedAt: sql.NullTime{
-			Time:  time.Now().Add(-10 * time.Minute),
-			Valid: true,
-		},
-		DisconnectedAt: sql.NullTime{
-			Time:  time.Now().Add(-9 * time.Minute),
-			Valid: true,
+		{
+			name:            "PastThresholdEscalates",
+			disconnectedFor: agentDisconnectedRecoveryThreshold,
+			wantErr:         errChatAgentDisconnected,
+			wantRecovery:    true,
 		},
 	}
 
-	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
-		Return(disconnectedAgent, nil).
-		Times(2)
-	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-		Return([]database.WorkspaceAgent{disconnectedAgent}, nil).
-		Times(1)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	server := &Server{
-		db:                             db,
-		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		clock:                          quartz.NewReal(),
-		agentInactiveDisconnectTimeout: 30 * time.Second,
-		dialTimeout:                    10 * time.Millisecond,
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+
+			workspaceID := uuid.New()
+			agentID := uuid.New()
+			chat := database.Chat{
+				ID: uuid.New(),
+				WorkspaceID: uuid.NullUUID{
+					UUID:  workspaceID,
+					Valid: true,
+				},
+				AgentID: uuid.NullUUID{
+					UUID:  agentID,
+					Valid: true,
+				},
+			}
+
+			clock := quartz.NewMock(t)
+			now := clock.Now()
+			disconnectedAgent := database.WorkspaceAgent{
+				ID: agentID,
+				FirstConnectedAt: sql.NullTime{
+					Time:  now.Add(-10 * time.Minute),
+					Valid: true,
+				},
+				LastConnectedAt: sql.NullTime{
+					Time:  now.Add(-10 * time.Minute),
+					Valid: true,
+				},
+				DisconnectedAt: sql.NullTime{
+					Time:  now.Add(-tc.disconnectedFor),
+					Valid: true,
+				},
+			}
+
+			db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+				Return(disconnectedAgent, nil).
+				Times(2)
+			db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+				Return([]database.WorkspaceAgent{disconnectedAgent}, nil).
+				Times(1)
+
+			server := &Server{
+				db:                             db,
+				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				clock:                          clock,
+				agentInactiveDisconnectTimeout: 30 * time.Second,
+				dialTimeout:                    10 * time.Millisecond,
+			}
+			server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				<-ctx.Done()
+				return nil, nil, ctx.Err()
+			}
+
+			chatStateMu := &sync.Mutex{}
+			currentChat := chat
+			workspaceCtx := turnWorkspaceContext{
+				server:           server,
+				chatStateMu:      chatStateMu,
+				currentChat:      &currentChat,
+				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+			}
+			defer workspaceCtx.close()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+			require.Nil(t, gotConn)
+			require.ErrorIs(t, err, tc.wantErr)
+			if tc.wantRecovery {
+				require.ErrorIs(t, err, errChatAgentDisconnected)
+			} else {
+				require.NotErrorIs(t, err, errChatAgentDisconnected)
+			}
+
+			workspaceCtx.mu.Lock()
+			defer workspaceCtx.mu.Unlock()
+			require.False(t, workspaceCtx.agentLoaded)
+			require.Nil(t, workspaceCtx.conn)
+		})
 	}
-	server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-		<-ctx.Done()
-		return nil, nil, ctx.Err()
-	}
-
-	chatStateMu := &sync.Mutex{}
-	currentChat := chat
-	workspaceCtx := turnWorkspaceContext{
-		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
-		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
-	}
-	defer workspaceCtx.close()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
-	require.Nil(t, gotConn)
-	require.ErrorIs(t, err, errChatAgentDisconnected)
-
-	workspaceCtx.mu.Lock()
-	defer workspaceCtx.mu.Unlock()
-	require.False(t, workspaceCtx.agentLoaded)
-	require.Nil(t, workspaceCtx.conn)
 }
 
 func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testing.T) {
