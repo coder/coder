@@ -320,11 +320,9 @@ describe("TemplateEmbedPage", () => {
 		});
 
 		// Skeleton is present
-		expect(screen.queryByRole("progressbar")).toBeInTheDocument();
+		expect(screen.getByRole("progressbar")).toBeInTheDocument();
 
-		// Should NOT show the "Test" link while loading
-		expect(
-			screen.queryByRole("link", { name: "Test" }),
-		).not.toBeInTheDocument();
+		// The Test button should be disabled until loading is complete
+		expect(screen.getByRole("button", { name: "Test" })).toBeDisabled();
 	});
 });
