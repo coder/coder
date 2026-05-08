@@ -22,6 +22,7 @@ import (
 	tailscalesingleflight "tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/buildinfo"
@@ -248,7 +249,8 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 	// Refresh tools outside the lock to avoid blocking
 	// concurrent reads during network I/O.
 	if err := m.RefreshTools(ctx); err != nil {
-		m.logger.Warn(ctx, "failed to refresh MCP tools after connect", slog.Error(err))
+		logger := m.logger.With(agentchat.Fields(ctx)...)
+		logger.Warn(ctx, "failed to refresh MCP tools after connect", slog.Error(err))
 	}
 	return nil
 }
@@ -257,6 +259,8 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 // list of server configs. Missing files are silently skipped;
 // parse errors are logged and skipped.
 func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, map[string]fileSnapshot) {
+	logger := m.logger.With(agentchat.Fields(ctx)...)
+
 	// Stat before reading so the snapshot is conservatively old.
 	// If a file changes between stat and read, the snapshot
 	// records the old mtime, SnapshotChanged detects a mismatch
@@ -272,7 +276,7 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
-			m.logger.Warn(ctx, "failed to parse MCP config",
+			logger.Warn(ctx, "failed to parse MCP config",
 				slog.F("path", configPath),
 				slog.Error(err),
 			)
@@ -334,6 +338,8 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 // connectAll runs connectServer in parallel for the given configs.
 // Failed connects are logged and skipped.
 func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
+	logger := m.logger.With(agentchat.Fields(ctx)...)
+
 	var (
 		mu        sync.Mutex
 		connected []connectedServer
@@ -343,7 +349,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []co
 		eg.Go(func() error {
 			c, err := m.connectServer(ctx, cfg)
 			if err != nil {
-				m.logger.Warn(ctx, "skipping MCP server",
+				logger.Warn(ctx, "skipping MCP server",
 					slog.F("server", cfg.Name),
 					slog.F("transport", cfg.Transport),
 					slog.Error(err),
@@ -481,6 +487,8 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 // existing cached tools for servers that failed, so a single
 // dead server doesn't block updates from healthy ones.
 func (m *Manager) RefreshTools(ctx context.Context) error {
+	logger := m.logger.With(agentchat.Fields(ctx)...)
+
 	// Snapshot servers under read lock.
 	m.mu.RLock()
 	servers := make(map[string]*serverEntry, len(m.servers))
@@ -508,7 +516,7 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 			result, err := entry.client.ListTools(listCtx, mcp.ListToolsRequest{})
 			cancel()
 			if err != nil {
-				m.logger.Warn(ctx, "failed to list tools from MCP server",
+				logger.Warn(ctx, "failed to list tools from MCP server",
 					slog.F("server", name),
 					slog.Error(err),
 				)
@@ -670,12 +678,14 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transp
 // updateEnv callback, then merges explicit overrides from the
 // server config on top.
 func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []string {
+	logger := m.logger.With(agentchat.Fields(ctx)...)
+
 	env := usershell.SystemEnvInfo{}.Environ()
 	if m.updateEnv != nil {
 		var err error
 		env, err = m.updateEnv(env)
 		if err != nil {
-			m.logger.Warn(ctx, "failed to enrich MCP server environment",
+			logger.Warn(ctx, "failed to enrich MCP server environment",
 				slog.Error(err),
 			)
 			env = usershell.SystemEnvInfo{}.Environ()

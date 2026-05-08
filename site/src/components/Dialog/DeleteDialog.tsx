@@ -1,4 +1,4 @@
-import { type FC, type FormEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import { Alert } from "#/components/Alert/Alert";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -18,7 +18,7 @@ interface DeleteDialogProps {
 	confirmText?: string;
 }
 
-export const DeleteDialog: FC<DeleteDialogProps> = ({
+export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 	isOpen,
 	onCancel,
 	onConfirm,
@@ -39,7 +39,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	const [isFocused, setIsFocused] = useState(false);
 
 	const deletionConfirmed = name === userConfirmationText;
-	const onSubmit = (event: FormEvent) => {
+	const onSubmit = (event: React.SubmitEvent) => {
 		event.preventDefault();
 		if (deletionConfirmed) {
 			onConfirm();

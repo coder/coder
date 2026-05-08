@@ -1,6 +1,7 @@
 package keypool
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,10 +16,23 @@ var (
 	// ErrDuplicateKey is returned when the input contains
 	// duplicate key values.
 	ErrDuplicateKey = xerrors.New("duplicate key")
-	// ErrAllKeysExhausted is returned when the walker has visited
-	// every key in the pool and none are available.
-	ErrAllKeysExhausted = xerrors.New("all keys exhausted")
 )
+
+// ErrPermanentKeyPool is returned when every key in the
+// pool has been permanently marked unavailable.
+var ErrPermanentKeyPool = xerrors.New("all keys permanently unavailable")
+
+// TransientKeyPoolError is returned when no key is currently
+// available but at least one will recover. RetryAfter is the
+// soonest remaining cooldown across the pool, or 0 if a key
+// just became valid mid-walk.
+type TransientKeyPoolError struct {
+	RetryAfter time.Duration
+}
+
+func (e *TransientKeyPoolError) Error() string {
+	return fmt.Sprintf("all keys exhausted (retry after %s)", e.RetryAfter)
+}
 
 // KeyState represents the current state of a key in the pool.
 type KeyState int
@@ -101,6 +115,22 @@ func (k *Key) State() KeyState {
 	return KeyStateValid
 }
 
+// stateAndCooldown returns the key's state and remaining
+// cooldown as a single atomic snapshot.
+func (k *Key) stateAndCooldown() (KeyState, time.Duration) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
+	if k.permanent {
+		return KeyStatePermanent, 0
+	}
+	now := k.clock.Now()
+	if now.Before(k.cooldownUntil) {
+		return KeyStateTemporary, k.cooldownUntil.Sub(now)
+	}
+	return KeyStateValid, 0
+}
+
 // MarkTemporary marks the key as temporarily unavailable with
 // the specified cooldown duration. Returns true if this call
 // transitions the key to temporary.
@@ -146,6 +176,47 @@ func (k *Key) MarkPermanent() bool {
 	return true
 }
 
+// keyPoolError returns ErrPermanentKeyPool if every key
+// is permanently unavailable, or *TransientKeyPoolError if
+// at least one key is temporarily unavailable. When multiple
+// keys are temporary, the smallest remaining cooldown is used
+// as the retry-after.
+func (p *Pool) keyPoolError() error {
+	var retryAfter time.Duration
+	var hasCooldown bool
+	for i := range p.keys {
+		state, cooldown := p.keys[i].stateAndCooldown()
+		switch state {
+		// Recoverable now: signal transient with zero retry-after.
+		case KeyStateValid:
+			return &TransientKeyPoolError{}
+		// Recoverable later: track soonest remaining cooldown.
+		case KeyStateTemporary:
+			if !hasCooldown || cooldown < retryAfter {
+				retryAfter = cooldown
+				hasCooldown = true
+			}
+		// Permanent: keep walking to confirm error type.
+		default:
+		}
+	}
+	if hasCooldown {
+		return &TransientKeyPoolError{RetryAfter: retryAfter}
+	}
+	return ErrPermanentKeyPool
+}
+
+// PoolState returns a snapshot of each key's state in the pool's
+// original order, used by tests and other diagnostic callers. Use
+// Walker for the failover iteration path.
+func (p *Pool) PoolState() []KeyState {
+	states := make([]KeyState, len(p.keys))
+	for i := range p.keys {
+		states[i] = p.keys[i].State()
+	}
+	return states
+}
+
 // Walker traverses a Pool for a single request. Each request
 // creates its own walker so that it can independently iterate
 // through keys without interfering with other requests.
@@ -162,14 +233,15 @@ func (p *Pool) Walker() *Walker {
 	return &Walker{pool: p, pos: 0}
 }
 
-// Next returns a Key handle for the next available key. This is
-// a read-only operation; it does not modify the pool state.
+// Next returns a Key handle for the next available key without
+// modifying the pool state.
 //
-// Returns ErrAllKeysExhausted when no more keys are available.
+// Returns *TransientKeyPoolError or ErrPermanentKeyPool
+// when no more keys are available.
 func (w *Walker) Next() (*Key, error) {
 	pool := w.pool
 	if pool == nil {
-		return nil, ErrAllKeysExhausted
+		return nil, ErrPermanentKeyPool
 	}
 
 	for i := w.pos; i < len(pool.keys); i++ {
@@ -183,5 +255,5 @@ func (w *Walker) Next() (*Key, error) {
 	}
 
 	// No keys available.
-	return nil, ErrAllKeysExhausted
+	return nil, pool.keyPoolError()
 }

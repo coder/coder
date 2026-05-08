@@ -25703,6 +25703,23 @@ func (q *sqlQuerier) GetUserChatPersonalModelOverride(ctx context.Context, arg G
 	return personal_model_override, err
 }
 
+const getUserCodeDiffDisplayMode = `-- name: GetUserCodeDiffDisplayMode :one
+SELECT
+	value AS code_diff_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_code_diff_display_mode'
+`
+
+func (q *sqlQuerier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserCodeDiffDisplayMode, userID)
+	var code_diff_display_mode string
+	err := row.Scan(&code_diff_display_mode)
+	return code_diff_display_mode, err
+}
+
 const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
@@ -26299,6 +26316,33 @@ func (q *sqlQuerier) UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateU
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err
+}
+
+const updateUserCodeDiffDisplayMode = `-- name: UpdateUserCodeDiffDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_code_diff_display_mode', $2::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_code_diff_display_mode'
+RETURNING value AS code_diff_display_mode
+`
+
+type UpdateUserCodeDiffDisplayModeParams struct {
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	CodeDiffDisplayMode string    `db:"code_diff_display_mode" json:"code_diff_display_mode"`
+}
+
+func (q *sqlQuerier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg UpdateUserCodeDiffDisplayModeParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, updateUserCodeDiffDisplayMode, arg.UserID, arg.CodeDiffDisplayMode)
+	var code_diff_display_mode string
+	err := row.Scan(&code_diff_display_mode)
+	return code_diff_display_mode, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec

@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -125,18 +126,28 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				defer options.WorkspaceMu.Unlock()
 			}
 
+			ownerID := options.OwnerID
+
 			// Check for an existing workspace on the chat.
 			check := options.checkExistingWorkspace(ctx, db, chatID)
+			if check.BuildErr != nil {
+				return buildFailureToolResponse(
+					ctx,
+					options.Logger,
+					db,
+					ownerID,
+					organizationID,
+					check.BuildAction,
+					check.BuildID,
+					check.BuildErr,
+				), nil
+			}
 			if check.Err != nil {
-				if check.FailedBuildID != uuid.Nil {
-					return buildToolResponse(newBuildError(check.Err.Error(), check.FailedBuildID)), nil
-				}
 				return fantasy.NewTextErrorResponse(check.Err.Error()), nil
 			}
 			if check.Done {
 				return toolResponse(check.Result), nil
 			}
-			ownerID := options.OwnerID
 
 			// Set up dbauthz context for DB lookups.
 			ownerCtx, ownerErr := asOwner(ctx, db, ownerID)
@@ -159,6 +170,16 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 					"template belongs to a different organization than this chat; " +
 						"use list_templates to find templates in the correct organization",
 				), nil
+			}
+
+			hasExternalAgent, externalAgentErr := templateHasExternalAgent(ctx, db, tmpl)
+			if externalAgentErr != nil {
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("look up template version: %w", externalAgentErr).Error(),
+				), nil
+			}
+			if hasExternalAgent {
+				return fantasy.NewTextErrorResponse(createWorkspaceExternalAgentMessage), nil
 			}
 
 			var ttlMs *int64
@@ -260,10 +281,16 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			buildID := workspace.LatestBuild.ID
 			if buildID != uuid.Nil {
 				if err := waitForBuild(ctx, db, buildID); err != nil {
-					return buildToolResponse(newBuildError(
-						xerrors.Errorf("workspace build failed: %w", err).Error(),
+					return buildFailureToolResponse(
+						ctx,
+						options.Logger,
+						db,
+						ownerID,
+						organizationID,
+						buildFailureActionCreate,
 						buildID,
-					)), nil
+						xerrors.Errorf("workspace build failed: %w", err),
+					), nil
 				}
 			}
 
@@ -275,7 +302,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 
 			// Select the chat agent so follow-up tools wait on the
 			// intended workspace agent.
-			workspaceAgentID := uuid.Nil
+			selectedAgent := database.WorkspaceAgent{}
 			agents, agentErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 			if agentErr == nil {
 				if len(agents) == 0 {
@@ -286,14 +313,14 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 						result["agent_status"] = "selection_error"
 						result["agent_error"] = selectErr.Error()
 					} else {
-						workspaceAgentID = selected.ID
+						selectedAgent = selected
 					}
 				}
 			}
 
 			// Wait for the agent to come online and startup scripts to finish.
-			if workspaceAgentID != uuid.Nil {
-				agentStatus := waitForAgentReady(ctx, db, workspaceAgentID, options.AgentConnFn)
+			if selectedAgent.ID != uuid.Nil {
+				agentStatus := waitForAgentReady(ctx, db, selectedAgent, options.AgentConnFn)
 				for k, v := range agentStatus {
 					result[k] = v
 				}
@@ -323,9 +350,12 @@ type existingWorkspaceResult struct {
 	Result map[string]any
 	// Done indicates the caller should return early.
 	Done bool
-	// FailedBuildID is set when waitForBuild failed, so the
-	// caller can include it in a structured error response.
-	FailedBuildID uuid.UUID
+	// BuildAction, BuildID, and BuildErr are set together when
+	// waitForBuild failed, so the caller can render the build
+	// failure through the shared response path.
+	BuildAction buildFailureAction
+	BuildID     uuid.UUID
+	BuildErr    error
 	// Err is non-nil when the check itself failed.
 	Err error
 }
@@ -397,9 +427,14 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			o.OnChatUpdated(updatedChat)
 		}
 		if err := waitForBuild(ctx, db, build.ID); err != nil {
+			action := buildFailureActionCreate
+			if build.Transition == database.WorkspaceTransitionStart {
+				action = buildFailureActionStart
+			}
 			return existingWorkspaceResult{
-				FailedBuildID: build.ID,
-				Err:           xerrors.Errorf("existing workspace build failed: %w", err),
+				BuildAction: action,
+				BuildID:     build.ID,
+				BuildErr:    xerrors.Errorf("existing workspace build failed: %w", err),
 			}
 		}
 		result := map[string]any{
@@ -419,7 +454,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				)
 				selected = agents[0]
 			}
-			for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+			for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
 				result[k] = v
 			}
 		}
@@ -460,13 +495,13 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			switch status.Status {
 			case database.WorkspaceAgentStatusConnected:
 				result["message"] = "workspace is already running and recently connected"
-				for k, v := range waitForAgentReady(ctx, db, selected.ID, nil) {
+				for k, v := range waitForAgentReady(ctx, db, selected, nil) {
 					result[k] = v
 				}
 				return existingWorkspaceResult{Result: result, Done: true}
 			case database.WorkspaceAgentStatusConnecting:
 				result["message"] = "workspace exists and the agent is still connecting"
-				for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+				for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
 					result[k] = v
 				}
 				return existingWorkspaceResult{Result: result, Done: true}
@@ -517,7 +552,11 @@ func waitForBuild(
 			if job.Error.Valid {
 				errMsg = job.Error.String
 			}
-			return xerrors.New(errMsg)
+			var code codersdk.JobErrorCode
+			if job.ErrorCode.Valid {
+				code = codersdk.JobErrorCode(job.ErrorCode.String)
+			}
+			return &workspaceBuildError{message: errMsg, code: code}
 		case database.ProvisionerJobStatusCanceled:
 			return xerrors.New("build was canceled")
 		case database.ProvisionerJobStatusPending,
@@ -539,16 +578,48 @@ func waitForBuild(
 	}
 }
 
+func templateHasExternalAgent(
+	ctx context.Context,
+	db database.Store,
+	tmpl database.Template,
+) (bool, error) {
+	version, err := db.GetTemplateVersionByID(ctx, tmpl.ActiveVersionID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return version.HasExternalAgent.Valid && version.HasExternalAgent.Bool, nil
+}
+
+// externalAgentReadyError returns the external-agent-specific error
+// message when agent belongs to an external resource, or the empty
+// string otherwise. Errors looking up the resource are treated as
+// non-external so the caller falls back to the dial error.
+func externalAgentReadyError(
+	ctx context.Context,
+	db database.Store,
+	agent database.WorkspaceAgent,
+) string {
+	isExternal, err := IsExternalWorkspaceAgent(ctx, db, agent)
+	if err != nil || !isExternal {
+		return ""
+	}
+	return ExternalAgentUnavailableMessage(agent)
+}
+
 // waitForAgentReady waits for the workspace agent to become
 // reachable and for its startup scripts to finish. It returns
 // status fields suitable for merging into a tool response.
 func waitForAgentReady(
 	ctx context.Context,
 	db database.Store,
-	agentID uuid.UUID,
+	agent database.WorkspaceAgent,
 	agentConnFn AgentConnFunc,
 ) map[string]any {
 	result := map[string]any{}
+	agentID := agent.ID
 
 	// Phase 1: retry connecting to the agent.
 	if agentConnFn != nil {
@@ -573,7 +644,16 @@ func waitForAgentReady(
 			select {
 			case <-agentCtx.Done():
 				result["agent_status"] = "not_ready"
-				result["agent_error"] = lastErr.Error()
+				// External agents may need user action on a different
+				// host. Surface that guidance instead of the raw dial
+				// error after the retry window has elapsed. The retry
+				// loop itself is unchanged, so a Connecting external
+				// agent still gets the full window to come online.
+				if msg := externalAgentReadyError(ctx, db, agent); msg != "" {
+					result["agent_error"] = msg
+				} else {
+					result["agent_error"] = lastErr.Error()
+				}
 				return result
 			case <-ticker.C:
 			}

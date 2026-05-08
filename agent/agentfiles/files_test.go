@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/codersdk"
@@ -1157,7 +1158,7 @@ func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/write-file", api.HandleWriteFile)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -1185,7 +1186,7 @@ func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/write-file", api.HandleWriteFile)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -1211,7 +1212,7 @@ func TestHandleWriteFile_Failure_NoPathStoreUpdate(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/write-file", api.HandleWriteFile)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 
@@ -1252,7 +1253,7 @@ func TestHandleEditFiles_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/edit-files", api.HandleEditFiles)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -1289,7 +1290,7 @@ func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/edit-files", api.HandleEditFiles)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.NotEqual(t, http.StatusOK, rr.Code)
 

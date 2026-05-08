@@ -19,6 +19,7 @@ import (
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
@@ -66,7 +67,10 @@ const (
 	planPathLookupTimeout        = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
-	workspaceMCPDiscoveryTimeout = 5 * time.Second
+	// Must exceed agent/x/agentmcp.connectTimeout (30s) so a
+	// cold-start agent's first MCP reload can settle before
+	// chatd gives up.
+	workspaceMCPDiscoveryTimeout = 35 * time.Second
 	turnSummaryWriteTimeout      = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
@@ -142,7 +146,26 @@ var (
 		"connection to the workspace agent timed out. " +
 			"The workspace may need to be restarted from the Coder dashboard",
 	)
+	errChatExternalAgentUnavailable = xerrors.New("external workspace agent unavailable")
 )
+
+type chatExternalAgentUnavailableError struct {
+	message string
+}
+
+func (e chatExternalAgentUnavailableError) Error() string {
+	return e.message
+}
+
+func (chatExternalAgentUnavailableError) Is(target error) bool {
+	return target == errChatExternalAgentUnavailable
+}
+
+func newChatExternalAgentUnavailableError(agent database.WorkspaceAgent) error {
+	return chatExternalAgentUnavailableError{
+		message: chattool.ExternalAgentUnavailableMessage(agent),
+	}
+}
 
 // Server handles background processing of pending chats.
 type Server struct {
@@ -394,16 +417,6 @@ func (p *Server) newAdvisorRuntime(
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
-	)
-	// ProviderOptionsFromChatModelConfig returns nil when the model config
-	// has no provider_options block, so the helper seeds a minimal entry
-	// for the advisor model's provider before applying reasoning_effort.
-	// This keeps the per-provider dispatch in chatprovider so adding a new
-	// provider there propagates here automatically.
-	providerOptions = chatprovider.ApplyReasoningEffortToOptions(
-		providerOptions,
-		advisorModel,
-		advisorCfg.ReasoningEffort,
 	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -773,6 +786,46 @@ func isAgentUnreachable(now time.Time, agent database.WorkspaceAgent, inactiveTi
 		status.Status == database.WorkspaceAgentStatusTimeout
 }
 
+func (c *turnWorkspaceContext) externalAgentError(
+	ctx context.Context,
+	agent database.WorkspaceAgent,
+	fallback error,
+) error {
+	isExternal, err := chattool.IsExternalWorkspaceAgent(ctx, c.server.db, agent)
+	if err != nil || !isExternal {
+		return fallback
+	}
+	return newChatExternalAgentUnavailableError(agent)
+}
+
+func (c *turnWorkspaceContext) externalAgentPreflightError(
+	ctx context.Context,
+	chatSnapshot database.Chat,
+	agent database.WorkspaceAgent,
+) error {
+	// Mirror the cache-hit gate: only short-circuit on clearly offline
+	// states (Disconnected/Timeout). Connecting is allowed through so
+	// an external agent the user just started can still connect inside
+	// the normal dial window.
+	if !isAgentUnreachable(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout) {
+		return nil
+	}
+
+	isExternal, err := chattool.IsExternalWorkspaceAgent(ctx, c.server.db, agent)
+	if err != nil || !isExternal || !chatSnapshot.WorkspaceID.Valid {
+		return nil
+	}
+
+	// Stale agent bindings rely on dialWithLazyValidation to discover
+	// replacement agents, so only skip the dial when this agent is still
+	// the latest selected chat agent for the workspace.
+	latestAgentID, err := c.latestWorkspaceAgentID(ctx, chatSnapshot.WorkspaceID.UUID)
+	if err != nil || latestAgentID != agent.ID {
+		return nil
+	}
+	return newChatExternalAgentUnavailableError(agent)
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
@@ -802,7 +855,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 					// next tool call.
 				} else if isAgentUnreachable(c.server.clock.Now(), freshAgent, c.server.agentInactiveDisconnectTimeout) {
 					c.clearCachedWorkspaceState()
-					return nil, errChatAgentDisconnected
+					return nil, c.externalAgentError(ctx, freshAgent, errChatAgentDisconnected)
 				}
 			}
 			return currentConn, nil
@@ -813,6 +866,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
+			return nil, err
+		}
+		if err := c.externalAgentPreflightError(ctx, chatSnapshot, agent); err != nil {
 			return nil, err
 		}
 
@@ -842,7 +898,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			// canceled (e.g. ErrInterrupted), its error must
 			// propagate unchanged so the chatloop can detect it.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
-				return nil, errChatDialTimeout
+				return nil, c.externalAgentError(ctx, agent, errChatDialTimeout)
 			}
 			return nil, err
 		}
@@ -914,6 +970,12 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			})
 
 			c.mu.Unlock()
+			c.server.logger.Debug(ctx, "set chat headers on agent conn",
+				slog.F("chat_id", chatSnapshot.ID),
+				slog.F("ancestor_chat_ids", ancestorIDs),
+				slog.F("workspace_id", chatSnapshot.WorkspaceID.UUID),
+				slog.F("agent_id", dialResult.AgentID),
+			)
 			return agentConn, nil
 		}
 		currentConn = c.conn
@@ -5171,16 +5233,50 @@ func (p *Server) subscribeChatControl(
 	return controlCancel
 }
 
-// chatFileResolver returns a FileResolver that fetches chat file
-// content from the database by ID.
-func (p *Server) chatFileResolver() chatprompt.FileResolver {
+// Rejects oversize images on capped providers before any upstream
+// request is issued.
+//
+// Gotcha: a historical oversize image bricks the chat on a capped
+// provider until the user switches providers back, starts a new
+// chat, or edits a message above the offending one (which truncates
+// the prompt forward). A future change should skip the file with a
+// user-facing warning, but that requires altering the FileResolver
+// contract.
+func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
+		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
+		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
+			if hasImageCap &&
+				strings.HasPrefix(f.Mimetype, "image/") &&
+				len(f.Data) >= imageCap {
+				err := xerrors.Errorf(
+					"image attachment %q is %d bytes; %s inline image limit is %d bytes",
+					f.Name, len(f.Data),
+					chatprovider.ProviderDisplayName(normalizedProvider),
+					imageCap,
+				)
+				// User-facing message stays client-agnostic since
+				// older web clients and direct API callers don't
+				// auto-resize; the wrapped error above keeps the
+				// exact byte count for operator logs.
+				return nil, chaterror.WithClassification(err, chaterror.ClassifiedError{
+					Kind:     codersdk.ChatErrorKindConfig,
+					Provider: normalizedProvider,
+					Message: fmt.Sprintf(
+						"Image attachment exceeds %s's %s inline image limit. Replace it with a smaller image.",
+						chatprovider.ProviderDisplayName(normalizedProvider),
+						//nolint:gosec // imageCap is a small positive constant defined in chatprovider.
+						humanize.IBytes(uint64(imageCap)),
+					),
+					Retryable: false,
+				})
+			}
 			result[f.ID] = chatprompt.FileData{
 				Name:      f.Name,
 				Data:      f.Data,
@@ -6488,7 +6584,7 @@ func (p *Server) runChat(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(modelConfig.Provider), logger)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
@@ -6565,13 +6661,7 @@ func (p *Server) runChat(
 			} // Cache miss, agent changed, or no cache: validate
 			// that the workspace still has a live agent before
 			// attempting a dial.
-			workspaceMCPCtx, cancel := context.WithTimeout(
-				ctx,
-				workspaceMCPDiscoveryTimeout,
-			)
-			defer cancel()
-
-			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(workspaceMCPCtx)
+			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(ctx)
 			if agentErr != nil {
 				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
 					p.workspaceMCPToolsCache.Delete(chat.ID)
@@ -6583,13 +6673,15 @@ func (p *Server) runChat(
 			}
 
 			// List workspace MCP tools via the agent conn.
-			conn, connErr := workspaceCtx.getWorkspaceConn(workspaceMCPCtx)
+			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
 			if connErr != nil {
 				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
 					slog.Error(connErr))
 				return nil
 			}
-			toolsResp, listErr := conn.ListMCPTools(workspaceMCPCtx)
+			listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
+			defer cancel()
+			toolsResp, listErr := conn.ListMCPTools(listCtx)
 			if listErr != nil {
 				logger.Warn(ctx, "failed to list workspace MCP tools",
 					slog.Error(listErr))
@@ -6601,7 +6693,7 @@ func (p *Server) runChat(
 			// caching an empty list would hide tools
 			// permanently.
 			if len(toolsResp.Tools) > 0 {
-				if agent, agentErr := workspaceCtx.getWorkspaceAgent(workspaceMCPCtx); agentErr == nil {
+				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
 					p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
 						agentID: agent.ID,
 						tools:   toolsResp.Tools,
@@ -7273,7 +7365,7 @@ func (p *Server) runChat(
 			if compactionOptions != nil {
 				compactionOptions.HistoryTipMessageID = compactionHistoryTipMessageID
 			}
-			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(), logger)
+			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(modelConfig.Provider), logger)
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
@@ -8630,6 +8722,10 @@ func (p *Server) updateLastTurnSummary(
 	updatedChat := chat
 	updatedChat.LastTurnSummary = lastTurnSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindSummaryChange, nil)
+
+	// AcquireChats uses SKIP LOCKED; re-wake so a wake racing this
+	// UPDATE's row lock does not strand a freshly-pending chat.
+	p.signalWake()
 }
 
 func (p *Server) webpushConfigured() bool {

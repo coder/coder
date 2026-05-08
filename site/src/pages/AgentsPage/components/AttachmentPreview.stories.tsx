@@ -153,7 +153,7 @@ export const FileTooLarge: Story = {
 					file,
 					{
 						status: "error",
-						error: "File too large (12.4 MB). Maximum is 10 MB.",
+						error: "File too large (12.4 MiB). Maximum is 10 MiB.",
 					},
 				],
 			]),

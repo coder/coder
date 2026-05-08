@@ -1,4 +1,4 @@
-package agentgit
+package agentchat
 
 import (
 	"encoding/json"
@@ -9,9 +9,9 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-// ExtractChatContext reads chat identity headers from the request.
+// extractContext reads chat identity headers from the request.
 // Returns zero values if headers are absent (non-chat request).
-func ExtractChatContext(r *http.Request) (chatID uuid.UUID, ancestorIDs []uuid.UUID, ok bool) {
+func extractContext(r *http.Request) (chatID uuid.UUID, ancestorIDs []uuid.UUID, ok bool) {
 	raw := r.Header.Get(workspacesdk.CoderChatIDHeader)
 	if raw == "" {
 		return uuid.Nil, nil, false

@@ -21,7 +21,7 @@ type FeatureStageBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		contentType: keyof typeof featureStageBadgeTypes;
 		labelText?: string;
-		size?: "sm" | "md";
+		size?: "xs" | "sm" | "md";
 	}
 >;
 
@@ -31,6 +31,7 @@ const badgeColorClasses = {
 } as const;
 
 const badgeSizeClasses = {
+	xs: "text-2xs font-normal px-1.5 py-0.5 h-[18px] rounded border-0",
 	sm: "text-xs font-medium px-2 py-1",
 	md: "text-base px-2 py-1",
 } as const;

@@ -556,7 +556,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onCancelQueueEdit={editing.handleCancelQueueEdit}
 								isEditingHistoryMessage={editing.editingMessageId !== null}
 								onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-								onEditUserMessage={editing.handleEditUserMessage}
 								editingFileBlocks={editing.editingFileBlocks}
 								mcpServers={mcpServers}
 								selectedMCPServerIds={selectedMCPServerIds}

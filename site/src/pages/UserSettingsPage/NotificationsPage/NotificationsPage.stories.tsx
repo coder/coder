@@ -215,6 +215,7 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 				data: {
 					task_notification_alert_dismissed: true,
 					thinking_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
 				},
 			},
 		],
@@ -238,6 +239,7 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 		).mockResolvedValue({
 			task_notification_alert_dismissed: false,
 			thinking_display_mode: "auto",
+			code_diff_display_mode: "auto",
 		});
 
 		await step("Enable Task Idle notification", async () => {
