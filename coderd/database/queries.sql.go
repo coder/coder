@@ -32709,32 +32709,52 @@ WHERE
 			) > 0
 		ELSE true
 	END
+	-- Filter by startup script failures on the latest start build.
+	AND CASE
+		WHEN $15 :: boolean IS NOT NULL THEN
+			$15 :: boolean = EXISTS (
+				SELECT
+					1
+				FROM
+					workspace_resources
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
+				WHERE
+					workspace_resources.job_id = latest_build.provisioner_job_id AND
+					latest_build.transition = 'start'::workspace_transition AND
+					workspace_agents.deleted = FALSE AND
+					workspace_agents.lifecycle_state = 'start_error'::workspace_agent_lifecycle_state
+			)
+		ELSE true
+	END
 	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $15 :: boolean != 'false' THEN
+		WHEN $16 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
 		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
-		  WHEN $16 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at <= $16
+		  WHEN $17 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= $17
 		  ELSE true
 	END
 	AND CASE
-		  WHEN $17 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at >= $17
+		  WHEN $18 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= $18
 		  ELSE true
 	END
   	AND CASE
-		  WHEN $18 :: boolean IS NOT NULL THEN
-			  (latest_build.template_version_id = template.active_version_id) = $18 :: boolean
+		  WHEN $19 :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = $19 :: boolean
 		  ELSE true
 	END
 	-- Filter by has_ai_task, checks if this is a task workspace.
 	AND CASE
-		WHEN $19::boolean IS NOT NULL
-		THEN $19::boolean = EXISTS (
+		WHEN $20::boolean IS NOT NULL
+		THEN $20::boolean = EXISTS (
 			SELECT
 				1
 			FROM
@@ -32748,26 +32768,26 @@ WHERE
 	END
 	-- Filter by has_external_agent in latest build
 	AND CASE
-		WHEN $20 :: boolean IS NOT NULL THEN
-			latest_build.has_external_agent = $20 :: boolean
+		WHEN $21 :: boolean IS NOT NULL THEN
+			latest_build.has_external_agent = $21 :: boolean
 		ELSE true
 	END
 	-- Filter by shared status
 	AND CASE
-		WHEN $21 :: boolean IS NOT NULL THEN
-			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $21 :: boolean
+		WHEN $22 :: boolean IS NOT NULL THEN
+			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $22 :: boolean
 		ELSE true
 	END
 	-- Filter by shared_with_user_id
 	AND CASE
-		WHEN $22 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.user_acl ? ($22 :: uuid) :: text
+		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.user_acl ? ($23 :: uuid) :: text
 		ELSE true
 	END
 	-- Filter by shared_with_group_id
 	AND CASE
-		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.group_acl ? ($23 :: uuid) :: text
+		WHEN $24 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.group_acl ? ($24 :: uuid) :: text
 		ELSE true
 	END
 
@@ -32780,7 +32800,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $24) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -32789,11 +32809,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $26 :: integer > 0 THEN
-				$26
+			WHEN $27 :: integer > 0 THEN
+				$27
 		END
 	OFFSET
-		$25
+		$26
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.task_id, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent
@@ -32845,7 +32865,7 @@ WHERE
 		'unknown'::provisioner_job_status, -- latest_build_status
 		false -- latest_build_has_external_agent
 	WHERE
-		$27 :: boolean = true
+		$28 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -32876,6 +32896,7 @@ type GetWorkspacesParams struct {
 	Name                                  string       `db:"name" json:"name"`
 	HasAgentStatuses                      []string     `db:"has_agent_statuses" json:"has_agent_statuses"`
 	AgentInactiveDisconnectTimeoutSeconds int64        `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
+	StartupFailed                         sql.NullBool `db:"startup_failed" json:"startup_failed"`
 	Dormant                               bool         `db:"dormant" json:"dormant"`
 	LastUsedBefore                        time.Time    `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time    `db:"last_used_after" json:"last_used_after"`
@@ -32954,6 +32975,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Name,
 		pq.Array(arg.HasAgentStatuses),
 		arg.AgentInactiveDisconnectTimeoutSeconds,
+		arg.StartupFailed,
 		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,

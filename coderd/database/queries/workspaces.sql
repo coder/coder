@@ -328,6 +328,26 @@ WHERE
 			) > 0
 		ELSE true
 	END
+	-- Filter by startup script failures on the latest start build.
+	AND CASE
+		WHEN sqlc.narg('startup_failed') :: boolean IS NOT NULL THEN
+			sqlc.narg('startup_failed') :: boolean = EXISTS (
+				SELECT
+					1
+				FROM
+					workspace_resources
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
+				WHERE
+					workspace_resources.job_id = latest_build.provisioner_job_id AND
+					latest_build.transition = 'start'::workspace_transition AND
+					workspace_agents.deleted = FALSE AND
+					workspace_agents.lifecycle_state = 'start_error'::workspace_agent_lifecycle_state
+			)
+		ELSE true
+	END
 	-- Filter by dormant workspaces.
 	AND CASE
 		WHEN @dormant :: boolean != 'false' THEN

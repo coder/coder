@@ -293,9 +293,26 @@ const useWorkspacesFilter = ({
 	});
 
 	const statusMenu = useStatusFilterMenu({
-		value: filter.values.status,
-		onChange: (option) =>
-			filter.update({ ...filter.values, status: option?.value }),
+		value:
+			filter.values.status === "running" &&
+			filter.values.startup_failed === "true"
+				? "startup_failed"
+				: filter.values.status,
+		onChange: (option) => {
+			if (option?.value === "startup_failed") {
+				filter.update({
+					...filter.values,
+					status: "running",
+					startup_failed: "true",
+				});
+				return;
+			}
+			filter.update({
+				...filter.values,
+				status: option?.value,
+				startup_failed: undefined,
+			});
+		},
 	});
 
 	const { showOrganizations } = useDashboard();

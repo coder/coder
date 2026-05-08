@@ -270,6 +270,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
+	filter.StartupFailed = parser.NullableBoolean(values, sql.NullBool{}, "startup_failed")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 	// TODO: support "me" by passing in the actorID

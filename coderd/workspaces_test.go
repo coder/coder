@@ -2723,6 +2723,69 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			require.Contains(t, workspaceIDs, timedOutBuild.Workspace.ID)
 		})
 	})
+
+	t.Run("StartupFailedFilter", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		now := time.Now()
+
+		//nolint:gocritic // This is a test, we need system context to update agent lifecycle state.
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+
+		startErrorBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			Name:           "startup-failed-workspace",
+		}).WithAgent().Do()
+		require.Len(t, startErrorBuild.Agents, 1)
+		err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             startErrorBuild.Agents[0].ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateStartError,
+			StartedAt:      sql.NullTime{Time: now, Valid: true},
+			ReadyAt:        sql.NullTime{Time: now, Valid: true},
+		})
+		require.NoError(t, err)
+
+		readyBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			Name:           "ready-workspace",
+		}).WithAgent().Do()
+		require.Len(t, readyBuild.Agents, 1)
+		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             readyBuild.Agents[0].ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      sql.NullTime{Time: now, Valid: true},
+			ReadyAt:        sql.NullTime{Time: now, Valid: true},
+		})
+		require.NoError(t, err)
+
+		startTimeoutBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			Name:           "startup-timeout-workspace",
+		}).WithAgent().Do()
+		require.Len(t, startTimeoutBuild.Agents, 1)
+		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             startTimeoutBuild.Agents[0].ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateStartTimeout,
+			StartedAt:      sql.NullTime{Time: now, Valid: true},
+		})
+		require.NoError(t, err)
+
+		testCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		res, err := client.Workspaces(testCtx, codersdk.WorkspaceFilter{
+			FilterQuery: "status:running startup_failed:true",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, startErrorBuild.Workspace.ID, res.Workspaces[0].ID)
+	})
+
 	t.Run("Params", func(t *testing.T) {
 		t.Parallel()
 

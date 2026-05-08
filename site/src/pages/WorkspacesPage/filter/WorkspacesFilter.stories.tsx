@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -77,5 +78,37 @@ export const WithError: Story = {
 export const WithDormantPreset: Story = {
 	parameters: {
 		features: ["advanced_template_scheduling"],
+	},
+};
+
+export const WithStartupFailedStatus: Story = {
+	args: {
+		filter: {
+			...defaultFilterProps.filter,
+			query: "owner:me status:running startup_failed:true",
+			values: {
+				owner: "me",
+				template: undefined,
+				status: "running",
+				startup_failed: "true",
+			},
+		},
+		statusMenu: {
+			...MockMenu,
+			selectedOption: {
+				label: "Startup failed",
+				value: "startup_failed",
+			},
+			searchOptions: [
+				{
+					label: "Startup failed",
+					value: "startup_failed",
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Startup failed")).toBeVisible();
 	},
 };

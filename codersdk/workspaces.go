@@ -520,6 +520,9 @@ type WorkspaceFilter struct {
 	Name string `json:"name,omitempty" typescript:"-"`
 	// Status is a workspace status, which is really the status of the latest build
 	Status string `json:"status,omitempty" typescript:"-"`
+	// StartupFailed filters workspaces by whether a startup script failed on the
+	// latest start build.
+	StartupFailed *bool `json:"startup_failed,omitempty" typescript:"-"`
 	// Offset is the number of workspaces to skip before returning results.
 	Offset int `json:"offset,omitempty" typescript:"-"`
 	// Limit is a limit on the number of workspaces returned.
@@ -552,6 +555,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		}
 		if f.Status != "" {
 			params = append(params, fmt.Sprintf("status:%q", f.Status))
+		}
+		if f.StartupFailed != nil {
+			params = append(params, fmt.Sprintf("startup_failed:%v", *f.StartupFailed))
 		}
 		if f.Shared != nil {
 			params = append(params, fmt.Sprintf("shared:%v", *f.Shared))

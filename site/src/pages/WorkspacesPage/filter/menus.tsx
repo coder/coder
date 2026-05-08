@@ -97,6 +97,8 @@ export const TemplateMenu: FC<TemplateMenuProps> = ({ width, menu }) => {
 
 /** Status Filter Menu */
 
+const startupFailedStatusValue = "startup_failed";
+
 export const useStatusFilterMenu = ({
 	value,
 	onChange,
@@ -107,7 +109,7 @@ export const useStatusFilterMenu = ({
 		"failed",
 		"pending",
 	];
-	const statusOptions = statusesToFilter.map((status) => {
+	const statusOptions: SelectFilterOption[] = statusesToFilter.map((status) => {
 		const display = getDisplayWorkspaceStatus(status);
 		return {
 			label: display.text,
@@ -116,6 +118,11 @@ export const useStatusFilterMenu = ({
 				<StatusIndicatorDot variant={getStatusIndicatorVariant(status)} />
 			),
 		};
+	});
+	statusOptions.push({
+		label: "Startup failed",
+		value: startupFailedStatusValue,
+		startIcon: <StatusIndicatorDot variant="warning" />,
 	});
 	return useFilterMenu({
 		onChange,
@@ -148,9 +155,11 @@ export const StatusMenu: FC<StatusMenuProps> = ({ width, menu }) => {
 };
 
 const getStatusIndicatorVariant = (
-	status: WorkspaceStatus,
+	status: WorkspaceStatus | typeof startupFailedStatusValue,
 ): StatusIndicatorDotProps["variant"] => {
 	switch (status) {
+		case "startup_failed":
+			return "warning";
 		case "running":
 			return "success";
 		case "starting":

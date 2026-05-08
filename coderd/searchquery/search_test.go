@@ -283,6 +283,36 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "StartupFailedTrue",
+			Query: "startup_failed:true",
+			Expected: database.GetWorkspacesParams{
+				StartupFailed: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "StartupFailedFalse",
+			Query: "startup_failed:false",
+			Expected: database.GetWorkspacesParams{
+				StartupFailed: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "StartupFailedMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				StartupFailed: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
+		{
 			Name:  "SharedTrue",
 			Query: "shared:true",
 			Expected: database.GetWorkspacesParams{

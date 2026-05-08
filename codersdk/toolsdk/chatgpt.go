@@ -157,6 +157,7 @@ To pick what you want to search for, use the following query formats:
 	- "organization:<organization>" - Filter by organization ID or name. Example: "organization:engineering"
 	- "status:<status>" - Filter by workspace/build status. Values: starting, stopping, deleting, deleted, stopped, started, running, pending, canceling, canceled, failed. Example: "status:running"
 	- "has-agent:<agent-status>" - Filter by agent connectivity status. Values: connecting, connected, disconnected, timeout. Example: "has-agent:connected"
+	- "startup_failed:<true|false>" - Filter workspaces by whether a startup script failed on the latest start build. Example: "startup_failed:true"
 	- "dormant:<true|false>" - Filter dormant workspaces. Example: "dormant:true"
 	- "outdated:<true|false>" - Filter workspaces using outdated template versions. Example: "outdated:true"
 	- "last_used_after:<timestamp>" - Filter workspaces last used after a specific date. Example: "last_used_after:2023-12-01T00:00:00Z"
