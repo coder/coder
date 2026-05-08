@@ -11,6 +11,9 @@ export function getAgentChatSendShortcut(
 	if (storedShortcut) {
 		return storedShortcut;
 	}
+	// Keep the loading fallback conservative. If a user saved
+	// modifier_enter, falling back to enter before preferences load can
+	// send a draft when they intended to insert a newline.
 	return isLoading
 		? MODIFIER_AGENT_CHAT_SEND_SHORTCUT
 		: DEFAULT_AGENT_CHAT_SEND_SHORTCUT;
