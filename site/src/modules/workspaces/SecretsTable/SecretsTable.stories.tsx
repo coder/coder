@@ -56,11 +56,9 @@ const expectSecretsTable = async (
 
 	expect(table).toBeVisible();
 	expect(rows).toHaveLength(expectedRequirements.length + 1);
-	expect(rows[0]).toHaveTextContent(/status/i);
 	expect(rows[0]).toHaveTextContent(/secret/i);
 	expect(rows[0]).toHaveTextContent(/description/i);
 	expect(rows[0]).toHaveTextContent(/action/i);
-
 	const bodyRows = rows.slice(1);
 	for (const [index, { label }] of expectedRequirements.entries()) {
 		expect(bodyRows[index]).toHaveTextContent(label);
@@ -77,14 +75,15 @@ const expectSecretsTable = async (
 	expect(manageSecretsLink).toHaveAttribute("target", "_blank");
 
 	if (missingCount >= 1) {
-		const copyCommandButtons = canvas.getAllByRole("button", {
-			name: /copy command for/i,
-		});
-		expect(copyCommandButtons).toHaveLength(missingCount);
+		expect(canvas.getByRole("status")).toHaveTextContent(
+			missingCount === 1
+				? "1 required secret is missing."
+				: `${missingCount} required secrets are missing.`,
+		);
 
-		const docsLinks = canvas.getAllByRole("link", { name: "Docs" });
-		expect(docsLinks).toHaveLength(missingCount);
-		for (const link of docsLinks) {
+		const addSecretLinks = canvas.getAllByRole("link", { name: "Add Secret" });
+		expect(addSecretLinks).toHaveLength(missingCount);
+		for (const link of addSecretLinks) {
 			expect(link).toHaveAttribute(
 				"href",
 				expect.stringContaining("/reference/cli/secret_create"),
@@ -94,10 +93,8 @@ const expectSecretsTable = async (
 		return;
 	}
 
-	expect(
-		canvas.queryByRole("button", { name: /copy command for/i }),
-	).toBeNull();
-	expect(canvas.queryByRole("link", { name: "Docs" })).toBeNull();
+	expect(canvas.queryByRole("status")).toBeNull();
+	expect(canvas.queryByRole("link", { name: "Add Secret" })).toBeNull();
 };
 
 const githubTokenHelpMessage = "Add a GitHub PAT with env=GITHUB_TOKEN";
@@ -171,7 +168,7 @@ export const TooltipOnlyWhenTruncated: Story = {
 		requirements: [githubToken, awsCredentials],
 	},
 	render: (args) => (
-		<div style={{ width: 1024 }}>
+		<div style={{ width: 640 }}>
 			<SecretsTable {...args} />
 		</div>
 	),

@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { type FC, useLayoutEffect, useRef, useState } from "react";
 import type { SecretRequirementStatus } from "#/api/typesGenerated";
-import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { Link } from "#/components/Link/Link";
 import {
 	Table,
@@ -106,8 +105,8 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 					/>
 					<p className="m-0 text-sm font-medium">
 						{missingCount === 1
-							? "1 required secret is missing. Use the CLI or the row action below to add it."
-							: `${missingCount} required secrets are missing. Use the CLI or the row actions below to add them.`}
+							? "1 required secret is missing."
+							: `${missingCount} required secrets are missing.`}
 					</p>
 				</div>
 			)}
@@ -115,10 +114,9 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 			<Table aria-label="Required secrets" className="table-fixed text-sm">
 				<TableHeader className="sr-only">
 					<TableRow>
-						<TableHead className="w-12 px-4 py-2">Status</TableHead>
-						<TableHead className="w-[38%] px-4 py-2">Secret</TableHead>
+						<TableHead className="w-[42%] px-4 py-2">Secret</TableHead>
 						<TableHead className="px-4 py-2">Description</TableHead>
-						<TableHead className="w-40 px-4 py-2 text-right">Action</TableHead>
+						<TableHead className="w-32 px-4 py-2 text-right">Action</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -133,33 +131,26 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 
 						return (
 							<TableRow key={key}>
-								<TableCell className="w-12 px-4 py-2">
-									<StatusIcon satisfied={requirement.satisfied} />
-								</TableCell>
-								<TableCell className="w-[38%] overflow-hidden px-4 py-2 text-content-primary">
-									<div className="truncate">{label}</div>
+								<TableCell className="w-[42%] overflow-hidden px-4 py-2 text-content-primary">
+									<div className="flex min-w-0 items-center gap-3">
+										<StatusIcon satisfied={requirement.satisfied} />
+										<div className="min-w-0 truncate">{label}</div>
+									</div>
 								</TableCell>
 								<TableCell className="overflow-hidden px-4 py-2 text-content-secondary">
 									<HelpMessage requirement={requirement} label={label} />
 								</TableCell>
-								<TableCell className="w-40 px-4 py-2 text-right">
+								<TableCell className="w-32 px-4 py-2 text-right">
 									{!requirement.satisfied && (
-										<div className="flex justify-end gap-2">
-											<CopyButton
-												text={secretRequirementCommand(requirement)}
-												label={`Copy command for ${label}`}
-												tooltipSide="left"
-											/>
-											<Link
-												href={manageSecretsHref}
-												target="_blank"
-												rel="noreferrer"
-												showExternalIcon={false}
-												className="whitespace-nowrap self-center"
-											>
-												Docs
-											</Link>
-										</div>
+										<Link
+											href={manageSecretsHref}
+											target="_blank"
+											rel="noreferrer"
+											showExternalIcon={false}
+											className="whitespace-nowrap"
+										>
+											Add Secret
+										</Link>
 									)}
 								</TableCell>
 							</TableRow>
@@ -169,20 +160,6 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 			</Table>
 		</section>
 	);
-};
-
-const secretRequirementCommand = (requirement: SecretRequirementStatus) => {
-	const targetFlag = requirement.file
-		? `--file ${shellQuote(requirement.file)}`
-		: `--env ${shellQuote(requirement.env ?? "")}`;
-	return `coder secret create SECRET_NAME ${targetFlag}`;
-};
-
-const shellQuote = (value: string) => {
-	if (/^[A-Za-z0-9_./:=@%+~,-]+$/.test(value)) {
-		return value;
-	}
-	return `'${value.replaceAll("'", "'\"'\"'")}'`;
 };
 
 const HelpMessage: FC<{
@@ -258,7 +235,7 @@ const HelpMessage: FC<{
 const StatusIcon: FC<{ satisfied: boolean }> = ({ satisfied }) => {
 	if (satisfied) {
 		return (
-			<span className="inline-flex items-center text-content-success">
+			<span className="inline-flex shrink-0 items-center text-content-success">
 				<CircleCheckIcon className="size-icon-sm" aria-hidden="true" />
 				<span className="sr-only">Satisfied</span>
 			</span>
@@ -266,7 +243,7 @@ const StatusIcon: FC<{ satisfied: boolean }> = ({ satisfied }) => {
 	}
 
 	return (
-		<span className="inline-flex items-center text-content-destructive">
+		<span className="inline-flex shrink-0 items-center text-content-destructive">
 			<CircleXIcon className="size-icon-sm" aria-hidden="true" />
 			<span className="sr-only">Missing</span>
 		</span>
