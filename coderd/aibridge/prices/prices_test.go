@@ -70,6 +70,7 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Equal(t, int64(10_000_000), gpt.OutputPrice.Int64)
 		require.Equal(t, int64(1_250_000), gpt.CacheReadPrice.Int64)
 		require.False(t, gpt.CacheWritePrice.Valid)
+		require.Zero(t, gpt.CacheWritePrice.Int64)
 	})
 
 	t.Run("Idempotent", func(t *testing.T) {
@@ -124,6 +125,7 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Equal(t, int64(10_000_000), got.OutputPrice.Int64)
 		require.Equal(t, int64(1_250_000), got.CacheReadPrice.Int64)
 		require.False(t, got.CacheWritePrice.Valid)
+		require.Zero(t, got.CacheWritePrice.Int64)
 	})
 
 	t.Run("LeavesOrphanRowsUntouched", func(t *testing.T) {
