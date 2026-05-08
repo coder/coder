@@ -96,17 +96,17 @@
         # 5. Update the vendorHash
         sqlc-custom = unstablePkgs.buildGo126Module {
           pname = "sqlc";
-          version = "coder-fork-aab4e865a51df0c43e1839f81a9d349b41d14f05";
+          version = "coder-fork-337309bfb9524f38466a5090e310040fc7af0203";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "sqlc";
-            rev = "aab4e865a51df0c43e1839f81a9d349b41d14f05";
-            sha256 = "sha256-zXjTypEFWDOkoZMKHMMRtAz2coNHSCkQ+nuZ8rOnzZ8=";
+            rev = "337309bfb9524f38466a5090e310040fc7af0203";
+            sha256 = "sha256-i8hZaaMlNJyW0hUWYcuNqUcwRdQU747055OknZsJ9Es=";
           };
 
           subPackages = [ "cmd/sqlc" ];
-          vendorHash = "sha256-69kg3qkvEWyCAzjaCSr3a73MNonub9sZTYyGaCW+UTI=";
+          vendorHash = "sha256-4Cb15MhKyhRvYVKfMqBwuC3WBBIJE6AinJt02+TSMVY=";
         };
 
         # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
