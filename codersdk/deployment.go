@@ -4677,6 +4677,10 @@ type AIConfig struct {
 }
 
 func (c *AIConfig) UnmarshalJSON(data []byte) error {
+	if c == nil {
+		return xerrors.New("AIConfig: UnmarshalJSON on nil pointer")
+	}
+
 	type alias AIConfig
 
 	var raw struct {
