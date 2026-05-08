@@ -87,8 +87,8 @@ func (errLogger) Upsert(_ context.Context, _ database.UpsertConnectionLogParams)
 	return errFake
 }
 
-var errFake = errSentinel("upsert failed")
+var errFake = sentinelError("upsert failed")
 
-type errSentinel string
+type sentinelError string
 
-func (e errSentinel) Error() string { return string(e) }
+func (e sentinelError) Error() string { return string(e) }

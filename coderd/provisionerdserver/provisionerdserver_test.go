@@ -5333,7 +5333,6 @@ func newFakeStream(ctx context.Context) *fakeStream {
 func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := testutil.Logger(t)
 	db, ps := dbtestutil.NewDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -5341,6 +5340,7 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 
 	t.Run("InsertsAllAndDistinguishesByName", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
@@ -5401,6 +5401,7 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 
 	t.Run("RejectsDuplicateNames", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,

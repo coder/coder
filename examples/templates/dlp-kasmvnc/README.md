@@ -1,3 +1,12 @@
+---
+display_name: DLP KasmVNC
+description: KasmVNC desktop wrapped in a strict DLP policy. SSH, web terminal, port forwarding and unallowed coder_apps are blocked; only the kasm-vnc slug is allow-listed.
+icon: ../../../site/static/icon/kasmvnc.svg
+maintainer_github: coder
+verified: false
+tags: [docker, dlp, kasmvnc, desktop]
+---
+
 # dlp-kasmvnc
 
 A KasmVNC remote desktop wrapped in the strict DLP policy. Only the

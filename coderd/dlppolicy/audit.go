@@ -62,6 +62,7 @@ func LogDenial(ctx context.Context, logger slog.Logger, connLogger connectionlog
 		IP:               p.IP,
 		UserAgent:        p.UserAgent,
 		SlugOrPort:       p.SlugOrPort,
+		ConnectionID:     uuid.NullUUID{},
 	})
 	if err != nil {
 		logger.Warn(ctx, "failed to write dlp denial connection log",
