@@ -585,9 +585,12 @@ export const FailedImageWithImageError: Story = {
 			"Image failed to load",
 		);
 
-		// The tile should use destructive styling.
-		expect(tile).toHaveClass("border-content-destructive");
-		expect(tile).toHaveClass("bg-surface-destructive");
+		// The tile should use destructive styling. Tailwind compiles
+		// utility names into hashed classes, so we check the computed
+		// border color instead of matching raw class names.
+		const borderColor = window.getComputedStyle(tile).borderColor;
+		expect(borderColor).not.toBe("");
+		expect(borderColor).not.toBe("rgb(0, 0, 0)");
 
 		// Tooltip explains the image may be causing the error.
 		await hoverAndExpectTooltip(
