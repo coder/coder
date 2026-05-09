@@ -69,7 +69,7 @@ CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
    - **Homepage URL**: Set to your Coder deployment's
      [`CODER_ACCESS_URL`](../../reference/cli/server.md#--access-url) (e.g.
      `https://coder.domain.com`)
-   - **User Authorization Callback URL**: Set to `https://coder.domain.com`
+   - **User Authorization Callback URL**: Set to `https://coder.domain.com/api/v2/users/oauth2/github/callback`
 
      If you want to allow multiple Coder deployments hosted on subdomains, such as
      `coder1.domain.com`, `coder2.domain.com`, to authenticate with the
