@@ -168,7 +168,8 @@ func Classify(err error) ClassifiedError {
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
-	configMatch := containsAny(lower, configPatterns...)
+	configMatch := containsAny(lower, configPatterns...) ||
+		containsAny(strings.ToLower(structured.detail), configPatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
 	rateLimitMatch := statusCode == 429 || containsAny(lower, rateLimitPatterns...)
 	timeoutMatch := deadline || statusCode == 408 || statusCode == 502 ||

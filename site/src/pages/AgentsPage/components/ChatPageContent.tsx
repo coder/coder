@@ -17,6 +17,7 @@ import {
 	type UploadState,
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
+import { isImageRelatedError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
@@ -120,6 +121,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
+					hasImageError={isImageRelatedError(persistedError)}
 				/>
 				<LiveStreamTail
 					store={store}

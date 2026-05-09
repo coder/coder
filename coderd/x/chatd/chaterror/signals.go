@@ -70,6 +70,10 @@ var (
 		"maximum context length",
 		"malformed config",
 		"malformed configuration",
+		"image exceeds",
+		"invalid base64",
+		"unsupported media type",
+		"invalid image",
 	}
 	genericRetryablePatterns = []string{"server error", "internal server error"}
 	interruptedPatterns      = []string{"chat interrupted", "request interrupted", "operation interrupted"}

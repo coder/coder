@@ -2,6 +2,7 @@ import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import { Response, Shimmer } from "../ChatElements";
+import { isImageRelatedError } from "./chatError";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
@@ -163,6 +164,17 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 						{status.detail}
 					</span>
 				)}
+				{status.phase === "failed" &&
+					isImageRelatedError({
+						message: status.message,
+						kind: status.kind,
+						detail: status.detail,
+					}) && (
+						<span className="mt-1 block font-medium text-content-primary">
+							Edit or remove the problematic image from the conversation to
+							continue chatting.
+						</span>
+					)}
 			</AlertDescription>
 		</Alert>
 	);

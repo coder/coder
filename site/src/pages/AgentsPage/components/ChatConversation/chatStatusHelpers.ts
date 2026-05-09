@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { isImageRelatedError } from "./chatError";
 
 const PROVIDER_STATUS_URLS: Record<string, string> = {
 	anthropic: "https://status.anthropic.com",
@@ -45,6 +46,21 @@ export const getErrorTitle = (
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}
+};
+
+/**
+ * Returns a more specific title when the error is image-related.
+ * Falls back to the standard kind-based title otherwise.
+ */
+export const getContextualErrorTitle = (
+	kind: TypesGen.ChatErrorKind,
+	mode: "retry" | "error",
+	error?: { message: string; kind: TypesGen.ChatErrorKind; detail?: string },
+): string => {
+	if (error && isImageRelatedError(error)) {
+		return "Image error";
+	}
+	return getErrorTitle(kind, mode);
 };
 
 export const getProviderStatusURL = (

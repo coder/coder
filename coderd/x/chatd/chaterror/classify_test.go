@@ -709,13 +709,45 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 	))
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "The AI provider returned an unexpected error.",
+		Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
 		Detail:     "Image exceeds 5 MB maximum.",
-		Kind:       codersdk.ChatErrorKindGeneric,
+		Kind:       codersdk.ChatErrorKindConfig,
 		Provider:   "",
 		Retryable:  false,
 		StatusCode: 400,
 	}, classified)
+}
+
+func TestClassify_ImageBase64Error(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"type":"invalid_request_error","message":"Invalid base64 encoding in image data."}}`),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 400, classified.StatusCode)
+	require.Equal(t, "Invalid base64 encoding in image data.", classified.Detail)
+}
+
+func TestClassify_UnsupportedMediaTypeError(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"type":"invalid_request_error","message":"Unsupported media type image/tiff."}}`),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 400, classified.StatusCode)
+	require.Equal(t, "Unsupported media type image/tiff.", classified.Detail)
 }
 
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {

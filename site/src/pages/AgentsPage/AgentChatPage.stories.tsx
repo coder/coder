@@ -1198,10 +1198,10 @@ export const PersistedStructuredError: Story = {
 				title: "Persisted provider error",
 				status: "error",
 				last_error: {
-					message: "Anthropic returned an unexpected error.",
+					message: "Anthropic rejected the model configuration.",
 					detail:
 						"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
-					kind: "generic",
+					kind: "config",
 					provider: "anthropic",
 					retryable: false,
 					status_code: 400,
@@ -1213,14 +1213,15 @@ export const PersistedStructuredError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		expect(canvas.getByRole("heading", { name: /image error/i })).toBeVisible();
 		expect(
-			canvas.getByRole("heading", { name: /request failed/i }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(/anthropic returned an unexpected error\./i),
+			canvas.getByText(/anthropic rejected the model configuration\./i),
 		).toBeVisible();
 		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
 		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
+		expect(
+			canvas.getByText(/edit or remove the problematic image/i),
+		).toBeVisible();
 	},
 };
 

@@ -252,6 +252,7 @@ export const BlockList: FC<{
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion?: boolean;
 	urlTransform?: UrlTransform;
+	hasImageError?: boolean;
 }> = ({
 	blocks,
 	tools,
@@ -271,6 +272,7 @@ export const BlockList: FC<{
 	askUserQuestionResponseTextByToolId,
 	hasUserResponseAfterAskQuestion = false,
 	urlTransform,
+	hasImageError,
 }) => {
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
@@ -418,6 +420,7 @@ export const BlockList: FC<{
 								onTextFileClick={onTextFileClick}
 								framePreview
 								showTextStatus
+								hasImageError={hasImageError}
 							/>
 						);
 					case "sources":
@@ -495,6 +498,7 @@ const ChatMessageItem = memo<{
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion?: boolean;
+	hasImageError?: boolean;
 }>(
 	({
 		message,
@@ -516,6 +520,7 @@ const ChatMessageItem = memo<{
 		subagentTitles,
 		subagentVariants,
 		showDesktopPreviews,
+		hasImageError,
 	}) => {
 		const isUser = message.role === "user";
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -582,6 +587,7 @@ const ChatMessageItem = memo<{
 										onTextFileClick={setPreviewText}
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
+										hasImageError={hasImageError}
 									/>
 									{!hasRenderableContent && (
 										<div className="text-xs text-content-secondary">
@@ -666,6 +672,7 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	hasImageError?: boolean;
 }>(
 	({
 		message,
@@ -673,6 +680,7 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		hasImageError,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
@@ -897,6 +905,7 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
+							hasImageError={hasImageError}
 						/>
 					</div>
 
@@ -940,6 +949,7 @@ const StickyUserMessage = memo<{
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
 									fadeFromBottom
+									hasImageError={hasImageError}
 								/>
 							</div>
 						</div>
@@ -989,6 +999,7 @@ interface ConversationTimelineProps {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
 	isTurnActive?: boolean;
+	hasImageError?: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -1004,6 +1015,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		urlTransform,
 		mcpServers,
 		showDesktopPreviews,
+		hasImageError,
 	}) => {
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
@@ -1079,6 +1091,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									hasImageError={hasImageError}
 								/>
 							);
 						}
@@ -1108,6 +1121,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
+								hasImageError={hasImageError}
 							/>
 						);
 					})}

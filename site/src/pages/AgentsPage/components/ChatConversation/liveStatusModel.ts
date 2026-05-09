@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
-import { getErrorTitle } from "./chatStatusHelpers";
+import { getContextualErrorTitle, getErrorTitle } from "./chatStatusHelpers";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
 type LiveStatusBase = {
@@ -86,7 +86,7 @@ const toFailedLiveStatus = (
 ): Extract<LiveStatusModel, { phase: "failed" }> => ({
 	phase: "failed",
 	hasAccumulatedOutput: options.hasAccumulatedOutput ?? false,
-	title: getErrorTitle(error.kind, "error"),
+	title: getContextualErrorTitle(error.kind, "error", error),
 	kind: error.kind,
 	message: error.message,
 	...(error.detail ? { detail: error.detail } : {}),

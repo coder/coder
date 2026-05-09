@@ -194,7 +194,8 @@ const AttachmentFallbackTile: FC<{
 	state: AttachmentFailure;
 	labels: AttachmentFailureLabels;
 	className?: string;
-}> = ({ state, labels, className = "h-16 w-16" }) => {
+	hasImageError?: boolean;
+}> = ({ state, labels, className = "h-16 w-16", hasImageError }) => {
 	const label = state.kind === "expired" ? labels.expired : labels.failed;
 
 	const tile = (
@@ -202,12 +203,18 @@ const AttachmentFallbackTile: FC<{
 			role="img"
 			aria-label={label}
 			className={cn(
-				"flex flex-col items-center justify-center gap-1 rounded-md border border-border-default bg-surface-tertiary px-1 text-center text-2xs text-content-secondary",
+				"flex flex-col items-center justify-center gap-1 rounded-md border px-1 text-center text-2xs",
+				hasImageError
+					? "border-content-destructive bg-surface-destructive text-content-primary"
+					: "border-border-default bg-surface-tertiary text-content-secondary",
 				className,
 			)}
 		>
 			<AlertTriangleIcon
-				className="size-icon-sm shrink-0 text-content-warning"
+				className={cn(
+					"size-icon-sm shrink-0",
+					hasImageError ? "text-content-destructive" : "text-content-warning",
+				)}
 				aria-hidden="true"
 			/>
 			<span className="leading-tight">{label}</span>
@@ -222,7 +229,10 @@ const AttachmentFallbackTile: FC<{
 	const tooltipBody =
 		state.kind === "expired"
 			? "Chat attachments are deleted after the retention window set for this deployment."
-			: state.detail;
+			: hasImageError
+				? state.detail ||
+					"This image may be causing the error. Edit or remove it to continue chatting."
+				: state.detail;
 	if (!tooltipBody) {
 		return tile;
 	}
@@ -413,7 +423,8 @@ const RemoteImageBlock: FC<{
 	href: string;
 	displayName: string;
 	onImageClick?: (src: string) => void;
-}> = ({ fileId, href, displayName, onImageClick }) => {
+	hasImageError?: boolean;
+}> = ({ fileId, href, displayName, onImageClick, hasImageError }) => {
 	const {
 		hasExpired,
 		markExpired,
@@ -434,6 +445,7 @@ const RemoteImageBlock: FC<{
 			<AttachmentFallbackTile
 				state={{ kind: "expired" }}
 				labels={imageAttachmentFailureLabels}
+				hasImageError={hasImageError}
 			/>
 		);
 	}
@@ -444,6 +456,7 @@ const RemoteImageBlock: FC<{
 			<AttachmentFallbackTile
 				state={effectiveFailure}
 				labels={imageAttachmentFailureLabels}
+				hasImageError={hasImageError}
 			/>
 		);
 	}
@@ -566,12 +579,14 @@ export const AttachmentBlock: FC<{
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 	framePreview?: boolean;
 	showTextStatus?: boolean;
+	hasImageError?: boolean;
 }> = ({
 	block,
 	onImageClick,
 	onTextFileClick,
 	framePreview = false,
 	showTextStatus = false,
+	hasImageError,
 }) => {
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
 	const href = getAttachmentHref(block);
@@ -634,6 +649,7 @@ export const AttachmentBlock: FC<{
 				href={href}
 				displayName={displayName}
 				onImageClick={onImageClick}
+				hasImageError={hasImageError}
 			/>
 		);
 		return framePreview ? (
