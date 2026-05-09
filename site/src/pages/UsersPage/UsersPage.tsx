@@ -163,18 +163,24 @@ const UsersPage: React.FC = () => {
 					open
 					description={
 						<>
-							<strong>{userToDelete.username}</strong> will immediately lose
-							access once they have been deleted.
+							<strong>{userToDelete.name ?? userToDelete.username}</strong> will
+							immediately lose access once
+							{userToDelete.is_service_account ? " it has " : " they have "}
+							been deleted.
 						</>
 					}
 					additionalInfo={
-						<>To delete a user, they must not have any workspaces.</>
+						<>
+							To delete a
+							{userToDelete.is_service_account
+								? " service account, it "
+								: " user, they "}
+							must not have any workspaces.
+						</>
 					}
 					resourceKind="user"
-					resourceName={userToDelete.name ?? userToDelete.username}
-					deleteAction={
-						<>Delete {userToDelete.name ?? userToDelete.username}</>
-					}
+					resourceName={userToDelete.username}
+					deleteAction="Delete"
 					onDelete={async () => {
 						if (!userToDelete) {
 							return;
@@ -182,9 +188,7 @@ const UsersPage: React.FC = () => {
 						try {
 							await deleteUserMutation.mutateAsync(userToDelete.id);
 							setUserToDelete(undefined);
-							toast.success(
-								`User "${userToDelete.username}" deleted successfully.`,
-							);
+							toast.success(`${userToDelete.username} has been deleted.`);
 						} catch (e) {
 							toast.error(
 								getErrorMessage(
@@ -234,7 +238,7 @@ const UsersPage: React.FC = () => {
 				}}
 				description={
 					<>
-						Do you want to suspend the user{" "}
+						Do you want to suspend{" "}
 						<strong>{userToSuspend?.username ?? ""}</strong>?
 					</>
 				}
