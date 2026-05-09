@@ -588,14 +588,19 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			<ConfirmDialog
 				open={isStopConfirmOpen}
 				title="Stop workspace"
-				description={`Are you sure you want to stop the workspace "${workspace.name}"? This will terminate all running processes and disconnect any active sessions.`}
+				description={
+					<>
+						Are you sure you want to stop the workspace "{workspace.name}"? This
+						will terminate all running processes and disconnect any active
+						sessions.
+					</>
+				}
 				confirmText="Stop"
 				onClose={() => setIsStopConfirmOpen(false)}
 				onConfirm={() => {
 					stopWorkspaceMutation.mutate({});
 					setIsStopConfirmOpen(false);
 				}}
-				type="delete"
 			/>
 
 			<WorkspaceBuildCancelDialog

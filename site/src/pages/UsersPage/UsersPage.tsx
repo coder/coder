@@ -16,7 +16,7 @@ import {
 } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -157,36 +157,50 @@ const UsersPage: React.FC = () => {
 				isUpdatingRoles={updateUserRolesMutation.isPending}
 			/>
 
-			<DeleteDialog
-				key={userToDelete?.username}
-				isOpen={userToDelete !== undefined}
-				confirmLoading={deleteUserMutation.isPending}
-				name={userToDelete?.username ?? ""}
-				entity="user"
-				onCancel={() => setUserToDelete(undefined)}
-				onConfirm={async () => {
-					if (!userToDelete) {
-						return;
+			{userToDelete && (
+				<DeleteDialog
+					key={userToDelete.username}
+					open
+					description={
+						<>
+							<strong>{userToDelete.username}</strong> will immediately lose
+							access once they have been deleted.
+						</>
 					}
-					try {
-						await deleteUserMutation.mutateAsync(userToDelete.id);
-						setUserToDelete(undefined);
-						toast.success(
-							`User "${userToDelete.username}" deleted successfully.`,
-						);
-					} catch (e) {
-						toast.error(
-							getErrorMessage(
-								e,
-								`Error deleting user "${userToDelete.username}".`,
-							),
-							{
-								description: getErrorDetail(e),
-							},
-						);
+					additionalInfo={
+						<>To delete a user, they must not have any workspaces.</>
 					}
-				}}
-			/>
+					resourceKind="user"
+					resourceName={userToDelete.name ?? userToDelete.username}
+					deleteAction={
+						<>Delete {userToDelete.name ?? userToDelete.username}</>
+					}
+					onDelete={async () => {
+						if (!userToDelete) {
+							return;
+						}
+						try {
+							await deleteUserMutation.mutateAsync(userToDelete.id);
+							setUserToDelete(undefined);
+							toast.success(
+								`User "${userToDelete.username}" deleted successfully.`,
+							);
+						} catch (e) {
+							toast.error(
+								getErrorMessage(
+									e,
+									`Error deleting user "${userToDelete.username}".`,
+								),
+								{
+									description: getErrorDetail(e),
+								},
+							);
+						}
+					}}
+					deleteLoading={deleteUserMutation.isPending}
+					onCancel={() => setUserToDelete(undefined)}
+				/>
+			)}
 
 			<ConfirmDialog
 				type="delete"
