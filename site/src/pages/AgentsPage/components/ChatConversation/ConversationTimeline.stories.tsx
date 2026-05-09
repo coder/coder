@@ -560,6 +560,43 @@ export const UserMessageWithFailedRemoteImage: Story = {
 	},
 };
 
+/**
+ * When the chat has an active image error, failed image tiles switch to a
+ * red destructive border and icon so the user can identify the offending
+ * attachment.
+ */
+export const FailedImageWithImageError: Story = {
+	args: {
+		...buildStoryArgs(
+			buildUserMessage({
+				text: "this is what i see.",
+				files: [buildImageAttachmentPart("storybook-failed-image")],
+			}),
+		),
+		hasImageError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const image = canvas.getByRole("img", { name: "Attached image" });
+		fireEvent.error(image);
+
+		const tile = await waitForTooltipWrappedAttachmentTile(
+			canvas,
+			"Image failed to load",
+		);
+
+		// The tile should use destructive styling.
+		expect(tile).toHaveClass("border-content-destructive");
+		expect(tile).toHaveClass("bg-surface-destructive");
+
+		// Tooltip explains the image may be causing the error.
+		await hoverAndExpectTooltip(
+			tile,
+			/edit or remove it to continue chatting/i,
+		);
+	},
+};
+
 /** A successful follow-up probe still maps to the generic failure tile. */
 export const UserMessageWithUndisplayableRemoteImage: Story = {
 	args: buildStoryArgs(
