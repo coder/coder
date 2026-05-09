@@ -470,7 +470,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				classified = classified.WithProvider(provider)
 				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 				if classified.ChainBroken {
-					recoverFromChainBroken(ctx, &opts, &call, &messages)
+					recoverFromChainBroken(ctx, opts, &call, &messages)
 				}
 				if opts.OnRetry != nil {
 					opts.OnRetry(attempt, retryErr, classified, delay)
@@ -1543,19 +1543,31 @@ func flushActiveState(
 // classified the error as Retryable, so chatretry will retry
 // regardless.
 //
-// Today only OpenAI Responses uses chain mode, so the prompt rebuild
-// does not need to re-run the Anthropic prompt-cache or sanitize
-// passes. If chain mode ever extends to Anthropic this helper must
-// run those passes on the rebuilt prompt.
+// This bypasses RunOptions.PrepareMessages. That is safe today only
+// because PrepareMessages already ran at the top of the current step
+// (so any one-shot instruction injection it performs has happened),
+// and ReloadMessages itself rebuilds the system prompt and refreshes
+// the advisor snapshot. If PrepareMessages gains a new responsibility
+// that ReloadMessages does not duplicate, recovery would silently
+// skip it: re-evaluate this contract before adding to either callback.
+//
+// The Anthropic prompt-cache and sanitize passes are also bypassed,
+// which is fine while chain mode is OpenAI-only. Extending chain mode
+// to Anthropic must run those passes on the rebuilt prompt.
+//
+// We mutate call directly rather than syncing opts.ProviderOptions:
+// this only needs to fix the in-flight retry, because the existing
+// post-step chain-exit path in Run already clears opts.ProviderOptions
+// once the chained step persists. Carrying our own copy of opts here
+// would be redundant and would mask bugs in that path.
 func recoverFromChainBroken(
 	ctx context.Context,
-	opts *RunOptions,
+	opts RunOptions,
 	call *fantasy.Call,
 	messages *[]fantasy.Message,
 ) {
 	if chatopenai.HasPreviousResponseID(call.ProviderOptions) {
 		call.ProviderOptions = chatopenai.ClearPreviousResponseID(call.ProviderOptions)
-		opts.ProviderOptions = call.ProviderOptions
 	}
 	if opts.DisableChainMode != nil {
 		opts.DisableChainMode()
@@ -1571,9 +1583,7 @@ func recoverFromChainBroken(
 		return
 	}
 	*messages = reloaded
-	rebuilt := make([]fantasy.Message, len(reloaded))
-	copy(rebuilt, reloaded)
-	call.Prompt = rebuilt
+	call.Prompt = slices.Clone(reloaded)
 }
 
 // persistInterruptedStep saves durable content from a partial stream.

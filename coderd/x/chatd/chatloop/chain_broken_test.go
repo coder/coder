@@ -3,6 +3,7 @@ package chatloop //nolint:testpackage // Uses internal symbols.
 import (
 	"context"
 	"iter"
+	"sync"
 	"testing"
 
 	"charm.land/fantasy"
@@ -107,32 +108,58 @@ func TestRun_ChainBrokenRecovers(t *testing.T) {
 		chatopenai.HasPreviousResponseID(secondCallOpt),
 		"second attempt must not carry previous_response_id; it was poisoned",
 	)
-	require.Equal(t, len(reloadedHistory), len(secondPrompt),
+	require.Equal(t, reloadedHistory, secondPrompt,
 		"second attempt must use full reloaded history, not chain-filtered prompt",
 	)
 }
 
-func TestRun_ChainBrokenPersistsAcrossSteps(t *testing.T) {
+func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 	t.Parallel()
 
-	// After chain-broken recovery clears previous_response_id, a
-	// subsequent step in the same Run must not re-send the poisoned
-	// id from opts.ProviderOptions. This guards against the
-	// pointer-vs-value bug where helper-side mutation never reaches
-	// the next step.
+	// Chain-broken recovery only fixes the in-flight retry; the
+	// existing post-step chain-exit path in Run is what carries the
+	// cleared options forward to subsequent steps. This test pins
+	// that interaction by running a recovery and then a real second
+	// step (forced by emitting a tool call from the recovered
+	// attempt) and asserting that no later stream call carries
+	// previous_response_id.
 	var (
+		mu           sync.Mutex
 		streamCalls  int
 		capturedOpts []fantasy.ProviderOptions
 	)
 	model := &chattest.FakeModel{
 		ProviderName: "openai",
 		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
 			streamCalls++
+			attempt := streamCalls
 			capturedOpts = append(capturedOpts, call.ProviderOptions)
-			if streamCalls == 1 {
+			mu.Unlock()
+
+			switch attempt {
+			case 1:
+				// Initial chained attempt: 404 from provider.
 				return nil, xerrors.New(chainBrokenErrorMessage)
+			case 2:
+				// Recovery succeeded; emit a tool call so the
+				// step loop continues to a second step.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"path":"main.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "read_file",
+						ToolCallInput: `{"path":"main.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				// Step 1: end the run.
+				return finishingStream(), nil
 			}
-			return finishingStream(), nil
 		},
 	}
 
@@ -141,7 +168,10 @@ func TestRun_ChainBrokenPersistsAcrossSteps(t *testing.T) {
 		MaxSteps:             3,
 		ContextLimitFallback: 4096,
 		Messages: []fantasy.Message{
-			{Role: "user", Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hi"}}},
+			textMessage(fantasy.MessageRoleUser, "hi"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
 		},
 		ProviderOptions: chainModeProviderOptions("resp_poisoned"),
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
@@ -150,17 +180,17 @@ func TestRun_ChainBrokenPersistsAcrossSteps(t *testing.T) {
 		DisableChainMode: func() {},
 		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
 			return []fantasy.Message{
-				{Role: "user", Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hi"}}},
+				textMessage(fantasy.MessageRoleUser, "hi"),
 			}, nil
 		},
 	})
 
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(capturedOpts), 2,
-		"expected at least one failed and one successful stream call")
-	for i, opts := range capturedOpts[1:] {
+	require.Equal(t, 3, streamCalls,
+		"expected three stream calls: chain-broken failure, recovered tool-call step, follow-up step")
+	for i, providerOpts := range capturedOpts[1:] {
 		require.False(t,
-			chatopenai.HasPreviousResponseID(opts),
+			chatopenai.HasPreviousResponseID(providerOpts),
 			"every stream call after recovery (index %d) must have cleared previous_response_id",
 			i+1,
 		)

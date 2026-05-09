@@ -569,9 +569,10 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 
 	// Metric assertion.
 	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
-		"provider": "test-provider",
-		"model":    "test-model",
-		"kind":     string(codersdk.ChatErrorKindRateLimit),
+		"provider":     "test-provider",
+		"model":        "test-model",
+		"kind":         string(codersdk.ChatErrorKindRateLimit),
+		"chain_broken": "false",
 	})
 }
 
