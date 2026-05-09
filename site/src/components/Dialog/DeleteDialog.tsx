@@ -64,7 +64,9 @@ export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 		>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Delete {resourceName}</DialogTitle>
+					<DialogTitle>
+						{deleteAction} {resourceName}?
+					</DialogTitle>
 					{includeSubtitle && (
 						<div className="flex flex-row gap-3 text-sm">
 							{resourceLastUsed && (

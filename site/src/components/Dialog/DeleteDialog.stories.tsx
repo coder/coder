@@ -37,6 +37,18 @@ export const WithTimeAndOwner: Story = {
 	},
 };
 
+export const Archive: Story = {
+	args: {
+		description: (
+			<>
+				Archiving this workspace will permanently destroy all of its Terraform
+				resources.
+			</>
+		),
+		deleteAction: "Archive",
+	},
+};
+
 export const Deleting: Story = {
 	args: {
 		deleteLoading: true,
