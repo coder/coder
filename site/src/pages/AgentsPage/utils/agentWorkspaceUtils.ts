@@ -1,15 +1,8 @@
 import { isAxiosError } from "axios";
-import type { WorkspaceBuild } from "#/api/typesGenerated";
-
-// The hard-coded UUID of the Coder prebuilds system user. Prebuilt
-// workspaces are owned by this user until claim. Build #1 of a
-// claimed workspace is permanently attributed to this user as the
-// initiator, which is how we recognize prebuild claims after the
-// fact.
-//
-// This UUID is stable and lives in coderd/database/constants.go on
-// the backend. If it ever changes, both sides must move in lockstep.
-const PREBUILDS_SYSTEM_USER_ID = "c42fdf75-3097-471c-8c33-fb52454d81c0";
+import {
+	PrebuildsSystemUserID,
+	type WorkspaceBuild,
+} from "#/api/typesGenerated";
 
 /**
  * Returns the moment a workspace's identity transferred to its
@@ -43,7 +36,7 @@ export function workspaceAcquiredAt(
 	if (!build1) {
 		return workspace.created_at;
 	}
-	if (build1.initiator_id !== PREBUILDS_SYSTEM_USER_ID) {
+	if (build1.initiator_id !== PrebuildsSystemUserID) {
 		return workspace.created_at;
 	}
 	const build2 = builds.find((b) => b.build_number === 2);

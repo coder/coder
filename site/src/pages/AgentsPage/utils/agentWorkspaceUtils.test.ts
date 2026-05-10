@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PrebuildsSystemUserID } from "#/api/typesGenerated";
 import {
 	archiveChatAndDeleteWorkspace,
 	isWorkspaceAutoCreated,
@@ -8,7 +9,6 @@ import {
 	workspaceAcquiredAt,
 } from "./agentWorkspaceUtils";
 
-const PREBUILDS_USER = "c42fdf75-3097-471c-8c33-fb52454d81c0";
 const REAL_USER = "11111111-2222-3333-4444-555555555555";
 
 describe("workspaceAcquiredAt", () => {
@@ -43,7 +43,7 @@ describe("workspaceAcquiredAt", () => {
 			},
 			{
 				build_number: 1,
-				initiator_id: PREBUILDS_USER,
+				initiator_id: PrebuildsSystemUserID,
 				created_at: "2026-01-01T08:00:01Z",
 			},
 		];
@@ -55,7 +55,7 @@ describe("workspaceAcquiredAt", () => {
 		const builds = [
 			{
 				build_number: 1,
-				initiator_id: PREBUILDS_USER,
+				initiator_id: PrebuildsSystemUserID,
 				created_at: "2026-01-01T08:00:01Z",
 			},
 		];
@@ -87,7 +87,7 @@ describe("workspaceAcquiredAt", () => {
 			},
 			{
 				build_number: 1,
-				initiator_id: PREBUILDS_USER,
+				initiator_id: PrebuildsSystemUserID,
 				created_at: "2026-01-01T08:00:01Z",
 			},
 		];
@@ -149,7 +149,7 @@ describe("isWorkspaceAutoCreated", () => {
 				},
 				{
 					build_number: 1,
-					initiator_id: PREBUILDS_USER,
+					initiator_id: PrebuildsSystemUserID,
 					created_at: "2026-01-01T08:00:01Z",
 				},
 			],
@@ -167,7 +167,7 @@ describe("isWorkspaceAutoCreated", () => {
 				},
 				{
 					build_number: 1,
-					initiator_id: PREBUILDS_USER,
+					initiator_id: PrebuildsSystemUserID,
 					created_at: "2026-01-01T08:00:01Z",
 				},
 			],
@@ -180,7 +180,7 @@ describe("isWorkspaceAutoCreated", () => {
 			builds: [
 				{
 					build_number: 1,
-					initiator_id: PREBUILDS_USER,
+					initiator_id: PrebuildsSystemUserID,
 					created_at: "2026-01-01T08:00:01Z",
 				},
 			],
@@ -431,7 +431,7 @@ describe("resolveArchiveAndDeleteAction", () => {
 				},
 				{
 					build_number: 1,
-					initiator_id: PREBUILDS_USER,
+					initiator_id: PrebuildsSystemUserID,
 					created_at: "2025-12-15T00:00:00Z",
 				},
 			],
@@ -449,7 +449,7 @@ describe("resolveArchiveAndDeleteAction", () => {
 				},
 				{
 					build_number: 1,
-					initiator_id: PREBUILDS_USER,
+					initiator_id: PrebuildsSystemUserID,
 					created_at: "2025-12-15T00:00:00Z",
 				},
 			],
