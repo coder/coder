@@ -5922,6 +5922,16 @@ export interface PrebuildsSettings {
 	readonly reconciliation_paused: boolean;
 }
 
+// From codersdk/prebuilds.go
+/**
+ * PrebuildsSystemUserID is the UUID of the Coder prebuilds system
+ * user. Prebuilt workspaces are owned by this user until they are
+ * claimed; build #1 of a claimed workspace remains attributed to
+ * this user as the initiator forever, which is how callers can
+ * recognize a prebuild claim after the fact.
+ */
+export const PrebuildsSystemUserID = "c42fdf75-3097-471c-8c33-fb52454d81c0";
+
 // From codersdk/presets.go
 export interface Preset {
 	readonly ID: string;
