@@ -1,7 +1,17 @@
 # MCP
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
+<!-- -->
+
 > [!WARNING]
-> Injected MCP in AI Gateway is deprecated and will be removed in a future release.
+> Injected MCP in AI Gateway is deprecated.
+> It remains functional and will not be removed until
+> the new implementation is released. Only critical
+> security-related patches will be made.
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 

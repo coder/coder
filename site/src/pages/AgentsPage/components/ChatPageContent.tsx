@@ -1,16 +1,19 @@
-import { type FC, Profiler, type ReactNode, useEffect } from "react";
+import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
+import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
+import { getProviderForModelOption } from "../utils/modelOptions";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
 	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
+	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
@@ -159,6 +162,7 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	agentSetupNotice?: ReactNode;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -173,6 +177,7 @@ interface ChatPageInputProps {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
+	isEditing: boolean;
 	editingQueuedMessageID: number | null;
 	onStartQueueEdit: (
 		id: number,
@@ -182,11 +187,6 @@ interface ChatPageInputProps {
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
-	onEditUserMessage: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
@@ -197,6 +197,7 @@ interface ChatPageInputProps {
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 	workspaceOptions: readonly TypesGen.Workspace[];
+	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
 	onWorkspaceChange: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
@@ -225,6 +226,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	agentSetupNotice,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -233,12 +235,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	initialEditorState,
 	remountKey,
 	onContentChange,
+	isEditing,
 	editingQueuedMessageID,
 	onStartQueueEdit,
 	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
-	onEditUserMessage,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -246,6 +248,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPAuthComplete,
 	lastInjectedContext,
 	workspaceOptions,
+	chatOrganizationId,
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	isWorkspaceLoading,
@@ -275,28 +278,40 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
-	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {
-		const message = messagesByID.get(orderedMessageIDs[index]);
-		if (message?.role === "user") {
-			lastEditableUserMessage = message;
-			break;
+	// Newest first. messages are in id-ascending order, so reverse
+	// iteration yields the most recent user prompts first. Store the
+	// original text untouched so cycling and re-sending reproduces what
+	// the user originally sent (boundary whitespace can be intentional).
+	const userPromptHistory: string[] = [];
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages.at(index);
+		if (!message || message.role !== "user") {
+			continue;
+		}
+		const text = getEditableUserMessagePayload(message).text;
+		if (text.trim()) {
+			userPromptHistory.push(text);
 		}
 	}
-
-	const handleEditLastUserMessage = lastEditableUserMessage
-		? () => {
-				const { text, fileBlocks } = getEditableUserMessagePayload(
-					lastEditableUserMessage,
-				);
-				onEditUserMessage(lastEditableUserMessage.id, text, fileBlocks);
-			}
-		: undefined;
 
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
+	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
+	const editAttachments = useFileAttachments(organizationId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
+	const {
+		setAttachments: setEditAttachments,
+		setPreviewUrls: setEditPreviewUrls,
+		setUploadStates: setEditUploadStates,
+		resetAttachments: resetEditAttachments,
+	} = editAttachments;
+	const wasEditingRef = useRef(isEditing);
+	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
 		attachments,
 		textContents,
@@ -304,19 +319,32 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		previewUrls,
 		handleAttach,
 		handleRemoveAttachment,
-		resetAttachments,
-		setAttachments,
-		setPreviewUrls,
-		setUploadStates,
-	} = useFileAttachments(organizationId);
-	// Pre-populate attachments from existing file blocks when
-	// entering edit mode on a message with images.
+	} = modeAttachments;
+
+	// Edit attachments are scoped to the chat being edited, not the compose
+	// draft. Clear them when navigation changes the chat scope.
+	const editScopeRef = useRef({ organizationId, chatId });
+
 	useEffect(() => {
+		const previous = editScopeRef.current;
+		const scopeChanged =
+			previous.organizationId !== organizationId || previous.chatId !== chatId;
+		editScopeRef.current = { organizationId, chatId };
+		if (scopeChanged) {
+			resetEditAttachments();
+		}
+	}, [organizationId, chatId, resetEditAttachments]);
+
+	// Pre-populate the edit bucket from existing file blocks only
+	// while explicitly editing a message.
+	useEffect(() => {
+		if (!isEditing) {
+			return;
+		}
 		if (!editingFileBlocks || editingFileBlocks.length === 0) {
-			// Clear attachments when exiting edit mode.
-			setAttachments([]);
-			setUploadStates(new Map());
-			setPreviewUrls(new Map());
+			setEditAttachments([]);
+			setEditUploadStates(new Map());
+			setEditPreviewUrls(new Map());
 			return;
 		}
 		const fileBlocks = editingFileBlocks.filter(
@@ -329,8 +357,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			// read because the existing file_id is reused at send time.
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
 		});
-		setAttachments(files);
-		setPreviewUrls(
+		setEditAttachments(files);
+		setEditPreviewUrls(
 			new Map(
 				files.map((f, i) => [f, getChatFileURL(fileBlocks[i].file_id ?? "")]),
 			),
@@ -345,16 +373,40 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 				});
 			}
 		}
-		setUploadStates(newUploadStates);
-	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
+		setEditUploadStates(newUploadStates);
+	}, [
+		isEditing,
+		editingFileBlocks,
+		setEditAttachments,
+		setEditPreviewUrls,
+		setEditUploadStates,
+	]);
+
+	// Exiting edit mode should only clear the edit bucket. Compose draft
+	// attachments must survive canceling or completing an edit.
+	useEffect(() => {
+		if (wasEditingRef.current && !isEditing) {
+			resetEditAttachments();
+		}
+		wasEditingRef.current = isEditing;
+	}, [isEditing, resetEditAttachments]);
 
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
+
+	const [chatFullWidth] = useChatFullWidth();
 
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
+					const hasActiveUploads = attachments.some((file) =>
+						isUploadInProgress(uploadStates.get(file)),
+					);
+					if (hasActiveUploads) {
+						toast.warning("Wait for file uploads to finish before sending.");
+						return;
+					}
 					// Collect uploaded attachment metadata for the optimistic
 					// transcript builder while keeping the server payload
 					// shape unchanged downstream.
@@ -386,7 +438,11 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 						// Attachments preserved for retry on failure.
 						return;
 					}
-					resetAttachments();
+					if (isEditing) {
+						editAttachments.resetAttachments();
+					} else {
+						composeAttachments.resetAttachments();
+					}
 				})();
 			}}
 			attachments={attachments}
@@ -408,7 +464,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelQueueEdit={onCancelQueueEdit}
 			isEditingHistoryMessage={isEditingHistoryMessage}
 			onCancelHistoryEdit={onCancelHistoryEdit}
-			onEditLastUserMessage={handleEditLastUserMessage}
+			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
@@ -424,6 +480,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
+			chatOrganizationId={chatOrganizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={isWorkspaceLoading}
@@ -440,12 +497,19 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		/>
 	);
 
-	if (!modelSelectorHelp) {
+	if (!agentSetupNotice && !modelSelectorHelp) {
 		return inputElement;
 	}
 
 	return (
 		<div>
+			{agentSetupNotice && (
+				<div
+					className={cn("mx-auto w-full pb-2", chatWidthClass(chatFullWidth))}
+				>
+					{agentSetupNotice}
+				</div>
+			)}
 			{inputElement}
 			{modelSelectorHelp && (
 				<div className="px-3 pt-1 text-2xs text-content-secondary">

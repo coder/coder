@@ -5,13 +5,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/testutil"
@@ -77,21 +81,27 @@ func TestCron(t *testing.T) {
 }
 
 // TestAISeatsHeartbeat checks that AISeatsHeartbeat returns the
-// correct event type and count.
+// correct event type and count. It wraps a mock database with dbauthz
+// to verify that the AsUsagePublisher subject has the required
+// ResourceAiSeat.ActionRead permission.
 func TestAISeatsHeartbeat(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
 	db.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(42), nil)
 
-	fn := usage.AISeatsHeartbeat(db)
-	event, err := fn(ctx)
+	authz := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+	authzDB := dbauthz.New(db, authz, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+	// AISeatsHeartbeat internally uses AsUsagePublisher, which must
+	// have ResourceAiSeat.ActionRead to pass the dbauthz check.
+	fn := usage.AISeatsHeartbeat(authzDB)
+	event, err := fn(testutil.Context(t, testutil.WaitLong))
 	require.NoError(t, err)
 
-	// Verify the event type and count.
 	hb, ok := event.(usagetypes.HBAISeats)
 	require.True(t, ok)
 	assert.Equal(t, int64(42), hb.Count)

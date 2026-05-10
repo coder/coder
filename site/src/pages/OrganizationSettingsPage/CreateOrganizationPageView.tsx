@@ -9,7 +9,6 @@ import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { IconField } from "#/components/IconField/IconField";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
@@ -112,67 +111,64 @@ export const CreateOrganizationPageView: FC<
 						</p>
 					</header>
 				</div>
-				<ChooseOne>
-					<Cond condition={!isEntitled}>
-						<div className="min-w-fit mx-auto">
-							<PaywallPremium
-								message="Organizations"
-								description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-								documentationLink={docs("/admin/users/organizations")}
-							/>
-						</div>
-					</Cond>
-					<Cond>
-						<div className="flex flex-col gap-4 w-full max-w-xl min-w-72 mx-auto">
-							<form
-								onSubmit={form.handleSubmit}
-								aria-label="Organization settings form"
-								className="flex flex-col gap-6 w-full"
+				{!isEntitled ? (
+					<div className="min-w-fit mx-auto">
+						<PaywallPremium
+							message="Organizations"
+							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+							documentationLink={docs("/admin/users/organizations")}
+						/>
+					</div>
+				) : (
+					<div className="flex flex-col gap-4 w-full max-w-xl min-w-72 mx-auto">
+						<form
+							onSubmit={form.handleSubmit}
+							aria-label="Organization settings form"
+							className="flex flex-col gap-6 w-full"
+						>
+							<fieldset
+								disabled={form.isSubmitting}
+								className="flex flex-col gap-6 w-full border-none"
 							>
-								<fieldset
-									disabled={form.isSubmitting}
-									className="flex flex-col gap-6 w-full border-none"
+								<TextField
+									{...getFieldHelpers("name")}
+									onChange={onChangeTrimmed(form)}
+									fullWidth
+									label="Slug"
+								/>
+								<TextField
+									{...getFieldHelpers("display_name")}
+									fullWidth
+									label="Display name"
+								/>
+								<TextField
+									{...getFieldHelpers("description")}
+									multiline
+									label="Description"
+									rows={2}
+								/>
+								<IconField
+									{...getFieldHelpers("icon")}
+									onChange={onChangeTrimmed(form)}
+									onPickEmoji={(value) => form.setFieldValue("icon", value)}
+								/>
+							</fieldset>
+							<div className="flex flex-row gap-2">
+								<Button type="submit" disabled={form.isSubmitting}>
+									{form.isSubmitting && <Spinner />}
+									Save
+								</Button>
+								<Button
+									variant="outline"
+									type="button"
+									onClick={() => navigate("/organizations")}
 								>
-									<TextField
-										{...getFieldHelpers("name")}
-										onChange={onChangeTrimmed(form)}
-										fullWidth
-										label="Slug"
-									/>
-									<TextField
-										{...getFieldHelpers("display_name")}
-										fullWidth
-										label="Display name"
-									/>
-									<TextField
-										{...getFieldHelpers("description")}
-										multiline
-										label="Description"
-										rows={2}
-									/>
-									<IconField
-										{...getFieldHelpers("icon")}
-										onChange={onChangeTrimmed(form)}
-										onPickEmoji={(value) => form.setFieldValue("icon", value)}
-									/>
-								</fieldset>
-								<div className="flex flex-row gap-2">
-									<Button type="submit" disabled={form.isSubmitting}>
-										{form.isSubmitting && <Spinner />}
-										Save
-									</Button>
-									<Button
-										variant="outline"
-										type="button"
-										onClick={() => navigate("/organizations")}
-									>
-										Cancel
-									</Button>
-								</div>
-							</form>
-						</div>
-					</Cond>
-				</ChooseOne>
+									Cancel
+								</Button>
+							</div>
+						</form>
+					</div>
+				)}
 			</div>
 		</div>
 	);

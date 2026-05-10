@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -280,7 +281,9 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), "Swagger UI")
+		bodyString := string(body)
+		require.Contains(t, bodyString, "Swagger UI")
+		require.Contains(t, bodyString, "requestInterceptor")
 	})
 	t.Run("doc.json exposed", func(t *testing.T) {
 		t.Parallel()
@@ -299,7 +302,23 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), `"swagger": "2.0"`)
+		bodyString := string(body)
+		require.NotContains(t, bodyString, `"/api/v2/scim/v2`)
+
+		var doc struct {
+			Swagger  string                                `json:"swagger"`
+			BasePath string                                `json:"basePath"`
+			Paths    map[string]map[string]json.RawMessage `json:"paths"`
+		}
+		require.NoError(t, json.Unmarshal(body, &doc))
+		require.Equal(t, "2.0", doc.Swagger)
+		require.Equal(t, "/", doc.BasePath)
+		require.Contains(t, doc.Paths, "/api/v2/users")
+		require.Contains(t, doc.Paths, "/api/v2/oauth2-provider/apps")
+		require.Contains(t, doc.Paths, "/api/experimental/watch-all-workspacebuilds")
+		require.Contains(t, doc.Paths, "/.well-known/oauth-authorization-server")
+		require.Contains(t, doc.Paths, "/oauth2/tokens")
+		require.Contains(t, doc.Paths, "/scim/v2/Users")
 	})
 	t.Run("endpoint disabled by default", func(t *testing.T) {
 		t.Parallel()

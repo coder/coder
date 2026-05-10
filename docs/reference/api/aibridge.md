@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/clients \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /aibridge/clients`
+`GET /api/v2/aibridge/clients`
 
 ### Example responses
 
@@ -44,7 +44,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /aibridge/interceptions`
+`GET /api/v2/aibridge/interceptions`
 
 ### Parameters
 
@@ -152,7 +152,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/models \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /aibridge/models`
+`GET /api/v2/aibridge/models`
 
 ### Example responses
 
@@ -185,7 +185,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /aibridge/sessions`
+`GET /api/v2/aibridge/sessions`
 
 ### Parameters
 
@@ -214,6 +214,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions \
         "name": "string",
         "username": "string"
       },
+      "last_active_at": "2019-08-24T14:15:22Z",
       "last_prompt": "string",
       "metadata": {
         "property1": null,
@@ -257,7 +258,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions/{session_id} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /aibridge/sessions/{session_id}`
+`GET /api/v2/aibridge/sessions/{session_id}`
 
 ### Parameters
 

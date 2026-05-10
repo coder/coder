@@ -9,7 +9,6 @@ import {
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { AdminBadge } from "./AdminBadge";
 import { BackButton } from "./BackButton";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { SectionHeader } from "./SectionHeader";
@@ -51,7 +50,6 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 		<SectionHeader
 			label="Spend management"
 			description="Review spend details for a specific user."
-			badge={<AdminBadge />}
 			action={
 				<DateRangePicker
 					value={displayDateRange}
@@ -104,7 +102,7 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 				{backButton}
 				{header}
 			</div>
-			<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
+			<div className="flex items-center justify-between rounded-lg bg-surface-secondary px-4 py-3">
 				<AvatarData
 					title={selectedUser.name || selectedUser.username}
 					subtitle={`@${selectedUser.username}`}

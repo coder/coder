@@ -9,6 +9,7 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	MockDefaultOrganization,
@@ -17,6 +18,7 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
+import { AgentSetupNotice } from "./AgentSetupNotice";
 
 // Query key used by permittedOrganizations() in the form.
 const permittedOrgsKey = [
@@ -26,6 +28,7 @@ const permittedOrgsKey = [
 ];
 
 const modelConfigID = "model-config-1";
+const claudeModelConfigID = "model-config-claude";
 
 const modelOptions = [
 	{
@@ -34,7 +37,51 @@ const modelOptions = [
 		model: "gpt-4o",
 		displayName: "GPT-4o",
 	},
+	{
+		id: claudeModelConfigID,
+		provider: "anthropic",
+		model: "claude-sonnet-4",
+		displayName: "Claude Sonnet 4",
+	},
 ] as const;
+
+const buildModelConfig = (
+	overrides: Partial<TypesGen.ChatModelConfig> = {},
+): TypesGen.ChatModelConfig => ({
+	id: modelConfigID,
+	provider: "openai",
+	model: "gpt-4o",
+	display_name: "GPT-4o",
+	enabled: true,
+	is_default: false,
+	context_limit: 200_000,
+	compression_threshold: 70,
+	created_at: "2026-02-18T00:00:00.000Z",
+	updated_at: "2026-02-18T00:00:00.000Z",
+	...overrides,
+});
+
+const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+	buildModelConfig({ is_default: true }),
+	buildModelConfig({
+		id: claudeModelConfigID,
+		provider: "anthropic",
+		model: "claude-sonnet-4",
+		display_name: "Claude Sonnet 4",
+		context_limit: 200_000,
+	}),
+];
+
+const buildRootPersonalModelOverride = (
+	overrides: Partial<TypesGen.ChatPersonalModelOverride> = {},
+): TypesGen.ChatPersonalModelOverride => ({
+	context: "root",
+	mode: "chat_default",
+	model_config_id: "",
+	is_set: true,
+	is_malformed: false,
+	...overrides,
+});
 
 const mock403Error = Object.assign(
 	new Error("Request failed with status code 403"),
@@ -93,6 +140,173 @@ const mockPermittedOrganizations = (permissions: Record<string, boolean>) => {
 };
 
 export const Default: Story = {};
+
+const submitMessage = async (canvasElement: HTMLElement, message: string) => {
+	const canvas = within(canvasElement);
+	const input = canvas.getByTestId("chat-message-input");
+	await userEvent.click(input);
+	await userEvent.keyboard(message);
+	await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+};
+
+const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
+	const mock = onCreateChat as ReturnType<typeof fn>;
+	const options = mock.mock.calls[0]?.[0] as CreateChatSubmission | undefined;
+	if (!options) {
+		throw new Error("Expected onCreateChat to receive options.");
+	}
+	return options;
+};
+
+type CreateChatSubmission = {
+	model?: string;
+};
+
+export const RootPersonalModelOverrideModelSelected: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: claudeModelConfigID,
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeInTheDocument();
+		await submitMessage(canvasElement, "create with saved root model");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+	},
+};
+
+export const RootChatDefaultSubmitsDisplayedModel: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "chat_default",
+			model_config_id: "",
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
+		).toBeInTheDocument();
+		await submitMessage(canvasElement, "create with chat default");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+	},
+};
+
+export const RootOverrideMissingFromCatalog: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: "model-does-not-exist",
+			is_set: true,
+			is_malformed: false,
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
+		).toBeInTheDocument();
+		await submitMessage(canvasElement, "create with missing root model");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+	},
+};
+
+export const MalformedRootOverrideUsesDefaultModel: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: claudeModelConfigID,
+			is_malformed: true,
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("combobox", { name: "Claude Sonnet 4" }),
+		).not.toBeInTheDocument();
+		await submitMessage(canvasElement, "create with malformed root model");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+	},
+};
+
+export const LastUsedModelFallbackWithoutRootOverride: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelConfigs: defaultModelConfigs,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeInTheDocument();
+		await submitMessage(canvasElement, "create with last used model");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+	},
+};
+
+export const ManualSelectionOverridesRootChatDefault: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "chat_default",
+			model_config_id: "",
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
+		);
+		await submitMessage(canvasElement, "create with manual model");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+	},
+};
 
 const mockWorkspaces = [
 	{
@@ -229,6 +443,20 @@ export const LoadingModelCatalog: Story = {
 	},
 };
 
+export const LoadingPersonalModelOverrides: Story = {
+	args: {
+		...defaultArgs,
+		isPersonalModelOverridesLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
 export const NoModelsConfigured: Story = {
 	args: {
 		...defaultArgs,
@@ -236,6 +464,37 @@ export const NoModelsConfigured: Story = {
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
+	},
+};
+
+export const MissingProviderAndModelSetup: Story = {
+	args: {
+		...defaultArgs,
+		agentSetupNotice: <AgentSetupNotice providerCount={0} modelCount={0} />,
+		modelCatalog: { providers: [] },
+		modelOptions: [],
+		isModelCatalogLoading: false,
+		isModelConfigsLoading: false,
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = within(
+			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
+		);
+
+		await waitFor(() => {
+			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+		});
+		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
+		expect(dialog.getByText("Add a chat model")).toBeVisible();
+		expect(dialog.queryByLabelText("Complete")).not.toBeInTheDocument();
+		expect(
+			dialog.getByRole("link", { name: "Go to Providers" }),
+		).toHaveAttribute("href", "/agents/settings/providers");
+		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
 	},
 };
 
@@ -365,6 +624,30 @@ export const WithOrganizationPicker: Story = {
 		await userEvent.keyboard("hello world");
 		// The org picker should still be present after typing.
 		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+	},
+};
+
+export const OrgPickerTightSpacing: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const orgTrigger = await canvas.findByTestId("compact-org-selector");
+		const composer = await canvas.findByTestId("chat-composer");
+
+		const orgRect = orgTrigger.getBoundingClientRect();
+		const composerRect = composer.getBoundingClientRect();
+		const gap = composerRect.top - orgRect.bottom;
+		expect(gap).toBeGreaterThanOrEqual(0);
+		expect(gap).toBeLessThan(16);
 	},
 };
 

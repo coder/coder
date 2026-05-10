@@ -1,5 +1,10 @@
 # AI Gateway Proxy
 
+> [!NOTE]
+> AI Gateway Proxy requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway Proxy.
+
 AI Gateway Proxy extends [AI Gateway](../index.md) to support clients that don't allow base URL overrides.
 While AI Gateway requires clients to support custom base URLs, many popular AI coding tools lack this capability.
 

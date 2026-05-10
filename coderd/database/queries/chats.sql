@@ -266,6 +266,10 @@ WHERE
         WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
         ELSE true
     END
+    AND CASE
+        WHEN @after_id::bigint > 0 THEN id > @after_id::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
@@ -628,6 +632,25 @@ WHERE
     id = @id::uuid
 RETURNING *;
 
+-- name: UpdateChatLastTurnSummary :execrows
+-- Updates the cached last completed turn summary for sidebar display.
+-- Empty or whitespace-only summaries are stored as NULL here so direct
+-- query callers cannot accidentally persist blank sidebar text.
+-- This intentionally preserves updated_at. The staleness guard relies on
+-- every new-turn query, such as UpdateChatStatus and AcquireChats, bumping
+-- updated_at. Future chat-field updates that do not bump updated_at can let
+-- stale summaries persist. If this query ever bumps updated_at, later
+-- goroutine summary writes will be rejected as stale.
+-- Two summary workers using the same freshness marker are last-write-wins.
+UPDATE chats
+SET
+    last_turn_summary = NULLIF(REGEXP_REPLACE(
+        sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
+    ), '')
+WHERE
+    id = @id::uuid
+    AND updated_at = @expected_updated_at::timestamptz;
+
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
     chats
@@ -695,6 +718,7 @@ WHERE
             chats
         WHERE
             status = 'pending'::chat_status
+            AND archived = false
         ORDER BY
             updated_at ASC
         FOR UPDATE
@@ -713,7 +737,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -728,7 +752,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid
@@ -736,10 +760,13 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck and need recovery. This covers:
+-- Find chats that appear stuck and need recovery:
 --   1. Running chats whose heartbeat has expired (worker crash).
---   2. Chats awaiting client action (requires_action) past the
---      timeout threshold (client disappeared).
+--   2. requires_action chats past the timeout threshold (client
+--      disappeared).
+--   3. Waiting chats with a non-empty queue and stale updated_at
+--      (deferred-promote stranding when the worker dies before its
+--      post-cancel cleanup runs).
 SELECT
     *
 FROM
@@ -748,7 +775,13 @@ WHERE
     (status = 'running'::chat_status
         AND heartbeat_at < @stale_threshold::timestamptz)
     OR (status = 'requires_action'::chat_status
-        AND updated_at < @stale_threshold::timestamptz);
+        AND updated_at < @stale_threshold::timestamptz)
+    OR (status = 'waiting'::chat_status
+        AND updated_at < @stale_threshold::timestamptz
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
+            WHERE cqm.chat_id = chats.id
+        ));
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -881,14 +914,18 @@ RETURNING
     *;
 
 -- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content)
-VALUES (@chat_id, @content)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id)
+VALUES (
+    @chat_id,
+    @content,
+    sqlc.narg('model_config_id')::uuid
+)
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY id ASC;
+ORDER BY created_at ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -901,10 +938,21 @@ DELETE FROM chat_queued_messages
 WHERE id = (
     SELECT cqm.id FROM chat_queued_messages cqm
     WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.id ASC
+    ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
 RETURNING *;
+
+-- name: ReorderChatQueuedMessageToFront :execrows
+-- Mutates only created_at on the target row; ids are unchanged so
+-- consumers can keep tracking queued messages by id.
+UPDATE chat_queued_messages AS target
+SET created_at = (
+    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
+    FROM chat_queued_messages AS inner_cqm
+    WHERE inner_cqm.chat_id = @chat_id
+)
+WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
 SELECT
@@ -1426,3 +1474,57 @@ UPDATE chat_messages SET deleted = true
 WHERE chat_id = @chat_id::uuid
     AND deleted = false
     AND content::jsonb @> '[{"type": "context-file"}]';
+
+-- name: AutoArchiveInactiveChats :many
+-- Archives inactive root chats (pinned and already-archived chats skipped),
+-- cascading to children via root_chat_id. Limits apply to roots, not total
+-- rows. Used by dbpurge.
+WITH to_archive AS (
+    SELECT
+        c.id,
+        -- Activity = MAX(cm.created_at) across the family, or c.created_at
+        -- when the family has no non-deleted messages.
+        COALESCE(activity.last_activity_at, c.created_at) AS last_activity_at
+    FROM chats c
+    LEFT JOIN LATERAL (
+        SELECT MAX(cm.created_at) AS last_activity_at
+        FROM chat_messages cm
+        JOIN chats fc ON fc.id = cm.chat_id
+        WHERE (fc.id = c.id OR fc.root_chat_id = c.id)
+          AND cm.deleted = false
+    ) activity ON TRUE
+    WHERE c.archived = false
+      AND c.pin_order = 0
+      AND c.parent_chat_id IS NULL -- roots only
+      AND c.created_at < @archive_cutoff::timestamptz
+      -- New active statuses must be added here to prevent archiving.
+      AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
+      AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
+    -- Sorting by created_at lets Postgres drive the scan from the
+    -- partial index instead of evaluating every LATERAL subquery
+    -- before sorting. All candidates are past the cutoff, so the
+    -- archive order is immaterial once the backlog drains.
+    ORDER BY c.created_at ASC
+    LIMIT @limit_count
+),
+archived AS (
+    UPDATE chats c
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    FROM to_archive t
+    WHERE (c.id = t.id OR c.root_chat_id = t.id) -- cascade to children
+      AND c.archived = false
+    RETURNING c.*
+)
+SELECT
+    a.*,
+    -- Children inherit their root's activity so last_activity_at is never null.
+    COALESCE(
+        t.last_activity_at,
+        (SELECT tr.last_activity_at FROM to_archive tr WHERE tr.id = a.root_chat_id),
+        a.created_at
+    )::timestamptz AS last_activity_at
+FROM archived a
+LEFT JOIN to_archive t ON t.id = a.id
+-- created_at ASC flows through to dbpurge's digest truncation; see
+-- buildDigestData in dbpurge.go for the tradeoff rationale.
+ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;

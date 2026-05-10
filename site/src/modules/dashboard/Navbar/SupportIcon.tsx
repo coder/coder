@@ -1,6 +1,5 @@
-import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { BookOpenTextIcon, BugIcon, MessageSquareIcon } from "lucide-react";
-import type { FC } from "react";
+import type { ComponentProps, FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 interface SupportIconProps {
@@ -23,7 +22,7 @@ export const SupportIcon: FC<SupportIconProps> = ({ icon, className }) => {
 	}
 };
 
-const GithubStar: FC<SvgIconProps> = (props) => (
+const GithubStar: FC<ComponentProps<"svg">> = (props) => (
 	<svg
 		aria-hidden="true"
 		height="16"

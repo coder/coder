@@ -1,4 +1,3 @@
-import { css } from "@emotion/react";
 import type { FC } from "react";
 import type {
 	DeploymentValues,
@@ -60,19 +59,7 @@ export const ExternalAuthSettingsPageView: FC<
 				</Alert>
 			</div>
 
-			<Table
-				css={css`
-					& td {
-						padding-top: 24px;
-						padding-bottom: 24px;
-					}
-
-					& td:last-child,
-					& th:last-child {
-						padding-left: 32px;
-					}
-				`}
-			>
+			<Table className="[&_td]:py-6 [&_td:last-child]:pl-8 [&_th:last-child]:pl-8">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">ID</TableHead>

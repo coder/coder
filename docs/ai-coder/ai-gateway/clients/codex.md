@@ -1,5 +1,10 @@
 # Codex CLI
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Codex CLI can be configured to use AI Gateway by setting up a custom model provider.
 
 ## Centralized API Key

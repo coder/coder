@@ -189,6 +189,8 @@ type CreateUserRequestWithOrgs struct {
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
 	// Service accounts are admin-managed accounts that cannot login.
 	ServiceAccount bool `json:"service_account,omitempty"`
+	// Roles is an optional list of site-level roles to assign at creation.
+	Roles []string `json:"roles,omitempty"`
 }
 
 // UnmarshalJSON implements the unmarshal for the legacy param "organization_id".
@@ -261,11 +263,45 @@ type UpdateUserAppearanceSettingsRequest struct {
 }
 
 type UserPreferenceSettings struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed bool                `json:"task_notification_alert_dismissed"`
+	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode"`
+	CodeDiffDisplayMode            AgentDisplayMode    `json:"code_diff_display_mode"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed *bool               `json:"task_notification_alert_dismissed,omitempty"`
+	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode,omitempty"`
+	CodeDiffDisplayMode            AgentDisplayMode    `json:"code_diff_display_mode,omitempty"`
+}
+
+type ThinkingDisplayMode string
+
+const (
+	ThinkingDisplayModeAuto            ThinkingDisplayMode = "auto"
+	ThinkingDisplayModePreview         ThinkingDisplayMode = "preview"
+	ThinkingDisplayModeAlwaysExpanded  ThinkingDisplayMode = "always_expanded"
+	ThinkingDisplayModeAlwaysCollapsed ThinkingDisplayMode = "always_collapsed"
+)
+
+var ValidThinkingDisplayModes = []ThinkingDisplayMode{
+	ThinkingDisplayModeAuto,
+	ThinkingDisplayModePreview,
+	ThinkingDisplayModeAlwaysExpanded,
+	ThinkingDisplayModeAlwaysCollapsed,
+}
+
+type AgentDisplayMode string
+
+const (
+	AgentDisplayModeAuto            AgentDisplayMode = "auto"
+	AgentDisplayModeAlwaysExpanded  AgentDisplayMode = "always_expanded"
+	AgentDisplayModeAlwaysCollapsed AgentDisplayMode = "always_collapsed"
+)
+
+var ValidAgentDisplayModes = []AgentDisplayMode{
+	AgentDisplayModeAuto,
+	AgentDisplayModeAlwaysExpanded,
+	AgentDisplayModeAlwaysCollapsed,
 }
 
 type UpdateUserPasswordRequest struct {

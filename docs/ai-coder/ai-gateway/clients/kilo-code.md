@@ -1,5 +1,10 @@
 # Kilo Code
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Kilo Code allows you to configure providers via the UI and can be set up to use AI Gateway.
 
 ## Centralized API Key

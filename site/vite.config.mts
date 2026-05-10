@@ -16,7 +16,9 @@ const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
 const compilerPreset = reactCompilerPreset();
 compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
-	id: { include: [/src\/pages\/AgentsPage\//] },
+	id: {
+		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
+	},
 };
 
 const plugins: PluginOption[] = [
@@ -200,7 +202,6 @@ export default defineConfig({
 			"@mui/material/Skeleton",
 			"@mui/material/Snackbar",
 			"@mui/material/Stack",
-			"@mui/material/SvgIcon",
 			"@mui/material/TableRow",
 			"@mui/material/TextField",
 			"@mui/material/ToggleButton",
@@ -208,7 +209,6 @@ export default defineConfig({
 			"@mui/material/styles",
 			"@mui/system/createTheme",
 			"@mui/system/useTheme",
-			"@mui/x-tree-view",
 			// Discovered at runtime without this entry, triggering
 			// a mid-run dep re-optimization that breaks imports.
 			"@tanstack/react-query-devtools",

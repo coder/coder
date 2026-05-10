@@ -678,6 +678,52 @@ func TestCreate(t *testing.T) {
 		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "us-east-1"})
 		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "instance_type", Value: "t3.micro"})
 	})
+
+	// Verifies that --use-parameter-defaults accepts empty-string
+	// defaults without prompting. Uses the classic parameter flow
+	// because the echo provisioner sets Required via proto fields,
+	// which the dynamic parameter evaluator does not read.
+	t.Run("EmptyStringDefaultNoPrompt", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses([]*proto.RichParameter{
+			{Name: "region", Type: "string", DefaultValue: "us-east-1"},
+			{Name: "optional_field", Type: "string", DefaultValue: ""},
+		}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.UseClassicParameterFlow = ptr.Ref(true)
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv, root := clitest.New(t, "create", "my-workspace",
+			"--template", template.Name,
+			"-y",
+			"--use-parameter-defaults",
+			"--no-wait",
+		)
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatchContext(ctx, "building in the background")
+		_ = testutil.TryReceive(ctx, t, doneChan)
+
+		ws, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+
+		buildParams, err := member.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
+		require.NoError(t, err)
+		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "us-east-1"})
+		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "optional_field", Value: ""})
+	})
 }
 
 func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.Preset) *echo.Responses {

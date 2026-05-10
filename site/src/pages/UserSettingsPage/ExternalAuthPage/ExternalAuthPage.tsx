@@ -9,7 +9,10 @@ import {
 } from "#/api/queries/externalAuth";
 import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import { Section } from "../Section";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {
@@ -24,7 +27,10 @@ const ExternalAuthPage: FC = () => {
 	const validateAppMutation = useMutation(validateExternalAuth(queryClient));
 
 	return (
-		<Section title="External Authentication" layout="fluid">
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
+			</SettingsHeader>
 			<ExternalAuthPageView
 				isLoading={externalAuthsQuery.isLoading}
 				getAuthsError={externalAuthsQuery.error}
@@ -96,7 +102,7 @@ const ExternalAuthPage: FC = () => {
 					}
 				}}
 			/>
-		</Section>
+		</>
 	);
 };
 

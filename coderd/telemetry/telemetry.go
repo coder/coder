@@ -822,6 +822,18 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		summary, err := r.collectUserSecretsSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("collect user secrets summary: %w", err)
+		}
+		// summary is nil when another replica already claimed the
+		// telemetry lock for this period.
+		if summary != nil {
+			snapshot.UserSecretsSummary = summary
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -949,6 +961,49 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 		DeniedRequests:             summary.DeniedRequests,
 		PeriodStart:                now.Add(-r.options.SnapshotFrequency),
 		PeriodDurationMilliseconds: r.options.SnapshotFrequency.Milliseconds(),
+	}, nil
+}
+
+// collectUserSecretsSummary returns a deployment-wide aggregate of user
+// secrets configuration. Returns nil if another replica has already
+// collected for this period.
+//
+// The summary has no natural per-row UUID for the telemetry server to
+// de-duplicate on, so we elect a single replica per snapshot period
+// via the telemetry_locks table.
+func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSecretsSummary, error) {
+	// Claim the telemetry lock for this period. Use snapshot frequency so
+	// each telemetry snapshot period gets exactly one collection across
+	// replicas.
+	periodEndingAt := dbtime.Time(r.options.Clock.Now()).UTC().Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "user_secrets_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "user secrets telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // This is simple to handle when dealing with telemetry.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert user secrets telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	row, err := r.options.Database.GetUserSecretsTelemetrySummary(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get user secrets telemetry summary: %w", err)
+	}
+	return &UserSecretsSummary{
+		UsersWithSecrets:  row.UsersWithSecrets,
+		TotalSecrets:      row.TotalSecrets,
+		EnvNameOnly:       row.EnvNameOnly,
+		FilePathOnly:      row.FilePathOnly,
+		Both:              row.Both,
+		Neither:           row.Neither,
+		SecretsPerUserMax: row.SecretsPerUserMax,
+		SecretsPerUserP25: row.SecretsPerUserP25,
+		SecretsPerUserP50: row.SecretsPerUserP50,
+		SecretsPerUserP75: row.SecretsPerUserP75,
+		SecretsPerUserP90: row.SecretsPerUserP90,
 	}, nil
 }
 
@@ -1554,6 +1609,7 @@ type Snapshot struct {
 	ChatMessageSummaries                 []ChatMessageSummary                  `json:"chat_message_summaries"`
 	ChatModelConfigs                     []ChatModelConfig                     `json:"chat_model_configs"`
 	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
+	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -2407,6 +2463,38 @@ type ChatDiffStatusSummary struct {
 	Open   int64 `json:"open"`
 	Merged int64 `json:"merged"`
 	Closed int64 `json:"closed"`
+}
+
+// UserSecretsSummary contains deployment-wide aggregates about user
+// secrets. All counts are scoped to active non-system users so that
+// soft-deleted accounts, dormant or suspended users, and internal
+// subjects (e.g. the prebuilds user) do not skew the results. Status
+// transitions move users in and out of this denominator, so a
+// snapshot's UsersWithSecrets can drop without any secret being
+// deleted.
+//
+// UsersWithSecrets is the count of active non-system users that have
+// at least one secret. TotalSecrets is the count of secrets owned by
+// those users. EnvNameOnly, FilePathOnly, Both, and Neither break
+// TotalSecrets down by which injection fields are populated.
+//
+// The SecretsPerUser* fields describe the distribution of secrets per
+// user across the entire active non-system user base, including users
+// with zero secrets, so the percentiles reflect deployment-wide
+// adoption rather than only the power-user subset. Max and Px are the
+// maximum and the 25th, 50th, 75th, and 90th percentiles.
+type UserSecretsSummary struct {
+	UsersWithSecrets  int64 `json:"users_with_secrets"`
+	TotalSecrets      int64 `json:"total_secrets"`
+	EnvNameOnly       int64 `json:"env_name_only"`
+	FilePathOnly      int64 `json:"file_path_only"`
+	Both              int64 `json:"both"`
+	Neither           int64 `json:"neither"`
+	SecretsPerUserMax int64 `json:"secrets_per_user_max"`
+	SecretsPerUserP25 int64 `json:"secrets_per_user_p25"`
+	SecretsPerUserP50 int64 `json:"secrets_per_user_p50"`
+	SecretsPerUserP75 int64 `json:"secrets_per_user_p75"`
+	SecretsPerUserP90 int64 `json:"secrets_per_user_p90"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

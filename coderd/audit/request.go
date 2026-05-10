@@ -135,7 +135,15 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AiSeatState:
 		return "AI Seat"
 	case database.Chat:
+		// Chat titles can contain sensitive content (secrets, internal
+		// project names), so we use a short UUID prefix as a display
+		// hint instead. The full UUID is still recorded in resource_id,
+		// which is what the audit UI links on. An 8-char prefix is fine
+		// for display; collisions affect the display label and search
+		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
+	case database.UserSecret:
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -204,6 +212,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.Chat:
 		return typed.ID
+	case database.UserSecret:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -263,6 +273,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeAiSeat
 	case database.Chat:
 		return database.ResourceTypeChat
+	case database.UserSecret:
+		return database.ResourceTypeUserSecret
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -327,6 +339,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// Chats always have a non-null organization_id (since
 		// migration 000467).
 		return true
+	case database.UserSecret:
+		// User secrets are global to the user across organizations.
+		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}

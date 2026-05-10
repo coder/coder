@@ -38,7 +38,7 @@ import (
 // @Produce text/html
 // @Tags Debug
 // @Success 200
-// @Router /debug/coordinator [get]
+// @Router /api/v2/debug/coordinator [get]
 func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 	(*api.TailnetCoordinator.Load()).ServeHTTPDebug(rw, r)
 }
@@ -49,7 +49,7 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 // @Produce text/html
 // @Tags Debug
 // @Success 200
-// @Router /debug/tailnet [get]
+// @Router /api/v2/debug/tailnet [get]
 func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 	api.agentProvider.ServeHTTPDebug(rw, r)
 }
@@ -60,7 +60,7 @@ func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Debug
 // @Success 200 {object} healthsdk.HealthcheckReport
-// @Router /debug/health [get]
+// @Router /api/v2/debug/health [get]
 // @Param force query boolean false "Force a healthcheck to run"
 func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APITokenFromRequest(r)
@@ -168,7 +168,7 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 // @Produce json
 // @Tags Debug
 // @Success 200 {object} healthsdk.HealthSettings
-// @Router /debug/health/settings [get]
+// @Router /api/v2/debug/health/settings [get]
 func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
 	settingsJSON, err := api.Database.GetHealthSettings(r.Context())
 	if err != nil {
@@ -204,7 +204,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 // @Tags Debug
 // @Param request body healthsdk.UpdateHealthSettings true "Update health settings"
 // @Success 200 {object} healthsdk.UpdateHealthSettings
-// @Router /debug/health/settings [put]
+// @Router /api/v2/debug/health/settings [put]
 func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -297,7 +297,7 @@ func validateHealthSettings(settings healthsdk.HealthSettings) error {
 // @Produce json
 // @Tags Debug
 // @Success 201 {object} codersdk.Response
-// @Router /debug/ws [get]
+// @Router /api/v2/debug/ws [get]
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -307,7 +307,7 @@ func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Produce json
 // @Success 200 {array} derp.BytesSentRecv
 // @Tags Debug
-// @Router /debug/derp/traffic [get]
+// @Router /api/v2/debug/derp/traffic [get]
 // @x-apidocgen {"skip": true}
 func _debugDERPTraffic(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -317,7 +317,7 @@ func _debugDERPTraffic(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Produce json
 // @Tags Debug
 // @Success 200 {object} map[string]any
-// @Router /debug/expvar [get]
+// @Router /api/v2/debug/expvar [get]
 // @x-apidocgen {"skip": true}
 func _debugExpVar(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -415,7 +415,7 @@ const (
 // @Security CoderSessionToken
 // @Tags Debug
 // @Success 200
-// @Router /debug/profile [post]
+// @Router /api/v2/debug/profile [post]
 // @x-apidocgen {"skip": true}
 func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -634,7 +634,7 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Success 200
 // @Tags Debug
-// @Router /debug/pprof [get]
+// @Router /api/v2/debug/pprof [get]
 // @x-apidocgen {"skip": true}
 func _debugPprofIndex(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -643,7 +643,7 @@ func _debugPprofIndex(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Security CoderSessionToken
 // @Success 200
 // @Tags Debug
-// @Router /debug/pprof/cmdline [get]
+// @Router /api/v2/debug/pprof/cmdline [get]
 // @x-apidocgen {"skip": true}
 func _debugPprofCmdline(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -652,7 +652,7 @@ func _debugPprofCmdline(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Security CoderSessionToken
 // @Success 200
 // @Tags Debug
-// @Router /debug/pprof/profile [get]
+// @Router /api/v2/debug/pprof/profile [get]
 // @x-apidocgen {"skip": true}
 func _debugPprofProfile(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -661,7 +661,7 @@ func _debugPprofProfile(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Security CoderSessionToken
 // @Success 200
 // @Tags Debug
-// @Router /debug/pprof/symbol [get]
+// @Router /api/v2/debug/pprof/symbol [get]
 // @x-apidocgen {"skip": true}
 func _debugPprofSymbol(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -670,7 +670,7 @@ func _debugPprofSymbol(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Security CoderSessionToken
 // @Success 200
 // @Tags Debug
-// @Router /debug/pprof/trace [get]
+// @Router /api/v2/debug/pprof/trace [get]
 // @x-apidocgen {"skip": true}
 func _debugPprofTrace(http.ResponseWriter, *http.Request) {} //nolint:unused
 
@@ -679,6 +679,6 @@ func _debugPprofTrace(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @Security CoderSessionToken
 // @Success 200
 // @Tags Debug
-// @Router /debug/metrics [get]
+// @Router /api/v2/debug/metrics [get]
 // @x-apidocgen {"skip": true}
 func _debugMetrics(http.ResponseWriter, *http.Request) {} //nolint:unused

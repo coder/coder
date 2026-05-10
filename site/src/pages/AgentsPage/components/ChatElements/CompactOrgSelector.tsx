@@ -83,7 +83,7 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 			<PopoverContent
 				side={dropdownSide}
 				align={dropdownAlign}
-				className="w-64 p-0"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-64 p-0"
 			>
 				<Command loop>
 					<CommandInput placeholder="Find organization…" className="text-xs" />

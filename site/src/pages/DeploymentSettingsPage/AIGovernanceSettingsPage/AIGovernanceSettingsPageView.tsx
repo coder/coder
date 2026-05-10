@@ -9,7 +9,6 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { deploymentGroupHasParent } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
@@ -24,7 +23,7 @@ export const AIGovernanceSettingsPageView: FC<
 	AIGovernanceSettingsPageViewProps
 > = ({ options, featureAIBridgeEntitled, featureAIBridgeEnabled }) => {
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<SettingsHeader>
 				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
 			</SettingsHeader>
@@ -70,6 +69,6 @@ export const AIGovernanceSettingsPageView: FC<
 					<PaywallAIGovernance />
 				)}
 			</div>
-		</Stack>
+		</div>
 	);
 };

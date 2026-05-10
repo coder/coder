@@ -6,207 +6,458 @@ import {
 	type AgentSettingsAgentsPageViewProps,
 } from "./AgentSettingsAgentsPageView";
 
-const baseArgs: AgentSettingsAgentsPageViewProps = {
-	exploreModelOverrideData: {
-		has_malformed_override: false,
-	},
-	modelConfigsData: [],
+const OVERRIDE_MALFORMED_WARNING =
+	"The saved override is malformed and is being treated as unset. Click Save to clear it.";
+const UNAVAILABLE_SAVED_MODEL_WARNING =
+	"The saved model is no longer enabled and will be ignored until you choose a new override.";
+const TITLE_UNAVAILABLE_SAVED_MODEL_WARNING =
+	"The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting.";
+
+const buildModelConfig = (
+	overrides: Partial<TypesGen.ChatModelConfig>,
+): TypesGen.ChatModelConfig => ({
+	id: "model-default",
+	provider: "openai",
+	model: "gpt-4.1-mini",
+	display_name: "GPT 4.1 Mini",
+	enabled: true,
+	is_default: false,
+	context_limit: 1_000_000,
+	compression_threshold: 70,
+	created_at: "2026-03-12T12:00:00.000Z",
+	updated_at: "2026-03-12T12:00:00.000Z",
+	...overrides,
+});
+
+const buildOverrideData = (
+	context: TypesGen.ChatModelOverrideContext,
+	overrides: Partial<TypesGen.ChatModelOverrideResponse> = {},
+): TypesGen.ChatModelOverrideResponse => ({
+	context,
+	model_config_id: "",
+	is_malformed: false,
+	...overrides,
+});
+
+const buildTitleGenerationModelOverrideData = (
+	overrides: Partial<TypesGen.ChatModelOverrideResponse> = {},
+): TypesGen.ChatModelOverrideResponse =>
+	buildOverrideData("title_generation", overrides);
+
+const generalModelConfig = buildModelConfig({
+	id: "model-general-gpt-4.1-mini",
+	display_name: "GPT 4.1 Mini",
+});
+
+const claudeSonnetModelConfig = buildModelConfig({
+	id: "model-claude-sonnet-4",
+	provider: "anthropic",
+	model: "claude-sonnet-4",
+	display_name: "Claude Sonnet 4",
+	context_limit: 200_000,
+});
+
+const titleModelConfig = buildModelConfig({
+	id: "model-title-gpt-4o-mini",
+	model: "gpt-4o-mini",
+	display_name: "GPT 4o Mini",
+	context_limit: 128_000,
+});
+
+const exploreFallbackModelConfig = buildModelConfig({
+	id: "model-explore-blank-display",
+	provider: "anthropic",
+	model: "claude-sonnet-4-20250514",
+	display_name: "",
+	context_limit: 200_000,
+});
+
+const generalDisabledModelConfig = buildModelConfig({
+	id: "model-general-disabled",
+	model: "gpt-4.1-legacy",
+	display_name: "GPT 4.1 Legacy",
+	enabled: false,
+});
+
+const titleDisabledModelConfig = buildModelConfig({
+	id: "model-title-disabled",
+	model: "gpt-4o-mini-legacy",
+	display_name: "GPT 4o Mini Legacy",
+	enabled: false,
+	context_limit: 128_000,
+});
+
+const exploreDisabledModelConfig = buildModelConfig({
+	id: "model-explore-disabled",
+	provider: "anthropic",
+	model: "claude-haiku-legacy",
+	display_name: "Claude Haiku Legacy",
+	enabled: false,
+	context_limit: 200_000,
+});
+
+const allModelConfigs: TypesGen.ChatModelConfig[] = [
+	generalModelConfig,
+	claudeSonnetModelConfig,
+	titleModelConfig,
+	exploreFallbackModelConfig,
+	generalDisabledModelConfig,
+	titleDisabledModelConfig,
+	exploreDisabledModelConfig,
+];
+
+const makeArgs = (
+	overrides: Partial<AgentSettingsAgentsPageViewProps> = {},
+): AgentSettingsAgentsPageViewProps => ({
+	adminOverridesData: { allow_users: false },
+	adminOverridesError: undefined,
+	onRetryAdminOverrides: fn(),
+	isRetryingAdminOverrides: false,
+	onSaveAdminOverrides: fn(),
+	isSavingAdminOverrides: false,
+	isSaveAdminOverridesError: false,
+	generalModelOverrideData: buildOverrideData("general"),
+	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
+	exploreModelOverrideData: buildOverrideData("explore"),
+	modelConfigsData: allModelConfigs,
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
+	onSaveGeneralModelOverride: fn(),
+	isSavingGeneralModelOverride: false,
+	isSaveGeneralModelOverrideError: false,
+	onSaveTitleGenerationModel: fn(),
+	isSavingTitleGenerationModel: false,
+	isSaveTitleGenerationModelError: false,
 	onSaveExploreModelOverride: fn(),
 	isSavingExploreModelOverride: false,
 	isSaveExploreModelOverrideError: false,
+	...overrides,
+});
+
+const getSection = async (
+	canvasElement: HTMLElement,
+	headingName: string,
+): Promise<HTMLElement> => {
+	const canvas = within(canvasElement);
+	const heading = await canvas.findByRole("heading", { name: headingName });
+	const section = heading.closest("section");
+	if (!(section instanceof HTMLElement)) {
+		throw new Error(
+			`Expected ${headingName} heading to live inside a section.`,
+		);
+	}
+	return section;
+};
+
+const selectModelInSection = async (
+	section: HTMLElement,
+	canvasElement: HTMLElement,
+	currentSelectionName: string | RegExp,
+	optionName: string,
+) => {
+	const trigger = within(section).getByRole("combobox", {
+		name: currentSelectionName,
+	});
+	await userEvent.click(trigger);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(await body.findByRole("option", { name: optionName }));
 };
 
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsAgentsPageView",
 	component: AgentSettingsAgentsPageView,
-	args: baseArgs,
+	args: makeArgs(),
 } satisfies Meta<typeof AgentSettingsAgentsPageView>;
 
 export default meta;
 type Story = StoryObj<typeof AgentSettingsAgentsPageView>;
 
-export const ExploreModelOverrideSetting: Story = {
-	args: {
-		exploreModelOverrideData: {
-			model_config_id: "model-explore-1",
-			has_malformed_override: false,
-		},
-		modelConfigsData: [
-			{
-				id: "model-explore-1",
-				provider: "openai",
-				model: "gpt-4.1-mini",
-				display_name: "GPT 4.1 Mini",
-				enabled: true,
-				is_default: false,
-				context_limit: 1_000_000,
-				compression_threshold: 70,
-				created_at: "2026-03-12T12:00:00.000Z",
-				updated_at: "2026-03-12T12:00:00.000Z",
-			},
-			{
-				id: "model-explore-2",
-				provider: "anthropic",
-				model: "claude-sonnet-4",
-				display_name: "Claude Sonnet 4",
-				enabled: true,
-				is_default: false,
-				context_limit: 200_000,
-				compression_threshold: 70,
-				created_at: "2026-03-12T12:00:00.000Z",
-				updated_at: "2026-03-12T12:00:00.000Z",
-			},
-		] as TypesGen.ChatModelConfig[],
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByText("Agents");
-		await canvas.findByText("Explore subagent model");
-		const trigger = canvas.getByRole("combobox", {
-			name: /gpt 4.1 mini/i,
-		});
-		await userEvent.click(trigger);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			await body.findByRole("option", { name: "Claude Sonnet 4" }),
-		);
-		const form = trigger.closest("form");
-		if (!(form instanceof HTMLFormElement)) {
-			throw new Error("Expected Explore model selector to live inside a form.");
-		}
-		const saveButton = within(form).getByRole("button", { name: "Save" });
-		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
-		});
-		await userEvent.click(saveButton);
-		await waitFor(() => {
-			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
-				{ model_config_id: "model-explore-2" },
-				expect.anything(),
-			);
-		});
-	},
-};
-
-export const ExploreModelOverrideAllowsExplicitClear: Story = {
-	args: {
-		exploreModelOverrideData: {
-			model_config_id: "model-explore-clear",
-			has_malformed_override: false,
-		},
-		modelConfigsData: [
-			{
-				id: "model-explore-clear",
-				provider: "openai",
-				model: "gpt-4.1-mini",
-				display_name: "GPT 4.1 Mini",
-				enabled: true,
-				is_default: false,
-				context_limit: 1_000_000,
-				compression_threshold: 70,
-				created_at: "2026-03-12T12:00:00.000Z",
-				updated_at: "2026-03-12T12:00:00.000Z",
-			},
-		] as TypesGen.ChatModelConfig[],
-		onSaveExploreModelOverride: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const clearButton = await canvas.findByRole("button", { name: "Clear" });
-		const form = clearButton.closest("form");
-		if (!(form instanceof HTMLFormElement)) {
-			throw new Error(
-				"Expected Explore model clear button to live inside a form.",
-			);
-		}
-
-		const saveButton = within(form).getByRole("button", { name: "Save" });
-		await userEvent.click(clearButton);
-		expect(args.onSaveExploreModelOverride).not.toHaveBeenCalled();
-		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
-		});
-		await userEvent.click(saveButton);
-		await waitFor(() => {
-			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
-				{},
-				expect.anything(),
-			);
-		});
-	},
-};
-
-export const ExploreModelOverrideClearsMalformedSavedValue: Story = {
-	args: {
-		exploreModelOverrideData: {
-			has_malformed_override: true,
-		},
-		modelConfigsData: [],
-		onSaveExploreModelOverride: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByText(
-			"The saved override is malformed and is being treated as unset. Click Save to clear it.",
-		);
-		const clearButton = await canvas.findByRole("button", { name: "Clear" });
-		const form = clearButton.closest("form");
-		if (!(form instanceof HTMLFormElement)) {
-			throw new Error(
-				"Expected Explore model clear button to live inside a form.",
-			);
-		}
-
-		const saveButton = within(form).getByRole("button", { name: "Save" });
-		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
-		});
-		await userEvent.click(clearButton);
-		expect(args.onSaveExploreModelOverride).not.toHaveBeenCalled();
-		await userEvent.click(saveButton);
-		await waitFor(() => {
-			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
-				{},
-				expect.anything(),
-			);
-		});
-	},
-};
-
-export const ExploreModelOverrideFallsBackToModelName: Story = {
-	args: {
-		exploreModelOverrideData: {
-			model_config_id: "model-explore-empty-name",
-			has_malformed_override: false,
-		},
-		modelConfigsData: [
-			{
-				id: "model-explore-empty-name",
-				provider: "anthropic",
-				model: "claude-sonnet-4-20250514",
-				display_name: "",
-				enabled: true,
-				is_default: false,
-				context_limit: 200_000,
-				compression_threshold: 70,
-				created_at: "2026-03-12T12:00:00.000Z",
-				updated_at: "2026-03-12T12:00:00.000Z",
-			},
-		] as TypesGen.ChatModelConfig[],
-	},
+export const AllOverridesUnset: Story = {
+	args: makeArgs(),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = await canvas.findByRole("combobox", {
-			name: /claude-sonnet-4-20250514/i,
+		await canvas.findByText("Agents");
+
+		const headings = await canvas.findAllByRole("heading", { level: 3 });
+		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
+			"Enable users to define their personal overrides",
+			"General model",
+			"Title generation model",
+			"Explore subagent model",
+		]);
+		await canvas.findByText(
+			"Choose a model for generated chat titles. Leave unset to use Coder's default title algorithm, which currently tries fast title models for configured providers first, for example Claude Haiku, GPT-4o mini, and Gemini Flash, then falls back to the chat's current model. When a model is selected here, Coder uses only that model for title generation. Recommended title models are fast and low cost.",
+		);
+
+		const unsetSections = [
+			{ headingName: "General model", placeholder: "Use chat default" },
+			{
+				headingName: "Title generation model",
+				placeholder: "Use title default",
+			},
+			{
+				headingName: "Explore subagent model",
+				placeholder: "Use chat default",
+			},
+		];
+		for (const { headingName, placeholder } of unsetSections) {
+			const section = await getSection(canvasElement, headingName);
+			expect(
+				within(section).getByRole("combobox", { name: placeholder }),
+			).toBeInTheDocument();
+			expect(
+				within(section).getByRole("button", { name: "Save" }),
+			).toBeDisabled();
+		}
+	},
+};
+
+export const PersonalOverridesDisabled: Story = {
+	args: makeArgs({
+		adminOverridesData: { allow_users: false },
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable users to define their personal overrides",
 		});
-		expect(trigger).toHaveTextContent("claude-sonnet-4-20250514");
-		await userEvent.click(trigger);
-		const body = within(canvasElement.ownerDocument.body);
+
+		expect(toggle).not.toBeChecked();
+	},
+};
+
+export const PersonalOverridesEnabled: Story = {
+	args: makeArgs({
+		adminOverridesData: { allow_users: true },
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable users to define their personal overrides",
+		});
+
+		expect(toggle).toBeChecked();
+	},
+};
+
+export const PersonalOverridesLoadError: Story = {
+	args: makeArgs({
+		adminOverridesData: undefined,
+		adminOverridesError: new Error("Failed to load personal model overrides."),
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
 		expect(
-			await body.findByRole("option", {
-				name: "claude-sonnet-4-20250514",
+			await canvas.findByText("Failed to load personal model overrides."),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Loading personal model override settings..."),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const EachOverrideSetToEnabledModel: Story = {
+	args: makeArgs({
+		generalModelOverrideData: buildOverrideData("general", {
+			model_config_id: generalModelConfig.id,
+		}),
+		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
+			model_config_id: titleModelConfig.id,
+		}),
+		exploreModelOverrideData: buildOverrideData("explore", {
+			model_config_id: exploreFallbackModelConfig.id,
+		}),
+	}),
+	play: async ({ canvasElement, args }) => {
+		const generalSection = await getSection(canvasElement, "General model");
+		const titleSection = await getSection(
+			canvasElement,
+			"Title generation model",
+		);
+		const exploreSection = await getSection(
+			canvasElement,
+			"Explore subagent model",
+		);
+
+		expect(
+			within(exploreSection).getByRole("combobox", {
+				name: /claude-sonnet-4-20250514/i,
+			}),
+		).toHaveTextContent("claude-sonnet-4-20250514");
+
+		expect(
+			within(titleSection).getByRole("combobox", {
+				name: /gpt 4o mini/i,
+			}),
+		).toHaveTextContent("GPT 4o Mini");
+
+		await selectModelInSection(
+			generalSection,
+			canvasElement,
+			/gpt 4\.1 mini/i,
+			"Claude Sonnet 4",
+		);
+		const generalSaveButton = within(generalSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(generalSaveButton).toBeEnabled();
+		});
+		await userEvent.click(generalSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
+				{ model_config_id: claudeSonnetModelConfig.id },
+				expect.anything(),
+			);
+		});
+
+		await selectModelInSection(
+			titleSection,
+			canvasElement,
+			/gpt 4o mini/i,
+			"Claude Sonnet 4",
+		);
+		const titleSaveButton = within(titleSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(titleSaveButton).toBeEnabled();
+		});
+		await userEvent.click(titleSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveTitleGenerationModel).toHaveBeenCalledWith(
+				{ model_config_id: claudeSonnetModelConfig.id },
+				expect.anything(),
+			);
+		});
+
+		const exploreClearButton = within(exploreSection).getByRole("button", {
+			name: "Clear",
+		});
+		await userEvent.click(exploreClearButton);
+		const exploreSaveButton = within(exploreSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(exploreSaveButton).toBeEnabled();
+		});
+		await userEvent.click(exploreSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const MalformedOverridesRemainClearableAndSaveable: Story = {
+	args: makeArgs({
+		generalModelOverrideData: buildOverrideData("general", {
+			is_malformed: true,
+		}),
+		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
+			is_malformed: true,
+		}),
+		exploreModelOverrideData: buildOverrideData("explore", {
+			is_malformed: true,
+		}),
+	}),
+	play: async ({ canvasElement, args }) => {
+		const generalSection = await getSection(canvasElement, "General model");
+		const titleSection = await getSection(
+			canvasElement,
+			"Title generation model",
+		);
+		const exploreSection = await getSection(
+			canvasElement,
+			"Explore subagent model",
+		);
+
+		for (const section of [generalSection, titleSection, exploreSection]) {
+			await within(section).findByText(OVERRIDE_MALFORMED_WARNING);
+		}
+
+		const generalSaveButton = within(generalSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(generalSaveButton).toBeEnabled();
+		});
+		await userEvent.click(generalSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
+
+		const titleSaveButton = within(titleSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(titleSaveButton).toBeEnabled();
+		});
+		await userEvent.click(titleSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveTitleGenerationModel).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
+
+		const exploreSaveButton = within(exploreSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(exploreSaveButton).toBeEnabled();
+		});
+		await userEvent.click(exploreSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const UnavailableSavedModels: Story = {
+	args: makeArgs({
+		generalModelOverrideData: buildOverrideData("general", {
+			model_config_id: generalDisabledModelConfig.id,
+		}),
+		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
+			model_config_id: titleDisabledModelConfig.id,
+		}),
+		exploreModelOverrideData: buildOverrideData("explore", {
+			model_config_id: exploreDisabledModelConfig.id,
+		}),
+	}),
+	play: async ({ canvasElement }) => {
+		const generalSection = await getSection(canvasElement, "General model");
+		const titleSection = await getSection(
+			canvasElement,
+			"Title generation model",
+		);
+		const exploreSection = await getSection(
+			canvasElement,
+			"Explore subagent model",
+		);
+
+		for (const section of [generalSection, exploreSection]) {
+			await within(section).findByText(UNAVAILABLE_SAVED_MODEL_WARNING);
+			expect(
+				within(section).getByRole("combobox", { name: "Unavailable model" }),
+			).toBeInTheDocument();
+		}
+		await within(titleSection).findByText(
+			TITLE_UNAVAILABLE_SAVED_MODEL_WARNING,
+		);
+		expect(
+			within(titleSection).getByRole("combobox", {
+				name: "Unavailable model",
 			}),
 		).toBeInTheDocument();
 	},

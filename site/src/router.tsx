@@ -357,11 +357,26 @@ const AgentCreatePage = lazy(
 const AgentSettingsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPage"),
 );
-const AgentSettingsBehaviorPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsBehaviorPage"),
+const AgentSettingsGeneralPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
+);
+const AgentSettingsCompactionPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
+);
+const AgentSettingsInstructionsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsInstructionsPage"),
+);
+const AgentSettingsExperimentsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
+);
+const AgentSettingsLifecyclePage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsLifecyclePage"),
 );
 const AgentSettingsAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAgentsPage"),
+);
+const AgentSettingsUserAgentsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
 const AgentSettingsProvidersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsProvidersPage"),
@@ -393,6 +408,7 @@ import {
 	AgentsPageSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
 
+const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
@@ -650,7 +666,10 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
-						<Route index element={<Navigate to="request-logs" replace />} />
+						<Route
+							index
+							element={<Navigate to="/aibridge/sessions" replace />}
+						/>
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
 					</Route>
 
@@ -698,6 +717,7 @@ export const router = createBrowserRouter(
 					element={<TerminalPage />}
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
+				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
 				<Route
@@ -710,8 +730,26 @@ export const router = createBrowserRouter(
 				>
 					<Route index element={<AgentCreatePage />} />
 					<Route path="settings" element={<AgentSettingsPage />}>
-						<Route index element={<AgentSettingsBehaviorPage />} />
-						<Route path="behavior" element={<AgentSettingsBehaviorPage />} />
+						<Route index element={<AgentSettingsGeneralPage />} />
+						<Route path="general" element={<AgentSettingsGeneralPage />} />
+						<Route
+							path="compaction"
+							element={<AgentSettingsCompactionPage />}
+						/>
+						<Route
+							path="instructions"
+							element={<AgentSettingsInstructionsPage />}
+						/>
+						<Route
+							path="experiments"
+							element={<AgentSettingsExperimentsPage />}
+						/>
+						<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
+						<Route
+							path="user-agents"
+							element={<AgentSettingsUserAgentsPage />}
+						/>
+						<Route path="admin" element={<AgentSettingsAgentsPage />} />
 						<Route path="agents" element={<AgentSettingsAgentsPage />} />
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route path="providers" element={<AgentSettingsProvidersPage />} />

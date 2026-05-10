@@ -51,6 +51,10 @@ export const ExecuteSuccess: Story = {
 				"From github.com:coder/coder\n * [new branch]      feature/agent-ui -> origin/feature/agent-ui",
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
+	},
 };
 
 export const ExecuteAuthRequired: Story = {
@@ -983,6 +987,7 @@ export const WriteFileSuccess: Story = {
 	args: {
 		name: "write_file",
 		status: "completed",
+		codeDiffDisplayMode: "auto",
 		args: {
 			path: "src/utils/helpers.ts",
 			content:
@@ -992,6 +997,30 @@ export const WriteFileSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Wrote helpers\.ts/)).toBeInTheDocument();
+		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Wrote helpers\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByTestId("write-file-diff")).toBeVisible();
+		});
+	},
+};
+
+export const WriteFileAlwaysExpanded: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "always_expanded",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByTestId("write-file-diff")).toBeVisible();
 	},
 };
 
@@ -1027,6 +1056,7 @@ export const EditFilesSingleSuccess: Story = {
 	args: {
 		name: "edit_files",
 		status: "completed",
+		codeDiffDisplayMode: "auto",
 		args: {
 			files: [
 				{
@@ -1044,6 +1074,39 @@ export const EditFilesSingleSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited config\.ts/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+	},
+};
+
+export const EditFilesAlwaysCollapsed: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "always_collapsed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Edited config\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+		});
 	},
 };
 
@@ -1343,7 +1406,7 @@ export const ComputerTextFallback: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Text-only results are collapsed by default (no image).
-		const toggle = canvas.getByRole("button", { name: /Screenshot/ });
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
 		expect(toggle).toBeInTheDocument();
 		expect(canvas.queryByRole("img")).toBeNull();
 
@@ -1395,6 +1458,50 @@ export const ComputerArrayResult: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+	},
+};
+
+export const ComputerPromotedAttachmentArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+				attachment_file_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				attachment_name: "screenshot-2026-04-21T00-00-00Z.png",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
+		expect(toggle).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Screenshot from computer tool" }),
+		).toBeNull();
+
+		await userEvent.click(toggle);
+		expect(
+			canvas.getByText("Attached screenshot-2026-04-21T00-00-00Z.png"),
+		).toBeInTheDocument();
+	},
+};
+
+export const AttachFileLabelFallsBackToPathBasename: Story = {
+	args: {
+		name: "attach_file",
+		status: "completed",
+		args: {
+			path: "docs/runbooks/incident.md",
+		},
+		result: {},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Attached incident.md")).toBeInTheDocument();
 	},
 };
 
@@ -1955,6 +2062,41 @@ export const StartWorkspaceBuildFailed: Story = {
 	},
 };
 
+export const StartWorkspaceQuotaReached: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace start build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not start this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // create_workspace stories
 // ---------------------------------------------------------------------------
@@ -2016,6 +2158,41 @@ export const CreateWorkspaceCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceQuotaReached: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not create this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
 	},
 };
 

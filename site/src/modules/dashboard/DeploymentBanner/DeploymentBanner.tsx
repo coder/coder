@@ -18,7 +18,10 @@ const HIDE_DEPLOYMENT_BANNER_PATHS = [
 
 export const DeploymentBanner: FC = () => {
 	const { permissions } = useAuthenticated();
-	const deploymentStatsQuery = useQuery(deploymentStats());
+	const deploymentStatsQuery = useQuery({
+		...deploymentStats(),
+		enabled: permissions.viewDeploymentStats,
+	});
 	const healthQuery = useQuery({
 		...health(),
 		enabled: permissions.viewDeploymentConfig,

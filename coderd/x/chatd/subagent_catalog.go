@@ -8,7 +8,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -35,7 +37,7 @@ type subagentDefinition struct {
 	id                string
 	description       string
 	unavailableReason func(context.Context, *Server, database.Chat) string
-	buildOptions      func(context.Context, *Server, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
+	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
 func allSubagentDefinitions() []subagentDefinition {
@@ -43,22 +45,46 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeGeneral,
 			description: "delegated work that may inspect or modify workspace files",
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				return childSubagentChatOptions{}, nil
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				modelConfigID, err := p.resolveSubagentModelConfigID(
+					ctx,
+					parent.OwnerID,
+					codersdk.ChatModelOverrideContextGeneral,
+				)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				options := childSubagentChatOptions{}
+				if modelConfigID != uuid.Nil {
+					options.modelConfigIDOverride = &modelConfigID
+				}
+				return options, nil
 			},
 		},
 		{
 			id:          subagentTypeExplore,
 			description: "read-only discovery, code tracing, and system understanding",
-			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, err := p.resolveExploreSubagentModelConfigID(
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				modelConfigID, err := p.resolveSubagentModelConfigID(
 					ctx,
-					parent.OwnerID,
-					currentModelConfigID,
+					turnParent.OwnerID,
+					codersdk.ChatModelOverrideContextExplore,
 				)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
+				if modelConfigID == uuid.Nil {
+					modelConfigID = currentModelConfigID
+				}
+				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
+					ctx,
+					turnParent,
+				)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				// Clearing plan mode changes only the Explore model behavior.
+				// The inherited tool snapshot still comes from the parent turn.
 				clearPlanMode := database.NullChatPlanMode{}
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
@@ -67,6 +93,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					},
 					modelConfigIDOverride: &modelConfigID,
 					planModeOverride:      &clearPlanMode,
+					inheritedMCPServerIDs: inheritedMCPServerIDs,
 				}, nil
 			},
 		},
@@ -77,12 +104,34 @@ func allSubagentDefinitions() []subagentDefinition {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}
-				if !p.isAnthropicConfigured(ctx) || !p.isDesktopEnabled(ctx) {
-					return `type "computer_use" is unavailable because computer use is not configured`
+				if !p.isDesktopEnabled(ctx) {
+					return `type "computer_use" is unavailable because desktop access is not enabled`
+				}
+				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				if err != nil {
+					p.logger.Warn(ctx, "computer-use provider config is unavailable",
+						slog.F("chat_id", currentChat.ID),
+						slog.Error(err),
+					)
+					return `type "computer_use" is unavailable because its provider configuration could not be loaded`
 				}
 				return ""
 			},
-			buildOptions: func(_ context.Context, _ *Server, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				configured, err := p.providerConfigured(ctx, provider)
+				if err != nil {
+					return childSubagentChatOptions{}, err
+				}
+				if !configured {
+					return childSubagentChatOptions{}, xerrors.Errorf(
+						`API key for computer-use provider %q is not configured`,
+						provider,
+					)
+				}
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
 						ChatMode: database.ChatModeComputerUse,

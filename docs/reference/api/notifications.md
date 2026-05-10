@@ -12,7 +12,7 @@ curl -X POST http://coder-server:8080/api/v2/notifications/custom \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /notifications/custom`
+`POST /api/v2/notifications/custom`
 
 > Body parameter
 
@@ -70,7 +70,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /notifications/dispatch-methods`
+`GET /api/v2/notifications/dispatch-methods`
 
 ### Example responses
 
@@ -116,7 +116,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /notifications/inbox`
+`GET /api/v2/notifications/inbox`
 
 ### Parameters
 
@@ -176,7 +176,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/mark-all-as-read
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /notifications/inbox/mark-all-as-read`
+`PUT /api/v2/notifications/inbox/mark-all-as-read`
 
 ### Responses
 
@@ -197,7 +197,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /notifications/inbox/watch`
+`GET /api/v2/notifications/inbox/watch`
 
 ### Parameters
 
@@ -262,7 +262,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /notifications/inbox/{id}/read-status`
+`PUT /api/v2/notifications/inbox/{id}/read-status`
 
 ### Parameters
 
@@ -306,7 +306,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/settings \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /notifications/settings`
+`GET /api/v2/notifications/settings`
 
 ### Example responses
 
@@ -338,7 +338,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /notifications/settings`
+`PUT /api/v2/notifications/settings`
 
 > Body parameter
 
@@ -384,7 +384,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/custom \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /notifications/templates/custom`
+`GET /api/v2/notifications/templates/custom`
 
 ### Example responses
 
@@ -443,7 +443,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /notifications/templates/system`
+`GET /api/v2/notifications/templates/system`
 
 ### Example responses
 
@@ -501,7 +501,7 @@ curl -X POST http://coder-server:8080/api/v2/notifications/test \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /notifications/test`
+`POST /api/v2/notifications/test`
 
 ### Responses
 
@@ -522,7 +522,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/notifications/preferences`
+`GET /api/v2/users/{user}/notifications/preferences`
 
 ### Parameters
 
@@ -575,7 +575,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/notifications/preferences`
+`PUT /api/v2/users/{user}/notifications/preferences`
 
 > Body parameter
 

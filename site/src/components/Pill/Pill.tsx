@@ -1,46 +1,58 @@
-import type { Interpolation, Theme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import CircularProgress, {
 	type CircularProgressProps,
 } from "@mui/material/CircularProgress";
 import { type FC, type ReactNode, useMemo } from "react";
 import type { ThemeRole } from "#/theme/roles";
+import { cn } from "#/utils/cn";
+
+type PillType = ThemeRole | "muted";
 
 type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon?: ReactNode;
-	type?: ThemeRole;
+	type?: PillType;
 	size?: "md" | "lg";
 };
 
-const themeStyles = (type: ThemeRole) => (theme: Theme) => {
-	const palette = theme.roles[type];
-	return {
-		backgroundColor: palette.background,
-		borderColor: palette.outline,
-	};
-};
-
-const PILL_HEIGHT = 24;
 const PILL_ICON_SIZE = 14;
-const PILL_ICON_SPACING = (PILL_HEIGHT - PILL_ICON_SIZE) / 2;
 
 export const Pill: FC<PillProps> = ({
 	icon,
 	type = "inactive",
 	children,
 	size = "md",
+	className,
+	style,
 	...divProps
 }) => {
-	const typeStyles = useMemo(() => themeStyles(type), [type]);
+	const theme = useTheme();
+	const roleColors = useMemo(() => {
+		if (type === "muted") {
+			return undefined;
+		}
+		const palette = theme.roles[type];
+		return {
+			backgroundColor: palette.background,
+			borderColor: palette.outline,
+			color: palette.text,
+		};
+	}, [theme, type]);
 
 	return (
 		<div
-			css={[
-				styles.pill,
-				Boolean(icon) && size === "md" && styles.pillWithIcon,
-				size === "lg" && styles.pillLg,
-				Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
-				typeStyles,
-			]}
+			className={cn(
+				"inline-flex items-center whitespace-nowrap rounded-full border border-solid",
+				"font-normal text-xs leading-none cursor-default",
+				"[&>svg]:size-[14px]",
+				type === "muted" &&
+					"bg-surface-tertiary border-border-secondary text-content-secondary",
+				size === "md" && "h-6 gap-[5px] px-3",
+				Boolean(icon) && size === "md" && "pl-[5px]",
+				size === "lg" && "h-[30px] gap-[10px] px-4",
+				Boolean(icon) && size === "lg" && "pl-[10px]",
+				className,
+			)}
+			style={{ ...roleColors, ...style }}
 			{...divProps}
 		>
 			{icon}
@@ -50,53 +62,13 @@ export const Pill: FC<PillProps> = ({
 };
 
 export const PillSpinner: FC<CircularProgressProps> = (props) => {
+	const theme = useTheme();
 	return (
-		<CircularProgress size={PILL_ICON_SIZE} css={styles.spinner} {...props} />
+		<CircularProgress
+			size={PILL_ICON_SIZE}
+			sx={{ "& svg": { transform: "scale(.75)" } }}
+			style={{ color: theme.experimental.l1.text }}
+			{...props}
+		/>
 	);
 };
-
-const styles = {
-	pill: (theme) => ({
-		fontSize: 12,
-		color: theme.experimental.l1.text,
-		cursor: "default",
-		display: "inline-flex",
-		alignItems: "center",
-		whiteSpace: "nowrap",
-		fontWeight: 400,
-		borderWidth: 1,
-		borderStyle: "solid",
-		borderRadius: 99999,
-		lineHeight: 1,
-		height: PILL_HEIGHT,
-		gap: PILL_ICON_SPACING,
-		paddingLeft: 12,
-		paddingRight: 12,
-
-		"& svg": {
-			width: PILL_ICON_SIZE,
-			height: PILL_ICON_SIZE,
-		},
-	}),
-
-	pillWithIcon: {
-		paddingLeft: PILL_ICON_SPACING,
-	},
-
-	pillLg: {
-		gap: PILL_ICON_SPACING * 2,
-		padding: "14px 16px",
-	},
-
-	pillLgWithIcon: {
-		paddingLeft: PILL_ICON_SPACING * 2,
-	},
-
-	spinner: (theme) => ({
-		color: theme.experimental.l1.text,
-		// It is necessary to align it with the MUI Icons internal padding
-		"& svg": {
-			transform: "scale(.75)",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

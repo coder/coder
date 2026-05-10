@@ -19,6 +19,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -72,6 +74,26 @@ func ProviderDisplayName(provider string) string {
 		return displayName
 	}
 	return normalized
+}
+
+// ProviderAllowsAmbientCredentials reports whether provider can use
+// ambient credentials from the Coder server instead of an explicit
+// API key.
+func ProviderAllowsAmbientCredentials(provider string) bool {
+	return NormalizeProvider(provider) == fantasybedrock.Name
+}
+
+// InlineImageCapBytes returns the per-image byte cap for inline
+// image parts, or (0, false) when no documented cap applies.
+// Bedrock shares Anthropic's cap because fantasy's bedrock provider
+// wraps the anthropic client.
+func InlineImageCapBytes(provider string) (int, bool) {
+	switch NormalizeProvider(provider) {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		return codersdk.AnthropicInlineImageCapBytes, true
+	default:
+		return 0, false
+	}
 }
 
 // ProviderAPIKeys contains API keys for provider calls.
@@ -134,6 +156,17 @@ func (k ProviderAPIKeys) APIKey(provider string) string {
 	default:
 		return ""
 	}
+}
+
+// HasProvider reports whether a provider has an explicit resolved entry
+// in the provider key map, even when the resolved key is empty.
+func (k ProviderAPIKeys) HasProvider(provider string) bool {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" || k.ByProvider == nil {
+		return false
+	}
+	_, ok := k.ByProvider[normalized]
+	return ok
 }
 
 // BaseURL returns the configured base URL for a provider.
@@ -295,6 +328,15 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
+		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
+			// Bedrock can use ambient AWS credentials from the Coder server
+			// without an explicit key, but only when the credential policy
+			// allows central credentials to satisfy the request.
+			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
+				resolved.Available = true
+			} else {
+				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+			}
 		case provider.AllowUserAPIKey && provider.AllowCentralAPIKeyFallback && provider.CentralAPIKeyEnabled:
 			// When users can add their own key, a missing central fallback key is
 			// still something the user can remedy.
@@ -305,14 +347,18 @@ func ResolveUserProviderKeys(
 			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
 		}
 
-		setResolvedProviderAPIKey(&merged, normalizedProvider, chosenKey)
+		setResolvedProviderAPIKey(&merged, normalizedProvider, chosenKey, resolved)
 		availabilityByProvider[normalizedProvider] = resolved
 	}
 
 	return merged, availabilityByProvider
 }
 
-func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey string) {
+// setResolvedProviderAPIKey keeps ByProvider presence aligned with
+// resolved provider availability. An empty value means ambient
+// credentials may satisfy the provider. An absent entry means the
+// provider is not resolvable.
+func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey string, availability ProviderAvailability) {
 	normalizedProvider := NormalizeProvider(provider)
 	if normalizedProvider == "" {
 		return
@@ -329,7 +375,7 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	case fantasyanthropic.Name:
 		keys.Anthropic = trimmedKey
 	}
-	if trimmedKey != "" {
+	if trimmedKey != "" || (availability.Available && ProviderAllowsAmbientCredentials(normalizedProvider)) {
 		keys.ByProvider[normalizedProvider] = trimmedKey
 	}
 }
@@ -606,7 +652,7 @@ func isChatModelForProvider(provider, modelID string) bool {
 	case fantasyopenai.Name:
 		return strings.HasPrefix(normalizedModel, "gpt-") ||
 			strings.HasPrefix(normalizedModel, "chatgpt-") ||
-			isOpenAIReasoningModel(normalizedModel)
+			chatopenai.IsReasoningModel(normalizedModel)
 	case fantasyanthropic.Name:
 		return strings.HasPrefix(normalizedModel, "claude-")
 	case fantasygoogle.Name:
@@ -615,25 +661,6 @@ func isChatModelForProvider(provider, modelID string) bool {
 	default:
 		return false
 	}
-}
-
-func isOpenAIReasoningModel(modelID string) bool {
-	if len(modelID) < 2 || modelID[0] != 'o' {
-		return false
-	}
-
-	index := 1
-	for index < len(modelID) && modelID[index] >= '0' && modelID[index] <= '9' {
-		index++
-	}
-	if index == 1 {
-		return false
-	}
-
-	if index == len(modelID) {
-		return true
-	}
-	return modelID[index] == '-' || modelID[index] == '.'
 }
 
 // ReasoningEffortFromChat normalizes chat-config reasoning effort values for a
@@ -650,16 +677,14 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 
 	switch NormalizeProvider(provider) {
 	case fantasyopenai.Name:
-		return normalizedEnumValue(
-			normalized,
-			string(fantasyopenai.ReasoningEffortMinimal),
-			string(fantasyopenai.ReasoningEffortLow),
-			string(fantasyopenai.ReasoningEffortMedium),
-			string(fantasyopenai.ReasoningEffortHigh),
-			string(fantasyopenai.ReasoningEffortXHigh),
-		)
+		effort := chatopenai.ReasoningEffortFromChat(value)
+		if effort == nil {
+			return nil
+		}
+		valueCopy := string(*effort)
+		return &valueCopy
 	case fantasyanthropic.Name:
-		return normalizedEnumValue(
+		return chatutil.NormalizedEnumValue(
 			normalized,
 			string(fantasyanthropic.EffortLow),
 			string(fantasyanthropic.EffortMedium),
@@ -668,14 +693,14 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 			string(fantasyanthropic.EffortMax),
 		)
 	case fantasyopenrouter.Name:
-		return normalizedEnumValue(
+		return chatutil.NormalizedEnumValue(
 			normalized,
 			string(fantasyopenrouter.ReasoningEffortLow),
 			string(fantasyopenrouter.ReasoningEffortMedium),
 			string(fantasyopenrouter.ReasoningEffortHigh),
 		)
 	case fantasyvercel.Name:
-		return normalizedEnumValue(
+		return chatutil.NormalizedEnumValue(
 			normalized,
 			string(fantasyvercel.ReasoningEffortNone),
 			string(fantasyvercel.ReasoningEffortMinimal),
@@ -687,41 +712,6 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 	default:
 		return nil
 	}
-}
-
-// OpenAITextVerbosityFromChat normalizes chat-config text verbosity values for
-// OpenAI and returns the canonical provider verbosity value.
-func OpenAITextVerbosityFromChat(value *string) *fantasyopenai.TextVerbosity {
-	if value == nil {
-		return nil
-	}
-
-	normalized := strings.ToLower(strings.TrimSpace(*value))
-	if normalized == "" {
-		return nil
-	}
-
-	verbosity := normalizedEnumValue(
-		normalized,
-		string(fantasyopenai.TextVerbosityLow),
-		string(fantasyopenai.TextVerbosityMedium),
-		string(fantasyopenai.TextVerbosityHigh),
-	)
-	if verbosity == nil {
-		return nil
-	}
-	valueCopy := fantasyopenai.TextVerbosity(*verbosity)
-	return &valueCopy
-}
-
-func normalizedEnumValue(value string, allowed ...string) *string {
-	for _, candidate := range allowed {
-		if value == strings.ToLower(candidate) {
-			match := candidate
-			return &match
-		}
-	}
-	return nil
 }
 
 // MergeMissingModelCostConfig fills unset pricing metadata from defaults.
@@ -1132,7 +1122,8 @@ func ModelFromConfig(
 	}
 
 	apiKey := providerKeys.APIKey(provider)
-	if apiKey == "" {
+	if apiKey == "" &&
+		!(ProviderAllowsAmbientCredentials(provider) && providerKeys.HasProvider(provider)) {
 		return nil, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
@@ -1173,11 +1164,16 @@ func ModelFromConfig(
 		providerClient, err = fantasyazure.New(azureOpts...)
 	case fantasybedrock.Name:
 		bedrockOpts := []fantasybedrock.Option{
-			fantasybedrock.WithAPIKey(apiKey),
 			fantasybedrock.WithUserAgent(userAgent),
+		}
+		if apiKey != "" {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))
 		}
 		if len(extraHeaders) > 0 {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHeaders(extraHeaders))
+		}
+		if baseURL != "" {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithBaseURL(baseURL))
 		}
 		if httpClient != nil {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHTTPClient(httpClient))
@@ -1260,7 +1256,7 @@ func ModelFromConfig(
 		return nil, xerrors.Errorf("unsupported model provider %q", provider)
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("create %s provider: %w", provider, err)
+		return nil, providerCreationError(provider, err)
 	}
 
 	model, err := providerClient.LanguageModel(context.Background(), modelID)
@@ -1270,14 +1266,19 @@ func ModelFromConfig(
 	return model, nil
 }
 
+func providerCreationError(provider string, err error) error {
+	return xerrors.Errorf("create %s provider: %w", provider, err)
+}
+
+// Providers that allow ambient credentials, such as Bedrock, bypass
+// this helper only after ResolveUserProviderKeys marks them
+// available.
 func missingProviderAPIKeyError(provider string) error {
 	switch provider {
 	case fantasyanthropic.Name:
 		return xerrors.New("ANTHROPIC_API_KEY is not set")
 	case fantasyazure.Name:
 		return xerrors.New("AZURE_OPENAI_API_KEY is not set")
-	case fantasybedrock.Name:
-		return xerrors.New("BEDROCK_API_KEY is not set")
 	case fantasygoogle.Name:
 		return xerrors.New("GOOGLE_API_KEY is not set")
 	case fantasyopenai.Name:
@@ -1306,7 +1307,7 @@ func ProviderOptionsFromChatModelConfig(
 	result := fantasy.ProviderOptions{}
 
 	if options.OpenAI != nil {
-		result[fantasyopenai.Name] = openAIProviderOptionsFromChatConfig(
+		result[fantasyopenai.Name] = chatopenai.ProviderOptionsFromChatConfig(
 			model,
 			options.OpenAI,
 		)
@@ -1341,92 +1342,6 @@ func ProviderOptionsFromChatModelConfig(
 		return nil
 	}
 	return result
-}
-
-// IsResponsesStoreEnabled checks if the OpenAI Responses provider
-// options are present and have Store set to true. When true, the
-// provider stores conversation history server-side, enabling
-// follow-up chaining via PreviousResponseID.
-func IsResponsesStoreEnabled(opts fantasy.ProviderOptions) bool {
-	if opts == nil {
-		return false
-	}
-	raw, ok := opts[fantasyopenai.Name]
-	if !ok {
-		return false
-	}
-	respOpts, ok := raw.(*fantasyopenai.ResponsesProviderOptions)
-	if !ok || respOpts == nil {
-		return false
-	}
-	return respOpts.Store != nil && *respOpts.Store
-}
-
-// CloneWithPreviousResponseID shallow-clones the provider options
-// map and the OpenAI Responses entry, setting PreviousResponseID
-// on the clone. The original map and entry are not mutated.
-func CloneWithPreviousResponseID(
-	opts fantasy.ProviderOptions,
-	previousResponseID string,
-) fantasy.ProviderOptions {
-	cloned := make(fantasy.ProviderOptions, len(opts))
-	for k, v := range opts {
-		cloned[k] = v
-	}
-	if raw, ok := cloned[fantasyopenai.Name]; ok {
-		if respOpts, ok := raw.(*fantasyopenai.ResponsesProviderOptions); ok && respOpts != nil {
-			clone := *respOpts
-			clone.PreviousResponseID = &previousResponseID
-			cloned[fantasyopenai.Name] = &clone
-		}
-	}
-	return cloned
-}
-
-func openAIProviderOptionsFromChatConfig(
-	model fantasy.LanguageModel,
-	options *codersdk.ChatModelOpenAIProviderOptions,
-) fantasy.ProviderOptionsData {
-	reasoningEffort := openAIReasoningEffortFromChat(options.ReasoningEffort)
-	if useOpenAIResponsesOptions(model) {
-		include := ensureOpenAIResponseIncludes(openAIIncludeFromChat(options.Include))
-		providerOptions := &fantasyopenai.ResponsesProviderOptions{
-			Include:           include,
-			Instructions:      normalizedStringPointer(options.Instructions),
-			Logprobs:          openAIResponsesLogProbsFromChat(options),
-			MaxToolCalls:      options.MaxToolCalls,
-			Metadata:          options.Metadata,
-			ParallelToolCalls: options.ParallelToolCalls,
-			PromptCacheKey:    normalizedStringPointer(options.PromptCacheKey),
-			ReasoningEffort:   reasoningEffort,
-			ReasoningSummary:  normalizedStringPointer(options.ReasoningSummary),
-			SafetyIdentifier:  normalizedStringPointer(options.SafetyIdentifier),
-			ServiceTier:       openAIServiceTierFromChat(options.ServiceTier),
-			StrictJSONSchema:  options.StrictJSONSchema,
-			Store:             boolPtrOrDefault(options.Store, true),
-			TextVerbosity:     OpenAITextVerbosityFromChat(options.TextVerbosity),
-			User:              normalizedStringPointer(options.User),
-		}
-		return providerOptions
-	}
-
-	return &fantasyopenai.ProviderOptions{
-		LogitBias:           options.LogitBias,
-		LogProbs:            options.LogProbs,
-		TopLogProbs:         options.TopLogProbs,
-		ParallelToolCalls:   options.ParallelToolCalls,
-		User:                normalizedStringPointer(options.User),
-		ReasoningEffort:     reasoningEffort,
-		MaxCompletionTokens: options.MaxCompletionTokens,
-		TextVerbosity:       normalizedStringPointer(options.TextVerbosity),
-		Prediction:          options.Prediction,
-		Store:               boolPtrOrDefault(options.Store, true),
-		Metadata:            options.Metadata,
-		PromptCacheKey:      normalizedStringPointer(options.PromptCacheKey),
-		SafetyIdentifier:    normalizedStringPointer(options.SafetyIdentifier),
-		ServiceTier:         normalizedStringPointer(options.ServiceTier),
-		StructuredOutputs:   options.StructuredOutputs,
-	}
 }
 
 func anthropicProviderOptionsFromChatConfig(
@@ -1478,8 +1393,8 @@ func openAICompatProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAICompatProviderOptions,
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
-		User:            normalizedStringPointer(options.User),
-		ReasoningEffort: openAIReasoningEffortFromChat(options.ReasoningEffort),
+		User:            chatutil.NormalizedStringPointer(options.User),
+		ReasoningEffort: chatopenai.ReasoningEffortFromChat(options.ReasoningEffort),
 	}
 }
 
@@ -1492,7 +1407,7 @@ func openRouterProviderOptionsFromChatConfig(
 		LogitBias:         options.LogitBias,
 		LogProbs:          options.LogProbs,
 		ParallelToolCalls: options.ParallelToolCalls,
-		User:              normalizedStringPointer(options.User),
+		User:              chatutil.NormalizedStringPointer(options.User),
 	}
 	if options.Reasoning != nil {
 		result.Reasoning = &fantasyopenrouter.ReasoningOptions{
@@ -1507,11 +1422,11 @@ func openRouterProviderOptionsFromChatConfig(
 			Order:             options.Provider.Order,
 			AllowFallbacks:    options.Provider.AllowFallbacks,
 			RequireParameters: options.Provider.RequireParameters,
-			DataCollection:    normalizedStringPointer(options.Provider.DataCollection),
+			DataCollection:    chatutil.NormalizedStringPointer(options.Provider.DataCollection),
 			Only:              options.Provider.Only,
 			Ignore:            options.Provider.Ignore,
 			Quantizations:     options.Provider.Quantizations,
-			Sort:              normalizedStringPointer(options.Provider.Sort),
+			Sort:              chatutil.NormalizedStringPointer(options.Provider.Sort),
 		}
 	}
 	return result
@@ -1521,7 +1436,7 @@ func vercelProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelVercelProviderOptions,
 ) *fantasyvercel.ProviderOptions {
 	result := &fantasyvercel.ProviderOptions{
-		User:              normalizedStringPointer(options.User),
+		User:              chatutil.NormalizedStringPointer(options.User),
 		LogitBias:         options.LogitBias,
 		LogProbs:          options.LogProbs,
 		TopLogProbs:       options.TopLogProbs,
@@ -1543,89 +1458,6 @@ func vercelProviderOptionsFromChatConfig(
 		}
 	}
 	return result
-}
-
-func openAIResponsesLogProbsFromChat(
-	options *codersdk.ChatModelOpenAIProviderOptions,
-) any {
-	if options.TopLogProbs != nil {
-		return *options.TopLogProbs
-	}
-	if options.LogProbs != nil {
-		return *options.LogProbs
-	}
-	return nil
-}
-
-func openAIIncludeFromChat(values []string) []fantasyopenai.IncludeType {
-	if values == nil {
-		return nil
-	}
-
-	result := make([]fantasyopenai.IncludeType, 0, len(values))
-	for _, value := range values {
-		switch strings.TrimSpace(value) {
-		case string(fantasyopenai.IncludeReasoningEncryptedContent):
-			result = append(result, fantasyopenai.IncludeReasoningEncryptedContent)
-		case string(fantasyopenai.IncludeFileSearchCallResults):
-			result = append(result, fantasyopenai.IncludeFileSearchCallResults)
-		case string(fantasyopenai.IncludeMessageOutputTextLogprobs):
-			result = append(result, fantasyopenai.IncludeMessageOutputTextLogprobs)
-		}
-	}
-	return result
-}
-
-func ensureOpenAIResponseIncludes(
-	values []fantasyopenai.IncludeType,
-) []fantasyopenai.IncludeType {
-	const required = fantasyopenai.IncludeReasoningEncryptedContent
-
-	for _, value := range values {
-		if value == required {
-			return values
-		}
-	}
-	return append(values, required)
-}
-
-func useOpenAIResponsesOptions(model fantasy.LanguageModel) bool {
-	if model == nil {
-		return false
-	}
-	switch model.Provider() {
-	case fantasyopenai.Name, fantasyazure.Name:
-		return fantasyopenai.IsResponsesModel(model.Model())
-	default:
-		return false
-	}
-}
-
-func boolPtrOrDefault(value *bool, def bool) *bool {
-	if value != nil {
-		return value
-	}
-	return &def
-}
-
-func normalizedStringPointer(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-func openAIReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
-	effort := ReasoningEffortFromChat(fantasyopenai.Name, value)
-	if effort == nil {
-		return nil
-	}
-	valueCopy := fantasyopenai.ReasoningEffort(*effort)
-	return &valueCopy
 }
 
 func anthropicEffortFromChat(value *string) *fantasyanthropic.Effort {
@@ -1653,24 +1485,4 @@ func vercelReasoningEffortFromChat(value *string) *fantasyvercel.ReasoningEffort
 	}
 	valueCopy := fantasyvercel.ReasoningEffort(*effort)
 	return &valueCopy
-}
-
-func openAIServiceTierFromChat(value *string) *fantasyopenai.ServiceTier {
-	normalized := normalizedStringPointer(value)
-	if normalized == nil {
-		return nil
-	}
-	switch strings.ToLower(*normalized) {
-	case string(fantasyopenai.ServiceTierAuto):
-		serviceTier := fantasyopenai.ServiceTierAuto
-		return &serviceTier
-	case string(fantasyopenai.ServiceTierFlex):
-		serviceTier := fantasyopenai.ServiceTierFlex
-		return &serviceTier
-	case string(fantasyopenai.ServiceTierPriority):
-		serviceTier := fantasyopenai.ServiceTierPriority
-		return &serviceTier
-	default:
-		return nil
-	}
 }

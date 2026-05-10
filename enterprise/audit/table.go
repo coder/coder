@@ -30,6 +30,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AiSeatState":     {codersdk.AuditActionCreate},
 	"Chat":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"UserSecret":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -386,18 +387,19 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"workspace_id":          ActionTrack,
 		"build_id":              ActionIgnore, // Internal lifecycle.
 		"agent_id":              ActionIgnore, // Internal lifecycle.
-		"title":                 ActionSecret,
+		"title":                 ActionSecret, // May contain sensitive content.
 		"status":                ActionIgnore, // Churns every message.
 		"worker_id":             ActionIgnore, // Internal.
 		"started_at":            ActionIgnore,
-		"heartbeat_at":          ActionIgnore,
+		"heartbeat_at":          ActionIgnore, // Internal.
 		"created_at":            ActionIgnore, // Never changes.
 		"updated_at":            ActionIgnore, // Bumped on every mutation.
 		"parent_chat_id":        ActionIgnore, // Immutable after creation.
 		"root_chat_id":          ActionIgnore, // Immutable after creation.
 		"last_model_config_id":  ActionIgnore, // Churns every message.
 		"archived":              ActionTrack,
-		"last_error":            ActionIgnore,
+		"last_error":            ActionIgnore, // Internal.
+		"last_turn_summary":     ActionIgnore, // Internal cached display text.
 		"mode":                  ActionTrack,
 		"mcp_server_ids":        ActionTrack,
 		"labels":                ActionTrack,
@@ -407,6 +409,20 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"dynamic_tools":         ActionIgnore, // Internal lifecycle.
 		"plan_mode":             ActionIgnore, // Can flip back and forth during a session.
 		"client_type":           ActionIgnore, // Set at creation.
+	},
+	&database.UserSecret{}: {
+		"id":          ActionTrack,
+		"user_id":     ActionTrack,
+		"name":        ActionTrack,
+		"description": ActionTrack,
+		"env_name":    ActionTrack,
+		"file_path":   ActionTrack,
+
+		"value": ActionSecret,
+
+		"value_key_id": ActionIgnore,
+		"created_at":   ActionIgnore,
+		"updated_at":   ActionIgnore,
 	},
 }
 

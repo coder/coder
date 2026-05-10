@@ -4,7 +4,7 @@ AI Gateway runs inside the Coder control plane (`coderd`), requiring no separate
 
 **Required**:
 
-1. A **Premium** license with the [AI Governance Add-On](../ai-governance.md).
+1. The [AI Governance Add-On](../ai-governance.md) license.
 1. Feature must be [enabled](#activation) using the server flag
 1. One or more [providers](#configure-providers) API key(s) must be configured
 
@@ -60,6 +60,10 @@ Alternatively, set `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base
 If both are set, `CODER_AIBRIDGE_BEDROCK_BASE_URL` takes precedence.
 - `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
 - `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
+
+> [!NOTE]
+> These Bedrock settings configure AI Gateway only. To configure Bedrock as an
+> Agents provider, see [Configuring AWS Bedrock](../agents/models.md#configuring-aws-bedrock).
 
 **Optional:**
 
@@ -209,12 +213,20 @@ requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
 
 **Supported keys per provider:**
 
-| Key        | Required | Description                                          |
-|------------|----------|------------------------------------------------------|
-| `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`   |
-| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE` |
-| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)  |
-| `BASE_URL` | No       | Base URL of the upstream API                         |
+| Key        | Required | Description                                           |
+|------------|----------|-------------------------------------------------------|
+| `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`    |
+| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE`  |
+| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)   |
+| `BASE_URL` | No       | Base URL of the upstream API                          |
+| `DUMP_DIR` | No       | Directory for provider API request and response dumps |
+
+> [!WARNING]
+> `DUMP_DIR` is not intended for regular use. Setting this option
+> results in a high number of writes. Dump files contain raw request and
+> response data, which may include proprietary or sensitive information
+> (prompts, completions, tool inputs). Enable only briefly for diagnostic
+> purposes and protect the target directory.
 
 For `anthropic` providers using AWS Bedrock, the following keys are also
 available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`,

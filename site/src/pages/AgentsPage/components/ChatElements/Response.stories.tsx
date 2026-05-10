@@ -60,6 +60,128 @@ export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
 	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /func ValidateToken/, {
+			highlighted: true,
+		});
+	},
+};
+
+const singleLineCodeBlockMarkdown = `
+\`\`\`
+07c3697 feat: update agent skills
+\`\`\`
+`;
+
+const findCodeBlockHost = async (canvasElement: HTMLElement, text: RegExp) => {
+	let host: HTMLElement | undefined;
+	await waitFor(() => {
+		const hosts = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).filter(
+			(element): element is HTMLElement => element instanceof HTMLElement,
+		);
+		host = hosts.find((element) => {
+			text.lastIndex = 0;
+			return text.test(element.shadowRoot?.textContent ?? "");
+		});
+		expect(host).toBeDefined();
+	});
+
+	if (!host) {
+		throw new Error("Expected fenced code to render inside FileViewer.");
+	}
+	return host;
+};
+
+const expectCodeBlock = async (
+	canvasElement: HTMLElement,
+	text: RegExp,
+	options: { highlighted?: boolean } = {},
+) => {
+	const host = await findCodeBlockHost(canvasElement, text);
+	expect(host).toBeInTheDocument();
+	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
+	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
+
+	const shadowRoot = host.shadowRoot;
+	if (!shadowRoot) {
+		throw new Error("Expected FileViewer to render code in its shadow root.");
+	}
+	expect(shadowRoot.textContent ?? "").not.toContain("```");
+
+	const pre = shadowRoot.querySelector(
+		"pre[data-file][data-disable-line-numbers]",
+	);
+	expect(pre).toBeInTheDocument();
+	if (!(pre instanceof HTMLElement)) {
+		throw new Error("Expected FileViewer to render a pre element.");
+	}
+
+	const code = shadowRoot.querySelector("[data-code]");
+	expect(code).toBeInTheDocument();
+	if (!(code instanceof HTMLElement)) {
+		throw new Error("Expected FileViewer to render a code container.");
+	}
+
+	const line = shadowRoot.querySelector("[data-line]");
+	expect(line).toBeInTheDocument();
+	if (!(line instanceof HTMLElement)) {
+		throw new Error("Expected FileViewer to render code lines.");
+	}
+
+	const gutter = shadowRoot.querySelector("[data-column-number]");
+	expect(gutter).toBeInTheDocument();
+	if (!(gutter instanceof HTMLElement)) {
+		throw new Error("Expected FileViewer to render its line-number gutter.");
+	}
+
+	const preStyles = getComputedStyle(pre);
+	expect(preStyles.fontSize).toBe("12px");
+	expect(preStyles.lineHeight).toBe("20px");
+
+	const codeStyles = getComputedStyle(code);
+	expect(codeStyles.paddingTop).toBe("8px");
+	expect(codeStyles.paddingBottom).toBe("8px");
+	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
+
+	const lineStyles = getComputedStyle(line);
+	expect(lineStyles.paddingLeft).toBe("12px");
+	expect(lineStyles.paddingRight).toBe("12px");
+	expect(lineStyles.paddingRight).toBe(lineStyles.paddingLeft);
+	expect(lineStyles.minHeight).toBe("20px");
+
+	const gutterStyles = getComputedStyle(gutter);
+	expect(gutterStyles.minWidth).toBe("0px");
+	expect(gutterStyles.paddingLeft).toBe("0px");
+	expect(gutterStyles.paddingRight).toBe("0px");
+
+	if (options.highlighted) {
+		let highlightedToken: HTMLElement | null = null;
+		await waitFor(() => {
+			const token = shadowRoot.querySelector("span[style*='color']");
+			expect(token).toBeInTheDocument();
+			if (!(token instanceof HTMLElement)) {
+				throw new Error("Expected FileViewer to render highlighted tokens.");
+			}
+			highlightedToken = token;
+		});
+		if (!highlightedToken) {
+			throw new Error("Expected FileViewer to render highlighted tokens.");
+		}
+		expect(getComputedStyle(highlightedToken).color).not.toBe(lineStyles.color);
+	}
+
+	return host;
+};
+
+export const SingleLineFencedBlock: Story = {
+	args: {
+		children: singleLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /07c3697 feat/);
+	},
 };
 
 export const MarkdownAndLinksLight: Story = {
@@ -124,22 +246,17 @@ export const StreamingInlineMarkdown: Story = {
 };
 
 // Verifies that an incomplete fenced code block in streaming mode
-// renders inside a code element rather than showing raw backticks.
-// The FileViewer renders a <diffs-container> web component whose
-// content lives in Shadow DOM, so we assert on DOM structure rather
-// than text content inside the web component.
+// renders as code rather than showing raw backticks.
 export const StreamingCodeFence: Story = {
 	args: {
 		children: "```ts\nconst x = 1",
 		streaming: true,
 	},
 	play: async ({ canvasElement }) => {
-		// The code fence should be parsed into a FileViewer (web component),
-		// not rendered as raw backtick text.
-		await waitFor(() => {
-			const viewer = canvasElement.querySelector("diffs-container");
-			expect(viewer).toBeInTheDocument();
+		await expectCodeBlock(canvasElement, /const x = 1/, {
+			highlighted: true,
 		});
+
 		// The raw triple-backtick should not appear as visible text.
 		const bodyText = canvasElement.textContent ?? "";
 		expect(bodyText).not.toContain("```");

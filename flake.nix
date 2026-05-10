@@ -94,7 +94,7 @@
         # 3. Update the sha256 and run again
         # 4. Nix will fail with the correct vendorHash
         # 5. Update the vendorHash
-        sqlc-custom = unstablePkgs.buildGo125Module {
+        sqlc-custom = unstablePkgs.buildGo126Module {
           pname = "sqlc";
           version = "coder-fork-aab4e865a51df0c43e1839f81a9d349b41d14f05";
 
@@ -111,13 +111,13 @@
 
         # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
         # so `make gen` remains deterministic in Nix shells.
-        terraform_1_14_1 =
+        terraform_1_15_2 =
           if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
-            pkgs.runCommand "terraform-1.14.1" {
+            pkgs.runCommand "terraform-1.15.2" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.14.1/terraform_1.14.1_linux_amd64.zip";
-                hash = "sha256-n1MHDuYm354VeIfB0/mvPYEHobZUNxzZkEBinu1piyc=";
+                url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip";
+                hash = "sha256-xW/yvH5s6bOHmlA5KwPC6gdLR2iL9QP/lmyH+wGyqrg=";
               };
             } ''
               mkdir -p "$out/bin"
@@ -209,7 +209,7 @@
             # sqlc
             sqlc-custom
             syft
-            terraform_1_14_1
+            terraform_1_15_2
             typos
             which
             # Needed for many LD system libs!
@@ -242,7 +242,7 @@
         # slim bundle into it's own derivation.
         buildFat =
           osArch:
-          unstablePkgs.buildGo125Module {
+          unstablePkgs.buildGo126Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!

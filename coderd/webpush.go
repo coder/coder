@@ -28,7 +28,7 @@ import (
 // @Tags Notifications
 // @Param request body codersdk.WebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/webpush/subscription [post]
+// @Router /api/v2/users/{user}/webpush/subscription [post]
 // @Success 204
 // @x-apidocgen {"skip": true}
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
@@ -117,7 +117,7 @@ func validateWebpushEndpoint(rawEndpoint string) error {
 // @Tags Notifications
 // @Param request body codersdk.DeleteWebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/webpush/subscription [delete]
+// @Router /api/v2/users/{user}/webpush/subscription [delete]
 // @Success 204
 // @x-apidocgen {"skip": true}
 func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
@@ -176,7 +176,7 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 // @Tags Notifications
 // @Param user path string true "User ID, name, or me"
 // @Success 204
-// @Router /users/{user}/webpush/test [post]
+// @Router /api/v2/users/{user}/webpush/test [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

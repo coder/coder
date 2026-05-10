@@ -1,5 +1,10 @@
 # VS Code
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 VS Code's native chat can be configured to use AI Gateway with the GitHub Copilot Chat extension's custom language model support.
 
 ## Centralized API Key

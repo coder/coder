@@ -70,7 +70,7 @@ export interface AIBridgeConfig {
 	readonly allow_byok: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
-	 * provider rate limits (429, 503, 529 overloaded).
+	 * provider overload (503, 529).
 	 */
 	readonly circuit_breaker_enabled: boolean;
 	readonly circuit_breaker_failure_threshold: number;
@@ -144,6 +144,10 @@ export interface AIBridgeProviderConfig {
 	 * BaseURL is the base URL of the upstream provider API.
 	 */
 	readonly base_url: string;
+	/**
+	 * DumpDir is the directory path for dumping API requests and responses.
+	 */
+	readonly dump_dir?: string;
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
@@ -177,6 +181,7 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	readonly last_prompt?: string;
+	readonly last_active_at: string;
 }
 
 // From codersdk/aibridge.go
@@ -338,6 +343,12 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_model_price:*"
+	| "ai_model_price:read"
+	| "ai_model_price:update"
+	| "ai_seat:*"
+	| "ai_seat:create"
+	| "ai_seat:read"
 	| "aibridge_interception:*"
 	| "aibridge_interception:create"
 	| "aibridge_interception:read"
@@ -547,6 +558,12 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_model_price:*",
+	"ai_model_price:read",
+	"ai_model_price:update",
+	"ai_seat:*",
+	"ai_seat:create",
+	"ai_seat:read",
 	"aibridge_interception:*",
 	"aibridge_interception:create",
 	"aibridge_interception:read",
@@ -786,6 +803,39 @@ export type Addon = "ai_governance";
 
 export const Addons: Addon[] = ["ai_governance"];
 
+// From codersdk/chats.go
+/**
+ * AdvisorConfig is the deployment-wide runtime configuration for the
+ * experimental chat advisor.
+ *
+ * EXPERIMENTAL: this type is experimental and is subject to change.
+ */
+export interface AdvisorConfig {
+	/**
+	 * Enabled toggles the advisor runtime. When false, advisor is not
+	 * attached to new chats.
+	 */
+	readonly enabled: boolean;
+	/**
+	 * MaxUsesPerRun caps how many times the advisor can be invoked per
+	 * chat run. 0 means unlimited.
+	 */
+	readonly max_uses_per_run: number;
+	/**
+	 * MaxOutputTokens caps the advisor model response tokens. 0 means
+	 * use the runtime default.
+	 */
+	readonly max_output_tokens: number;
+	/**
+	 * ModelConfigID selects a specific chat model config to power the
+	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
+	 * must fall back to the outer chat model when this ID cannot be
+	 * resolved (e.g. the referenced model config was soft-deleted or
+	 * its provider was disabled after the admin saved this config).
+	 */
+	readonly model_config_id: string;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
 	readonly started_at: string;
@@ -794,6 +844,15 @@ export interface AgentConnectionTiming {
 	readonly workspace_agent_id: string;
 	readonly workspace_agent_name: string;
 }
+
+// From codersdk/users.go
+export type AgentDisplayMode = "always_collapsed" | "always_expanded" | "auto";
+
+export const AgentDisplayModes: AgentDisplayMode[] = [
+	"always_collapsed",
+	"always_expanded",
+	"auto",
+];
 
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
@@ -832,6 +891,14 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"envbuilder",
 	"exectrace",
 ];
+
+// From codersdk/chats.go
+/**
+ * AnthropicInlineImageCapBytes is Anthropic's documented per-image
+ * wire limit; the same cap applies to Bedrock-hosted Claude. Other
+ * providers have no documented per-image cap.
+ */
+export const AnthropicInlineImageCapBytes = 5242880;
 
 // From codersdk/deployment.go
 export interface AppHostResponse {
@@ -1237,7 +1304,8 @@ export interface Chat {
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
-	readonly last_error: string | null;
+	readonly last_error?: ChatError;
+	readonly last_turn_summary: string | null;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -1255,7 +1323,7 @@ export interface Chat {
 	/**
 	 * LastInjectedContext holds the most recently persisted
 	 * injected context parts (AGENTS.md files and skills). It
-	 * is updated only when context changes — first workspace
+	 * is updated only when context changes, on first workspace
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
@@ -1269,6 +1337,38 @@ export interface Chat {
 	 * always empty for child chats.
 	 */
 	readonly children: readonly Chat[];
+}
+
+// From codersdk/chats.go
+export type ChatAttachmentMediaType =
+	| "application/json"
+	| "application/pdf"
+	| "image/gif"
+	| "image/jpeg"
+	| "image/png"
+	| "image/webp"
+	| "text/csv"
+	| "text/markdown"
+	| "text/plain";
+
+export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
+	"application/json",
+	"application/pdf",
+	"image/gif",
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+	"text/csv",
+	"text/markdown",
+	"text/plain",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
+ */
+export interface ChatAutoArchiveDaysResponse {
+	readonly auto_archive_days: number;
 }
 
 // From codersdk/chats.go
@@ -1288,6 +1388,15 @@ export const ChatClientTypes: ChatClientType[] = ["api", "ui"];
  */
 export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
+
+// From codersdk/chats.go
+/**
+ * ChatComputerUseProviderResponse is the response for getting the computer use
+ * provider setting.
+ */
+export interface ChatComputerUseProviderResponse {
+	readonly provider: string;
+}
 
 // From codersdk/deployment.go
 export interface ChatConfig {
@@ -1428,6 +1537,15 @@ export interface ChatCostUsersResponse {
 export interface ChatDebugLoggingAdminSettings {
 	readonly allow_users: boolean;
 	readonly forced_by_deployment: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugRetentionDaysResponse contains the current chat debug run
+ * retention setting.
+ */
+export interface ChatDebugRetentionDaysResponse {
+	readonly debug_retention_days: number;
 }
 
 // From codersdk/chats.go
@@ -1591,17 +1709,58 @@ export interface ChatDiffStatus {
 
 // From codersdk/chats.go
 /**
- * ChatExploreModelOverrideResponse is the response body for the Explore
- * subagent model override configuration endpoint.
+ * ChatError represents a terminal chat error in persisted chat state or the
+ * live stream.
  */
-export interface ChatExploreModelOverrideResponse {
-	readonly model_config_id?: string;
+export interface ChatError {
 	/**
-	 * HasMalformedOverride reports whether the saved override is malformed and
-	 * is currently being treated as unset.
+	 * Message is the normalized, user-facing error message.
 	 */
-	readonly has_malformed_override: boolean;
+	readonly message: string;
+	/**
+	 * Detail is optional provider-specific context shown alongside the
+	 * normalized error message when available.
+	 */
+	readonly detail?: string;
+	/**
+	 * Kind classifies the error for consistent client rendering.
+	 */
+	readonly kind?: ChatErrorKind;
+	/**
+	 * Provider identifies the upstream model provider when known.
+	 */
+	readonly provider?: string;
+	/**
+	 * Retryable reports whether the underlying error is transient.
+	 */
+	readonly retryable: boolean;
+	/**
+	 * StatusCode is the best-effort upstream HTTP status code.
+	 */
+	readonly status_code?: number;
 }
+
+// From codersdk/chats.go
+export type ChatErrorKind =
+	| "auth"
+	| "config"
+	| "generic"
+	| "overloaded"
+	| "rate_limit"
+	| "startup_timeout"
+	| "timeout"
+	| "usage_limit";
+
+export const ChatErrorKinds: ChatErrorKind[] = [
+	"auth",
+	"config",
+	"generic",
+	"overloaded",
+	"rate_limit",
+	"startup_timeout",
+	"timeout",
+	"usage_limit",
+];
 
 // From codersdk/chats.go
 /**
@@ -1651,6 +1810,59 @@ export interface ChatGitChange {
 	readonly diff_summary?: string;
 	readonly detected_at: string;
 }
+
+// From codersdk/chats.go
+/**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ * ChatGitWatchAgentStatePrefix is the common prefix of the
+ * message produced by ChatGitWatchAgentStateMessage. The CLI
+ * uses it as a mechanical fingerprint for the "agent not yet
+ * connected" case without depending on the formatted values.
+ */
+export const ChatGitWatchAgentStatePrefix = "Agent state is ";
+
+// From codersdk/chats.go
+/**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ */
+export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
+
+// From codersdk/chats.go
+/**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ */
+export const ChatGitWatchWorkspaceNoAgentsMessage =
+	"Chat workspace has no agents.";
+
+// From codersdk/chats.go
+/**
+ * Chat git watch error messages. These are the user-visible messages
+ * the server returns in 400 responses from
+ * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * observed through a workspace agent. They are exported so the CLI
+ * (and any future consumer) can match them structurally via
+ * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
+ * Keep these in sync with coderd/exp_chats.go.
+ */
+export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
 
 // From codersdk/chats.go
 /**
@@ -1790,6 +2002,15 @@ export interface ChatMessageUsage {
  */
 export interface ChatMessagesPaginationOptions {
 	readonly BeforeID: number;
+	/**
+	 * AfterID, when > 0, restricts results to messages with id strictly
+	 * greater than AfterID. When set without BeforeID, results come back
+	 * in ASCENDING id order so a polling caller can advance its cursor
+	 * to max(returned_ids) without gaps. When combined with BeforeID,
+	 * results come back in DESC order over the open range
+	 * (AfterID, BeforeID).
+	 */
+	readonly AfterID: number;
 	readonly Limit: number;
 }
 
@@ -1972,6 +2193,29 @@ export interface ChatModelOpenRouterProviderOptions {
 }
 
 // From codersdk/chats.go
+export type ChatModelOverrideContext =
+	| "explore"
+	| "general"
+	| "title_generation";
+
+export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"explore",
+	"general",
+	"title_generation",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatModelOverrideResponse is the response body for the chat model override
+ * configuration endpoint.
+ */
+export interface ChatModelOverrideResponse {
+	readonly context: ChatModelOverrideContext;
+	readonly model_config_id: string;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
 /**
  * ChatModelProvider represents provider availability and model results.
  */
@@ -2053,6 +2297,55 @@ export interface ChatModelsResponse {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatPersonalModelOverride is a resolved user personal model override.
+ */
+export interface ChatPersonalModelOverride {
+	readonly context: ChatPersonalModelOverrideContext;
+	readonly mode: ChatPersonalModelOverrideMode;
+	readonly model_config_id: string;
+	readonly is_set: boolean;
+	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatPersonalModelOverrideContext = "explore" | "general" | "root";
+
+export const ChatPersonalModelOverrideContexts: ChatPersonalModelOverrideContext[] =
+	["explore", "general", "root"];
+
+// From codersdk/chats.go
+/**
+ * ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
+ * defaults used when a personal override selects deployment_default.
+ */
+export interface ChatPersonalModelOverrideDeploymentDefaults {
+	readonly general: ChatModelOverrideResponse;
+	readonly explore: ChatModelOverrideResponse;
+}
+
+// From codersdk/chats.go
+export type ChatPersonalModelOverrideMode =
+	| "chat_default"
+	| "deployment_default"
+	| "model";
+
+export const ChatPersonalModelOverrideModes: ChatPersonalModelOverrideMode[] = [
+	"chat_default",
+	"deployment_default",
+	"model",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatPersonalModelOverridesAdminSettings describes whether users may manage
+ * personal model override settings.
+ */
+export interface ChatPersonalModelOverridesAdminSettings {
+	readonly allow_users: boolean;
+}
+
+// From codersdk/chats.go
 export type ChatPlanMode = "plan";
 
 // From codersdk/chats.go
@@ -2101,6 +2394,7 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
 export interface ChatQueuedMessage {
 	readonly id: number;
 	readonly chat_id: string;
+	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
 }
@@ -2172,38 +2466,6 @@ export interface ChatStreamActionRequired {
 
 // From codersdk/chats.go
 /**
- * ChatStreamError represents an error event in the stream.
- */
-export interface ChatStreamError {
-	/**
-	 * Message is the normalized, user-facing error message.
-	 */
-	readonly message: string;
-	/**
-	 * Detail is optional provider-specific context shown alongside the
-	 * normalized error message when available.
-	 */
-	readonly detail?: string;
-	/**
-	 * Kind classifies the error for consistent client rendering.
-	 */
-	readonly kind?: string;
-	/**
-	 * Provider identifies the upstream model provider when known.
-	 */
-	readonly provider?: string;
-	/**
-	 * Retryable reports whether the underlying error is transient.
-	 */
-	readonly retryable: boolean;
-	/**
-	 * StatusCode is the best-effort upstream HTTP status code.
-	 */
-	readonly status_code?: number;
-}
-
-// From codersdk/chats.go
-/**
  * ChatStreamEvent represents a real-time update for chat streaming.
  */
 export interface ChatStreamEvent {
@@ -2212,7 +2474,7 @@ export interface ChatStreamEvent {
 	readonly message?: ChatMessage;
 	readonly message_part?: ChatStreamMessagePart;
 	readonly status?: ChatStreamStatus;
-	readonly error?: ChatStreamError;
+	readonly error?: ChatError;
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
@@ -2268,7 +2530,7 @@ export interface ChatStreamRetry {
 	/**
 	 * Kind classifies the retry reason for consistent client rendering.
 	 */
-	readonly kind?: string;
+	readonly kind?: ChatErrorKind;
 	/**
 	 * Provider identifies the upstream model provider when known.
 	 */
@@ -2469,8 +2731,8 @@ export interface ChatUsageLimitStatus {
 // From codersdk/chats.go
 /**
  * ChatWatchEvent represents an event from the global chat watch stream.
- * It delivers lifecycle events (created, status change, title change)
- * for all of the authenticated user's chats. When Kind is
+ * It delivers lifecycle events (created, status change, summary change,
+ * title change) for all of the authenticated user's chats. When Kind is
  * ActionRequired, ToolCalls contains the pending dynamic tool
  * invocations the client must execute and submit back.
  */
@@ -2487,6 +2749,7 @@ export type ChatWatchEventKind =
 	| "deleted"
 	| "diff_status_change"
 	| "status_change"
+	| "summary_change"
 	| "title_change";
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
@@ -2495,6 +2758,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"deleted",
 	"diff_status_change",
 	"status_change",
+	"summary_change",
 	"title_change",
 ];
 
@@ -3031,6 +3295,10 @@ export interface CreateUserRequestWithOrgs {
 	 * Service accounts are admin-managed accounts that cannot login.
 	 */
 	readonly service_account?: boolean;
+	/**
+	 * Roles is an optional list of site-level roles to assign at creation.
+	 */
+	readonly roles?: readonly string[];
 }
 
 // From codersdk/usersecrets.go
@@ -3346,6 +3614,22 @@ export interface DebugProfileOptions {
 
 // From codersdk/chats.go
 /**
+ * DefaultChatAutoArchiveDays is the default auto-archive window, in
+ * days, applied when no site config row exists. Zero disables
+ * auto-archival.
+ */
+export const DefaultChatAutoArchiveDays = 0;
+
+// From codersdk/chats.go
+/**
+ * DefaultChatDebugRetentionDays is the default chat debug run retention
+ * window, in days, applied when no site config row exists. Set the
+ * config value to zero to disable the purge.
+ */
+export const DefaultChatDebugRetentionDays = 30;
+
+// From codersdk/chats.go
+/**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
  * Zero means disabled — the template's own autostop setting applies.
  */
@@ -3516,8 +3800,9 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/parameters.go
 export interface DynamicParametersRequest {
 	/**
-	 * ID identifies the request. The response contains the same
-	 * ID so that the client can match it to the request.
+	 * ID identifies the request for response ordering. Websocket response
+	 * IDs are monotonically increasing and may exceed the request ID when
+	 * server-side events trigger additional renders.
 	 */
 	readonly id: number;
 	readonly inputs: Record<string, string>;
@@ -3532,6 +3817,7 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
+	readonly secret_requirements?: readonly SecretRequirementStatus[];
 }
 
 // From codersdk/chats.go
@@ -3640,7 +3926,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "agents"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -3650,7 +3935,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"agents",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -4079,6 +4363,7 @@ export type HealthCode =
 	| "EACS02"
 	| "EACS04"
 	| "EACS01"
+	| "EDERP03"
 	| "EDERP01"
 	| "EDERP02"
 	| "EDB01"
@@ -4108,6 +4393,7 @@ export const HealthCodes: HealthCode[] = [
 	"EACS02",
 	"EACS04",
 	"EACS01",
+	"EDERP03",
 	"EDERP01",
 	"EDERP02",
 	"EDB01",
@@ -4295,9 +4581,12 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 }
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
+export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
 
-export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"];
+export const JobErrorCodes: JobErrorCode[] = [
+	"INSUFFICIENT_QUOTA",
+	"REQUIRED_TEMPLATE_VARIABLES",
+];
 
 // From codersdk/licenses.go
 export interface License {
@@ -4441,7 +4730,7 @@ export interface MCPServerConfig {
 	readonly icon_url: string;
 	readonly transport: string; // "streamable_http" or "sse"
 	readonly url: string;
-	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers"
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 	/**
 	 * OAuth2 fields (only populated for admins).
 	 */
@@ -4510,6 +4799,13 @@ export interface MatchedProvisioners {
  * this limit than to lower it.
  */
 export const MaxChatFileIDs = 20;
+
+// From codersdk/chats.go
+/**
+ * MaxChatFileSizeBytes is the upload-endpoint cap for chat
+ * attachments.
+ */
+export const MaxChatFileSizeBytes = 10485760;
 
 // From codersdk/usersecretvalidation.go
 /**
@@ -6044,6 +6340,8 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_model_price"
+	| "ai_seat"
 	| "aibridge_interception"
 	| "api_key"
 	| "assign_org_role"
@@ -6090,6 +6388,8 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_model_price",
+	"ai_seat",
 	"aibridge_interception",
 	"api_key",
 	"assign_org_role",
@@ -6264,6 +6564,7 @@ export type ResourceType =
 	| "template"
 	| "template_version"
 	| "user"
+	| "user_secret"
 	| "workspace"
 	| "workspace_agent"
 	| "workspace_app"
@@ -6294,6 +6595,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template",
 	"template_version",
 	"user",
+	"user_secret",
 	"workspace",
 	"workspace_agent",
 	"workspace_app",
@@ -6516,6 +6818,14 @@ export interface STUNReport {
 	readonly Enabled: boolean;
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
+}
+
+// From codersdk/parameters.go
+export interface SecretRequirementStatus {
+	readonly env?: string;
+	readonly file?: string;
+	readonly help_message: string;
+	readonly satisfied: boolean;
 }
 
 // From serpent/serpent.go
@@ -7530,6 +7840,20 @@ export const TerminalFontNames: TerminalFontName[] = [
 	"",
 ];
 
+// From codersdk/users.go
+export type ThinkingDisplayMode =
+	| "always_collapsed"
+	| "always_expanded"
+	| "auto"
+	| "preview";
+
+export const ThinkingDisplayModes: ThinkingDisplayMode[] = [
+	"always_collapsed",
+	"always_expanded",
+	"auto",
+	"preview",
+];
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -7592,6 +7916,38 @@ export interface UpdateActiveTemplateVersion {
 	readonly id: string;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateAdvisorConfigRequest is the request body for updating advisor
+ * runtime configuration. It is a type alias for AdvisorConfig because
+ * the request and response shapes are currently identical.
+ */
+export interface UpdateAdvisorConfigRequest {
+	/**
+	 * Enabled toggles the advisor runtime. When false, advisor is not
+	 * attached to new chats.
+	 */
+	readonly enabled: boolean;
+	/**
+	 * MaxUsesPerRun caps how many times the advisor can be invoked per
+	 * chat run. 0 means unlimited.
+	 */
+	readonly max_uses_per_run: number;
+	/**
+	 * MaxOutputTokens caps the advisor model response tokens. 0 means
+	 * use the runtime default.
+	 */
+	readonly max_output_tokens: number;
+	/**
+	 * ModelConfigID selects a specific chat model config to power the
+	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
+	 * must fall back to the outer chat model when this ID cannot be
+	 * resolved (e.g. the referenced model config was soft-deleted or
+	 * its provider was disabled after the admin saved this config).
+	 */
+	readonly model_config_id: string;
+}
+
 // From codersdk/deployment.go
 export interface UpdateAppearanceConfig {
 	readonly application_name: string;
@@ -7605,6 +7961,24 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatAutoArchiveDaysRequest is a request to update the chat
+ * auto-archive period.
+ */
+export interface UpdateChatAutoArchiveDaysRequest {
+	readonly auto_archive_days: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatComputerUseProviderRequest is the request to update the computer use
+ * provider setting.
+ */
+export interface UpdateChatComputerUseProviderRequest {
+	readonly provider: string;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatDebugLoggingAllowUsersRequest is the admin request to
  * toggle whether users may opt into chat debug logging.
  */
@@ -7614,19 +7988,19 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
+ * UpdateChatDebugRetentionDaysRequest is a request to update the chat
+ * debug run retention period.
  */
-export interface UpdateChatDesktopEnabledRequest {
-	readonly enable_desktop: boolean;
+export interface UpdateChatDebugRetentionDaysRequest {
+	readonly debug_retention_days: number;
 }
 
 // From codersdk/chats.go
 /**
- * UpdateChatExploreModelOverrideRequest is the request body for updating the
- * Explore subagent model override configuration endpoint.
+ * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
  */
-export interface UpdateChatExploreModelOverrideRequest {
-	readonly model_config_id?: string;
+export interface UpdateChatDesktopEnabledRequest {
+	readonly enable_desktop: boolean;
 }
 
 // From codersdk/chats.go
@@ -7642,6 +8016,24 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelOverrideRequest is the request body for updating the chat
+ * model override configuration endpoint.
+ */
+export interface UpdateChatModelOverrideRequest {
+	readonly model_config_id: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatPersonalModelOverridesAdminSettingsRequest is the request body for
+ * updating personal model override admin settings.
+ */
+export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
+	readonly allow_users: boolean;
 }
 
 // From codersdk/chats.go
@@ -7949,6 +8341,16 @@ export interface UpdateUserChatDebugLoggingRequest {
 	readonly debug_logging_enabled: boolean;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateUserChatPersonalModelOverrideRequest is the request body for updating
+ * a user personal model override.
+ */
+export interface UpdateUserChatPersonalModelOverrideRequest {
+	readonly mode: ChatPersonalModelOverrideMode;
+	readonly model_config_id: string;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -7962,7 +8364,9 @@ export interface UpdateUserPasswordRequest {
 
 // From codersdk/users.go
 export interface UpdateUserPreferenceSettingsRequest {
-	readonly task_notification_alert_dismissed: boolean;
+	readonly task_notification_alert_dismissed?: boolean;
+	readonly thinking_display_mode?: ThinkingDisplayMode;
+	readonly code_diff_display_mode?: AgentDisplayMode;
 }
 
 // From codersdk/users.go
@@ -8261,6 +8665,19 @@ export interface UserChatDebugLoggingSettings {
 
 // From codersdk/chats.go
 /**
+ * UserChatPersonalModelOverridesResponse is the response body for user
+ * personal model override settings.
+ */
+export interface UserChatPersonalModelOverridesResponse {
+	readonly enabled: boolean;
+	readonly root: ChatPersonalModelOverride;
+	readonly general: ChatPersonalModelOverride;
+	readonly explore: ChatPersonalModelOverride;
+	readonly deployment_defaults: ChatPersonalModelOverrideDeploymentDefaults;
+}
+
+// From codersdk/chats.go
+/**
  * UserChatProviderConfig is a summary of a provider that allows
  * user-supplied keys, as seen from the current user's perspective.
  */
@@ -8326,6 +8743,8 @@ export interface UserParameter {
 // From codersdk/users.go
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
+	readonly thinking_display_mode: ThinkingDisplayMode;
+	readonly code_diff_display_mode: AgentDisplayMode;
 }
 
 // From codersdk/deployment.go
@@ -8917,7 +9336,23 @@ export interface WorkspaceAgentScript {
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
 	readonly display_name: string;
+	readonly exit_code?: number;
+	readonly status?: WorkspaceAgentScriptStatus;
 }
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentScriptStatus =
+	| "exit_failure"
+	| "ok"
+	| "pipes_left_open"
+	| "timed_out";
+
+export const WorkspaceAgentScriptStatuses: WorkspaceAgentScriptStatus[] = [
+	"exit_failure",
+	"ok",
+	"pipes_left_open",
+	"timed_out",
+];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";
