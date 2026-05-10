@@ -1742,6 +1742,36 @@ func TestAgent_Metadata(t *testing.T) {
 			t.Fatalf("expected metadata to be collected again")
 		}
 	})
+
+	t.Run("IgnoresStderr", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("shell redirection is tested on Unix-like systems")
+		}
+		t.Parallel()
+
+		//nolint:dogsled
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+				{
+					Key:      "greeting",
+					Interval: 0,
+					Script:   "echo 'noise' >&2; echo 'hello'",
+				},
+			},
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = testutil.IntervalFast
+		})
+
+		var gotMd map[string]agentsdk.Metadata
+		require.Eventually(t, func() bool {
+			gotMd = client.GetMetadata()
+			return len(gotMd) == 1
+		}, testutil.WaitShort, testutil.IntervalFast/2)
+
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value))
+		require.Empty(t, gotMd["greeting"].Error)
+		require.NotContains(t, gotMd["greeting"].Value, "noise")
+	})
 }
 
 func TestAgentMetadata_Timing(t *testing.T) {
