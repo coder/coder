@@ -977,8 +977,17 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		ptty.WriteLine("exit 0")
-		err = session.Wait()
-		require.NoError(t, err)
+
+		waitErr := make(chan error, 1)
+		go func() {
+			waitErr <- session.Wait()
+		}()
+		select {
+		case err = <-waitErr:
+			require.NoError(t, err)
+		case <-time.After(testutil.WaitLong):
+			require.Fail(t, "timed out waiting for session to exit")
+		}
 
 		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
 		require.Contains(t, stdout.String(), wantMaybeServiceBanner, "should show service banner")
