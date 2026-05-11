@@ -384,7 +384,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -515,7 +515,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -659,7 +659,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -771,7 +771,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 

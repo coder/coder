@@ -15,6 +15,14 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAiModelPrice
+	// Valid Actions
+	//  - "ActionRead" :: read AI model prices
+	//  - "ActionUpdate" :: update AI model prices
+	ResourceAiModelPrice = Object{
+		Type: "ai_model_price",
+	}
+
 	// ResourceAiSeat
 	// Valid Actions
 	//  - "ActionCreate" :: record AI seat usage
@@ -441,6 +449,7 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAiModelPrice,
 		ResourceAiSeat,
 		ResourceAibridgeInterception,
 		ResourceApiKey,

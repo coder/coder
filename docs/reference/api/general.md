@@ -166,6 +166,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "allowed_private_cidrs": [
           "string"
         ],
+        "api_dump_dir": "string",
         "cert_file": "string",
         "domain_allowlist": [
           "string"

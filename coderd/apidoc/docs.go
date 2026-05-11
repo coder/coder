@@ -14000,6 +14000,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "api_dump_dir": {
+                    "type": "string"
+                },
                 "cert_file": {
                     "type": "string"
                 },
@@ -14467,6 +14470,9 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_model_price:*",
+                "ai_model_price:read",
+                "ai_model_price:update",
                 "ai_seat:*",
                 "ai_seat:create",
                 "ai_seat:read",
@@ -14679,6 +14685,9 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiModelPriceAll",
+                "APIKeyScopeAiModelPriceRead",
+                "APIKeyScopeAiModelPriceUpdate",
                 "APIKeyScopeAiSeatAll",
                 "APIKeyScopeAiSeatCreate",
                 "APIKeyScopeAiSeatRead",
@@ -21248,6 +21257,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_model_price",
                 "ai_seat",
                 "aibridge_interception",
                 "api_key",
@@ -21295,6 +21305,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAiModelPrice",
                 "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
