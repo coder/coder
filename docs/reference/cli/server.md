@@ -2054,7 +2054,6 @@ How long workspace agent logs are retained. Logs from non-latest builds are dele
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_DISABLE_TEMPLATE_BUILDER</code> |
 | YAML        | <code>templateBuilder.disabled</code>        |
-| Default     | <code>false</code>                           |
 
 Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 

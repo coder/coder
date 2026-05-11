@@ -849,7 +849,7 @@ when required by your organization's security policy.
           data to help improve our product.
 
 TEMPLATE BUILDER OPTIONS: 
-      --disable-template-builder bool, $CODER_DISABLE_TEMPLATE_BUILDER (default: false)
+      --disable-template-builder bool, $CODER_DISABLE_TEMPLATE_BUILDER
           Disable the template builder feature for guided template creation.
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
