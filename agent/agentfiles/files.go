@@ -1226,8 +1226,7 @@ func inversionHint(
 	replaceLines []string,
 	trimRight, trimAll func(a, b string) bool,
 ) string {
-	const minInversionBytes = 20
-	if len(replace) < minInversionBytes || len(replaceLines) == 0 {
+	if len(replaceLines) == 0 {
 		return ""
 	}
 

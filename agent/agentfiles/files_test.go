@@ -3266,14 +3266,20 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 		},
 		{
-			name:    "Inversion_ReplaceTooShort_NoHint",
-			content: "alpha\nbeta\ngamma\n",
+			name: "Inversion_ShortReplace_TruncatedWithAndMore",
+			// Short replace strings used to be silently suppressed by
+			// a length floor. Now the line-list cap signals "your
+			// replace is too generic" by showing five matches plus
+			// " and N more", which is more informative than no hint.
+			content: "alpha\nbeta\nbeta\nbeta\nbeta\nbeta\nbeta\nbeta\ngamma\n",
 			edit: edit{
 				search:  "missing line that does not occur anywhere\n",
 				replace: "beta\n",
 			},
-			wantSubs:    []string{baseFuzzyNotFoundMessage},
-			notWantSubs: []string{"swap", "appears at line"},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2, 3, 4, 5, 6 and 2 more`,
+			},
 		},
 		{
 			name: "Miscount_BoxDrawingDashes_HintNamesCodepoint",
