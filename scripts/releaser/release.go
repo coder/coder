@@ -546,7 +546,6 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		var lastStable *version
 		for _, t := range allTags {
 			if t.Pre == "" && t.Major == newVersion.Major && t.Minor < newVersion.Minor {
-				v := t
 				lastStable = &t
 				break
 			}
