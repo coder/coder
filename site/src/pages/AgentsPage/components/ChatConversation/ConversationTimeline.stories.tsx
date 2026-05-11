@@ -2092,21 +2092,26 @@ export const ThinkingBlockPreviewMode: Story = {
 };
 
 /**
- * Regression guard: during streaming, the last completed assistant message
- * (which owns the invisible copy-button container) must NOT create extra
- * vertical space between its tool calls and the streaming tool call below.
- * All inter-message gaps should be ~12 px; before the fix the gap here was
- * ~38 px because the message-actions div (mt-0.5 + size-6 = 26 px) was in
- * the layout flow.
+ * Regression guard: during an active agent turn the last completed
+ * assistant message must NOT create extra vertical space between its
+ * tool calls and the streaming tool call below.
+ *
+ * Root cause: when the last completed message contains reasoning but no
+ * copyable text, `needsAssistantBottomSpacer` inserts a 24 px invisible
+ * div below the message. When isTurnActive=true, hideActions is set on
+ * that message which suppresses the spacer, collapsing the gap to the
+ * standard gap-2 (8 px) between sibling containers.
  */
 export const StreamingToolCallGapRegression: Story = {
 	render: () => {
+		// The assistant message contains a reasoning block but no text, so
+		// needsAssistantBottomSpacer would fire without the fix.
 		const parsedMessages = buildMessages([
 			{
 				...baseMessage,
 				id: 1,
 				role: "user",
-				content: [buildTextPart("Run the tests and build the project")],
+				content: [buildTextPart("Read the source files")],
 			},
 			{
 				...baseMessage,
@@ -2114,16 +2119,20 @@ export const StreamingToolCallGapRegression: Story = {
 				role: "assistant",
 				content: [
 					{
+						type: "reasoning",
+						text: "I should read SKILL.md and main.go to understand the codebase.",
+					},
+					{
 						type: "tool-call",
 						tool_call_id: "tool-1",
-						tool_name: "execute",
-						args: { command: "go test ./..." },
+						tool_name: "read_file",
+						args: { path: "SKILL.md" },
 					},
 					{
 						type: "tool-call",
 						tool_call_id: "tool-2",
-						tool_name: "execute",
-						args: { command: "go build ./..." },
+						tool_name: "read_file",
+						args: { path: "main.go" },
 					},
 				],
 			},
@@ -2135,7 +2144,7 @@ export const StreamingToolCallGapRegression: Story = {
 					{
 						type: "tool-result",
 						tool_call_id: "tool-1",
-						result: { output: "PASS\nok  github.com/coder/coder 12.3s" },
+						result: { output: "# SKILL.md contents" },
 					},
 				],
 			},
@@ -2147,7 +2156,7 @@ export const StreamingToolCallGapRegression: Story = {
 					{
 						type: "tool-result",
 						tool_call_id: "tool-2",
-						result: { output: "Build successful" },
+						result: { output: "package main" },
 					},
 				],
 			},
@@ -2158,7 +2167,7 @@ export const StreamingToolCallGapRegression: Story = {
 				type: "tool-call",
 				tool_call_id: "tool-streaming",
 				tool_name: "read_file",
-				args: { path: "main.go" },
+				args: { path: "types.go" },
 			},
 		]);
 
@@ -2168,6 +2177,91 @@ export const StreamingToolCallGapRegression: Story = {
 					parsedMessages={parsedMessages}
 					subagentTitles={new Map()}
 					isTurnActive={true}
+				/>
+				<StreamingOutput
+					streamState={streamState}
+					streamTools={streamTools}
+					liveStatus={liveStatus}
+				/>
+			</div>
+		);
+	},
+};
+
+// Companion story that shows the unpatched gap for visual comparison.
+export const StreamingToolCallGapRegressionBefore: Story = {
+	render: () => {
+		const parsedMessages = buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [buildTextPart("Read the source files")],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "I should read SKILL.md and main.go to understand the codebase.",
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "read_file",
+						args: { path: "SKILL.md" },
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "tool-2",
+						tool_name: "read_file",
+						args: { path: "main.go" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-1",
+						result: { output: "# SKILL.md contents" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-2",
+						result: { output: "package main" },
+					},
+				],
+			},
+		]);
+
+		const { streamState, streamTools, liveStatus } = buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "tool-streaming",
+				tool_name: "read_file",
+				args: { path: "types.go" },
+			},
+		]);
+
+		return (
+			<div className="flex flex-col gap-2">
+				{/* isTurnActive not set: assistant-bottom-spacer (24 px) renders */}
+				<ConversationTimeline
+					parsedMessages={parsedMessages}
+					subagentTitles={new Map()}
 				/>
 				<StreamingOutput
 					streamState={streamState}
