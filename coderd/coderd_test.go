@@ -184,7 +184,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 		_ = provisionerCloser.Close()
 	})
 
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		client.HTTPClient.CloseIdleConnections()
 	})
