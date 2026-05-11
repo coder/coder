@@ -151,7 +151,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		},
 	});
 
-	const showDevcontainerControls = subAgent && devcontainer.container;
+	// Apps that talk to the running container (SSH, port forwarding) only
+	// make sense when the container and its sub-agent are present.
+	const showRunningControls = subAgent && devcontainer.container;
 	const isTransitioning =
 		devcontainer.status === "starting" ||
 		devcontainer.status === "stopping" ||
@@ -256,14 +258,14 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						{rebuildButtonLabel(devcontainer)}
 					</Button>
 
-					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
+					{showRunningControls && displayApps.includes("ssh_helper") && (
 						<AgentSSHButton
 							workspaceName={workspace.name}
 							agentName={subAgent.name}
 							workspaceOwnerUsername={workspace.owner_name}
 						/>
 					)}
-					{showDevcontainerControls &&
+					{showRunningControls &&
 						displayApps.includes("port_forwarding_helper") &&
 						proxy.preferredWildcardHostname !== "" && (
 							<PortForwardButton
@@ -274,11 +276,17 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							/>
 						)}
 
-					{showDevcontainerControls && (
-						<AgentDevcontainerMoreActions
-							deleteDevContainer={deleteDevcontainerMutation.mutate}
-						/>
-					)}
+					{/*
+					 * The More Actions menu currently only exposes Delete,
+					 * which targets the devcontainer record (not the
+					 * container) and must remain reachable when the
+					 * container failed to start. If a future action does
+					 * need a running container, reintroduce a gate here.
+					 * See coder/coder#23754.
+					 */}
+					<AgentDevcontainerMoreActions
+						deleteDevContainer={deleteDevcontainerMutation.mutate}
+					/>
 
 					<DevcontainerDeleteErrorDialog
 						open={deleteDevcontainerMutation.isError}

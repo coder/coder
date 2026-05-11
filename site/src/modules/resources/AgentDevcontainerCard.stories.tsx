@@ -59,6 +59,35 @@ export const HasError: Story = {
 	},
 };
 
+// Regression test for https://github.com/coder/coder/issues/23754.
+// The three-dot "More actions" menu (which contains Delete) must remain
+// reachable for a devcontainer whose container failed to start, otherwise
+// users have no UI path to clean up failed devcontainers.
+export const FailedHasMoreActionsMenu: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			error: "exit status 1: devcontainer up failed",
+			status: "stopped",
+			container: undefined,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The button is rendered with an sr-only label of
+		// "Dev Container actions" (see AgentDevcontainerMoreActions).
+		const moreActions = canvas.getByRole("button", {
+			name: "Dev Container actions",
+		});
+		await userEvent.click(moreActions);
+		// Delete must be reachable from the dropdown for a failed
+		// devcontainer; this is the user-visible regression of #23754.
+		await screen.findByText("Delete…");
+	},
+};
+
 export const NoPorts: Story = {};
 
 export const WithPorts: Story = {
