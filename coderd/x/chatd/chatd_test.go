@@ -9130,8 +9130,10 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 		select {
 		case ev := <-events:
 			if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
+				t.Logf("subscriber consumed non-message event type=%s", ev.Type)
 				return false
 			}
+			t.Logf("subscriber consumed message id=%d role=%s match_promoted=%t", ev.Message.ID, ev.Message.Role, ev.Message.ID == promoteResult.PromotedMessage.ID)
 			switch ev.Message.Role {
 			case codersdk.ChatMessageRoleTool:
 				syntheticPublishCount++
