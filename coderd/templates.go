@@ -35,6 +35,8 @@ import (
 	"github.com/coder/coder/v2/examples"
 )
 
+const defaultRequirementWeeks = 1
+
 // Returns a single template.
 //
 // @Summary Get template settings by ID
@@ -701,7 +703,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}
 	if template.AutostopRequirementWeeks <= 0 {
-		template.AutostopRequirementWeeks = 1
+		template.AutostopRequirementWeeks = defaultRequirementWeeks
 	}
 
 	// The minimum valid value for a dormant TTL is 1 minute. This is
@@ -766,7 +768,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			AllowUserCancelWorkspaceJobs: resolved.allowUserCancelWorkspaceJobs,
 			GroupACL:                     resolved.groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
-			UseClassicParameterFlow:      resolved.classicTemplateFlow,
+			UseClassicParameterFlow:      resolved.useClassicTemplateFlow,
 			CorsBehavior:                 resolved.corsBehavior,
 			DisableModuleCache:           resolved.disableModuleCache,
 		})

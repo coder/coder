@@ -30,7 +30,7 @@ type templateMetaUpdate struct {
 	allowUserCancelWorkspaceJobs         bool
 	requireActiveVersion                 bool
 	deprecationMessage                   string
-	classicTemplateFlow                  bool
+	useClassicTemplateFlow               bool
 	disableModuleCache                   bool
 	corsBehavior                         database.CorsBehavior
 	autostopRequirementDaysOfWeekParsed  uint8
@@ -81,7 +81,7 @@ func resolveTemplateMetaUpdate(
 		allowUserCancelWorkspaceJobs:   ptr.NilToDefault(req.AllowUserCancelWorkspaceJobs, template.AllowUserCancelWorkspaceJobs),
 		requireActiveVersion:           ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion),
 		deprecationMessage:             ptr.NilToDefault(req.DeprecationMessage, template.Deprecated),
-		classicTemplateFlow:            ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),
+		useClassicTemplateFlow:         ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),
 		disableModuleCache:             ptr.NilToDefault(req.DisableModuleCache, template.DisableModuleCache),
 		groupACL:                       template.GroupACL,
 
@@ -115,7 +115,7 @@ func resolveTemplateMetaUpdate(
 
 		// Always force <= 0 -> 1
 		if out.autostopRequirementWeeks <= 0 {
-			out.autostopRequirementWeeks = 1
+			out.autostopRequirementWeeks = defaultRequirementWeeks
 		}
 	}
 

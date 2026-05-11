@@ -81,7 +81,7 @@ func baselineResolved() templateMetaUpdate {
 		allowUserCancelWorkspaceJobs:         tpl.AllowUserCancelWorkspaceJobs,
 		requireActiveVersion:                 tpl.RequireActiveVersion,
 		deprecationMessage:                   tpl.Deprecated,
-		classicTemplateFlow:                  tpl.UseClassicParameterFlow,
+		useClassicTemplateFlow:               tpl.UseClassicParameterFlow,
 		disableModuleCache:                   tpl.DisableModuleCache,
 		corsBehavior:                         tpl.CorsBehavior,
 		autostopRequirementDaysOfWeekParsed:  0b0000001,
@@ -255,7 +255,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			name: "UseClassicParameterFlow",
 			req:  codersdk.UpdateTemplateMeta{UseClassicParameterFlow: ptr.Ref(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
-				r.classicTemplateFlow = false
+				r.useClassicTemplateFlow = false
 			}},
 		},
 		{

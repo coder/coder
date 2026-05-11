@@ -1604,9 +1604,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updated.UseClassicParameterFlow, "expected true")
 
-		// Sending UseClassicParameterFlow: nil with no other changes is a true
-		// no-op and produces a 304 Not Modified (surfaced as an error by the
-		// SDK).
 		req.UseClassicParameterFlow = nil
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
