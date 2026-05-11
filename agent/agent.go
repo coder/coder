@@ -1413,6 +1413,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
+				a.mcpManager.MarkStartupSettled()
 				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
