@@ -1,18 +1,3 @@
-/**
- * Theme mode helpers for the Appearance settings page.
- *
- * The UI exposes two modes:
- * - "sync": Coder picks a concrete theme for each OS color scheme,
- *   with the current scheme deciding which slot is rendered.
- * - "single": Coder renders one concrete theme regardless of OS.
- *
- * The persisted state is four fields on `UserAppearanceSettings`:
- * `theme_mode`, `theme_light`, `theme_dark`, plus the pre-existing
- * `theme_preference`. This module owns translating between the flat
- * persisted shape and the richer form draft shape, plus the one-time
- * migration of the legacy `auto` value into sync state.
- */
-
 import type { TerminalFontName } from "#/api/typesGenerated";
 import {
 	type ConcreteThemeName,
@@ -36,12 +21,6 @@ type SingleState = {
 
 type ThemeModeState = SyncState | SingleState;
 
-/**
- * The form keeps every slot populated even when the user is not
- * actively in that mode, so switching the dropdown never loses the
- * user's other-mode selection mid-interaction. Persisted storage is
- * derived from this shape.
- */
 export type ThemeModeDraft = {
 	mode: ThemeMode;
 	single: ConcreteThemeName;
@@ -49,11 +28,6 @@ export type ThemeModeDraft = {
 	dark: ConcreteThemeName;
 };
 
-/**
- * Shape of the subset of `UserAppearanceSettings` this module reads.
- * Typed structurally to avoid a circular dependency on `typesGenerated`
- * (and to keep the tests independent of codegen ordering).
- */
 type AppearanceSettingsLike = {
 	theme_preference?: string;
 	theme_mode?: string;
@@ -103,10 +77,6 @@ const FAMILY_PAIR = {
  * 3. A concrete legacy `theme_preference` becomes single mode with
  *    that theme.
  * 4. Anything else falls back to single mode + DEFAULT_THEME.
- *
- * Sync-mode slots that are invalid fall back to the plain `light` or
- * `dark` theme for the respective OS scheme so the user still sees
- * something sensible even if storage gets hand-edited.
  */
 export const migrateLegacyPreference = (
 	settings: AppearanceSettingsLike,
@@ -144,12 +114,6 @@ export const migrateLegacyPreference = (
 	};
 };
 
-/**
- * Picks the concrete theme that should render right now given the
- * user's state and the OS color scheme. Used by ThemeProvider on every
- * render and by the Appearance page to decide which card gets the
- * "Active" pill.
- */
 export const resolveActiveThemeName = (
 	state: ThemeModeState,
 	osScheme: "dark" | "light",
@@ -160,11 +124,6 @@ export const resolveActiveThemeName = (
 	return state.theme;
 };
 
-/**
- * Switches from sync to single mode, picking whichever slot matches
- * the user's current OS color scheme so nothing visibly changes.
- * No-op when already in single mode.
- */
 export const switchToSingle = (
 	state: ThemeModeState,
 	osScheme: "dark" | "light",
@@ -225,14 +184,6 @@ export const draftToUpdate = (
  * Seeds a form draft from decoded persisted state. Slots the user
  * isn't actively using are filled with sensible defaults so switching
  * modes later feels continuous rather than destructive.
- *
- * `persistedSlots` is the raw `theme_light` / `theme_dark` from storage.
- * When the user is currently in single mode but previously persisted
- * sync slots (i.e. they had sync-mode selections before switching),
- * those slots are reused verbatim so toggling the dropdown back to
- * sync restores their prior pair. Unknown or empty slot values fall
- * back to the `FAMILY_PAIR` of the single theme so the slots are
- * always populated with concrete names.
  */
 export const draftFromState = (
 	state: ThemeModeState,
