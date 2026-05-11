@@ -185,36 +185,26 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						>
 							<TableCell>
 								<div className="flex items-center gap-5">
-									{/* Wrap the checkbox in a click-absorbing container
-									 * so that near-miss clicks do not bubble up to the
-									 * row's navigation handler. */}
-									<div
-										className="flex items-center cursor-default h-[72px] pr-4 -mr-4"
-										onClick={(e) => e.stopPropagation()}
-										onKeyDown={(e) => {
-											if (e.key === "Enter" || e.key === " ") {
-												e.stopPropagation();
+									<Checkbox
+										data-testid={`checkbox-${workspace.id}`}
+										disabled={cantBeChecked(workspace)}
+										checked={checked}
+										onClick={(e) => {
+											e.stopPropagation();
+										}}
+										onCheckedChange={(checked) => {
+											if (checked) {
+												onCheckChange([...checkedWorkspaces, workspace]);
+											} else {
+												onCheckChange(
+													checkedWorkspaces.filter(
+														(w) => w.id !== workspace.id,
+													),
+												);
 											}
 										}}
-									>
-										<Checkbox
-											data-testid={`checkbox-${workspace.id}`}
-											disabled={cantBeChecked(workspace)}
-											checked={checked}
-											onCheckedChange={(checked) => {
-												if (checked) {
-													onCheckChange([...checkedWorkspaces, workspace]);
-												} else {
-													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
-											}}
-											aria-label={`Select workspace ${workspace.name}`}
-										/>
-									</div>
+										aria-label={`Select workspace ${workspace.name}`}
+									/>
 									<AvatarData
 										title={
 											<div className="flex items-center gap-1">
