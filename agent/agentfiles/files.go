@@ -1199,14 +1199,23 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	msg := "search string not found in file. Verify the search " +
 		"string matches the file content exactly, including whitespace " +
 		"and indentation"
-	if hint := inversionHint(content, contentLines, replace, replaceLines, trimRight, trimAll); hint != "" {
-		msg += ". " + hint
-	}
+	// miscount takes precedence: a near-match means the search is the
+	// model's typo'd new text, not a swapped field. Emitting both can
+	// trick an agent into following the inversion hint and corrupting
+	// an unrelated line where the replace string coincidentally
+	// occurs.
 	if hint := miscountHint(contentLines, searchLines); hint != "" {
+		msg += ". " + hint
+	} else if hint := inversionHint(content, contentLines, replace, replaceLines, trimRight, trimAll); hint != "" {
 		msg += ". " + hint
 	}
 	return "", xerrors.New(msg)
 }
+
+// maxHintLines caps the number of line numbers (inversion) or
+// candidate file lines (per miscount) listed in a single hint before
+// truncation with " and N more".
+const maxHintLines = 5
 
 // inversionHint detects the case where the caller swapped `search`
 // and `replace`: search did not match but replace appears in the file.
@@ -1239,16 +1248,25 @@ func inversionHint(
 }
 
 // substringMatchLines returns the 1-based line numbers where needle
-// occurs in content as a byte-for-byte substring.
+// occurs in content as a byte-for-byte substring. Repeat occurrences
+// on the same line collapse to a single line number.
 func substringMatchLines(content, needle string) []int {
+	if needle == "" {
+		return nil
+	}
 	var lines []int
+	seen := make(map[int]struct{})
 	for offset := 0; ; {
 		rel := strings.Index(content[offset:], needle)
 		if rel < 0 {
 			break
 		}
 		idx := offset + rel
-		lines = append(lines, 1+strings.Count(content[:idx], "\n"))
+		line := 1 + strings.Count(content[:idx], "\n")
+		if _, dup := seen[line]; !dup {
+			seen[line] = struct{}{}
+			lines = append(lines, line)
+		}
 		offset = idx + len(needle)
 		if offset > len(content) {
 			break
@@ -1279,12 +1297,8 @@ outer:
 // formatLineList renders a sorted line list as "12, 47, 89", truncated
 // to maxHintLines entries with " and N more" when more exist.
 func formatLineList(lines []int) string {
-	const maxHintLines = 5
 	var b strings.Builder
-	shown := len(lines)
-	if shown > maxHintLines {
-		shown = maxHintLines
-	}
+	shown := min(len(lines), maxHintLines)
 	for i := 0; i < shown; i++ {
 		if i > 0 {
 			_, _ = b.WriteString(", ")
@@ -1298,9 +1312,12 @@ func formatLineList(lines []int) string {
 }
 
 // miscountHint detects search lines that match a file line except for
-// the count of one repeated rune. Emits one hint per such search line.
+// the count of one repeated rune. Emits one hint per such search line,
+// capped at maxMiscountHints total with " and N more" suffix.
 func miscountHint(contentLines, searchLines []string) string {
+	const maxMiscountHints = 3
 	var hints []string
+	extra := 0
 	for _, sLine := range searchLines {
 		sContent, _ := splitEnding(sLine)
 		if strings.TrimSpace(sContent) == "" {
@@ -1325,21 +1342,24 @@ func miscountHint(contentLines, searchLines []string) string {
 			groups[r] = append(groups[r], candidate{line: i + 1, cCount: cc})
 		}
 		for _, r := range order {
+			if len(hints) >= maxMiscountHints {
+				extra++
+				continue
+			}
 			hints = append(hints, formatMiscount(counts[r], r, groups[r]))
 		}
+	}
+	if extra > 0 {
+		hints = append(hints, fmt.Sprintf("and %d more", extra))
 	}
 	return strings.Join(hints, ". ")
 }
 
 // formatMiscount renders one miscount candidate group.
 func formatMiscount(sCount int, r rune, cands []candidate) string {
-	const maxHintLines = 5
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "Your search has %d %q (U+%04X); the file has ", sCount, string(r), r)
-	shown := len(cands)
-	if shown > maxHintLines {
-		shown = maxHintLines
-	}
+	shown := min(len(cands), maxHintLines)
 	for i := 0; i < shown; i++ {
 		if i > 0 {
 			_, _ = b.WriteString(", ")
@@ -1352,7 +1372,8 @@ func formatMiscount(sCount int, r rune, cands []candidate) string {
 	return b.String()
 }
 
-// candidate is the file-line count of the disagreeing rune.
+// candidate records a file line where one rune's count disagrees with
+// the search.
 type candidate struct {
 	line   int
 	cCount int
@@ -1400,6 +1421,7 @@ func singleRuneCountMismatch(s, c string) (r rune, sCount, cCount int, ok bool) 
 	return diffRune, sc, cc, true
 }
 
+// runeFrequency returns the count of each rune in s.
 func runeFrequency(s string) map[rune]int {
 	freq := make(map[rune]int)
 	for _, r := range s {

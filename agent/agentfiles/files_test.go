@@ -3357,6 +3357,117 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			notWantSubs: []string{"Your search has", "the file has"},
 		},
 		{
+			name: "Miscount_SuppressesInversion_WhenBothCouldFire",
+			content: "<header>\n" +
+				"{/* SECTION HEADING " + strings.Repeat("\u2500", 8) + " */}\n" +
+				"<body>\n" +
+				"doSomethingWithLongName(ctx)\n" +
+				"</body>\n",
+			edit: edit{
+				// Search has 6 dashes (miscount target on line 2).
+				search: "{/* SECTION HEADING " + strings.Repeat("\u2500", 6) + " */}\n",
+				// Replace is unrelated text that happens to appear at
+				// line 4. Without miscount-takes-precedence, the
+				// inversion hint would direct an agent to swap and
+				// corrupt line 4.
+				replace: "doSomethingWithLongName(ctx)\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				"Your search has 6 \"\u2500\" (U+2500); the file has 8 at line 2",
+			},
+			notWantSubs: []string{"swap", "appears at line"},
+		},
+		{
+			name: "Inversion_DedupRepeatsOnOneLine",
+			content: "prefix\n" +
+				"AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA\n" +
+				"suffix\n",
+			edit: edit{
+				search:  "absent search line not in file at all\n",
+				replace: "AAAAAAAAAAAAAAAAAAAA\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+			},
+			// Line 2 must appear once, not 2, 2, 2.
+			notWantSubs: []string{"line 2, 2", "more"},
+		},
+		{
+			name: "Inversion_TrimRightFallback_TrailingSpaces",
+			// Content line has trailing spaces; replace omits them.
+			// Byte-substring misses; trimRight line-equivalent
+			// matches.
+			content: "preamble\n" +
+				"matching block body of substantial length   \n" +
+				"trailer\n",
+			edit: edit{
+				search:  "absent search line not in file at all\n",
+				replace: "matching block body of substantial length\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+			},
+		},
+		{
+			name: "Inversion_TrimAllFallback_LeadingIndent",
+			// Content line has leading indentation that replace
+			// omits. Byte-substring misses; trim-right also misses
+			// (the leading whitespace is on a different side);
+			// trim-all matches.
+			content: "preamble\n" +
+				"\t\tmatching block body of substantial length\n" +
+				"trailer\n",
+			edit: edit{
+				search:  "absent search line not in file at all\n",
+				replace: "matching block body of substantial length\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+			},
+		},
+		{
+			name: "Miscount_SingleRuneDiff_Suppressed",
+			// Rune `b` differs (sc=1, cc=0). Both counts < 2, the
+			// suppression guard fires, no hint.
+			content: "first\nxa\nlast\n",
+			edit: edit{
+				search:  "xab\n",
+				replace: "unused\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"Your search has", "the file has"},
+		},
+		{
+			name: "Miscount_TotalHintsCapped",
+			// Four search lines, each matching a distinct file line
+			// via a distinct miscount rune. With maxMiscountHints=3,
+			// only 3 hint sentences appear plus " and 1 more".
+			content: "section ==\n" +
+				"divider ++\n" +
+				"line ##\n" +
+				"header @@\n",
+			edit: edit{
+				search: "section ====\n" +
+					"divider ++++\n" +
+					"line ####\n" +
+					"header @@@@\n",
+				replace: "unused\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Your search has 4 "=" (U+003D)`,
+				`Your search has 4 "+" (U+002B)`,
+				`Your search has 4 "#" (U+0023)`,
+				"and 1 more",
+			},
+			// The fourth hint (`@`) is suppressed by the cap.
+			notWantSubs: []string{`"@"`},
+		},
+		{
 			name: "NoHints_BaseErrorOnly",
 			content: "package foo\n" +
 				"\n" +
@@ -3401,7 +3512,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
 			got := &codersdk.Error{}
 			require.NoError(t, json.NewDecoder(w.Body).Decode(got))
-			msg := got.Error()
+			msg := got.Message
 			for _, sub := range tt.wantSubs {
 				require.Contains(t, msg, sub, "want substring missing")
 			}
