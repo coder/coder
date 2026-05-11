@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -83,6 +84,12 @@ const (
 	// per chat during a single LLM step. When exceeded the oldest event is
 	// evicted so memory stays bounded.
 	maxStreamBufferSize = 10000
+	// RelaySentinelAfterID is the after_id sentinel used by cross-replica
+	// relay subscribers. It instructs the peer to skip the durable DB
+	// snapshot and deliver only in-flight buffered parts. The sentinel
+	// also disables snapshotBufferLocked's redundant-part filter so
+	// relays receive every part the worker has buffered (see PR #24031).
+	RelaySentinelAfterID = math.MaxInt64
 	// maxDurableMessageCacheSize caps the number of recent durable message
 	// events cached per chat for same-replica stream catch-up.
 	maxDurableMessageCacheSize = 256
@@ -1092,9 +1099,26 @@ type SubscribeFnParams struct {
 	Logger              slog.Logger
 }
 
+// bufferedStreamPart is a buffered message_part event tagged with the
+// most recently committed assistant message ID at the moment it was
+// appended. Subscribers can use the checkpoint to skip parts that
+// belong to turns they have already received via durable
+// `message` events.
+type bufferedStreamPart struct {
+	event codersdk.ChatStreamEvent
+	// checkpoint is the chatStreamState.lastCommittedAssistantMessageID
+	// value at the time this part was buffered. A subscriber whose
+	// cursor is past this checkpoint already has the durable assistant
+	// message for the turn this part belongs to, so the part is
+	// redundant. The cursor is clamped to the current checkpoint at
+	// snapshot time, so tool/user message IDs in the cursor cannot
+	// over-drop parts from an in-progress assistant turn.
+	checkpoint int64
+}
+
 type chatStreamState struct {
 	mu                   sync.Mutex
-	buffer               []codersdk.ChatStreamEvent
+	buffer               []bufferedStreamPart
 	buffering            bool
 	durableMessages      []codersdk.ChatStreamEvent
 	durableEvictedBefore int64 // highest message ID evicted from durable cache
@@ -1114,6 +1138,12 @@ type chatStreamState struct {
 	// period expires so cross-replica relays can still
 	// snapshot the buffer.
 	bufferRetainedAt time.Time
+	// lastCommittedAssistantMessageID tracks the highest assistant
+	// durable message ID published for this chat on this replica.
+	// publishToStream tags each buffered message_part with this
+	// value so subscribeToStream can filter out parts belonging to
+	// already-committed turns.
+	lastCommittedAssistantMessageID int64
 }
 
 // heartbeatEntry tracks a single chat's cancel function and workspace
@@ -4144,10 +4174,13 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			// Zero the dropped slot so its *ChatStreamMessagePart is
 			// GC-eligible; the later append reuses this slot in place
 			// whenever cap > len.
-			state.buffer[0] = codersdk.ChatStreamEvent{}
+			state.buffer[0] = bufferedStreamPart{}
 			state.buffer = state.buffer[1:]
 		}
-		state.buffer = append(state.buffer, event)
+		state.buffer = append(state.buffer, bufferedStreamPart{
+			event:      event,
+			checkpoint: state.lastCommittedAssistantMessageID,
+		})
 	}
 	subscribers := make([]chan codersdk.ChatStreamEvent, 0, len(state.subscribers))
 	for _, ch := range state.subscribers {
@@ -4230,7 +4263,78 @@ func (p *Server) getCachedDurableMessages(
 	return result
 }
 
-func (p *Server) subscribeToStream(chatID uuid.UUID) (
+// snapshotBufferLocked returns the buffered message_part events that
+// the caller should receive in their initial snapshot, filtered by
+// the requested cursor.
+//
+// The cursor is clamped to lastCommittedAssistantMessageID so a
+// cursor that points at a tool or user message ID past the last
+// committed assistant turn cannot drop parts from the in-progress
+// turn. The filter then drops parts whose checkpoint is below the
+// clamped cursor; those parts belong to assistant turns the
+// subscriber already has via durable `message` events.
+//
+// The caller must hold the per-chat stream state lock. See
+// subscribeToStream for the documented afterMessageID semantics.
+func snapshotBufferLocked(
+	buffer []bufferedStreamPart,
+	afterMessageID int64,
+	lastCommittedAssistantMessageID int64,
+) []codersdk.ChatStreamEvent {
+	if len(buffer) == 0 {
+		return nil
+	}
+	// Compute the effective cursor used to drop redundant parts.
+	//   - afterMessageID <= 0 ("no cursor; deliver everything") and
+	//     the RelaySentinelAfterID both disable filtering.
+	//   - Otherwise clamp the cursor to lastCommittedAssistantMessageID
+	//     so a tool/user cursor past the last assistant turn cannot
+	//     over-drop parts from the in-progress assistant turn. We can
+	//     only be confident a buffered part is redundant when the
+	//     cursor is at or past its checkpoint AND the checkpoint maps
+	//     to a turn the subscriber already has via durable messages.
+	//   - If lastCommittedAssistantMessageID is still zero (e.g.
+	//     fresh state after cleanup), no buffered part can be proven
+	//     redundant, so deliver everything.
+	var effectiveCursor int64
+	switch {
+	case afterMessageID <= 0, afterMessageID == RelaySentinelAfterID:
+		effectiveCursor = 0
+	case lastCommittedAssistantMessageID < afterMessageID:
+		effectiveCursor = lastCommittedAssistantMessageID
+	default:
+		effectiveCursor = afterMessageID
+	}
+	snapshot := make([]codersdk.ChatStreamEvent, 0, len(buffer))
+	for _, part := range buffer {
+		if effectiveCursor > 0 && part.checkpoint < effectiveCursor {
+			continue
+		}
+		snapshot = append(snapshot, part.event)
+	}
+	return snapshot
+}
+
+// subscribeToStream registers a subscriber to the per-chat in-memory
+// stream and returns a filtered snapshot of currently-buffered
+// message_part events plus the current retry phase, the live
+// subscriber channel, and a cancel func.
+//
+// afterMessageID semantics:
+//   - 0: no filter; the full buffer snapshot is returned.
+//     New browser sessions use this and only see parts for the
+//     currently-streaming turn (the buffer is cleared at the
+//     start of each processChat run).
+//   - RelaySentinelAfterID: no filter; cross-replica relays pass
+//     this sentinel to skip the durable DB snapshot while still
+//     receiving all in-flight buffered parts.
+//   - 0 < afterMessageID < RelaySentinelAfterID: parts whose
+//     checkpoint is less than the cursor are dropped from the
+//     snapshot. The cursor is clamped to the per-chat
+//     lastCommittedAssistantMessageID before filtering so cursors
+//     that point at tool/user message IDs past the last committed
+//     assistant turn cannot over-drop in-progress parts.
+func (p *Server) subscribeToStream(chatID uuid.UUID, afterMessageID int64) (
 	[]codersdk.ChatStreamEvent,
 	*codersdk.ChatStreamRetry,
 	<-chan codersdk.ChatStreamEvent,
@@ -4238,7 +4342,7 @@ func (p *Server) subscribeToStream(chatID uuid.UUID) (
 ) {
 	state := p.getOrCreateStreamState(chatID)
 	state.mu.Lock()
-	snapshot := append([]codersdk.ChatStreamEvent(nil), state.buffer...)
+	snapshot := snapshotBufferLocked(state.buffer, afterMessageID, state.lastCommittedAssistantMessageID)
 	var currentRetry *codersdk.ChatStreamRetry
 	if state.currentRetry != nil {
 		retryCopy := *state.currentRetry
@@ -4541,7 +4645,7 @@ func (p *Server) SubscribeAuthorized(
 	// persisted messages. Capture the current retry phase under the same
 	// lock so the transient snapshot and subscriber registration reflect
 	// a single moment in time.
-	localSnapshot, localRetry, localParts, localCancel := p.subscribeToStream(chatID)
+	localSnapshot, localRetry, localParts, localCancel := p.subscribeToStream(chatID, afterMessageID)
 
 	// Merge all event sources.
 	mergedCtx, mergedCancel := context.WithCancel(ctx)
@@ -5222,10 +5326,85 @@ func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) 
 		Message: &sdkMessage,
 	}
 	p.cacheDurableMessage(chatID, event)
+	p.advanceAssistantCheckpoint(chatID, message)
 	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: message.ID - 1,
 	})
+}
+
+// seedAssistantCheckpoint initializes the per-chat checkpoint from
+// the last durable assistant message ID before any parts are
+// buffered for this run. This closes the cleanup-and-recreate race
+// where a freshly stored chatStreamState would start with
+// lastCommittedAssistantMessageID = 0, tagging every part with
+// checkpoint 0 and forcing snapshotBufferLocked to deliver the
+// entire buffer to every reconnecting subscriber.
+//
+// On lookup error or when there is no prior assistant message, the
+// checkpoint stays at its current value (either zero for a brand-new
+// state, or the value carried forward from a prior run on this
+// replica). This is safe: a zero checkpoint produces an over-
+// inclusive snapshot, not data loss.
+func (p *Server) seedAssistantCheckpoint(
+	ctx context.Context,
+	chatID uuid.UUID,
+	state *chatStreamState,
+	logger slog.Logger,
+) {
+	// Use a short timeout so a stalled DB does not block the
+	// start of a chat run. The seed is best-effort: missing it
+	// only degrades the snapshot filter to "deliver everything",
+	// which is the prior behavior.
+	//
+	// The seed reads the last assistant message ID to bound the
+	// in-memory checkpoint; it never returns user data. The
+	// system context is required because processChat runs without
+	// an actor and the durable read is part of the chat worker
+	// loop. There is no authorization to skip; the chat row was
+	// already authorized before processChat was scheduled.
+	//nolint:gocritic // chatd worker reads its own durable state to seed the in-memory checkpoint; no user context exists here.
+	lookupCtx, cancel := context.WithTimeout(
+		dbauthz.AsSystemRestricted(ctx),
+		5*time.Second,
+	)
+	defer cancel()
+	last, err := p.db.GetLastChatMessageByRole(lookupCtx, database.GetLastChatMessageByRoleParams{
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return
+	}
+	if err != nil {
+		logger.Warn(ctx, "failed to seed assistant checkpoint", slog.Error(err))
+		return
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if last.ID > state.lastCommittedAssistantMessageID {
+		state.lastCommittedAssistantMessageID = last.ID
+	}
+}
+
+// advanceAssistantCheckpoint bumps the per-chat checkpoint when an
+// assistant durable message is published. Subsequent buffered
+// message_part events are tagged with the new checkpoint so
+// subscribeToStream can filter parts belonging to already-committed
+// turns when the subscriber's cursor is past the checkpoint.
+//
+// Tool and user messages do not end an assistant streaming turn, so
+// the checkpoint is only advanced for assistant-role messages.
+func (p *Server) advanceAssistantCheckpoint(chatID uuid.UUID, message database.ChatMessage) {
+	if message.Role != database.ChatMessageRoleAssistant {
+		return
+	}
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if message.ID > state.lastCommittedAssistantMessageID {
+		state.lastCommittedAssistantMessageID = message.ID
+	}
 }
 
 // publishEditedMessage is like publishMessage but uses FullRefresh
@@ -5678,7 +5857,19 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	streamState.bufferRetainedAt = time.Time{}
 	streamState.resetDropCounters()
 	streamState.buffering = true
+	// lastCommittedAssistantMessageID is intentionally NOT reset
+	// here: the checkpoint is lifetime-scoped across runs so that
+	// after a state was reaped and a new run starts, reconnecting
+	// subscribers can still filter parts from prior turns once we
+	// re-seed it below.
 	streamState.mu.Unlock()
+	// Seed the checkpoint from the durable store so that after a
+	// cleanupStreamIfIdle reaped the previous state, the very
+	// first parts buffered by this run are not tagged with
+	// checkpoint=0 (which would make snapshotBufferLocked deliver
+	// the full buffer to every reconnecting subscriber regardless
+	// of their cursor).
+	p.seedAssistantCheckpoint(ctx, chat.ID, streamState, logger)
 	defer func() {
 		streamState.mu.Lock()
 		// Fallback cleanup for exit paths that return before a
