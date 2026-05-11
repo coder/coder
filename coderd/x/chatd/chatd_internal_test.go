@@ -5624,6 +5624,136 @@ func TestAdvanceAssistantCheckpoint(t *testing.T) {
 	requireCheckpoint(200)
 }
 
+// TestSeedAssistantCheckpoint covers the three behaviors of
+// seedAssistantCheckpoint:
+//   - success: a durable assistant message exists and its ID is
+//     installed as the checkpoint.
+//   - monotonic guard: an older ID does not move the checkpoint
+//     backwards (defends against concurrent advance from another
+//     publish path racing with the seed).
+//   - db error: a non sql.ErrNoRows failure must not change the
+//     checkpoint and must not panic.
+func TestSeedAssistantCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InstallsLatestAssistantID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{
+			db:     db,
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+
+		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), database.GetLastChatMessageByRoleParams{
+			ChatID: chatID,
+			Role:   database.ChatMessageRoleAssistant,
+		}).Return(database.ChatMessage{
+			ID:   500,
+			Role: database.ChatMessageRoleAssistant,
+		}, nil)
+
+		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(500), state.lastCommittedAssistantMessageID,
+			"seed must install the latest durable assistant message ID as the checkpoint")
+	})
+
+	t.Run("DoesNotMoveCheckpointBackwards", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{
+			db:     db,
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.lastCommittedAssistantMessageID = 1000
+		state.mu.Unlock()
+
+		// DB reports an older assistant message ID. The monotonic
+		// guard must keep the existing higher checkpoint.
+		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
+			database.ChatMessage{ID: 500, Role: database.ChatMessageRoleAssistant},
+			nil,
+		)
+
+		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(1000), state.lastCommittedAssistantMessageID,
+			"seed must not move the checkpoint backwards")
+	})
+
+	t.Run("DBErrorLeavesCheckpointUntouched", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{
+			db:     db,
+			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.lastCommittedAssistantMessageID = 42
+		state.mu.Unlock()
+
+		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
+			database.ChatMessage{}, xerrors.New("database explode"),
+		)
+
+		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(42), state.lastCommittedAssistantMessageID,
+			"a non-ErrNoRows DB error must not change the checkpoint")
+	})
+
+	t.Run("NoRowsLeavesCheckpointAtZero", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{
+			db:     db,
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+
+		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
+			database.ChatMessage{}, sql.ErrNoRows,
+		)
+
+		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(0), state.lastCommittedAssistantMessageID,
+			"a fresh chat with no prior assistant messages must leave the checkpoint at zero")
+	})
+}
+
 // TestSubscribeToStream_FiltersBufferedParts_Integration wires
 // publishToStream, advanceAssistantCheckpoint, and subscribeToStream
 // together to confirm the end-to-end contract: a subscriber with a
