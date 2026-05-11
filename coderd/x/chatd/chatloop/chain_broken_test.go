@@ -18,7 +18,7 @@ import (
 func TestRun_ChainBrokenRecovers(t *testing.T) {
 	t.Parallel()
 
-	// Given: a chain-mode run whose previous provider_respons_id is present in
+	// Given: a chain-mode run whose previous provider_response_id is present in
 	//        our database but no longer recognized by the provider for some reason
 	var (
 		streamCalls   int

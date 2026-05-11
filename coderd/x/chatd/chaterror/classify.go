@@ -299,11 +299,10 @@ func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
 }
 
-// chainBrokenClassification recognizes OpenAI's
-// "Previous response with id ... not found" 404, returned when a
+// chainBrokenClassification recognizes the OpenAI error
+// "Previous response with id ... not found" returned when a
 // chained turn references a previous_response_id the provider no
-// longer has. Both substrings are required so unrelated 404s do not
-// match.
+// longer recognizes.
 func chainBrokenClassification(
 	lowerMessage string,
 	provider string,
