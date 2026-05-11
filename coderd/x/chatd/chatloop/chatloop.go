@@ -1530,36 +1530,19 @@ func flushActiveState(
 	}
 }
 
-// recoverFromChainBroken handles a stream failure where the provider
-// reported that the chain anchor (e.g. OpenAI previous_response_id) is
-// no longer retrievable. It drops the poisoned options, exits chain
-// mode via the caller-supplied callback, and reloads full history so
-// the next retry attempt sends a normal request.
+// recoverFromChainBroken clears the poisoned chain anchor (e.g. OpenAI
+// previous_response_id), exits chain mode via the caller's callback, and
+// reloads full history so the next chatretry attempt sends a normal
+// request. Best-effort: if ReloadMessages fails, the options are still
+// cleared and the retry runs against the chain-filtered prompt.
 //
-// Recovery is best-effort: if reloading fails the chain options are
-// still cleared and chain mode is still disabled, giving the next
-// attempt a chance to succeed against the original (chain-mode
-// filtered) prompt without the poisoned anchor. The caller already
-// classified the error as Retryable, so chatretry will retry
-// regardless.
-//
-// This bypasses RunOptions.PrepareMessages. That is safe today only
-// because PrepareMessages already ran at the top of the current step
-// (so any one-shot instruction injection it performs has happened),
-// and ReloadMessages itself rebuilds the system prompt and refreshes
-// the advisor snapshot. If PrepareMessages gains a new responsibility
-// that ReloadMessages does not duplicate, recovery would silently
-// skip it: re-evaluate this contract before adding to either callback.
-//
-// The Anthropic prompt-cache and sanitize passes are also bypassed,
-// which is fine while chain mode is OpenAI-only. Extending chain mode
-// to Anthropic must run those passes on the rebuilt prompt.
-//
-// We mutate call directly rather than syncing opts.ProviderOptions:
-// this only needs to fix the in-flight retry, because the existing
-// post-step chain-exit path in Run already clears opts.ProviderOptions
-// once the chained step persists. Carrying our own copy of opts here
-// would be redundant and would mask bugs in that path.
+// Caveats:
+//   - Bypasses RunOptions.PrepareMessages. Safe today because
+//     PrepareMessages already ran at the start of this step and
+//     ReloadMessages refreshes the same state (instruction injection,
+//     advisor snapshot). Revisit if either callback diverges.
+//   - Bypasses the Anthropic prompt-cache and sanitize passes. Safe
+//     while chain mode is OpenAI-only; extend if chain mode does.
 func recoverFromChainBroken(
 	ctx context.Context,
 	opts RunOptions,

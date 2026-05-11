@@ -15,38 +15,11 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 )
 
-// chainBrokenError is what OpenAI returns when previous_response_id
-// points at a response it does not have stored.
-const chainBrokenErrorMessage = "Previous response with id 'resp_abc' not found."
-
-// finishingStream returns a stream that emits a single Finish part.
-// The chatloop treats a finishReason of Stop as "stoppedByModel" and
-// exits the per-step loop after persisting.
-func finishingStream() fantasy.StreamResponse {
-	return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
-		yield(fantasy.StreamPart{
-			Type:         fantasy.StreamPartTypeFinish,
-			FinishReason: fantasy.FinishReasonStop,
-		})
-	})
-}
-
-// chainModeProviderOptions builds a fantasy.ProviderOptions carrying
-// the OpenAI Responses options with previous_response_id set, the same
-// shape chatd builds when chain mode is active.
-func chainModeProviderOptions(previousResponseID string) fantasy.ProviderOptions {
-	store := true
-	return fantasy.ProviderOptions{
-		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
-			Store:              &store,
-			PreviousResponseID: &previousResponseID,
-		},
-	}
-}
-
 func TestRun_ChainBrokenRecovers(t *testing.T) {
 	t.Parallel()
 
+	// Given: a chain-mode run whose previous provider_respons_id is present in
+	//        our database but no longer recognized by the provider for some reason
 	var (
 		streamCalls   int
 		secondCallOpt fantasy.ProviderOptions
@@ -81,6 +54,7 @@ func TestRun_ChainBrokenRecovers(t *testing.T) {
 		{Role: "user", Content: []fantasy.MessagePart{fantasy.TextPart{Text: "follow up"}}},
 	}
 
+	// When: the first attempt fails with the chain-broken error
 	err := Run(context.Background(), RunOptions{
 		Model:                model,
 		MaxSteps:             1,
@@ -99,6 +73,9 @@ func TestRun_ChainBrokenRecovers(t *testing.T) {
 		},
 	})
 
+	// Then: DisableChainMode and ReloadMessages each run once and the
+	// retry attempt sends the full reloaded history without
+	// previous_response_id.
 	require.NoError(t, err)
 	require.Equal(t, 2, streamCalls, "exactly two stream attempts (one failure, one success)")
 	require.Equal(t, 1, disableCalls, "DisableChainMode called once on chain-broken recovery")
@@ -116,13 +93,8 @@ func TestRun_ChainBrokenRecovers(t *testing.T) {
 func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 	t.Parallel()
 
-	// Chain-broken recovery only fixes the in-flight retry; the
-	// existing post-step chain-exit path in Run is what carries the
-	// cleared options forward to subsequent steps. This test pins
-	// that interaction by running a recovery and then a real second
-	// step (forced by emitting a tool call from the recovered
-	// attempt) and asserting that no later stream call carries
-	// previous_response_id.
+	// Given a chain-mode run whose recovery succeeds and yields a
+	// tool call so the step loop continues
 	var (
 		mu           sync.Mutex
 		streamCalls  int
@@ -163,6 +135,7 @@ func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 		},
 	}
 
+	// When the second step builds its call from opts.ProviderOptions
 	err := Run(context.Background(), RunOptions{
 		Model:                model,
 		MaxSteps:             3,
@@ -185,6 +158,9 @@ func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 		},
 	})
 
+	// Then it must not re-send the poisoned previous_response_id
+	// because the post-step chain-exit path in Run cleared it after
+	// the recovered step persisted.
 	require.NoError(t, err)
 	require.Equal(t, 3, streamCalls,
 		"expected three stream calls: chain-broken failure, recovered tool-call step, follow-up step")
@@ -200,6 +176,7 @@ func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 	t.Parallel()
 
+	// Given: a chain-mode run whose ReloadMessages callback errors
 	var (
 		streamCalls   int
 		secondCallOpt fantasy.ProviderOptions
@@ -224,6 +201,7 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 		{Role: "user", Content: []fantasy.MessagePart{fantasy.TextPart{Text: "follow up"}}},
 	}
 
+	// When: the chain-broken error fires
 	err := Run(context.Background(), RunOptions{
 		Model:                model,
 		MaxSteps:             1,
@@ -241,9 +219,9 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 		},
 	})
 
-	// Reload failure must not block the chain-broken recovery: the
-	// poisoned previous_response_id is cleared regardless so the
-	// retry has any chance of succeeding.
+	// Then: the poisoned previous_response_id is still cleared and
+	// DisableChainMode still runs, so the retry has any chance of
+	// succeeding against the chain-filtered prompt.
 	require.NoError(t, err)
 	require.Equal(t, 1, disableCalls)
 	require.False(t,
@@ -255,9 +233,7 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 func TestRun_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
 	t.Parallel()
 
-	// Defensive: if a future provider returns a chain-broken signal
-	// while chain mode is *not* engaged (no previous_response_id in
-	// options), the recovery branch must be a no-op and not panic.
+	// Given: a run with no chain-mode options or callbacks
 	var streamCalls int
 	model := &chattest.FakeModel{
 		ProviderName: "openai",
@@ -272,6 +248,7 @@ func TestRun_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
 		},
 	}
 
+	// When: a future provider returns a chain-broken signal,
 	err := Run(context.Background(), RunOptions{
 		Model:                model,
 		MaxSteps:             1,
@@ -282,6 +259,8 @@ func TestRun_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
 		// No ProviderOptions, no DisableChainMode, no ReloadMessages.
 	})
 
+	// Then: the recovery branch must no-op (no panic, no missing
+	// callbacks) and the retry runs normally.
 	require.NoError(t, err)
 	require.Equal(t, 2, streamCalls)
 }
@@ -289,6 +268,7 @@ func TestRun_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
 func TestRun_NonChainBrokenRetryDoesNotTouchChainState(t *testing.T) {
 	t.Parallel()
 
+	// Given: a chain-mode run with a still-valid previous_response_id
 	var (
 		streamCalls   int
 		secondCallOpt fantasy.ProviderOptions
@@ -310,6 +290,7 @@ func TestRun_NonChainBrokenRetryDoesNotTouchChainState(t *testing.T) {
 	disableCalls := 0
 	reloadCalls := 0
 
+	// When: a non-chain-broken retryable error fires (503)
 	err := Run(context.Background(), RunOptions{
 		Model:                model,
 		MaxSteps:             1,
@@ -330,6 +311,8 @@ func TestRun_NonChainBrokenRetryDoesNotTouchChainState(t *testing.T) {
 		},
 	})
 
+	// Then: chain mode stays engaged, ReloadMessages is not called,
+	// and the retry preserves previous_response_id.
 	require.NoError(t, err)
 	require.Equal(t, 0, disableCalls,
 		"non-chain-broken retry must not exit chain mode")
@@ -339,4 +322,33 @@ func TestRun_NonChainBrokenRetryDoesNotTouchChainState(t *testing.T) {
 		chatopenai.HasPreviousResponseID(secondCallOpt),
 		"non-chain-broken retry must preserve previous_response_id",
 	)
+}
+
+// chainBrokenError is what OpenAI returns when previous_response_id
+// points at a response it does not have stored.
+const chainBrokenErrorMessage = "Previous response with id 'resp_abc' not found."
+
+// finishingStream returns a stream that emits a single Finish part.
+// The chatloop treats a finishReason of Stop as "stoppedByModel" and
+// exits the per-step loop after persisting.
+func finishingStream() fantasy.StreamResponse {
+	return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+		yield(fantasy.StreamPart{
+			Type:         fantasy.StreamPartTypeFinish,
+			FinishReason: fantasy.FinishReasonStop,
+		})
+	})
+}
+
+// chainModeProviderOptions builds a fantasy.ProviderOptions carrying
+// the OpenAI Responses options with previous_response_id set, the same
+// shape chatd builds when chain mode is active.
+func chainModeProviderOptions(previousResponseID string) fantasy.ProviderOptions {
+	store := true
+	return fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
+			Store:              &store,
+			PreviousResponseID: &previousResponseID,
+		},
+	}
 }

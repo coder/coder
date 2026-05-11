@@ -74,33 +74,6 @@ var streamIncompleteMatches = []streamIncompleteMatch{
 	},
 }
 
-type chainBrokenMatch struct {
-	// pattern is a lowercase substring required in the error message.
-	pattern string
-	// requiredAdditional is a second lowercase substring that must
-	// also be present. Empty when a single substring is unambiguous.
-	requiredAdditional string
-	// provider is the provider hint applied when none was detected
-	// from the wrapped error.
-	provider string
-}
-
-// chainBrokenMatches maps provider error fragments that indicate the
-// chain anchor (OpenAI previous_response_id, or analogous future
-// signals) is no longer retrievable. Recovery is to clear the chain
-// state and retry with full history.
-//
-// Patterns must be specific enough to not catch unrelated 404s; we
-// require a co-occurring substring where a single fragment would be
-// ambiguous.
-var chainBrokenMatches = []chainBrokenMatch{
-	{
-		pattern:            "previous response with id",
-		requiredAdditional: "not found",
-		provider:           "openai",
-	},
-}
-
 // WithProvider returns a copy of the classification using an explicit
 // provider hint. Explicit provider hints are trusted over provider names
 // heuristically parsed from the error text.
@@ -326,34 +299,34 @@ func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
 }
 
+// chainBrokenClassification recognizes OpenAI's
+// "Previous response with id ... not found" 404, returned when a
+// chained turn references a previous_response_id the provider no
+// longer has. Both substrings are required so unrelated 404s do not
+// match.
 func chainBrokenClassification(
 	lowerMessage string,
 	provider string,
 	statusCode int,
 	structured providerErrorDetails,
 ) (ClassifiedError, bool) {
-	for _, match := range chainBrokenMatches {
-		if !strings.Contains(lowerMessage, match.pattern) {
-			continue
-		}
-		if match.requiredAdditional != "" &&
-			!strings.Contains(lowerMessage, match.requiredAdditional) {
-			continue
-		}
-		if provider == "" {
-			provider = match.provider
-		}
-		return normalizeClassification(ClassifiedError{
-			Detail:      structured.detail,
-			Kind:        codersdk.ChatErrorKindGeneric,
-			Provider:    provider,
-			Retryable:   true,
-			StatusCode:  statusCode,
-			RetryAfter:  structured.retryAfter,
-			ChainBroken: true,
-		}), true
+	if !(strings.Contains(lowerMessage, "previous response with id") &&
+		strings.Contains(lowerMessage, "not found")) {
+		return ClassifiedError{}, false
 	}
-	return ClassifiedError{}, false
+	// This class of error has so far only been observed with OpenAI.
+	if provider == "" {
+		provider = "openai"
+	}
+	return normalizeClassification(ClassifiedError{
+		Detail:      structured.detail,
+		Kind:        codersdk.ChatErrorKindGeneric,
+		Provider:    provider,
+		Retryable:   true,
+		StatusCode:  statusCode,
+		RetryAfter:  structured.retryAfter,
+		ChainBroken: true,
+	}), true
 }
 
 func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {
