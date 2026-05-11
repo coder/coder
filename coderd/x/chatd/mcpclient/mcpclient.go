@@ -180,15 +180,21 @@ func connectOne(
 ) ([]fantasy.AgentTool, *client.Client, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
-	// When opted-in, merge Coder identity headers in BEFORE the
-	// transport is created so any auth header (e.g. Authorization)
-	// already set above wins on a conflict. Coder headers carry
-	// chat/owner/workspace identity and let first-party MCP servers
-	// correlate a tool call back to the originating chat. Off by
-	// default to avoid leaking chat identity to third-party servers.
+	// When opted-in, merge Coder identity headers BEFORE the
+	// transport is created so any auth header already set above
+	// wins on a conflict. Conflict detection uses
+	// http.CanonicalHeaderKey because the upstream transport applies
+	// http.Header.Set, which canonicalizes keys; without that, an
+	// admin-configured header that differs only in case from a Coder
+	// identity header would land in the request map twice and the
+	// surviving value would be non-deterministic.
 	if cfg.ForwardCoderHeaders {
+		canonicalAuth := make(map[string]struct{}, len(headers))
+		for k := range headers {
+			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
+		}
 		for k, v := range coderHeaders {
-			if _, exists := headers[k]; exists {
+			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
 				continue
 			}
 			headers[k] = v

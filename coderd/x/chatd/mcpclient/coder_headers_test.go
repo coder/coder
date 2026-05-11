@@ -50,7 +50,7 @@ func newHeaderRecordingServer(t *testing.T) (*httptest.Server, *sync.Mutex, *[]h
 // left at its default (false).
 func TestConnectAll_ForwardCoderHeaders_DefaultOff(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
@@ -92,7 +92,7 @@ func TestConnectAll_ForwardCoderHeaders_DefaultOff(t *testing.T) {
 // outgoing MCP request, including the subchat and workspace headers.
 func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
@@ -141,7 +141,7 @@ func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 // X-Coder-Chat-Id and the X-Coder-Subchat-Id header is absent.
 func TestConnectAll_ForwardCoderHeaders_RootChat(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
@@ -184,7 +184,7 @@ func TestConnectAll_ForwardCoderHeaders_RootChat(t *testing.T) {
 // forwarded alongside.
 func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
@@ -229,7 +229,7 @@ func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 // headers are forwarded alongside, and that auth wins on a conflict.
 func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
@@ -247,9 +247,10 @@ func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 
 	// Intentionally include an Authorization key to verify the auth
 	// header wins on conflict.
+	ownerID := uuid.NewString()
 	coderHeaders := map[string]string{
 		"Authorization":                 "Bearer should-be-overridden",
-		chatprovider.HeaderCoderOwnerID: uuid.NewString(),
+		chatprovider.HeaderCoderOwnerID: ownerID,
 	}
 
 	tools, cleanup := mcpclient.ConnectAll(
@@ -272,5 +273,57 @@ func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 	require.NotEmpty(t, *recorded)
 	last := (*recorded)[len(*recorded)-1]
 	assert.Equal(t, "Bearer oauth-token-xyz", last.Get("Authorization"))
-	assert.NotEmpty(t, last.Get(chatprovider.HeaderCoderOwnerID))
+	assert.Equal(t, ownerID, last.Get(chatprovider.HeaderCoderOwnerID))
+}
+
+// TestConnectAll_ForwardCoderHeaders_WithCustomHeaders verifies that
+// custom_headers admin-configured values are preserved when Coder
+// identity headers are forwarded alongside, including the case where
+// the admin configures a custom header whose name only differs from a
+// Coder identity header by case. Conflict detection is case-
+// insensitive because http.Header.Set canonicalizes header names.
+func TestConnectAll_ForwardCoderHeaders_WithCustomHeaders(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts, mu, recorded := newHeaderRecordingServer(t)
+
+	ownerID := uuid.New()
+	chatID := uuid.New()
+
+	cfg := makeConfig("hdr-custom", ts.URL)
+	cfg.AuthType = "custom_headers"
+	// Include both an unrelated custom header AND a case-variant of
+	// X-Coder-Owner-Id to exercise the case-insensitive conflict
+	// check. The admin-configured value MUST win.
+	cfg.CustomHeaders = `{"X-Tenant":"acme","x-coder-owner-id":"admin-controlled"}`
+	cfg.ForwardCoderHeaders = true
+
+	coderHeaders := chatprovider.CoderHeaders(database.Chat{
+		ID:      chatID,
+		OwnerID: ownerID,
+	})
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		coderHeaders,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	_, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID: "call-1", Name: "hdr-custom__ping", Input: "{}",
+	})
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, *recorded)
+	last := (*recorded)[len(*recorded)-1]
+	assert.Equal(t, "acme", last.Get("X-Tenant"))
+	// The admin's case-variant header must win, because HTTP header
+	// names are case-insensitive at the transport level.
+	assert.Equal(t, "admin-controlled", last.Get(chatprovider.HeaderCoderOwnerID))
+	assert.Equal(t, chatID.String(), last.Get(chatprovider.HeaderCoderChatID))
 }

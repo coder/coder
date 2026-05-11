@@ -936,7 +936,8 @@ const ServerForm: FC<ServerFormProps> = ({
 											Behavior
 										</h3>
 										<p className="m-0 text-xs text-content-secondary">
-											Availability, model intent, and tool governance.
+											Availability, model intent, identity headers, and tool
+											governance.
 										</p>
 									</div>
 									{showBehavior ? (
