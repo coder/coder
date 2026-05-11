@@ -193,6 +193,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,

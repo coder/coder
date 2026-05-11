@@ -1901,6 +1901,28 @@ Allow users to provide their own LLM API keys or subscriptions. When disabled, o
 
 Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).
 
+### --ai-budget-policy
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>highest</code>                 |
+| Environment | <code>$CODER_AI_BUDGET_POLICY</code> |
+| YAML        | <code>aibridge.budget_policy</code>  |
+| Default     | <code>highest</code>                 |
+
+Determines the effective group when a user belongs to multiple groups with AI budgets. "highest" selects the group with the largest spend limit, and is currently the only supported value.
+
+### --ai-budget-period
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>month</code>                   |
+| Environment | <code>$CODER_AI_BUDGET_PERIOD</code> |
+| YAML        | <code>aibridge.budget_period</code>  |
+| Default     | <code>month</code>                   |
+
+Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only "month" is currently supported.
+
 ### --aibridge-proxy-enabled
 
 |             |                                            |

@@ -37,6 +37,9 @@ styl = "styl"
 edn = "edn"
 Inferrable = "Inferrable"
 IIF = "IIF"
+# apitypings generator emits "Policys" as the plural of "Policy"; the
+# generator's pluralizer doesn't handle the -y -> -ies rule.
+Policys = "Policys"
 
 [files]
 extend-exclude = [

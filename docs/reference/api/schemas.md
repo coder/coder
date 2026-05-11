@@ -450,6 +450,8 @@
     "region": "string",
     "small_fast_model": "string"
   },
+  "budget_period": "string",
+  "budget_policy": "string",
   "circuit_breaker_enabled": true,
   "circuit_breaker_failure_threshold": 0,
   "circuit_breaker_interval": 0,
@@ -487,6 +489,8 @@
 | `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
 | `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `budget_period`                     | string                                                                      | false    |              |                                                                                                                                                                             |
+| `budget_policy`                     | string                                                                      | false    |              | Budget settings for AI Governance cost controls.                                                                                                                            |
 | `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                          |
 | `circuit_breaker_failure_threshold` | integer                                                                     | false    |              |                                                                                                                                                                             |
 | `circuit_breaker_interval`          | integer                                                                     | false    |              |                                                                                                                                                                             |
@@ -1275,6 +1279,8 @@
       "region": "string",
       "small_fast_model": "string"
     },
+    "budget_period": "string",
+    "budget_policy": "string",
     "circuit_breaker_enabled": true,
     "circuit_breaker_failure_threshold": 0,
     "circuit_breaker_interval": 0,
@@ -5259,6 +5265,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -5851,6 +5859,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "region": "string",
         "small_fast_model": "string"
       },
+      "budget_period": "string",
+      "budget_policy": "string",
       "circuit_breaker_enabled": true,
       "circuit_breaker_failure_threshold": 0,
       "circuit_breaker_interval": 0,
