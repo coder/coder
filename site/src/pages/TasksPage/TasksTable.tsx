@@ -219,7 +219,7 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 				data-testid={`task-${task.id}`}
 				{...clickableRowProps}
 			>
-				<TableCell>
+				<TableCell className="cursor-default">
 					<div className="flex items-center gap-5">
 						{/* Wrap the checkbox in a click-absorbing container
 						 * so that near-miss clicks do not bubble up to the
