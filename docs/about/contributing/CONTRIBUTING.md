@@ -215,12 +215,12 @@ metadata.
 
 ### Release types
 
-| Type                   | Tag            | Source          | Purpose                                 |
-|------------------------|----------------|-----------------|-----------------------------------------|
-| RC (release candidate) | `vX.Y.0-rc.W` | `main` or branch | Pre-release for testing                |
-| Create release branch  | `vX.Y.0-rc.W` | `main`          | Cut `release/X.Y` + tag RC atomically  |
-| Release                | `vX.Y.0`       | `release/X.Y`  | First release of a minor version        |
-| Patch                  | `vX.Y.Z`       | `release/X.Y`  | Bug fixes and security patches          |
+| Type                   | Tag           | Source           | Purpose                               |
+|------------------------|---------------|------------------|---------------------------------------|
+| RC (release candidate) | `vX.Y.0-rc.W` | `main` or branch | Pre-release for testing               |
+| Create release branch  | `vX.Y.0-rc.W` | `main`           | Cut `release/X.Y` + tag RC atomically |
+| Release                | `vX.Y.0`      | `release/X.Y`    | First release of a minor version      |
+| Patch                  | `vX.Y.Z`      | `release/X.Y`    | Bug fixes and security patches        |
 
 ### Workflow
 

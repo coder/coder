@@ -71,6 +71,7 @@ func updateCalendarFile(path string, ver version) error {
 		return err
 	}
 
+	//nolint:gosec // File permissions match the original.
 	return os.WriteFile(path, []byte(updated), 0o644)
 }
 
@@ -206,14 +207,14 @@ func renderCalendarTable(rows []calendarRow) string {
 	var b strings.Builder
 
 	// Header.
-	fmt.Fprintf(&b, "| %-*s | %-*s | %-*s | %-*s |\n",
+	_, _ = fmt.Fprintf(&b, "| %-*s | %-*s | %-*s | %-*s |\n",
 		widths[0], headers[0],
 		widths[1], headers[1],
 		widths[2], headers[2],
 		widths[3], headers[3])
 
 	// Separator.
-	fmt.Fprintf(&b, "|%s|%s|%s|%s|\n",
+	_, _ = fmt.Fprintf(&b, "|%s|%s|%s|%s|\n",
 		strings.Repeat("-", widths[0]+2),
 		strings.Repeat("-", widths[1]+2),
 		strings.Repeat("-", widths[2]+2),
@@ -221,7 +222,7 @@ func renderCalendarTable(rows []calendarRow) string {
 
 	// Rows.
 	for _, row := range rows {
-		fmt.Fprintf(&b, "| %-*s | %-*s | %-*s | %-*s |\n",
+		_, _ = fmt.Fprintf(&b, "| %-*s | %-*s | %-*s | %-*s |\n",
 			widths[0], row.ReleaseName,
 			widths[1], row.ReleaseDate,
 			widths[2], row.Status,
@@ -292,6 +293,7 @@ func updateAutoversionFile(path string, ver version, channel string) error {
 		return nil
 	}
 
+	//nolint:gosec // File permissions match the original.
 	return os.WriteFile(path, []byte(updated), 0o644)
 }
 
@@ -358,5 +360,6 @@ func updateRancherFile(path string, ver version, channel string) error {
 		return nil
 	}
 
+	//nolint:gosec // File permissions match the original.
 	return os.WriteFile(path, []byte(updated), 0o644)
 }

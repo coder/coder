@@ -994,7 +994,7 @@ jobs:
             --channel "$CHANNEL"
 
       - name: Create docs update PR
-        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e7c3 # v7.0.5
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "docs: update release docs for ${{ needs.prepare-release.outputs.version }}"

@@ -54,8 +54,8 @@ func main() {
 						Value:       serpent.StringOf(&commitSHA),
 					},
 				},
-					Handler: func(inv *serpent.Invocation) error {
-						result, err := calculateNextVersion(releaseType, ref, commitSHA)
+				Handler: func(inv *serpent.Invocation) error {
+					result, err := calculateNextVersion(releaseType, ref, commitSHA)
 					if err != nil {
 						return err
 					}

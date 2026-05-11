@@ -106,7 +106,8 @@ func calculateRCFromMain(ref, commitSHA string) (CalculateResult, error) {
 	latestRelease := findLatestNonRC(allTags)
 
 	var major, minor, rcNum int
-	if latestRC.original != "" {
+	switch {
+	case latestRC.original != "":
 		major = latestRC.major
 		minor = latestRC.minor
 		rcNum = latestRC.rc + 1
@@ -118,11 +119,11 @@ func calculateRCFromMain(ref, commitSHA string) (CalculateResult, error) {
 			minor++
 			rcNum = 0
 		}
-	} else if latestRelease.original != "" {
+	case latestRelease.original != "":
 		major = latestRelease.major
 		minor = latestRelease.minor + 1
 		rcNum = 0
-	} else {
+	default:
 		return CalculateResult{}, xerrors.New("no existing tags found to base RC on")
 	}
 

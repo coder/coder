@@ -26,14 +26,6 @@ type prMetadata struct {
 // prMetadataMaps holds PR metadata indexed by PR number.
 type prMetadataMaps map[int]prMetadata
 
-// lookupCommit is a helper used in JSON unmarshalling for gh API
-// results.
-type lookupCommit struct {
-	Number int      `json:"number"`
-	Labels []string `json:"labels"`
-	Author string   `json:"author"`
-}
-
 // ghBuildPRMetadataMap builds a map of PR number to metadata by
 // querying the GitHub API via the gh CLI for all PRs referenced in
 // the commit list.

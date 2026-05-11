@@ -68,45 +68,45 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 
 	// RC channel note.
 	if channel == "rc" {
-		b.WriteString("> [!NOTE]\n")
-		b.WriteString("> This is a **release candidate** build of Coder. Release candidate builds are not intended for production use. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).\n\n")
+		_, _ = b.WriteString("> [!NOTE]\n")
+		_, _ = b.WriteString("> This is a **release candidate** build of Coder. Release candidate builds are not intended for production use. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).\n\n")
 	}
 
-	b.WriteString("## Changelog\n\n")
+	_, _ = b.WriteString("## Changelog\n\n")
 
 	for _, sec := range sections {
 		entries, ok := buckets[sec.key]
 		if !ok || len(entries) == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "### %s\n\n", sec.title)
+		_, _ = fmt.Fprintf(&b, "### %s\n\n", sec.title)
 		for _, e := range entries {
 			title := humanizeTitle(e.Title)
 			if e.PRCount > 0 {
 				// Strip the trailing PR reference from the title since
 				// we add it as a link.
 				title = stripPRRef(title)
-				fmt.Fprintf(&b, "- %s (#%d)\n", title, e.PRCount)
+				_, _ = fmt.Fprintf(&b, "- %s (#%d)\n", title, e.PRCount)
 			} else {
-				fmt.Fprintf(&b, "- %s\n", title)
+				_, _ = fmt.Fprintf(&b, "- %s\n", title)
 			}
 		}
-		b.WriteString("\n")
+		_, _ = b.WriteString("\n")
 	}
 
 	// Compare link.
-	fmt.Fprintf(&b, "Compare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n\n",
+	_, _ = fmt.Fprintf(&b, "Compare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n\n",
 		previousVersion.String(), newVersion.String(),
 		owner, repo,
 		previousVersion.String(), newVersion.String())
 
 	// Container image.
-	b.WriteString("## Container image\n\n")
-	fmt.Fprintf(&b, "- `docker pull ghcr.io/%s/%s:%s`\n\n", owner, repo, newVersion.String())
+	_, _ = b.WriteString("## Container image\n\n")
+	_, _ = fmt.Fprintf(&b, "- `docker pull ghcr.io/%s/%s:%s`\n\n", owner, repo, newVersion.String())
 
 	// Install/upgrade links.
-	b.WriteString("## Install/upgrade\n\n")
-	b.WriteString("Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.\n")
+	_, _ = b.WriteString("## Install/upgrade\n\n")
+	_, _ = b.WriteString("Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.\n")
 
 	return b.String(), nil
 }
