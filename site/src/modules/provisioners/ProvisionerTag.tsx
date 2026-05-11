@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { CircleCheckIcon, CircleMinusIcon, TagIcon, XIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 import { Button } from "#/components/Button/Button";
@@ -85,9 +84,9 @@ const BooleanPill: FC<BooleanPillProps> = ({
 			size="lg"
 			icon={
 				value ? (
-					<CircleCheckIcon css={styles.truePill} className="size-icon-sm" />
+					<CircleCheckIcon className="size-icon-sm text-content-link" />
 				) : (
-					<CircleMinusIcon css={styles.falsePill} className="size-icon-sm" />
+					<CircleMinusIcon className="size-icon-sm text-content-warning" />
 				)
 			}
 			{...divProps}
@@ -96,12 +95,3 @@ const BooleanPill: FC<BooleanPillProps> = ({
 		</Pill>
 	);
 };
-
-const styles = {
-	truePill: (theme) => ({
-		color: theme.roles.active.outline,
-	}),
-	falsePill: (theme) => ({
-		color: theme.roles.danger.outline,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

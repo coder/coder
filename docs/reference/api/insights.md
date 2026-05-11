@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/daus?tz_offset=0 \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /insights/daus`
+`GET /api/v2/insights/daus`
 
 ### Parameters
 
@@ -54,7 +54,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /insights/templates`
+`GET /api/v2/insights/templates`
 
 ### Parameters
 
@@ -156,7 +156,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-activity?start_time=20
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /insights/user-activity`
+`GET /api/v2/insights/user-activity`
 
 ### Parameters
 
@@ -212,7 +212,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-latency?start_time=201
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /insights/user-latency`
+`GET /api/v2/insights/user-latency`
 
 ### Parameters
 
@@ -271,7 +271,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /insights/user-status-counts`
+`GET /api/v2/insights/user-status-counts`
 
 ### Parameters
 

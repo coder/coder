@@ -44,7 +44,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
+import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -147,52 +147,62 @@ const ReasoningDisclosure = memo<{
 		}, [displayTextLength, isPreviewConstrained]);
 
 		return (
-			<Collapsible
-				open={expanded}
-				onOpenChange={(open) => setManualToggle(open)}
-				className="w-full"
-			>
-				<CollapsibleTrigger
-					className={cn(
-						"border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
-						"flex w-full items-center gap-1.5 cursor-pointer",
-						"text-content-secondary transition-colors hover:text-content-primary",
-					)}
-				>
-					<ChevronDownIcon
-						className={cn(
-							"size-icon-sm shrink-0 transition-transform",
-							expanded ? "rotate-0" : "-rotate-90",
-						)}
-					/>
-					{isStreaming ? (
-						<Shimmer as="span" className="text-xs">
-							Thinking
-						</Shimmer>
-					) : (
-						<span className="text-xs">Thinking</span>
-					)}
-				</CollapsibleTrigger>
-				{hasText && (
-					<CollapsibleContent>
-						<div
-							ref={previewScrollRef}
-							className={cn(
-								"mt-1 pl-5",
-								isPreviewConstrained && "max-h-24 overflow-y-auto",
-							)}
-						>
-							<Response
-								className="text-[11px] text-content-secondary"
-								urlTransform={urlTransform}
-								streaming={isStreaming}
-							>
-								{displayText}
-							</Response>
-						</div>
-					</CollapsibleContent>
+			<div
+				data-tool-call=""
+				className={cn(
+					"py-0.5",
+					// Collapse padding between adjacent tool/thinking blocks.
+					"[&:has(+[data-tool-call])]:pb-0",
+					"[[data-tool-call]+&]:pt-0",
 				)}
-			</Collapsible>
+			>
+				<Collapsible
+					open={expanded}
+					onOpenChange={(open) => setManualToggle(open)}
+					className="w-full"
+				>
+					<CollapsibleTrigger
+						className={cn(
+							"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
+							"flex w-full items-center gap-2 cursor-pointer",
+							"text-content-secondary transition-colors hover:text-content-primary",
+						)}
+					>
+						{isStreaming ? (
+							<Shimmer as="span" className="text-[13px]">
+								Thinking
+							</Shimmer>
+						) : (
+							<span className="text-[13px]">Thinking</span>
+						)}
+						<ChevronDownIcon
+							className={cn(
+								"h-3 w-3 shrink-0 text-current transition-transform",
+								expanded ? "rotate-0" : "-rotate-90",
+							)}
+						/>
+					</CollapsibleTrigger>
+					{hasText && (
+						<CollapsibleContent>
+							<div
+								ref={previewScrollRef}
+								className={cn(
+									"mt-1.5",
+									isPreviewConstrained && "max-h-24 overflow-y-auto",
+								)}
+							>
+								<Response
+									className="text-[11px] text-content-secondary"
+									urlTransform={urlTransform}
+									streaming={isStreaming}
+								>
+									{displayText}
+								</Response>
+							</div>
+						</CollapsibleContent>
+					)}
+				</Collapsible>
+			</div>
 		);
 	},
 );
@@ -265,6 +275,8 @@ export const BlockList: FC<{
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
+	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.code_diff_display_mode || "auto";
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
@@ -355,6 +367,7 @@ export const BlockList: FC<{
 									name="Tool"
 									status="running"
 									isError={false}
+									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
 									subagentStatusOverrides={subagentStatusOverrides}
@@ -371,6 +384,7 @@ export const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
+								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
@@ -426,6 +440,7 @@ export const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
+					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
@@ -582,7 +597,10 @@ const ChatMessageItem = memo<{
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage)) && (
 						<div
-							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							className={cn(
+								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
+								isUser && "w-full justify-end",
+							)}
 							data-testid="message-actions"
 						>
 							{displayState.hasCopyableContent && (
@@ -629,6 +647,7 @@ const ChatMessageItem = memo<{
 					<TextPreviewDialog
 						content={previewText.content}
 						fileName={previewText.fileName}
+						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
@@ -1045,7 +1064,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<ExpiredFileIdsProvider>
+			<FileProbeProvider>
 				<div
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
@@ -1093,7 +1112,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						);
 					})}
 				</div>
-			</ExpiredFileIdsProvider>
+			</FileProbeProvider>
 		);
 	},
 );

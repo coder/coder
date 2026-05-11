@@ -100,6 +100,7 @@ const (
 func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	// Please re-sort this list alphabetically if you change it!
 	return []*serpent.Command{
+		r.agentsCommand(),
 		r.completion(),
 		r.dotfiles(),
 		externalAuth(),
@@ -163,7 +164,6 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
-		r.agentsCommand(),
 	}
 }
 
@@ -1273,6 +1273,12 @@ func (e *exitError) Error() string {
 
 func (e *exitError) Unwrap() error {
 	return e.err
+}
+
+// ExitCode returns the OS exit code that the CLI will use when this error is
+// returned from a command handler.
+func (e *exitError) ExitCode() int {
+	return e.code
 }
 
 // ExitError returns an error that will cause the CLI to exit with the given

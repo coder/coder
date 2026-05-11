@@ -78,6 +78,16 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				className="w-screen border-0 border-b border-solid p-0 py-2"
 				sideOffset={17}
 			>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/workspaces">Workspaces</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/templates">Templates</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/agents">Agents</Link>
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 
 				{hasSomePermission && (
@@ -335,7 +345,7 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 
 export const includeOrigin = (target: string): string => {
 	if (target.startsWith("/")) {
-		const baseUrl = window.location.origin;
+		const baseUrl = location.origin;
 		return `${baseUrl}${target}`;
 	}
 	return target;

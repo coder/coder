@@ -8,7 +8,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
@@ -31,6 +30,8 @@ export const ReadFileTool: React.FC<{
 	const isDark = theme.palette.mode === "dark";
 	const hasContent = content.length > 0;
 	const isRunning = status === "running";
+	const filename = path.split("/").pop() || path;
+	const label = isRunning ? `Reading ${filename}…` : `Read ${filename}`;
 
 	return (
 		<ToolCollapsible
@@ -38,13 +39,11 @@ export const ReadFileTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
-					<span className={cn("text-sm", "text-content-secondary")}>
-						Read {path.split("/").pop() || path}
-					</span>
+					<span className="text-[13px]">{label}</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to read file"}
@@ -52,7 +51,7 @@ export const ReadFileTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}

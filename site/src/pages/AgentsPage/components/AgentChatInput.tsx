@@ -3,9 +3,9 @@ import {
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
-	ImageIcon,
 	MicIcon,
 	MonitorIcon,
+	PaperclipIcon,
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
@@ -54,6 +54,10 @@ import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import {
+	chatAttachmentAcceptAttribute,
+	isChatAttachmentFile,
+} from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
 import {
 	AttachmentPreview,
@@ -118,9 +122,13 @@ interface AgentChatInputProps {
 		id: string;
 		name: string;
 		owner_name: string;
+		organization_id: string;
 	}>;
 	selectedWorkspaceId?: string | null;
 	onWorkspaceChange?: (id: string | null) => void;
+	// Organization ID of the current chat. When set, workspaces from
+	// other organizations are shown as disabled in the picker.
+	chatOrganizationId?: string;
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -137,7 +145,8 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
-	onEditLastUserMessage?: () => void;
+	// Newest-first list of non-empty user prompts for local history cycling.
+	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -149,7 +158,11 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
+	onTextPreview?: (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
@@ -290,6 +303,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	workspaceOptions,
 	selectedWorkspaceId,
 	onWorkspaceChange,
+	chatOrganizationId,
 	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
@@ -299,7 +313,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
-	onEditLastUserMessage,
+	userPromptHistory = [],
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -326,6 +340,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
 		null,
 	);
+	const [previewTextMediaType, setPreviewTextMediaType] = useState<
+		string | null
+	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
 		"main",
@@ -335,6 +352,39 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const mcpPopupRef = useRef<Window | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
+	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
+	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
+	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
+	const currentCycleValueRef = useRef<string | null>(null);
+	const previousRemountKeyRef = useRef(remountKey);
+
+	const resetPromptCycle = () => {
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
+		currentCycleValueRef.current = null;
+	};
+
+	const applyCycleValue = (text: string) => {
+		const editor = internalRef.current;
+		if (!editor) return;
+		currentCycleValueRef.current = text;
+		editor.setValue(text);
+		editor.focus();
+	};
+
+	useEffect(() => {
+		if (previousRemountKeyRef.current === remountKey) return;
+		previousRemountKeyRef.current = remountKey;
+		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
+		// would force it into the dep array; the React Compiler stabilises
+		// callbacks but biome's react-hooks lint does not.
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
+		currentCycleValueRef.current = null;
+		// Keep in sync with resetPromptCycle above.
+	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
@@ -352,14 +402,28 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 	}, [speech.transcript, speech.isRecording, preRecordingValue]);
 
-	// Forward the internal ref to the parent-supplied inputRef
-	// so both point to the same ChatMessageInputRef instance.
-	useImperativeHandle(inputRef, () => internalRef.current!, []);
+	// Forward a stable delegating handle to the parent-supplied inputRef.
+	// Delegates lazily to internalRef.current so methods see the current
+	// Lexical instance after a remount, not the orphaned ref captured at
+	// factory time.
+	useImperativeHandle(
+		inputRef,
+		() => ({
+			setValue: (text) => internalRef.current?.setValue(text),
+			insertText: (text) => internalRef.current?.insertText(text),
+			clear: () => internalRef.current?.clear(),
+			focus: () => internalRef.current?.focus(),
+			getValue: () => internalRef.current?.getValue() ?? "",
+			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
+			getContentParts: () => internalRef.current?.getContentParts() ?? [],
+		}),
+		[],
+	);
 
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
-			if (event.origin !== window.location.origin) return;
+			if (event.origin !== location.origin) return;
 			if (
 				event.data?.type === "mcp-oauth2-complete" &&
 				typeof event.data.serverID === "string"
@@ -495,6 +559,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
+			resetPromptCycle();
 			onAttach(Array.from(e.target.files));
 		}
 		// Reset so the same file can be selected again.
@@ -502,6 +567,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const handleFilePaste = (file: File) => {
+		resetPromptCycle();
 		onAttach?.([file]);
 	};
 
@@ -510,20 +576,26 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (content === undefined) return;
 		const editor = internalRef.current;
 		if (!editor) return;
+		resetPromptCycle();
 		editor.insertText(content);
 		onRemoveAttachment?.(file);
 	};
 
-	const handleTextPreview = (content: string, fileName: string) => {
+	const handleTextPreview = (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => {
 		if (onTextPreview) {
-			onTextPreview(content, fileName);
+			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
+			setPreviewTextMediaType(mediaType ?? null);
 		}
 	};
 
-	// Drag-and-drop support for image files.
+	// Drag-and-drop support for any chat-supported file type.
 	const [isDragging, setIsDragging] = useState(false);
 
 	const handleDragOver = (e: React.DragEvent) => {
@@ -543,12 +615,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const images = Array.from(e.dataTransfer.files).filter((f) =>
-			f.type.startsWith("image/"),
+		const attachable = Array.from(e.dataTransfer.files).filter(
+			isChatAttachmentFile,
 		);
-		if (images.length > 0) {
-			onAttach(images);
-		}
+		if (attachable.length === 0) return;
+		resetPromptCycle();
+		onAttach(attachable);
 	};
 
 	// Track whether the editor has content so we can gate the
@@ -566,6 +638,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		serializedEditorState: string,
 		hasRefs: boolean,
 	) => {
+		// Lexical fires onChange synchronously from editor.setValue().
+		// While cycling, compare incoming content to currentCycleValueRef,
+		// the last value we applied. Different content means user input,
+		// so reset; matching content is our own setValue echo, so keep cycling.
+		// This works because React batches state updates within event handlers
+		// and commits them after the handler returns, so the synchronous onChange
+		// callback sees the pre-batch cycleIndex value, not the queued update.
+		if (cycleIndex !== null && content !== currentCycleValueRef.current) {
+			resetPromptCycle();
+		}
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
@@ -629,11 +711,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 
 		onSend(text);
+		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
 	};
 	const handleStartRecording = () => {
+		resetPromptCycle();
 		setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
 		speech.start();
 	};
@@ -669,18 +753,90 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			}
 		}
 	};
+	const restoreCycleDraft = () => {
+		const savedDraft = cycleSavedDraft ?? "";
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
+		applyCycleValue(savedDraft);
+	};
+
 	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
-		if (
-			e.key !== "ArrowUp" ||
-			editingQueuedMessageID !== null ||
-			isEditingHistoryMessage ||
-			!onEditLastUserMessage ||
-			!isComposerEffectivelyEmpty
-		) {
+		if (e.key === "Escape" && cycleIndex !== null) {
+			e.preventDefault();
+			e.stopPropagation();
+			restoreCycleDraft();
 			return;
 		}
+
+		// isStreaming is intentionally excluded. Cycling is allowed while
+		// streaming so the user can prepare the next prompt. Escape is
+		// cycle-aware so it does not accidentally interrupt streaming.
+		const isPromptCyclingSuppressed =
+			editingQueuedMessageID !== null ||
+			isEditingHistoryMessage ||
+			isDisabled ||
+			isLoading;
+		if (isPromptCyclingSuppressed) {
+			return;
+		}
+
+		if (e.key !== "ArrowUp" && e.key !== "ArrowDown") {
+			return;
+		}
+
+		if (cycleIndex === null) {
+			if (e.key !== "ArrowUp" || !isComposerEffectivelyEmpty) {
+				return;
+			}
+			const cycleHistory = [...userPromptHistory];
+			const latestPrompt = cycleHistory[0];
+			if (latestPrompt === undefined) {
+				return;
+			}
+			e.preventDefault();
+			cycleHistorySnapshotRef.current = cycleHistory;
+			setCycleIndex(0);
+			setCycleSavedDraft(internalRef.current?.getValue() ?? "");
+			applyCycleValue(latestPrompt);
+			return;
+		}
+
 		e.preventDefault();
-		onEditLastUserMessage();
+		const cycleHistory = cycleHistorySnapshotRef.current ?? userPromptHistory;
+		if (e.key === "ArrowDown") {
+			if (cycleIndex === 0) {
+				restoreCycleDraft();
+				return;
+			}
+			const nextIndex = cycleIndex - 1;
+			const nextPrompt = cycleHistory[nextIndex];
+			if (nextPrompt === undefined) {
+				restoreCycleDraft();
+				return;
+			}
+			setCycleIndex(nextIndex);
+			applyCycleValue(nextPrompt);
+			return;
+		}
+
+		// ArrowUp: load an older prompt.
+		const lastIndex = cycleHistory.length - 1;
+		if (lastIndex < 0) {
+			restoreCycleDraft();
+			return;
+		}
+		const nextIndex = Math.min(cycleIndex + 1, lastIndex);
+		if (nextIndex === cycleIndex) {
+			return;
+		}
+		const nextPrompt = cycleHistory[nextIndex];
+		if (nextPrompt === undefined) {
+			restoreCycleDraft();
+			return;
+		}
+		setCycleIndex(nextIndex);
+		applyCycleValue(nextPrompt);
 	};
 
 	const sendButtonLabel =
@@ -720,8 +876,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			<div
 				ref={setComposerElement}
+				data-testid="chat-composer"
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary md:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -782,8 +939,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
+					onPaste={resetPromptCycle}
 					aria-label="Chat message"
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
@@ -797,7 +955,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
-				 * is the user's free-form message — we don't silently
+				 * is the user's free-form message; we don't silently
 				 * mutate it. Instead we surface a warning so the user
 				 * can make an informed decision. This guards against
 				 * social engineering attacks where a user is tricked
@@ -814,13 +972,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
-				{/* Hidden file input for image attachment */}
+				{/* Hidden file input for attaching any server-accepted file type. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
 						multiple
-						accept="image/*"
+						accept={chatAttachmentAcceptAttribute}
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
@@ -865,35 +1023,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											<span>Back</span>
 										</button>
 										<Separator className="my-1" />
-										<Command loop>
-											<CommandInput
-												placeholder="Search workspaces..."
-												className="text-xs"
-											/>
-											<CommandList>
-												<CommandEmpty className="text-xs">
-													No workspaces found
-												</CommandEmpty>
-												<CommandGroup>
-													{workspaceOptions?.map((workspace) => (
-														<CommandItem
-															className="text-xs font-normal"
-															key={workspace.id}
-															value={workspace.name}
-															onSelect={() => {
-																onWorkspaceChange?.(workspace.id);
-																setPlusMenuOpen(false);
-															}}
-														>
-															{workspace.name}
-															{selectedWorkspaceId === workspace.id && (
-																<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-															)}
-														</CommandItem>
-													))}
-												</CommandGroup>
-											</CommandList>
-										</Command>
+										<WorkspacePickerList
+											workspaceOptions={workspaceOptions}
+											selectedWorkspaceId={selectedWorkspaceId}
+											chatOrganizationId={chatOrganizationId}
+											onSelect={(id) => {
+												onWorkspaceChange?.(id);
+												setPlusMenuOpen(false);
+											}}
+										/>
 									</div>
 								) : (
 									<>
@@ -901,13 +1039,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											<button
 												type="button"
 												onClick={() => {
+													resetPromptCycle();
 													setPlusMenuOpen(false);
 													fileInputRef.current?.click();
 												}}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 											>
-												<ImageIcon className="size-3.5 shrink-0" />
-												Attach image
+												<PaperclipIcon className="size-3.5 shrink-0" />
+												Attach file
 											</button>
 										)}
 										{onPlanModeToggle && (
@@ -966,36 +1105,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														sideOffset={8}
 														className="w-64 p-0"
 													>
-														<Command loop>
-															<CommandInput
-																placeholder="Search workspaces..."
-																className="text-xs"
-															/>
-															<CommandList>
-																<CommandEmpty className="text-xs">
-																	No workspaces found
-																</CommandEmpty>
-																<CommandGroup>
-																	{workspaceOptions.map((workspace) => (
-																		<CommandItem
-																			className="text-xs font-normal"
-																			key={workspace.id}
-																			value={workspace.name}
-																			onSelect={() => {
-																				onWorkspaceChange(workspace.id);
-																				setWorkspacePickerOpen(false);
-																				setPlusMenuOpen(false);
-																			}}
-																		>
-																			{workspace.name}
-																			{selectedWorkspaceId === workspace.id && (
-																				<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-																			)}
-																		</CommandItem>
-																	))}
-																</CommandGroup>
-															</CommandList>
-														</Command>
+														<WorkspacePickerList
+															workspaceOptions={workspaceOptions}
+															selectedWorkspaceId={selectedWorkspaceId}
+															chatOrganizationId={chatOrganizationId}
+															onSelect={(id) => {
+																onWorkspaceChange(id);
+																setWorkspacePickerOpen(false);
+																setPlusMenuOpen(false);
+															}}
+														/>
 													</PopoverContent>
 												</Popover>
 											))}
@@ -1080,7 +1199,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							/>
 						)}
 						{planModeEnabled && (
-							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary md:inline-flex">
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
 								<PencilIcon className="size-3" />
 								Planning
 								{onPlanModeToggle && (
@@ -1092,14 +1211,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}{" "}
-						{/* Badge row — all badges and the pill always
+						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
 						{workspace && workspaceAgent && chatId && (
-							<span className="ml-1 md:ml-0">
+							<span className="ml-1 sm:ml-0">
 								<WorkspacePill
 									workspace={workspace}
 									agent={workspaceAgent}
@@ -1125,7 +1244,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								);
 							})}
-							{/* Pill — always in the DOM so it permanently
+							{/* Pill; always in the DOM so it permanently
 							 * reserves layout space. Invisible when nothing
 							 * overflows. CSS order keeps it before order-1
 							 * (overflow) badges. */}
@@ -1255,12 +1374,93 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<TextPreviewDialog
 					content={previewText}
 					fileName={previewTextFileName ?? undefined}
+					mediaType={previewTextMediaType ?? undefined}
 					onClose={() => {
 						setPreviewText(null);
 						setPreviewTextFileName(null);
+						setPreviewTextMediaType(null);
 					}}
 				/>
 			)}
 		</>
+	);
+};
+
+/**
+ * Shared workspace picker used by both the mobile and desktop
+ * "Attach workspace" menus. Workspaces from a different organization
+ * than the chat are rendered as disabled items with a tooltip.
+ */
+interface WorkspacePickerListProps {
+	workspaceOptions:
+		| ReadonlyArray<{
+				id: string;
+				name: string;
+				organization_id: string;
+		  }>
+		| undefined;
+	selectedWorkspaceId?: string | null;
+	chatOrganizationId?: string;
+	onSelect: (id: string) => void;
+}
+
+const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
+	workspaceOptions,
+	selectedWorkspaceId,
+	chatOrganizationId,
+	onSelect,
+}) => {
+	return (
+		<Command loop>
+			<CommandInput placeholder="Search workspaces..." className="text-xs" />
+			<CommandList>
+				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>
+				<CommandGroup>
+					{workspaceOptions?.map((workspace) => {
+						const isCrossOrg =
+							!!chatOrganizationId &&
+							workspace.organization_id !== chatOrganizationId;
+
+						const item = (
+							<CommandItem
+								className={cn(
+									"text-xs font-normal",
+									isCrossOrg &&
+										"cursor-not-allowed opacity-50 data-[disabled=true]:pointer-events-auto",
+								)}
+								key={workspace.id}
+								value={workspace.name}
+								disabled={isCrossOrg}
+								onSelect={() => {
+									if (!isCrossOrg) {
+										onSelect(workspace.id);
+									}
+								}}
+							>
+								{workspace.name}
+								{selectedWorkspaceId === workspace.id && (
+									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+								)}
+							</CommandItem>
+						);
+
+						if (isCrossOrg) {
+							return (
+								<Tooltip key={workspace.id}>
+									<TooltipTrigger asChild>
+										<div>{item}</div>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										Chat and workspace must be in the same organization
+									</TooltipContent>
+								</Tooltip>
+							);
+						}
+
+						return item;
+					})}
+				</CommandGroup>
+			</CommandList>
+		</Command>
 	);
 };

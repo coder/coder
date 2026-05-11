@@ -266,6 +266,10 @@ WHERE
         WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
         ELSE true
     END
+    AND CASE
+        WHEN @after_id::bigint > 0 THEN id > @after_id::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
@@ -628,6 +632,25 @@ WHERE
     id = @id::uuid
 RETURNING *;
 
+-- name: UpdateChatLastTurnSummary :execrows
+-- Updates the cached last completed turn summary for sidebar display.
+-- Empty or whitespace-only summaries are stored as NULL here so direct
+-- query callers cannot accidentally persist blank sidebar text.
+-- This intentionally preserves updated_at. The staleness guard relies on
+-- every new-turn query, such as UpdateChatStatus and AcquireChats, bumping
+-- updated_at. Future chat-field updates that do not bump updated_at can let
+-- stale summaries persist. If this query ever bumps updated_at, later
+-- goroutine summary writes will be rejected as stale.
+-- Two summary workers using the same freshness marker are last-write-wins.
+UPDATE chats
+SET
+    last_turn_summary = NULLIF(REGEXP_REPLACE(
+        sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
+    ), '')
+WHERE
+    id = @id::uuid
+    AND updated_at = @expected_updated_at::timestamptz;
+
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
     chats
@@ -714,7 +737,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -729,7 +752,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid
@@ -737,10 +760,13 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck and need recovery. This covers:
+-- Find chats that appear stuck and need recovery:
 --   1. Running chats whose heartbeat has expired (worker crash).
---   2. Chats awaiting client action (requires_action) past the
---      timeout threshold (client disappeared).
+--   2. requires_action chats past the timeout threshold (client
+--      disappeared).
+--   3. Waiting chats with a non-empty queue and stale updated_at
+--      (deferred-promote stranding when the worker dies before its
+--      post-cancel cleanup runs).
 SELECT
     *
 FROM
@@ -749,7 +775,13 @@ WHERE
     (status = 'running'::chat_status
         AND heartbeat_at < @stale_threshold::timestamptz)
     OR (status = 'requires_action'::chat_status
-        AND updated_at < @stale_threshold::timestamptz);
+        AND updated_at < @stale_threshold::timestamptz)
+    OR (status = 'waiting'::chat_status
+        AND updated_at < @stale_threshold::timestamptz
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
+            WHERE cqm.chat_id = chats.id
+        ));
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -893,7 +925,7 @@ RETURNING *;
 -- name: GetChatQueuedMessages :many
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY id ASC;
+ORDER BY created_at ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -906,10 +938,21 @@ DELETE FROM chat_queued_messages
 WHERE id = (
     SELECT cqm.id FROM chat_queued_messages cqm
     WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.id ASC
+    ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
 RETURNING *;
+
+-- name: ReorderChatQueuedMessageToFront :execrows
+-- Mutates only created_at on the target row; ids are unchanged so
+-- consumers can keep tracking queued messages by id.
+UPDATE chat_queued_messages AS target
+SET created_at = (
+    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
+    FROM chat_queued_messages AS inner_cqm
+    WHERE inner_cqm.chat_id = @chat_id
+)
+WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
 SELECT
@@ -1482,4 +1525,6 @@ SELECT
     )::timestamptz AS last_activity_at
 FROM archived a
 LEFT JOIN to_archive t ON t.id = a.id
+-- created_at ASC flows through to dbpurge's digest truncation; see
+-- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;

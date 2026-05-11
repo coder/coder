@@ -1,4 +1,4 @@
-import { ArchiveIcon } from "lucide-react";
+import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -87,6 +87,7 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
+	chatOwner: { id: string; username?: string } | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
@@ -103,6 +104,7 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	agentSetupNotice?: ReactNode;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
@@ -132,6 +134,8 @@ interface AgentChatPageViewProps {
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
+		hasReceivedChanges: boolean;
+
 		refresh: () => boolean;
 	};
 
@@ -186,6 +190,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
+	chatOwner,
 	workspaceAgent,
 	workspace,
 	chatBuildId,
@@ -196,6 +201,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	agentSetupNotice,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	planModeEnabled,
@@ -358,6 +364,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
+						isGitStatusLoading={
+							workspaceAgent?.status === "connected" &&
+							!gitWatcher.hasReceivedChanges
+						}
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
@@ -396,6 +406,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isEditing =
 		editing.editingMessageId !== null ||
 		editing.editingQueuedMessageID !== null;
+
+	const chatOwnerLabel =
+		chatOwner === undefined
+			? undefined
+			: chatOwner.username
+				? `@${chatOwner.username}`
+				: `owner ${chatOwner.id}`;
+	const chatOwnerWarning =
+		chatOwnerLabel === undefined
+			? undefined
+			: `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`;
 
 	const titleElement = (
 		<title>
@@ -447,6 +468,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 							/>
+							{chatOwnerWarning && !isArchived && (
+								<div
+									role="status"
+									aria-live="polite"
+									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+								>
+									<TriangleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
+									{chatOwnerWarning}
+								</div>
+							)}
 							{isArchived && (
 								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 									<ArchiveIcon className="h-4 w-4 shrink-0" />
@@ -505,10 +536,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelOptions={modelOptions}
 								modelSelectorPlaceholder={modelSelectorPlaceholder}
 								modelSelectorHelp={modelSelectorHelp}
+								agentSetupNotice={agentSetupNotice}
 								planModeEnabled={planModeEnabled}
 								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}
 								workspaceOptions={workspaceOptions}
+								chatOrganizationId={organizationId}
 								selectedWorkspaceId={selectedWorkspaceId}
 								onWorkspaceChange={onWorkspaceChange}
 								isWorkspaceLoading={isWorkspaceLoading}
@@ -523,7 +556,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onCancelQueueEdit={editing.handleCancelQueueEdit}
 								isEditingHistoryMessage={editing.editingMessageId !== null}
 								onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-								onEditUserMessage={editing.handleEditUserMessage}
 								editingFileBlocks={editing.editingFileBlocks}
 								mcpServers={mcpServers}
 								selectedMCPServerIds={selectedMCPServerIds}

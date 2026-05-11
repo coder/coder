@@ -29,21 +29,19 @@ func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
 		OrganizationID: org.ID,
 		OwnerID:        owner.ID,
 	}).WithAgent().Do()
-	modelConfig := insertAgentChatTestModelConfig(ctx, t, db, owner.ID)
+	modelConfig := insertAgentChatTestModelConfig(t, db, owner.ID)
 
 	insertedChats := make([]database.Chat, 0, len(database.AllChatStatusValues())*2)
 	for _, archived := range []bool{false, true} {
 		for _, status := range database.AllChatStatusValues() {
-			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			chat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
 				Status:            status,
-				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelConfig.ID,
 				Title:             fmt.Sprintf("%s-archived-%t", status, archived),
 				AgentID:           uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
 			})
-			require.NoError(t, err)
 
 			if archived {
 				_, err = db.ArchiveChatByID(ctx, chat.ID)

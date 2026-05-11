@@ -645,6 +645,7 @@ type DeploymentValues struct {
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1461,6 +1462,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
 			YAML:        "retention",
+		}
+		deploymentGroupTemplateBuilder = serpent.Group{
+			Name: "Template Builder",
+			YAML: "templateBuilder",
 		}
 	)
 
@@ -3823,7 +3828,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
-			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).",
 			Flag:        "aibridge-circuit-breaker-enabled",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
@@ -3990,6 +3995,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "allowed_private_cidrs",
 		},
+		{
+			Name:        "AI Bridge Proxy API Dump Directory",
+			Description: "Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
+			Flag:        "aibridge-proxy-dump-dir",
+			Env:         "CODER_AIBRIDGE_PROXY_DUMP_DIR",
+			Value:       &c.AI.BridgeProxyConfig.APIDumpDir,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "api_dump_dir",
+		},
 
 		// Retention settings
 		{
@@ -4049,6 +4064,25 @@ Write out the current server config as YAML to stdout.`,
 			// used externally.
 			Hidden: true,
 		},
+		{
+			Name:        "Disable Template Builder",
+			Description: "Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.",
+			Flag:        "disable-template-builder",
+			Env:         "CODER_DISABLE_TEMPLATE_BUILDER",
+			Value:       &c.TemplateBuilder.Disabled,
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "disabled",
+		},
+		{
+			Name:        "Template Builder Registry URL",
+			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Flag:        "template-builder-registry-url",
+			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
+			Value:       &c.TemplateBuilder.RegistryURL,
+			Default:     "https://registry.coder.com",
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "registryURL",
+		},
 	}
 
 	return opts
@@ -4074,7 +4108,7 @@ type AIBridgeConfig struct {
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
-	// provider rate limits (429, 503, 529 overloaded).
+	// provider overload (503, 529).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
 	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
@@ -4110,18 +4144,27 @@ type AIBridgeProviderConfig struct {
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.
 	Name string `json:"name"`
-	// Key is the API key for authenticating with the upstream provider.
-	Key string `json:"-"`
+	// Keys holds one or more API keys for authenticating with the
+	// upstream provider. When multiple keys are configured, they
+	// form a key pool for automatic failover.
+	Keys []string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
+	// DumpDir is the directory path for dumping API requests and responses.
+	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
-	BedrockBaseURL         string `json:"-"`
-	BedrockRegion          string `json:"bedrock_region,omitempty"`
-	BedrockAccessKey       string `json:"-"`
-	BedrockAccessKeySecret string `json:"-"`
-	BedrockModel           string `json:"bedrock_model,omitempty"`
-	BedrockSmallFastModel  string `json:"bedrock_small_fast_model,omitempty"`
+	BedrockBaseURL string `json:"-"`
+	BedrockRegion  string `json:"bedrock_region,omitempty"`
+	// BedrockAccessKeys and BedrockAccessKeySecrets hold one or
+	// more AWS credential pairs for authenticating with Bedrock.
+	// When multiple pairs are configured, they form a key pool
+	// for automatic failover. The two slices must have the same
+	// length.
+	BedrockAccessKeys       []string `json:"-"`
+	BedrockAccessKeySecrets []string `json:"-"`
+	BedrockModel            string   `json:"bedrock_model,omitempty"`
+	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {
@@ -4135,6 +4178,7 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
 	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
+	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type ChatConfig struct {
@@ -4146,6 +4190,11 @@ type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
+}
+
+type TemplateBuilderConfig struct {
+	Disabled    serpent.Bool   `json:"disabled,omitempty"`
+	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
 type SupportConfig struct {
@@ -4394,7 +4443,6 @@ const (
 	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
-	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
@@ -4411,8 +4459,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentOAuth2:
 		return "OAuth2 Provider Functionality"
-	case ExperimentAgents:
-		return "Agents"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
@@ -4432,7 +4478,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
-	ExperimentAgents,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceBuildUpdates,
 }
@@ -4441,7 +4486,6 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-// TODO: Add ExperimentAgents to ExperimentsSafe once it is safe for general use.
 var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.

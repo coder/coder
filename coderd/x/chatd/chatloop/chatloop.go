@@ -16,7 +16,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
@@ -24,8 +23,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -127,6 +128,11 @@ type RunOptions struct {
 	// the current step. This is used for plan turns where
 	// propose_plan should terminate the run on success.
 	StopAfterTools map[string]struct{}
+	// ExclusiveToolNames lists tool names that must be called
+	// alone in a batch. When any exclusive tool appears
+	// alongside other locally-executed tools, every tool in the
+	// batch receives a policy error and nothing executes.
+	ExclusiveToolNames map[string]bool
 
 	// ModelConfig holds per-call LLM parameters (temperature,
 	// max tokens, etc.) read from the chat model configuration.
@@ -189,6 +195,11 @@ type RunOptions struct {
 type ProviderTool struct {
 	Definition fantasy.Tool
 	Runner     fantasy.AgentTool
+	// ResultProviderMetadata extracts provider-specific metadata from successful
+	// local runner responses. The chat loop attaches returned metadata to the tool
+	// result sent back to the model. OpenAI computer-use uses this to request
+	// original screenshot detail for image results.
+	ResultProviderMetadata func(response fantasy.ToolResponse) fantasy.ProviderMetadata
 }
 
 // stepResult holds the accumulated output of a single streaming
@@ -391,11 +402,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 			prepared := make([]fantasy.Message, len(messages))
 			copy(prepared, messages)
-			prepared, sanitizeStats := chatprompt.SanitizeAnthropicProviderToolCalls(provider, prepared)
-			chatprompt.LogAnthropicProviderToolSanitization(
+			prepared, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prepared)
+			chatsanitize.LogAnthropicProviderToolSanitization(
 				ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
 				slog.F("step_index", step),
 				slog.F("total_steps", totalSteps),
+			)
+			prepared = chatsanitize.ApplyAnthropicProviderToolGuard(
+				ctx, opts.Logger, provider, modelName, prepared,
 			)
 			if applyAnthropicCaching {
 				addAnthropicPromptCaching(prepared)
@@ -473,102 +487,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// blocks into separate database messages by role.
 			var toolResults []fantasy.ToolResultContent
 			if result.shouldContinue {
-				// Check for context cancellation before starting
-				// tool execution. If the chat was interrupted
-				// between stream completion and here, persist
-				// what we have and bail out.
-				if ctx.Err() != nil {
-					if errors.Is(context.Cause(ctx), ErrInterrupted) {
-						persistInterruptedStep(ctx, opts, &result)
-						return ErrInterrupted
-					}
-					return ctx.Err()
-				}
-
-				// Partition tool calls into built-in and dynamic.
-				var builtinCalls, dynamicCalls []fantasy.ToolCallContent
-				if len(opts.DynamicToolNames) > 0 {
-					for _, tc := range result.toolCalls {
-						if opts.DynamicToolNames[tc.ToolName] {
-							dynamicCalls = append(dynamicCalls, tc)
-						} else {
-							builtinCalls = append(builtinCalls, tc)
-						}
-					}
-				} else {
-					builtinCalls = result.toolCalls
-				}
-
-				// Execute only built-in tools.
-				toolResults = executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Logger, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
-					recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
-					publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
-					ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
-					ssePart.CreatedAt = &completedAt
-					publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
-				})
-				for _, tr := range toolResults {
-					result.content = append(result.content, tr)
-				}
-
-				// If dynamic tools were called, persist what we
-				// have (assistant + built-in results) and exit so
-				// the caller can execute them externally.
-				if len(dynamicCalls) > 0 {
-					pending := make([]PendingToolCall, 0, len(dynamicCalls))
-					for _, dc := range dynamicCalls {
-						pending = append(pending, PendingToolCall{
-							ToolCallID: dc.ToolCallID,
-							ToolName:   dc.ToolName,
-							Args:       dc.Input,
-						})
-					}
-
-					contextLimit := extractContextLimitWithFallback(
-						result.providerMetadata,
-						opts.ContextLimitFallback,
-					)
-
-					result.content = sanitizeAnthropicProviderToolStepContent(
-						ctx, opts.Logger, provider, modelName,
-						"dynamic_tool_persist", step, result.finishReason, result.content,
-					)
-					if len(result.content) == 0 && len(pending) == 0 {
-						tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
-						return ErrDynamicToolCall
-					}
-
-					if err := opts.PersistStep(ctx, PersistedStep{
-						Content:                 result.content,
-						Usage:                   result.usage,
-						ContextLimit:            contextLimit,
-						ProviderResponseID:      extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
-						Runtime:                 time.Since(stepStart),
-						PendingDynamicToolCalls: pending,
-					}); err != nil {
-						if errors.Is(err, ErrInterrupted) {
-							persistInterruptedStep(ctx, opts, &result)
-							return ErrInterrupted
-						}
-						return xerrors.Errorf("persist step: %w", err)
-					}
-
-					tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
-
-					return ErrDynamicToolCall
-				}
-
-				// Check for interruption after tool execution.
-				// Tools that were canceled mid-flight produce error
-				// results via ctx cancellation. Persist the full
-				// step (assistant blocks + tool results) through
-				// the interrupt-safe path so nothing is lost.
-				if ctx.Err() != nil {
-					if errors.Is(context.Cause(ctx), ErrInterrupted) {
-						persistInterruptedStep(ctx, opts, &result)
-						return ErrInterrupted
-					}
-					return ctx.Err()
+				var err error
+				toolResults, err = executeToolsForStep(ctx, opts, &result, provider, modelName, step, stepStart, publishMessagePart)
+				if err != nil {
+					return err
 				}
 			}
 			// Extract context limit from provider metadata.
@@ -576,7 +498,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				result.providerMetadata,
 				opts.ContextLimitFallback,
 			)
-			result.content = sanitizeAnthropicProviderToolStepContent(
+			result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
 				ctx, opts.Logger, provider, modelName,
 				"normal_persist", step, result.finishReason, result.content,
 			)
@@ -595,7 +517,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				Content:             result.content,
 				Usage:               result.usage,
 				ContextLimit:        contextLimit,
-				ProviderResponseID:  extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+				ProviderResponseID:  chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 				Runtime:             time.Since(stepStart),
 				ToolCallCreatedAt:   result.toolCallCreatedAt,
 				ToolResultCreatedAt: result.toolResultCreatedAt,
@@ -621,8 +543,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// when previous_response_id is set, so we must leave chain
 			// mode and reload the full history before the next call.
 			stepMessages := result.toResponseMessages()
-			if hasPreviousResponseID(opts.ProviderOptions) {
-				clearPreviousResponseID(opts.ProviderOptions)
+			if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
+				opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
 				if opts.DisableChainMode != nil {
 					opts.DisableChainMode()
 				}
@@ -734,67 +656,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 	return nil
 }
 
-func sanitizeAnthropicProviderToolStepContent(
-	ctx context.Context,
-	logger slog.Logger,
-	provider string,
-	modelName string,
-	phase string,
-	step int,
-	finishReason fantasy.FinishReason,
-	content []fantasy.Content,
-) []fantasy.Content {
-	sanitized, stats := sanitizeAnthropicProviderToolContent(provider, content)
-	chatprompt.LogAnthropicProviderToolSanitization(
-		ctx, logger, phase, provider, modelName, stats,
-		slog.F("step_index", step),
-		slog.F("finish_reason", finishReason),
-	)
-	return sanitized
-}
-
-func sanitizeAnthropicProviderToolContent(
-	provider string,
-	content []fantasy.Content,
-) ([]fantasy.Content, chatprompt.AnthropicProviderToolSanitizationStats) {
-	var stats chatprompt.AnthropicProviderToolSanitizationStats
-	if provider != fantasyanthropic.Name || len(content) == 0 {
-		return content, stats
-	}
-
-	matchedResultIDs := make(map[string]struct{})
-	for _, block := range content {
-		result, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
-		if !ok || !result.ProviderExecuted || result.ToolCallID == "" {
-			continue
-		}
-		matchedResultIDs[result.ToolCallID] = struct{}{}
-	}
-
-	out := make([]fantasy.Content, 0, len(content))
-	for _, block := range content {
-		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
-		if ok && isAnthropicProviderExecutedToolCall(provider, toolCall) {
-			if _, hasResult := matchedResultIDs[toolCall.ToolCallID]; !hasResult {
-				stats.RemovedToolCalls++
-				continue
-			}
-		}
-		out = append(out, block)
-	}
-	if stats.RemovedToolCalls == 0 {
-		return content, stats
-	}
-	return out, stats
-}
-
-func isAnthropicProviderExecutedToolCall(
-	provider string,
-	toolCall fantasy.ToolCallContent,
-) bool {
-	return provider == fantasyanthropic.Name && toolCall.ProviderExecuted
-}
-
 // guardedAttempt owns an attempt-scoped context and startup guard
 // around a provider stream. release is idempotent and frees the
 // attempt-scoped timer/context. finish canonicalizes startup timeout
@@ -849,7 +710,7 @@ func classifyStartupTimeout(
 		err = errStartupTimeout
 	}
 	return chaterror.WithClassification(err, chaterror.ClassifiedError{
-		Kind:      chaterror.KindStartupTimeout,
+		Kind:      codersdk.ChatErrorKindStartupTimeout,
 		Provider:  provider,
 		Retryable: true,
 	})
@@ -1164,13 +1025,22 @@ func executeTools(
 		toolMap[t.Info().Name] = t
 	}
 	providerRunnerNames := make(map[string]struct{}, len(providerTools))
+	resultProviderMetadata := make(
+		map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
+		len(providerTools),
+	)
 	// Include runners from provider tools so locally-executed
 	// provider tools (e.g. computer use) can be dispatched.
 	for _, pt := range providerTools {
-		if pt.Runner != nil {
-			name := pt.Runner.Info().Name
-			toolMap[name] = pt.Runner
-			providerRunnerNames[name] = struct{}{}
+		if pt.Runner == nil {
+			continue
+		}
+
+		name := pt.Runner.Info().Name
+		toolMap[name] = pt.Runner
+		providerRunnerNames[name] = struct{}{}
+		if pt.ResultProviderMetadata != nil {
+			resultProviderMetadata[name] = pt.ResultProviderMetadata
 		}
 	}
 
@@ -1196,7 +1066,19 @@ func executeTools(
 				// accurate individual completion times.
 				completedAt[i] = dbtime.Now()
 			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc, metrics, logger, provider, model, builtinToolNames, activeTools, providerRunnerNames)
+			results[i] = executeSingleTool(
+				ctx,
+				toolMap,
+				tc,
+				metrics,
+				logger,
+				provider,
+				model,
+				builtinToolNames,
+				activeTools,
+				providerRunnerNames,
+				resultProviderMetadata,
+			)
 		}()
 	}
 	wg.Wait()
@@ -1211,6 +1093,276 @@ func executeTools(
 	return results
 }
 
+// executeToolsForStep runs the tool-execution phase of a single
+// chatloop step. It enforces the exclusive-tool policy, partitions
+// built-in versus dynamic tool calls, dispatches built-in tools, and
+// when dynamic tool calls are present persists the step and returns
+// ErrDynamicToolCall so the caller can execute them externally.
+// Returns the tool results to append to the step, or an error that the
+// caller must propagate (ErrInterrupted, ErrDynamicToolCall, ctx.Err(),
+// or a persistence failure).
+func executeToolsForStep(
+	ctx context.Context,
+	opts RunOptions,
+	result *stepResult,
+	provider, modelName string,
+	step int,
+	stepStart time.Time,
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) ([]fantasy.ToolResultContent, error) {
+	// Check for context cancellation before starting tool
+	// execution. If the chat was interrupted between stream
+	// completion and here, persist what we have and bail out.
+	if ctx.Err() != nil {
+		if errors.Is(context.Cause(ctx), ErrInterrupted) {
+			persistInterruptedStep(ctx, opts, result)
+			return nil, ErrInterrupted
+		}
+		return nil, ctx.Err()
+	}
+
+	// Enforce exclusivity across ALL locally-executable tool
+	// calls (both built-in and dynamic) before partitioning.
+	// Checking only the built-in partition would let the model
+	// bypass the policy by mixing an exclusive tool with a
+	// dynamic tool: the exclusive tool would still run and the
+	// dynamic call would still be handed to the caller for
+	// external execution, breaking the planning-only contract.
+	localCandidates := make([]fantasy.ToolCallContent, 0, len(result.toolCalls))
+	for _, tc := range result.toolCalls {
+		if !tc.ProviderExecuted {
+			localCandidates = append(localCandidates, tc)
+		}
+	}
+	policyResults, exclusiveViolation := applyExclusiveToolPolicy(
+		localCandidates,
+		opts.ExclusiveToolNames,
+		opts.Metrics,
+		provider,
+		modelName,
+	)
+	if exclusiveViolation {
+		now := dbtime.Now()
+		for _, tr := range policyResults {
+			recordToolResultTimestamp(result, tr.ToolCallID, now)
+			publishToolAttachments(ctx, opts.Logger, tr, now, publishMessagePart)
+			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
+			ssePart.CreatedAt = &now
+			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
+		}
+		for _, tr := range policyResults {
+			result.content = append(result.content, tr)
+		}
+		// Mirror the post-execution interruption check used by the
+		// non-policy path: if the chat was interrupted while we
+		// synthesized policy errors, route through
+		// persistInterruptedStep so the synthesized results are not
+		// dropped when the regular PersistStep path fails on a
+		// canceled context.
+		if ctx.Err() != nil {
+			if errors.Is(context.Cause(ctx), ErrInterrupted) {
+				persistInterruptedStep(ctx, opts, result)
+				return nil, ErrInterrupted
+			}
+			return nil, ctx.Err()
+		}
+		// Fall through to the normal persistence path so the loop
+		// continues with error results that the model can observe
+		// and retry. Skip partitioning, execution, and
+		// pending-dynamic persistence.
+		return policyResults, nil
+	}
+
+	// Partition tool calls into built-in and dynamic.
+	var builtinCalls, dynamicCalls []fantasy.ToolCallContent
+	if len(opts.DynamicToolNames) > 0 {
+		for _, tc := range result.toolCalls {
+			if opts.DynamicToolNames[tc.ToolName] {
+				dynamicCalls = append(dynamicCalls, tc)
+			} else {
+				builtinCalls = append(builtinCalls, tc)
+			}
+		}
+	} else {
+		builtinCalls = result.toolCalls
+	}
+
+	// Execute only built-in tools.
+	toolResults := executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Logger, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
+		recordToolResultTimestamp(result, tr.ToolCallID, completedAt)
+		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
+		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
+		ssePart.CreatedAt = &completedAt
+		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
+	})
+	for _, tr := range toolResults {
+		result.content = append(result.content, tr)
+	}
+
+	// If dynamic tools were called, persist what we have
+	// (assistant + built-in results) and exit so the caller can
+	// execute them externally.
+	if len(dynamicCalls) > 0 {
+		// Strip Anthropic provider-executed tool calls without
+		// matching results before persisting so the action-required
+		// step does not carry a malformed tool-call history into
+		// downstream provider requests.
+		result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
+			ctx, opts.Logger, provider, modelName,
+			"dynamic_tool_persist", step, result.finishReason, result.content,
+		)
+		if err := persistPendingDynamicStep(ctx, opts, result, stepStart, dynamicCalls); err != nil {
+			return nil, err
+		}
+		tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
+		return nil, ErrDynamicToolCall
+	}
+
+	// Check for interruption after tool execution. Tools that
+	// were canceled mid-flight produce error results via ctx
+	// cancellation. Persist the full step (assistant blocks +
+	// tool results) through the interrupt-safe path so nothing
+	// is lost.
+	if ctx.Err() != nil {
+		if errors.Is(context.Cause(ctx), ErrInterrupted) {
+			persistInterruptedStep(ctx, opts, result)
+			return nil, ErrInterrupted
+		}
+		return nil, ctx.Err()
+	}
+
+	return toolResults, nil
+}
+
+// persistPendingDynamicStep persists a step that has pending dynamic
+// tool calls awaiting external execution. Returns ErrInterrupted when
+// persistence fails because the chat was interrupted.
+func persistPendingDynamicStep(
+	ctx context.Context,
+	opts RunOptions,
+	result *stepResult,
+	stepStart time.Time,
+	dynamicCalls []fantasy.ToolCallContent,
+) error {
+	pending := make([]PendingToolCall, 0, len(dynamicCalls))
+	for _, dc := range dynamicCalls {
+		pending = append(pending, PendingToolCall{
+			ToolCallID: dc.ToolCallID,
+			ToolName:   dc.ToolName,
+			Args:       dc.Input,
+		})
+	}
+
+	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
+
+	if err := opts.PersistStep(ctx, PersistedStep{
+		Content:                 result.content,
+		Usage:                   result.usage,
+		ContextLimit:            contextLimit,
+		ProviderResponseID:      chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+		Runtime:                 time.Since(stepStart),
+		PendingDynamicToolCalls: pending,
+	}); err != nil {
+		if errors.Is(err, ErrInterrupted) {
+			persistInterruptedStep(ctx, opts, result)
+			return ErrInterrupted
+		}
+		return xerrors.Errorf("persist step: %w", err)
+	}
+	return nil
+}
+
+// applyExclusiveToolPolicy checks whether toolCalls violate the
+// exclusive-tool policy declared by exclusiveToolNames. When a
+// violation is detected it synthesizes deterministic policy-error
+// results for every tool call and records size/error metrics so the
+// exclusivity failure mode is visible to operators. Returns
+// (results, true) on violation; (nil, false) otherwise.
+func applyExclusiveToolPolicy(
+	toolCalls []fantasy.ToolCallContent,
+	exclusiveToolNames map[string]bool,
+	metrics *Metrics,
+	provider, model string,
+) ([]fantasy.ToolResultContent, bool) {
+	blockingToolName, ok := firstExclusiveToolName(toolCalls, exclusiveToolNames)
+	if !ok {
+		return nil, false
+	}
+	results := exclusiveToolPolicyResults(toolCalls, exclusiveToolNames, blockingToolName)
+	for _, tr := range results {
+		recordToolResultMetrics(metrics, provider, model, tr)
+	}
+	return results, true
+}
+
+// recordToolResultMetrics observes tool result size and increments
+// tool_errors_total when the result carries an error output. Mirrors
+// the metric-recording defer in executeSingleTool so that synthetic
+// results (e.g. exclusive-tool policy errors) contribute to operator
+// visibility.
+func recordToolResultMetrics(metrics *Metrics, provider, model string, tr fantasy.ToolResultContent) {
+	if metrics == nil {
+		return
+	}
+	label := tr.ToolName
+	if label == "" {
+		label = "unknown"
+	}
+	metrics.ToolResultSizeBytes.WithLabelValues(provider, model, label).Observe(
+		float64(ToolResultSize(tr)),
+	)
+	if _, ok := tr.Result.(fantasy.ToolResultOutputContentError); ok {
+		metrics.RecordToolError(provider, model, label)
+	}
+}
+
+func firstExclusiveToolName(
+	toolCalls []fantasy.ToolCallContent,
+	exclusiveToolNames map[string]bool,
+) (string, bool) {
+	if len(toolCalls) <= 1 || len(exclusiveToolNames) == 0 {
+		return "", false
+	}
+
+	for _, tc := range toolCalls {
+		if exclusiveToolNames[tc.ToolName] {
+			return tc.ToolName, true
+		}
+	}
+
+	return "", false
+}
+
+func exclusiveToolPolicyResults(
+	toolCalls []fantasy.ToolCallContent,
+	exclusiveToolNames map[string]bool,
+	blockingToolName string,
+) []fantasy.ToolResultContent {
+	results := make([]fantasy.ToolResultContent, len(toolCalls))
+	for i, tc := range toolCalls {
+		message := exclusiveToolSkippedErrorMessage(blockingToolName)
+		if exclusiveToolNames[tc.ToolName] {
+			message = exclusiveToolMustRunAloneErrorMessage(tc.ToolName)
+		}
+		results[i] = fantasy.ToolResultContent{
+			ToolCallID: tc.ToolCallID,
+			ToolName:   tc.ToolName,
+			Result: fantasy.ToolResultOutputContentError{
+				Error: xerrors.New(message),
+			},
+		}
+	}
+	return results
+}
+
+func exclusiveToolMustRunAloneErrorMessage(toolName string) string {
+	return toolName + " must be called alone, without other tools in the same batch. Retry with only the " + toolName + " call."
+}
+
+func exclusiveToolSkippedErrorMessage(toolName string) string {
+	return "this tool was skipped because " + toolName + " must run alone in its batch. Retry your tool calls without " + toolName + ", or call " + toolName + " separately first."
+}
+
 // executeSingleTool executes one tool call and converts the
 // response into a ToolResultContent.
 func executeSingleTool(
@@ -1223,6 +1375,7 @@ func executeSingleTool(
 	builtinToolNames map[string]bool,
 	activeTools []string,
 	providerRunnerNames map[string]struct{},
+	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1304,6 +1457,18 @@ func executeSingleTool(
 			Text: strings.ToValidUTF8(resp.Content, "\uFFFD"),
 		}
 	}
+
+	if _, isError := result.Result.(fantasy.ToolResultOutputContentError); isError {
+		return result
+	}
+	if len(result.ProviderMetadata) == 0 {
+		if callback := resultProviderMetadata[tc.ToolName]; callback != nil {
+			metadata := callback(resp)
+			if len(metadata) > 0 {
+				result.ProviderMetadata = metadata
+			}
+		}
+	}
 	return result
 }
 
@@ -1380,9 +1545,9 @@ func persistInterruptedStep(
 		provider = opts.Model.Provider()
 		modelName = opts.Model.Model()
 	}
-	var sanitizeStats chatprompt.AnthropicProviderToolSanitizationStats
-	result.content, sanitizeStats = sanitizeAnthropicProviderToolContent(provider, result.content)
-	chatprompt.LogAnthropicProviderToolSanitization(
+	var sanitizeStats chatsanitize.AnthropicProviderToolSanitizationStats
+	result.content, sanitizeStats = chatsanitize.SanitizeAnthropicProviderToolContent(provider, result.content)
+	chatsanitize.LogAnthropicProviderToolSanitization(
 		ctx, opts.Logger, "interrupted_persist", provider, modelName, sanitizeStats,
 	)
 
@@ -1420,7 +1585,7 @@ func persistInterruptedStep(
 		if _, exists := answeredToolCalls[tc.ToolCallID]; exists {
 			continue
 		}
-		if isAnthropicProviderExecutedToolCall(provider, tc) {
+		if chatsanitize.IsAnthropicProviderExecutedToolCall(provider, tc) {
 			continue
 		}
 		content = append(content, fantasy.ToolResultContent{
@@ -1581,85 +1746,6 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
-}
-
-// hasPreviousResponseID checks whether the provider options contain
-// an OpenAI Responses entry with a non-empty PreviousResponseID.
-func hasPreviousResponseID(providerOptions fantasy.ProviderOptions) bool {
-	if providerOptions == nil {
-		return false
-	}
-
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			return options.PreviousResponseID != nil &&
-				*options.PreviousResponseID != ""
-		}
-	}
-
-	return false
-}
-
-// clearPreviousResponseID removes PreviousResponseID from the OpenAI
-// Responses provider options entry, if present.
-func clearPreviousResponseID(providerOptions fantasy.ProviderOptions) {
-	if providerOptions == nil {
-		return
-	}
-
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			options.PreviousResponseID = nil
-		}
-	}
-}
-
-// extractOpenAIResponseID extracts the OpenAI Responses API response
-// ID from provider metadata. Returns an empty string if no OpenAI
-// Responses metadata is present.
-func extractOpenAIResponseID(metadata fantasy.ProviderMetadata) string {
-	if len(metadata) == 0 {
-		return ""
-	}
-
-	for _, entry := range metadata {
-		if providerMetadata, ok := entry.(*fantasyopenai.ResponsesProviderMetadata); ok && providerMetadata != nil {
-			return providerMetadata.ResponseID
-		}
-	}
-
-	return ""
-}
-
-// extractOpenAIResponseIDIfStored returns the OpenAI response ID
-// only when the provider options indicate store=true. Response IDs
-// from store=false turns are not persisted server-side and cannot
-// be used for chaining.
-func extractOpenAIResponseIDIfStored(
-	providerOptions fantasy.ProviderOptions,
-	metadata fantasy.ProviderMetadata,
-) string {
-	if !isResponsesStoreEnabled(providerOptions) {
-		return ""
-	}
-
-	return extractOpenAIResponseID(metadata)
-}
-
-// isResponsesStoreEnabled checks whether the OpenAI Responses
-// provider options explicitly enable store=true.
-func isResponsesStoreEnabled(providerOptions fantasy.ProviderOptions) bool {
-	if providerOptions == nil {
-		return false
-	}
-
-	for _, entry := range providerOptions {
-		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
-			return options.Store != nil && *options.Store
-		}
-	}
-
-	return false
 }
 
 // recordToolResultTimestamp lazily initializes the

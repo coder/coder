@@ -1361,13 +1361,15 @@ func TestLaunchHeartbeat(t *testing.T) {
 		// threshold/2 interval.
 		newCall := tickerTrap.MustWait(ctx)
 		require.Equal(t, 30*time.Second, newCall.Duration)
+
+		// Reduce the threshold while NewTicker is trapped. This
+		// simulates SetStaleAfter racing with heartbeat startup before
+		// the goroutine can select on thresholdCh.
+		svc.SetStaleAfter(10 * time.Second)
 		newCall.MustRelease(ctx)
 
-		// Reducing the threshold must wake the heartbeat via the
-		// thresholdChan close and trigger a ticker reset to
-		// newThreshold/2 without advancing the mock clock.
-		svc.SetStaleAfter(10 * time.Second)
-
+		// The heartbeat must still reset to newThreshold/2 without
+		// advancing the mock clock.
 		resetCall := resetTrap.MustWait(ctx)
 		require.Equal(t, 5*time.Second, resetCall.Duration,
 			"ticker should reset to newThreshold/2 when SetStaleAfter"+

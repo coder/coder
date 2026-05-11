@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -23,6 +23,7 @@ import {
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
+	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
@@ -31,19 +32,20 @@ import {
 	unpinChat,
 	updateChatTitle,
 	updateInfiniteChatsCache,
+	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useArchivedFilterParam } from "./hooks/useArchivedFilterParam";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -62,14 +64,12 @@ const AgentsPage: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
 	const { agentId } = useParams();
 	const { permissions } = useAuthenticated();
-	const { appearance } = useDashboard();
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
-	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
-		"active",
-	);
+	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -119,10 +119,13 @@ const AgentsPage: FC = () => {
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently — react-query
+	// subscribe to the same queries independently, and react-query
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(),
+	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
@@ -247,6 +250,7 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
 		onError: (error: unknown) => {
@@ -322,7 +326,7 @@ const AgentsPage: FC = () => {
 					: undefined,
 			)
 		) {
-			navigate("/agents");
+			navigate({ pathname: "/agents", search: location.search });
 		}
 	};
 
@@ -336,6 +340,19 @@ const AgentsPage: FC = () => {
 		try {
 			const action = await resolveArchiveAndDeleteAction(
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				// We only need build_number 1 and 2 to recognise a
+				// prebuild claim. The default page is newest-first; the
+				// resolver degrades safely ("confirm") if those builds
+				// aren't in the returned slice.
+				() =>
+					queryClient.fetchQuery({
+						queryKey: [
+							"workspaceBuilds",
+							workspaceId,
+							"archive-and-delete-resolver",
+						],
+						queryFn: () => API.getWorkspaceBuilds(workspaceId),
+					}),
 				() =>
 					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
 						?.created_at,
@@ -439,7 +456,7 @@ const AgentsPage: FC = () => {
 		return promise;
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
-		const result = await API.experimental.proposeChatTitle(chatId);
+		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {
@@ -455,7 +472,7 @@ const AgentsPage: FC = () => {
 		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
-		navigate("/agents");
+		navigate({ pathname: "/agents", search: location.search });
 	};
 
 	useEffect(() => {
@@ -529,7 +546,7 @@ const AgentsPage: FC = () => {
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
+						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
@@ -619,7 +636,6 @@ const AgentsPage: FC = () => {
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
 				isCreating={false}
 				isArchiving={isArchiving}
@@ -644,6 +660,9 @@ const AgentsPage: FC = () => {
 				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				isPersonalModelOverridesEnabled={
+					personalModelOverridesQuery.data?.enabled
+				}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}

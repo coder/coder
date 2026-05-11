@@ -25,7 +25,6 @@ interface ProvidersSectionProps {
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	onSelectedProviderChange: (provider: string) => void;
 }
 
 export const ProvidersSection: FC<ProvidersSectionProps> = ({
@@ -37,7 +36,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
-	onSelectedProviderChange,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const navigate = useNavigate();
@@ -141,7 +139,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						key={providerState.provider}
 						aria-label={providerState.label}
 						onClick={() => {
-							onSelectedProviderChange(providerState.provider);
 							setSearchParams(
 								{ provider: providerState.provider },
 								{ state: { pushed: true } },

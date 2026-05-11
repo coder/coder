@@ -170,7 +170,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	const isBusy = busyItem !== null;
 
 	return (
-		<div className={cn("flex w-full flex-col", className)}>
+		<div
+			className={cn(
+				"flex w-full flex-col max-h-[40svh] overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]",
+				className,
+			)}
+		>
 			{visibleItems.map((item, index) => {
 				const isEditing = item.id === editingMessageID;
 				const isFirst = index === 0;

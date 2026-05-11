@@ -12,6 +12,11 @@ const (
 
 	desktopDeclaredMaxLongEdge    = 1568
 	desktopDeclaredMaxTotalPixels = 1_150_000
+
+	// OpenAI recommends 1440x900 or 1600x900 for computer use.
+	// Use 1600x900 so screenshots keep the native 16:9 aspect ratio.
+	desktopOpenAIComputerUseDeclaredWidth  = 1600
+	desktopOpenAIComputerUseDeclaredHeight = 900
 )
 
 var preferredDeclaredDesktopWidths = []int{1280, 1024}
@@ -29,6 +34,17 @@ type DesktopGeometry struct {
 // with the declared model-facing geometry derived from it.
 func DefaultDesktopGeometry() DesktopGeometry {
 	return NewDesktopGeometry(DesktopNativeWidth, DesktopNativeHeight)
+}
+
+// DefaultOpenAIComputerUseDesktopGeometry returns the default native desktop
+// geometry with OpenAI's recommended computer-use declared dimensions.
+func DefaultOpenAIComputerUseDesktopGeometry() DesktopGeometry {
+	return NewDesktopGeometryWithDeclared(
+		DesktopNativeWidth,
+		DesktopNativeHeight,
+		desktopOpenAIComputerUseDeclaredWidth,
+		desktopOpenAIComputerUseDeclaredHeight,
+	)
 }
 
 // NewDesktopGeometry derives a declared model-facing geometry from the native

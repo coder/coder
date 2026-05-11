@@ -1,12 +1,11 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,12 +13,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -46,19 +48,25 @@ func NewOpenAI(cfg config.OpenAI) *OpenAI {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1/"
 	}
-	if cfg.Key == "" {
-		cfg.Key = os.Getenv("OPENAI_API_KEY")
-	}
-	if cfg.APIDumpDir == "" {
-		cfg.APIDumpDir = os.Getenv("BRIDGE_DUMP_DIR")
-	}
-	if cfg.MaxRetries == nil {
-		if v := os.Getenv("OPENAI_MAX_RETRIES"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				cfg.MaxRetries = &n
-			}
+	// Resolve centralized key configuration into KeyPool.
+	// Precedence:
+	//   1. cfg.KeyPool (explicit, highest priority).
+	//   2. cfg.Key (legacy single key).
+	// After this block cfg.Key is empty so it can only carry a
+	// BYOK Authorization Bearer set per interception in
+	// CreateInterceptor.
+	// TODO(ssncferreira): simplify auth field resolution per
+	// https://github.com/coder/aibridge/issues/266.
+	if cfg.KeyPool == nil && cfg.Key != "" {
+		// keypool.New only fails on empty or duplicate keys,
+		// neither possible with a single non-empty key.
+		pool, err := keypool.New([]string{cfg.Key}, quartz.NewReal())
+		if err != nil {
+			panic(fmt.Sprintf("openai provider: build single-key pool: %s", err))
 		}
+		cfg.KeyPool = pool
 	}
+	cfg.Key = ""
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.OpenErrorResponse = openAIOpenErrorResponse
 	}
@@ -115,20 +123,34 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 	var interceptor intercept.Interceptor
 
 	cfg := p.cfg
-	// At this point the request contains only LLM provider headers. Any
-	// Coder-specific authentication has already been stripped.
+	// At this point the request contains only LLM provider headers.
+	// Any Coder-specific authentication has already been stripped.
 	//
 	// In centralized mode Authorization is absent, so cfg keeps the
-	// centralized key unchanged.
+	// KeyPool from provider construction and the failover loop walks
+	// it.
 	//
-	// In BYOK mode the user's credential is in Authorization. Replace
-	// the centralized key with it so it is forwarded upstream.
+	// In BYOK mode the user's credential is in Authorization,
+	// populate cfg.Key and clear cfg.KeyPool so failover is disabled.
+	//
+	// TODO(ssncferreira): consolidate auth field handling per
+	// https://github.com/coder/aibridge/issues/266.
 	credKind := intercept.CredentialKindCentralized
+	var credSecret string
 	if token := utils.ExtractBearerToken(r.Header.Get("Authorization")); token != "" {
 		cfg.Key = token
+		cfg.KeyPool = nil
 		credKind = intercept.CredentialKindBYOK
+		credSecret = token
+	} else if cfg.KeyPool != nil {
+		// Centralized: use the first key as a placeholder hint.
+		// TODO(ssncferreira): record the actually-used key in
+		// the interception record to reflect failover.
+		if k, err := cfg.KeyPool.Walker().Next(); err == nil {
+			credSecret = k.Value()
+		}
 	}
-	cred := intercept.NewCredentialInfo(credKind, cfg.Key)
+	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
 	switch path {
@@ -186,7 +208,35 @@ func (p *OpenAI) InjectAuthHeader(headers *http.Header) {
 		return
 	}
 
-	headers.Set(p.AuthHeader(), "Bearer "+p.cfg.Key)
+	// Centralized: pull a single key from the pool. No failover
+	// or exhaustion handling here.
+	// TODO(ssncferreira): replace with RoundTripper-based auth
+	// in the upstack passthrough PR.
+	if p.cfg.KeyPool == nil {
+		return
+	}
+	if key, err := p.cfg.KeyPool.Walker().Next(); err == nil {
+		headers.Set(p.AuthHeader(), "Bearer "+key.Value())
+	}
+}
+
+func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
+	name := p.Name()
+	return keypool.KeyFailoverConfig{
+		Pool: p.cfg.KeyPool,
+		IsBYOK: func(r *http.Request) bool {
+			return r.Header.Get("Authorization") != ""
+		},
+		InjectAuthKey: func(h *http.Header, key string) {
+			h.Set("Authorization", "Bearer "+key)
+		},
+		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
+			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
+		},
+		BuildExhaustedResponse: func(err error) *http.Response {
+			return chatcompletions.ProcessKeyPoolError(err).ToResponse()
+		},
+	}
 }
 
 func (p *OpenAI) CircuitBreakerConfig() *config.CircuitBreaker {

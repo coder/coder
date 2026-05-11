@@ -18,7 +18,7 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {array} codersdk.Replica
-// @Router /replicas [get]
+// @Router /api/v2/replicas [get]
 func (api *API) replicas(rw http.ResponseWriter, r *http.Request) {
 	if !api.AGPL.Authorize(r, policy.ActionRead, rbac.ResourceReplicas) {
 		httpapi.ResourceNotFound(rw)

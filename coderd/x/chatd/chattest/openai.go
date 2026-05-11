@@ -1,8 +1,10 @@
 package chattest
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -53,6 +55,10 @@ type OpenAIRequest struct {
 	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
 	Store              *bool           `json:"store,omitempty"`
 	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
+	// RawBody holds the original request body so callers can inspect
+	// fields the typed struct does not expose, such as the Responses
+	// API "input" payload. It is populated before JSON decoding.
+	RawBody []byte `json:"-"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
@@ -205,12 +211,18 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 }
 
 func (s *openAIServer) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	var req OpenAIRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Request = r
+	req.RawBody = body
 
 	s.mu.Lock()
 	s.request = &req
@@ -221,12 +233,18 @@ func (s *openAIServer) handleChatCompletions(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	var req OpenAIRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Request = r
+	req.RawBody = body
 
 	s.mu.Lock()
 	s.request = &req
@@ -407,8 +425,18 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 	responseModel := "gpt-4"
 	sequenceNumber := int64(0)
 	textOffset := 0
-	itemIDs := make(map[int]string)
-	itemTexts := make(map[int]string)
+	// outputs tracks per-output-index state so the done-event emission
+	// at stream close can distinguish message items (text) from
+	// function_call items (tool invocation).
+	type outputItemState struct {
+		itemType  string // "message" or "function_call"
+		itemID    string
+		text      string // accumulated text for message items
+		callID    string // call_id for function_call items
+		toolName  string // function name for function_call items
+		arguments string // accumulated arguments for function_call items
+	}
+	outputs := make(map[int]*outputItemState)
 
 	writeEvent := func(eventType string, payload map[string]interface{}) bool {
 		payload["type"] = eventType
@@ -574,50 +602,73 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 			return
 		case chunk, ok = <-resp.StreamingChunks:
 			if !ok {
-				indices := make([]int, 0, len(itemIDs))
-				for outputIndex := range itemIDs {
+				indices := make([]int, 0, len(outputs))
+				for outputIndex := range outputs {
 					indices = append(indices, outputIndex)
 				}
 				sort.Ints(indices)
 				for _, outputIndex := range indices {
-					itemID := itemIDs[outputIndex]
-					text := itemTexts[outputIndex]
-					if !writeEvent("response.output_text.done", map[string]interface{}{
-						"item_id":       itemID,
-						"output_index":  outputIndex,
-						"content_index": 0,
-						"text":          text,
-						"logprobs":      []interface{}{},
-					}) {
-						return
-					}
-					if !writeEvent("response.content_part.done", map[string]interface{}{
-						"item_id":       itemID,
-						"output_index":  outputIndex,
-						"content_index": 0,
-						"part": map[string]interface{}{
-							"type": "output_text",
-							"text": text,
-						},
-					}) {
-						return
-					}
-					if !writeEvent("response.output_item.done", map[string]interface{}{
-						"output_index": outputIndex,
-						"item": map[string]interface{}{
-							"type":   "message",
-							"id":     itemID,
-							"role":   "assistant",
-							"status": "completed",
-							"content": []interface{}{
-								map[string]interface{}{
-									"type": "output_text",
-									"text": text,
+					state := outputs[outputIndex]
+					switch state.itemType {
+					case "function_call":
+						if !writeEvent("response.function_call_arguments.done", map[string]interface{}{
+							"item_id":      state.itemID,
+							"output_index": outputIndex,
+							"arguments":    state.arguments,
+						}) {
+							return
+						}
+						if !writeEvent("response.output_item.done", map[string]interface{}{
+							"output_index": outputIndex,
+							"item": map[string]interface{}{
+								"type":      "function_call",
+								"id":        state.itemID,
+								"status":    "completed",
+								"call_id":   state.callID,
+								"name":      state.toolName,
+								"arguments": state.arguments,
+							},
+						}) {
+							return
+						}
+					default:
+						if !writeEvent("response.output_text.done", map[string]interface{}{
+							"item_id":       state.itemID,
+							"output_index":  outputIndex,
+							"content_index": 0,
+							"text":          state.text,
+							"logprobs":      []interface{}{},
+						}) {
+							return
+						}
+						if !writeEvent("response.content_part.done", map[string]interface{}{
+							"item_id":       state.itemID,
+							"output_index":  outputIndex,
+							"content_index": 0,
+							"part": map[string]interface{}{
+								"type": "output_text",
+								"text": state.text,
+							},
+						}) {
+							return
+						}
+						if !writeEvent("response.output_item.done", map[string]interface{}{
+							"output_index": outputIndex,
+							"item": map[string]interface{}{
+								"type":   "message",
+								"id":     state.itemID,
+								"role":   "assistant",
+								"status": "completed",
+								"content": []interface{}{
+									map[string]interface{}{
+										"type": "output_text",
+										"text": state.text,
+									},
 								},
 							},
-						},
-					}) {
-						return
+						}) {
+							return
+						}
 					}
 				}
 				if !writeEvent("response.completed", map[string]interface{}{
@@ -645,15 +696,64 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 				outputIndex = choice.Index
 			}
 			outputIndex += textOffset
-			itemID, found := itemIDs[outputIndex]
+
+			if len(choice.ToolCalls) > 0 {
+				for _, tc := range choice.ToolCalls {
+					// Each tool call within a chunk owns a distinct
+					// output item, so discriminate by the streaming
+					// tc.Index. Without this, multiple tool calls in
+					// one chunk collide on outputIndex and later
+					// calls inherit the first call's id and name.
+					toolOutputIndex := outputIndex + tc.Index
+					state, found := outputs[toolOutputIndex]
+					if !found {
+						state = &outputItemState{
+							itemType: "function_call",
+							itemID:   fmt.Sprintf("fc_%s", uuid.New().String()[:8]),
+							callID:   tc.ID,
+							toolName: tc.Function.Name,
+						}
+						outputs[toolOutputIndex] = state
+						if !writeEvent("response.output_item.added", map[string]interface{}{
+							"output_index": toolOutputIndex,
+							"item": map[string]interface{}{
+								"type":      "function_call",
+								"id":        state.itemID,
+								"status":    "in_progress",
+								"call_id":   state.callID,
+								"name":      state.toolName,
+								"arguments": "",
+							},
+						}) {
+							return
+						}
+					}
+					if tc.Function.Arguments != "" {
+						state.arguments += tc.Function.Arguments
+						if !writeEvent("response.function_call_arguments.delta", map[string]interface{}{
+							"item_id":      state.itemID,
+							"output_index": toolOutputIndex,
+							"delta":        tc.Function.Arguments,
+						}) {
+							return
+						}
+					}
+				}
+				continue
+			}
+
+			state, found := outputs[outputIndex]
 			if !found {
-				itemID = fmt.Sprintf("msg_%s", uuid.New().String()[:8])
-				itemIDs[outputIndex] = itemID
+				state = &outputItemState{
+					itemType: "message",
+					itemID:   fmt.Sprintf("msg_%s", uuid.New().String()[:8]),
+				}
+				outputs[outputIndex] = state
 				if !writeEvent("response.output_item.added", map[string]interface{}{
 					"output_index": outputIndex,
 					"item": map[string]interface{}{
 						"type":    "message",
-						"id":      itemID,
+						"id":      state.itemID,
 						"role":    "assistant",
 						"status":  "in_progress",
 						"content": []interface{}{},
@@ -662,7 +762,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 					return
 				}
 				if !writeEvent("response.content_part.added", map[string]interface{}{
-					"item_id":       itemID,
+					"item_id":       state.itemID,
 					"output_index":  outputIndex,
 					"content_index": 0,
 					"part": map[string]interface{}{
@@ -674,9 +774,9 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 				}
 			}
 
-			itemTexts[outputIndex] += choice.Delta
+			state.text += choice.Delta
 			if !writeEvent("response.output_text.delta", map[string]interface{}{
-				"item_id":       itemID,
+				"item_id":       state.itemID,
 				"output_index":  outputIndex,
 				"content_index": 0,
 				"delta":         choice.Delta,

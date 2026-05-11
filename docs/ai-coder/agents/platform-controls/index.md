@@ -49,11 +49,12 @@ See [Models](../models.md) for setup instructions.
 ### System prompt
 
 Administrators can set a system prompt that applies to all agent sessions. This
-is useful for establishing organizational conventions — coding standards,
+is useful for establishing organizational conventions: coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-The system prompt configuration is only accessible to administrators in the
-dashboard. Developers do not see or interact with it.
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Instructions** and is only accessible to
+administrators. Developers do not see or interact with it.
 
 ### Plan mode instructions
 
@@ -62,8 +63,8 @@ enters plan mode. These instructions supplement the built-in planning behavior
 and are useful for organization-specific planning requirements such as required
 plan sections, approval checkpoints, or review workflows.
 
-This setting is available under **Agents** > **Settings** > **Behavior**.
-Developers do not edit it directly.
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Instructions**. Developers do not edit it directly.
 
 The same value is exposed over the experimental chat configuration API:
 
@@ -81,13 +82,14 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-Administrators can also restrict which templates are available to agents using
-the template allowlist in **Agents** > **Settings** > **Templates**. When the
-allowlist is configured, the agent can only see and provision workspaces from
-the selected templates. When the allowlist is empty, all templates are
-available. This is separate from what developers see when manually creating
-workspaces, so you can apply stricter policies to agent-created workspaces
-without affecting the manual workspace experience.
+Administrators can also restrict which templates are available to agents
+using the template allowlist at **Agents** > **Settings** >
+**Manage Agents** > **Templates**. When the allowlist is configured, the
+agent can only see and provision workspaces from the selected templates.
+When the allowlist is empty, all templates are available. This is separate
+from what developers see when manually creating workspaces, so you can apply
+stricter policies to agent-created workspaces without affecting the manual
+workspace experience.
 
 See [Template Optimization](./template-optimization.md) for best practices on writing
 discoverable descriptions, restricting template visibility, configuring network
@@ -104,30 +106,16 @@ opt-out, or opt-in for each chat.
 
 See [MCP Servers](./mcp-servers.md) for configuration details.
 
-### Virtual desktop
-
-Administrators can enable a virtual desktop within agent workspaces.
-When enabled, agents can use `spawn_agent` with
-`type=computer_use` to interact with a
-desktop environment using screenshots, mouse, and keyboard input.
-
-This setting is available under **Agents** > **Settings** > **Behavior**.
-It requires:
-
-- The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
-  module to be installed in the workspace template.
-- An Anthropic provider to be configured (computer use is an Anthropic
-  capability).
-
 ### Workspace autostop fallback
 
 Administrators can set a default autostop timer for agent-created workspaces
 that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
-This setting is available under **Agents** > **Settings** > **Behavior**.
-The maximum configurable value is 30 days. When disabled, workspaces follow
-their template's autostop rules (or none, if the template does not define any).
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Lifecycle**. The maximum configurable value is 30
+days. When disabled, workspaces follow their template's autostop rules (or
+none, if the template does not define any).
 
 ### Spend management
 
@@ -141,18 +129,11 @@ See [Spend Management](./usage-insights.md) for details.
 ### Git providers
 
 Coder Agents leverages your existing
-[external authentication](../../../admin/external-auth/index.md) configuration to
-power the in-chat diff viewer and PR Insights. Self-hosted GitHub Enterprise
-deployments require additional configuration for these features.
+[external authentication](../../../admin/external-auth/index.md) configuration
+to power the in-chat diff viewer. Self-hosted GitHub Enterprise deployments
+require additional configuration for this feature.
 
 See [Git Providers](./git-providers.md) for details.
-
-### PR Insights
-
-PR Insights tracks pull requests created by Coder Agents and surfaces
-analytics on PR activity, merge rates, and cost efficiency.
-
-See [PR Insights](./pr-insights.md) for requirements and dashboard details.
 
 ### Data retention
 
@@ -160,8 +141,18 @@ Administrators can configure a retention period for archived conversations.
 When enabled, archived conversations and orphaned files older than the
 retention period are automatically purged. The default is 30 days.
 
-This setting is available under **Agents** > **Settings** > **Behavior**.
-See [Data Retention](./chat-retention.md) for details.
+This setting is available under **Agents** > **Settings** >
+**Manage Agents** > **Lifecycle**. See [Data Retention](./chat-retention.md)
+for details.
+
+### Experiments
+
+Administrators can opt in to experimental features under **Agents** >
+**Settings** > **Manage Agents** > **Experiments**. Behavior, configuration
+surface, and APIs may change between releases.
+
+See [Experiments](./experiments.md) for the current list of experiments, how
+to enable them, and the relevant API endpoints.
 
 ## Where we are headed
 

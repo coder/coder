@@ -1,0 +1,2 @@
+-- These enum values cannot be removed from PostgreSQL.
+-- This migration is a no-op placeholder for rollback safety.

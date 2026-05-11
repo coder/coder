@@ -88,8 +88,8 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -105,6 +105,7 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
@@ -163,7 +164,6 @@ interface AgentsSidebarProps {
 	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly ChatModelConfig[];
-	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
@@ -186,6 +186,7 @@ interface AgentsSidebarProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
 }
 
@@ -239,14 +240,6 @@ const getPRIconConfig = (
 		};
 	}
 	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
-};
-
-const asNonEmptyString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
 };
 
 const getModelDisplayName = (
@@ -466,6 +459,7 @@ interface ChatTreeNodeProps {
 }
 
 const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+	const location = useLocation();
 	const {
 		chatTree,
 		chatById,
@@ -503,9 +497,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 	const errorReason =
 		chat.status === "error"
-			? chatErrorReasons[chat.id] || chat.last_error || undefined
+			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
-	const subtitle = errorReason || modelName;
+	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	const subtitle = errorReason || lastTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
@@ -645,7 +640,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 						</div>
 						<NavLink
-							to={`/agents/${chat.id}`}
+							to={{
+								pathname: `/agents/${chat.id}`,
+								search: location.search,
+							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
 							{({ isActive }) => (
@@ -817,7 +815,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatErrorReasons,
 		modelOptions,
 		modelConfigs,
-		logoUrl,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
@@ -840,6 +837,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		archivedFilter,
 		onArchivedFilterChange,
 		onCollapse,
+		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -887,7 +885,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
-	// Local override for pinned order during drag — applied
+	// Local override for pinned order during drag. Applied
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
@@ -1010,8 +1008,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes — not on every parentById
-	// recalculation — so user-initiated collapse is preserved.
+	// Only runs when activeChatId changes, not on every parentById
+	// recalculation, so user-initiated collapse is preserved.
 	const parentByIdRef = useRef(chatTree.parentById);
 	useEffect(() => {
 		parentByIdRef.current = chatTree.parentById;
@@ -1075,21 +1073,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
+					"absolute inset-0 flex flex-col sm:transition-transform sm:duration-200 sm:ease-in-out",
 					isSettingsPanel && "-translate-x-full",
 				)}
 				aria-hidden={isSettingsPanel}
 				inert={isSettingsPanel ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
+				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
 					<div className="mb-2.5 flex items-center justify-between">
-						<NavLink to="/workspaces" className="inline-flex">
-							{logoUrl ? (
-								<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-							) : (
-								<CoderIcon className="h-6 w-6 fill-content-primary" />
-							)}
-						</NavLink>
+						<div className="flex items-center gap-2">
+							<NavLink to="/workspaces" className="inline-flex">
+								<ProductLogo className="size-6" />
+							</NavLink>
+							<FeatureStageBadge contentType="beta" size="xs" />
+						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
 								asChild
@@ -1101,7 +1098,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									isSettingsPanel && "text-content-primary",
 								)}
 							>
-								<Link to="/agents/settings" state={{ from: location.pathname }}>
+								<Link
+									to="/agents/settings"
+									state={{ from: location.pathname + location.search }}
+								>
 									<SettingsIcon />
 								</Link>
 							</Button>
@@ -1122,7 +1122,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						icon={SquarePenIcon}
 						label="New Agent"
 						active={!activeChatId && sidebarView.panel === "chats"}
-						to="/agents"
+						to={`/agents${location.search}`}
 						onClick={onBeforeNewAgent}
 						disabled={isCreating}
 					/>
@@ -1134,10 +1134,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						viewportClassName={cn(
 							"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 							"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
-							"md:[mask-image:none] md:[-webkit-mask-image:none]",
+							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 						)}
 					>
-						<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+						<div className="flex flex-col gap-2 px-2 py-3">
 							{loadError ? (
 								<div className="space-y-3 px-1">
 									<ErrorAlert error={loadError} />
@@ -1278,7 +1278,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</div>
 					</ScrollArea>
 				</div>
-				<div className="hidden border-0 border-t border-solid md:block">
+				<div className="hidden border-0 border-t border-solid sm:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -1319,14 +1319,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 2: Sub-navigation (Settings) ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
+					"absolute inset-0 flex flex-col sm:transition-transform sm:duration-200 sm:ease-in-out",
 					!isSettingsPanel && "translate-x-full",
 				)}
 				aria-hidden={!isSettingsPanel}
 				inert={!isSettingsPanel ? true : undefined}
 			>
 				{/* Back header */}
-				<div className="border-b border-border-default px-2 pb-2 pt-3 md:py-2">
+				<div className="border-b border-border-default px-2 pb-2 pt-3 sm:py-2">
 					<div className="relative flex items-center">
 						<span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-content-primary">
 							{subNavTitle}
@@ -1365,7 +1365,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								size="icon"
 								onClick={onCollapse}
 								aria-label="Collapse sidebar"
-								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary md:inline-flex"
+								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
 							>
 								<PanelLeftCloseIcon />
 							</Button>
@@ -1382,6 +1382,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							to="/agents/settings/general"
 							state={location.state}
 						/>
+						{isPersonalModelOverridesEnabled && (
+							<SettingsNavItem
+								icon={BotIcon}
+								label="Agents"
+								active={settingsSection === "user-agents"}
+								to="/agents/settings/user-agents"
+								state={location.state}
+							/>
+						)}
 						<SettingsNavItem
 							icon={ShrinkIcon}
 							label="Compaction"
@@ -1600,7 +1609,7 @@ const LoadMoreSentinel: FC<{
 		// Don't observe while a fetch is in progress. When the
 		// fetch completes this effect re-runs, creating a fresh
 		// observer whose initial entry detects the sentinel if
-		// it's still visible — fixing the case where loaded items
+		// it's still visible, fixing the case where loaded items
 		// don't push the sentinel out of view and the previous
 		// observer never re-fires.
 		if (isFetchingNextPage) return;

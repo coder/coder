@@ -1,4 +1,3 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import type { FC } from "react";
 import type { Permission } from "#/api/typesGenerated";
@@ -58,7 +57,7 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 	);
 
 	return (
-		<Pill css={styles.permissionPill}>
+		<Pill type="muted" className="w-fit">
 			<b>{resource}</b>:{" "}
 			{actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
 		</Pill>
@@ -74,16 +73,12 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 	resources,
 	permissions,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<Pill
-					css={{
-						backgroundColor: theme.palette.background.paper,
-						borderColor: theme.palette.divider,
-					}}
+					type="muted"
+					className="w-fit"
 					data-testid="overflow-permissions-pill"
 				>
 					+{resources.length} more
@@ -102,12 +97,3 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 		</Tooltip>
 	);
 };
-
-const styles = {
-	permissionPill: (theme) => ({
-		backgroundColor: theme.experimental.pillDefault.background,
-		borderColor: theme.experimental.pillDefault.outline,
-		color: theme.experimental.pillDefault.text,
-		width: "fit-content",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

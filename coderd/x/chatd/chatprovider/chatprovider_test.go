@@ -1,6 +1,7 @@
 package chatprovider_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/eventstreamapi"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1047,6 +1050,132 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 	require.NotContains(t, got.Authorization, "anthropic-version")
 	require.NotContains(t, got.Authorization, "x-api-key")
 	require.Contains(t, got.Body, `"anthropic_version":"bedrock-2023-05-31"`)
+}
+
+func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	t.Setenv("ANTHROPIC_API_KEY", "anthropic-env-key")
+	t.Setenv("AWS_REGION", "us-east-2")
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
+
+	type requestCapture struct {
+		Path          string
+		Accept        string
+		BedrockAccept string
+		Authorization string
+		Body          string
+		ReadError     error
+	}
+
+	requests := make(chan requestCapture, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+
+		requests <- requestCapture{
+			Path:          r.URL.Path,
+			Accept:        r.Header.Get("Accept"),
+			BedrockAccept: r.Header.Get("X-Amzn-Bedrock-Accept"),
+			Authorization: r.Header.Get("Authorization"),
+			Body:          string(body),
+			ReadError:     err,
+		}
+
+		if err := writeBedrockAnthropicStream(w,
+			`{"type":"message_start","message":{}}`,
+			`{"type":"message_stop"}`,
+		); err != nil {
+			t.Errorf("write bedrock stream: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	model, err := chatprovider.ModelFromConfig(
+		fantasybedrock.Name,
+		"anthropic.claude-opus-4-6-v1",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasybedrock.Name: "",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasybedrock.Name: server.URL,
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model)
+
+	stream, err := model.Stream(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "hello"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for part := range stream {
+		require.NotEqual(t, fantasy.StreamPartTypeError, part.Type)
+		break
+	}
+
+	got := testutil.TryReceive(ctx, t, requests)
+	require.NoError(t, got.ReadError)
+	require.Equal(t, "/model/us.anthropic.claude-opus-4-6-v1/invoke-with-response-stream", got.Path)
+	require.Empty(t, got.Accept)
+	require.Equal(t, "application/json", got.BedrockAccept)
+	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
+	require.Contains(t, got.Authorization, "x-amzn-bedrock-accept")
+	require.Contains(t, got.Body, `"anthropic_version":"bedrock-2023-05-31"`)
+}
+
+func writeBedrockAnthropicStream(w http.ResponseWriter, events ...string) error {
+	w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
+	w.WriteHeader(http.StatusOK)
+
+	encoder := eventstream.NewEncoder()
+	for _, event := range events {
+		payload, err := json.Marshal(map[string]string{
+			"bytes": base64.StdEncoding.EncodeToString([]byte(event)),
+		})
+		if err != nil {
+			return err
+		}
+
+		err = encoder.Encode(w, eventstream.Message{
+			Headers: eventstream.Headers{
+				{
+					Name:  eventstreamapi.MessageTypeHeader,
+					Value: eventstream.StringValue(eventstreamapi.EventMessageType),
+				},
+				{
+					Name:  eventstreamapi.EventTypeHeader,
+					Value: eventstream.StringValue("chunk"),
+				},
+				{
+					Name:  eventstreamapi.ContentTypeHeader,
+					Value: eventstream.StringValue("application/json"),
+				},
+			},
+			Payload: payload,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
 }
 
 func bedrockNonStreamingResponse() map[string]any {

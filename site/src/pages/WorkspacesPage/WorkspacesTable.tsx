@@ -217,7 +217,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									</div>
 									<AvatarData
 										title={
-											<div className="flex items-center gap-0.5">
+											<div className="flex items-center gap-1">
 												<span className="whitespace-nowrap">
 													{workspace.name}
 												</span>

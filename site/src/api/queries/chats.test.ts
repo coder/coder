@@ -11,6 +11,8 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
+	chatAdvisorConfig,
+	chatAdvisorConfigKey,
 	chatCostSummary,
 	chatCostSummaryKey,
 	chatDebugRunsKey,
@@ -30,12 +32,14 @@ import {
 	paginatedChatCostUsers,
 	pinChat,
 	promoteChatQueuedMessage,
+	proposeChatTitle,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
+	updateChatAdvisorConfig,
 	updateChatPlanMode,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
@@ -54,7 +58,10 @@ vi.mock("#/api/api", () => ({
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
 			promoteChatQueuedMessage: vi.fn(),
+			proposeChatTitle: vi.fn(),
 			regenerateChatTitle: vi.fn(),
+			getChatAdvisorConfig: vi.fn(),
+			updateChatAdvisorConfig: vi.fn(),
 		},
 	},
 }));
@@ -105,7 +112,7 @@ const makeChat = (
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -121,6 +128,53 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+describe("advisor config query factories", () => {
+	it("builds the advisor config query and delegates to the API", async () => {
+		const advisorConfig: TypesGen.AdvisorConfig = {
+			enabled: true,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		};
+		vi.mocked(API.experimental.getChatAdvisorConfig).mockResolvedValue(
+			advisorConfig,
+		);
+
+		const query = chatAdvisorConfig();
+
+		expect(query.queryKey).toEqual(chatAdvisorConfigKey);
+		await expect(query.queryFn()).resolves.toEqual(advisorConfig);
+		expect(API.experimental.getChatAdvisorConfig).toHaveBeenCalled();
+	});
+
+	it("sends the update request and invalidates the advisor config cache", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatAdvisorConfigKey, {
+			enabled: false,
+			max_uses_per_run: 0,
+			max_output_tokens: 0,
+			model_config_id: "",
+		} as TypesGen.AdvisorConfig);
+
+		const req: TypesGen.UpdateAdvisorConfigRequest = {
+			enabled: true,
+			max_uses_per_run: 5,
+			max_output_tokens: 2048,
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		};
+		vi.mocked(API.experimental.updateChatAdvisorConfig).mockResolvedValue();
+
+		const mutation = updateChatAdvisorConfig(queryClient);
+		await mutation.mutationFn(req);
+		expect(API.experimental.updateChatAdvisorConfig).toHaveBeenCalledWith(req);
+
+		await mutation.onSuccess?.();
+		expect(queryClient.getQueryState(chatAdvisorConfigKey)?.isInvalidated).toBe(
+			true,
+		);
+	});
+});
 
 describe("invalidateChatListQueries", () => {
 	it("invalidates flat and infinite chat list queries", async () => {
@@ -1293,6 +1347,39 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
+	for (const { label, error } of [
+		{ label: "success", error: undefined },
+		{ label: "failure", error: new Error("proposal failed") },
+	]) {
+		it(`proposeChatTitle invalidates debug runs on ${label} without touching unrelated queries`, async () => {
+			const queryClient = createTestQueryClient();
+			const chatId = "chat-1";
+			seedAllActiveQueries(queryClient, chatId);
+
+			const mutation = proposeChatTitle(queryClient);
+			await mutation.onSettled(undefined, error, chatId);
+
+			expect(
+				queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
+				"chatDebugRunsKey should be invalidated",
+			).toBe(true);
+
+			for (const { label, key } of [
+				{ label: "flat chats", key: chatsKey },
+				{ label: "infinite chats", key: [...chatsKey, { archived: false }] },
+				{ label: "chat detail", key: chatKey(chatId) },
+				{ label: "messages", key: chatMessagesKey(chatId) },
+				...unrelatedKeys(chatId),
+			]) {
+				const state = queryClient.getQueryState(key);
+				expect(
+					state?.isInvalidated,
+					`${label} should NOT be invalidated by proposeChatTitle`,
+				).not.toBe(true);
+			}
+		});
+	}
+
 	it("createChat invalidates only sidebar queries on success", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -1938,6 +2025,57 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe("22222222-2222-4222-8222-222222222222");
 	});
 
+	it("merges last_turn_summary when watched updated_at equals cached updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: "Previous summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Updated summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBe("Updated summary");
+	});
+
+	it("applies summary_change even when event updated_at is older", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Fixed the issue",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBe("Fixed the issue");
+	});
+
+	it("clears last_turn_summary on summary updates with matching updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_turn_summary: "Previous summary",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+			}).last_turn_summary,
+		).toBeNull();
+	});
+
 	it("compares updated_at values as instants instead of strings", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "pending",
@@ -2125,6 +2263,25 @@ describe("mergeWatchedChatSummary", () => {
 				activeChatId: "chat-2",
 			}).has_unread,
 		).toBe(true);
+	});
+
+	it("preserves has_unread for summary changes on inactive chats", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			last_turn_summary: null,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_turn_summary: "Updated summary",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "summary_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(false);
 	});
 
 	it("preserves has_unread for the active chat", () => {

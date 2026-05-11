@@ -153,6 +153,10 @@ var testCases = []testCase{
 		name:          "prometheus_address_override",
 		expectedError: "",
 	},
+	{
+		name:          "host_aliases",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

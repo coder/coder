@@ -17,7 +17,6 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	Dialog,
 	DialogContent,
@@ -408,27 +407,23 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				<ChooseOne>
-					<Cond condition={isEmpty}>
-						<TableRow>
-							<TableCell colSpan={999}>
-								<EmptyState
-									message="No organization mappings"
-									isCompact
-									cta={
-										<Link
-											href={docs("/admin/users/idp-sync#organization-sync")}
-										>
-											How to set up IdP organization sync
-										</Link>
-									}
-								/>
-							</TableCell>
-						</TableRow>
-					</Cond>
-
-					<Cond>{children}</Cond>
-				</ChooseOne>
+				{isEmpty ? (
+					<TableRow>
+						<TableCell colSpan={999}>
+							<EmptyState
+								message="No organization mappings"
+								isCompact
+								cta={
+									<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+										How to set up IdP organization sync
+									</Link>
+								}
+							/>
+						</TableCell>
+					</TableRow>
+				) : (
+					children
+				)}
 			</TableBody>
 		</Table>
 	);

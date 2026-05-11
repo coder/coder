@@ -44,7 +44,7 @@ import (
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param request body codersdk.CreateTaskRequest true "Create task request"
 // @Success 201 {object} codersdk.Task
-// @Router /tasks/{user} [post]
+// @Router /api/v2/tasks/{user} [post]
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -401,7 +401,7 @@ func deriveTaskCurrentState(
 // @Tags Tasks
 // @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
 // @Success 200 {object} codersdk.TasksListResponse
-// @Router /tasks [get]
+// @Router /api/v2/tasks [get]
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -511,7 +511,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.Task
-// @Router /tasks/{user}/{task} [get]
+// @Router /api/v2/tasks/{user}/{task} [get]
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -585,7 +585,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 202
-// @Router /tasks/{user}/{task} [delete]
+// @Router /api/v2/tasks/{user}/{task} [delete]
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -659,7 +659,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
 // @Success 204
-// @Router /tasks/{user}/{task}/input [patch]
+// @Router /api/v2/tasks/{user}/{task}/input [patch]
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -739,7 +739,7 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
 // @Success 204
-// @Router /tasks/{user}/{task}/send [post]
+// @Router /api/v2/tasks/{user}/{task}/send [post]
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -831,7 +831,7 @@ func convertAgentAPIMessagesToLogEntries(messages []agentapisdk.Message) ([]code
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.TaskLogsResponse
-// @Router /tasks/{user}/{task}/logs [get]
+// @Router /api/v2/tasks/{user}/{task}/logs [get]
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -1117,7 +1117,7 @@ type TaskLogSnapshotEnvelope struct {
 // @Param format query string true "Snapshot format" enums(agentapi)
 // @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
 // @Success 204
-// @Router /workspaceagents/me/tasks/{task}/log-snapshot [post]
+// @Router /api/v2/workspaceagents/me/tasks/{task}/log-snapshot [post]
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx         = r.Context()
@@ -1266,7 +1266,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID" format(uuid)
 // @Success 202 {object} codersdk.PauseTaskResponse
-// @Router /tasks/{user}/{task}/pause [post]
+// @Router /api/v2/tasks/{user}/{task}/pause [post]
 func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -1343,7 +1343,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID" format(uuid)
 // @Success 202 {object} codersdk.ResumeTaskResponse
-// @Router /tasks/{user}/{task}/resume [post]
+// @Router /api/v2/tasks/{user}/{task}/resume [post]
 func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

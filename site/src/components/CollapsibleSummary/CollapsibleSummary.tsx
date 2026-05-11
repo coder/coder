@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { ChevronRightIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import { cn } from "#/utils/cn";
 
 const collapsibleSummaryVariants = cva(
@@ -42,6 +42,10 @@ interface CollapsibleSummaryProps
 	 * The size of the component
 	 */
 	size?: "md" | "sm";
+	/**
+	 * Will scroll the children into view whenever the component is opened
+	 */
+	scrollIntoViewOnOpen?: boolean;
 }
 
 export const CollapsibleSummary: FC<CollapsibleSummaryProps> = ({
@@ -50,8 +54,19 @@ export const CollapsibleSummary: FC<CollapsibleSummaryProps> = ({
 	defaultOpen = false,
 	className,
 	size,
+	scrollIntoViewOnOpen,
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
+
+	const lastState = useRef<boolean>(defaultOpen);
+	const ref = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (lastState.current !== isOpen && isOpen && scrollIntoViewOnOpen) {
+			ref.current?.scrollIntoView({ behavior: "smooth" });
+		}
+		lastState.current = isOpen;
+	}, [isOpen, scrollIntoViewOnOpen]);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -85,7 +100,11 @@ export const CollapsibleSummary: FC<CollapsibleSummaryProps> = ({
 				<span className="[&:first-letter]:uppercase">{label}</span>
 			</button>
 
-			{isOpen && <div className="flex flex-col gap-4">{children}</div>}
+			{isOpen && (
+				<div className="flex flex-col gap-4" ref={ref}>
+					{children}
+				</div>
+			)}
 		</div>
 	);
 };

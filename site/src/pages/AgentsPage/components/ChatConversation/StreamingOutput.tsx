@@ -33,9 +33,11 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  * collapsible thinking disclosure label.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<Shimmer as="span" className="text-xs text-content-secondary">
-		Thinking
-	</Shimmer>
+	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
+		<Shimmer as="span" className="text-sm">
+			Thinking
+		</Shimmer>
+	</div>
 );
 
 export const StreamingOutput: FC<{

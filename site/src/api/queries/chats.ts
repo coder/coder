@@ -260,6 +260,7 @@ export const mergeWatchedChatSummary = (
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
+	const isSummaryEvent = eventKind === "summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
@@ -286,6 +287,10 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
+	const nextLastTurnSummary =
+		isFreshEnough || isSummaryEvent
+			? watchedChat.last_turn_summary
+			: cachedChat.last_turn_summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -303,6 +308,7 @@ export const mergeWatchedChatSummary = (
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
+		nextLastTurnSummary === cachedChat.last_turn_summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at
 	) {
@@ -317,6 +323,7 @@ export const mergeWatchedChatSummary = (
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
+		last_turn_summary: nextLastTurnSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 	};
@@ -1002,6 +1009,18 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+export const proposeChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
+
+	onSettled: (
+		_data: { title: string } | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
 type UpdateChatTitleVariables = {
 	chatId: string;
 	title: string;
@@ -1317,7 +1336,66 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatPersonalModelOverridesAdminSettingsKey = [
+	...chatsKey,
+	"admin-personal-model-overrides",
+] as const;
+
+export const chatPersonalModelOverridesAdminSettings = () => ({
+	queryKey: chatPersonalModelOverridesAdminSettingsKey,
+	queryFn: () => API.experimental.getChatPersonalModelOverridesAdminSettings(),
+});
+
+export const updateChatPersonalModelOverridesAdminSettings = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (
+		req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
+	) => API.experimental.updateChatPersonalModelOverridesAdminSettings(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatPersonalModelOverridesAdminSettingsKey,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
+		});
+	},
+});
+
 export * from "./chatDebugLogging";
+export const chatAdvisorConfigKey = ["chat-advisor-config"] as const;
+
+export const chatAdvisorConfig = () => ({
+	queryKey: chatAdvisorConfigKey,
+	queryFn: (): Promise<TypesGen.AdvisorConfig> =>
+		API.experimental.getChatAdvisorConfig(),
+});
+
+export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateAdvisorConfigRequest) =>
+		API.experimental.updateChatAdvisorConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAdvisorConfigKey,
+		});
+	},
+});
+
+const chatComputerUseProviderKey = ["chat-computer-use-provider"] as const;
+
+export const chatComputerUseProvider = () => ({
+	queryKey: chatComputerUseProviderKey,
+	queryFn: () => API.experimental.getChatComputerUseProvider(),
+});
+
+export const updateChatComputerUseProvider = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatComputerUseProvider,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatComputerUseProviderKey,
+		});
+	},
+});
 
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 
@@ -1347,6 +1425,22 @@ export const updateChatRetentionDays = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatRetentionDaysKey,
+		});
+	},
+});
+
+const chatDebugRetentionDaysKey = ["chat-debug-retention-days"] as const;
+
+export const chatDebugRetentionDays = () => ({
+	queryKey: chatDebugRetentionDaysKey,
+	queryFn: () => API.experimental.getChatDebugRetentionDays(),
+});
+
+export const updateChatDebugRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatDebugRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDebugRetentionDaysKey,
 		});
 	},
 });
@@ -1395,6 +1489,34 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatUserCustomPromptKey,
+		});
+	},
+});
+
+const userChatPersonalModelOverridesKey = [
+	...chatsKey,
+	"user-personal-model-overrides",
+] as const;
+
+export const userChatPersonalModelOverrides = () => ({
+	queryKey: userChatPersonalModelOverridesKey,
+	queryFn: (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> =>
+		API.experimental.getUserChatPersonalModelOverrides(),
+});
+
+type UpdateUserChatPersonalModelOverrideArgs = {
+	context: TypesGen.ChatPersonalModelOverrideContext;
+	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
+};
+
+export const updateUserChatPersonalModelOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+		API.experimental.updateUserChatPersonalModelOverride(context, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
 		});
 	},
 });
