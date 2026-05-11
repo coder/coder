@@ -149,17 +149,32 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	// agents. Keep only workspace build agents before resolving ambiguity so
 	// template version agents do not force CODER_AGENT_NAME.
 	//
-	// We attach the provisioner job to each candidate during the filter
-	// loop so the post-selection code below can read it directly from the
-	// chosen candidate instead of re-querying. The previous code re-fetched
-	// the resource and job for the surviving agent, firing the
-	// resource->job->build->workspace dbauthz cascade twice and saturating
-	// the pgx pool under load.
+	// Every rebuild of a workspace inserts new workspace_agents rows that
+	// keep the original auth_instance_id, so historical agents accumulate
+	// on long-lived instances. Restrict candidates to agents whose build
+	// is still the latest for their workspace; stale agents from prior
+	// builds must not authenticate (and would otherwise spuriously trip
+	// the multi-agent ambiguity branch below). Pre-v2.33 the SQL query
+	// masked this with ORDER BY created_at DESC LIMIT 1; the move to
+	// :many to support multi-agent templates (#24325) removed that mask.
+	//
+	// This also subsumes the "instance ID recycled across workspaces"
+	// guard the post-selection code used to perform: a recycled instance
+	// only survives the filter if it points at the current build of its
+	// current workspace.
+	//
+	// We attach the provisioner job and workspace build to each candidate
+	// during the filter loop so the post-selection code below can read
+	// them directly instead of re-querying.
 	type instanceCandidate struct {
-		agent database.WorkspaceAgent
-		job   database.ProvisionerJob
+		agent          database.WorkspaceAgent
+		job            database.ProvisionerJob
+		workspaceBuild database.WorkspaceBuild
 	}
 	buildCandidates := make([]instanceCandidate, 0, len(agents))
+	// Cache the latest build per workspace so an instance ID shared across
+	// many stale agents on the same workspace only triggers one lookup.
+	latestBuildByWorkspace := make(map[uuid.UUID]uuid.UUID)
 	for _, candidate := range agents {
 		resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, candidate.ResourceID)
 		if err != nil {
@@ -177,12 +192,46 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			})
 			return
 		}
-		if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
-			buildCandidates = append(buildCandidates, instanceCandidate{
-				agent: candidate,
-				job:   job,
-			})
+		if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
+			continue
 		}
+		var jobData provisionerdserver.WorkspaceProvisionJob
+		if err := json.Unmarshal(job.Input, &jobData); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error extracting job data.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		workspaceBuild, err := api.Database.GetWorkspaceBuildByID(systemCtx, jobData.WorkspaceBuildID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace build.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		latestBuildID, ok := latestBuildByWorkspace[workspaceBuild.WorkspaceID]
+		if !ok {
+			latest, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, workspaceBuild.WorkspaceID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching the latest workspace build.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			latestBuildID = latest.ID
+			latestBuildByWorkspace[workspaceBuild.WorkspaceID] = latestBuildID
+		}
+		if latestBuildID != workspaceBuild.ID {
+			continue
+		}
+		buildCandidates = append(buildCandidates, instanceCandidate{
+			agent:          candidate,
+			job:            job,
+			workspaceBuild: workspaceBuild,
+		})
 	}
 	if len(buildCandidates) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -227,44 +276,10 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		}
 		selected = buildCandidates[0]
 	}
-	agent := selected.agent
-	job := selected.job
-	var jobData provisionerdserver.WorkspaceProvisionJob
-	err = json.Unmarshal(job.Input, &jobData)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error extracting job data.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	resourceHistory, err := api.Database.GetWorkspaceBuildByID(systemCtx, jobData.WorkspaceBuildID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// This token should only be exchanged if the instance ID is valid
-	// for the latest history. If an instance ID is recycled by a cloud,
-	// we'd hate to leak access to a user's workspace.
-	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, resourceHistory.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching the latest workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if latestHistory.ID != resourceHistory.ID {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Resource found for id %q, but isn't registered on the latest history.", instanceID),
-		})
-		return
-	}
-
+	// Recycled-instance protection and stale-build rejection were applied
+	// during candidate filtering: selected.workspaceBuild is the latest
+	// build of its workspace, so we can issue the session token directly.
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AuthenticateResponse{
-		SessionToken: agent.AuthToken.String(),
+		SessionToken: selected.agent.AuthToken.String(),
 	})
 }

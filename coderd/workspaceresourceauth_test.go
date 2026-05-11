@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -283,6 +284,70 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
 		require.Equal(t, rootAgent.AuthToken.String(), agentClient.SDK.SessionToken())
+	})
+
+	// Rebuilding a workspace inserts a new workspace_agents row that
+	// keeps the original auth_instance_id, so historical agents
+	// accumulate on long-lived instances. The latest build's agent
+	// should authenticate; agents bound to prior builds must be
+	// excluded from the candidate set so a single live agent is not
+	// misreported as multi-agent ambiguity.
+	t.Run("Ambiguous/PriorBuildAgentsExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		instanceID := newTestInstanceID(t)
+		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
+		client, store := setupInstanceIDWorkspace(t, &coderdtest.Options{
+			AWSCertificates: certificates,
+		}, workspaceAgentsForInstanceID(instanceID, "dev"))
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		// Walk from the first agent back to its workspace.
+		staleAgent := requireWorkspaceAgentByInstanceIDAndName(t, store, instanceID, "dev")
+		staleResource, err := store.GetWorkspaceResourceByID(sysCtx, staleAgent.ResourceID)
+		require.NoError(t, err)
+		firstBuild, err := store.GetWorkspaceBuildByJobID(sysCtx, staleResource.JobID)
+		require.NoError(t, err)
+		workspace, err := client.Workspace(ctx, firstBuild.WorkspaceID)
+		require.NoError(t, err)
+
+		// Stop then restart so the workspace ends on a fresh Start build
+		// with a brand-new agent reusing the same instance ID.
+		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+		startBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, startBuild.ID)
+
+		// More than one agent now shares the instance ID: every workspace
+		// build of this template echoes the same agent definition, so the
+		// original Start build's agent plus every subsequent build's agent
+		// all carry the same auth_instance_id. Without the latest-build
+		// filter the handler would treat this as multi-agent ambiguity and
+		// 409.
+		allAgents, err := store.GetWorkspaceAgentsByInstanceID(sysCtx, instanceID)
+		require.NoError(t, err)
+		require.Greater(t, len(allAgents), 1, "expected stale and fresh agents to share the instance ID")
+
+		latestBuild, err := store.GetLatestWorkspaceBuildByWorkspaceID(sysCtx, workspace.ID)
+		require.NoError(t, err)
+		latestResources, err := store.GetWorkspaceResourcesByJobID(sysCtx, latestBuild.JobID)
+		require.NoError(t, err)
+		require.NotEmpty(t, latestResources)
+		latestAgents, err := store.GetWorkspaceAgentsByResourceIDs(sysCtx, []uuid.UUID{latestResources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, latestAgents, 1)
+		freshAgent := latestAgents[0]
+		require.NotEqual(t, staleAgent.ID, freshAgent.ID)
+
+		agentClient := agentsdk.New(client.URL, agentsdk.WithAWSInstanceIdentity())
+		agentClient.SDK.HTTPClient = metadataClient
+
+		err = agentClient.RefreshToken(ctx)
+		require.NoError(t, err)
+		require.Equal(t, freshAgent.AuthToken.String(), agentClient.SDK.SessionToken())
 	})
 }
 
