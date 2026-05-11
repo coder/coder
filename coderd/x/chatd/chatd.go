@@ -5289,6 +5289,49 @@ func shouldCancelChatFromControlNotification(
 	}
 }
 
+// controlNotifyIsStaleForThisWorker reports whether a cancel-shaped
+// control notification is stale and should be ignored. It re-reads the
+// chat row and returns true only when the chat is still running on this
+// worker. The PostgreSQL LISTEN/NOTIFY race described at
+// https://www.postgresql.org/docs/current/sql-listen.html can deliver a
+// pending/waiting notification published by SendMessage just before
+// AcquireChats marked the chat running on this worker. Those stale
+// notifications must not interrupt active processing. Legitimate
+// cross-replica interrupts (InterruptChat, EditMessage, etc.) write the
+// new chat state before publishing, so the DB read here observes the
+// chat in a non-(running+ours) state and correctly cancels.
+//
+// On any DB read error the function fails open (returns false) so that
+// the cancel proceeds, preserving prior behavior.
+func (p *Server) controlNotifyIsStaleForThisWorker(
+	ctx context.Context,
+	chatID uuid.UUID,
+	logger slog.Logger,
+) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	lookupCtx, cancelLookup := context.WithTimeout(ctx, chatStreamControlFetchTimeout)
+	defer cancelLookup()
+	//nolint:gocritic // Control-path DB read for stale-notify filtering
+	// runs with daemon scope, identical to the heartbeat loop.
+	chat, err := p.db.GetChatByID(dbauthz.AsChatd(lookupCtx), chatID)
+	if err != nil {
+		logger.Debug(ctx, "failed to verify chat state for control notify; allowing cancel",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return false
+	}
+	if chat.Status != database.ChatStatusRunning {
+		return false
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != p.workerID {
+		return false
+	}
+	return true
+}
+
 func (p *Server) subscribeChatControl(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -5311,9 +5354,23 @@ func (p *Server) subscribeChatControl(
 			return
 		}
 
-		if shouldCancelChatFromControlNotification(notify, p.workerID) {
-			cancel(chatloop.ErrInterrupted)
+		if !shouldCancelChatFromControlNotification(notify, p.workerID) {
+			return
 		}
+		// Re-read the chat row so a stale pending/waiting notification
+		// published before AcquireChats stamped this worker as owner
+		// cannot interrupt the in-progress run. See
+		// controlNotifyIsStaleForThisWorker for the PostgreSQL
+		// LISTEN/NOTIFY race details.
+		if p.controlNotifyIsStaleForThisWorker(ctx, chatID, logger) {
+			logger.Debug(ctx, "ignoring stale chat control notification",
+				slog.F("chat_id", chatID),
+				slog.F("notify_status", notify.Status),
+				slog.F("notify_worker_id", notify.WorkerID),
+			)
+			return
+		}
+		cancel(chatloop.ErrInterrupted)
 	}
 
 	controlCancel, err := p.pubsub.SubscribeWithErr(

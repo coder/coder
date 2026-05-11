@@ -3481,16 +3481,21 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 			}, nil
 		},
 	)
+	// Cleanup re-reads the chat row via shouldPublishFinishedChatState
+	// and the cleanup-cycle publishStatus(waiting) drives the new
+	// controlNotifyIsStaleForThisWorker helper through the same mock.
+	// Returning a non-(running+ours) status keeps both reads on the
+	// "not stale" path so the test still exercises the pre-arm gate.
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
 		database.Chat{ID: chatID, Status: database.ChatStatusError},
 		nil,
-	)
+	).AnyTimes()
 
 	db.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 
-	// resolveChatModel fails immediately — that's fine, we only
-	// need processChat to get past initialization without being
-	// interrupted by the stale notification.
+	// resolveChatModel fails immediately. That is fine; we only need
+	// processChat to get past initialization without being interrupted by
+	// the stale notification.
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
 		database.ChatModelConfig{}, xerrors.New("no model configured"),
 	).AnyTimes()
@@ -3521,6 +3526,214 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	// resolution → status is "error".
 	require.Equal(t, database.ChatStatusError, finalStatus,
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
+}
+
+// TestControlNotifyIsStaleForThisWorker pins the cancel-shaped
+// control-notification filter that prevents a pending/waiting NOTIFY
+// published before AcquireChats stamped this worker as owner from
+// interrupting an in-progress run. The PostgreSQL LISTEN/NOTIFY commit
+// step can deliver such a stale notification after subscribeChatControl
+// arms the listener, so the filter re-reads the chat row and reports
+// the notification as stale only when the chat is still running on
+// this worker. Legitimate cross-replica interrupts (InterruptChat,
+// EditMessage, etc.) write the new chat state before publishing, so
+// the DB read observes a non-(running+ours) state and the cancel
+// proceeds.
+func TestControlNotifyIsStaleForThisWorker(t *testing.T) {
+	t.Parallel()
+
+	workerID := uuid.New()
+	chatID := uuid.New()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	newServer := func(db database.Store) *Server {
+		return &Server{
+			db:       db,
+			logger:   logger,
+			workerID: workerID,
+		}
+	}
+
+	t.Run("RunningOnThisWorkerIsStale", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+		}, nil)
+		require.True(t, newServer(db).controlNotifyIsStaleForThisWorker(ctx, chatID, logger))
+	})
+
+	t.Run("RunningOnOtherWorkerIsLegitimate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}, nil)
+		require.False(t, newServer(db).controlNotifyIsStaleForThisWorker(ctx, chatID, logger))
+	})
+
+	t.Run("NonRunningStatusIsLegitimate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusWaiting,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+		}, nil)
+		require.False(t, newServer(db).controlNotifyIsStaleForThisWorker(ctx, chatID, logger))
+	})
+
+	t.Run("NullWorkerIDIsLegitimate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{},
+		}, nil)
+		require.False(t, newServer(db).controlNotifyIsStaleForThisWorker(ctx, chatID, logger))
+	})
+
+	t.Run("DBErrorFailsOpen", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+			database.Chat{}, xerrors.New("boom"),
+		)
+		require.False(t, newServer(db).controlNotifyIsStaleForThisWorker(ctx, chatID, logger),
+			"fail-open: a re-read error must not silently drop a legitimate interrupt")
+	})
+
+	t.Run("CanceledContextSkipsDBRead", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		// No DB call expected: a canceled context means the run already
+		// finished and there is nothing left to cancel.
+		require.False(t, newServer(db).controlNotifyIsStaleForThisWorker(ctx, chatID, logger))
+	})
+}
+
+// TestSubscribeChatControl_StalePendingDoesNotInterrupt drives the
+// listener registered by subscribeChatControl through the same wire
+// path that processChat uses. It asserts that a stale pending
+// notification (the SendMessage / CreateChat shape) delivered after
+// the listener is armed does NOT cancel the chat context when the
+// DB still reports the chat running on this worker.
+func TestSubscribeChatControl_StalePendingDoesNotInterrupt(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := dbpubsub.NewInMemory()
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{
+		db:       db,
+		logger:   logger,
+		pubsub:   ps,
+		workerID: workerID,
+	}
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+	}, nil).AnyTimes()
+
+	chatCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	unsub := server.subscribeChatControl(chatCtx, chatID, cancel, logger)
+	require.NotNil(t, unsub)
+	defer unsub()
+
+	// Publish the stale notification SendMessage would emit before
+	// AcquireChats stamped this worker as owner.
+	notify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusPending),
+	})
+	require.NoError(t, err)
+	require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), notify))
+
+	require.NoError(t, chatCtx.Err(),
+		"stale pending notification must not interrupt a chat still running on this worker")
+	require.NoError(t, context.Cause(chatCtx))
+}
+
+// TestSubscribeChatControl_LegitimateWaitingInterrupts is the
+// counterpart to the stale-notification test: when the DB confirms
+// that the chat is no longer running on this worker (an
+// InterruptChat-style transition), the listener must cancel the chat
+// context with ErrInterrupted so runChat returns promptly.
+func TestSubscribeChatControl_LegitimateWaitingInterrupts(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := dbpubsub.NewInMemory()
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{
+		db:       db,
+		logger:   logger,
+		pubsub:   ps,
+		workerID: workerID,
+	}
+
+	// InterruptChat writes the chat back to Waiting (clearing WorkerID)
+	// before publishing, so the DB read here observes the new state.
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID:       chatID,
+		Status:   database.ChatStatusWaiting,
+		WorkerID: uuid.NullUUID{},
+	}, nil).AnyTimes()
+
+	chatCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	unsub := server.subscribeChatControl(chatCtx, chatID, cancel, logger)
+	require.NotNil(t, unsub)
+	defer unsub()
+
+	notify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusWaiting),
+	})
+	require.NoError(t, err)
+	require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), notify))
+
+	// The MemoryPubsub delivers synchronously in a worker goroutine; we
+	// observe the cancel by waiting on chatCtx.Done().
+	select {
+	case <-chatCtx.Done():
+	case <-ctx.Done():
+		t.Fatal("legitimate interrupt did not cancel the chat context")
+	}
+	require.ErrorIs(t, context.Cause(chatCtx), chatloop.ErrInterrupted)
 }
 
 func TestShouldPublishFinishedChatState(t *testing.T) {
@@ -5245,6 +5458,15 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
 	).AnyTimes()
 	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+
+	// The chat control listener re-reads the chat row when a cancel-shaped
+	// notification arrives (see controlNotifyIsStaleForThisWorker). Return a
+	// non-(Running+ours) state so the verification confirms the interrupt is
+	// legitimate and the cancel proceeds.
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+		database.Chat{ID: chatID, Status: database.ChatStatusWaiting},
+		nil,
+	).AnyTimes()
 
 	// The deferred cleanup transaction: InsertChatMessages fails,
 	// so UpdateChatStatus must NOT be called.
