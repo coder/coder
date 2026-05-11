@@ -3448,6 +3448,13 @@ func TestShouldCancelChatFromControlNotification(t *testing.T) {
 			reason: "EditMessage transitions the chat to pending and must interrupt the active worker",
 		},
 		{
+			// Same code path as PendingInterrupt; the row exists
+			// to document that an explicit zero value
+			// (WakeOnly omitted) preserves legacy interrupt
+			// semantics, which is the contract relied on by
+			// older replicas during a rolling deploy.
+			// TestShouldCancelChatFromControlNotification_LegacyJSONNoWakeOnly
+			// exercises the wire-format side of that contract.
 			name:   "PendingLegacyNoWakeOnly",
 			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)},
 			expect: true,
@@ -3466,6 +3473,8 @@ func TestShouldCancelChatFromControlNotification(t *testing.T) {
 			reason: "setChatWaiting publishes from interrupt-intent code paths (SendMessage busy, InterruptChat, archive cleanup)",
 		},
 		{
+			// Same code path as WaitingInterrupt; documents the
+			// rolling-deploy zero-value contract.
 			name:   "WaitingLegacyNoWakeOnly",
 			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting)},
 			expect: true,
@@ -3478,6 +3487,9 @@ func TestShouldCancelChatFromControlNotification(t *testing.T) {
 			reason: "processChat publishes terminal error only to wake watchers",
 		},
 		{
+			// Same code path as an Error-with-WakeOnly-false
+			// case; documents the rolling-deploy zero-value
+			// contract.
 			name:   "ErrorLegacyNoWakeOnly",
 			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusError)},
 			expect: true,
@@ -3563,6 +3575,124 @@ func TestShouldCancelChatFromControlNotification_LegacyJSONNoWakeOnly(t *testing
 	require.True(t, shouldCancelChatFromControlNotification(notify, selfID))
 }
 
+// TestSubscribeChatControl_WakeOnlySuppression deterministically
+// exercises the post-arm race: it subscribes via subscribeChatControl,
+// publishes a sequence of notifications on the control channel after
+// the subscriber registers, and verifies cancel is only invoked for
+// notifications whose decision the WakeOnly fix expects to cancel.
+//
+// This is the production race that produced CODAGT-356: in
+// processChat, close(controlArmed) opens the gate after publishing
+// running; PG NOTIFY can dispatch a SendMessage "pending"
+// notification after that point. The gate alone cannot suppress it
+// because the dispatch happens after the gate opens. The WakeOnly tag
+// is what suppresses the cancel.
+func TestSubscribeChatControl_WakeOnlySuppression(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ps := dbpubsub.NewInMemory()
+
+	selfID := uuid.New()
+	otherID := uuid.New()
+
+	server := &Server{
+		logger:   logger,
+		pubsub:   ps,
+		workerID: selfID,
+	}
+
+	type testCase struct {
+		name       string
+		notify     coderdpubsub.ChatStreamNotifyMessage
+		wantCancel bool
+	}
+	testCases := []testCase{
+		{
+			name:       "PendingWakeOnly",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending), WakeOnly: true},
+			wantCancel: false,
+		},
+		{
+			name:       "WaitingWakeOnly",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting), WakeOnly: true},
+			wantCancel: false,
+		},
+		{
+			name:       "ErrorWakeOnly",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusError), WakeOnly: true},
+			wantCancel: false,
+		},
+		{
+			name:       "RunningSelfWorker",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: selfID.String(), WakeOnly: true},
+			wantCancel: false,
+		},
+		{
+			name:       "PendingInterrupt",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)},
+			wantCancel: true,
+		},
+		{
+			name:       "WaitingInterrupt",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting)},
+			wantCancel: true,
+		},
+		{
+			name:       "RunningForeignWorker",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: otherID.String()},
+			wantCancel: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Each subtest needs its own chatID so concurrent
+			// subscribers do not observe each other's
+			// notifications when running in parallel.
+			chatID := uuid.New()
+
+			cancelCalled := make(chan struct{}, 1)
+			cancel := func(error) {
+				select {
+				case cancelCalled <- struct{}{}:
+				default:
+				}
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			unsub := server.subscribeChatControl(ctx, chatID, cancel, logger)
+			require.NotNil(t, unsub, "subscribeChatControl returned nil; test cannot proceed")
+			defer unsub()
+
+			payload, err := json.Marshal(tc.notify)
+			require.NoError(t, err)
+
+			// MemoryPubsub.Publish dispatches to each listener
+			// from a goroutine and then waits for all of them to
+			// return, so the subscriber has observed the message
+			// by the time Publish returns.
+			require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), payload))
+
+			if tc.wantCancel {
+				select {
+				case <-cancelCalled:
+				case <-ctx.Done():
+					t.Fatalf("expected cancel to be called for %s", tc.name)
+				}
+				return
+			}
+			select {
+			case <-cancelCalled:
+				t.Fatalf("expected cancel NOT to be called for %s", tc.name)
+			default:
+			}
+		})
+	}
+}
+
 // TestProcessChat_IgnoresStaleControlNotification verifies that
 // processChat is not interrupted by a "pending" notification
 // published before processing begins. This is the race that caused
@@ -3571,6 +3701,12 @@ func TestShouldCancelChatFromControlNotification_LegacyJSONNoWakeOnly(t *testing
 // to async delivery the notification can arrive at the control
 // subscriber after it registers but before the processor publishes
 // "running".
+//
+// Caveat: MemoryPubsub.Publish drops messages with no current
+// subscribers, so the stale notification published below never reaches
+// processChat. The test therefore exercises the cleanup path under
+// no-interrupt conditions; the post-arm race itself is exercised
+// deterministically by TestSubscribeChatControl_WakeOnlySuppression.
 func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	t.Parallel()
 
