@@ -2167,6 +2167,7 @@ export const StreamingToolCallGapRegression: Story = {
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
 					subagentTitles={new Map()}
+					isTurnActive={true}
 				/>
 				<StreamingOutput
 					streamState={streamState}

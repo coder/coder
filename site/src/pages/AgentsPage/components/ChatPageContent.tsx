@@ -117,6 +117,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
+					isTurnActive={hasStream}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}

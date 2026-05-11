@@ -598,14 +598,8 @@ const ChatMessageItem = memo<{
 						(isUser && onEditUserMessage)) && (
 						<div
 							className={cn(
-								// Absolute positioning removes this from the layout flow so it
-								// does not create a gap between the last completed message and
-								// the current streaming message.
-								"absolute top-full z-10 mt-0.5 flex items-center gap-0.5",
-								"pointer-events-none opacity-0 transition-opacity",
-								"focus-within:pointer-events-auto focus-within:opacity-100",
-								"group-hover/msg:pointer-events-auto group-hover/msg:opacity-100",
-								isUser ? "right-0" : "left-0",
+								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
+								isUser && "w-full justify-end",
 							)}
 							data-testid="message-actions"
 						>
@@ -1010,6 +1004,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		urlTransform,
 		mcpServers,
 		showDesktopPreviews,
+		isTurnActive,
 	}) => {
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
@@ -1109,7 +1104,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								}
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								hideActions={!isLastInChain}
+								hideActions={!isLastInChain || Boolean(isTurnActive)}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
