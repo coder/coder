@@ -914,74 +914,65 @@ describe("useEditingPickerSync", () => {
 		model_config_id: modelConfigID,
 	});
 
-	const renderSync = (initial: {
+	type RenderSyncInitial = {
 		chatMessagesList: readonly ChatMessage[] | undefined;
 		modelOptions: readonly { id: string }[];
 		selectedModel: string;
-	}) => {
-		const setSelectedModel = vi.fn();
-		const editing = {
-			inputValueRef: { current: "" },
-			chatInputRef: createRef<ChatMessageInputRef>(),
-			editorInitialValue: "",
-			initialEditorState: undefined,
-			remountKey: 0,
-			editingMessageId: null as number | null,
-			editingFileBlocks: undefined,
-			handleEditUserMessage: vi.fn(),
-			handleCancelHistoryEdit: vi.fn(),
-			editingQueuedMessageID: null as number | null,
-			handleStartQueueEdit: vi.fn(),
-			handleCancelQueueEdit: vi.fn(),
-			handleSendFromInput: vi.fn(),
-			handleContentChange: vi.fn(),
-		} as unknown as ReturnType<typeof useConversationEditingState>;
+	};
+
+	// Renders the real `useConversationEditingState` inside `renderHook`
+	// so `useEditingPickerSync` receives a properly-typed value. The page
+	// composes these two hooks, so composing them in the test mirrors the
+	// production wiring without contract-bypassing casts.
+	const renderSync = (initial: RenderSyncInitial) => {
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+		const setSelectedModel = vi.fn<(id: string) => void>();
 
 		const hook = renderHook(
-			(props: {
-				editing: ReturnType<typeof useConversationEditingState>;
-				chatMessagesList: readonly ChatMessage[] | undefined;
-				modelOptions: readonly { id: string }[];
-				selectedModel: string;
-			}) =>
-				useEditingPickerSync({
-					editing: props.editing,
+			(props: RenderSyncInitial) => {
+				const editing = useConversationEditingState({
+					chatID: "chat-123",
+					onSend,
+					onDeleteQueuedMessage,
+					chatInputRef,
+					inputValueRef,
+				});
+				const sync = useEditingPickerSync({
+					editing,
 					chatMessagesList: props.chatMessagesList,
 					modelOptions: props.modelOptions,
 					selectedModel: props.selectedModel,
 					setSelectedModel,
-				}),
-			{
-				initialProps: {
-					editing,
-					chatMessagesList: initial.chatMessagesList,
-					modelOptions: initial.modelOptions,
-					selectedModel: initial.selectedModel,
-				},
+				});
+				return { editing, sync };
 			},
+			{ initialProps: initial },
 		);
 
-		return { ...hook, editing, setSelectedModel };
+		return { ...hook, setSelectedModel };
 	};
 
 	it("syncs the picker to the edited message's model on edit entry", () => {
 		const messages = [makeMessage(1, "model-a"), makeMessage(2, "model-b")];
-		const { result, setSelectedModel, editing, unmount } = renderSync({
+		const { result, setSelectedModel, unmount } = renderSync({
 			chatMessagesList: messages,
 			modelOptions: [{ id: "model-a" }, { id: "model-b" }],
 			selectedModel: "model-b",
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(1, "edited");
+			result.current.sync.handleEditUserMessage(1, "edited");
 		});
 
 		expect(setSelectedModel).toHaveBeenCalledWith("model-a");
-		expect(editing.handleEditUserMessage).toHaveBeenCalledWith(
-			1,
-			"edited",
-			undefined,
+		expect(result.current.editing.editingMessageId).toBe(1);
+		expect(result.current.sync.editedMessageOriginalModelConfigID).toBe(
+			"model-a",
 		);
+		expect(result.current.sync.userChangedModelDuringEdit).toBe(false);
 		unmount();
 	});
 
@@ -994,61 +985,58 @@ describe("useEditingPickerSync", () => {
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(1, "edited");
+			result.current.sync.handleEditUserMessage(1, "edited");
 		});
 
 		expect(setSelectedModel).not.toHaveBeenCalled();
+		expect(result.current.sync.editedMessageOriginalModelConfigID).toBe(
+			"missing-model",
+		);
 		unmount();
 	});
 
 	it("restores the original picker value on cancel after entering edit mode", () => {
 		const messages = [makeMessage(1, "model-a")];
-		const { result, setSelectedModel, editing, unmount } = renderSync({
+		const { result, setSelectedModel, unmount } = renderSync({
 			chatMessagesList: messages,
 			modelOptions: [{ id: "model-a" }, { id: "model-b" }],
 			selectedModel: "model-b",
 		});
 
 		act(() => {
-			result.current.handleEditUserMessage(1, "edited");
+			result.current.sync.handleEditUserMessage(1, "edited");
 		});
 		setSelectedModel.mockClear();
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.sync.handleCancelHistoryEdit();
 		});
 
 		expect(setSelectedModel).toHaveBeenCalledWith("model-b");
-		expect(editing.handleCancelHistoryEdit).toHaveBeenCalled();
+		expect(result.current.editing.editingMessageId).toBeNull();
+		expect(
+			result.current.sync.editedMessageOriginalModelConfigID,
+		).toBeUndefined();
 		unmount();
 	});
 
 	it("does not overwrite the saved picker when switching directly between edits", () => {
 		const messages = [makeMessage(1, "model-a"), makeMessage(2, "model-c")];
-		const { result, setSelectedModel, rerender, editing, unmount } = renderSync(
-			{
-				chatMessagesList: messages,
-				modelOptions: [{ id: "model-a" }, { id: "model-b" }, { id: "model-c" }],
-				selectedModel: "model-b",
-			},
-		);
+		const { result, setSelectedModel, rerender, unmount } = renderSync({
+			chatMessagesList: messages,
+			modelOptions: [{ id: "model-a" }, { id: "model-b" }, { id: "model-c" }],
+			selectedModel: "model-b",
+		});
 
 		// Enter edit mode on message 1; picker should switch to its model
 		// and savedPickerRef should capture the previous picker ("model-b").
 		act(() => {
-			result.current.handleEditUserMessage(1, "edit-1");
+			result.current.sync.handleEditUserMessage(1, "edit-1");
 		});
 		expect(setSelectedModel).toHaveBeenLastCalledWith("model-a");
 
-		// Simulate that the underlying editing state now reports message 1
-		// as the active edit target, and update selectedModel to reflect
-		// the picker sync.
-		const editingMidEdit = {
-			...editing,
-			editingMessageId: 1,
-		} as ReturnType<typeof useConversationEditingState>;
+		// Rerender with selectedModel reflecting the picker sync.
 		rerender({
-			editing: editingMidEdit,
 			chatMessagesList: messages,
 			modelOptions: [{ id: "model-a" }, { id: "model-b" }, { id: "model-c" }],
 			selectedModel: "model-a",
@@ -1058,7 +1046,7 @@ describe("useEditingPickerSync", () => {
 		// model-c, but savedPickerRef must keep "model-b" (not overwrite
 		// with the current "model-a").
 		act(() => {
-			result.current.handleEditUserMessage(2, "edit-2");
+			result.current.sync.handleEditUserMessage(2, "edit-2");
 		});
 		expect(setSelectedModel).toHaveBeenLastCalledWith("model-c");
 
@@ -1067,25 +1055,87 @@ describe("useEditingPickerSync", () => {
 		// Cancel should now restore the originally saved picker value
 		// ("model-b"), not the value at the time of the second edit entry.
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.sync.handleCancelHistoryEdit();
 		});
 		expect(setSelectedModel).toHaveBeenCalledWith("model-b");
 		unmount();
 	});
 
 	it("does not call setSelectedModel on cancel when no edit was entered", () => {
-		const { result, setSelectedModel, editing, unmount } = renderSync({
+		const { result, setSelectedModel, unmount } = renderSync({
 			chatMessagesList: [],
 			modelOptions: [{ id: "model-a" }],
 			selectedModel: "model-a",
 		});
 
 		act(() => {
-			result.current.handleCancelHistoryEdit();
+			result.current.sync.handleCancelHistoryEdit();
 		});
 
 		expect(setSelectedModel).not.toHaveBeenCalled();
-		expect(editing.handleCancelHistoryEdit).toHaveBeenCalled();
+		unmount();
+	});
+
+	it("flags user-initiated picker changes during edit and clears the flag on cancel", () => {
+		const messages = [makeMessage(1, "model-a")];
+		const { result, setSelectedModel, unmount } = renderSync({
+			chatMessagesList: messages,
+			modelOptions: [{ id: "model-a" }, { id: "model-b" }],
+			selectedModel: "model-b",
+		});
+
+		// Picker changes from the user *before* an edit is active must not
+		// flip the flag. They reflect the chat-wide default, not an edit
+		// override.
+		act(() => {
+			result.current.sync.setSelectedModelFromUser("model-a");
+		});
+		expect(setSelectedModel).toHaveBeenCalledWith("model-a");
+		expect(result.current.sync.userChangedModelDuringEdit).toBe(false);
+
+		act(() => {
+			result.current.sync.handleEditUserMessage(1, "edited");
+		});
+		expect(result.current.sync.userChangedModelDuringEdit).toBe(false);
+
+		// Now the user explicitly changes the picker while editing.
+		act(() => {
+			result.current.sync.setSelectedModelFromUser("model-b");
+		});
+		expect(setSelectedModel).toHaveBeenLastCalledWith("model-b");
+		expect(result.current.sync.userChangedModelDuringEdit).toBe(true);
+
+		// Cancel clears the flag.
+		act(() => {
+			result.current.sync.handleCancelHistoryEdit();
+		});
+		expect(result.current.sync.userChangedModelDuringEdit).toBe(false);
+		unmount();
+	});
+
+	it("resets userChangedModelDuringEdit when switching directly between edits", () => {
+		const messages = [makeMessage(1, "model-a"), makeMessage(2, "model-c")];
+		const { result, unmount } = renderSync({
+			chatMessagesList: messages,
+			modelOptions: [{ id: "model-a" }, { id: "model-b" }, { id: "model-c" }],
+			selectedModel: "model-b",
+		});
+
+		act(() => {
+			result.current.sync.handleEditUserMessage(1, "edit-1");
+		});
+		act(() => {
+			result.current.sync.setSelectedModelFromUser("model-b");
+		});
+		expect(result.current.sync.userChangedModelDuringEdit).toBe(true);
+
+		// Entering an edit on a different message restarts the override
+		// tracking: the user hasn't explicitly chosen a model for *that*
+		// edit yet.
+		act(() => {
+			result.current.sync.handleEditUserMessage(2, "edit-2");
+		});
+		expect(result.current.sync.userChangedModelDuringEdit).toBe(false);
 		unmount();
 	});
 });
