@@ -528,6 +528,35 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 		require.Len(t, tools, 1)
 		assert.Contains(t, tools[0].Name, "echo")
 	})
+
+	t.Run("ManagerCanceledAfterFirstSyncReturnsCachedTools", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		dir := t.TempDir()
+		_, entry := fakeMCPServerConfig(t, "srv")
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+		paths := []string{configPath}
+
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
+		t.Cleanup(func() { _ = m.Close() })
+
+		tools, err := m.Tools(ctx, paths)
+		require.NoError(t, err)
+		require.Len(t, tools, 1)
+
+		_, nextEntry := fakeMCPServerConfig(t, "srv2")
+		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv2": nextEntry})
+		require.True(t, m.SnapshotChanged(paths))
+
+		m.cancel()
+		tools, err = m.Tools(ctx, paths)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		require.Len(t, tools, 1)
+		assert.Contains(t, tools[0].Name, "echo")
+	})
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
