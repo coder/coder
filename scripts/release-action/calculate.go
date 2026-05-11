@@ -26,52 +26,74 @@ func (r CalculateResult) String() string {
 
 var branchRe = regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 
-// calculateNextVersion dispatches to the appropriate calculation based
-// on releaseType.
-func calculateNextVersion(releaseType, commitSHA, branch string) (CalculateResult, error) {
+// calculateNextVersion dispatches to the appropriate calculation.
+//
+// ref is the branch name from the "Use workflow from" dropdown
+// (github.ref_name). commitSHA is an optional override; when empty
+// the tool defaults to HEAD of the ref.
+func calculateNextVersion(releaseType, ref, commitSHA string) (CalculateResult, error) {
 	// Ensure we have up-to-date remote state.
 	if _, err := gitOutput("fetch", "--tags", "--force", "origin"); err != nil {
 		return CalculateResult{}, xerrors.Errorf("git fetch: %w", err)
 	}
 
+	isReleaseBranch := branchRe.MatchString(ref)
+	isMain := ref == "main"
+
 	switch releaseType {
 	case "rc":
-		return calculateRC(commitSHA, branch)
+		if !isMain && !isReleaseBranch {
+			return CalculateResult{}, xerrors.Errorf("rc must be run from main or a release/X.Y branch, got %q", ref)
+		}
+		if isMain {
+			return calculateRCFromMain(ref, commitSHA)
+		}
+		return calculateRCFromBranch(ref, commitSHA)
+
 	case "release":
-		return calculateRelease(branch)
+		if !isReleaseBranch {
+			return CalculateResult{}, xerrors.Errorf("release must be run from a release/X.Y branch, got %q", ref)
+		}
+		return calculateRelease(ref)
+
 	case "create-release-branch":
-		return calculateCreateBranch(commitSHA)
+		if !isMain {
+			return CalculateResult{}, xerrors.Errorf("create-release-branch must be run from main, got %q", ref)
+		}
+		return calculateCreateBranch(ref, commitSHA)
+
 	default:
 		return CalculateResult{}, xerrors.Errorf("unknown release type %q (expected rc, release, or create-release-branch)", releaseType)
 	}
 }
 
-// calculateRC calculates the next RC version.
-//
-// If commitSHA is set, it tags an RC from a specific commit on main.
-// If branch is set, it tags an RC from the tip of a release branch.
-func calculateRC(commitSHA, branch string) (CalculateResult, error) {
-	if commitSHA != "" && branch != "" {
-		return CalculateResult{}, xerrors.New("only one of --commit or --branch may be set for rc")
-	}
-	if commitSHA == "" && branch == "" {
-		return CalculateResult{}, xerrors.New("one of --commit or --branch is required for rc")
-	}
-
+// resolveCommit returns the commit SHA to tag. If commitSHA is
+// provided it is validated and returned; otherwise HEAD of the
+// ref is used.
+func resolveCommit(ref, commitSHA string) (string, error) {
 	if commitSHA != "" {
-		return calculateRCFromCommit(commitSHA)
+		if !isHexSHA(commitSHA) {
+			return "", xerrors.Errorf("invalid commit SHA %q: must be a hex string", commitSHA)
+		}
+		return commitSHA, nil
 	}
-	return calculateRCFromBranch(branch)
+	sha, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", ref))
+	if err != nil {
+		return "", xerrors.Errorf("resolve HEAD of %s: %w", ref, err)
+	}
+	return sha, nil
 }
 
-func calculateRCFromCommit(commitSHA string) (CalculateResult, error) {
-	if !isHexSHA(commitSHA) {
-		return CalculateResult{}, xerrors.Errorf("invalid commit SHA %q: must be a hex string", commitSHA)
+// calculateRCFromMain tags an RC from a commit on main.
+func calculateRCFromMain(ref, commitSHA string) (CalculateResult, error) {
+	targetRef, err := resolveCommit(ref, commitSHA)
+	if err != nil {
+		return CalculateResult{}, err
 	}
 
 	// Verify commit is an ancestor of origin/main.
-	if err := gitRun("merge-base", "--is-ancestor", commitSHA, "origin/main"); err != nil {
-		return CalculateResult{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", commitSHA)
+	if err := gitRun("merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
+		return CalculateResult{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
 	}
 
 	allTags, err := listSemverTags()
@@ -111,23 +133,23 @@ func calculateRCFromCommit(commitSHA string) (CalculateResult, error) {
 		Version:         newVer.String(),
 		PreviousVersion: prevTag,
 		Channel:         "rc",
-		TargetRef:       commitSHA,
+		TargetRef:       targetRef,
 	}, nil
 }
 
-func calculateRCFromBranch(branch string) (CalculateResult, error) {
-	m := branchRe.FindStringSubmatch(branch)
+// calculateRCFromBranch tags an RC from the tip of a release branch.
+func calculateRCFromBranch(ref, commitSHA string) (CalculateResult, error) {
+	m := branchRe.FindStringSubmatch(ref)
 	if m == nil {
-		return CalculateResult{}, xerrors.Errorf("branch %q does not match release/X.Y", branch)
+		return CalculateResult{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
 	}
 
 	major := mustAtoi(m[1])
 	minor := mustAtoi(m[2])
 
-	// Resolve branch HEAD.
-	headSHA, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", branch))
+	targetRef, err := resolveCommit(ref, commitSHA)
 	if err != nil {
-		return CalculateResult{}, xerrors.Errorf("resolve branch %s: %w", branch, err)
+		return CalculateResult{}, err
 	}
 
 	allTags, err := listSemverTags()
@@ -135,24 +157,22 @@ func calculateRCFromBranch(branch string) (CalculateResult, error) {
 		return CalculateResult{}, err
 	}
 
-	// Find tags merged into branch for this series.
-	branchTags := filterTagsForSeries(allTags, major, minor)
+	// Find tags for this series.
+	seriesTags := filterTagsForSeries(allTags, major, minor)
 
-	// If the series already has a final release, bump minor and start at rc.0.
-	hasFinal := false
-	for _, t := range branchTags {
+	// If the series already has a final release, this is an error;
+	// you should be cutting a new minor, not more RCs.
+	for _, t := range seriesTags {
 		if t.rc < 0 {
-			hasFinal = true
-			break
+			return CalculateResult{}, xerrors.Errorf(
+				"release %s already exists for this series; cut a new minor instead of another RC",
+				t.original,
+			)
 		}
-	}
-	if hasFinal {
-		minor++
-		branchTags = filterTagsForSeries(allTags, major, minor)
 	}
 
 	rcNum := 0
-	for _, t := range branchTags {
+	for _, t := range seriesTags {
 		if t.rc >= rcNum {
 			rcNum = t.rc + 1
 		}
@@ -165,29 +185,25 @@ func calculateRCFromBranch(branch string) (CalculateResult, error) {
 		Version:         newVer.String(),
 		PreviousVersion: prevTag,
 		Channel:         "rc",
-		TargetRef:       headSHA,
+		TargetRef:       targetRef,
 	}, nil
 }
 
 // calculateRelease calculates the next release (non-RC) version from
-// a release branch.
-func calculateRelease(branch string) (CalculateResult, error) {
-	if branch == "" {
-		return CalculateResult{}, xerrors.New("--branch is required for release type")
-	}
-
-	m := branchRe.FindStringSubmatch(branch)
+// a release branch. Uses HEAD of the branch.
+func calculateRelease(ref string) (CalculateResult, error) {
+	m := branchRe.FindStringSubmatch(ref)
 	if m == nil {
-		return CalculateResult{}, xerrors.Errorf("branch %q does not match release/X.Y", branch)
+		return CalculateResult{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
 	}
 
 	major := mustAtoi(m[1])
 	minor := mustAtoi(m[2])
 
 	// Resolve branch HEAD.
-	headSHA, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", branch))
+	headSHA, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", ref))
 	if err != nil {
-		return CalculateResult{}, xerrors.Errorf("resolve branch %s: %w", branch, err)
+		return CalculateResult{}, xerrors.Errorf("resolve branch %s: %w", ref, err)
 	}
 
 	allTags, err := listSemverTags()
@@ -218,19 +234,17 @@ func calculateRelease(branch string) (CalculateResult, error) {
 	}, nil
 }
 
-// calculateCreateBranch creates a release branch and tags the first
-// RC in one atomic step.
-func calculateCreateBranch(commitSHA string) (CalculateResult, error) {
-	if commitSHA == "" {
-		return CalculateResult{}, xerrors.New("--commit is required for create-release-branch type")
-	}
-	if !isHexSHA(commitSHA) {
-		return CalculateResult{}, xerrors.Errorf("invalid commit SHA %q: must be a hex string", commitSHA)
+// calculateCreateBranch creates a release branch and tags the next
+// RC in one atomic step. Must be run from main.
+func calculateCreateBranch(ref, commitSHA string) (CalculateResult, error) {
+	targetRef, err := resolveCommit(ref, commitSHA)
+	if err != nil {
+		return CalculateResult{}, err
 	}
 
 	// Verify commit is an ancestor of origin/main.
-	if err := gitRun("merge-base", "--is-ancestor", commitSHA, "origin/main"); err != nil {
-		return CalculateResult{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", commitSHA)
+	if err := gitRun("merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
+		return CalculateResult{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
 	}
 
 	allTags, err := listSemverTags()
@@ -269,18 +283,14 @@ func calculateCreateBranch(commitSHA string) (CalculateResult, error) {
 		Version:         newVer.String(),
 		PreviousVersion: prevTag,
 		Channel:         "rc",
-		TargetRef:       commitSHA,
+		TargetRef:       targetRef,
 		CreateBranch:    branchName,
 	}, nil
 }
 
 // determineChannel returns the release channel. Currently always
-// returns "stable" since the mainline/stable distinction has been
-// removed.
-func determineChannel(major, minor int, allTags []version) string {
-	_ = major
-	_ = minor
-	_ = allTags
+// returns "stable" since all non-RC releases are stable from day one.
+func determineChannel(_, _ int, _ []version) string {
 	return "stable"
 }
 

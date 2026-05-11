@@ -5,18 +5,14 @@ on:
     inputs:
       release_type:
         type: choice
-        description: "Type of release: rc (from main or release branch), release (from release branch), or create-release-branch (cut branch + tag RC)"
+        description: "Type of release (use 'Use workflow from' to pick the branch)"
         required: true
         options:
           - rc
           - release
           - create-release-branch
       commit_sha:
-        description: "Commit SHA to tag (required for RC from main and create-release-branch, must be on main)"
-        type: string
-        default: ""
-      release_branch:
-        description: "Release branch name, e.g. release/2.32 (required for release, optional for RC from branch)"
+        description: "Optional: commit SHA to tag (defaults to HEAD of selected branch)"
         type: string
         default: ""
       dry_run:
@@ -94,27 +90,15 @@ jobs:
         id: prepare
         env:
           RELEASE_TYPE: ${{ inputs.release_type }}
+          REF_NAME: ${{ github.ref_name }}
           COMMIT_SHA: ${{ inputs.commit_sha }}
-          RELEASE_BRANCH: ${{ inputs.release_branch }}
         run: |
           set -euo pipefail
 
-          args=("$RELEASE_TYPE")
-          case "$RELEASE_TYPE" in
-            rc)
-              if [[ -n "$COMMIT_SHA" ]]; then
-                args+=(--commit "$COMMIT_SHA")
-              elif [[ -n "$RELEASE_BRANCH" ]]; then
-                args+=(--branch "$RELEASE_BRANCH")
-              fi
-              ;;
-            create-release-branch)
-              args+=(--commit "$COMMIT_SHA")
-              ;;
-            release)
-              args+=(--branch "$RELEASE_BRANCH")
-              ;;
-          esac
+          args=(--type "$RELEASE_TYPE" --ref "$REF_NAME")
+          if [[ -n "$COMMIT_SHA" ]]; then
+            args+=(--commit "$COMMIT_SHA")
+          fi
 
           output=$(go run ./scripts/release-action calculate-version "${args[@]}")
           echo "Raw output: $output"

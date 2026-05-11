@@ -17,12 +17,12 @@ const (
 
 func main() {
 	var (
-		releaseType     string
-		commitSHA       string
-		branch          string
-		versionStr      string
-		prevVersionStr  string
-		channel         string
+		releaseType    string
+		ref            string
+		commitSHA      string
+		versionStr     string
+		prevVersionStr string
+		channel        string
 	)
 
 	cmd := &serpent.Command{
@@ -41,20 +41,21 @@ func main() {
 						Required:    true,
 					},
 					{
-						Name:        "commit",
-						Flag:        "commit",
-						Description: "Commit SHA to use (for rc and create-release-branch).",
-						Value:       serpent.StringOf(&commitSHA),
+						Name:        "ref",
+						Flag:        "ref",
+						Description: "Git ref (branch name) the workflow is running on.",
+						Value:       serpent.StringOf(&ref),
+						Required:    true,
 					},
 					{
-						Name:        "branch",
-						Flag:        "branch",
-						Description: "Branch name (for rc from branch, or release).",
-						Value:       serpent.StringOf(&branch),
+						Name:        "commit",
+						Flag:        "commit",
+						Description: "Commit SHA to tag (defaults to HEAD of --ref if empty).",
+						Value:       serpent.StringOf(&commitSHA),
 					},
 				},
-				Handler: func(inv *serpent.Invocation) error {
-					result, err := calculateNextVersion(releaseType, commitSHA, branch)
+					Handler: func(inv *serpent.Invocation) error {
+						result, err := calculateNextVersion(releaseType, ref, commitSHA)
 					if err != nil {
 						return err
 					}

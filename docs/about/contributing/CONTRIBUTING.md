@@ -239,16 +239,17 @@ main:  --*--*--*--*--*--*--*--*--*--
 ```
 
 1. **RC:** Go to [Actions > Release](https://github.com/coder/coder/actions/workflows/release.yaml),
-   click "Run workflow", select `rc`, and provide the commit SHA on `main` (or
-   a release branch name) to tag. The workflow calculates the next RC version
+   click "Run workflow", select `main` (or a release branch) from the "Use
+   workflow from" dropdown, choose `rc`, and optionally provide a commit SHA
+   (defaults to HEAD). The workflow calculates the next RC version
    automatically.
-2. **Create release branch:** Run the workflow with `create-release-branch`
-   type and provide the commit SHA on `main`. This creates `release/X.Y` and
-   tags the next RC atomically.
-3. **Release:** Run the workflow with `release` type and provide the branch
-   name (e.g. `release/2.34`). The workflow calculates `vX.Y.0`.
-4. **Patch:** Cherry-pick fixes onto `release/X.Y` and run the workflow with
-   `release` type pointing at the same branch.
+2. **Create release branch:** Select `main` in the dropdown, choose
+   `create-release-branch`, and optionally provide a commit SHA. This creates
+   `release/X.Y` and tags the next RC atomically.
+3. **Release:** Select the release branch (e.g. `release/2.34`) from the
+   dropdown and choose `release`. No other inputs needed.
+4. **Patch:** Cherry-pick fixes onto `release/X.Y`, select that branch from
+   the dropdown, and choose `release`.
 
 The workflow validates that commits are on the expected branch for each release
 type.
