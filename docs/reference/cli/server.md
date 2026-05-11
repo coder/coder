@@ -909,6 +909,26 @@ Trust the Coder-Authorization header for user identity assertions when the reque
 
 CIDR networks whose source addresses may assert user identity via the Coder-Authorization header. Required for --dangerous-allow-external-auth-header to have any effect; an empty list silently disables the feature. Bind Coder to localhost or use mTLS at the proxy boundary; never list a network containing untrusted clients.
 
+### --dangerous-allow-external-auth-header-auto-create-users
+
+|             |                                                                            |
+|-------------|----------------------------------------------------------------------------|
+| Type        | <code>bool</code>                                                          |
+| Environment | <code>$CODER_DANGEROUS_ALLOW_EXTERNAL_AUTH_HEADER_AUTO_CREATE_USERS</code> |
+| YAML        | <code>dangerous.allowExternalAuthHeaderAutoCreateUsers</code>              |
+
+Provision Coder users on the fly when the Coder-Authorization header asserts an unknown user. Requires --dangerous-allow-external-auth-header. The header must include UserEmail; Username defaults to the local part of the email. New users are placed in the default organization with the roles specified by --dangerous-external-auth-header-auto-create-default-roles (or the Roles= field on the header, which wins when present).
+
+### --dangerous-external-auth-header-auto-create-default-roles
+
+|             |                                                                              |
+|-------------|------------------------------------------------------------------------------|
+| Type        | <code>string-array</code>                                                    |
+| Environment | <code>$CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_AUTO_CREATE_DEFAULT_ROLES</code> |
+| YAML        | <code>dangerous.externalAuthHeaderAutoCreateDefaultRoles</code>              |
+
+Site roles assigned to users auto-created via the Coder-Authorization header when the header itself does not carry a Roles= field. Defaults to a plain member with no extra roles. Valid values include member, owner, auditor, user-admin, and template-admin.
+
 ### --experiments
 
 |             |                                 |

@@ -476,6 +476,20 @@ dangerous:
   # untrusted clients.
   # (default: <unset>, type: string-array)
   externalAuthHeaderTrustedOrigins: []
+  # Provision Coder users on the fly when the Coder-Authorization header asserts an
+  # unknown user. Requires --dangerous-allow-external-auth-header. The header must
+  # include UserEmail; Username defaults to the local part of the email. New users
+  # are placed in the default organization with the roles specified by
+  # --dangerous-external-auth-header-auto-create-default-roles (or the Roles= field
+  # on the header, which wins when present).
+  # (default: <unset>, type: bool)
+  allowExternalAuthHeaderAutoCreateUsers: false
+  # Site roles assigned to users auto-created via the Coder-Authorization header
+  # when the header itself does not carry a Roles= field. Defaults to a plain member
+  # with no extra roles. Valid values include member, owner, auditor, user-admin,
+  # and template-admin.
+  # (default: <unset>, type: string-array)
+  externalAuthHeaderAutoCreateDefaultRoles: []
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

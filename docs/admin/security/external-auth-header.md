@@ -59,8 +59,30 @@ Never list a network that contains untrusted clients. The proxy is
 responsible for stripping any inbound `Coder-Authorization` header
 before it is allowed to set its own. Coder does not strip it for you.
 
-User auto-creation is intentionally not supported. Provision users
-ahead of time using SCIM, the API, or `coder users create`.
+## User auto-creation
+
+When `--dangerous-allow-external-auth-header-auto-create-users` is
+also enabled, Coder provisions a previously unknown user on the fly.
+The header MUST include a `UserEmail`; the username defaults to the
+local part of the email when not supplied. The new user is placed in
+the default organization with login type `none`.
+
+Role assignment, in priority order:
+
+1. The header's `Roles=` field. The value is a comma-separated list:
+   `Coder-Authorization: Basic UserEmail=alice@example.com, Roles=member,auditor`.
+   Role names that do not exist on the deployment cause auto-creation
+   to fail with a 401 rather than silently dropping them.
+2. The deployment's
+   `--dangerous-external-auth-header-auto-create-default-roles`
+   list.
+3. Empty: the user is a plain member of the default organization
+   with no additional site roles.
+
+Auto-creation is off by default and is intended for steady-state
+provisioning from a trusted identity-aware proxy. For bulk
+provisioning or attribute mapping, prefer
+[SCIM](../users/headless-auth.md) or the [users API](../../reference/api/users.md).
 
 ## Configuration
 
@@ -77,6 +99,17 @@ Or via environment:
 ```sh
 CODER_DANGEROUS_ALLOW_EXTERNAL_AUTH_HEADER=true
 CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_TRUSTED_ORIGINS=127.0.0.0/8,::1/128
+```
+
+To also auto-create unknown users (see above), enable both
+auto-create flags:
+
+```sh
+coder server \
+  --dangerous-allow-external-auth-header \
+  --dangerous-external-auth-header-trusted-origins=127.0.0.0/8,::1/128 \
+  --dangerous-allow-external-auth-header-auto-create-users \
+  --dangerous-external-auth-header-auto-create-default-roles=member
 ```
 
 Setting `--dangerous-allow-external-auth-header` without trusted

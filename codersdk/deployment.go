@@ -1026,11 +1026,13 @@ type LoggingConfig struct {
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing              serpent.Bool        `json:"allow_path_app_sharing" typescript:",notnull"`
-	AllowPathAppSiteOwnerAccess      serpent.Bool        `json:"allow_path_app_site_owner_access" typescript:",notnull"`
-	AllowAllCors                     serpent.Bool        `json:"allow_all_cors" typescript:",notnull"`
-	AllowExternalAuthHeader          serpent.Bool        `json:"allow_external_auth_header" typescript:",notnull"`
-	ExternalAuthHeaderTrustedOrigins serpent.StringArray `json:"external_auth_header_trusted_origins,omitempty" typescript:",notnull"`
+	AllowPathAppSharing                      serpent.Bool        `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess              serpent.Bool        `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowAllCors                             serpent.Bool        `json:"allow_all_cors" typescript:",notnull"`
+	AllowExternalAuthHeader                  serpent.Bool        `json:"allow_external_auth_header" typescript:",notnull"`
+	ExternalAuthHeaderTrustedOrigins         serpent.StringArray `json:"external_auth_header_trusted_origins,omitempty" typescript:",notnull"`
+	AllowExternalAuthHeaderAutoCreateUsers   serpent.Bool        `json:"allow_external_auth_header_auto_create_users" typescript:",notnull"`
+	ExternalAuthHeaderAutoCreateDefaultRoles serpent.StringArray `json:"external_auth_header_auto_create_default_roles,omitempty" typescript:",notnull"`
 }
 
 type UserQuietHoursScheduleConfig struct {
@@ -2770,6 +2772,26 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "externalAuthHeaderTrustedOrigins",
 
 			Value: &c.Dangerous.ExternalAuthHeaderTrustedOrigins,
+			Group: &deploymentGroupDangerous,
+		},
+		{
+			Name:        "DANGEROUS: Auto-create users from the External Authentication Header",
+			Description: "Provision Coder users on the fly when the Coder-Authorization header asserts an unknown user. Requires --dangerous-allow-external-auth-header. The header must include UserEmail; Username defaults to the local part of the email. New users are placed in the default organization with the roles specified by --dangerous-external-auth-header-auto-create-default-roles (or the Roles= field on the header, which wins when present).",
+			Flag:        "dangerous-allow-external-auth-header-auto-create-users",
+			Env:         "CODER_DANGEROUS_ALLOW_EXTERNAL_AUTH_HEADER_AUTO_CREATE_USERS",
+			YAML:        "allowExternalAuthHeaderAutoCreateUsers",
+
+			Value: &c.Dangerous.AllowExternalAuthHeaderAutoCreateUsers,
+			Group: &deploymentGroupDangerous,
+		},
+		{
+			Name:        "DANGEROUS: External Authentication Header Auto-create Default Roles",
+			Description: "Site roles assigned to users auto-created via the Coder-Authorization header when the header itself does not carry a Roles= field. Defaults to a plain member with no extra roles. Valid values include member, owner, auditor, user-admin, and template-admin.",
+			Flag:        "dangerous-external-auth-header-auto-create-default-roles",
+			Env:         "CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_AUTO_CREATE_DEFAULT_ROLES",
+			YAML:        "externalAuthHeaderAutoCreateDefaultRoles",
+
+			Value: &c.Dangerous.ExternalAuthHeaderAutoCreateDefaultRoles,
 			Group: &deploymentGroupDangerous,
 		},
 		// Misc. settings

@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -34,7 +35,7 @@ func parseCIDR(t *testing.T, cidr string) *net.IPNet {
 
 func mustExternalAuthConfig(t *testing.T, enabled bool, origins ...string) httpmw.ExternalAuthHeaderConfig {
 	t.Helper()
-	cfg, err := httpmw.ParseExternalAuthHeaderConfig(enabled, origins)
+	cfg, err := httpmw.ParseExternalAuthHeaderConfig(enabled, origins, false, nil)
 	require.NoError(t, err)
 	return cfg
 }
@@ -272,14 +273,136 @@ func TestExternalAuthHeader(t *testing.T) {
 		require.Len(t, afterKeys, len(beforeKeys),
 			"synthesized api key must not be persisted")
 	})
+
+	t.Run("AutoCreateInvokesCallback", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		var called bool
+		var gotParams httpmw.ExternalAuthHeaderCreateUserParams
+		cfg := mustExternalAuthConfig(t, true, trustedLoopbackCIDR)
+		cfg.AllowAutoCreateUsers = true
+		cfg.AutoCreateDefaultRoles = []string{"member"}
+		cfg.CreateUser = func(ctx context.Context, params httpmw.ExternalAuthHeaderCreateUserParams) (database.User, error) {
+			called = true
+			gotParams = params
+			return dbgen.User(t, db, database.User{
+				Username: params.Username,
+				Email:    params.Email,
+			}), nil
+		}
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(httpmw.ExternalAuthHeaderName, "Basic UserEmail=carol@example.com, Name=Carol Danvers, Roles=auditor")
+		rw := httptest.NewRecorder()
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:                 db,
+			ExternalAuthHeader: cfg,
+		})(successHandlerWritingActor(t)).ServeHTTP(rw, r)
+
+		res := rw.Result()
+		res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.True(t, called, "CreateUser callback should run for unknown user")
+		require.Equal(t, "carol@example.com", gotParams.Email)
+		require.Equal(t, "carol", gotParams.Username, "username should default to email local part")
+		require.Equal(t, "Carol Danvers", gotParams.Name)
+		require.Equal(t, []string{"auditor"}, gotParams.Roles, "header Roles= must win over default")
+	})
+
+	t.Run("AutoCreateUsesDefaultRolesWhenHeaderOmitsThem", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		var gotRoles []string
+		cfg := mustExternalAuthConfig(t, true, trustedLoopbackCIDR)
+		cfg.AllowAutoCreateUsers = true
+		cfg.AutoCreateDefaultRoles = []string{"member", "auditor"}
+		cfg.CreateUser = func(ctx context.Context, params httpmw.ExternalAuthHeaderCreateUserParams) (database.User, error) {
+			gotRoles = params.Roles
+			return dbgen.User(t, db, database.User{
+				Username: params.Username,
+				Email:    params.Email,
+			}), nil
+		}
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(httpmw.ExternalAuthHeaderName, "Basic Username=dave, UserEmail=dave@example.com")
+		rw := httptest.NewRecorder()
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:                 db,
+			ExternalAuthHeader: cfg,
+		})(successHandlerWritingActor(t)).ServeHTTP(rw, r)
+
+		res := rw.Result()
+		res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, []string{"member", "auditor"}, gotRoles)
+	})
+
+	t.Run("AutoCreateDisabledKeepsUnknownUser401", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		cfg := mustExternalAuthConfig(t, true, trustedLoopbackCIDR)
+		require.False(t, cfg.AllowAutoCreateUsers)
+		cfg.CreateUser = func(context.Context, httpmw.ExternalAuthHeaderCreateUserParams) (database.User, error) {
+			t.Fatal("CreateUser must not run when AllowAutoCreateUsers is false")
+			return database.User{}, nil
+		}
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(httpmw.ExternalAuthHeaderName, "Basic UserEmail=eve@example.com")
+		rw := httptest.NewRecorder()
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:                 db,
+			ExternalAuthHeader: cfg,
+		})(successHandlerWritingActor(t)).ServeHTTP(rw, r)
+
+		res := rw.Result()
+		res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("AutoCreatePropagatesCallbackError", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		cfg := mustExternalAuthConfig(t, true, trustedLoopbackCIDR)
+		cfg.AllowAutoCreateUsers = true
+		cfg.CreateUser = func(context.Context, httpmw.ExternalAuthHeaderCreateUserParams) (database.User, error) {
+			return database.User{}, errStubCreateFailed
+		}
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(httpmw.ExternalAuthHeaderName, "Basic Username=greta, UserEmail=greta@example.com")
+		rw := httptest.NewRecorder()
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:                 db,
+			ExternalAuthHeader: cfg,
+		})(successHandlerWritingActor(t)).ServeHTTP(rw, r)
+
+		res := rw.Result()
+		res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
 }
+
+// errStubCreateFailed is a sentinel returned by the test stub
+// CreateUser callback when the test wants to simulate a creation
+// failure.
+var errStubCreateFailed = xerrors.New("create failed")
 
 func TestParseExternalAuthHeaderConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
-		cfg, err := httpmw.ParseExternalAuthHeaderConfig(true, []string{"127.0.0.0/8", "10.0.0.0/8"})
+		cfg, err := httpmw.ParseExternalAuthHeaderConfig(true, []string{"127.0.0.0/8", "10.0.0.0/8"}, false, nil)
 		require.NoError(t, err)
 		require.True(t, cfg.Enabled)
 		require.Len(t, cfg.TrustedOrigins, 2)
@@ -287,14 +410,26 @@ func TestParseExternalAuthHeaderConfig(t *testing.T) {
 
 	t.Run("InvalidCIDR", func(t *testing.T) {
 		t.Parallel()
-		_, err := httpmw.ParseExternalAuthHeaderConfig(true, []string{"not-a-cidr"})
+		_, err := httpmw.ParseExternalAuthHeaderConfig(true, []string{"not-a-cidr"}, false, nil)
 		require.Error(t, err)
 	})
 
 	t.Run("EmptyEntriesSkipped", func(t *testing.T) {
 		t.Parallel()
-		cfg, err := httpmw.ParseExternalAuthHeaderConfig(true, []string{"", "127.0.0.0/8", "  "})
+		cfg, err := httpmw.ParseExternalAuthHeaderConfig(true, []string{"", "127.0.0.0/8", "  "}, false, nil)
 		require.NoError(t, err)
 		require.Len(t, cfg.TrustedOrigins, 1)
+	})
+
+	t.Run("AutoCreateDefaultsCopied", func(t *testing.T) {
+		t.Parallel()
+		defaults := []string{"member", "auditor"}
+		cfg, err := httpmw.ParseExternalAuthHeaderConfig(true, []string{"127.0.0.0/8"}, true, defaults)
+		require.NoError(t, err)
+		require.True(t, cfg.AllowAutoCreateUsers)
+		require.Equal(t, defaults, cfg.AutoCreateDefaultRoles)
+		// Mutating the input must not change the stored value.
+		defaults[0] = "owner"
+		require.Equal(t, "member", cfg.AutoCreateDefaultRoles[0])
 	})
 }

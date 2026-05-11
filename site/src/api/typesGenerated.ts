@@ -3570,6 +3570,8 @@ export interface DangerousConfig {
 	readonly allow_all_cors: boolean;
 	readonly allow_external_auth_header: boolean;
 	readonly external_auth_header_trusted_origins?: string;
+	readonly allow_external_auth_header_auto_create_users: boolean;
+	readonly external_auth_header_auto_create_default_roles?: string;
 }
 
 // From codersdk/database.go

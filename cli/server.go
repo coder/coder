@@ -641,6 +641,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			externalAuthHeaderConfig, err := httpmw.ParseExternalAuthHeaderConfig(
 				vals.Dangerous.AllowExternalAuthHeader.Value(),
 				vals.Dangerous.ExternalAuthHeaderTrustedOrigins.Value(),
+				vals.Dangerous.AllowExternalAuthHeaderAutoCreateUsers.Value(),
+				vals.Dangerous.ExternalAuthHeaderAutoCreateDefaultRoles.Value(),
 			)
 			if err != nil {
 				return xerrors.Errorf("parse external auth header config: %w", err)

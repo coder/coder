@@ -895,6 +895,21 @@ Configure how workspace prebuilds behave.
           can be disabled entirely with --disable-path-apps for further
           security.
 
+      --dangerous-allow-external-auth-header-auto-create-users bool, $CODER_DANGEROUS_ALLOW_EXTERNAL_AUTH_HEADER_AUTO_CREATE_USERS
+          Provision Coder users on the fly when the Coder-Authorization header
+          asserts an unknown user. Requires
+          --dangerous-allow-external-auth-header. The header must include
+          UserEmail; Username defaults to the local part of the email. New users
+          are placed in the default organization with the roles specified by
+          --dangerous-external-auth-header-auto-create-default-roles (or the
+          Roles= field on the header, which wins when present).
+
+      --dangerous-external-auth-header-auto-create-default-roles string-array, $CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_AUTO_CREATE_DEFAULT_ROLES
+          Site roles assigned to users auto-created via the Coder-Authorization
+          header when the header itself does not carry a Roles= field. Defaults
+          to a plain member with no extra roles. Valid values include member,
+          owner, auditor, user-admin, and template-admin.
+
       --dangerous-external-auth-header-trusted-origins string-array, $CODER_DANGEROUS_EXTERNAL_AUTH_HEADER_TRUSTED_ORIGINS
           CIDR networks whose source addresses may assert user identity via the
           Coder-Authorization header. Required for

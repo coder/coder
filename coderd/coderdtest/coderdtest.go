@@ -121,6 +121,7 @@ type Options struct {
 	AzureCertificates              x509.VerifyOptions
 	GithubOAuth2Config             *coderd.GithubOAuth2Config
 	RealIPConfig                   *httpmw.RealIPConfig
+	ExternalAuthHeaderConfig       httpmw.ExternalAuthHeaderConfig
 	OIDCConfig                     *coderd.OIDCConfig
 	GoogleTokenValidator           *idtoken.Validator
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
@@ -601,6 +602,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AzureCertificates:                  options.AzureCertificates,
 			GithubOAuth2Config:                 options.GithubOAuth2Config,
 			RealIPConfig:                       options.RealIPConfig,
+			ExternalAuthHeaderConfig:           options.ExternalAuthHeaderConfig,
 			OIDCConfig:                         options.OIDCConfig,
 			GoogleTokenValidator:               options.GoogleTokenValidator,
 			SSHKeygenAlgorithm:                 options.SSHKeygenAlgorithm,

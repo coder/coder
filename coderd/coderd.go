@@ -902,6 +902,20 @@ func New(options *Options) *API {
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})
 
+	// We attach the CreateUser callback to the deployment's external
+	// auth header config here so subsequent middleware wrappers share
+	// the wired value. The underlying helper needs *API to reach the
+	// audit chain, default org lookup, and notifications; httpmw
+	// cannot import coderd, so we route the call through a closure.
+	// Mutating options.ExternalAuthHeaderConfig in place also lets
+	// enterprise.New reuse the wired callback when it builds its own
+	// middleware against the shared *Options.
+	if options.ExternalAuthHeaderConfig.Enabled &&
+		options.ExternalAuthHeaderConfig.AllowAutoCreateUsers &&
+		options.ExternalAuthHeaderConfig.CreateUser == nil {
+		options.ExternalAuthHeaderConfig.CreateUser = api.createExternalAuthHeaderUser
+	}
+
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),

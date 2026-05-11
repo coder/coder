@@ -2,6 +2,7 @@ package httpmw
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -20,6 +22,25 @@ import (
 // authentication gateways to assert the authenticated user. See
 // ExternalAuthHeaderConfig for the threat model.
 const ExternalAuthHeaderName = "Coder-Authorization"
+
+// ExternalAuthHeaderCreateUserParams carries the user identity asserted
+// by the Coder-Authorization header to a deployment-supplied callback
+// that creates the Coder user on first sight. Auto-creation is gated
+// behind ExternalAuthHeaderConfig.AllowAutoCreateUsers.
+type ExternalAuthHeaderCreateUserParams struct {
+	// Username and Email are read from the header. Email is required;
+	// the header parser rejects auto-create attempts without it.
+	Username string
+	Email    string
+	// Name is the user's full name. Optional. Mirrors the OIDC flow,
+	// which also accepts a real-name claim.
+	Name string
+	// Roles is the deployment-effective role list for the new user.
+	// It comes from the header's Roles= field if present, otherwise
+	// the config's AutoCreateDefaultRoles. The callback validates
+	// and assigns these.
+	Roles []string
+}
 
 // ExternalAuthHeaderConfig configures trust of the
 // Coder-Authorization header used by external authentication gateways.
@@ -31,9 +52,12 @@ const ExternalAuthHeaderName = "Coder-Authorization"
 //
 //	Coder-Authorization: Basic Username=alice
 //	Coder-Authorization: Basic UserEmail=alice@example.com
+//	Coder-Authorization: Basic Username=alice, UserEmail=alice@example.com, Roles=member
 //
-// Exactly one of Username or UserEmail must be supplied. Other fields
-// are accepted and ignored for forward compatibility.
+// At least one of Username or UserEmail must be supplied. Auto-creation
+// additionally requires UserEmail (and Username, derived from the local
+// part if absent). Other fields are accepted and ignored for forward
+// compatibility.
 //
 // SECURITY: this header is fully trusted on trusted origins. A
 // misconfigured deployment that lists a network containing untrusted
@@ -52,6 +76,28 @@ type ExternalAuthHeaderConfig struct {
 	// Enabled=true is a misconfiguration: the header will never be
 	// honored.
 	TrustedOrigins []*net.IPNet
+
+	// AllowAutoCreateUsers controls whether a header that names a
+	// previously unknown user causes that user to be provisioned on
+	// the fly. When false (the default), an unknown user fails the
+	// request with a 401. Auto-creation requires a non-empty Email
+	// in the header or a deployment that synthesizes one.
+	AllowAutoCreateUsers bool
+
+	// AutoCreateDefaultRoles is the role list assigned to a freshly
+	// created user when the header does not carry a Roles= field.
+	// Nil or empty means a plain member with no extra site roles.
+	AutoCreateDefaultRoles []string
+
+	// CreateUser is the deployment-supplied callback that performs the
+	// actual user creation. It runs only when AllowAutoCreateUsers is
+	// true and the looked-up user is missing. nil disables auto-create
+	// even if AllowAutoCreateUsers is true.
+	//
+	// Wired by coderd.New so the callback has access to the full user
+	// creation path (default org, SSH keypair generation, audit, and
+	// notifications), without httpmw importing coderd.
+	CreateUser func(context.Context, ExternalAuthHeaderCreateUserParams) (database.User, error)
 }
 
 // externalAuthHeader holds the parsed contents of a
@@ -59,6 +105,8 @@ type ExternalAuthHeaderConfig struct {
 type externalAuthHeader struct {
 	Username string
 	Email    string
+	Name     string
+	Roles    []string
 }
 
 // hasIdentity returns true if the parsed header carries a usable
@@ -79,10 +127,10 @@ var errNoExternalAuthHeader = xerrors.New("no external auth header")
 // The Basic scheme uses comma-separated Field=Value pairs:
 //
 //	Basic Username=alice
-//	Basic UserEmail=alice@example.com, TokenName=ignored
+//	Basic UserEmail=alice@example.com, Roles=member
+//	Basic Username=alice, UserEmail=alice@example.com, Name=Alice Liddell, Roles=member,auditor
 //
-// Unknown fields are ignored. Missing or empty values for known
-// fields are treated as not set. The function returns
+// Unknown fields are accepted and ignored. The function returns
 // errNoExternalAuthHeader when value is empty so callers can
 // distinguish "not present" from "malformed".
 func parseExternalAuthHeader(value string) (externalAuthHeader, error) {
@@ -100,7 +148,22 @@ func parseExternalAuthHeader(value string) (externalAuthHeader, error) {
 	}
 
 	var parsed externalAuthHeader
-	for _, pair := range strings.Split(rest, ",") {
+	// The Roles field is itself comma-separated, but the outer
+	// header is also comma-separated. We parse left-to-right and
+	// only treat Roles= specially: once we see it, the rest of the
+	// header is the role list. This matches the issue's example
+	// "Roles=member,auditor" without forcing the gateway to quote
+	// or escape commas.
+	remaining := rest
+	for remaining != "" {
+		var pair string
+		if i := strings.IndexByte(remaining, ','); i >= 0 {
+			pair = remaining[:i]
+			remaining = remaining[i+1:]
+		} else {
+			pair = remaining
+			remaining = ""
+		}
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
 			continue
@@ -116,6 +179,24 @@ func parseExternalAuthHeader(value string) (externalAuthHeader, error) {
 			parsed.Username = val
 		case "useremail":
 			parsed.Email = val
+		case "name":
+			parsed.Name = val
+		case "roles":
+			// Roles consumes the rest of the header as a single
+			// comma-separated list, so a value like
+			// "Roles=member,auditor" is preserved.
+			full := val
+			if remaining != "" {
+				full = full + "," + remaining
+				remaining = ""
+			}
+			for _, role := range strings.Split(full, ",") {
+				role = strings.TrimSpace(role)
+				if role == "" {
+					continue
+				}
+				parsed.Roles = append(parsed.Roles, role)
+			}
 		default:
 			// Ignore unknown fields. The original proposal lists
 			// ActiveSession and TokenName, which we accept and
@@ -136,8 +217,16 @@ func parseExternalAuthHeader(value string) (externalAuthHeader, error) {
 // strings; an empty list with enabled=true is allowed but logs a
 // warning at construction time (the feature is silently disabled
 // because no origin can match).
-func ParseExternalAuthHeaderConfig(enabled bool, trustedOrigins []string) (ExternalAuthHeaderConfig, error) {
-	cfg := ExternalAuthHeaderConfig{Enabled: enabled}
+//
+// The CreateUser callback must be set separately by coderd.New so
+// that this parser stays free of import cycles with the user-creation
+// machinery.
+func ParseExternalAuthHeaderConfig(enabled bool, trustedOrigins []string, allowAutoCreate bool, autoCreateDefaultRoles []string) (ExternalAuthHeaderConfig, error) {
+	cfg := ExternalAuthHeaderConfig{
+		Enabled:                enabled,
+		AllowAutoCreateUsers:   allowAutoCreate,
+		AutoCreateDefaultRoles: append([]string(nil), autoCreateDefaultRoles...),
+	}
 	for _, origin := range trustedOrigins {
 		origin = strings.TrimSpace(origin)
 		if origin == "" {
@@ -239,10 +328,26 @@ func validateExternalAuthHeader(
 		Username: parsed.Username,
 		Email:    parsed.Email,
 	})
-	if err != nil {
-		// We treat all lookup failures (no rows, permission
-		// errors, real DB errors) as a hard 401 rather than
-		// leaking which case occurred. The Detail field carries
+	switch {
+	case err == nil:
+		// Found, fall through to RBAC resolution below.
+	case errors.Is(err, sql.ErrNoRows) && cfg.AllowAutoCreateUsers && cfg.CreateUser != nil:
+		// Unknown user, auto-create is enabled, callback wired.
+		user, err = autoCreateExternalAuthHeaderUser(ctx, cfg, parsed)
+		if err != nil {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  fmt.Sprintf("%s header user auto-create failed: %s", ExternalAuthHeaderName, err.Error()),
+				},
+				Hard: true,
+			}, true
+		}
+	default:
+		// We treat all lookup failures (no rows without auto-create,
+		// permission errors, real DB errors) as a hard 401 rather
+		// than leaking which case occurred. The Detail field carries
 		// enough context for an operator to diagnose, while the
 		// Message remains the standard signed-out copy.
 		return nil, &ValidateAPIKeyError{
@@ -270,6 +375,11 @@ func validateExternalAuthHeader(
 		UserID:    user.ID,
 		LoginType: database.LoginTypeNone,
 		Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+		// AllowList must contain at least the wildcard element so
+		// IntersectAllowLists doesn't fail closed for a key with no
+		// stored row. The synthesized session has no DB-level
+		// resource scoping; it inherits the user's full RBAC.
+		AllowList: database.AllowList{rbac.AllowListAll()},
 	}
 
 	actor, userStatus, err := UserRBACSubject(ctx, db, user.ID, key.ScopeSet())
@@ -289,4 +399,50 @@ func validateExternalAuthHeader(
 		Subject:    actor,
 		UserStatus: userStatus,
 	}, nil, true
+}
+
+// autoCreateExternalAuthHeaderUser materializes a previously unknown
+// user asserted by the Coder-Authorization header. The header must
+// supply an email; auto-create cannot synthesize one because Coder
+// users own a real email address. Username defaults to the local
+// part of the email when the header omits it.
+//
+// Role assignment precedence (issue #8889): the header's Roles= field
+// wins; otherwise AutoCreateDefaultRoles from the deployment config.
+// A nil/empty result hands a plain member to the underlying
+// CreateUser callback.
+func autoCreateExternalAuthHeaderUser(
+	ctx context.Context,
+	cfg ExternalAuthHeaderConfig,
+	parsed externalAuthHeader,
+) (database.User, error) {
+	email := parsed.Email
+	if email == "" {
+		return database.User{}, xerrors.Errorf("UserEmail is required to auto-create a user via the %s header", ExternalAuthHeaderName)
+	}
+	username := parsed.Username
+	if username == "" {
+		// Derive a username from the email's local part. The
+		// downstream codersdk.NameValid check still applies in
+		// the CreateUser callback, so an invalid derivation
+		// surfaces as a clear "invalid username" error rather
+		// than silently corrupting the row.
+		if at := strings.IndexByte(email, '@'); at > 0 {
+			username = email[:at]
+		} else {
+			username = email
+		}
+	}
+
+	roles := parsed.Roles
+	if len(roles) == 0 {
+		roles = cfg.AutoCreateDefaultRoles
+	}
+
+	return cfg.CreateUser(ctx, ExternalAuthHeaderCreateUserParams{
+		Username: username,
+		Email:    email,
+		Name:     parsed.Name,
+		Roles:    roles,
+	})
 }
