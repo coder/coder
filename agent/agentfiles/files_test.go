@@ -3468,6 +3468,43 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			notWantSubs: []string{`"@"`},
 		},
 		{
+			name: "Inversion_OverlappingMultilineMatch",
+			// Self-overlapping multi-line replace: "A\nB\nA\n"
+			// starts at line 1 and line 3 of the file. The old
+			// non-overlapping advancement missed line 3.
+			content: "AAAAAAAAAAAAAAAAAAAA\n" +
+				"BBBBBBBBBBBBBBBBBBBB\n" +
+				"AAAAAAAAAAAAAAAAAAAA\n" +
+				"BBBBBBBBBBBBBBBBBBBB\n" +
+				"AAAAAAAAAAAAAAAAAAAA\n",
+			edit: edit{
+				search: "absent search line not in file at all\n",
+				replace: "AAAAAAAAAAAAAAAAAAAA\n" +
+					"BBBBBBBBBBBBBBBBBBBB\n" +
+					"AAAAAAAAAAAAAAAAAAAA\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 1, 3`,
+			},
+			notWantSubs: []string{"more"},
+		},
+		{
+			name: "Miscount_RuneOnlyInFile",
+			// Disagreeing rune `b` appears only in the file line.
+			// Exercises the second loop of singleRuneCountMismatch
+			// (runes in c but absent from s).
+			content: "section ==bb\n",
+			edit: edit{
+				search:  "section ==\n",
+				replace: "section --\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Your search has 0 "b" (U+0062); the file has 2 at line 1`,
+			},
+		},
+		{
 			name: "NoHints_BaseErrorOnly",
 			content: "package foo\n" +
 				"\n" +

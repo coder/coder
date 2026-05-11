@@ -1248,8 +1248,9 @@ func inversionHint(
 }
 
 // substringMatchLines returns the 1-based line numbers where needle
-// occurs in content as a byte-for-byte substring. Repeat occurrences
-// on the same line collapse to a single line number.
+// occurs in content as a byte-for-byte substring, including
+// overlapping starts. Repeat occurrences on the same line collapse
+// to a single line number.
 func substringMatchLines(content, needle string) []int {
 	if needle == "" {
 		return nil
@@ -1267,7 +1268,10 @@ func substringMatchLines(content, needle string) []int {
 			seen[line] = struct{}{}
 			lines = append(lines, line)
 		}
-		offset = idx + len(needle)
+		// Advance by one byte so self-overlapping needles (e.g.
+		// "A\nB\nA\n" inside "A\nB\nA\nB\nA\n") still report
+		// every distinct starting line.
+		offset = idx + 1
 		if offset > len(content) {
 			break
 		}
@@ -1312,8 +1316,9 @@ func formatLineList(lines []int) string {
 }
 
 // miscountHint detects search lines that match a file line except for
-// the count of one repeated rune. Emits one hint per such search line,
-// capped at maxMiscountHints total with " and N more" suffix.
+// the count of one repeated rune. Emits one hint per
+// (search-line, disagreeing-rune) group, capped at maxMiscountHints
+// total with " and N more" suffix.
 func miscountHint(contentLines, searchLines []string) string {
 	const maxMiscountHints = 3
 	var hints []string
