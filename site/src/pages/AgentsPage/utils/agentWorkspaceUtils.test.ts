@@ -1,46 +1,204 @@
 import { describe, expect, it, vi } from "vitest";
+import { PrebuildsSystemUserID } from "#/api/typesGenerated";
 import {
 	archiveChatAndDeleteWorkspace,
 	isWorkspaceAutoCreated,
 	isWorkspaceNotFound,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
+	workspaceAcquiredAt,
 } from "./agentWorkspaceUtils";
+
+const REAL_USER = "11111111-2222-3333-4444-555555555555";
+
+describe("workspaceAcquiredAt", () => {
+	it("returns workspace.created_at when no builds exist", () => {
+		const ws = { created_at: "2026-01-01T00:00:00Z" };
+		expect(workspaceAcquiredAt(ws, [])).toBe("2026-01-01T00:00:00Z");
+	});
+
+	it("returns workspace.created_at when build #1 was initiated by a real user", () => {
+		const ws = { created_at: "2026-01-01T00:00:00Z" };
+		const builds = [
+			{
+				build_number: 1,
+				initiator_id: REAL_USER,
+				created_at: "2026-01-01T00:00:01Z",
+			},
+		];
+		expect(workspaceAcquiredAt(ws, builds)).toBe("2026-01-01T00:00:00Z");
+	});
+
+	it("returns build #2 created_at when build #1 was initiated by the prebuilds user", () => {
+		// Workspace.created_at predates the chat (the prebuild was
+		// provisioned long before the chat existed), but build #2 is
+		// the claim and that's the moment the chat acquired the
+		// workspace.
+		const ws = { created_at: "2026-01-01T08:00:00Z" };
+		const builds = [
+			{
+				build_number: 2,
+				initiator_id: REAL_USER,
+				created_at: "2026-01-01T12:00:05Z",
+			},
+			{
+				build_number: 1,
+				initiator_id: PrebuildsSystemUserID,
+				created_at: "2026-01-01T08:00:01Z",
+			},
+		];
+		expect(workspaceAcquiredAt(ws, builds)).toBe("2026-01-01T12:00:05Z");
+	});
+
+	it("returns null when prebuild has no claim build yet", () => {
+		const ws = { created_at: "2026-01-01T08:00:00Z" };
+		const builds = [
+			{
+				build_number: 1,
+				initiator_id: PrebuildsSystemUserID,
+				created_at: "2026-01-01T08:00:01Z",
+			},
+		];
+		expect(workspaceAcquiredAt(ws, builds)).toBeNull();
+	});
+
+	it("ignores extra builds beyond #1 and #2", () => {
+		const ws = { created_at: "2026-01-01T08:00:00Z" };
+		const builds = [
+			{
+				build_number: 5,
+				initiator_id: REAL_USER,
+				created_at: "2026-02-01T00:00:00Z",
+			},
+			{
+				build_number: 4,
+				initiator_id: REAL_USER,
+				created_at: "2026-01-15T00:00:00Z",
+			},
+			{
+				build_number: 3,
+				initiator_id: REAL_USER,
+				created_at: "2026-01-10T00:00:00Z",
+			},
+			{
+				build_number: 2,
+				initiator_id: REAL_USER,
+				created_at: "2026-01-01T12:00:05Z",
+			},
+			{
+				build_number: 1,
+				initiator_id: PrebuildsSystemUserID,
+				created_at: "2026-01-01T08:00:01Z",
+			},
+		];
+		expect(workspaceAcquiredAt(ws, builds)).toBe("2026-01-01T12:00:05Z");
+	});
+});
 
 describe("isWorkspaceAutoCreated", () => {
 	it.each([
 		{
-			name: "workspace created after chat",
-			workspace: "2026-01-01T00:00:05Z",
+			name: "from-scratch workspace created after chat",
+			workspace: { created_at: "2026-01-01T00:00:05Z" },
+			builds: [
+				{
+					build_number: 1,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T00:00:05Z",
+				},
+			],
 			chat: "2026-01-01T00:00:00Z",
 			expected: true,
 		},
 		{
-			name: "workspace created at same time as chat",
-			workspace: "2026-01-01T12:00:00Z",
+			name: "from-scratch workspace created at same time as chat",
+			workspace: { created_at: "2026-01-01T12:00:00Z" },
+			builds: [
+				{
+					build_number: 1,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T12:00:00Z",
+				},
+			],
 			chat: "2026-01-01T12:00:00Z",
 			expected: true,
 		},
 		{
-			name: "workspace created before chat",
-			workspace: "2026-01-01T11:59:59Z",
+			name: "from-scratch workspace created before chat",
+			workspace: { created_at: "2026-01-01T11:59:59Z" },
+			builds: [
+				{
+					build_number: 1,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T11:59:59Z",
+				},
+			],
+			chat: "2026-01-01T12:00:00Z",
+			expected: false,
+		},
+		// Prebuild claim cases: workspace.created_at predates the
+		// chat, but build #2 (the claim) happened after the chat.
+		{
+			name: "prebuild claimed after chat",
+			workspace: { created_at: "2026-01-01T08:00:00Z" },
+			builds: [
+				{
+					build_number: 2,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T12:00:05Z",
+				},
+				{
+					build_number: 1,
+					initiator_id: PrebuildsSystemUserID,
+					created_at: "2026-01-01T08:00:01Z",
+				},
+			],
+			chat: "2026-01-01T12:00:00Z",
+			expected: true,
+		},
+		{
+			name: "prebuild claimed before chat",
+			workspace: { created_at: "2026-01-01T08:00:00Z" },
+			builds: [
+				{
+					build_number: 2,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T11:00:00Z",
+				},
+				{
+					build_number: 1,
+					initiator_id: PrebuildsSystemUserID,
+					created_at: "2026-01-01T08:00:01Z",
+				},
+			],
 			chat: "2026-01-01T12:00:00Z",
 			expected: false,
 		},
 		{
-			name: "sub-second precision difference",
-			workspace: "2026-01-01T00:00:00.001Z",
-			chat: "2026-01-01T00:00:00.000Z",
-			expected: true,
-		},
-		{
-			name: "workspace predates chat by days",
-			workspace: "2026-03-10T10:00:00Z",
-			chat: "2026-03-15T10:00:00Z",
+			name: "unclaimed prebuild treated as not auto-created",
+			workspace: { created_at: "2026-01-01T08:00:00Z" },
+			builds: [
+				{
+					build_number: 1,
+					initiator_id: PrebuildsSystemUserID,
+					created_at: "2026-01-01T08:00:01Z",
+				},
+			],
+			chat: "2026-01-01T12:00:00Z",
 			expected: false,
 		},
-	])("$name → $expected", ({ workspace, chat, expected }) => {
-		expect(isWorkspaceAutoCreated(workspace, chat)).toBe(expected);
+		{
+			// Defensive: build history empty. Fall back to
+			// workspace.created_at so we still allow the proceed
+			// path in the common case rather than blocking on data.
+			name: "no builds, falls back to workspace.created_at",
+			workspace: { created_at: "2026-01-01T12:00:05Z" },
+			builds: [],
+			chat: "2026-01-01T12:00:00Z",
+			expected: true,
+		},
+	])("$name → $expected", ({ workspace, builds, chat, expected }) => {
+		expect(isWorkspaceAutoCreated(workspace, builds, chat)).toBe(expected);
 	});
 });
 
@@ -221,29 +379,101 @@ describe("archiveChatAndDeleteWorkspace", () => {
 describe("resolveArchiveAndDeleteAction", () => {
 	it.each([
 		{
-			name: "auto-created workspace → proceed",
-			workspaceCreatedAt: "2026-01-01T00:00:05Z",
+			name: "from-scratch workspace created after chat → proceed",
+			workspace: { created_at: "2026-01-01T00:00:05Z" },
+			builds: [
+				{
+					build_number: 1,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T00:00:05Z",
+				},
+			],
 			chatCreatedAt: "2026-01-01T00:00:00Z",
 			expected: "proceed",
 		},
 		{
 			name: "workspace predates chat → confirm",
-			workspaceCreatedAt: "2025-12-01T00:00:00Z",
+			workspace: { created_at: "2025-12-01T00:00:00Z" },
+			builds: [
+				{
+					build_number: 1,
+					initiator_id: REAL_USER,
+					created_at: "2025-12-01T00:00:00Z",
+				},
+			],
 			chatCreatedAt: "2026-01-01T00:00:00Z",
 			expected: "confirm",
 		},
 		{
 			name: "chat not found in cache → confirm",
-			workspaceCreatedAt: "2026-01-01T00:00:05Z",
+			workspace: { created_at: "2026-01-01T00:00:05Z" },
+			builds: [
+				{
+					build_number: 1,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T00:00:05Z",
+				},
+			],
 			chatCreatedAt: undefined,
 			expected: "confirm",
 		},
-	])("$name", async ({ workspaceCreatedAt, chatCreatedAt, expected }) => {
+		{
+			// The bug this PR fixes: workspace.created_at predates
+			// the chat (the prebuild was provisioned earlier) but
+			// build #2 is the claim and happened after the chat.
+			name: "prebuild claimed after chat → proceed",
+			workspace: { created_at: "2025-12-15T00:00:00Z" },
+			builds: [
+				{
+					build_number: 2,
+					initiator_id: REAL_USER,
+					created_at: "2026-01-01T00:00:05Z",
+				},
+				{
+					build_number: 1,
+					initiator_id: PrebuildsSystemUserID,
+					created_at: "2025-12-15T00:00:00Z",
+				},
+			],
+			chatCreatedAt: "2026-01-01T00:00:00Z",
+			expected: "proceed",
+		},
+		{
+			name: "prebuild claimed before chat → confirm",
+			workspace: { created_at: "2025-12-15T00:00:00Z" },
+			builds: [
+				{
+					build_number: 2,
+					initiator_id: REAL_USER,
+					created_at: "2025-12-31T00:00:00Z",
+				},
+				{
+					build_number: 1,
+					initiator_id: PrebuildsSystemUserID,
+					created_at: "2025-12-15T00:00:00Z",
+				},
+			],
+			chatCreatedAt: "2026-01-01T00:00:00Z",
+			expected: "confirm",
+		},
+	])("$name", async ({ workspace, builds, chatCreatedAt, expected }) => {
 		const result = await resolveArchiveAndDeleteAction(
-			async () => ({ created_at: workspaceCreatedAt }),
+			async () => workspace,
+			async () => builds,
 			() => chatCreatedAt,
 		);
 		expect(result).toBe(expected);
+	});
+
+	it("does not fetch builds when the chat is not in the cache", async () => {
+		const fetchBuilds = vi.fn(async () => []);
+		const result = await resolveArchiveAndDeleteAction(
+			async () => ({ created_at: "2026-01-01T00:00:00Z" }),
+			fetchBuilds,
+			() => undefined,
+		);
+		expect(result).toBe("confirm");
+		expect(fetchBuilds).not.toHaveBeenCalled();
 	});
 
 	it("propagates non-404-or-410 workspace fetch errors", async () => {
@@ -260,6 +490,7 @@ describe("resolveArchiveAndDeleteAction", () => {
 				async () => {
 					throw error;
 				},
+				async () => [],
 				() => "2026-01-01T00:00:00Z",
 			),
 		).rejects.toBe(error);
@@ -279,6 +510,7 @@ describe("resolveArchiveAndDeleteAction", () => {
 				async () => {
 					throw error;
 				},
+				async () => [],
 				() => "2026-01-01T00:00:00Z",
 			),
 		).resolves.toBe("archive-only");
@@ -298,9 +530,50 @@ describe("resolveArchiveAndDeleteAction", () => {
 				async () => {
 					throw error;
 				},
+				async () => [],
 				() => "2026-01-01T00:00:00Z",
 			),
 		).resolves.toBe("archive-only");
+	});
+
+	it("returns archive-only when the builds fetch returns 404", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 404,
+				data: { message: "Workspace not found" },
+			},
+		};
+
+		await expect(
+			resolveArchiveAndDeleteAction(
+				async () => ({ created_at: "2026-01-01T00:00:00Z" }),
+				async () => {
+					throw error;
+				},
+				() => "2026-01-01T00:00:00Z",
+			),
+		).resolves.toBe("archive-only");
+	});
+
+	it("propagates non-404-or-410 builds fetch errors", async () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+
+		await expect(
+			resolveArchiveAndDeleteAction(
+				async () => ({ created_at: "2026-01-01T00:00:00Z" }),
+				async () => {
+					throw error;
+				},
+				() => "2026-01-01T00:00:00Z",
+			),
+		).rejects.toBe(error);
 	});
 });
 
