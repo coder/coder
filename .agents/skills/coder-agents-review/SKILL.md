@@ -12,8 +12,8 @@ has approved the current work.
 
 The loop is:
 
-1. if the PR has no existing `coder-agents-review` review or comment,
-   post `/coder-agents-review`
+1. if the PR has no existing `coder-agents-review` review, comment, or
+   pending trigger, post `/coder-agents-review`
 2. wait for `coder-agents-review` to respond
 3. fix actionable issues with the smallest safe diff
 4. validate and push
@@ -39,8 +39,9 @@ If you stop early, say exactly why.
 ## Non-negotiable behavior
 
 - Inspect the PR before posting anything.
-- If the PR has no review or comment from `coder-agents-review`, post a
-  top-level PR comment with the exact body `/coder-agents-review`.
+- If the PR has no review or comment from `coder-agents-review` and no
+  pending trigger comment, post a top-level PR comment with the exact
+  body `/coder-agents-review`.
 - If `coder-agents-review` activity is already present, start from that
   feedback instead of posting a duplicate trigger immediately.
 - After every fix push, post `/coder-agents-review` again.
@@ -51,22 +52,6 @@ If you stop early, say exactly why.
 - Resolve addressed app review threads if you can. If you cannot, reply
   with a short fix summary and report the blocker.
 - Never create or merge a PR unless the user explicitly asks.
-
-## Disclosure rule
-
-The trigger comment should stay exactly `/coder-agents-review` so the app
-can process it reliably.
-
-If you need to disclose that Mux is acting on Mike's behalf, use a short
-separate comment only when that disclosure is not already present on the
-PR and only if adding extra text to the slash-command comment could break
-the trigger.
-
-Use this exact disclosure text:
-
-```text
-> Mux is acting on Mike's behalf.
-```
 
 ## Defaults and config
 
@@ -235,14 +220,16 @@ login. Do not treat a substring match as sufficient.
 
 ### First request
 
-If the PR has no review or comment from `coder-agents-review`, post the
-exact trigger comment:
+If the PR has no review or comment from `coder-agents-review`, and no
+existing `/coder-agents-review` trigger comment that the app has not yet
+responded to, post the exact trigger comment:
 
 ```bash
 gh pr comment "$PR_NUMBER" --body "/coder-agents-review"
 ```
 
-If needed, add the disclosure comment right after it.
+If a trigger comment already exists but the app has not responded yet,
+skip posting and enter the wait loop.
 
 ### Existing activity already present
 
