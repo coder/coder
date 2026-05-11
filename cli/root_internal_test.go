@@ -10,9 +10,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -472,4 +474,78 @@ func Test_ensureTLSConfig(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to parse CA certificate")
 	})
+}
+
+// Regression tests for https://github.com/coder/coder/issues/24519.
+// The CLI HTTP client used http.DefaultTransport with no
+// ResponseHeaderTimeout, so a server that completed DNS/TCP/TLS but
+// never sent response headers could hang the client indefinitely. The
+// fix sets ResponseHeaderTimeout on the cloned transport.
+func TestCLIResponseHeaderTimeout_FallbackToDefault(t *testing.T) {
+	t.Parallel()
+	require.Greater(t, defaultCLIResponseHeaderTimeout, 0*time.Second,
+		"the default must be positive or the original hang bug returns")
+}
+
+func TestCLIResponseHeaderTimeout_EnvOverride(t *testing.T) {
+	// Cannot t.Parallel: t.Setenv is used.
+	t.Run("ValidDuration", func(t *testing.T) {
+		t.Setenv(envCLIResponseHeaderTimeout, "15s")
+		require.Equal(t, 15*time.Second, cliResponseHeaderTimeout())
+	})
+
+	t.Run("InvalidIgnored", func(t *testing.T) {
+		t.Setenv(envCLIResponseHeaderTimeout, "not-a-duration")
+		require.Equal(t, defaultCLIResponseHeaderTimeout, cliResponseHeaderTimeout())
+	})
+
+	t.Run("ZeroIgnored", func(t *testing.T) {
+		// Allowing zero would silently restore the pre-#24519 bug. The
+		// override must clamp to the default.
+		t.Setenv(envCLIResponseHeaderTimeout, "0s")
+		require.Equal(t, defaultCLIResponseHeaderTimeout, cliResponseHeaderTimeout())
+	})
+
+	t.Run("NegativeIgnored", func(t *testing.T) {
+		t.Setenv(envCLIResponseHeaderTimeout, "-5s")
+		require.Equal(t, defaultCLIResponseHeaderTimeout, cliResponseHeaderTimeout())
+	})
+}
+
+// End-to-end check: a server that never sends response headers must not
+// hang the client. The env override shrinks the timeout to milliseconds
+// so the assertion completes in well under a second instead of 60.
+func TestCreateHTTPClient_HangingServer(t *testing.T) {
+	// Cannot t.Parallel: t.Setenv is used.
+	t.Setenv(envCLIResponseHeaderTimeout, "200ms")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		// Hold the connection open without writing headers. When the
+		// client times out via ResponseHeaderTimeout it tears the TCP
+		// connection down, which surfaces as request context
+		// cancellation here so the handler returns and srv.Close can
+		// complete without leaking this goroutine.
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+
+	serverURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	r := &RootCmd{noVersionCheck: true, noFeatureWarning: true}
+	cmd, err := r.Command(nil)
+	require.NoError(t, err)
+	inv := cmd.Invoke()
+	client, err := r.createHTTPClient(context.Background(), serverURL, inv)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	require.NoError(t, err)
+	start := time.Now()
+	resp, err := client.Do(req)
+	elapsed := time.Since(start)
+	require.Error(t, err, "request should fail when server never sends headers")
+	require.Nil(t, resp)
+	// Comfortable upper bound. The original bug would block here forever.
+	require.Less(t, elapsed, 5*time.Second,
+		"client must time out via ResponseHeaderTimeout instead of hanging")
 }

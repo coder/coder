@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"sync"
@@ -532,6 +533,57 @@ func TestIsRetryableError(t *testing.T) {
 		assert.True(t, isRetryableError(err))
 		// Also when wrapped, as runCoderConnectStdio does.
 		assert.True(t, isRetryableError(xerrors.Errorf("dial coder connect: %w", err)))
+	})
+
+	// Regression for https://github.com/coder/coder/issues/24519.
+	// ResponseHeaderTimeout (introduced in cli/root.go) surfaces as
+	// *url.Error whose underlying error reports Timeout() == true.
+	// Without explicit handling in isRetryableError, the classifier
+	// would treat this as a non-retryable failure and the retry-wrapped
+	// CLI paths would bail on the first transient header timeout,
+	// converting "hang forever" into "permanent failure on first
+	// occurrence".
+	t.Run("ResponseHeaderTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		hangCtx, cancelHang := context.WithCancel(context.Background())
+		defer cancelHang()
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			// Hold the connection until the test signals shutdown
+			// through hangCtx or the client disconnects.
+			select {
+			case <-r.Context().Done():
+			case <-hangCtx.Done():
+			}
+		}))
+		t.Cleanup(srv.Close)
+
+		// Build a transport with a very short ResponseHeaderTimeout to
+		// reproduce the production behavior without waiting 60 seconds.
+		transport := &http.Transport{
+			ResponseHeaderTimeout: 100 * time.Millisecond,
+		}
+		client := &http.Client{Transport: transport}
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+		require.NoError(t, err)
+		_, err = client.Do(req)
+		require.Error(t, err, "client.Do must return an error when the server never sends headers")
+
+		// Sanity-check the exact error shape so a future net/http
+		// change can be debugged without re-reading the bug history.
+		// Note: net/http does wrap context.DeadlineExceeded into the
+		// chain for ResponseHeaderTimeout; the *url.Error.Timeout()
+		// check in isRetryableError must therefore run BEFORE the
+		// context.DeadlineExceeded short-circuit.
+		var urlErr *url.Error
+		require.ErrorAs(t, err, &urlErr)
+		require.True(t, urlErr.Timeout(), "*url.Error.Timeout() must report true")
+
+		assert.True(t, isRetryableError(err),
+			"transport-level ResponseHeaderTimeout must be retryable (issue #24519)")
+		// Also when wrapped, as CLI callers typically do via xerrors.Errorf.
+		assert.True(t, isRetryableError(xerrors.Errorf("fetch buildinfo: %w", err)),
+			"retryability must survive xerrors.Errorf wrapping")
 	})
 }
 

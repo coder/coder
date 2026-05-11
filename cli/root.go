@@ -97,6 +97,37 @@ const (
 	envURL            = "CODER_URL"
 )
 
+// defaultCLIResponseHeaderTimeout bounds how long a single CLI HTTP
+// request will wait for the server to start sending response headers.
+// http.Transport has no header-wait timer by default, which lets a TCP
+// connection that stays healthy while no HTTP response arrives hang
+// indefinitely. The timer only governs the time-to-headers; long
+// streaming responses (logs, SSE, WebSocket upgrades) are unaffected
+// because the server flushes headers immediately. See
+// coder/coder#24519.
+const defaultCLIResponseHeaderTimeout = 60 * time.Second
+
+// envCLIResponseHeaderTimeout lets users override the default header
+// timeout with a Go duration string (e.g. "30s", "2m"). The override is
+// also used by tests to shrink the timeout to milliseconds without
+// having to inspect or rewire the transport chain.
+const envCLIResponseHeaderTimeout = "CODER_CLI_RESPONSE_HEADER_TIMEOUT"
+
+// cliResponseHeaderTimeout returns the configured response-header
+// timeout, falling back to defaultCLIResponseHeaderTimeout when the env
+// var is unset or unparseable.
+func cliResponseHeaderTimeout() time.Duration {
+	raw := os.Getenv(envCLIResponseHeaderTimeout)
+	if raw == "" {
+		return defaultCLIResponseHeaderTimeout
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return defaultCLIResponseHeaderTimeout
+	}
+	return d
+}
+
 func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	// Please re-sort this list alphabetically if you change it!
 	return []*serpent.Command{
@@ -807,19 +838,26 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
+	// Always clone the default transport so we can apply a
+	// ResponseHeaderTimeout. http.DefaultTransport has no header-wait
+	// timer, so any coderd request that completes DNS/TCP/TLS but never
+	// receives response headers blocks until the TCP connection dies.
+	// Long-running invocations (`coder ssh --stdio` runs for the lifetime
+	// of an SSH session) cannot rely on a parent process to kill the
+	// hang, so we bound the header wait here. See coder/coder#24519.
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, xerrors.New("http.DefaultTransport is not *http.Transport")
+	}
+	baseTransport := defaultTransport.Clone()
+	baseTransport.ResponseHeaderTimeout = cliResponseHeaderTimeout()
 
 	// Apply custom TLS config if specified
 	if r.tlsConfig != nil {
-		// Clone the default transport and apply TLS config
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
-		}
-		customTransport := defaultTransport.Clone()
-		customTransport.TLSClientConfig = r.tlsConfig
-		transport = customTransport
+		baseTransport.TLSClientConfig = r.tlsConfig
 	}
+
+	var transport http.RoundTripper = baseTransport
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)

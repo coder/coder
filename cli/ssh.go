@@ -67,7 +67,9 @@ var (
 )
 
 // isRetryableError checks for transient connection errors worth
-// retrying: DNS failures, connection refused, and server 5xx.
+// retrying: DNS failures, connection refused, transport-level timeouts
+// (e.g. ResponseHeaderTimeout from a server that completed DNS/TCP/TLS
+// but never sent headers, see coder/coder#24519), and server 5xx.
 func isRetryableError(err error) bool {
 	if err == nil || xerrors.Is(err, context.Canceled) {
 		return false
@@ -75,6 +77,30 @@ func isRetryableError(err error) bool {
 	// Check connection errors before context.DeadlineExceeded because
 	// net.Dialer.Timeout produces *net.OpError that matches both.
 	if codersdk.IsConnectionError(err) {
+		return true
+	}
+	// Transport-level timeouts surface from net/http as *url.Error.
+	// Most notably, the ResponseHeaderTimeout introduced in
+	// cli/root.go fires here when a server completes DNS/TCP/TLS but
+	// never sends response headers. The same shape covers
+	// IdleConnTimeout and any other transport-level timer.
+	//
+	// Without this branch, ResponseHeaderTimeout would short-circuit
+	// the next check (context.DeadlineExceeded is wrapped in the
+	// transport timeout chain) and turn a known retryable condition
+	// into a permanent failure for every CLI path that uses
+	// retryWithInterval. A bare context.DeadlineExceeded (from the
+	// caller's own ctx) is NOT a *url.Error, so it is not matched
+	// here; it falls through to the next check and short-circuits
+	// retry as intended.
+	//
+	// Note: when the caller's ctx expires DURING a request, client.Do
+	// wraps that into a *url.Error too. Returning true here is still
+	// correct because retryWithInterval's outer `r.Wait(ctx)` exits
+	// the loop the next iteration regardless of what isRetryableError
+	// says, so a canceled caller never triggers an extra retry.
+	var urlErr *url.Error
+	if xerrors.As(err, &urlErr) && urlErr.Timeout() {
 		return true
 	}
 	if xerrors.Is(err, context.DeadlineExceeded) {
