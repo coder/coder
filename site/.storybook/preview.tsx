@@ -9,7 +9,7 @@ import {
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
 import isChromatic from "chromatic/isChromatic";
-import React from "react";
+import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
@@ -111,7 +111,7 @@ const withTheme: Decorator = (Story, context) => {
 	document.querySelector("html")?.setAttribute("class", htmlClassName);
 
 	return (
-		<React.StrictMode>
+		<StrictMode>
 			<StyledEngineProvider injectFirst>
 				<MuiThemeProvider theme={themes[concreteName]}>
 					<EmotionThemeProvider theme={themes[concreteName]}>
@@ -122,7 +122,7 @@ const withTheme: Decorator = (Story, context) => {
 					</EmotionThemeProvider>
 				</MuiThemeProvider>
 			</StyledEngineProvider>
-		</React.StrictMode>
+		</StrictMode>
 	);
 };
 

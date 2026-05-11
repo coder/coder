@@ -73,9 +73,6 @@ describe("isConcreteThemeName", () => {
 	});
 
 	it("rejects legacy auto-family preferences", () => {
-		// Embeds and any other caller validating a concrete theme must
-		// reject the auto-family strings. They no longer carry meaning as
-		// concrete themes.
 		expect(isConcreteThemeName("auto")).toBe(false);
 		expect(isConcreteThemeName("auto-protan-deuter")).toBe(false);
 		expect(isConcreteThemeName("auto-tritan")).toBe(false);
@@ -119,12 +116,6 @@ describe("legacyAutoToSync", () => {
 });
 
 describe("baseModeFor", () => {
-	// ThemeProvider applies both the concrete theme class and the base
-	// mode class to `<html>` so Tailwind's `dark:` variant keeps matching
-	// on colorblind variants. Assert the mapping for every concrete
-	// theme so a new variant whose name does not start with `dark` or
-	// `light` is caught by this test instead of silently regressing the
-	// UI.
 	it("maps every concrete theme to its base mode", () => {
 		for (const name of CONCRETE_THEMES) {
 			const expected = name.startsWith("dark") ? "dark" : "light";
@@ -162,10 +153,6 @@ describe("colorblind role palettes", () => {
 	});
 
 	it("shifts tritan success off the base green role onto sky-blue", () => {
-		// GitHub Primer's tritanopia preset renders diff additions in
-		// blue rather than green. Mirror that here so success no longer
-		// matches the base palette and instead aligns with the
-		// protan-deuter success role, which is already sky-based.
 		expect(themes["light-tritan"].roles.success).not.toEqual(
 			themes.light.roles.success,
 		);

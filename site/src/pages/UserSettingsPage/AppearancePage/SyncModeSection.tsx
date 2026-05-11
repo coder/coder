@@ -10,12 +10,7 @@ import { SYNC_MODE_THEMES, THEME_COPY } from "./themeCopy";
 interface SyncModeSectionProps {
 	light: ConcreteThemeName;
 	dark: ConcreteThemeName;
-	/**
-	 * The OS color scheme currently in effect. Used to decide which
-	 * card shows the "Active" pill so the user knows which theme they
-	 * are looking at right now.
-	 */
-	activeScheme: "dark" | "light";
+	activeScheme: "dark" | "light"; // The OS color scheme currently in effect
 	onSelect: (scheme: "light" | "dark", theme: ConcreteThemeName) => void;
 }
 

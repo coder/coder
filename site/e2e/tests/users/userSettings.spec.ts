@@ -28,13 +28,9 @@ test("adjust user theme preference", async ({ page }) => {
 
 	await page.goto("/settings/appearance", { waitUntil: "domcontentloaded" });
 
-	// Switch the theme-mode dropdown to "Single theme" so we can pick a
-	// specific variant, independent of the test runner's OS color scheme.
 	await page.getByRole("combobox", { name: /theme mode/i }).click();
 	await page.getByRole("option", { name: /single theme/i }).click();
 
-	// Wait for the single-mode section, then pick the light theme radio
-	// inside that group. This avoids matching the sync-mode preview text.
 	const singleThemeGroup = page.getByRole("radiogroup", { name: "Theme" });
 	await expect(singleThemeGroup).toBeVisible();
 	await singleThemeGroup.getByRole("radio", { name: /light default/i }).click();

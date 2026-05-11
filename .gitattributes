@@ -20,12 +20,3 @@ site/e2e/provisionerGenerated.ts linguist-generated=true
 site/src/api/countriesGenerated.tsx linguist-generated=true
 site/src/api/rbacresourcesGenerated.tsx linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true
-
-# SMTP MIME goldens intentionally preserve CRLF output.
-# Mark them binary so git format-patch and git am keep CRLF bytes.
-coderd/notifications/testdata/rendered-templates/smtp/*.golden -diff -whitespace
-
-# These Helm goldens intentionally preserve empty rendered values.
-# Mark them binary so git am does not warn on trailing spaces.
-helm/coder/tests/testdata/host_aliases.golden -diff -whitespace
-helm/coder/tests/testdata/host_aliases_coder.golden -diff -whitespace

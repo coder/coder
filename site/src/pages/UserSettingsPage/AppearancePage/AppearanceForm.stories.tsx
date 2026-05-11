@@ -97,9 +97,6 @@ export const SyncTritan: Story = {
 	},
 };
 
-// Slots set to different families. Exercises the card UI when the
-// user has picked, say, default light for day and colorblind dark for
-// night (or vice versa).
 export const SyncMixed: Story = {
 	args: {
 		initialValues: {

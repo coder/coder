@@ -3,18 +3,7 @@ import { baseModeFor, type ConcreteThemeName } from "#/theme";
 import { cn } from "#/utils/cn";
 
 interface ThemePreviewProps {
-	/**
-	 * The concrete theme name applied as a CSS class on the outermost
-	 * element so the preview reads that theme's CSS variables. The base
-	 * mode class (`light` or `dark`) is applied alongside it so the
-	 * preview self-contains all surface and content tokens regardless
-	 * of the ambient theme on `<html>`.
-	 */
 	theme: ConcreteThemeName;
-	/**
-	 * `sm` matches the legacy 224px tile used by the single-theme grid;
-	 * `lg` fills its container so the sync cards can be any width.
-	 */
 	size?: "sm" | "lg";
 	label?: string;
 	className?: string;
@@ -22,9 +11,8 @@ interface ThemePreviewProps {
 }
 
 /**
- * Mini mockup of the Coder UI under a given theme. Used both inside
- * the single-theme grid tiles (sm) and inside the two sync-mode cards
- * (lg). The header bar's two accent swatches visibly change between
+ * Mini mockup of the Coder UI under a given theme.
+ * The header bar's two accent swatches visibly change between
  * colorblind variants because they use `bg-git-added` / `bg-git-deleted`.
  */
 export const ThemePreview: FC<ThemePreviewProps> = ({
@@ -82,9 +70,6 @@ export const ThemePreview: FC<ThemePreviewProps> = ({
 								size === "sm" ? "gap-1.5" : "gap-2",
 							)}
 						>
-							{/* Two accent swatches mirror the diff additions and
-							    deletions so the preview visibly changes between
-							    colorblind variants. */}
 							<div
 								className={cn(
 									"bg-git-added rounded",
@@ -116,9 +101,6 @@ export const ThemePreview: FC<ThemePreviewProps> = ({
 								className={cn(
 									"rounded-md flex-1",
 									size === "sm" ? "h-6" : "h-10",
-									// Surface-git-added gives the filled progress bar the
-									// same palette-aware fingerprint the accent swatches
-									// use. Colorblind variants swap the hue accordingly.
 									"bg-surface-git-added border border-solid border-border-default",
 								)}
 							>

@@ -17,16 +17,6 @@ interface ThemeSwatchProps {
 	onPreviewEnd?: () => void;
 }
 
-/**
- * A small circular radio used in sync-mode cards to pick which concrete
- * theme applies for a given OS color scheme. The swatch keeps the
- * upper-left half on the theme surface and splits the remaining half
- * into blue plus the colorblind-family accent.
- *
- * The swatch resolves its colors by applying the theme's CSS class to
- * an inner wrapper, so `bg-surface-primary` shows white for light
- * themes and black for dark themes.
- */
 export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 	name,
 	theme,
@@ -65,11 +55,6 @@ export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 						aria-label={copy.title}
 						className="sr-only"
 					/>
-					{/* Both classes scope the CSS variables so the swatch reads
-					    the palette of the theme it represents, not the
-					    currently applied one. The base mode class supplies
-					    `--surface-primary`; the colorblind variant only
-					    overrides palette-specific tokens. */}
 					<span
 						className={cn(
 							baseModeFor(theme),

@@ -1,11 +1,5 @@
 import { CONCRETE_THEMES, type ConcreteThemeName } from "#/theme";
 
-/**
- * Display copy for each concrete theme. The descriptions are surfaced
- * under each tile in single-theme mode. Text is adapted from the
- * GitHub appearance preferences, with "Coder" substituted for "GitHub"
- * to match the product.
- */
 type ThemeCopy = {
 	title: string;
 	description: string;
@@ -44,10 +38,6 @@ export const THEME_COPY: Record<ConcreteThemeName, ThemeCopy> = {
 	},
 };
 
-/**
- * Concrete theme names grouped by OS color scheme. The order matches
- * the in-product taxonomy: default first, then colorblind variants.
- */
 export const LIGHT_THEMES: ConcreteThemeName[] = [
 	"light",
 	"light-protan-deuter",

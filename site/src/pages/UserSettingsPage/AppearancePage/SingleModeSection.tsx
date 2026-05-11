@@ -9,9 +9,6 @@ interface SingleModeSectionProps {
 	onSelect: (theme: ConcreteThemeName) => void;
 }
 
-// Row-major order matching the design screenshot: light row first,
-// then dark row. The default variant in each row leads, followed by
-// the colorblind variants.
 const SINGLE_MODE_ORDER: ConcreteThemeName[] = [
 	...LIGHT_THEMES,
 	...DARK_THEMES,

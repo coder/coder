@@ -44,17 +44,8 @@ const sortedTerminalFontNames = [
 interface AppearanceFormProps {
 	isUpdating?: boolean;
 	error?: unknown;
-	/**
-	 * The full appearance settings document from the API. Unlike the
-	 * previous shape this accepts every field including legacy auto-*
-	 * values so the migration helper can classify them on mount.
-	 */
 	initialValues: UserAppearanceSettings;
-	/**
-	 * The OS color scheme currently in effect. Used to decide which
-	 * sync card shows the "Active" pill.
-	 */
-	activeScheme: "dark" | "light";
+	activeScheme: "dark" | "light"; // The OS color scheme currently in effect
 	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => Promise<unknown>;
 }
 
@@ -65,10 +56,6 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	initialValues,
 	activeScheme,
 }) => {
-	// Seed the working draft from the persisted settings. The draft
-	// carries all four slots (mode, single, light, dark) so the user
-	// can switch the dropdown without losing their other-mode selection
-	// mid-interaction.
 	const [draft, setDraft] = useState<ThemeModeDraft>(() =>
 		draftFromState(migrateLegacyPreference(initialValues), {
 			light: initialValues.theme_light,
@@ -88,14 +75,6 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 
 	activeSchemeRef.current = activeScheme;
 
-	// Resync the local draft when the persisted settings change while
-	// no submit is in flight. This keeps the form in sync with fresh
-	// React Query data (for example when the metadata-backed initial
-	// snapshot is replaced by a /appearance refetch, or another tab
-	// updates the user's settings) without overwriting an in-progress
-	// optimistic edit. Submit-driven updates are guarded by
-	// submitInFlightRef so the optimistic draft survives until the
-	// mutation resolves.
 	const {
 		theme_preference,
 		theme_mode,
@@ -187,17 +166,10 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		if (mode === draft.mode) {
 			return;
 		}
-		// Preserve every slot the user has already picked across the
-		// toggle. Switching sync <-> single is a reversible UI choice;
-		// the user's sync pair must survive a detour through single
-		// mode, and vice versa.
 		const next: ThemeModeDraft =
 			mode === "single"
 				? {
 						mode: "single",
-						// switchToSingle picks the slot that matches
-						// the active OS scheme so the rendered theme
-						// does not flip when the dropdown changes.
 						single: switchToSingle(
 							{ mode: "sync", light: draft.light, dark: draft.dark },
 							activeScheme,

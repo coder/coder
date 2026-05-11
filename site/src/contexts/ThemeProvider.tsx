@@ -27,24 +27,6 @@ import {
 } from "#/theme/themeMode";
 import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 
-/**
- * Root theme provider for the web UI.
- *
- * Decodes the stored appearance settings, including the legacy `auto`
- * value and colorblind-friendly variants, into a concrete theme via
- * `migrateLegacyPreference` and `resolveActiveThemeName`, then:
- *
- * - Applies the concrete theme class to `<html>` (e.g. `dark-tritan`)
- *   plus its base mode class (`dark` or `light`) so Tailwind `dark:`
- *   utilities and any selector-based theming (`.dark` in `Chart.tsx`)
- *   continue to match when a colorblind variant is active.
- * - Watches `prefers-color-scheme` so `auto` preferences follow the
- *   OS.
- * - Skips class manipulation when an embed page has claimed
- *   `<html>` via `data-embed-theme`.
- * - Selects the matching MUI/Emotion theme object and delegates to
- *   the MUI/Emotion providers.
- */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
@@ -52,10 +34,6 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	);
 	const preferredColorScheme = usePreferredColorScheme();
 
-	// Prefer the JS-fetched settings; fall back to the SSR meta tag so
-	// the first paint picks the right theme even before the React Query
-	// response arrives. migrateLegacyPreference tolerates any mix of
-	// new/legacy/missing fields.
 	const settings =
 		appearanceSettingsQuery.data ?? metadata.userAppearance?.value ?? {};
 	const state = migrateLegacyPreference(settings);
