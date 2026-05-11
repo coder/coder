@@ -36,7 +36,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-// mcpOAuth2GlobalCallbackPath is the deployment-wide OAuth2 callback
+// mcpOAuth2CallbackPath is the deployment-wide OAuth2 callback
 // for admin-configured MCP servers. It does not depend on the MCP
 // server config ID; the server is identified through a signed `state`
 // parameter. This lets admins register a single redirect URI with
@@ -44,19 +44,19 @@ import (
 // config in Coder, removing the chicken-and-egg from the manual
 // setup flow and the insert-then-update dance from automatic
 // Dynamic Client Registration.
-const mcpOAuth2GlobalCallbackPath = "/api/experimental/mcp/oauth2/callback"
+const mcpOAuth2CallbackPath = "/api/experimental/mcp/oauth2/callback"
 
-// MCPOAuth2GlobalCallbackPath returns the path of the deployment-wide
+// MCPOAuth2CallbackPath returns the path of the deployment-wide
 // MCP OAuth2 callback. Exported for tests.
-func MCPOAuth2GlobalCallbackPath() string {
-	return mcpOAuth2GlobalCallbackPath
+func MCPOAuth2CallbackPath() string {
+	return mcpOAuth2CallbackPath
 }
 
 // mcpOAuth2CallbackURL returns the absolute deployment-wide MCP OAuth2
 // callback URL. The frontend shows this so admins can register it with
 // the upstream provider before saving the MCP server config.
 func (api *API) mcpOAuth2CallbackURL() string {
-	return api.AccessURL.String() + mcpOAuth2GlobalCallbackPath
+	return api.AccessURL.String() + mcpOAuth2CallbackPath
 }
 
 // mcpOAuth2StateNonceSize is the number of random bytes embedded in a
@@ -921,7 +921,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	callbackPath := mcpOAuth2GlobalCallbackPath
+	callbackPath := mcpOAuth2CallbackPath
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    nonce,
@@ -962,28 +962,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
-// @Summary Redirect legacy per-ID MCP OAuth2 callback to the global one
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-// 307-redirects to the deployment-wide callback, preserving the
-// query string. This handler exists only so any client previously
-// registered with an upstream provider against
-// `${access_url}/api/experimental/mcp/servers/{id}/oauth2/callback`
-// keeps working. New flows hit the global callback directly. The
-// `mcpServer` path parameter is intentionally ignored; the MCP server
-// ID is decoded from the signed `state` parameter on the global
-// handler.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request) {
-	target := mcpOAuth2GlobalCallbackPath
-	if raw := r.URL.RawQuery; raw != "" {
-		target += "?" + raw
-	}
-	http.Redirect(rw, r, target, http.StatusTemporaryRedirect)
-}
-
-// @Summary Handle MCP server OAuth2 callback (deployment-wide)
+// @Summary Handle MCP server OAuth2 callback
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 // Decodes the signed `state` parameter to identify the MCP server
@@ -993,7 +972,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 // server config in Coder.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) mcpServerOAuth2GlobalCallback(rw http.ResponseWriter, r *http.Request) {
+func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
@@ -1080,7 +1059,7 @@ func (api *API) mcpServerOAuth2GlobalCallback(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
-	callbackPath := mcpOAuth2GlobalCallbackPath
+	callbackPath := mcpOAuth2CallbackPath
 	// Clear the state cookie.
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),

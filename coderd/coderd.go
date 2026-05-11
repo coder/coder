@@ -1289,7 +1289,7 @@ func New(options *Options) *API {
 			// Deployment-wide OAuth2 callback. Identifies the MCP
 			// server through a signed `state` parameter so the redirect
 			// URI does not depend on the per-config UUID.
-			r.Get("/oauth2/callback", api.mcpServerOAuth2GlobalCallback)
+			r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
 			// Returns the absolute URL of the deployment-wide callback
 			// for the admin UI to display when configuring OAuth2.
 			r.Get("/oauth2/callback-url", api.mcpOAuth2CallbackInfo)
@@ -1307,7 +1307,7 @@ func New(options *Options) *API {
 					// compatibility with any client that was registered
 					// with an upstream provider against this URL
 					// before the deployment-wide callback existed.
-					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
+					r.Get("/oauth2/callback", api.mcpServerOAuth2CallbackDeprecated)
 					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
 				})
 			})

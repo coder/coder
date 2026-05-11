@@ -1050,14 +1050,14 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 
 		// The redirect URI must be the deployment-wide MCP OAuth2
 		// callback. The MCP server config UUID must NOT appear in the
-		// path; that is the whole point of the global callback. The
+		// path; that is the whole point of the deployment-wide callback. The
 		// admin can register one redirect URI per upstream provider
 		// before any MCP server config exists.
-		require.True(t, strings.HasSuffix(redirectURI, coderd.MCPOAuth2GlobalCallbackPath()),
+		require.True(t, strings.HasSuffix(redirectURI, coderd.MCPOAuth2CallbackPath()),
 			"redirect URI %q should end with the deployment-wide MCP OAuth2 callback path %q",
-			redirectURI, coderd.MCPOAuth2GlobalCallbackPath())
+			redirectURI, coderd.MCPOAuth2CallbackPath())
 		require.NotContains(t, redirectURI, created.ID.String(),
-			"redirect URI must not contain the MCP server config UUID; the global callback identifies the server via signed state")
+			"redirect URI must not contain the MCP server config UUID; the deployment-wide callback identifies the server via signed state")
 		require.NotContains(t, redirectURI, "{id}",
 			"redirect URI must not contain the literal \"{id}\" placeholder")
 	})
@@ -1287,7 +1287,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		// back. Faking state with arbitrary strings no longer works.
 		signedState, stateCookie, verifierCookie := mcpOAuth2Connect(ctx, t, memberClient, created.ID)
 
-		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
+		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2CallbackPath())
 		require.NoError(t, err)
 		q := callbackURL.Query()
 		q.Set("code", "test-auth-code")
@@ -1377,7 +1377,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		// backwards compatibility with providers that do not use PKCE.
 		signedState, stateCookie, _ := mcpOAuth2Connect(ctx, t, memberClient, created.ID)
 
-		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
+		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2CallbackPath())
 		require.NoError(t, err)
 		q := callbackURL.Query()
 		q.Set("code", "test-auth-code")
@@ -1974,7 +1974,7 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 	})
 }
 
-func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
+func TestMCPServerOAuth2Callback(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ConnectUsesGlobalRedirectURI", func(t *testing.T) {
@@ -1986,10 +1986,10 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
-			DisplayName:    "Global Connect",
-			Slug:           "global-connect",
+			DisplayName:    "OAuth2 Connect",
+			Slug:           "oauth2-connect-test",
 			Transport:      "streamable_http",
-			URL:            "https://mcp.example.com/global-connect",
+			URL:            "https://mcp.example.com/oauth2-connect-test",
 			AuthType:       "oauth2",
 			OAuth2ClientID: "test-client",
 			OAuth2AuthURL:  "https://auth.example.com/authorize",
@@ -2031,8 +2031,8 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		// UUID must NOT be embedded in that URL.
 		gotRedirectURI := location.Query().Get("redirect_uri")
 		require.NotEmpty(t, gotRedirectURI)
-		require.True(t, strings.HasSuffix(gotRedirectURI, coderd.MCPOAuth2GlobalCallbackPath()),
-			"redirect_uri %q should end with %q", gotRedirectURI, coderd.MCPOAuth2GlobalCallbackPath())
+		require.True(t, strings.HasSuffix(gotRedirectURI, coderd.MCPOAuth2CallbackPath()),
+			"redirect_uri %q should end with %q", gotRedirectURI, coderd.MCPOAuth2CallbackPath())
 		require.NotContains(t, gotRedirectURI, created.ID.String(),
 			"redirect_uri must not contain the MCP server config UUID")
 
@@ -2044,7 +2044,7 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		require.Contains(t, state, ".",
 			"signed state has a payload-signature delimiter")
 
-		// Cookies should be scoped to the global callback path.
+		// Cookies should be scoped to the deployment-wide callback path.
 		var stateCookie, verifierCookie *http.Cookie
 		for _, c := range res.Cookies() {
 			if c.Name == "mcp_oauth2_state_"+created.ID.String() {
@@ -2056,8 +2056,8 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		}
 		require.NotNil(t, stateCookie)
 		require.NotNil(t, verifierCookie)
-		require.Equal(t, coderd.MCPOAuth2GlobalCallbackPath(), stateCookie.Path)
-		require.Equal(t, coderd.MCPOAuth2GlobalCallbackPath(), verifierCookie.Path)
+		require.Equal(t, coderd.MCPOAuth2CallbackPath(), stateCookie.Path)
+		require.Equal(t, coderd.MCPOAuth2CallbackPath(), verifierCookie.Path)
 	})
 
 	t.Run("CallbackRoundTripStoresToken", func(t *testing.T) {
@@ -2085,8 +2085,8 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
-			DisplayName:    "Global Callback",
-			Slug:           "global-callback",
+			DisplayName:    "OAuth2 Callback",
+			Slug:           "oauth2-callback-test",
 			Transport:      "streamable_http",
 			URL:            "https://mcp.example.com/global-cb",
 			AuthType:       "oauth2",
@@ -2106,7 +2106,7 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 
 		// Simulate the upstream provider redirecting back to the global
 		// callback with the issued code and the same signed state.
-		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
+		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2CallbackPath())
 		require.NoError(t, err)
 		q := callbackURL.Query()
 		q.Set("code", "test-auth-code")
@@ -2127,7 +2127,7 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		defer callbackRes.Body.Close()
 
 		require.Equal(t, http.StatusOK, callbackRes.StatusCode,
-			"global callback should succeed with valid signed state and matching cookies")
+			"callback should succeed with valid signed state and matching cookies")
 
 		// AuthConnected should now report true for this user.
 		got, err := memberClient.MCPServerConfigByID(ctx, created.ID)
@@ -2151,7 +2151,7 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		tampered := base64.RawURLEncoding.EncodeToString([]byte("not-a-real-payload")) + "." +
 			base64.RawURLEncoding.EncodeToString([]byte("not-a-real-signature"))
 
-		callbackURL, err := client.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
+		callbackURL, err := client.URL.Parse(coderd.MCPOAuth2CallbackPath())
 		require.NoError(t, err)
 		q := callbackURL.Query()
 		q.Set("code", "ignored")
@@ -2182,7 +2182,7 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 			return http.ErrUseLastResponse
 		}
 
-		callbackURL, err := client.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
+		callbackURL, err := client.URL.Parse(coderd.MCPOAuth2CallbackPath())
 		require.NoError(t, err)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", callbackURL.String(), nil)
@@ -2208,8 +2208,8 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		info, err := client.MCPOAuth2CallbackInfo(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, info.CallbackURL)
-		require.True(t, strings.HasSuffix(info.CallbackURL, coderd.MCPOAuth2GlobalCallbackPath()),
-			"callback URL %q must end with %q", info.CallbackURL, coderd.MCPOAuth2GlobalCallbackPath())
+		require.True(t, strings.HasSuffix(info.CallbackURL, coderd.MCPOAuth2CallbackPath()),
+			"callback URL %q must end with %q", info.CallbackURL, coderd.MCPOAuth2CallbackPath())
 	})
 
 	t.Run("CallbackInfoForbiddenForNonAdmin", func(t *testing.T) {
@@ -2241,7 +2241,7 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		// previously registered with an upstream provider against that
 		// URL keeps working. It must 307 to the deployment-wide
 		// callback with the query string preserved verbatim, so the
-		// browser follows it and the global handler decodes the
+		// browser follows it and the callback handler decodes the
 		// signed state to identify the MCP server.
 		legacyURL, err := client.URL.Parse(
 			"/api/experimental/mcp/servers/" + uuid.NewString() + "/oauth2/callback",
@@ -2266,7 +2266,7 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
 		location, err := res.Location()
 		require.NoError(t, err)
-		require.Equal(t, coderd.MCPOAuth2GlobalCallbackPath(), location.Path)
+		require.Equal(t, coderd.MCPOAuth2CallbackPath(), location.Path)
 		require.Equal(t, "upstream-code", location.Query().Get("code"))
 		require.Equal(t, "upstream-state", location.Query().Get("state"))
 	})

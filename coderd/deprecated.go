@@ -83,3 +83,27 @@ func (api *API) workspaceBuildResourcesDeprecated(rw http.ResponseWriter, r *htt
 	}
 	api.provisionerJobResources(rw, r, job)
 }
+
+// @Summary Removed: Handle MCP server OAuth2 callback (per-ID)
+// @ID removed-handle-mcp-server-oauth2-callback-per-id
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// 307-redirects to the deployment-wide MCP OAuth2 callback at
+// /api/experimental/mcp/oauth2/callback, preserving the query string
+// so the upstream `code` and signed `state` reach the new handler.
+// This shim exists only so any OAuth2 client previously registered
+// with an upstream provider against the per-ID URL keeps working.
+// New flows redirect directly to the deployment-wide callback. The
+// `mcpServer` path parameter is intentionally ignored: the MCP
+// server ID is decoded from the signed `state` parameter on the
+// deployment-wide handler.
+// @Deprecated use /api/experimental/mcp/oauth2/callback.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) mcpServerOAuth2CallbackDeprecated(rw http.ResponseWriter, r *http.Request) {
+	target := MCPOAuth2CallbackPath()
+	if raw := r.URL.RawQuery; raw != "" {
+		target += "?" + raw
+	}
+	http.Redirect(rw, r, target, http.StatusTemporaryRedirect)
+}
