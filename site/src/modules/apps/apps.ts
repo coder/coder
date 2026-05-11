@@ -117,7 +117,19 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		const appProtocol = new URL(app.url).protocol;
+		// A misconfigured `coder_app` can carry a value that is not a valid
+		// URL (e.g. a bare string with no scheme). Returning the raw value
+		// keeps the UI rendering and surfaces the configuration problem to
+		// the template author instead of crashing the page. We intentionally
+		// do not console.warn here because getAppHref runs once per render
+		// for every app on a workspace, so a single misconfigured value
+		// would flood the console on every state update.
+		let appProtocol: string;
+		try {
+			appProtocol = new URL(app.url).protocol;
+		} catch {
+			return app.url;
+		}
 		const isAllowedProtocol =
 			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
 

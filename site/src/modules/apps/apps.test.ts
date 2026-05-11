@@ -180,6 +180,58 @@ describe("getAppHref", () => {
 			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
+
+	// Regression tests for https://github.com/coder/coder/issues/24417.
+	// A misconfigured `coder_app` with `external = true` and a non-URL
+	// value used to crash the whole UI because `new URL(app.url)` threw.
+	it.each([
+		["a bare string with no scheme", "my-app"],
+		["a protocol-relative URL", "//example.com"],
+		["an empty string", ""],
+		["whitespace", "   "],
+	])("returns the raw url without throwing when external app url is %s", (_label, badUrl) => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: badUrl,
+		};
+		expect(() =>
+			getAppHref(externalApp, {
+				host: "*.apps-host.tld",
+				path: "/path-base",
+				agent: MockWorkspaceAgent,
+				workspace: MockWorkspace,
+				token: "user-session-token",
+			}),
+		).not.toThrow();
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(badUrl);
+	});
+
+	it("does not substitute the session token when external app url is invalid", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `not-a-url-${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		// Invalid URLs are returned verbatim. The placeholder must not be
+		// replaced because we cannot verify the protocol is on the allow-list.
+		expect(href).toBe(externalApp.url);
+		expect(href).toContain(SESSION_TOKEN_PLACEHOLDER);
+	});
 });
 
 describe("openAppInNewWindow", () => {
