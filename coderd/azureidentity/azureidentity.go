@@ -201,12 +201,6 @@ R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp
 -----END CERTIFICATE-----`,
 }
 
-var (
-	rootCertPoolOnce sync.Once
-	rootCertPoolVal  *x509.CertPool
-	rootCertPoolErr  error
-)
-
 // rootCertPool returns a CertPool containing the root CAs that Azure
 // instance-identity certificates ultimately chain to. We embed these so
 // callers do not have to populate Roots themselves, and so we never
@@ -214,30 +208,24 @@ var (
 // Security framework on macOS/iOS) which enforces stricter standards-
 // compliance checks than Go's pure-Go verifier and rejects some otherwise
 // valid Azure leaf certificates.
-func rootCertPool() (*x509.CertPool, error) {
-	rootCertPoolOnce.Do(func() {
-		pool := x509.NewCertPool()
-		for _, pemCert := range Roots {
-			block, rest := pem.Decode([]byte(pemCert))
-			if block == nil {
-				rootCertPoolErr = xerrors.New("root: failed to decode PEM block")
-				return
-			}
-			if len(rest) != 0 {
-				rootCertPoolErr = xerrors.Errorf("root: invalid certificate, %d bytes remain", len(rest))
-				return
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				rootCertPoolErr = xerrors.Errorf("root: parse certificate: %w", err)
-				return
-			}
-			pool.AddCert(cert)
+var rootCertPool = sync.OnceValues(func() (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	for _, pemCert := range Roots {
+		block, rest := pem.Decode([]byte(pemCert))
+		if block == nil {
+			return nil, xerrors.New("root: failed to decode PEM block")
 		}
-		rootCertPoolVal = pool
-	})
-	return rootCertPoolVal, rootCertPoolErr
-}
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("root: invalid certificate, %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("root: parse certificate: %w", err)
+		}
+		pool.AddCert(cert)
+	}
+	return pool, nil
+})
 
 // Certificates are manually downloaded from Azure, then processed with OpenSSL
 // and added here. See: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
