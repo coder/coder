@@ -127,12 +127,28 @@ type API struct {
 
 // NewAPI creates a context configuration API. The working
 // directory closure is evaluated lazily per request.
-func NewAPI(workingDir func() string, cfg Config) *API {
+//
+// The logger parameter and variadic Option are reserved for the
+// startup-gate work in CODAGT-377; this red-phase signature only
+// makes the new symbols compile.
+func NewAPI(_ any, workingDir func() string, cfg Config, _ ...Option) *API {
 	if workingDir == nil {
 		workingDir = func() string { return "" }
 	}
 	return &API{workingDir: workingDir, cfg: cfg.applyDefaults()}
 }
+
+// Option is reserved for future configuration of API. Real
+// implementation lands in the green phase of CODAGT-377.
+type Option func(*API)
+
+// WithClock is a stub. Real implementation lands in the green
+// phase of CODAGT-377.
+func WithClock(_ any) Option { return func(*API) {} }
+
+// MarkStartupSettled is a stub. Real implementation lands in the
+// green phase of CODAGT-377.
+func (*API) MarkStartupSettled() {}
 
 // Resolve reads instruction files, discovers skills, and
 // resolves MCP config file paths for the given config and

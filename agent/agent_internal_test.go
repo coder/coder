@@ -68,7 +68,7 @@ func TestContextConfigAPI_InitOnce(t *testing.T) {
 
 	a := &agent{}
 	a.manifest.Store(&agentsdk.Manifest{Directory: dir1})
-	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
+	a.contextConfigAPI = agentcontextconfig.NewAPI(testutil.Logger(t), func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}

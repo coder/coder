@@ -1,16 +1,37 @@
 package agentcontextconfig_test
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
+
+// newAPISettled returns a new API with startup already marked
+// settled, for tests that do not exercise the gate.
+func newAPISettled(t *testing.T, logger slog.Logger, workingDir func() string, cfg agentcontextconfig.Config, opts ...agentcontextconfig.Option) *agentcontextconfig.API {
+	t.Helper()
+	api := agentcontextconfig.NewAPI(logger, workingDir, cfg, opts...)
+	api.MarkStartupSettled()
+	return api
+}
 
 // filterParts returns only the parts matching the given type.
 func filterParts(parts []codersdk.ChatMessagePart, t codersdk.ChatMessagePartType) []codersdk.ChatMessagePart {
@@ -471,7 +492,8 @@ func TestNewAPI_LazyDirectory(t *testing.T) {
 	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
 	dir := ""
-	api := agentcontextconfig.NewAPI(func() string { return dir }, agentcontextconfig.ReadEnvConfig())
+	logger := slogtest.Make(t, nil)
+	api := newAPISettled(t, logger, func() string { return dir }, agentcontextconfig.ReadEnvConfig())
 
 	// Before directory is set, MCP paths resolve to nothing.
 	mcpFiles := api.MCPConfigFiles()
@@ -541,4 +563,232 @@ func TestResolve_ConfigOverridesEnv(t *testing.T) {
 	ctxFiles := filterParts(result.Parts, codersdk.ChatMessagePartTypeContextFile)
 	require.Len(t, ctxFiles, 1)
 	require.Equal(t, "from config", ctxFiles[0].ContextFileContent)
+}
+
+// TestHandleGet_BlocksUntilSettled verifies that handleGet waits
+// for MarkStartupSettled before responding, and that the response
+// is the resolved context once settled.
+func TestHandleGet_BlocksUntilSettled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	timerTrap := clock.Trap().NewTimer("agentcontextconfig", "startup_gate")
+	defer timerTrap.Close()
+
+	workDir := t.TempDir()
+	instructionPath := filepath.Join(workDir, "AGENTS.md")
+	require.NoError(t, os.WriteFile(instructionPath, []byte("project instructions"), 0o600))
+
+	api := agentcontextconfig.NewAPI(
+		logger,
+		func() string { return workDir },
+		agentcontextconfig.Config{},
+		agentcontextconfig.WithClock(clock),
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+
+	done := make(chan struct{})
+	go func() {
+		api.Routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	// Wait until the gate's timer is scheduled. This confirms the
+	// goroutine is actually blocked on the gate, not racing past it.
+	call := timerTrap.MustWait(ctx)
+	require.Equal(t, 35*time.Second, call.Duration)
+	call.MustRelease(ctx)
+
+	// Body must still be empty: no response written before settle.
+	assert.Equal(t, 0, rec.Body.Len(), "body should be empty before settle")
+
+	api.MarkStartupSettled()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("handleGet did not return after MarkStartupSettled")
+	}
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp workspacesdk.ContextConfigResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	ctxFiles := filterParts(resp.Parts, codersdk.ChatMessagePartTypeContextFile)
+	require.Len(t, ctxFiles, 1)
+	require.Equal(t, "project instructions", ctxFiles[0].ContextFileContent)
+}
+
+// TestHandleGet_ProceedsAfterSettled verifies that handleGet does
+// not wait or schedule a timer when startup is already settled.
+func TestHandleGet_ProceedsAfterSettled(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	// Trap NewTimer so we can assert it is never called.
+	timerTrap := clock.Trap().NewTimer("agentcontextconfig", "startup_gate")
+	defer timerTrap.Close()
+
+	workDir := t.TempDir()
+	instructionPath := filepath.Join(workDir, "AGENTS.md")
+	require.NoError(t, os.WriteFile(instructionPath, []byte("project instructions"), 0o600))
+
+	api := agentcontextconfig.NewAPI(
+		logger,
+		func() string { return workDir },
+		agentcontextconfig.Config{},
+		agentcontextconfig.WithClock(clock),
+	)
+	api.MarkStartupSettled()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	api.Routes().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp workspacesdk.ContextConfigResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	ctxFiles := filterParts(resp.Parts, codersdk.ChatMessagePartTypeContextFile)
+	require.Len(t, ctxFiles, 1)
+	require.Equal(t, "project instructions", ctxFiles[0].ContextFileContent)
+}
+
+// TestHandleGet_ContextCancel verifies that handleGet returns a
+// 503 structured error when the request context cancels before
+// startup settles, and writes no partial JSON before the error.
+func TestHandleGet_ContextCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	timerTrap := clock.Trap().NewTimer("agentcontextconfig", "startup_gate")
+	defer timerTrap.Close()
+
+	api := agentcontextconfig.NewAPI(
+		logger,
+		func() string { return t.TempDir() },
+		agentcontextconfig.Config{},
+		agentcontextconfig.WithClock(clock),
+	)
+
+	reqCtx, cancel := context.WithCancel(ctx)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(reqCtx)
+
+	done := make(chan struct{})
+	go func() {
+		api.Routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	// Confirm the gate timer is scheduled, then cancel.
+	call := timerTrap.MustWait(ctx)
+	call.MustRelease(ctx)
+	cancel()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("handleGet did not return after context cancel")
+	}
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	var resp codersdk.Response
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.NotEmpty(t, resp.Message, "503 response must have a Message")
+}
+
+// TestHandleGet_TimeoutFallback verifies that after 35s without
+// settle, handleGet falls back to reading disk state and returns
+// 200, and logs a warning that the gate timed out.
+func TestHandleGet_TimeoutFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// Allow Warn-level "startup never settled" logs.
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	timerTrap := clock.Trap().NewTimer("agentcontextconfig", "startup_gate")
+	defer timerTrap.Close()
+
+	workDir := t.TempDir()
+	instructionPath := filepath.Join(workDir, "AGENTS.md")
+	require.NoError(t, os.WriteFile(instructionPath, []byte("disk fallback"), 0o600))
+
+	api := agentcontextconfig.NewAPI(
+		logger,
+		func() string { return workDir },
+		agentcontextconfig.Config{},
+		agentcontextconfig.WithClock(clock),
+	)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+
+	done := make(chan struct{})
+	go func() {
+		api.Routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	call := timerTrap.MustWait(ctx)
+	require.Equal(t, 35*time.Second, call.Duration)
+	call.MustRelease(ctx)
+
+	// Advance past the timeout. The gate fires and falls back.
+	clock.Advance(35 * time.Second).MustWait(ctx)
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("handleGet did not return after timeout fallback")
+	}
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp workspacesdk.ContextConfigResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	ctxFiles := filterParts(resp.Parts, codersdk.ChatMessagePartTypeContextFile)
+	require.Len(t, ctxFiles, 1)
+	require.Equal(t, "disk fallback", ctxFiles[0].ContextFileContent)
+}
+
+// TestMarkStartupSettled_Idempotent verifies that concurrent and
+// sequential calls to MarkStartupSettled are safe.
+func TestMarkStartupSettled_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	api := agentcontextconfig.NewAPI(
+		logger,
+		func() string { return t.TempDir() },
+		agentcontextconfig.Config{},
+	)
+
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			api.MarkStartupSettled()
+		}()
+	}
+	wg.Wait()
+
+	// Sequential calls afterwards are also safe.
+	api.MarkStartupSettled()
+	api.MarkStartupSettled()
+
+	// A request after settle proceeds without blocking.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	api.Routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
 }
