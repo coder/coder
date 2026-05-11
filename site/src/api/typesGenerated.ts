@@ -42,15 +42,15 @@ export interface AIBridgeBedrockConfig {
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
-	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly openai: AIBridgeOpenAIConfig;
 	/**
-	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
 	/**
-	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
@@ -59,7 +59,7 @@ export interface AIBridgeConfig {
 	 */
 	readonly providers?: readonly AIBridgeProviderConfig[];
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
@@ -915,7 +915,7 @@ export interface AppearanceConfig {
 	readonly logo_url: string;
 	readonly docs_url: string;
 	/**
-	 * Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
+	 * @deprecated ServiceBanner has been replaced by AnnouncementBanners.
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
@@ -1012,7 +1012,7 @@ export interface AuditLog {
 	readonly resource_link: string;
 	readonly is_deleted: boolean;
 	/**
-	 * Deprecated: Use 'organization.id' instead.
+	 * @deprecated Use 'organization.id' instead.
 	 */
 	readonly organization_id: string;
 	readonly organization?: MinimalOrganization;
@@ -3767,7 +3767,7 @@ export interface DeploymentValues {
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
-	 * Deprecated: Use HTTPAddress or TLS.Address instead.
+	 * @deprecated Use HTTPAddress or TLS.Address instead.
 	 */
 	readonly address?: string;
 }
@@ -4016,15 +4016,15 @@ export interface ExternalAuthConfig {
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_url: string;
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_tool_allow_regex: string;
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_tool_deny_regex: string;
 	/**
@@ -4234,7 +4234,7 @@ export interface GetInboxNotificationResponse {
 export interface GetUserStatusCountsRequest {
 	readonly timezone: string;
 	/**
-	 * Deprecated: Use Timezone instead. Offset is ignored when Timezone is provided.
+	 * @deprecated Use Timezone instead. Offset is ignored when Timezone is provided.
 	 */
 	readonly offset?: number;
 }
@@ -4349,7 +4349,7 @@ export interface GroupSyncSettings {
 	 * a Coder group name. Since configuration is now done at runtime,
 	 * group IDs are used to account for group renames.
 	 * For legacy configurations, this config option has to remain.
-	 * Deprecated: Use Mapping instead.
+	 * @deprecated Use Mapping instead.
 	 */
 	readonly legacy_group_name_mapping?: Record<string, string>;
 }
@@ -4446,10 +4446,10 @@ export interface HealthSettings {
 	readonly dismissed_healthchecks: readonly HealthSection[];
 }
 
+export const HealthSeverities: HealthSeverity[] = ["error", "ok", "warning"];
+
 // From health/model.go
 export type HealthSeverity = "error" | "ok" | "warning";
-
-export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
 
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
@@ -4487,7 +4487,7 @@ export interface HealthcheckReport {
 	readonly time: string;
 	/**
 	 * Healthy is true if the report returns no errors.
-	 * Deprecated: use `Severity` instead
+	 * @deprecated use `Severity` instead
 	 */
 	readonly healthy: boolean;
 	/**
@@ -6472,7 +6472,7 @@ export interface ReducedUser extends MinimalUser {
 	readonly login_type: LoginType;
 	readonly is_service_account?: boolean;
 	/**
-	 * Deprecated: this value should be retrieved from
+	 * @deprecated this value should be retrieved from
 	 * `codersdk.UserPreferenceSettings` instead.
 	 */
 	readonly theme_preference?: string;
@@ -6814,7 +6814,7 @@ export interface SSHConfig {
 export interface SSHConfigResponse {
 	/**
 	 * HostnamePrefix is the prefix we append to workspace names for SSH hostnames.
-	 * Deprecated: use HostnameSuffix instead.
+	 * @deprecated use HostnameSuffix instead.
 	 */
 	readonly hostname_prefix: string;
 	/**
@@ -6977,7 +6977,7 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 
 // From codersdk/deployment.go
 /**
- * Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
+ * @deprecated ServiceBannerConfig has been renamed to BannerConfig.
  */
 export interface ServiceBannerConfig {
 	readonly enabled: boolean;
@@ -7973,7 +7973,7 @@ export interface UpdateAppearanceConfig {
 	readonly application_name: string;
 	readonly logo_url: string;
 	/**
-	 * Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
+	 * @deprecated ServiceBanner has been replaced by AnnouncementBanners.
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
@@ -8507,7 +8507,7 @@ export interface UpdateWorkspaceSharingSettingsRequest {
 	/**
 	 * SharingDisabled is deprecated and left for backward compatibility
 	 * purposes.
-	 * Deprecated: use `ShareableWorkspaceOwners` instead
+	 * @deprecated use `ShareableWorkspaceOwners` instead
 	 */
 	readonly sharing_disabled?: boolean;
 	/**
@@ -9026,7 +9026,7 @@ export interface WorkspaceAgent {
 	/**
 	 * StartupScriptBehavior is a legacy field that is deprecated in favor
 	 * of the `coder_script` resource. It's only referenced by old clients.
-	 * Deprecated: Remove in the future!
+	 * @deprecated Remove in the future!
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 }
@@ -9506,12 +9506,12 @@ export interface WorkspaceAppStatus {
 	 */
 	readonly uri: string;
 	/**
-	 * Deprecated: This field is unused and will be removed in a future version.
+	 * @deprecated This field is unused and will be removed in a future version.
 	 * Icon is an external URL to an icon that will be rendered in the UI.
 	 */
 	readonly icon: string;
 	/**
-	 * Deprecated: This field is unused and will be removed in a future version.
+	 * @deprecated This field is unused and will be removed in a future version.
 	 * NeedsUserAttention specifies whether the status needs user attention.
 	 */
 	readonly needs_user_attention: boolean;
@@ -9564,7 +9564,7 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	/**
-	 * Deprecated: This field has been deprecated in favor of Task WorkspaceID.
+	 * @deprecated This field has been deprecated in favor of Task WorkspaceID.
 	 */
 	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
@@ -9763,7 +9763,7 @@ export interface WorkspaceSharingSettings {
 	/**
 	 * SharingDisabled is deprecated and left for backward compatibility
 	 * purposes.
-	 * Deprecated: use `ShareableWorkspaceOwners` instead
+	 * @deprecated use `ShareableWorkspaceOwners` instead
 	 */
 	readonly sharing_disabled: boolean;
 	/**
