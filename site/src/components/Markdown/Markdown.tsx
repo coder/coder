@@ -173,7 +173,13 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const mainParentNode = jsxChildren.find(isValidElement<PropsWithChildren>);
+	const mainParentNodeIndex = jsxChildren.findIndex(
+		isValidElement<PropsWithChildren>,
+	);
+	const mainParentNode = jsxChildren[mainParentNodeIndex];
+	if (!isValidElement<PropsWithChildren>(mainParentNode)) {
+		return null;
+	}
 	let parentChildren = mainParentNode?.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
@@ -257,11 +263,23 @@ function parseChildrenAsAlertContent(
 		remainingChildren.shift();
 	}
 
+	const blockSiblingChildren = jsxChildren
+		.slice(mainParentNodeIndex + 1)
+		.filter((el) => {
+			if (isValidElement(el)) {
+				return true;
+			}
+			return typeof el === "string" && el !== "\n";
+		});
+
 	// GitHub's GFM alerts preserve line breaks within alert content,
 	// but the markdown parser treats them as soft wraps (spaces).
 	// Convert embedded newlines in text nodes to <br/> elements to
 	// match GitHub's rendering behavior.
-	const withLineBreaks: ReactNode[] = remainingChildren.flatMap((child, i) => {
+	const withLineBreaks: ReactNode[] = [
+		...remainingChildren,
+		...blockSiblingChildren,
+	].flatMap((child, i) => {
 		if (typeof child !== "string" || !child.includes("\n")) {
 			return [child];
 		}
