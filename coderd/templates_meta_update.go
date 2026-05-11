@@ -49,13 +49,16 @@ type templateMetaUpdate struct {
 // either the request value (when present) or the existing template's
 // value (when the request field is nil).
 //
-// It also performs the parsing-only portion of validation for the
-// autostop/autostart day-of-week bitmaps and CORS behavior. Any errors
-// produced here are user-facing validation errors that the caller must
-// surface as 400 Bad Request.
+// This function validates shape, not contents: it parses the
+// autostop/autostart day-of-week strings into bitmaps and ensures any
+// non-empty CORS behavior is a recognized enum. Errors it returns are
+// user-facing validation errors the caller must surface as 400 Bad
+// Request.
 //
-// Validation that depends on external interfaces (port sharing
-// licensure) is intentionally left to the caller.
+// Range and content checks (e.g. activityBumpMillis >= 0,
+// failureTTLMillis >= 1 minute, max port share level) and validation
+// that depends on external interfaces (such as port-sharing licensure)
+// are the caller's responsibility.
 func resolveTemplateMetaUpdate(
 	template database.Template,
 	scheduleOpts schedule.TemplateScheduleOptions,
