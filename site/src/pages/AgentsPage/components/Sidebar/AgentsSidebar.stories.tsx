@@ -145,6 +145,38 @@ export const ChatWithTurnSummary: Story = {
 	},
 };
 
+/**
+ * While the chat is streaming again the cached last_turn_summary still
+ * holds the previous turn's text. The sidebar replaces it with a live
+ * "{model} streaming…" label so the status does not look stuck.
+ */
+export const ChatStreamingOverridesTurnSummary: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-streaming-running",
+				title: "Update workspace template",
+				status: "running",
+				last_turn_summary: "Added Docker and Terraform validation",
+			}),
+			buildChat({
+				id: "chat-streaming-pending",
+				title: "Queued continuation",
+				status: "pending",
+				last_turn_summary: "Added Docker and Terraform validation",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getAllByText("GPT-4o streaming…")).toHaveLength(2);
+		expect(
+			canvas.queryByText("Added Docker and Terraform validation"),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const ChatWithTurnSummaryAndError: Story = {
 	args: {
 		chats: [

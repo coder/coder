@@ -500,7 +500,13 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
-	const subtitle = errorReason || lastTurnSummary || modelName;
+	// While a turn is in flight the cached last_turn_summary still holds
+	// the previous turn's text. Surface a live "{model} streaming…" label
+	// instead so the sidebar does not look stuck on the old status.
+	const isStreaming = chat.status === "running" || chat.status === "pending";
+	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	const subtitle =
+		errorReason || streamingSubtitle || lastTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
