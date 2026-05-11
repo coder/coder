@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"os/user"
 	"testing"
 
 	gliderssh "github.com/gliderlabs/ssh"
@@ -204,4 +205,189 @@ func (testSSHContext) SetValue(_, _ interface{}) {
 
 func (testSSHContext) KeepAlive() *gliderssh.SessionKeepAlive {
 	panic("not implemented")
+}
+
+func TestFilterLoginEnv(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "DropsLoginVars",
+			in:   []string{"USER=root", "LOGNAME=root", "SHELL=/bin/bash", "PATH=/usr/bin"},
+			want: []string{"PATH=/usr/bin"},
+		},
+		{
+			name: "KeepsEntriesWithoutEquals",
+			in:   []string{"NOEQUALS", "SHELL=/bin/bash", "OK=1"},
+			want: []string{"NOEQUALS", "OK=1"},
+		},
+		{
+			name: "CaseSensitive",
+			in:   []string{"shell=foo", "Shell=bar", "SHELL=baz"},
+			// USER/LOGNAME/SHELL are upper-case in POSIX, and
+			// usershell.SystemEnvInfo.Shell only emits the upper-case
+			// SHELL= key (see agent/usershell/usershell.go). The agent
+			// therefore only needs to strip the upper-case forms; a
+			// lower-case "shell" set by a user must pass through.
+			want: []string{"shell=foo", "Shell=bar"},
+		},
+		{
+			name: "EmptyInput",
+			in:   []string{},
+			want: []string{},
+		},
+		{
+			name: "EmptyValueStillFiltered",
+			in:   []string{"SHELL=", "PATH=/x"},
+			want: []string{"PATH=/x"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := filterLoginEnv(tt.in)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// Regression test for https://github.com/coder/coder/issues/24414.
+// The agent process snapshots SHELL=/bin/bash from os.Environ() at
+// startup, then the workspace startup script runs `chsh -s /usr/bin/zsh`.
+// Sessions created afterwards must see SHELL=/usr/bin/zsh (the fresh
+// /etc/passwd value), not the stale snapshot.
+func TestCommandEnv_FreshShellWinsOverStaleEnv(t *testing.T) {
+	t.Parallel()
+
+	stale := []string{
+		// What os.Environ() returns inside the agent process after
+		// the agent booted but before chsh ran.
+		"SHELL=/bin/bash",
+		"USER=staleuser",
+		"LOGNAME=staleuser",
+		"PATH=/usr/bin",
+	}
+	ei := &fakeEnvInfoer{
+		userFn:    func() (*user.User, error) { return &user.User{Username: "coder", HomeDir: "/home/coder"}, nil },
+		shellFn:   func(string) (string, error) { return "/usr/bin/zsh", nil },
+		environFn: func() []string { return stale },
+		homeDirFn: func() (string, error) { return "/home/coder", nil },
+	}
+
+	s := &Server{config: &Config{
+		WorkingDirectory: func() string { return "/home/coder" },
+		UpdateEnv: func(current []string) ([]string, error) {
+			// Mirror agent.updateCommandEnv's first-wins dedup. With
+			// the legacy ordering (SHELL=/bin/bash from os.Environ
+			// first), this loop would lock in the stale shell.
+			seen := map[string]string{}
+			for _, kv := range current {
+				key, val, ok := splitEnv(kv)
+				if !ok {
+					continue
+				}
+				if _, dup := seen[key]; !dup {
+					seen[key] = val
+				}
+			}
+			out := make([]string, 0, len(seen))
+			for k, v := range seen {
+				out = append(out, k+"="+v)
+			}
+			return out, nil
+		},
+	}}
+
+	shell, _, env, err := s.CommandEnv(ei, nil)
+	require.NoError(t, err)
+	require.Equal(t, "/usr/bin/zsh", shell, "Shell return value must come from the passwd read")
+
+	got := envMap(env)
+	require.Equal(t, "/usr/bin/zsh", got["SHELL"], "fresh SHELL must win over the stale agent-startup snapshot")
+	require.Equal(t, "coder", got["USER"], "fresh USER must win over the stale snapshot")
+	require.Equal(t, "coder", got["LOGNAME"], "fresh LOGNAME must win over the stale snapshot")
+	require.Equal(t, "/usr/bin", got["PATH"], "non-login env vars from the agent process must still be inherited")
+}
+
+// addEnv (passed by users via e.g. `coder ssh --env SHELL=...`) wins
+// over both the stale snapshot and the fresh passwd value. This locks
+// in the precedence order the CommandEnv docstring promises and
+// guards against an over-aggressive fix to #24414 that would also
+// drop user-specified overrides.
+func TestCommandEnv_AddEnvShellWins(t *testing.T) {
+	t.Parallel()
+
+	ei := &fakeEnvInfoer{
+		userFn:    func() (*user.User, error) { return &user.User{Username: "coder", HomeDir: "/home/coder"}, nil },
+		shellFn:   func(string) (string, error) { return "/usr/bin/zsh", nil },
+		environFn: func() []string { return []string{"SHELL=/bin/bash"} },
+		homeDirFn: func() (string, error) { return "/home/coder", nil },
+	}
+
+	s := &Server{config: &Config{
+		WorkingDirectory: func() string { return "/home/coder" },
+		UpdateEnv: func(current []string) ([]string, error) {
+			seen := map[string]string{}
+			for _, kv := range current {
+				key, val, ok := splitEnv(kv)
+				if !ok {
+					continue
+				}
+				if _, dup := seen[key]; !dup {
+					seen[key] = val
+				}
+			}
+			out := make([]string, 0, len(seen))
+			for k, v := range seen {
+				out = append(out, k+"="+v)
+			}
+			return out, nil
+		},
+	}}
+
+	_, _, env, err := s.CommandEnv(ei, []string{"SHELL=/opt/fish/bin/fish"})
+	require.NoError(t, err)
+	require.Equal(t, "/opt/fish/bin/fish", envMap(env)["SHELL"],
+		"explicit addEnv SHELL must override both the stale snapshot and the passwd value")
+}
+
+type fakeEnvInfoer struct {
+	userFn    func() (*user.User, error)
+	shellFn   func(string) (string, error)
+	environFn func() []string
+	homeDirFn func() (string, error)
+}
+
+func (f *fakeEnvInfoer) User() (*user.User, error)      { return f.userFn() }
+func (f *fakeEnvInfoer) Shell(u string) (string, error) { return f.shellFn(u) }
+func (f *fakeEnvInfoer) Environ() []string              { return f.environFn() }
+func (f *fakeEnvInfoer) HomeDir() (string, error)       { return f.homeDirFn() }
+func (*fakeEnvInfoer) ModifyCommand(c string, a ...string) (string, []string) {
+	return c, a
+}
+
+func splitEnv(kv string) (string, string, bool) {
+	for i := 0; i < len(kv); i++ {
+		if kv[i] == '=' {
+			return kv[:i], kv[i+1:], true
+		}
+	}
+	return "", "", false
+}
+
+func envMap(env []string) map[string]string {
+	m := map[string]string{}
+	for _, kv := range env {
+		k, v, ok := splitEnv(kv)
+		if !ok {
+			continue
+		}
+		m[k] = v
+	}
+	return m
 }

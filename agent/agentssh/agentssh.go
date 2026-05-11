@@ -931,7 +931,16 @@ func (s *Server) CommandEnv(ei usershell.EnvInfoer, addEnv []string) (shell, dir
 		}
 		dir = homedir
 	}
-	env = append(ei.Environ(), addEnv...)
+	// USER, LOGNAME, and SHELL captured at agent process startup go
+	// stale when the workspace startup script edits /etc/passwd
+	// (e.g. `chsh -s /usr/bin/zsh`). Drop them here so the fresh
+	// values appended below win during the agent's first-wins
+	// dedup in updateCommandEnv. See coder/coder#24414. Values
+	// passed in via addEnv (template env vars, `coder ssh --env ...`)
+	// still take precedence because addEnv comes before the fresh
+	// values in the list and therefore wins the dedup.
+	env = filterLoginEnv(ei.Environ())
+	env = append(env, addEnv...)
 	// Set login variables (see `man login`).
 	env = append(env, fmt.Sprintf("USER=%s", username))
 	env = append(env, fmt.Sprintf("LOGNAME=%s", username))
@@ -943,6 +952,28 @@ func (s *Server) CommandEnv(ei usershell.EnvInfoer, addEnv []string) (shell, dir
 	}
 
 	return shell, dir, env, nil
+}
+
+// filterLoginEnv returns env with any USER, LOGNAME, or SHELL entries
+// removed. CommandEnv re-derives these from /etc/passwd on every
+// session so the inherited values from the agent process (captured at
+// agent startup) cannot leak into sessions after the startup script
+// runs `chsh` / `usermod`.
+func filterLoginEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, kv := range env {
+		key, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			filtered = append(filtered, kv)
+			continue
+		}
+		switch key {
+		case "USER", "LOGNAME", "SHELL":
+			continue
+		}
+		filtered = append(filtered, kv)
+	}
+	return filtered
 }
 
 // CreateCommand processes raw command input with OpenSSH-like behavior.
