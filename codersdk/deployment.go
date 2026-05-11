@@ -645,6 +645,7 @@ type DeploymentValues struct {
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1461,6 +1462,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
 			YAML:        "retention",
+		}
+		deploymentGroupTemplateBuilder = serpent.Group{
+			Name: "Template Builder",
+			YAML: "templateBuilder",
 		}
 	)
 
@@ -3990,6 +3995,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "allowed_private_cidrs",
 		},
+		{
+			Name:        "AI Bridge Proxy API Dump Directory",
+			Description: "Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
+			Flag:        "aibridge-proxy-dump-dir",
+			Env:         "CODER_AIBRIDGE_PROXY_DUMP_DIR",
+			Value:       &c.AI.BridgeProxyConfig.APIDumpDir,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "api_dump_dir",
+		},
 
 		// Retention settings
 		{
@@ -4048,6 +4063,25 @@ Write out the current server config as YAML to stdout.`,
 			// Do not show this option ever. It is a developer tool only, and not to be
 			// used externally.
 			Hidden: true,
+		},
+		{
+			Name:        "Disable Template Builder",
+			Description: "Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.",
+			Flag:        "disable-template-builder",
+			Env:         "CODER_DISABLE_TEMPLATE_BUILDER",
+			Value:       &c.TemplateBuilder.Disabled,
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "disabled",
+		},
+		{
+			Name:        "Template Builder Registry URL",
+			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Flag:        "template-builder-registry-url",
+			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
+			Value:       &c.TemplateBuilder.RegistryURL,
+			Default:     "https://registry.coder.com",
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "registryURL",
 		},
 	}
 
@@ -4144,6 +4178,7 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
 	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
+	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type ChatConfig struct {
@@ -4155,6 +4190,11 @@ type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
+}
+
+type TemplateBuilderConfig struct {
+	Disabled    serpent.Bool   `json:"disabled,omitempty"`
+	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
 type SupportConfig struct {

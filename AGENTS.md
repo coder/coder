@@ -110,9 +110,6 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 - For experimental or unstable API paths, skip public doc generation with
   `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
   keeps them out of the published API reference until they stabilize.
-- Experimental chat endpoints in `coderd/exp_chats.go` omit swagger
-  annotations entirely. Do not add `@Summary`, `@Router`, or other
-  swagger comments to handlers in that file.
 
 ### Database Query Naming
 

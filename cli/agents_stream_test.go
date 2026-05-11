@@ -116,7 +116,7 @@ func TestConsumeChatStreamText(t *testing.T) {
 		{Type: codersdk.ChatStreamEventTypeMessage, Message: &codersdk.ChatMessage{ID: 1, ChatID: uuid.New(), Role: codersdk.ChatMessageRoleAssistant, Content: []codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeText, Text: "Hello world"}}}},
 		{Type: codersdk.ChatStreamEventTypeStatus, Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning}},
 		{Type: codersdk.ChatStreamEventTypeRetry, Retry: &codersdk.ChatStreamRetry{Attempt: 2, Error: "rate limited"}},
-		{Type: codersdk.ChatStreamEventTypeError, Error: &codersdk.ChatStreamError{Message: "boom"}},
+		{Type: codersdk.ChatStreamEventTypeError, Error: &codersdk.ChatError{Message: "boom"}},
 	} {
 		events <- event
 	}

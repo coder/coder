@@ -44,7 +44,7 @@ import (
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspacebuilds/{workspacebuild} [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild} [get]
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -113,7 +113,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 // @Param offset query int false "Page offset"
 // @Param since query string false "Since timestamp" format(date-time)
 // @Success 200 {array} codersdk.WorkspaceBuild
-// @Router /workspaces/{workspace}/builds [get]
+// @Router /api/v2/workspaces/{workspace}/builds [get]
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -230,7 +230,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 // @Param workspacename path string true "Workspace name"
 // @Param buildnumber path string true "Build number" format(number)
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
+// @Router /api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	mems := httpmw.OrganizationMembersParam(r)
@@ -324,7 +324,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspaces/{workspace}/builds [post]
+// @Router /api/v2/workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -662,7 +662,7 @@ func (api *API) notifyWorkspaceUpdated(
 // @Param workspacebuild path string true "Workspace build ID"
 // @Param expect_status query string false "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation." Enums(running, pending)
 // @Success 200 {object} codersdk.Response
-// @Router /workspacebuilds/{workspacebuild}/cancel [patch]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -817,7 +817,7 @@ func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Stor
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {array} codersdk.WorkspaceBuildParameter
-// @Router /workspacebuilds/{workspacebuild}/parameters [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/parameters [get]
 func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -845,7 +845,7 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 // @Param follow query bool false "Follow log stream"
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
-// @Router /workspacebuilds/{workspacebuild}/logs [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/logs [get]
 func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -868,7 +868,7 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspacebuilds/{workspacebuild}/state [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/state [get]
 func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -900,7 +900,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceBuildStateRequest true "Request body"
 // @Success 204
-// @Router /workspacebuilds/{workspacebuild}/state [put]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/state [put]
 func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -956,7 +956,7 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceBuildTimings
-// @Router /workspacebuilds/{workspacebuild}/timings [get]
+// @Router /api/v2/workspacebuilds/{workspacebuild}/timings [get]
 func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()

@@ -1993,6 +1993,16 @@ Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS conne
 
 Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.
 
+### --aibridge-proxy-dump-dir
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_DUMP_DIR</code> |
+| YAML        | <code>aibridgeproxy.api_dump_dir</code>     |
+
+Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.
+
 ### --audit-logs-retention
 
 |             |                                          |
@@ -2036,3 +2046,24 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+
+### --disable-template-builder
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_DISABLE_TEMPLATE_BUILDER</code> |
+| YAML        | <code>templateBuilder.disabled</code>        |
+
+Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
+
+### --template-builder-registry-url
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
+| YAML        | <code>templateBuilder.registryURL</code>          |
+| Default     | <code>https://registry.coder.com</code>           |
+
+The base URL of the module registry used by the template builder for module source paths.

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -29,6 +30,18 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func chatLastErrorMessage(raw pqtype.NullRawMessage) string {
+	if !raw.Valid {
+		return ""
+	}
+
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
+		return payload.Message
+	}
+	return string(raw.RawMessage)
+}
 
 func newTestServer(
 	t *testing.T,
@@ -420,8 +433,13 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 
 	chat := seedRemoteRunningChat(ctx, t, db, org.ID, user, model, workerID, "relay-snapshot")
+	staleChat := chat
+	staleChat.Status = database.ChatStatusWaiting
+	staleChat.WorkerID = uuid.NullUUID{}
+	staleChat.StartedAt = sql.NullTime{}
+	staleChat.HeartbeatAt = sql.NullTime{}
 
-	initialSnapshot, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	initialSnapshot, events, cancel, ok := subscriber.SubscribeAuthorized(ctx, staleChat, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -445,15 +463,15 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 
 	require.Equal(t, []string{"snap-one", "snap-two", "live-part"}, receivedTexts)
 
-	// The initial snapshot should still contain the status event
-	// from the OSS preamble.
-	var hasStatus bool
+	// The initial snapshot should contain the refreshed running status,
+	// not the stale waiting status passed into SubscribeAuthorized.
+	var snapshotStatus codersdk.ChatStatus
 	for _, event := range initialSnapshot {
-		if event.Type == codersdk.ChatStreamEventTypeStatus {
-			hasStatus = true
+		if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+			snapshotStatus = event.Status.Status
 		}
 	}
-	require.True(t, hasStatus, "initial snapshot should contain status event")
+	require.Equal(t, codersdk.ChatStatusRunning, snapshotStatus)
 }
 
 func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
@@ -574,7 +592,7 @@ func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
 	require.NotNil(t, retryEvent)
 	require.Equal(t, 1, retryEvent.Attempt)
 	require.Greater(t, retryEvent.DelayMs, int64(0))
-	require.Equal(t, "rate_limit", retryEvent.Kind)
+	require.Equal(t, codersdk.ChatErrorKindRateLimit, retryEvent.Kind)
 	require.Equal(t, "openai", retryEvent.Provider)
 	require.Equal(t, 429, retryEvent.StatusCode)
 	require.Contains(t, retryEvent.Error, "rate limiting requests")
@@ -1426,6 +1444,7 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	workerID := uuid.New()
 	subscriberID := uuid.New()
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -1440,16 +1459,19 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 	// Freeze the worker's clock so streamJanitorLoop cannot race the
 	// buffer-retained assertion on slow CI.
 	workerClock := quartz.NewMock(t)
+	trapAcquire := workerClock.Trap().NewTicker("chatd", "acquire")
+	defer trapAcquire.Close()
 	worker := osschatd.New(osschatd.Config{
 		Logger:                     workerLogger,
 		Database:                   db,
 		ReplicaID:                  workerID,
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: time.Hour,
+		PendingChatAcquireInterval: time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Clock:                      workerClock,
 	})
 	worker.Start()
+	trapAcquire.MustWait(ctx).MustRelease(ctx)
 	t.Cleanup(func() {
 		require.NoError(t, worker.Close())
 	})
@@ -1483,23 +1505,41 @@ func TestSubscribeRelayDrainWithinGraceLeavesBufferRetained(t *testing.T) {
 		return snapshot, relayEvents, cancel, nil
 	}, subscriberClock)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-drain-characterization")
+
+	// Seed the pending turn directly instead of using SendMessage.
+	// SendMessage publishes a pending control notification that is
+	// irrelevant to this relay-retention case. Under CI that
+	// notification can arrive after processChat arms its control
+	// subscription and interrupt the worker before it emits parts.
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`[{"type":"text","text":"hello"}]`),
+			Valid:      true,
+		},
+	})
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusPending,
+	})
+	require.NoError(t, err)
 
 	// Attach before processing so the relay opens as soon as
 	// status=running arrives.
 	_, events, subCancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 
-	_, err := worker.SendMessage(ctx, osschatd.SendMessageOptions{
-		ChatID:    chat.ID,
-		CreatedBy: user.ID,
-		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
+	// Wake the worker with the acquire ticker. This keeps the
+	// setup free of pending control notifications while still
+	// exercising the normal processing loop.
+	workerClock.Advance(time.Millisecond).MustWait(ctx)
 
 	// Drain events until processing has clearly completed: we need
 	// the assistant message and at least one message_part so we know
@@ -1712,14 +1752,14 @@ waitForStream:
 			currentChat, dbErr := db.GetChatByID(ctx, chat.ID)
 			if dbErr == nil && currentChat.Status == database.ChatStatusError {
 				t.Fatalf("worker failed to process chat: status=%s last_error=%s",
-					currentChat.Status, currentChat.LastError.String)
+					currentChat.Status, chatLastErrorMessage(currentChat.LastError))
 			}
 		case <-ctx.Done():
 			// Dump the final chat status for debugging.
 			currentChat, dbErr := db.GetChatByID(context.Background(), chat.ID)
 			if dbErr == nil {
 				t.Fatalf("timed out waiting for worker to start streaming (chat status=%s, last_error=%q)",
-					currentChat.Status, currentChat.LastError.String)
+					currentChat.Status, chatLastErrorMessage(currentChat.LastError))
 			}
 			t.Fatal("timed out waiting for worker to start streaming")
 		}

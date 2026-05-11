@@ -26,7 +26,7 @@ import (
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} codersdk.GroupSyncSettings
-// @Router /organizations/{organization}/settings/idpsync/groups [get]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/groups [get]
 func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -56,7 +56,7 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.GroupSyncSettings true "New settings"
 // @Success 200 {object} codersdk.GroupSyncSettings
-// @Router /organizations/{organization}/settings/idpsync/groups [patch]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/groups [patch]
 func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -140,7 +140,7 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncConfigRequest true "New config values"
-// @Router /organizations/{organization}/settings/idpsync/groups/config [patch]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/groups/config [patch]
 func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -213,7 +213,7 @@ func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request)
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncMappingRequest true "Description of the mappings to add and remove"
-// @Router /organizations/{organization}/settings/idpsync/groups/mapping [patch]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/groups/mapping [patch]
 func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -285,7 +285,7 @@ func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} codersdk.RoleSyncSettings
-// @Router /organizations/{organization}/settings/idpsync/roles [get]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/roles [get]
 func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -315,7 +315,7 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.RoleSyncSettings true "New settings"
 // @Success 200 {object} codersdk.RoleSyncSettings
-// @Router /organizations/{organization}/settings/idpsync/roles [patch]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/roles [patch]
 func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -380,7 +380,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 // @Success 200 {object} codersdk.RoleSyncSettings
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchRoleIDPSyncConfigRequest true "New config values"
-// @Router /organizations/{organization}/settings/idpsync/roles/config [patch]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/roles/config [patch]
 func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -447,7 +447,7 @@ func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) 
 // @Success 200 {object} codersdk.RoleSyncSettings
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchRoleIDPSyncMappingRequest true "Description of the mappings to add and remove"
-// @Router /organizations/{organization}/settings/idpsync/roles/mapping [patch]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/roles/mapping [patch]
 func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -512,7 +512,7 @@ func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request)
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
-// @Router /settings/idpsync/organization [get]
+// @Router /api/v2/settings/idpsync/organization [get]
 func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -544,7 +544,7 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
 // @Param request body codersdk.OrganizationSyncSettings true "New settings"
-// @Router /settings/idpsync/organization [patch]
+// @Router /api/v2/settings/idpsync/organization [patch]
 func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.AGPL.Auditor.Load()
@@ -608,7 +608,7 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
 // @Param request body codersdk.PatchOrganizationIDPSyncConfigRequest true "New config values"
-// @Router /settings/idpsync/organization/config [patch]
+// @Router /api/v2/settings/idpsync/organization/config [patch]
 func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.AGPL.Auditor.Load()
@@ -674,7 +674,7 @@ func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.R
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
 // @Param request body codersdk.PatchOrganizationIDPSyncMappingRequest true "Description of the mappings to add and remove"
-// @Router /settings/idpsync/organization/mapping [patch]
+// @Router /api/v2/settings/idpsync/organization/mapping [patch]
 func (api *API) patchOrganizationIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.AGPL.Auditor.Load()
@@ -740,7 +740,7 @@ func (api *API) patchOrganizationIDPSyncMapping(rw http.ResponseWriter, r *http.
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} string
-// @Router /organizations/{organization}/settings/idpsync/available-fields [get]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/available-fields [get]
 func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
 	api.idpSyncClaimFields(org.ID, rw, r)
@@ -753,7 +753,7 @@ func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.R
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} string
-// @Router /settings/idpsync/available-fields [get]
+// @Router /api/v2/settings/idpsync/available-fields [get]
 func (api *API) deploymentIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
 	// nil uuid implies all organizations
 	api.idpSyncClaimFields(uuid.Nil, rw, r)
@@ -788,7 +788,7 @@ func (api *API) idpSyncClaimFields(orgID uuid.UUID, rw http.ResponseWriter, r *h
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param claimField query string true "Claim Field" format(string)
 // @Success 200 {array} string
-// @Router /organizations/{organization}/settings/idpsync/field-values [get]
+// @Router /api/v2/organizations/{organization}/settings/idpsync/field-values [get]
 func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
 	api.idpSyncClaimFieldValues(org.ID, rw, r)
@@ -802,7 +802,7 @@ func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *h
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param claimField query string true "Claim Field" format(string)
 // @Success 200 {array} string
-// @Router /settings/idpsync/field-values [get]
+// @Router /api/v2/settings/idpsync/field-values [get]
 func (api *API) deploymentIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
 	// nil uuid implies all organizations
 	api.idpSyncClaimFieldValues(uuid.Nil, rw, r)

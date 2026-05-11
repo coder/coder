@@ -150,7 +150,7 @@ func (u *sdkAppStatusUpdater) initialize(ctx context.Context, logger slog.Logger
 		codersdk.WithLogger(logger),
 		codersdk.WithLogBodies(),
 	)
-	drpcClient, _, err := agentClient.ConnectRPC28WithRole(ctx, "")
+	drpcClient, _, err := agentClient.ConnectRPC29WithRole(ctx, "")
 	if err != nil {
 		return xerrors.Errorf("connect to agent dRPC endpoint: %w", err)
 	}

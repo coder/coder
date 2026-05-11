@@ -198,11 +198,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 
-			var setCalled int64
+			var setCalled atomic.Int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						atomic.AddInt64(&setCalled, 1)
+						setCalled.Add(1)
 						require.False(t, options.UserAutostartEnabled)
 						require.False(t, options.UserAutostopEnabled)
 						template.AllowUserAutostart = options.UserAutostartEnabled
@@ -225,7 +225,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 1, setCalled.Load())
 			require.False(t, got.AllowUserAutostart)
 			require.False(t, got.AllowUserAutostop)
 		})
@@ -275,11 +275,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Run("None", func(t *testing.T) {
 			t.Parallel()
 
-			var setCalled int64
+			var setCalled atomic.Int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						atomic.AddInt64(&setCalled, 1)
+						setCalled.Add(1)
 						assert.Zero(t, options.AutostopRequirement.DaysOfWeek)
 						assert.Zero(t, options.AutostopRequirement.Weeks)
 
@@ -317,7 +317,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 1, setCalled.Load())
 			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
@@ -325,11 +325,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 
-			var setCalled int64
+			var setCalled atomic.Int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						atomic.AddInt64(&setCalled, 1)
+						setCalled.Add(1)
 						assert.EqualValues(t, 0b00110000, options.AutostopRequirement.DaysOfWeek)
 						assert.EqualValues(t, 2, options.AutostopRequirement.Weeks)
 
@@ -371,7 +371,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 1, setCalled.Load())
 			require.Equal(t, []string{"friday", "saturday"}, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, got.AutostopRequirement.Weeks)
 
@@ -1135,11 +1135,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 
-			var setCalled int64
+			var setCalled atomic.Int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						if atomic.AddInt64(&setCalled, 1) == 2 {
+						if setCalled.Add(1) == 2 {
 							require.Equal(t, failureTTL, options.FailureTTL)
 							require.Equal(t, inactivityTTL, options.TimeTilDormant)
 							require.Equal(t, timeTilDormantAutoDelete, options.TimeTilDormantAutoDelete)
@@ -1176,7 +1176,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 2, setCalled.Load())
 			require.Equal(t, failureTTL.Milliseconds(), got.FailureTTLMillis)
 			require.Equal(t, inactivityTTL.Milliseconds(), got.TimeTilDormantMillis)
 			require.Equal(t, timeTilDormantAutoDelete.Milliseconds(), got.TimeTilDormantAutoDeleteMillis)
@@ -1225,7 +1225,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			t.Parallel()
 
 			var (
-				setCalled      int64
+				setCalled      atomic.Int64
 				allowAutostart atomic.Bool
 				allowAutostop  atomic.Bool
 			)
@@ -1234,7 +1234,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						atomic.AddInt64(&setCalled, 1)
+						setCalled.Add(1)
 						assert.Equal(t, allowAutostart.Load(), options.UserAutostartEnabled)
 						assert.Equal(t, allowAutostop.Load(), options.UserAutostopEnabled)
 
@@ -1271,7 +1271,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 2, setCalled.Load())
 			require.Equal(t, allowAutostart.Load(), got.AllowUserAutostart)
 			require.Equal(t, allowAutostop.Load(), got.AllowUserAutostop)
 		})
@@ -1400,11 +1400,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 
-			var setCalled int64
+			var setCalled atomic.Int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						if atomic.AddInt64(&setCalled, 1) == 2 {
+						if setCalled.Add(1) == 2 {
 							assert.EqualValues(t, 0b0110000, options.AutostopRequirement.DaysOfWeek)
 							assert.EqualValues(t, 2, options.AutostopRequirement.Weeks)
 						}
@@ -1434,7 +1434,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 1, setCalled.Load())
 			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
@@ -1456,7 +1456,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 			require.NoError(t, err)
-			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 2, setCalled.Load())
 			require.Equal(t, []string{"friday", "saturday"}, updated.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, updated.AutostopRequirement.Weeks)
 
@@ -1471,11 +1471,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 		t.Run("Unset", func(t *testing.T) {
 			t.Parallel()
 
-			var setCalled int64
+			var setCalled atomic.Int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						if atomic.AddInt64(&setCalled, 1) == 2 {
+						if setCalled.Add(1) == 2 {
 							assert.EqualValues(t, 0, options.AutostopRequirement.DaysOfWeek)
 							assert.EqualValues(t, 1, options.AutostopRequirement.Weeks)
 						}
@@ -1511,7 +1511,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 					Weeks:      2,
 				}
 			})
-			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 1, setCalled.Load())
 			require.Equal(t, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, template.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
@@ -1532,7 +1532,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 			require.NoError(t, err)
-			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 2, setCalled.Load())
 			require.Empty(t, updated.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, updated.AutostopRequirement.Weeks)
 

@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.25.9
+go 1.26.2
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -86,8 +86,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 7) coder/fantasy#mike/openai-responses-continuity, OpenAI Responses replay safety:
 //    replay stored reasoning item references, only replay web_search references
 //    when paired with reasoning, and validate function_call output pairing.
-// See: https://github.com/coder/fantasy/commits/f83367a4a205
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260426185602-951a49c681df
+// 8) coder/fantasy#33, fail closed when Anthropic or OpenAI Responses
+//    streams close before their terminal events.
+// See: https://github.com/coder/fantasy/commits/246c4ae7aff9e
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260507124503-246c4ae7aff9
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -132,7 +134,7 @@ require (
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
-	github.com/coder/serpent v0.14.0
+	github.com/coder/serpent v0.15.0
 	github.com/coder/terraform-provider-coder/v2 v2.16.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
@@ -159,7 +161,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-playground/validator/v10 v10.30.0
 	github.com/gofrs/flock v0.13.0
-	github.com/gohugoio/hugo v0.160.0
+	github.com/gohugoio/hugo v0.161.1
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
@@ -181,9 +183,9 @@ require (
 	github.com/justinas/nosurf v1.2.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.6
 	github.com/lib/pq v1.10.9
-	github.com/mattn/go-isatty v0.0.20
+	github.com/mattn/go-isatty v0.0.22
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/mocktools/go-smtp-mock/v2 v2.5.0
@@ -212,7 +214,7 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	github.com/u-root/u-root v0.14.0
 	github.com/unrolled/secure v1.17.0
-	github.com/valyala/fasthttp v1.70.0
+	github.com/valyala/fasthttp v1.71.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.2.0
 	go.mozilla.org/pkcs7 v0.9.0
@@ -237,8 +239,8 @@ require (
 	golang.org/x/text v0.36.0
 	golang.org/x/tools v0.44.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.275.0
-	google.golang.org/grpc v1.80.0
+	google.golang.org/api v0.277.0
+	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -283,13 +285,13 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.41.5
+	github.com/aws/aws-sdk-go-v2 v1.41.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.12
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.20 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.14
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.21 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.21 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.22 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
@@ -350,8 +352,8 @@ require (
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
-	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
+	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -407,7 +409,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/runc v1.2.8 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
 	github.com/pion/transport/v2 v2.2.10 // indirect
@@ -435,7 +437,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
-	github.com/tdewolff/parse/v2 v2.8.11 // indirect
+	github.com/tdewolff/parse/v2 v2.8.12 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1
 	github.com/tinylib/msgp v1.2.5 // indirect
@@ -477,9 +479,9 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260319201613-d00831a3d3e7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260427160629-7cedc36a6bc4 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
-	howett.net/plist v1.0.0 // indirect
+	howett.net/plist v1.0.1 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
@@ -500,6 +502,7 @@ require (
 require (
 	charm.land/fantasy v0.8.1
 	github.com/anthropics/anthropic-sdk-go v1.19.0
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
@@ -509,7 +512,7 @@ require (
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.18.0
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mark3labs/mcp-go v0.38.0
@@ -544,7 +547,6 @@ require (
 	github.com/aquasecurity/jfather v0.0.8 // indirect
 	github.com/aquasecurity/trivy v0.61.1-0.20250407075540-f1329c7ea1aa // indirect
 	github.com/aquasecurity/trivy-checks v1.12.2-0.20251219190323-79d27547baf5 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3 // indirect
@@ -623,6 +625,7 @@ require (
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
+	github.com/tdewolff/test v1.0.12 // indirect
 	github.com/tmaxmax/go-sse v0.11.0 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/urfave/cli/v2 v2.27.5 // indirect
@@ -632,7 +635,7 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
-	go.opentelemetry.io/contrib/detectors/gcp v1.40.0 // indirect
+	go.opentelemetry.io/contrib/detectors/gcp v1.42.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect

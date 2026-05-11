@@ -13,6 +13,8 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const MaxStoredFileNameBytes = 255
@@ -28,17 +30,17 @@ var (
 
 	utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
-	allowedStoredMediaTypes = map[string]struct{}{
-		"image/png":        {},
-		"image/jpeg":       {},
-		"image/gif":        {},
-		"image/webp":       {},
-		"text/plain":       {},
-		"text/markdown":    {},
-		"text/csv":         {},
-		"application/json": {},
-		"application/pdf":  {},
-	}
+	// allowedStoredMediaTypes is derived from codersdk.AllChatAttachmentMediaTypes
+	// so the frontend file picker and the server enforcement share a single
+	// source of truth. Do not edit this map directly; add new entries to the
+	// codersdk const block instead.
+	allowedStoredMediaTypes = func() map[string]struct{} {
+		m := make(map[string]struct{}, len(codersdk.AllChatAttachmentMediaTypes))
+		for _, t := range codersdk.AllChatAttachmentMediaTypes {
+			m[string(t)] = struct{}{}
+		}
+		return m
+	}()
 
 	recordingArtifactMediaTypes = map[string]struct{}{
 		"video/mp4":  {},
@@ -139,14 +141,16 @@ func PrepareRecordingArtifact(name, expectedMediaType string, data []byte) (stor
 
 // IsCompatibleUploadMediaType reports whether an upload request that declared
 // declaredMediaType may be stored as storedMediaType after byte
-// classification. Exact matches are always compatible; the compatibility
-// table only covers explicit refinements like text/plain uploads that safely
-// store as richer text subtypes.
+// classification. Exact matches are always compatible. Clients that declare
+// application/octet-stream are treated as "unknown", so the classified bytes
+// decide the stored type. The compatibility table also covers explicit
+// refinements like text/plain uploads that safely store as richer text
+// subtypes.
 func IsCompatibleUploadMediaType(declaredMediaType, storedMediaType string) bool {
 	declaredMediaType = BaseMediaType(declaredMediaType)
 	storedMediaType = BaseMediaType(storedMediaType)
 
-	if declaredMediaType == storedMediaType {
+	if declaredMediaType == storedMediaType || declaredMediaType == "application/octet-stream" {
 		return true
 	}
 	if declaredMediaType != "text/plain" {

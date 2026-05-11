@@ -174,6 +174,12 @@ AI BRIDGE OPTIONS:
           exporting these records to external SIEM or observability systems.
 
 AI BRIDGE PROXY OPTIONS: 
+      --aibridge-proxy-dump-dir string, $CODER_AIBRIDGE_PROXY_DUMP_DIR
+          Directory for dumping MITM request/response pairs to disk for
+          debugging. When set, each proxied request produces .req.txt and
+          .resp.txt files organized by provider. Sensitive headers are redacted.
+          Leave empty to disable.
+
       --aibridge-proxy-allowed-private-cidrs string-array, $CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS
           Comma-separated list of CIDR ranges that are permitted even though
           they fall within blocked private/reserved IP ranges. By default all
@@ -840,6 +846,15 @@ when required by your organization's security policy.
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage
           data to help improve our product.
+
+TEMPLATE BUILDER OPTIONS: 
+      --disable-template-builder bool, $CODER_DISABLE_TEMPLATE_BUILDER
+          Disable the template builder feature for guided template creation.
+          When disabled, all /api/v2/templatebuilder/* endpoints return 404.
+
+      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
+          The base URL of the module registry used by the template builder for
+          module source paths.
 
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid

@@ -1,5 +1,12 @@
 # Custom Agents
 
+> [!WARNING]
+> Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.
+>
+> Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
+>
+> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
+
 Custom agents beyond the ones listed in the [Coder registry](https://registry.coder.com/modules?search=tag%3Aagent) can be used with Coder Tasks.
 
 ## Prerequisites

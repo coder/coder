@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -9,11 +10,13 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/usersecretspubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -26,7 +29,7 @@ import (
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.CreateUserSecretRequest true "Create secret request"
 // @Success 201 {object} codersdk.UserSecret
-// @Router /users/{user}/secrets [post]
+// @Router /api/v2/users/{user}/secrets [post]
 func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -106,6 +109,14 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = secret
 
+	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
+		Kind:     usersecretspubsub.EventKindCreated,
+		UserID:   secret.UserID,
+		Name:     secret.Name,
+		EnvName:  secret.EnvName,
+		FilePath: secret.FilePath,
+	})
+
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSecretFromFull(secret))
 }
 
@@ -116,7 +127,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Tags Secrets
 // @Param user path string true "User ID, username, or me"
 // @Success 200 {array} codersdk.UserSecret
-// @Router /users/{user}/secrets [get]
+// @Router /api/v2/users/{user}/secrets [get]
 func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -141,7 +152,7 @@ func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //noli
 // @Param user path string true "User ID, username, or me"
 // @Param name path string true "Secret name"
 // @Success 200 {object} codersdk.UserSecret
-// @Router /users/{user}/secrets/{name} [get]
+// @Router /api/v2/users/{user}/secrets/{name} [get]
 func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -176,7 +187,7 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Param name path string true "Secret name"
 // @Param request body codersdk.UpdateUserSecretRequest true "Update secret request"
 // @Success 200 {object} codersdk.UserSecret
-// @Router /users/{user}/secrets/{name} [patch]
+// @Router /api/v2/users/{user}/secrets/{name} [patch]
 func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -303,6 +314,14 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
+		Kind:     usersecretspubsub.EventKindUpdated,
+		UserID:   secret.UserID,
+		Name:     secret.Name,
+		EnvName:  secret.EnvName,
+		FilePath: secret.FilePath,
+	})
+
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSecretFromFull(secret))
 }
 
@@ -313,7 +332,7 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or me"
 // @Param name path string true "Secret name"
 // @Success 204
-// @Router /users/{user}/secrets/{name} [delete]
+// @Router /api/v2/users/{user}/secrets/{name} [delete]
 func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -346,5 +365,22 @@ func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.Old = deleted
 
+	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
+		Kind:   usersecretspubsub.EventKindDeleted,
+		UserID: user.ID,
+		Name:   name,
+	})
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) publishUserSecretEvent(ctx context.Context, event usersecretspubsub.Event) {
+	if err := usersecretspubsub.Publish(api.Pubsub, event); err != nil {
+		api.Logger.Warn(ctx, "failed to publish user secret event",
+			slog.F("user_id", event.UserID),
+			slog.F("secret_name", event.Name),
+			slog.F("event_kind", event.Kind),
+			slog.Error(err),
+		)
+	}
 }

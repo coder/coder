@@ -1,11 +1,15 @@
 package agentmcp
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +74,7 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 			if tc.closeManager {
 				require.NoError(t, m.Close())
 			} else {
+				m.MarkStartupSettled()
 				t.Cleanup(func() { _ = m.Close() })
 			}
 
@@ -108,6 +113,7 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv1": entry1})
 
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		m.MarkStartupSettled()
 		t.Cleanup(func() { _ = m.Close() })
 
 		err := m.Reload(ctx, []string{configPath})
@@ -145,7 +151,10 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 	})
 }
 
-func TestHandleListTools_RefreshParam(t *testing.T) {
+// TestHandleListTools_ReloadsAfterStartupSettled exercises the
+// cold-start path end-to-end against a real *Manager. Startup has
+// settled, so the handler may drive the first safe reload.
+func TestHandleListTools_ReloadsAfterStartupSettled(t *testing.T) {
 	t.Parallel()
 
 	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
@@ -153,76 +162,160 @@ func TestHandleListTools_RefreshParam(t *testing.T) {
 		return
 	}
 
-	t.Run("RefreshTrueUnchangedSnapshot", func(t *testing.T) {
-		// Exercises the ?refresh=true code path when the config
-		// snapshot is unchanged. Verifies the endpoint returns
-		// tools without error.
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
 
-		_, entry := fakeMCPServerConfig(t, "srv")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+	_, entry := fakeMCPServerConfig(t, "srv")
+	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
-		t.Cleanup(func() { _ = m.Close() })
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m.MarkStartupSettled()
+	t.Cleanup(func() { _ = m.Close() })
 
-		err := m.Reload(ctx, []string{configPath})
-		require.NoError(t, err)
+	// No prior m.Reload: snapshot empty and tools unset.
+	require.Empty(t, m.cachedTools(), "manager should start with no tools")
 
-		api := NewAPI(logger, m, func() []string {
-			return []string{configPath}
-		})
-
-		req := httptest.NewRequest(http.MethodGet, "/tools?refresh=true", nil)
-		rec := httptest.NewRecorder()
-		api.Routes().ServeHTTP(rec, req)
-
-		require.Equal(t, http.StatusOK, rec.Code)
-		var resp workspacesdk.ListMCPToolsResponse
-		require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-		// Tool should still be present after refresh.
-		require.Len(t, resp.Tools, 1)
-		assert.Contains(t, resp.Tools[0].Name, "echo")
+	api := NewAPI(logger, m, func() []string {
+		return []string{configPath}
 	})
 
-	t.Run("RefreshTrueWithChangedConfig", func(t *testing.T) {
-		// Exercises the ?refresh=true code path when the config
-		// has also changed. The reload path already calls
-		// RefreshTools, so the handler skips the redundant call.
-		// This test covers the branch; it cannot observe the
-		// skip without a mock.
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		dir := t.TempDir()
+	req := httptest.NewRequest(http.MethodGet, "/tools", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	api.Routes().ServeHTTP(rec, req)
 
-		_, entry1 := fakeMCPServerConfig(t, "srv1")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv1": entry1})
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp workspacesdk.ListMCPToolsResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	require.Len(t, resp.Tools, 1)
+	assert.Contains(t, resp.Tools[0].Name, "echo")
+}
 
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
-		t.Cleanup(func() { _ = m.Close() })
+func TestHandleListTools_WaitsForStartupSettled(t *testing.T) {
+	t.Parallel()
 
-		err := m.Reload(ctx, []string{configPath})
-		require.NoError(t, err)
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
 
-		api := NewAPI(logger, m, func() []string {
-			return []string{configPath}
-		})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".mcp.json")
 
-		// Mutate config.
-		_, entry2 := fakeMCPServerConfig(t, "srv2")
-		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv2": entry2})
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	t.Cleanup(func() { _ = m.Close() })
 
-		req := httptest.NewRequest(http.MethodGet, "/tools?refresh=true", nil)
-		rec := httptest.NewRecorder()
-		api.Routes().ServeHTTP(rec, req)
-
-		require.Equal(t, http.StatusOK, rec.Code)
-		var resp workspacesdk.ListMCPToolsResponse
-		require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-		require.Len(t, resp.Tools, 1)
-		assert.Contains(t, resp.Tools[0].Name, "srv2")
+	pathsRequested := make(chan struct{})
+	var pathsOnce sync.Once
+	api := NewAPI(logger, m, func() []string {
+		pathsOnce.Do(func() { close(pathsRequested) })
+		return []string{configPath}
 	})
+
+	req := httptest.NewRequest(http.MethodGet, "/tools", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		api.Routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	select {
+	case <-pathsRequested:
+	case <-ctx.Done():
+		t.Fatalf("handler did not request paths: %v", ctx.Err())
+	}
+
+	select {
+	case <-done:
+		t.Fatal("handler returned before startup settled")
+	default:
+	}
+
+	_, entry := fakeMCPServerConfig(t, "srv")
+	writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+	m.MarkStartupSettled()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatalf("handler did not return after startup settled: %v", ctx.Err())
+	}
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp workspacesdk.ListMCPToolsResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	require.Len(t, resp.Tools, 1)
+	assert.Contains(t, resp.Tools[0].Name, "echo")
+}
+
+func TestHandleListTools_LogsListErrors(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		ctx          func() context.Context
+		closeManager bool
+		message      string
+	}{
+		{
+			name: "Canceled",
+			ctx: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+			message: "mcp tool list canceled by caller",
+		},
+		{
+			name: "DeadlineExceeded",
+			ctx: func() context.Context {
+				ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+				cancel()
+				return ctx
+			},
+			message: "mcp tool list timed out",
+		},
+		{
+			name:         "ManagerClosed",
+			ctx:          context.Background,
+			closeManager: true,
+			message:      "mcp tool list failed",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := tc.ctx()
+			sink := testutil.NewFakeSink(t)
+			logger := sink.Logger(slog.LevelDebug)
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, ".mcp.json")
+
+			m := NewManager(context.Background(), logger, agentexec.DefaultExecer, nil)
+			m.MarkStartupSettled()
+			t.Cleanup(func() { _ = m.Close() })
+			if tc.closeManager {
+				require.NoError(t, m.Close())
+			}
+
+			api := NewAPI(logger, m, func() []string {
+				return []string{configPath}
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/tools", nil).WithContext(ctx)
+			rec := httptest.NewRecorder()
+			api.Routes().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			entries := sink.Entries(func(e slog.SinkEntry) bool {
+				return e.Message == tc.message
+			})
+			require.Len(t, entries, 1)
+		})
+	}
 }

@@ -137,6 +137,35 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 	})
 }
 
+func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	terminal := codersdk.ChatError{
+		Message: "limit reached",
+		Kind:    codersdk.ChatErrorKindUsageLimit,
+	}
+	data, err := json.Marshal(terminal)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"kind":"usage_limit"`)
+
+	var decodedTerminal codersdk.ChatError
+	require.NoError(t, json.Unmarshal(data, &decodedTerminal))
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedTerminal.Kind)
+
+	retry := codersdk.ChatStreamRetry{
+		Attempt: 1,
+		Error:   "retrying",
+		Kind:    codersdk.ChatErrorKindUsageLimit,
+	}
+	data, err = json.Marshal(retry)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"kind":"usage_limit"`)
+
+	var decodedRetry codersdk.ChatStreamRetry
+	require.NoError(t, json.Unmarshal(data, &decodedRetry))
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedRetry.Kind)
+}
+
 func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Parallel()
 
@@ -447,7 +476,14 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	reviewerCount := int32(2)
 	refreshedAt := now
 	staleAt := now.Add(time.Hour)
-	lastError := "boom"
+	lastError := &codersdk.ChatError{
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
+	}
 	prURL := "https://github.com/coder/coder/pull/42"
 	workspaceID := uuid.New()
 	buildID := uuid.New()
@@ -466,7 +502,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 		LastModelConfigID: uuid.New(),
 		Title:             "round-trip-test",
 		Status:            codersdk.ChatStatusRunning,
-		LastError:         &lastError,
+		LastError:         lastError,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,

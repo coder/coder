@@ -1,35 +1,30 @@
-import { useTheme } from "@emotion/react";
 import { InfoIcon } from "lucide-react";
 import type { WorkspaceBuild } from "#/api/typesGenerated";
-import { BuildIcon } from "#/components/BuildIcon/BuildIcon";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
 import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import {
 	buildReasonLabels,
 	getDisplayWorkspaceBuildInitiatedBy,
-	getDisplayWorkspaceBuildStatus,
 	systemBuildReasons,
 } from "#/utils/workspace";
 
-export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
-	const theme = useTheme();
-	const statusType = getDisplayWorkspaceBuildStatus(theme, build).type;
+type WorkspaceBuildDataProps = {
+	build: WorkspaceBuild;
+};
 
+export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
+	build,
+}) => {
 	return (
 		<div className="flex flex-row items-center gap-3 leading-normal">
-			<BuildIcon
-				transition={build.transition}
-				className="size-4"
-				css={{
-					color: theme.roles[statusType].fill.solid,
-				}}
-			/>
+			<BuildIcon transition={build.transition} jobStatus={build.job.status} />
 			<div className="overflow-hidden flex flex-col">
 				<div
 					className={cn(

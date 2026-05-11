@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -409,6 +408,46 @@ func chatdTestContext(t *testing.T) context.Context {
 	return dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
 }
 
+func systemRestrictedTestContext(t *testing.T) context.Context {
+	t.Helper()
+	return dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+}
+
+func enableInternalChatPersonalModelOverrides(
+	t *testing.T,
+	db database.Store,
+) {
+	t.Helper()
+	require.NoError(
+		t,
+		db.UpsertChatPersonalModelOverridesEnabled(
+			systemRestrictedTestContext(t),
+			true,
+		),
+	)
+}
+
+func upsertInternalUserChatPersonalModelOverride(
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+	overrideContext codersdk.ChatPersonalModelOverrideContext,
+	raw string,
+) {
+	t.Helper()
+	require.NoError(
+		t,
+		db.UpsertUserChatPersonalModelOverride(
+			systemRestrictedTestContext(t),
+			database.UpsertUserChatPersonalModelOverrideParams{
+				UserID: userID,
+				Key:    ChatPersonalModelOverrideKey(overrideContext),
+				Value:  raw,
+			},
+		),
+	)
+}
+
 func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	t.Parallel()
 
@@ -668,6 +707,204 @@ func TestSpawnAgent_GeneralUsesConfiguredModelOverride(t *testing.T) {
 	require.False(t, childChat.PlanMode.Valid)
 }
 
+func TestSpawnAgent_GeneralHonorsPersonalModelOverrides(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                   string
+		enablePersonalOverride bool
+		personalRaw            func(database.ChatModelConfig) string
+		personalModel          func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
+		wantModelID            func(
+			database.ChatModelConfig,
+			database.ChatModelConfig,
+			database.ChatModelConfig,
+		) uuid.UUID
+	}{
+		{
+			name:                   "UnsetUsesDeploymentOverride",
+			enablePersonalOverride: true,
+			wantModelID: func(_, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "DeploymentDefaultUsesDeploymentOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeDeploymentDefault)
+			},
+			wantModelID: func(_, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "ChatDefaultBypassesDeploymentOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeChatDefault)
+			},
+			wantModelID: func(parentModel, _, _ database.ChatModelConfig) uuid.UUID {
+				return parentModel.ID
+			},
+		},
+		{
+			name:                   "ModelUsesPersonalOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(personalModel database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeModel) + ":" +
+					personalModel.ID.String()
+			},
+			wantModelID: func(_, _, personalModel database.ChatModelConfig) uuid.UUID {
+				return personalModel.ID
+			},
+		},
+		{
+			name: "AdminFlagOffIgnoresPersonalOverride",
+			personalRaw: func(database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeChatDefault)
+			},
+			wantModelID: func(_, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "DisabledPersonalModelFallsBackToDeploymentOverride",
+			enablePersonalOverride: true,
+			personalModel: func(
+				ctx context.Context,
+				t *testing.T,
+				db database.Store,
+				userID uuid.UUID,
+			) database.ChatModelConfig {
+				return insertInternalChatModelConfig(
+					t,
+					db,
+					"general-personal-disabled-"+uuid.NewString(),
+					false,
+				)
+			},
+			personalRaw: func(personalModel database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeModel) + ":" +
+					personalModel.ID.String()
+			},
+			wantModelID: func(_, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "MissingCredentialsFallsBackToDeploymentOverride",
+			enablePersonalOverride: true,
+			personalModel: func(
+				ctx context.Context,
+				t *testing.T,
+				db database.Store,
+				userID uuid.UUID,
+			) database.ChatModelConfig {
+				insertInternalChatProvider(
+					t,
+					db,
+					userID,
+					"openai-compat",
+					"",
+					false,
+					true,
+					false,
+				)
+				return insertInternalChatModelConfigForProvider(
+					t,
+					db,
+					"openai-compat",
+					"gpt-4o-mini",
+					true,
+				)
+			},
+			personalRaw: func(personalModel database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeModel) + ":" +
+					personalModel.ID.String()
+			},
+			wantModelID: func(_, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "MalformedValueUsesDeploymentOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(database.ChatModelConfig) string {
+				return "model:not-a-uuid"
+			},
+			wantModelID: func(_, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+			ctx := chatdTestContext(t)
+			user, org, parentModel := seedInternalChatDeps(t, db)
+			deploymentModel := insertInternalChatModelConfig(
+				t,
+				db,
+				"general-deployment-"+uuid.NewString(),
+				true,
+			)
+			require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, deploymentModel.ID.String()))
+			personalModel := insertInternalChatModelConfig(
+				t,
+				db,
+				"general-personal-"+uuid.NewString(),
+				true,
+			)
+			if tt.personalModel != nil {
+				personalModel = tt.personalModel(ctx, t, db, user.ID)
+			}
+			if tt.enablePersonalOverride {
+				enableInternalChatPersonalModelOverrides(t, db)
+			}
+			if tt.personalRaw != nil {
+				upsertInternalUserChatPersonalModelOverride(
+					t,
+					db,
+					user.ID,
+					codersdk.ChatPersonalModelOverrideContextGeneral,
+					tt.personalRaw(personalModel),
+				)
+			}
+			parentChat := createInternalParentChat(
+				ctx,
+				t,
+				server,
+				db,
+				org.ID,
+				user.ID,
+				parentModel.ID,
+				"parent-general-personal-override",
+			)
+
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+				Type:   subagentTypeGeneral,
+				Prompt: "delegate general work",
+			})
+			childID := requireSpawnAgentChildChatID(t, resp)
+
+			childChat, err := db.GetChatByID(ctx, childID)
+			require.NoError(t, err)
+			require.Equal(
+				t,
+				tt.wantModelID(parentModel, deploymentModel, personalModel),
+				childChat.LastModelConfigID,
+			)
+			require.False(t, childChat.PlanMode.Valid)
+		})
+	}
+}
+
 func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -834,6 +1071,7 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 				ByProvider: map[string]string{"bedrock": ""},
 			}, nil
 		},
+		modelOverrideFailureModeSoft,
 	)
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -944,6 +1182,218 @@ func TestSpawnAgent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 	require.Equal(t, parentModel.ID, parentChat.LastModelConfigID)
+}
+
+func TestSpawnAgent_ExploreHonorsPersonalModelOverrides(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                   string
+		enablePersonalOverride bool
+		personalRaw            func(database.ChatModelConfig) string
+		personalModel          func(context.Context, *testing.T, database.Store, uuid.UUID) database.ChatModelConfig
+		wantModelID            func(
+			database.ChatModelConfig,
+			database.ChatModelConfig,
+			database.ChatModelConfig,
+			database.ChatModelConfig,
+		) uuid.UUID
+	}{
+		{
+			name:                   "UnsetUsesDeploymentOverride",
+			enablePersonalOverride: true,
+			wantModelID: func(_, _, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "DeploymentDefaultUsesDeploymentOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeDeploymentDefault)
+			},
+			wantModelID: func(_, _, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "ChatDefaultBypassesDeploymentOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeChatDefault)
+			},
+			wantModelID: func(_, currentTurnModel, _, _ database.ChatModelConfig) uuid.UUID {
+				return currentTurnModel.ID
+			},
+		},
+		{
+			name:                   "ModelUsesPersonalOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(personalModel database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeModel) + ":" +
+					personalModel.ID.String()
+			},
+			wantModelID: func(_, _, _, personalModel database.ChatModelConfig) uuid.UUID {
+				return personalModel.ID
+			},
+		},
+		{
+			name: "AdminFlagOffIgnoresPersonalOverride",
+			personalRaw: func(database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeChatDefault)
+			},
+			wantModelID: func(_, _, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "DisabledPersonalModelFallsBackToDeploymentOverride",
+			enablePersonalOverride: true,
+			personalModel: func(
+				ctx context.Context,
+				t *testing.T,
+				db database.Store,
+				userID uuid.UUID,
+			) database.ChatModelConfig {
+				return insertInternalChatModelConfig(
+					t,
+					db,
+					"explore-personal-disabled-"+uuid.NewString(),
+					false,
+				)
+			},
+			personalRaw: func(personalModel database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeModel) + ":" +
+					personalModel.ID.String()
+			},
+			wantModelID: func(_, _, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "MissingCredentialsFallsBackToDeploymentOverride",
+			enablePersonalOverride: true,
+			personalModel: func(
+				ctx context.Context,
+				t *testing.T,
+				db database.Store,
+				userID uuid.UUID,
+			) database.ChatModelConfig {
+				insertInternalChatProvider(
+					t,
+					db,
+					userID,
+					"openai-compat",
+					"",
+					false,
+					true,
+					false,
+				)
+				return insertInternalChatModelConfigForProvider(
+					t,
+					db,
+					"openai-compat",
+					"gpt-4o-mini",
+					true,
+				)
+			},
+			personalRaw: func(personalModel database.ChatModelConfig) string {
+				return string(codersdk.ChatPersonalModelOverrideModeModel) + ":" +
+					personalModel.ID.String()
+			},
+			wantModelID: func(_, _, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+		{
+			name:                   "MalformedValueUsesDeploymentOverride",
+			enablePersonalOverride: true,
+			personalRaw: func(database.ChatModelConfig) string {
+				return "not-a-mode"
+			},
+			wantModelID: func(_, _, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
+				return deploymentModel.ID
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+			ctx := chatdTestContext(t)
+			user, org, parentModel := seedInternalChatDeps(t, db)
+			currentTurnModel := insertInternalChatModelConfig(
+				t,
+				db,
+				"explore-current-turn-"+uuid.NewString(),
+				true,
+			)
+			deploymentModel := insertInternalChatModelConfig(
+				t,
+				db,
+				"explore-deployment-"+uuid.NewString(),
+				true,
+			)
+			require.NoError(t, db.UpsertChatExploreModelOverride(ctx, deploymentModel.ID.String()))
+			personalModel := insertInternalChatModelConfig(
+				t,
+				db,
+				"explore-personal-"+uuid.NewString(),
+				true,
+			)
+			if tt.personalModel != nil {
+				personalModel = tt.personalModel(ctx, t, db, user.ID)
+			}
+			if tt.enablePersonalOverride {
+				enableInternalChatPersonalModelOverrides(t, db)
+			}
+			if tt.personalRaw != nil {
+				upsertInternalUserChatPersonalModelOverride(
+					t,
+					db,
+					user.ID,
+					codersdk.ChatPersonalModelOverrideContextExplore,
+					tt.personalRaw(personalModel),
+				)
+			}
+			parentChat := createInternalParentChat(
+				ctx,
+				t,
+				server,
+				db,
+				org.ID,
+				user.ID,
+				parentModel.ID,
+				"parent-explore-personal-override",
+			)
+
+			resp := runSubagentTool(
+				ctx,
+				t,
+				server,
+				parentChat,
+				currentTurnModel.ID,
+				spawnAgentToolName,
+				spawnAgentArgs{Type: subagentTypeExplore, Prompt: "inspect the codebase"},
+			)
+			childID := requireSpawnAgentChildChatID(t, resp)
+
+			childChat, err := db.GetChatByID(ctx, childID)
+			require.NoError(t, err)
+			require.Equal(
+				t,
+				tt.wantModelID(parentModel, currentTurnModel, deploymentModel, personalModel),
+				childChat.LastModelConfigID,
+			)
+			require.True(t, childChat.Mode.Valid)
+			require.Equal(t, database.ChatModeExplore, childChat.Mode.ChatMode)
+			require.False(t, childChat.PlanMode.Valid)
+		})
+	}
 }
 
 func TestCreateChat_ExploreRootStartsWithoutMCPSnapshot(t *testing.T) {
@@ -1060,6 +1510,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			gotMCPServerIDs, err := server.resolveExploreToolSnapshot(
 				ctx,
 				tt.parent,
@@ -1324,7 +1775,7 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	require.Contains(t, description, subagentTypeComputerUse)
 }
 
-func TestSpawnAgent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
+func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1334,7 +1785,7 @@ func TestSpawnAgent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-unavailable",
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-missing-key",
 	)
 
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
@@ -1343,7 +1794,7 @@ func TestSpawnAgent_DescriptionOmitsComputerUseWhenUnavailable(t *testing.T) {
 	description := tool.Info().Description
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
-	require.NotContains(t, description, subagentTypeComputerUse)
+	require.Contains(t, description, subagentTypeComputerUse)
 }
 
 func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
@@ -1428,7 +1879,7 @@ func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing
 	require.NotContains(t, guidance, "may inspect or modify workspace files")
 }
 
-func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
+func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1451,9 +1902,9 @@ func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		spawnAgentArgs{Type: "invalid", Prompt: "delegate work"},
 	)
 	require.True(t, invalidResp.IsError)
-	require.Contains(t, invalidResp.Content, "type must be one of: general, explore")
+	require.Contains(t, invalidResp.Content, "type must be one of: general, explore, computer_use")
 
-	unavailableResp := runSubagentTool(
+	credentialResp := runSubagentTool(
 		ctx,
 		t,
 		server,
@@ -1462,8 +1913,140 @@ func TestSpawnAgent_InvalidTypeAndUnavailableTypeAreDistinct(t *testing.T) {
 		spawnAgentToolName,
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
-	require.True(t, unavailableResp.IsError)
-	require.Contains(t, unavailableResp.Content, `type "computer_use" is unavailable because computer use is not configured`)
+	require.True(t, credentialResp.IsError)
+	require.Contains(t, credentialResp.Content, "API key")
+	require.Contains(t, credentialResp.Content, "computer-use")
+	require.Contains(t, credentialResp.Content, "anthropic")
+}
+
+func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
+	require.NoError(t, db.UpsertChatComputerUseProvider(
+		ctx,
+		chattool.ComputerUseProviderOpenAI,
+	))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-computer-use",
+	)
+
+	ids := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.Contains(t, ids, subagentTypeComputerUse)
+}
+
+func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
+	require.NoError(t, db.UpsertChatComputerUseProvider(
+		ctx,
+		chattool.ComputerUseProviderOpenAI,
+	))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	model := insertInternalChatModelConfigForProvider(
+		t,
+		db,
+		chattool.ComputerUseProviderOpenAI,
+		"gpt-4o-mini",
+		true,
+	)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-missing",
+	)
+
+	ids := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.Contains(t, ids, subagentTypeComputerUse)
+	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
+		OwnerID:   user.ID,
+		AfterID:   uuid.Nil,
+		OffsetOpt: 0,
+		LimitOpt:  100,
+	})
+	require.NoError(t, err)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "API key")
+	require.Contains(t, resp.Content, "computer-use")
+	require.Contains(t, resp.Content, "openai")
+	afterChats, err := db.GetChats(ctx, database.GetChatsParams{
+		OwnerID:   user.ID,
+		AfterID:   uuid.Nil,
+		OffsetOpt: 0,
+		LimitOpt:  100,
+	})
+	require.NoError(t, err)
+	require.Len(t, afterChats, len(beforeChats))
+}
+
+func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
+	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, "bogus"))
+	logSink := &subagentTestLogSink{}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	server := newInternalTestServerWithLogger(t, db, ps, chatprovider.ProviderAPIKeys{}, logger)
+
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-invalid-computer-use-provider",
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, `type "computer_use" is unavailable because its provider configuration could not be loaded`)
+	require.NotContains(t, resp.Content, "bogus")
+	require.NotContains(t, resp.Content, "agents_computer_use_provider")
+	require.NotEmpty(t, logSink.entriesAtLevelWithMessage(
+		slog.LevelWarn,
+		"computer-use provider config is unavailable",
+	))
+}
+
+func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-desktop-disabled",
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, `type "computer_use" is unavailable because desktop access is not enabled`)
 }
 
 func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
@@ -1494,6 +2077,7 @@ func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 				Type:   tt.subagentType,
 				Prompt: "delegate work",
@@ -1712,6 +2296,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			result := requireToolResponseMap(t, runSubagentTool(
 				ctx,
 				t,
@@ -1778,10 +2363,12 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.True(t, childChat.Mode.Valid)
 	assert.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
-	assert.NotEqual(t, model.Provider, chattool.ComputerUseModelProvider,
+	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(chattool.ComputerUseProviderAnthropic)
+	require.True(t, ok)
+	assert.NotEqual(t, model.Provider, computerUseModelProvider,
 		"computer use model provider must differ from parent model provider")
-	assert.Equal(t, "anthropic", chattool.ComputerUseModelProvider)
-	assert.NotEmpty(t, chattool.ComputerUseModelName)
+	assert.Equal(t, "anthropic", computerUseModelProvider)
+	assert.NotEmpty(t, computerUseModelName)
 }
 
 func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
@@ -2132,7 +2719,12 @@ func setChatStatus(
 		Status: status,
 	}
 	if lastError != "" {
-		params.LastError = sql.NullString{String: lastError, Valid: true}
+		encodedLastError, err := json.Marshal(codersdk.ChatError{
+			Message: lastError,
+			Kind:    codersdk.ChatErrorKindGeneric,
+		})
+		require.NoError(t, err)
+		params.LastError = pqtype.NullRawMessage{RawMessage: encodedLastError, Valid: true}
 	}
 	_, err := db.UpdateChatStatus(ctx, params)
 	require.NoError(t, err)

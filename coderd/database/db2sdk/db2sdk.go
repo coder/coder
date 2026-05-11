@@ -1607,6 +1607,34 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 	return &value
 }
 
+const fallbackChatLastErrorMessage = "The chat request failed unexpectedly."
+
+func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
+	if !raw.Valid {
+		return nil
+	}
+
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return &codersdk.ChatError{
+			Message: fallbackChatLastErrorMessage,
+			Kind:    codersdk.ChatErrorKindGeneric,
+		}
+	}
+
+	payload.Message = strings.TrimSpace(payload.Message)
+	payload.Detail = strings.TrimSpace(payload.Detail)
+	payload.Kind = codersdk.ChatErrorKind(strings.TrimSpace(string(payload.Kind)))
+	payload.Provider = strings.TrimSpace(payload.Provider)
+	if payload.Kind == "" {
+		payload.Kind = codersdk.ChatErrorKindGeneric
+	}
+	if payload.Message == "" {
+		payload.Message = fallbackChatLastErrorMessage
+	}
+	return &payload
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1622,6 +1650,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	lastError := decodeChatLastError(c.LastError)
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
@@ -1636,9 +1665,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		MCPServerIDs:      mcpServerIDs,
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
+		LastError:         lastError,
 	}
-	if c.LastError.Valid {
-		chat.LastError = &c.LastError.String
+	if c.LastTurnSummary.Valid {
+		chat.LastTurnSummary = &c.LastTurnSummary.String
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)

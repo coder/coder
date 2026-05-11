@@ -32,6 +32,7 @@ import {
 	unpinChat,
 	updateChatTitle,
 	updateInfiniteChatsCache,
+	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -118,10 +119,13 @@ const AgentsPage: FC = () => {
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently — react-query
+	// subscribe to the same queries independently, and react-query
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(),
+	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
@@ -336,6 +340,19 @@ const AgentsPage: FC = () => {
 		try {
 			const action = await resolveArchiveAndDeleteAction(
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				// We only need build_number 1 and 2 to recognise a
+				// prebuild claim. The default page is newest-first; the
+				// resolver degrades safely ("confirm") if those builds
+				// aren't in the returned slice.
+				() =>
+					queryClient.fetchQuery({
+						queryKey: [
+							"workspaceBuilds",
+							workspaceId,
+							"archive-and-delete-resolver",
+						],
+						queryFn: () => API.getWorkspaceBuilds(workspaceId),
+					}),
 				() =>
 					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
 						?.created_at,
@@ -529,7 +546,7 @@ const AgentsPage: FC = () => {
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
+						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
@@ -643,6 +660,9 @@ const AgentsPage: FC = () => {
 				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				isPersonalModelOverridesEnabled={
+					personalModelOverridesQuery.data?.enabled
+				}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}

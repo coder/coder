@@ -68,7 +68,7 @@ directive version required in `go.mod`.
 | `fmt.Sprintf` + append to `[]byte` | `fmt.Appendf(buf, …)` (also `Append`, `Appendln`) | 1.18 |
 | `reflect.TypeOf((*T)(nil)).Elem()` | `reflect.TypeFor[T]()` | 1.22 |
 | `*(*[4]byte)(slice)` unsafe cast | `[4]byte(slice)` direct conversion | 1.20 |
-| `atomic.LoadInt64` / `StoreInt64` | `atomic.Int64` (also `Bool`, `Uint64`, `Pointer[T]`) | 1.19 |
+| `atomic.LoadInt64` / `AddInt64` / `StoreInt64` etc. | `atomic.Int64` (also `Int32`, `Uint32`, `Uint64`, `Bool`, `Pointer[T]`) | 1.19 |
 | `crypto/rand.Read(buf)` + hex/base64 encode | `crypto/rand.Text()` (one call) | 1.24 |
 | Checking `crypto/rand.Read` error | don't: return is always nil | 1.24 |
 | `time.Sleep` in tests | `testing/synctest` (deterministic fake clock) | 1.24/1.25 |

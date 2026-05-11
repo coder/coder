@@ -202,7 +202,6 @@ export default defineConfig({
 			"@mui/material/Skeleton",
 			"@mui/material/Snackbar",
 			"@mui/material/Stack",
-			"@mui/material/SvgIcon",
 			"@mui/material/TableRow",
 			"@mui/material/TextField",
 			"@mui/material/ToggleButton",

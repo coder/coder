@@ -15,6 +15,40 @@
 	font-display: swap;
 }
 
+@layer components {
+	@media (max-width: 767px) {
+		/*
+			Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
+			custom property on the chat input container so the dropdown
+			position tracks the actual input box, not a hardcoded offset.
+		*/
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
+			position: fixed !important;
+			left: 1rem !important;
+			width: calc(100vw - 2rem) !important;
+			min-width: 0 !important;
+			transform: none !important;
+			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			top: auto !important;
+		}
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
+			bottom: auto !important;
+			top: var(--mobile-dropdown-top, 3.5rem) !important;
+		}
+		[data-radix-popper-content-wrapper]:has(
+				> .mobile-full-width-dropdown-top-below-header
+			) {
+			bottom: auto !important;
+			top: 5rem !important;
+		}
+		.mobile-full-width-dropdown {
+			width: 100% !important;
+			min-width: 0 !important;
+			max-width: none !important;
+		}
+	}
+}
+
 @layer base {
 	:root,
 	.light {
@@ -154,83 +188,91 @@
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
 	}
+	/*
+		Colorblind-friendly variants. ThemeProvider applies these classes
+		alongside the base mode class (`dark` or `light`), so unchanged
+		variables cascade from the base mode and each block only overrides
+		the semantic colors that shift for colorblind accessibility.
+
+		Palette rationale:
+		- dark-protan-deuter / light-protan-deuter: shift the red/green
+		  success+error axis onto sky-blue (success) + vermilion/orange
+		  (destructive). Warning shifts to fuchsia so it does not collide
+		  with destructive states on the orange axis.
+		- dark-tritan / light-tritan: keep the red/green success+error
+		  axis intact and move warning from amber to fuchsia because
+		  amber and sky-blue blur together under tritanopia.
+	*/
+	.light-protan-deuter {
+		--content-success: 199 89% 48%;
+		--content-warning: 322 81% 43%;
+		--content-destructive: 24 95% 53%;
+		--surface-destructive: 34 100% 92%;
+		--surface-green: 201 94% 86%;
+		--surface-orange: 289 100% 98%;
+		--surface-red: 34 100% 92%;
+		--border-success: 199 89% 48%;
+		--border-green: 201 94% 86%;
+		--border-warning: 322 81% 60%;
+		--border-destructive: 24 95% 53%;
+		--highlight-green: 201 94% 36%;
+		--highlight-orange: 322 81% 43%;
+		--highlight-red: 24 95% 42%;
+		--syntax-string: 24 95% 42%;
+		--syntax-number: 199 89% 38%;
+		--git-added: 199 89% 48%;
+		--git-deleted: 24 95% 53%;
+		--git-modified: 271 91% 45%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--surface-git-added: 204 94% 94%;
+		--surface-git-deleted: 33 100% 93%;
+	}
+	.dark-protan-deuter {
+		--content-success: 199 82% 67%;
+		--content-warning: 322 81% 67%;
+		--content-destructive: 27 96% 67%;
+		--surface-destructive: 17 75% 15%;
+		--surface-green: 201 80% 14%;
+		--surface-orange: 322 70% 15%;
+		--surface-red: 17 75% 15%;
+		--border-success: 199 82% 67%;
+		--border-warning: 322 81% 67%;
+		--border-destructive: 27 96% 67%;
+		--border-green: 201 94% 86%;
+		--highlight-green: 201 94% 86%;
+		--highlight-orange: 322 81% 67%;
+		--highlight-red: 27 96% 67%;
+		--git-added: 199 82% 67%;
+		--git-deleted: 27 96% 67%;
+		--git-modified: 271 91% 65%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--surface-git-added: 201 80% 14%;
+		--surface-git-deleted: 17 75% 15%;
+	}
+	.light-tritan {
+		--content-warning: 322 81% 43%;
+		--surface-orange: 289 100% 98%;
+		--border-warning: 322 81% 60%;
+		--highlight-orange: 322 81% 43%;
+		--highlight-magenta: 322, 81%, 43%;
+		--syntax-boolean: 322 81% 43%;
+		--git-modified: 322 81% 43%;
+	}
+	.dark-tritan {
+		--content-warning: 322 81% 67%;
+		--surface-orange: 322 70% 15%;
+		--surface-magenta: 322 70% 15%;
+		--border-magenta: 322 81% 72%;
+		--border-warning: 322 81% 67%;
+		--highlight-orange: 322 81% 67%;
+		--highlight-magenta: 322 81% 72%;
+		--syntax-boolean: 322 81% 67%;
+		--git-modified: 322 81% 72%;
+	}
 }
 
-@layer components {
-	/* Map each stripe variant to a color token so the
-	   pseudo-element rules can stay DRY. */
-	.navbar-stripe-devel {
-		--stripe-color: var(--content-warning);
-	}
-
-	.navbar-stripe-rc {
-		--stripe-color: var(--border-sky);
-	}
-
-	/* Thin stripe bars at the top and bottom edges of the
-	   navbar. Using pseudo-elements keeps the stripes out of
-	   the content area so nav links stay readable. */
-	.navbar-stripe-devel::before,
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::before,
-	.navbar-stripe-rc::after {
-		content: "";
-		position: absolute;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: repeating-linear-gradient(
-			-45deg,
-			transparent,
-			transparent 4px,
-			hsl(var(--stripe-color) / 0.5) 4px,
-			hsl(var(--stripe-color) / 0.5) 8px
-		);
-		pointer-events: none;
-	}
-
-	.navbar-stripe-devel::before,
-	.navbar-stripe-rc::before {
-		top: 0;
-	}
-
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::after {
-		bottom: 0;
-	}
-
-	@media (max-width: 767px) {
-		/*
-			 * Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
-			 * custom property on the chat input container so the dropdown
-			 * position tracks the actual input box, not a hardcoded offset.
-			 */
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
-			position: fixed !important;
-			left: 1rem !important;
-			width: calc(100vw - 2rem) !important;
-			min-width: 0 !important;
-			transform: none !important;
-			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
-			top: auto !important;
-		}
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
-			bottom: auto !important;
-			top: var(--mobile-dropdown-top, 3.5rem) !important;
-		}
-		[data-radix-popper-content-wrapper]:has(
-				> .mobile-full-width-dropdown-top-below-header
-			) {
-			bottom: auto !important;
-			top: 5rem !important;
-		}
-		.mobile-full-width-dropdown {
-			width: 100% !important;
-			min-width: 0 !important;
-			max-width: none !important;
-		}
-	}
-}
 @layer base {
 	* {
 		@apply border-border;

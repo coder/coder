@@ -44,7 +44,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
+import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -275,6 +275,8 @@ export const BlockList: FC<{
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
+	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.code_diff_display_mode || "auto";
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
@@ -365,6 +367,7 @@ export const BlockList: FC<{
 									name="Tool"
 									status="running"
 									isError={false}
+									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
 									subagentStatusOverrides={subagentStatusOverrides}
@@ -381,6 +384,7 @@ export const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
+								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
@@ -436,6 +440,7 @@ export const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
+					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
@@ -592,7 +597,10 @@ const ChatMessageItem = memo<{
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage)) && (
 						<div
-							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							className={cn(
+								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
+								isUser && "w-full justify-end",
+							)}
 							data-testid="message-actions"
 						>
 							{displayState.hasCopyableContent && (
@@ -639,6 +647,7 @@ const ChatMessageItem = memo<{
 					<TextPreviewDialog
 						content={previewText.content}
 						fileName={previewText.fileName}
+						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
@@ -1055,7 +1064,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<ExpiredFileIdsProvider>
+			<FileProbeProvider>
 				<div
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
@@ -1103,7 +1112,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						);
 					})}
 				</div>
-			</ExpiredFileIdsProvider>
+			</FileProbeProvider>
 		);
 	},
 );

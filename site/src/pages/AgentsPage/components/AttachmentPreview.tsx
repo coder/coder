@@ -17,14 +17,19 @@ import {
 } from "../utils/fetchTextAttachment";
 
 export type UploadState = {
-	status: "pending" | "uploading" | "uploaded" | "error";
+	// "processing" covers any pre-upload client work (e.g. resize),
+	// so paste/drop handlers can commit the attachment synchronously
+	// without the send gate believing it is ready to dispatch.
+	status: "pending" | "processing" | "uploading" | "uploaded" | "error";
 	fileId?: string;
 	error?: string;
 	draftWarning?: string;
 };
 
 export const isUploadInProgress = (state: UploadState | undefined): boolean =>
-	state?.status === "pending" || state?.status === "uploading";
+	state?.status === "pending" ||
+	state?.status === "processing" ||
+	state?.status === "uploading";
 
 /** Renders an image thumbnail from a pre-created preview URL. */
 export const ImageThumbnail: FC<{
@@ -52,7 +57,11 @@ export const AttachmentPreview: FC<{
 	previewUrls?: Map<File, string>;
 	onPreview?: (url: string) => void;
 	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
+	onTextPreview?: (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => void;
 	onInlineText?: (file: File, content?: string) => void;
 }> = ({
 	attachments,
@@ -157,7 +166,7 @@ export const AttachmentPreview: FC<{
 											textFileId,
 										);
 										if (nextContent !== undefined) {
-											onTextPreview?.(nextContent, file.name);
+											onTextPreview?.(nextContent, file.name, file.type);
 										}
 									}}
 								>
@@ -190,6 +199,7 @@ export const AttachmentPreview: FC<{
 								</button>
 							)}
 							{(uploadState?.status === "pending" ||
+								uploadState?.status === "processing" ||
 								uploadState?.status === "uploading") && (
 								<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
 									<Spinner className="h-5 w-5 text-white" loading />

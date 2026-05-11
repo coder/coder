@@ -31,6 +31,7 @@ import {
 } from "react";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
+import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -201,16 +202,16 @@ const PasteSanitizationPlugin: FC<{
 					}
 					// Native paste event (ClipboardEvent).
 
-					// Check for image files in the clipboard (e.g.
+					// Check for attachable files in the clipboard (e.g.
 					// pasted screenshots). Forward them to the parent
 					// via callback instead of inserting text.
 					if (onFilePaste && dataTransfer?.files.length) {
-						const images = Array.from(dataTransfer.files).filter((f) =>
-							f.type.startsWith("image/"),
+						const attachable = Array.from(dataTransfer.files).filter(
+							isChatAttachmentFile,
 						);
-						if (images.length > 0) {
+						if (attachable.length > 0) {
 							event.preventDefault();
-							for (const file of images) {
+							for (const file of attachable) {
 								onFilePaste(file);
 							}
 							return true;

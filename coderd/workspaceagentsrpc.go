@@ -36,7 +36,7 @@ import (
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
-// @Router /workspaceagents/me/rpc [get]
+// @Router /api/v2/workspaceagents/me/rpc [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

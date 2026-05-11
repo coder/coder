@@ -3207,11 +3207,10 @@ class ExperimentalApiMethods {
 	promoteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<TypesGen.ChatMessage> => {
-		const response = await this.axios.post<TypesGen.ChatMessage>(
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
-		return response.data;
 	};
 
 	getChatDiffContents = async (
@@ -3262,22 +3261,39 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatAgentModelOverride = async (
-		context: TypesGen.ChatAgentModelOverrideContext,
-	): Promise<TypesGen.ChatAgentModelOverrideResponse> => {
-		const response =
-			await this.axios.get<TypesGen.ChatAgentModelOverrideResponse>(
-				`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
-			);
+	getChatModelOverride = async (
+		context: TypesGen.ChatModelOverrideContext,
+	): Promise<TypesGen.ChatModelOverrideResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelOverrideResponse>(
+			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+		);
 		return response.data;
 	};
 
-	updateChatAgentModelOverride = async (
-		context: TypesGen.ChatAgentModelOverrideContext,
-		req: TypesGen.UpdateChatAgentModelOverrideRequest,
+	updateChatModelOverride = async (
+		context: TypesGen.ChatModelOverrideContext,
+		req: TypesGen.UpdateChatModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			`/api/experimental/chats/config/agent-model-override/${encodeURIComponent(context)}`,
+			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+			req,
+		);
+	};
+
+	getChatPersonalModelOverridesAdminSettings =
+		async (): Promise<TypesGen.ChatPersonalModelOverridesAdminSettings> => {
+			const response =
+				await this.axios.get<TypesGen.ChatPersonalModelOverridesAdminSettings>(
+					"/api/experimental/chats/config/personal-model-overrides",
+				);
+			return response.data;
+		};
+
+	updateChatPersonalModelOverridesAdminSettings = async (
+		req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/personal-model-overrides",
 			req,
 		);
 	};
@@ -3311,6 +3327,25 @@ class ExperimentalApiMethods {
 	): Promise<void> => {
 		await this.axios.put(
 			"/api/experimental/chats/config/user-debug-logging",
+			req,
+		);
+	};
+
+	getUserChatPersonalModelOverrides =
+		async (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+					"/api/experimental/chats/config/user-personal-model-overrides",
+				);
+			return response.data;
+		};
+
+	updateUserChatPersonalModelOverride = async (
+		context: TypesGen.ChatPersonalModelOverrideContext,
+		req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
 	};
@@ -3361,6 +3396,24 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/advisor", req);
 	};
 
+	getChatComputerUseProvider =
+		async (): Promise<TypesGen.ChatComputerUseProviderResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatComputerUseProviderResponse>(
+					"/api/experimental/chats/config/computer-use-provider",
+				);
+			return response.data;
+		};
+
+	updateChatComputerUseProvider = async (
+		req: TypesGen.UpdateChatComputerUseProviderRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/computer-use-provider",
+			req,
+		);
+	};
+
 	getChatWorkspaceTTL =
 		async (): Promise<TypesGen.ChatWorkspaceTTLResponse> => {
 			const response = await this.axios.get<TypesGen.ChatWorkspaceTTLResponse>(
@@ -3395,6 +3448,24 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatRetentionDaysRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/retention-days", req);
+	};
+
+	getChatDebugRetentionDays =
+		async (): Promise<TypesGen.ChatDebugRetentionDaysResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatDebugRetentionDaysResponse>(
+					"/api/experimental/chats/config/debug-retention-days",
+				);
+			return response.data;
+		};
+
+	updateChatDebugRetentionDays = async (
+		req: TypesGen.UpdateChatDebugRetentionDaysRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/debug-retention-days",
+			req,
+		);
 	};
 
 	getChatAutoArchiveDays =

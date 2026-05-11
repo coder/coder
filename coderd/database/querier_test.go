@@ -7558,6 +7558,78 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 	})
 }
 
+// TestUserSecretsSoftDeleteTrigger verifies that a user's secrets
+// are deleted when the user is soft-deleted.
+func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	// userA will be soft-deleted.
+	userA := dbgen.User(t, db, database.User{})
+	secretA1 := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userA.ID,
+		Name:     "secret-a-1",
+		Value:    "value-a-1",
+		EnvName:  "SECRET_A_1",
+		FilePath: "/secrets/a/1",
+	})
+	secretA2 := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userA.ID,
+		Name:     "secret-a-2",
+		Value:    "value-a-2",
+		EnvName:  "SECRET_A_2",
+		FilePath: "/secrets/a/2",
+	})
+
+	// Sanity-check the existing trigger behavior. An API key for
+	// userA should also be wiped on soft-delete.
+	_, _ = dbgen.APIKey(t, db, database.APIKey{UserID: userA.ID})
+
+	userB := dbgen.User(t, db, database.User{})
+	secretB := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userB.ID,
+		Name:     "secret-b",
+		Value:    "value-b",
+		EnvName:  "SECRET_B",
+		FilePath: "/secrets/b",
+	})
+
+	require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+	// userA's secrets are removed after soft-deletion.
+	_, err := db.GetUserSecretByID(ctx, secretA1.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetUserSecretByID(ctx, secretA2.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// userA's API key is also removed.
+	apiKeysA, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		UserID:    userA.ID,
+		LoginType: userA.LoginType,
+	})
+	require.NoError(t, err)
+	require.Empty(t, apiKeysA)
+
+	// userB's secret is unaffected.
+	got, err := db.GetUserSecretByID(ctx, secretB.ID)
+	require.NoError(t, err)
+	require.Equal(t, secretB.ID, got.ID)
+
+	// Trying to insert a new secret for the soft-deleted userA must fail.
+	_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+		ID:       uuid.New(),
+		UserID:   userA.ID,
+		Name:     "post-delete",
+		Value:    "value",
+		EnvName:  "POST_DELETE_ENV",
+		FilePath: "/secrets/post-delete",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Cannot create user_secret for deleted user")
+}
+
 func TestUserSecretsAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -11448,6 +11520,111 @@ func TestChatLabels(t *testing.T) {
 	})
 }
 
+func TestUpdateChatLastTurnSummary(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "summary-chat",
+	})
+	require.NoError(t, err)
+
+	affected, err := db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: "resolved the issue", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "resolved the issue", Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: " \n\t ", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	fetched, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, fetched.LastTurnSummary.Valid)
+	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: "fresh summary", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	advancedUpdatedAt := chat.UpdatedAt.Add(time.Second)
+	_, err = db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusRunning,
+		UpdatedAt: advancedUpdatedAt,
+	})
+	require.NoError(t, err)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                chat.ID,
+		ExpectedUpdatedAt: chat.UpdatedAt,
+		LastTurnSummary:   sql.NullString{String: "stale summary", Valid: true},
+	})
+	require.NoError(t, err)
+	require.Zero(t, affected)
+
+	fetched, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "fresh summary", Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
+}
+
 func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	t.Parallel()
 
@@ -11636,6 +11813,269 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	require.Equal(t, unaffectedStep.ID, remainingSteps[0].ID)
 }
 
+// TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls
+// verifies that DeleteChatDebugDataAfterMessageID handles step-level
+// field boundaries and NULL combinations when run-level message IDs are
+// below the cutoff. This complements the triggered-runs test with extra
+// coverage for strict step-level comparisons and SQL NULL behavior.
+func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-step-boundaries-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-step-boundaries-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	const cutoff int64 = 100
+
+	// insertRunBelowRunLevelCutoff creates a run whose run-level message
+	// IDs cannot match the deletion query. The step-level fields decide
+	// whether the run is deleted.
+	insertRunBelowRunLevelCutoff := func(t *testing.T) database.ChatDebugRun {
+		t.Helper()
+		run, runErr := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+			ChatID:              chat.ID,
+			ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			TriggerMessageID:    sql.NullInt64{Int64: cutoff - 10, Valid: true},
+			HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 10, Valid: true},
+			Kind:                "chat_turn",
+			Status:              "in_progress",
+			Provider:            sql.NullString{String: providerName, Valid: true},
+			Model:               sql.NullString{String: modelName, Valid: true},
+		})
+		require.NoError(t, runErr)
+		return run
+	}
+
+	// assistantAboveWithNullHistoryTipRun is deleted only through the
+	// step.assistant_message_id clause.
+	assistantAboveWithNullHistoryTipRun := insertRunBelowRunLevelCutoff(t)
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantAboveWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff + 5, Valid: true},
+		// HistoryTipMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// Add a nonmatching step to verify that one matching step is enough
+	// to delete the run and cascade all of its steps.
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantAboveWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         2,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff - 5, Valid: true},
+		// HistoryTipMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// assistantAboveWithHistoryTipBelowRun is deleted through the
+	// step.assistant_message_id clause while the step history tip stays
+	// below the cutoff.
+	assistantAboveWithHistoryTipBelowRun := insertRunBelowRunLevelCutoff(t)
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               assistantAboveWithHistoryTipBelowRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "completed",
+		AssistantMessageID:  sql.NullInt64{Int64: cutoff + 20, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 3, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// assistantBelowWithNullHistoryTipRun survives because its step
+	// assistant_message_id is below the cutoff and step history tip is
+	// NULL.
+	assistantBelowWithNullHistoryTipRun := insertRunBelowRunLevelCutoff(t)
+	assistantBelowWithNullHistoryTipStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantBelowWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff - 3, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// assistantAtBoundaryWithNullHistoryTipRun survives because the
+	// query uses strict greater-than, not greater-than-or-equal.
+	assistantAtBoundaryWithNullHistoryTipRun := insertRunBelowRunLevelCutoff(t)
+	assistantAtBoundaryWithNullHistoryTipStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantAtBoundaryWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// historyTipAboveWithNullAssistantRun is deleted through the
+	// step.history_tip_message_id clause while assistant_message_id is
+	// NULL.
+	historyTipAboveWithNullAssistantRun := insertRunBelowRunLevelCutoff(t)
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               historyTipAboveWithNullAssistantRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "completed",
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff + 2, Valid: true},
+		// AssistantMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// historyTipAtBoundaryWithNullAssistantRun survives because the
+	// step history tip uses strict greater-than, not greater-than-or-equal.
+	historyTipAtBoundaryWithNullAssistantRun := insertRunBelowRunLevelCutoff(t)
+	historyTipAtBoundaryWithNullAssistantStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               historyTipAtBoundaryWithNullAssistantRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "completed",
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+		// AssistantMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// bothStepMessageIDsNullRun survives because NULL > N evaluates to
+	// NULL, not TRUE, in SQL.
+	bothStepMessageIDsNullRun := insertRunBelowRunLevelCutoff(t)
+	bothStepMessageIDsNullStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      bothStepMessageIDsNullRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "completed",
+		// Both message IDs intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:        chat.ID,
+		MessageID:     cutoff,
+		StartedBefore: time.Now().Add(time.Minute),
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, deletedRows)
+
+	_, err = store.GetChatDebugRunByID(ctx, assistantAboveWithNullHistoryTipRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"assistant above cutoff with NULL history tip must be deleted")
+
+	_, err = store.GetChatDebugRunByID(ctx, assistantAboveWithHistoryTipBelowRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"assistant above cutoff with history tip below cutoff must be deleted")
+
+	_, err = store.GetChatDebugRunByID(ctx, historyTipAboveWithNullAssistantRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"NULL assistant with history tip above cutoff must be deleted")
+
+	for _, deletedRun := range []struct {
+		name string
+		id   uuid.UUID
+	}{
+		{name: "assistant above cutoff with NULL history tip", id: assistantAboveWithNullHistoryTipRun.ID},
+		{name: "assistant above cutoff with history tip below cutoff", id: assistantAboveWithHistoryTipBelowRun.ID},
+		{name: "NULL assistant with history tip above cutoff", id: historyTipAboveWithNullAssistantRun.ID},
+	} {
+		steps, stepsErr := store.GetChatDebugStepsByRunID(ctx, deletedRun.id)
+		require.NoError(t, stepsErr, "%s: get cascaded steps", deletedRun.name)
+		require.Empty(t, steps, "%s: deleted run steps must cascade", deletedRun.name)
+	}
+
+	remainingAssistantBelowRun, err := store.GetChatDebugRunByID(ctx, assistantBelowWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, assistantBelowWithNullHistoryTipRun.ID, remainingAssistantBelowRun.ID,
+		"assistant below cutoff with NULL history tip must survive")
+
+	remainingAssistantAtBoundaryRun, err := store.GetChatDebugRunByID(ctx, assistantAtBoundaryWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, assistantAtBoundaryWithNullHistoryTipRun.ID, remainingAssistantAtBoundaryRun.ID,
+		"assistant at cutoff boundary with NULL history tip must survive")
+
+	remainingHistoryTipAtBoundaryRun, err := store.GetChatDebugRunByID(ctx, historyTipAtBoundaryWithNullAssistantRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, historyTipAtBoundaryWithNullAssistantRun.ID, remainingHistoryTipAtBoundaryRun.ID,
+		"history tip at cutoff boundary with NULL assistant must survive")
+
+	remainingBothStepMessageIDsNullRun, err := store.GetChatDebugRunByID(ctx, bothStepMessageIDsNullRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, bothStepMessageIDsNullRun.ID, remainingBothStepMessageIDsNullRun.ID,
+		"both step message IDs NULL must survive")
+
+	assistantBelowSteps, err := store.GetChatDebugStepsByRunID(ctx, assistantBelowWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Len(t, assistantBelowSteps, 1)
+	require.Equal(t, assistantBelowWithNullHistoryTipStep.ID, assistantBelowSteps[0].ID)
+
+	assistantAtBoundarySteps, err := store.GetChatDebugStepsByRunID(ctx, assistantAtBoundaryWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Len(t, assistantAtBoundarySteps, 1)
+	require.Equal(t, assistantAtBoundaryWithNullHistoryTipStep.ID, assistantAtBoundarySteps[0].ID)
+
+	historyTipAtBoundarySteps, err := store.GetChatDebugStepsByRunID(ctx, historyTipAtBoundaryWithNullAssistantRun.ID)
+	require.NoError(t, err)
+	require.Len(t, historyTipAtBoundarySteps, 1)
+	require.Equal(t, historyTipAtBoundaryWithNullAssistantStep.ID, historyTipAtBoundarySteps[0].ID)
+
+	bothStepMessageIDsNullSteps, err := store.GetChatDebugStepsByRunID(ctx, bothStepMessageIDsNullRun.ID)
+	require.NoError(t, err)
+	require.Len(t, bothStepMessageIDsNullSteps, 1)
+	require.Equal(t, bothStepMessageIDsNullStep.ID, bothStepMessageIDsNullSteps[0].ID)
+
+	remaining, err := store.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID:   chat.ID,
+		LimitVal: 100,
+	})
+	require.NoError(t, err)
+	require.Len(t, remaining, 4)
+}
+
 func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	t.Parallel()
 
@@ -11688,6 +12128,11 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	staleTime := time.Now().Add(-2 * time.Hour)
 	staleThreshold := time.Now().Add(-1 * time.Hour)
 
+	// preExistingError is attached to staleStep so we can verify
+	// that finalization preserves pre-existing error JSON rather
+	// than clearing or overwriting it.
+	preExistingError := json.RawMessage(`{"code":"timeout","message":"upstream deadline exceeded"}`)
+
 	// --- staleRun: in_progress run with no finished_at --- should be
 	// finalized.
 	staleRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
@@ -11703,7 +12148,8 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// staleStep: in_progress step attached to staleRun.
+	// staleStep: in_progress step attached to staleRun with a
+	// pre-existing error JSON payload.
 	staleStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
 		RunID:      staleRun.ID,
 		ChatID:     chat.ID,
@@ -11711,8 +12157,14 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		Operation:  "stream",
 		Status:     "in_progress",
 		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		Error: pqtype.NullRawMessage{
+			RawMessage: preExistingError,
+			Valid:      true,
+		},
 	})
 	require.NoError(t, err)
+	require.True(t, staleStep.Error.Valid,
+		"precondition: error must be stored at insertion")
 
 	// --- orphanStep: in_progress step whose run is already completed ---
 	// Its own updated_at is old, so it should be finalized directly.
@@ -11916,8 +12368,11 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Execute the finalization sweep. ---
+	// Capture the @now timestamp so we can verify finalized rows
+	// received exactly this value for updated_at and finished_at.
+	nowParam := time.Now().Truncate(time.Microsecond)
 	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
-		Now:           time.Now(),
+		Now:           nowParam,
 		UpdatedBefore: staleThreshold,
 	})
 	require.NoError(t, err)
@@ -11932,14 +12387,20 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	assert.EqualValues(t, 3, result.StepsFinalized,
 		"stale step + orphan step + cascade step should all be finalized")
 
-	// Verify the stale run was set to interrupted.
+	// Verify the stale run was set to interrupted with correct
+	// timestamps matching the @now parameter.
 	updatedStaleRun, err := store.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "interrupted", updatedStaleRun.Status)
 	assert.True(t, updatedStaleRun.FinishedAt.Valid,
 		"finalized run should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, updatedStaleRun.FinishedAt.Time, time.Microsecond,
+		"finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, updatedStaleRun.UpdatedAt, time.Microsecond,
+		"updated_at should match the @now parameter")
 
-	// Verify the stale step was set to interrupted.
+	// Verify the stale step was set to interrupted and its
+	// pre-existing error JSON was preserved.
 	staleSteps, err := store.GetChatDebugStepsByRunID(ctx, staleRun.ID)
 	require.NoError(t, err)
 	require.Len(t, staleSteps, 1)
@@ -11947,20 +12408,44 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	assert.Equal(t, "interrupted", staleSteps[0].Status)
 	assert.True(t, staleSteps[0].FinishedAt.Valid,
 		"finalized step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, staleSteps[0].FinishedAt.Time, time.Microsecond,
+		"step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, staleSteps[0].UpdatedAt, time.Microsecond,
+		"step updated_at should match the @now parameter")
+	// The error JSON that was set at insertion time must survive
+	// finalization. The query does not touch the error column, so
+	// this proves the JSONB payload is preserved.
+	assert.True(t, staleSteps[0].Error.Valid,
+		"pre-existing error JSON must be preserved after finalization")
+	assert.JSONEq(t, string(preExistingError), string(staleSteps[0].Error.RawMessage),
+		"error JSON content must match the value set at insertion")
 
-	// Verify the orphan step was also finalized.
+	// Verify the orphan step was also finalized with correct timestamps.
 	orphanSteps, err := store.GetChatDebugStepsByRunID(ctx, completedRun.ID)
 	require.NoError(t, err)
 	require.Len(t, orphanSteps, 1)
 	assert.Equal(t, orphanStep.ID, orphanSteps[0].ID)
 	assert.Equal(t, "interrupted", orphanSteps[0].Status)
+	assert.True(t, orphanSteps[0].FinishedAt.Valid,
+		"orphan step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, orphanSteps[0].FinishedAt.Time, time.Microsecond,
+		"orphan step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, orphanSteps[0].UpdatedAt, time.Microsecond,
+		"orphan step updated_at should match the @now parameter")
+	// The orphan step had no error set; verify it remains null.
+	assert.False(t, orphanSteps[0].Error.Valid,
+		"step without pre-existing error should remain null after finalization")
 
-	// Verify the cascade run was finalized.
+	// Verify the cascade run was finalized with correct timestamps.
 	updatedCascadeRun, err := store.GetChatDebugRunByID(ctx, cascadeRun.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "interrupted", updatedCascadeRun.Status)
 	assert.True(t, updatedCascadeRun.FinishedAt.Valid,
 		"cascade run should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, updatedCascadeRun.FinishedAt.Time, time.Microsecond,
+		"cascade run finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, updatedCascadeRun.UpdatedAt, time.Microsecond,
+		"cascade run updated_at should match the @now parameter")
 
 	// Verify the cascade step was finalized despite its recent
 	// updated_at, proving the cascade CTE clause is required.
@@ -11972,6 +12457,13 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		"fresh step should be finalized via cascade, not age")
 	assert.True(t, cascadeSteps[0].FinishedAt.Valid,
 		"cascade step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, cascadeSteps[0].FinishedAt.Time, time.Microsecond,
+		"cascade step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, cascadeSteps[0].UpdatedAt, time.Microsecond,
+		"cascade step updated_at should match the @now parameter")
+	// The cascade step also had no error set.
+	assert.False(t, cascadeSteps[0].Error.Valid,
+		"cascade step without pre-existing error should remain null")
 
 	// Verify the completed run/step are untouched.
 	unchangedRun, err := store.GetChatDebugRunByID(ctx, doneRun.ID)
