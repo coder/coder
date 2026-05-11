@@ -653,7 +653,16 @@ func TestClassify_PrefersRetryAfterMsOverRetryAfter(t *testing.T) {
 func TestClassify_ParsesRetryAfterHTTPDate(t *testing.T) {
 	t.Parallel()
 
-	retryAt := time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)
+	// http.TimeFormat has second precision, so formatting truncates the
+	// sub-second component (up to ~1s of loss). Round the target up to the
+	// next whole second before formatting so the parsed deadline is never
+	// earlier than now+offset, regardless of where now's fractional second
+	// lands. Without this, a now with frac near 1s plus any scheduling
+	// jitter can drive the computed RetryAfter just under offset-1s and
+	// flake the lower bound.
+	offset := 3 * time.Second
+	target := time.Now().Add(offset).Truncate(time.Second).Add(time.Second)
+	retryAt := target.UTC().Format(http.TimeFormat)
 	classified := chaterror.Classify(testProviderError(
 		"upstream failed",
 		429,
@@ -661,8 +670,8 @@ func TestClassify_ParsesRetryAfterHTTPDate(t *testing.T) {
 	))
 
 	require.Equal(t, 429, classified.StatusCode)
-	require.GreaterOrEqual(t, classified.RetryAfter, 2*time.Second)
-	require.LessOrEqual(t, classified.RetryAfter, 4*time.Second)
+	require.GreaterOrEqual(t, classified.RetryAfter, offset-time.Second)
+	require.LessOrEqual(t, classified.RetryAfter, offset+time.Second)
 }
 
 func TestClassify_IgnoresInvalidRetryAfter(t *testing.T) {
