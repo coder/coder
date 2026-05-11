@@ -15,8 +15,12 @@ import { docs } from "#/utils/docs";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {
-	const { organization: organizationName = "default" } = useParams() as {
+	const {
+		organization: organizationName = "default",
+		template: templateParam,
+	} = useParams() as {
 		organization?: string;
+		template: string;
 	};
 	const location = useLocation();
 	const navigate = useNavigate();
@@ -27,6 +31,12 @@ const TemplateFilesPage: FC = () => {
 	const [showCreatedAlert, setShowCreatedAlert] = useState(
 		() => locationState?.justCreated === true,
 	);
+
+	// Clear the alert when the route target changes (e.g. navigating
+	// to a different template's files page without unmounting).
+	useEffect(() => {
+		setShowCreatedAlert(locationState?.justCreated === true);
+	}, [templateParam]);
 
 	// Clean the router state so a page refresh will not re-show the
 	// alert, but leave showCreatedAlert intact for this visit.
