@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"math"
 	"sync"
 	"testing"
 	"time"
@@ -3758,7 +3757,7 @@ func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 
 	// Real subscribeToStream cancel path: the WS subscriber detach
 	// that leaks in prod.
-	snapshot, currentRetry, events, cancelSub := server.subscribeToStream(chatID, 0)
+	snapshot, currentRetry, events, cancelSub := server.subscribeToStream(chatID)
 	require.Len(t, snapshot, 1)
 	require.Nil(t, currentRetry)
 	require.NotNil(t, events)
@@ -5367,11 +5366,12 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 	}
 }
 
-// makeBufferedPart is a small constructor for buffered message_part
+// makeInProgressPart is a small constructor for buffered message_part
 // fixtures used by snapshotBufferLocked / subscribeToStream tests. It
-// embeds the checkpoint and a recognizable text body so failing
-// assertions can identify which part survived the filter.
-func makeBufferedPart(checkpoint int64, text string) bufferedStreamPart {
+// builds an in-progress part (committedMessageID == 0) with a
+// recognizable text body so failing assertions can identify which
+// part survived the filter.
+func makeInProgressPart(text string) bufferedStreamPart {
 	return bufferedStreamPart{
 		event: codersdk.ChatStreamEvent{
 			Type: codersdk.ChatStreamEventTypeMessagePart,
@@ -5380,8 +5380,13 @@ func makeBufferedPart(checkpoint int64, text string) bufferedStreamPart {
 				Part: codersdk.ChatMessageText(text),
 			},
 		},
-		checkpoint: checkpoint,
 	}
+}
+
+func makeCommittedPart(committedID int64, text string) bufferedStreamPart {
+	p := makeInProgressPart(text)
+	p.committedMessageID = committedID
+	return p
 }
 
 func partText(event codersdk.ChatStreamEvent) string {
@@ -5391,126 +5396,46 @@ func partText(event codersdk.ChatStreamEvent) string {
 	return event.MessagePart.Part.Text
 }
 
-// TestSnapshotBufferLocked_FiltersStaleParts is the core contract:
-// when a subscriber passes a real cursor, parts whose checkpoint is
-// less than the cursor are dropped from the snapshot. Parts at or
-// past the cursor are delivered.
-func TestSnapshotBufferLocked_FiltersStaleParts(t *testing.T) {
+// TestSnapshotBufferLocked_DropsCommittedParts asserts the core
+// dedup contract: parts that were claimed by a durable assistant
+// message (committedMessageID != 0) are dropped from the snapshot
+// because the subscriber will receive that durable message through
+// the REST snapshot, the initial DB query, or pubsub.
+func TestSnapshotBufferLocked_DropsCommittedParts(t *testing.T) {
 	t.Parallel()
 
 	buffer := []bufferedStreamPart{
-		makeBufferedPart(10, "stale-1"),
-		makeBufferedPart(10, "stale-2"),
-		makeBufferedPart(20, "boundary-1"),
-		makeBufferedPart(20, "boundary-2"),
-		makeBufferedPart(30, "fresh-1"),
+		makeCommittedPart(100, "turnA-1"),
+		makeCommittedPart(100, "turnA-2"),
+		makeCommittedPart(200, "turnB-1"),
+		makeInProgressPart("in-progress-1"),
+		makeInProgressPart("in-progress-2"),
 	}
 
-	// Cursor matches a real assistant checkpoint, so the effective
-	// cursor is the requested cursor unchanged.
-	snapshot := snapshotBufferLocked(buffer, 20, 30)
-
-	require.Len(t, snapshot, 3,
-		"only parts checkpointed at >= afterMessageID should be kept")
-	require.Equal(t, "boundary-1", partText(snapshot[0]))
-	require.Equal(t, "boundary-2", partText(snapshot[1]))
-	require.Equal(t, "fresh-1", partText(snapshot[2]))
-}
-
-// TestSnapshotBufferLocked_ClampsCursorToLastCommittedCheckpoint
-// guards against DEREM-1: a subscriber whose cursor points at a
-// tool or user message ID past the most recent committed assistant
-// turn must not over-drop parts from the in-progress assistant
-// turn. The filter clamps the cursor down to the latest assistant
-// checkpoint so those in-progress parts survive.
-func TestSnapshotBufferLocked_ClampsCursorToLastCommittedCheckpoint(t *testing.T) {
-	t.Parallel()
-
-	// Turn A committed at assistant message 100, then tool
-	// messages 101..103 followed. Turn B is now streaming and its
-	// parts are tagged with checkpoint=100 (no new assistant turn
-	// has been committed yet on this replica).
-	buffer := []bufferedStreamPart{
-		makeBufferedPart(100, "turnB-part-1"),
-		makeBufferedPart(100, "turnB-part-2"),
-	}
-
-	// Client reloaded chat via REST and saw the latest message
-	// (a tool result at id=103), then reconnected with cursor=103.
-	// Without clamping, the filter would drop every turn B part
-	// because checkpoint (100) < afterMessageID (103).
-	snapshot := snapshotBufferLocked(buffer, 103, 100)
+	snapshot := snapshotBufferLocked(buffer)
 
 	require.Len(t, snapshot, 2,
-		"cursor past the last assistant checkpoint must be clamped down so in-progress parts survive")
-	require.Equal(t, "turnB-part-1", partText(snapshot[0]))
-	require.Equal(t, "turnB-part-2", partText(snapshot[1]))
+		"only in-progress (committedMessageID == 0) parts should be kept")
+	require.Equal(t, "in-progress-1", partText(snapshot[0]))
+	require.Equal(t, "in-progress-2", partText(snapshot[1]))
 }
 
-// TestSnapshotBufferLocked_ZeroCheckpointReturnsAll guards against
-// DEREM-2: a freshly created chatStreamState (after
-// cleanupStreamIfIdle reaped the previous state and seeding from DB
-// has not yet run) has lastCommittedAssistantMessageID = 0. With a
-// zero checkpoint, no buffered part can be proven redundant, so the
-// full buffer must be returned regardless of the requested cursor.
-func TestSnapshotBufferLocked_ZeroCheckpointReturnsAll(t *testing.T) {
+// TestSnapshotBufferLocked_AllInProgressReturnsAll covers the
+// fresh-load convention: when no assistant message has committed
+// yet, every buffered part is in-progress and must be delivered.
+func TestSnapshotBufferLocked_AllInProgressReturnsAll(t *testing.T) {
 	t.Parallel()
 
 	buffer := []bufferedStreamPart{
-		makeBufferedPart(0, "a"),
-		makeBufferedPart(0, "b"),
-		makeBufferedPart(0, "c"),
+		makeInProgressPart("a"),
+		makeInProgressPart("b"),
+		makeInProgressPart("c"),
 	}
 
-	snapshot := snapshotBufferLocked(buffer, 999, 0)
+	snapshot := snapshotBufferLocked(buffer)
 
 	require.Len(t, snapshot, 3,
-		"lastCommittedAssistantMessageID==0 must disable the filter to avoid losing the entire in-progress turn")
-	require.Equal(t, "a", partText(snapshot[0]))
-	require.Equal(t, "b", partText(snapshot[1]))
-	require.Equal(t, "c", partText(snapshot[2]))
-}
-
-// TestSnapshotBufferLocked_ZeroCursorReturnsAll covers the
-// fresh-load convention: callers without a cursor get the full
-// buffer. Buffering is reset at the start of every processChat run,
-// so the buffer only ever contains parts from the current turn in
-// this path.
-func TestSnapshotBufferLocked_ZeroCursorReturnsAll(t *testing.T) {
-	t.Parallel()
-
-	buffer := []bufferedStreamPart{
-		makeBufferedPart(10, "a"),
-		makeBufferedPart(20, "b"),
-		makeBufferedPart(30, "c"),
-	}
-
-	snapshot := snapshotBufferLocked(buffer, 0, 30)
-
-	require.Len(t, snapshot, 3,
-		"afterMessageID == 0 means 'no cursor'; the full buffer must be returned")
-	require.Equal(t, "a", partText(snapshot[0]))
-	require.Equal(t, "b", partText(snapshot[1]))
-	require.Equal(t, "c", partText(snapshot[2]))
-}
-
-// TestSnapshotBufferLocked_RelaySentinelReturnsAll: cross-replica
-// relay dials with after_id=RelaySentinelAfterID to skip the durable
-// DB snapshot. The buffer snapshot must NOT be filtered for that
-// sentinel; otherwise the relay race PR #24031 fixed comes back.
-func TestSnapshotBufferLocked_RelaySentinelReturnsAll(t *testing.T) {
-	t.Parallel()
-
-	buffer := []bufferedStreamPart{
-		makeBufferedPart(10, "a"),
-		makeBufferedPart(20, "b"),
-		makeBufferedPart(30, "c"),
-	}
-
-	snapshot := snapshotBufferLocked(buffer, RelaySentinelAfterID, 30)
-
-	require.Len(t, snapshot, 3,
-		"the relay sentinel must NOT filter the buffer")
+		"all in-progress parts must be delivered to the subscriber")
 	require.Equal(t, "a", partText(snapshot[0]))
 	require.Equal(t, "b", partText(snapshot[1]))
 	require.Equal(t, "c", partText(snapshot[2]))
@@ -5522,16 +5447,15 @@ func TestSnapshotBufferLocked_RelaySentinelReturnsAll(t *testing.T) {
 func TestSnapshotBufferLocked_EmptyBufferReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	require.Nil(t, snapshotBufferLocked(nil, 0, 0))
-	require.Nil(t, snapshotBufferLocked(nil, 42, 30))
-	require.Nil(t, snapshotBufferLocked([]bufferedStreamPart{}, 42, 30))
+	require.Nil(t, snapshotBufferLocked(nil))
+	require.Nil(t, snapshotBufferLocked([]bufferedStreamPart{}))
 }
 
-// TestPublishToStream_TagsPartsWithCurrentCheckpoint verifies that
-// parts buffered while the chat is streaming carry the current
-// committed-assistant-message-ID checkpoint. Subscribers can then
-// filter against this value.
-func TestPublishToStream_TagsPartsWithCurrentCheckpoint(t *testing.T) {
+// TestPublishToStream_AppendsAsInProgress verifies that parts
+// buffered while the chat is streaming are tagged as in-progress
+// (committedMessageID == 0) until publishMessage stamps them with a
+// committed assistant message ID.
+func TestPublishToStream_AppendsAsInProgress(t *testing.T) {
 	t.Parallel()
 
 	mClock := quartz.NewMock(t)
@@ -5542,9 +5466,8 @@ func TestPublishToStream_TagsPartsWithCurrentCheckpoint(t *testing.T) {
 
 	chatID := uuid.New()
 	state := &chatStreamState{
-		buffering:                       true,
-		subscribers:                     map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		lastCommittedAssistantMessageID: 100,
+		buffering:   true,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
 	}
 	server.chatStreams.Store(chatID, state)
 
@@ -5559,206 +5482,138 @@ func TestPublishToStream_TagsPartsWithCurrentCheckpoint(t *testing.T) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	require.Len(t, state.buffer, 1)
-	require.Equal(t, int64(100), state.buffer[0].checkpoint,
-		"part must be tagged with the current checkpoint at append time")
+	require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+		"newly buffered parts must be in-progress until publishMessage stamps them")
 	require.Equal(t, "hello", partText(state.buffer[0].event))
 }
 
-// TestAdvanceAssistantCheckpoint covers the per-role behavior of
-// advanceAssistantCheckpoint:
-//   - assistant messages advance the checkpoint monotonically.
-//   - tool / user messages leave the checkpoint untouched.
-//   - older assistant IDs (out-of-order publication) do not move
-//     the checkpoint backwards.
-func TestAdvanceAssistantCheckpoint(t *testing.T) {
+// TestStampCommittedParts covers the per-role behavior of
+// stampCommittedParts:
+//   - assistant messages stamp every in-progress part with the
+//     committed message ID.
+//   - tool / user messages do not claim parts.
+//   - parts already claimed by an earlier assistant message are not
+//     re-stamped.
+//   - a chat with no live state is a no-op (does not panic).
+func TestStampCommittedParts(t *testing.T) {
 	t.Parallel()
 
-	server := &Server{
-		logger: slogtest.Make(t, nil),
-		clock:  quartz.NewMock(t),
-	}
-
-	chatID := uuid.New()
-	state := server.getOrCreateStreamState(chatID)
-
-	requireCheckpoint := func(want int64) {
-		t.Helper()
-		state.mu.Lock()
-		got := state.lastCommittedAssistantMessageID
-		state.mu.Unlock()
-		require.Equal(t, want, got)
-	}
-
-	server.advanceAssistantCheckpoint(chatID, database.ChatMessage{
-		ID:   100,
-		Role: database.ChatMessageRoleAssistant,
-	})
-	requireCheckpoint(100)
-
-	server.advanceAssistantCheckpoint(chatID, database.ChatMessage{
-		ID:   200,
-		Role: database.ChatMessageRoleAssistant,
-	})
-	requireCheckpoint(200)
-
-	// Out-of-order: an older ID must not move the checkpoint
-	// backwards (defends against publish reordering).
-	server.advanceAssistantCheckpoint(chatID, database.ChatMessage{
-		ID:   150,
-		Role: database.ChatMessageRoleAssistant,
-	})
-	requireCheckpoint(200)
-
-	// Tool messages do not end an assistant streaming turn.
-	server.advanceAssistantCheckpoint(chatID, database.ChatMessage{
-		ID:   300,
-		Role: database.ChatMessageRoleTool,
-	})
-	requireCheckpoint(200)
-
-	// User messages do not end an assistant streaming turn either.
-	server.advanceAssistantCheckpoint(chatID, database.ChatMessage{
-		ID:   400,
-		Role: database.ChatMessageRoleUser,
-	})
-	requireCheckpoint(200)
-}
-
-// TestSeedAssistantCheckpoint covers the three behaviors of
-// seedAssistantCheckpoint:
-//   - success: a durable assistant message exists and its ID is
-//     installed as the checkpoint.
-//   - monotonic guard: an older ID does not move the checkpoint
-//     backwards (defends against concurrent advance from another
-//     publish path racing with the seed).
-//   - db error: a non sql.ErrNoRows failure must not change the
-//     checkpoint and must not panic.
-func TestSeedAssistantCheckpoint(t *testing.T) {
-	t.Parallel()
-
-	t.Run("InstallsLatestAssistantID", func(t *testing.T) {
+	t.Run("AssistantClaimsAllInProgressParts", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
 		server := &Server{
-			db:     db,
 			logger: slogtest.Make(t, nil),
 			clock:  quartz.NewMock(t),
 		}
 		chatID := uuid.New()
 		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeCommittedPart(100, "old-1"),
+			makeInProgressPart("new-1"),
+			makeInProgressPart("new-2"),
+		}
+		state.mu.Unlock()
 
-		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), database.GetLastChatMessageByRoleParams{
-			ChatID: chatID,
-			Role:   database.ChatMessageRoleAssistant,
-		}).Return(database.ChatMessage{
-			ID:   500,
+		server.stampCommittedParts(chatID, database.ChatMessage{
+			ID:   200,
 			Role: database.ChatMessageRoleAssistant,
-		}, nil)
-
-		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
+		})
 
 		state.mu.Lock()
 		defer state.mu.Unlock()
-		require.Equal(t, int64(500), state.lastCommittedAssistantMessageID,
-			"seed must install the latest durable assistant message ID as the checkpoint")
+		require.Equal(t, int64(100), state.buffer[0].committedMessageID,
+			"already-claimed parts must not be re-stamped")
+		require.Equal(t, int64(200), state.buffer[1].committedMessageID,
+			"in-progress parts must be stamped with the new message ID")
+		require.Equal(t, int64(200), state.buffer[2].committedMessageID,
+			"in-progress parts must be stamped with the new message ID")
 	})
 
-	t.Run("DoesNotMoveCheckpointBackwards", func(t *testing.T) {
+	t.Run("ToolMessageIsNoOp", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
 		server := &Server{
-			db:     db,
 			logger: slogtest.Make(t, nil),
 			clock:  quartz.NewMock(t),
 		}
 		chatID := uuid.New()
 		state := server.getOrCreateStreamState(chatID)
 		state.mu.Lock()
-		state.lastCommittedAssistantMessageID = 1000
-		state.mu.Unlock()
-
-		// DB reports an older assistant message ID. The monotonic
-		// guard must keep the existing higher checkpoint.
-		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
-			database.ChatMessage{ID: 500, Role: database.ChatMessageRoleAssistant},
-			nil,
-		)
-
-		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
-
-		state.mu.Lock()
-		defer state.mu.Unlock()
-		require.Equal(t, int64(1000), state.lastCommittedAssistantMessageID,
-			"seed must not move the checkpoint backwards")
-	})
-
-	t.Run("DBErrorLeavesCheckpointUntouched", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		server := &Server{
-			db:     db,
-			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-			clock:  quartz.NewMock(t),
+		state.buffer = []bufferedStreamPart{
+			makeInProgressPart("a"),
+			makeInProgressPart("b"),
 		}
-		chatID := uuid.New()
-		state := server.getOrCreateStreamState(chatID)
-		state.mu.Lock()
-		state.lastCommittedAssistantMessageID = 42
 		state.mu.Unlock()
 
-		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
-			database.ChatMessage{}, xerrors.New("database explode"),
-		)
-
-		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
+		server.stampCommittedParts(chatID, database.ChatMessage{
+			ID:   300,
+			Role: database.ChatMessageRoleTool,
+		})
 
 		state.mu.Lock()
 		defer state.mu.Unlock()
-		require.Equal(t, int64(42), state.lastCommittedAssistantMessageID,
-			"a non-ErrNoRows DB error must not change the checkpoint")
+		require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+			"tool messages must not claim buffered parts")
+		require.Equal(t, int64(0), state.buffer[1].committedMessageID,
+			"tool messages must not claim buffered parts")
 	})
 
-	t.Run("NoRowsLeavesCheckpointAtZero", func(t *testing.T) {
+	t.Run("UserMessageIsNoOp", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
 		server := &Server{
-			db:     db,
 			logger: slogtest.Make(t, nil),
 			clock:  quartz.NewMock(t),
 		}
 		chatID := uuid.New()
 		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeInProgressPart("a"),
+		}
+		state.mu.Unlock()
 
-		db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
-			database.ChatMessage{}, sql.ErrNoRows,
-		)
-
-		server.seedAssistantCheckpoint(ctx, chatID, state, server.logger)
+		server.stampCommittedParts(chatID, database.ChatMessage{
+			ID:   400,
+			Role: database.ChatMessageRoleUser,
+		})
 
 		state.mu.Lock()
 		defer state.mu.Unlock()
-		require.Equal(t, int64(0), state.lastCommittedAssistantMessageID,
-			"a fresh chat with no prior assistant messages must leave the checkpoint at zero")
+		require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+			"user messages must not claim buffered parts")
+	})
+
+	t.Run("NoLiveStateIsNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+
+		// No state stored: stampCommittedParts must not panic and
+		// must not allocate a new state for an unknown chat.
+		require.NotPanics(t, func() {
+			server.stampCommittedParts(chatID, database.ChatMessage{
+				ID:   500,
+				Role: database.ChatMessageRoleAssistant,
+			})
+		})
+		_, ok := server.chatStreams.Load(chatID)
+		require.False(t, ok,
+			"stampCommittedParts must not create stream state for a chat that has none")
 	})
 }
 
 // TestSubscribeToStream_FiltersBufferedParts_Integration wires
-// publishToStream, advanceAssistantCheckpoint, and subscribeToStream
-// together to confirm the end-to-end contract: a subscriber with a
-// known cursor only receives parts from turns the cursor does not
-// already cover.
+// publishToStream, stampCommittedParts (via publishMessage), and
+// subscribeToStream together to confirm the end-to-end contract: a
+// reconnecting subscriber only receives parts that belong to the
+// current in-progress turn, not parts that were already committed
+// to durable assistant messages.
 func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
 	t.Parallel()
 
@@ -5769,18 +5624,18 @@ func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
 	}
 	chatID := uuid.New()
 
-	// Start buffering, then simulate the lifecycle:
-	//   1. Stream parts of turn A (checkpoint = 0, no commit yet).
-	//   2. Commit turn A's durable message with ID 100.
-	//   3. Stream parts of turn B (checkpoint now = 100).
-	//   4. Commit turn B's durable message with ID 200.
-	//   5. Stream parts of turn C (checkpoint now = 200).
+	// Simulate the lifecycle:
+	//   1. Stream parts of turn A (still in-progress, no commit yet).
+	//   2. Commit turn A; its parts are claimed by message 100.
+	//   3. Stream parts of turn B (in-progress).
+	//   4. Commit turn B; its parts are claimed by message 200.
+	//   5. Stream parts of turn C (in-progress, never committed).
 	state := server.getOrCreateStreamState(chatID)
 	state.mu.Lock()
 	state.buffering = true
 	state.mu.Unlock()
 
-	publish := func(text string) {
+	publishPart := func(text string) {
 		server.publishToStream(chatID, codersdk.ChatStreamEvent{
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
@@ -5790,52 +5645,31 @@ func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
 		})
 	}
 
-	publish("A-1")
-	publish("A-2")
-	server.advanceAssistantCheckpoint(chatID, database.ChatMessage{
+	publishPart("A-1")
+	publishPart("A-2")
+	server.stampCommittedParts(chatID, database.ChatMessage{
 		ID:   100,
 		Role: database.ChatMessageRoleAssistant,
 	})
-	publish("B-1")
-	publish("B-2")
-	server.advanceAssistantCheckpoint(chatID, database.ChatMessage{
+	publishPart("B-1")
+	publishPart("B-2")
+	server.stampCommittedParts(chatID, database.ChatMessage{
 		ID:   200,
 		Role: database.ChatMessageRoleAssistant,
 	})
-	publish("C-1")
+	publishPart("C-1")
 
-	// Subscriber that already has turn A (cursor = 100) should
-	// receive only turn B and turn C parts.
-	snapshot, _, _, cancel := server.subscribeToStream(chatID, 100)
+	// Reconnecting subscriber: only the currently in-progress turn
+	// (turn C) survives the filter, no matter what cursor the
+	// client passes through SubscribeAuthorized (the filter no
+	// longer depends on the cursor).
+	snapshot, _, _, cancel := server.subscribeToStream(chatID)
 	defer cancel()
 
 	texts := make([]string, 0, len(snapshot))
 	for _, ev := range snapshot {
 		texts = append(texts, partText(ev))
 	}
-	require.Equal(t, []string{"B-1", "B-2", "C-1"}, texts,
-		"subscriber past turn A must not receive turn A parts")
-
-	// Subscriber that already has both A and B (cursor = 200)
-	// should receive only turn C parts.
-	snapshot2, _, _, cancel2 := server.subscribeToStream(chatID, 200)
-	defer cancel2()
-	texts2 := make([]string, 0, len(snapshot2))
-	for _, ev := range snapshot2 {
-		texts2 = append(texts2, partText(ev))
-	}
-	require.Equal(t, []string{"C-1"}, texts2,
-		"subscriber past turn B must not receive turn A or B parts")
-
-	// Fresh subscriber (cursor = 0) receives the entire buffer.
-	snapshot3, _, _, cancel3 := server.subscribeToStream(chatID, 0)
-	defer cancel3()
-	require.Len(t, snapshot3, 5,
-		"fresh subscriber must receive every buffered part")
-
-	// Relay subscriber (sentinel) receives the entire buffer.
-	snapshot4, _, _, cancel4 := server.subscribeToStream(chatID, math.MaxInt64)
-	defer cancel4()
-	require.Len(t, snapshot4, 5,
-		"relay sentinel must receive every buffered part")
+	require.Equal(t, []string{"C-1"}, texts,
+		"only in-progress (un-claimed) buffered parts must survive the filter")
 }
