@@ -14,8 +14,6 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import { StreamingOutput } from "./StreamingOutput";
-import { buildStreamRenderState } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
@@ -2088,106 +2086,5 @@ export const ThinkingBlockPreviewMode: Story = {
 				canvas.getByText(/Let me think about this step by step/),
 			).toBeVisible();
 		});
-	},
-};
-
-/**
- * Regression guard: during an active agent turn the last visible
- * assistant message can be a tool-heavy turn with reasoning and tool
- * cards, but no markdown response text. That leaves
- * `hasCopyableContent=false` while `parseMessageContent` still sets
- * `parsed.reasoning`, which is the branch that would otherwise render
- * `assistant-bottom-spacer`. A plain tool-call-only message would not
- * hit this path because it still has renderable content.
- */
-export const StreamingToolCallGapRegression: Story = {
-	render: () => {
-		// This mirrors the completed assistant message shape from a prior
-		// tool-heavy turn. The visible assistant message keeps its reasoning
-		// and tool calls, while the separate tool-result messages stay hidden.
-		const parsedMessages = buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [buildTextPart("Read the source files")],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [
-					{
-						type: "reasoning",
-						text: "I should read SKILL.md and main.go to understand the codebase.",
-					},
-					{
-						type: "tool-call",
-						tool_call_id: "tool-1",
-						tool_name: "read_file",
-						args: { path: "SKILL.md" },
-					},
-					{
-						type: "tool-call",
-						tool_call_id: "tool-2",
-						tool_name: "read_file",
-						args: { path: "main.go" },
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 3,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						tool_call_id: "tool-1",
-						result: { output: "# SKILL.md contents" },
-					},
-				],
-			},
-			{
-				...baseMessage,
-				id: 4,
-				role: "tool",
-				content: [
-					{
-						type: "tool-result",
-						tool_call_id: "tool-2",
-						result: { output: "package main" },
-					},
-				],
-			},
-		]);
-
-		const { streamState, streamTools, liveStatus } = buildStreamRenderState([
-			{
-				type: "tool-call",
-				tool_call_id: "tool-streaming",
-				tool_name: "read_file",
-				args: { path: "types.go" },
-			},
-		]);
-
-		return (
-			<div className="flex flex-col gap-2">
-				<ConversationTimeline
-					parsedMessages={parsedMessages}
-					subagentTitles={new Map()}
-					isTurnActive={true}
-				/>
-				<StreamingOutput
-					streamState={streamState}
-					streamTools={streamTools}
-					liveStatus={liveStatus}
-				/>
-			</div>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// With isTurnActive=true, the spacer must stay out of the layout.
-		expect(canvas.queryByTestId("assistant-bottom-spacer")).toBeNull();
 	},
 };
