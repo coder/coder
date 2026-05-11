@@ -165,6 +165,7 @@ export interface AIBridgeProxyConfig {
 	readonly upstream_proxy: string;
 	readonly upstream_proxy_ca: string;
 	readonly allowed_private_cidrs: string;
+	readonly api_dump_dir: string;
 }
 
 // From codersdk/aibridge.go

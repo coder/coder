@@ -14000,6 +14000,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "api_dump_dir": {
+                    "type": "string"
+                },
                 "cert_file": {
                     "type": "string"
                 },
