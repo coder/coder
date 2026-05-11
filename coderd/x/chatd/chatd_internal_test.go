@@ -4259,9 +4259,9 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 	t.Parallel()
 
 	type testCase struct {
-		name    string
-		agent   database.WorkspaceAgent
-		dbError bool
+		name       string
+		buildAgent func(now time.Time) database.WorkspaceAgent
+		dbError    bool
 	}
 
 	tests := []testCase{
@@ -4271,37 +4271,43 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			// recovery because the agent did not connect and
 			// then disconnect.
 			name: "TimedOutAgentCacheHit",
-			agent: database.WorkspaceAgent{
-				CreatedAt:                time.Now().Add(-10 * time.Minute),
-				ConnectionTimeoutSeconds: 60,
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					CreatedAt:                now.Add(-10 * time.Minute),
+					ConnectionTimeoutSeconds: 60,
+				}
 			},
 		},
 		{
 			name: "CacheHitHealthyAgent",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-5 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					FirstConnectedAt: sql.NullTime{
+						Time:  now.Add(-5 * time.Minute),
+						Valid: true,
+					},
+					LastConnectedAt: sql.NullTime{
+						Time:  now,
+						Valid: true,
+					},
+				}
 			},
 		},
 		{
 			// When GetWorkspaceAgentByID returns an error on
 			// cache hit, the cached connection should be returned.
 			name: "CacheHitDBError",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-5 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					FirstConnectedAt: sql.NullTime{
+						Time:  now.Add(-5 * time.Minute),
+						Valid: true,
+					},
+					LastConnectedAt: sql.NullTime{
+						Time:  now,
+						Valid: true,
+					},
+				}
 			},
 			dbError: true,
 		},
@@ -4329,8 +4335,17 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				},
 			}
 
-			// Stamp the agent with the generated ID.
-			agent := tc.agent
+			// Stamp the agent with the generated ID. Use the
+			// subtest's mock clock so the agent's timestamps are
+			// anchored to the same `now` the server uses. Using
+			// time.Now() at slice-literal construction time
+			// produced a Windows-CI flake because a slow scheduler
+			// could insert more than agentInactiveDisconnectTimeout
+			// of wall-clock delay between the literal and the
+			// subtest body.
+			clock := quartz.NewMock(t)
+			now := clock.Now()
+			agent := tc.buildAgent(now)
 			agent.ID = agentID
 
 			// Set up the DB mock for GetWorkspaceAgentByID.
@@ -4349,7 +4364,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			server := &Server{
 				db:                             db,
 				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-				clock:                          quartz.NewReal(),
+				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    defaultDialTimeout,
 			}
