@@ -25153,8 +25153,10 @@ type GetUserSecretsTelemetrySummaryRow struct {
 // distribution is active non-system users. Specifically:
 //
 //   - deleted = false: Coder soft-deletes by flipping users.deleted
-//     rather than removing rows, so secrets persist after delete but
-//     are unreachable.
+//     rather than removing rows. The delete_deleted_user_resources()
+//     trigger now removes their user_secrets, but soft-deleted users
+//     are still excluded here so they don't dilute the percentile
+//     distribution as zero-secret entries.
 //   - status = 'active': dormant users (no recent activity) and
 //     suspended users (explicitly disabled) cannot use secrets, so
 //     they shouldn't dilute the percentile distribution as
