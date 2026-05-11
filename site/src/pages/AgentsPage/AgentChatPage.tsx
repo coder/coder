@@ -1219,6 +1219,34 @@ const AgentChatPage: FC = () => {
 		inputValueRef,
 	});
 
+	// Wrap handleEditUserMessage so entering edit mode initializes the
+	// model picker to the edited message's original model. The edit
+	// submit path uses effectiveSelectedModel, which falls back through
+	// the picker, then chatLastModelConfigID, then the first option.
+	// Without this sync, editing an earlier message on a chat whose
+	// model has since changed would silently re-run that message
+	// against the chat's current picker model. The user can still pick
+	// a different model before submitting; that change then overrides
+	// the original model.
+	const editingWithModelSync: typeof editing = {
+		...editing,
+		handleEditUserMessage: (messageId, text, fileBlocks) => {
+			if (editing.editingMessageId === null) {
+				const editedMessage = chatMessagesList?.find(
+					(message) => message.id === messageId,
+				);
+				const originalModelConfigID = editedMessage?.model_config_id;
+				if (
+					originalModelConfigID &&
+					modelOptions.some((opt) => opt.id === originalModelConfigID)
+				) {
+					setSelectedModel(originalModelConfigID);
+				}
+			}
+			editing.handleEditUserMessage(messageId, text, fileBlocks);
+		},
+	};
+
 	const chatTitle = chatQuery.data?.title;
 
 	const titleElement = (
@@ -1409,15 +1437,21 @@ const AgentChatPage: FC = () => {
 				},
 			});
 			// Persist the user's choice so the next chat created from this
-			// browser keeps the same default model. Mirrors the new-message
-			// branch below.
-			if (editSelectedModelConfigID) {
+			// browser keeps the same default model. Only persist when the
+			// user explicitly switched models during edit, which we infer
+			// from a difference between the selected model and the edited
+			// message's original model. A text-only edit that keeps the
+			// original model must not clobber the new-chat default the user
+			// previously set elsewhere.
+			const originalModelConfigID = originalEditedMessage?.model_config_id;
+			if (
+				editSelectedModelConfigID &&
+				editSelectedModelConfigID !== originalModelConfigID
+			) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
 					editSelectedModelConfigID,
 				);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
 			}
 			return;
 		}
@@ -1562,7 +1596,7 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
-			editing={editing}
+			editing={editingWithModelSync}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}

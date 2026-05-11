@@ -8819,6 +8819,11 @@ func TestEditMessagePreservesModelConfigByDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Message.ModelConfigID.Valid)
 	require.Equal(t, modelA.ID, result.Message.ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelA.ID, storedChat.LastModelConfigID,
+		"edit without model override must not change last_model_config_id")
 }
 
 // TestEditMessageRejectsUnknownModelConfig verifies the edit handler

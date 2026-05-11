@@ -1301,9 +1301,9 @@ type EditMessageOptions struct {
 	CreatedBy       uuid.UUID
 	EditedMessageID int64
 	Content         []codersdk.ChatMessagePart
-	// ModelConfigID, when non-nil, overrides the model used for the
-	// replacement user message. When nil the original message's
-	// model is preserved.
+	// ModelConfigID, when non-zero, overrides the model used for
+	// the replacement user message. When set to uuid.Nil the
+	// original message's model is preserved.
 	ModelConfigID uuid.UUID
 }
 
