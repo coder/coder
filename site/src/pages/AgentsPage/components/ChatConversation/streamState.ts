@@ -106,13 +106,27 @@ export const applyMessagePartToStreamState = (
 					: null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolResults[toolCallID];
+			if (part.result_reset) {
+				const toolResults = { ...nextState.toolResults };
+				delete toolResults[toolCallID];
+				return {
+					...nextState,
+					blocks: ensureToolBlock(nextState.blocks, toolCallID),
+					toolResults,
+				};
+			}
+
 			const nextResult = mergeStreamPayload(
 				existing?.result,
 				existing?.resultRaw,
 				part.result,
-				undefined, // no delta: tool results arrive complete, not streamed incrementally
+				part.result_delta,
 			);
 			const nextToolName = part.tool_name || existing?.name || "Tool";
+			const isFinalResult = part.result !== undefined || part.is_error;
+			const isStreaming = isFinalResult
+				? false
+				: existing?.isStreaming || Boolean(part.result_delta);
 			const nextIsError =
 				existing?.isError ||
 				parseToolResultIsError(nextToolName, part, nextResult.value);
@@ -128,6 +142,7 @@ export const applyMessagePartToStreamState = (
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
 						isError: nextIsError,
+						isStreaming: isStreaming || undefined,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
 					},
@@ -193,6 +208,18 @@ export const applyMessagePartToStreamState = (
 	}
 };
 
+const getStreamToolStatus = (
+	result: StreamState["toolResults"][string] | undefined,
+): MergedTool["status"] => {
+	if (!result) {
+		return "running";
+	}
+	if (result.isStreaming) {
+		return "running";
+	}
+	return result.isError ? "error" : "completed";
+};
+
 export const buildStreamTools = (
 	toolCalls: StreamState["toolCalls"] | null | undefined,
 	toolResults: StreamState["toolResults"] | null | undefined,
@@ -213,7 +240,7 @@ export const buildStreamTools = (
 			args: call.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
-			status: result ? (result.isError ? "error" : "completed") : "running",
+			status: getStreamToolStatus(result),
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent: call.modelIntent,
 		});
@@ -227,7 +254,7 @@ export const buildStreamTools = (
 					name: result.name,
 					result: result.result,
 					isError: result.isError,
-					status: result.isError ? "error" : "completed",
+					status: getStreamToolStatus(result),
 					mcpServerConfigId: result.mcpServerConfigId,
 				});
 			}

@@ -9494,6 +9494,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const advisorReply = "break the problem into smaller pieces first"
+	advisorDeltas := []string{"break the problem ", "into smaller pieces first"}
 
 	var (
 		streamedCallCount atomic.Int32
@@ -9526,7 +9527,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			streamedCallsMu.Unlock()
 			advisorCallSeen.Store(true)
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks(advisorReply)...,
+				chattest.OpenAITextChunks(advisorDeltas...)...,
 			)
 		default:
 			// Parent turn 2: observe the advisor tool result and close
@@ -9612,6 +9613,36 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	}
 	require.True(t, parentSawAdvisorResult,
 		"parent must see the advisor reply in its continuation call")
+
+	snapshot, _, cancelStream, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	cancelStream()
+
+	var streamedAdvisorDeltas []string
+	for _, event := range snapshot {
+		if event.Type != codersdk.ChatStreamEventTypeMessagePart || event.MessagePart == nil {
+			continue
+		}
+		part := event.MessagePart.Part
+		if event.MessagePart.Role == codersdk.ChatMessageRoleTool &&
+			part.Type == codersdk.ChatMessagePartTypeToolResult &&
+			part.ToolName == chatadvisor.ToolName &&
+			part.ResultDelta != "" {
+			streamedAdvisorDeltas = append(streamedAdvisorDeltas, part.ResultDelta)
+		}
+	}
+	require.Equal(t, advisorDeltas, streamedAdvisorDeltas,
+		"advisor nested text deltas must stream into the parent tool card")
+
+	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	for _, msg := range persisted {
+		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
+			"advisor deltas are stream-only and must not be persisted")
+	}
 }
 
 // TestAdvisorGating_ChildChat guards the second dimension of the advisor

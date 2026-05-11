@@ -7250,6 +7250,28 @@ func (p *Server) runChat(
 				// no tools. Strip it before handing the snapshot over.
 				return stripAdvisorGuidanceBlock(slices.Clone(advisorPromptSnapshot))
 			},
+			PublishAdviceDelta: func(toolCallID string, delta string) {
+				if toolCallID == "" || delta == "" {
+					return
+				}
+				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+					Type:        codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID:  toolCallID,
+					ToolName:    chatadvisor.ToolName,
+					ResultDelta: delta,
+				})
+			},
+			PublishAdviceReset: func(toolCallID string) {
+				if toolCallID == "" {
+					return
+				}
+				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+					Type:        codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID:  toolCallID,
+					ToolName:    chatadvisor.ToolName,
+					ResultReset: true,
+				})
+			},
 		}))
 	}
 

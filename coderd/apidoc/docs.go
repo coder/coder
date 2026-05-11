@@ -15970,6 +15970,9 @@ const docTemplate = `{
                 "result_delta": {
                     "type": "string"
                 },
+                "result_reset": {
+                    "type": "boolean"
+                },
                 "signature": {
                     "type": "string"
                 },
