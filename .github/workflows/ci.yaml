@@ -560,14 +560,21 @@ jobs:
 
       - name: Publish Go test failure summary
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: bash scripts/go-test-failure-summary.sh "${RUNNER_TEMP}/go-test.json" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          go run ./scripts/gotestsummary \
+            --jsonfile "${RUNNER_TEMP}/go-test.json" \
+            --markdown-out - \
+            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
+            --max-output-bytes 16384 \
+            --max-failures 50 \
+            >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Go test JSON
+      - name: Upload Go test failures
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: go-test-json-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test.json
+          name: go-test-failures-${{ github.job }}-${{ github.sha }}
+          path: ${{ runner.temp }}/go-test-failures.ndjson
           retention-days: 7
 
       - name: Upload failed test db dumps
@@ -671,14 +678,21 @@ jobs:
 
       - name: Publish Go test failure summary
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: bash scripts/go-test-failure-summary.sh "${RUNNER_TEMP}/go-test.json" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          go run ./scripts/gotestsummary \
+            --jsonfile "${RUNNER_TEMP}/go-test.json" \
+            --markdown-out - \
+            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
+            --max-output-bytes 16384 \
+            --max-failures 50 \
+            >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Go test JSON
+      - name: Upload Go test failures
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: go-test-json-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test.json
+          name: go-test-failures-${{ github.job }}-${{ github.sha }}
+          path: ${{ runner.temp }}/go-test-failures.ndjson
           retention-days: 7
 
       - name: Upload Test Cache
@@ -766,14 +780,21 @@ jobs:
 
       - name: Publish Go test failure summary
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: bash scripts/go-test-failure-summary.sh "${RUNNER_TEMP}/go-test.json" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          go run ./scripts/gotestsummary \
+            --jsonfile "${RUNNER_TEMP}/go-test.json" \
+            --markdown-out - \
+            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
+            --max-output-bytes 16384 \
+            --max-failures 50 \
+            >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Go test JSON
+      - name: Upload Go test failures
         if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: go-test-json-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test.json
+          name: go-test-failures-${{ github.job }}-${{ github.sha }}
+          path: ${{ runner.temp }}/go-test-failures.ndjson
           retention-days: 7
 
       - name: Upload Test Cache
