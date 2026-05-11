@@ -11,7 +11,7 @@ import (
 
 type WriteFileOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
+	ResolvePlanPath  ResolveChatPlanPath
 	IsPlanTurn       bool
 }
 
@@ -58,25 +58,15 @@ func executeWriteFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args WriteFileArgs,
-	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
+	resolvePlanPath ResolveChatPlanPath,
 ) (fantasy.ToolResponse, error) {
 	requestedPath := strings.TrimSpace(args.Path)
 	if requestedPath == "" {
 		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
-	hasPlanFileName := looksLikePlanFileName(requestedPath)
-	if hasPlanFileName && !isAbsolutePath(requestedPath) {
-		return fantasy.NewTextErrorResponse(
-			"plan files must use absolute paths; use the chat-specific absolute plan path",
-		), nil
-	}
-
-	if resolvePlanPath != nil && hasPlanFileName {
-		chatPath, home, err := resolvePlanPath(ctx)
-		if resp, rejected := rejectSharedPlanPath(requestedPath, home, chatPath, err); rejected {
-			return resp, nil
-		}
+	if resp, rejected := validatePlanPath(ctx, requestedPath, resolvePlanPath); rejected {
+		return resp, nil
 	}
 
 	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {

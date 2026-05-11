@@ -11,7 +11,7 @@ import (
 
 type EditFilesOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
+	ResolvePlanPath  ResolveChatPlanPath
 	IsPlanTurn       bool
 }
 
@@ -64,36 +64,18 @@ func executeEditFilesTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args EditFilesArgs,
-	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
+	resolvePlanPath ResolveChatPlanPath,
 ) (fantasy.ToolResponse, error) {
 	if len(args.Files) == 0 {
 		return fantasy.NewTextErrorResponse("files is required"), nil
 	}
 
-	var (
-		chatPath       string
-		home           string
-		planPathErr    error
-		planPathLoaded bool
-	)
+	// Memoize so the workspace home is resolved at most once per batch
+	// even though validatePlanPath gets called per file.
+	resolver := memoizedPlanPathResolver(resolvePlanPath)
 	for i := range args.Files {
 		args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
-		file := args.Files[i]
-
-		hasPlanFileName := looksLikePlanFileName(file.Path)
-		if hasPlanFileName && !isAbsolutePath(file.Path) {
-			return fantasy.NewTextErrorResponse(
-				"plan files must use absolute paths; use the chat-specific absolute plan path; no files in this batch were applied",
-			), nil
-		}
-		if resolvePlanPath == nil || !hasPlanFileName {
-			continue
-		}
-		if !planPathLoaded {
-			chatPath, home, planPathErr = resolvePlanPath(ctx)
-			planPathLoaded = true
-		}
-		if resp, rejected := rejectSharedPlanPath(file.Path, home, chatPath, planPathErr); rejected {
+		if resp, rejected := validatePlanPath(ctx, args.Files[i].Path, resolver); rejected {
 			return fantasy.NewTextErrorResponse(
 				resp.Content + "; no files in this batch were applied",
 			), nil

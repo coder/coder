@@ -16,7 +16,7 @@ const maxProposePlanSize = 32 * 1024 // 32 KiB
 // ProposePlanOptions configures the propose_plan tool.
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
+	ResolvePlanPath  ResolveChatPlanPath
 	StoreFile        StoreFileFunc
 	IsPlanTurn       bool
 }
@@ -70,7 +70,7 @@ func executeProposePlanTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ProposePlanArgs,
-	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
+	resolvePlanPath ResolveChatPlanPath,
 	storeFile StoreFileFunc,
 ) (fantasy.ToolResponse, error) {
 	requestedPath := strings.TrimSpace(args.Path)
@@ -81,18 +81,8 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
 	}
 
-	hasPlanFileName := looksLikePlanFileName(requestedPath)
-	if hasPlanFileName && !isAbsolutePath(requestedPath) {
-		return fantasy.NewTextErrorResponse(
-			"plan files must use absolute paths; use the chat-specific absolute plan path",
-		), nil
-	}
-
-	if resolvePlanPath != nil && hasPlanFileName {
-		chatPath, home, err := resolvePlanPath(ctx)
-		if resp, rejected := rejectSharedPlanPath(requestedPath, home, chatPath, err); rejected {
-			return resp, nil
-		}
+	if resp, rejected := validatePlanPath(ctx, requestedPath, resolvePlanPath); rejected {
+		return resp, nil
 	}
 
 	rc, _, err := conn.ReadFile(ctx, requestedPath, 0, maxProposePlanSize+1)
