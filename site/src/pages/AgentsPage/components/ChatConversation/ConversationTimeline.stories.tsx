@@ -14,6 +14,8 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import { StreamingOutput } from "./StreamingOutput";
+import { buildStreamRenderState } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
@@ -2086,5 +2088,92 @@ export const ThinkingBlockPreviewMode: Story = {
 				canvas.getByText(/Let me think about this step by step/),
 			).toBeVisible();
 		});
+	},
+};
+
+/**
+ * Regression guard: during streaming, the last completed assistant message
+ * (which owns the invisible copy-button container) must NOT create extra
+ * vertical space between its tool calls and the streaming tool call below.
+ * All inter-message gaps should be ~12 px; before the fix the gap here was
+ * ~38 px because the message-actions div (mt-0.5 + size-6 = 26 px) was in
+ * the layout flow.
+ */
+export const StreamingToolCallGapRegression: Story = {
+	render: () => {
+		const parsedMessages = buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [buildTextPart("Run the tests and build the project")],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "execute",
+						args: { command: "go test ./..." },
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "tool-2",
+						tool_name: "execute",
+						args: { command: "go build ./..." },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-1",
+						result: { output: "PASS\nok  github.com/coder/coder 12.3s" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-2",
+						result: { output: "Build successful" },
+					},
+				],
+			},
+		]);
+
+		const { streamState, streamTools, liveStatus } = buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "tool-streaming",
+				tool_name: "read_file",
+				args: { path: "main.go" },
+			},
+		]);
+
+		return (
+			<div className="flex flex-col gap-2">
+				<ConversationTimeline
+					parsedMessages={parsedMessages}
+					subagentTitles={new Map()}
+				/>
+				<StreamingOutput
+					streamState={streamState}
+					streamTools={streamTools}
+					liveStatus={liveStatus}
+				/>
+			</div>
+		);
 	},
 };
