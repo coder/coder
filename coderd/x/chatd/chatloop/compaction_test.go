@@ -427,6 +427,10 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		// Compaction fires twice: once inline when the threshold is
+		// reached on step 0 (the only step, since MaxSteps=1), and
+		// once from the post-run safety net during the re-entry
+		// iteration where totalSteps already equals MaxSteps.
 		require.Equal(t, 2, compactionGenerateCalls)
 	})
 
