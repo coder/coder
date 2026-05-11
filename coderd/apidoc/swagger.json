@@ -21512,7 +21512,7 @@
 					"type": "integer"
 				},
 				"update_workspace_dormant_at": {
-					"description": "UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being immediately\ndeleted when updating the dormant_ttl field to a new, shorter value.",
+					"description": "UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being\nimmediately deleted when updating the dormant_ttl field to a new, shorter\nvalue.",
 					"type": "boolean"
 				},
 				"update_workspace_last_used_at": {
