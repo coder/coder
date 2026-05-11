@@ -5311,9 +5311,47 @@ func (p *Server) subscribeChatControl(
 			return
 		}
 
-		if shouldCancelChatFromControlNotification(notify, p.workerID) {
-			cancel(chatloop.ErrInterrupted)
+		if !shouldCancelChatFromControlNotification(notify, p.workerID) {
+			return
 		}
+
+		// Re-read the chat from the database before honoring the
+		// cancel signal. PostgreSQL NOTIFY delivery is asynchronous,
+		// so a stale "pending" notification published by this
+		// worker's own previous cleanup (finishActiveChat publishes
+		// status=pending before signalWake fires) can be delivered to
+		// the new subscriber registered by the next processChat for
+		// the same chat ID. Without this check, the stale
+		// notification would cancel the freshly armed run before it
+		// makes any upstream request.
+		//
+		// Use a detached context with a short timeout so a slow
+		// database does not block the pubsub dispatch goroutine, and
+		// so listener context cancellation from server shutdown does
+		// not skip the final cancel.
+		dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer dbCancel()
+		//nolint:gocritic // AsChatd authorizes the daemon's own
+		// internal lookup against a chat it is actively processing.
+		latest, latestErr := p.db.GetChatByID(dbauthz.AsChatd(dbCtx), chatID)
+		if latestErr == nil &&
+			latest.Status == database.ChatStatusRunning &&
+			latest.WorkerID.Valid &&
+			latest.WorkerID.UUID == p.workerID {
+			logger.Debug(ctx, "ignoring stale chat control notification",
+				slog.F("notify_status", notify.Status),
+				slog.F("notify_worker_id", notify.WorkerID),
+			)
+			return
+		}
+		if latestErr != nil {
+			logger.Warn(ctx, "failed to re-read chat for control notification; honoring cancel",
+				slog.F("notify_status", notify.Status),
+				slog.Error(latestErr),
+			)
+		}
+
+		cancel(chatloop.ErrInterrupted)
 	}
 
 	controlCancel, err := p.pubsub.SubscribeWithErr(
