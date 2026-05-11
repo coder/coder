@@ -2,6 +2,8 @@ package agentfake
 
 import (
 	"context"
+	"encoding/base64"
+	"math/rand"
 	"net/url"
 	"time"
 
@@ -13,7 +15,25 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-const reconnectBackoff = 1 * time.Second
+const (
+	reconnectBackoff = 1 * time.Second
+
+	// metadataTickInterval is the scheduler pulse for the per-agent metadata
+	// goroutine. Per-description cadence is enforced by tracking next-due
+	// timestamps; the ticker just wakes us up often enough to honor the
+	// shortest interval we expect (1s).
+	metadataTickInterval = 1 * time.Second
+
+	// metadataValueBytes matches the payload size produced by the real
+	// scaletest template's metadata script (`dd if=/dev/urandom bs=3072
+	// count=1 | base64`), so the synthetic load shape on the wire mirrors
+	// what a real agent emits.
+	metadataValueBytes = 3072
+
+	// metadataMinInterval is a floor applied to manifest-declared intervals
+	// to guard against a malformed manifest pinning the goroutine.
+	metadataMinInterval = 1 * time.Second
+)
 
 // Agent is a single fake agent. It owns one workspace-agent auth token and one dRPC connection to coderd.
 type Agent struct {
@@ -87,11 +107,102 @@ func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client) er
 			slog.Error(err))
 	}
 
+	// Fetch the agent manifest so we know which metadata descriptions the
+	// template declared. We synthesize values for each declared key at the
+	// declared interval. Failure here is non-fatal: a manifest fetch
+	// hiccup shouldn't tear the connection down, we just skip metadata
+	// for this session and let the next reconnect retry.
+	manifest, err := rpc.GetManifest(ctx, &proto.GetManifestRequest{})
+	if err != nil {
+		if ctx.Err() == nil {
+			a.logger.Warn(ctx, "get manifest for metadata", slog.Error(err))
+		}
+	} else if descs := manifest.GetMetadata(); len(descs) > 0 {
+		go a.runMetadata(ctx, rpc, descs)
+	}
+
 	select {
 	case <-ctx.Done():
 		return nil
 	case <-conn.Closed():
 		return xerrors.New("dRPC connection closed by remote")
+	}
+}
+
+// runMetadata sends synthetic values for every metadata description in the
+// agent manifest, batching per-tick into a single BatchUpdateMetadata call.
+//
+// One goroutine per agent (not per description): a 1s ticker pulses and we
+// track per-description next-due timestamps so each key reports at its own
+// declared interval. The goroutine is scoped to the connection's ctx; on
+// disconnect or shutdown it exits cleanly.
+//
+// Errors from BatchUpdateMetadata are logged and ignored. Tearing the
+// connection down over a metadata RPC blip would be wasteful; real agents
+// behave the same way (see agent.reportMetadata).
+func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, descs []*proto.WorkspaceAgentMetadata_Description) {
+	// Resolve declared intervals once, applying a floor so a malformed
+	// manifest can't spin us. Initialize all keys as immediately due so
+	// the first tick fires every description.
+	intervals := make([]time.Duration, len(descs))
+	nextDue := make([]time.Time, len(descs))
+	now := time.Now()
+	for i, d := range descs {
+		// The Interval field on the proto is a durationpb.Duration but
+		// carries the raw int64 seconds value cast through time.Duration
+		// (see coderd/agentapi/manifest.go and agent/agent.go). Mirror the
+		// same recovery the real agent does so manifest-declared intervals
+		// of e.g. 10s are honored as 10s, not 10ns.
+		intervalSeconds := int64(d.GetInterval().AsDuration())
+		interval := time.Duration(intervalSeconds) * time.Second
+		if interval < metadataMinInterval {
+			interval = metadataMinInterval
+		}
+		intervals[i] = interval
+		nextDue[i] = now
+	}
+
+	// Per-agent RNG so we don't contend on the global math/rand mutex
+	// when many fake agents run in the same process.
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	buf := make([]byte, metadataValueBytes)
+
+	ticker := time.NewTicker(metadataTickInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			var batch []*proto.Metadata
+			for i, d := range descs {
+				if now.Before(nextDue[i]) {
+					continue
+				}
+				// Regenerate per entry so each value varies on the wire;
+				// matches what the real `dd | base64` script produces.
+				_, _ = rng.Read(buf)
+				value := base64.StdEncoding.EncodeToString(buf)
+				batch = append(batch, &proto.Metadata{
+					Key: d.GetKey(),
+					Result: &proto.WorkspaceAgentMetadata_Result{
+						CollectedAt: timestamppb.New(now),
+						Value:       value,
+					},
+				})
+				nextDue[i] = now.Add(intervals[i])
+			}
+			if len(batch) == 0 {
+				continue
+			}
+			if _, err := rpc.BatchUpdateMetadata(ctx, &proto.BatchUpdateMetadataRequest{
+				Metadata: batch,
+			}); err != nil && ctx.Err() == nil {
+				a.logger.Debug(ctx, "batch update metadata failed",
+					slog.Error(err))
+			}
+		}
 	}
 }
 
