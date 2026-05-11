@@ -1,10 +1,14 @@
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import { type QueryClient, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { chatDebugRun, chatDebugRuns } from "#/api/queries/chats";
+import {
+	chatDebugRun,
+	chatDebugRuns,
+	TERMINAL_RUN_STATUSES,
+} from "#/api/queries/chats";
 import type { ChatDebugRun, ChatDebugRunSummary } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -32,6 +36,15 @@ const getMissingRunsDescription = (failedRunCount: number): string => {
 	return `${failedRunCount} ${noun} could not be fetched. The downloaded JSON lists them in failed_runs.`;
 };
 
+const isTerminalDebugRun = (run: ChatDebugRunSummary): boolean => {
+	return TERMINAL_RUN_STATUSES.has(run.status.toLowerCase());
+};
+
+const chatDebugRunExportQuery = (chatId: string, run: ChatDebugRunSummary) => ({
+	...chatDebugRun(chatId, run.id),
+	staleTime: isTerminalDebugRun(run) ? Number.POSITIVE_INFINITY : 0,
+});
+
 interface DebugRunExportFetchResult {
 	runDetails: ChatDebugRun[];
 	failedRuns: ChatDebugRunFetchFailure[];
@@ -41,15 +54,24 @@ const fetchDebugRunDetailsForExport = async (
 	queryClient: QueryClient,
 	chatId: string,
 	runs: readonly ChatDebugRunSummary[],
+	signal: AbortSignal,
 ): Promise<DebugRunExportFetchResult> => {
 	const runDetails: ChatDebugRun[] = [];
 	const failedRuns: ChatDebugRunFetchFailure[] = [];
 
 	for (let i = 0; i < runs.length; i += DEBUG_RUN_EXPORT_FETCH_CONCURRENCY) {
+		if (signal.aborted) {
+			break;
+		}
 		const batch = runs.slice(i, i + DEBUG_RUN_EXPORT_FETCH_CONCURRENCY);
 		const results = await Promise.allSettled(
-			batch.map((run) => queryClient.fetchQuery(chatDebugRun(chatId, run.id))),
+			batch.map((run) =>
+				queryClient.fetchQuery(chatDebugRunExportQuery(chatId, run)),
+			),
 		);
+		if (signal.aborted) {
+			break;
+		}
 
 		for (let resultIndex = 0; resultIndex < results.length; resultIndex++) {
 			const result = results[resultIndex];
@@ -184,14 +206,26 @@ const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const [isExporting, setIsExporting] = useState(false);
+	const activeExportControllerRef = useRef<AbortController | null>(null);
 
-	const exportDebugRuns = async () => {
+	useEffect(() => {
+		return () => {
+			activeExportControllerRef.current?.abort();
+			activeExportControllerRef.current = null;
+		};
+	}, []);
+
+	const exportDebugRuns = async (signal: AbortSignal) => {
 		try {
 			const { runDetails, failedRuns } = await fetchDebugRunDetailsForExport(
 				queryClient,
 				chatId,
 				runs,
+				signal,
 			);
+			if (signal.aborted) {
+				return;
+			}
 			if (runDetails.length === 0) {
 				toast.error("Failed to export debug logs.", {
 					description: "No debug run details could be fetched.",
@@ -204,10 +238,16 @@ const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
 				failedRuns,
 				requestedRunCount: runs.length,
 			});
+			if (signal.aborted) {
+				return;
+			}
 			await download(
 				buildDebugExportBlob(payload),
 				debugExportFilename({ chatId, exportedAt }),
 			);
+			if (signal.aborted) {
+				return;
+			}
 
 			if (failedRuns.length > 0) {
 				toast.warning("Exported debug logs with missing runs.", {
@@ -227,10 +267,19 @@ const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
 			<Button
 				variant="outline"
 				size="sm"
-				disabled={isExporting || runs.length === 0}
+				disabled={isExporting}
 				onClick={() => {
+					const controller = new AbortController();
+					activeExportControllerRef.current?.abort();
+					activeExportControllerRef.current = controller;
 					setIsExporting(true);
-					void exportDebugRuns().finally(() => setIsExporting(false));
+					void exportDebugRuns(controller.signal).finally(() => {
+						if (activeExportControllerRef.current !== controller) {
+							return;
+						}
+						activeExportControllerRef.current = null;
+						setIsExporting(false);
+					});
 				}}
 			>
 				{isExporting ? (

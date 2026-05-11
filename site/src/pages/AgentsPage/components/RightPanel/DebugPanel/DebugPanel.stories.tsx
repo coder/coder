@@ -811,6 +811,53 @@ export const ExportAllRuns: Story = {
 	},
 };
 
+export const ExportAllRunsUsesCachedTerminalRunDetails: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					makeRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+				],
+			},
+			{
+				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				data: successfulRunDetail,
+			},
+		],
+	},
+	beforeEach: () => {
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockRejectedValue(new Error("detail refetch should not happen"));
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		const [blob] = getLastDownloadCall(args.download);
+		const payload = JSON.parse(await blob.text());
+		expect(payload.runs).toHaveLength(1);
+		expect(payload.runs[0].id).toBe(successfulRunDetail.id);
+		expect(payload).not.toHaveProperty("failed_runs");
+	},
+};
+
 export const ExportAllRunsPartialFailure: Story = {
 	args: {
 		download: fn(),
