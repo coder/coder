@@ -194,7 +194,7 @@ const CreateWorkspacePage: FC = () => {
 
 	const {
 		externalAuth,
-		externalAuthPollingState,
+		externalAuthPollingStates,
 		startPollingExternalAuth,
 		isLoadingExternalAuth,
 	} = useExternalAuth(realizedVersionId);
@@ -331,7 +331,7 @@ const CreateWorkspacePage: FC = () => {
 					versionId={realizedVersionId}
 					versionName={templateVersionQuery.data?.name}
 					externalAuth={externalAuth ?? []}
-					externalAuthPollingState={externalAuthPollingState}
+					externalAuthPollingStates={externalAuthPollingStates}
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
@@ -365,45 +365,108 @@ const CreateWorkspacePage: FC = () => {
 };
 
 const useExternalAuth = (versionId: string | undefined) => {
-	const [externalAuthPollingState, setExternalAuthPollingState] =
-		useState<ExternalAuthPollingState>("idle");
+	const abandonTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>(
+		{},
+	);
+	const [externalAuthPollingStates, setExternalAuthPollingStates] = useState<
+		Record<string, ExternalAuthPollingState>
+	>({});
 
-	const startPollingExternalAuth = useCallback(() => {
-		setExternalAuthPollingState("polling");
+	const clearAbandonTimer = useCallback((authID: string) => {
+		const abandonTimer = abandonTimers.current[authID];
+		if (abandonTimer) {
+			clearTimeout(abandonTimer);
+			delete abandonTimers.current[authID];
+		}
 	}, []);
 
+	const startPollingExternalAuth = useCallback(
+		(authID: string) => {
+			clearAbandonTimer(authID);
+			setExternalAuthPollingStates((states) => ({
+				...states,
+				[authID]: "polling",
+			}));
+			abandonTimers.current[authID] = setTimeout(() => {
+				setExternalAuthPollingStates((states) => {
+					if (states[authID] !== "polling") {
+						return states;
+					}
+
+					return {
+						...states,
+						[authID]: "abandoned",
+					};
+				});
+				delete abandonTimers.current[authID];
+			}, 60_000);
+		},
+		[clearAbandonTimer],
+	);
+
+	useEffect(() => {
+		return () => {
+			for (const abandonTimer of Object.values(abandonTimers.current)) {
+				clearTimeout(abandonTimer);
+			}
+		};
+	}, []);
+
+	const isPollingExternalAuth = Object.values(externalAuthPollingStates).some(
+		(state) => state === "polling",
+	);
 	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
 		enabled: Boolean(versionId),
-		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+		refetchInterval: isPollingExternalAuth ? 1000 : false,
 	});
 
-	const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
 	useEffect(() => {
-		if (allSignedIn) {
-			setExternalAuthPollingState("idle");
+		if (!externalAuth) {
 			return;
 		}
 
-		if (externalAuthPollingState !== "polling") {
-			return;
-		}
-
-		// Poll for a maximum of one minute
-		const quitPolling = setTimeout(
-			() => setExternalAuthPollingState("abandoned"),
-			60_000,
+		const externalAuthIDs = new Set(externalAuth.map((auth) => auth.id));
+		const authenticatedExternalAuthIDs = new Set(
+			externalAuth.filter((auth) => auth.authenticated).map((auth) => auth.id),
 		);
-		return () => {
-			clearTimeout(quitPolling);
-		};
-	}, [externalAuthPollingState, allSignedIn]);
+		for (const authID of Object.keys(abandonTimers.current)) {
+			if (
+				authenticatedExternalAuthIDs.has(authID) ||
+				!externalAuthIDs.has(authID)
+			) {
+				clearAbandonTimer(authID);
+			}
+		}
+
+		setExternalAuthPollingStates((states) => {
+			let nextStates: typeof states | undefined;
+			for (const authID of authenticatedExternalAuthIDs) {
+				if (states[authID] === undefined) {
+					continue;
+				}
+
+				nextStates ??= { ...states };
+				delete nextStates[authID];
+			}
+
+			for (const authID of Object.keys(states)) {
+				if (externalAuthIDs.has(authID)) {
+					continue;
+				}
+
+				nextStates ??= { ...states };
+				delete nextStates[authID];
+			}
+
+			return nextStates ?? states;
+		});
+	}, [clearAbandonTimer, externalAuth]);
 
 	return {
 		startPollingExternalAuth,
 		externalAuth,
-		externalAuthPollingState,
+		externalAuthPollingStates,
 		isLoadingExternalAuth,
 	};
 };

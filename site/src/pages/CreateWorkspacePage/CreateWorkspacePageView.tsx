@@ -65,7 +65,7 @@ interface CreateWorkspacePageViewProps {
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
-	externalAuthPollingState: ExternalAuthPollingState;
+	externalAuthPollingStates: Record<string, ExternalAuthPollingState>;
 	hasAllRequiredExternalAuth: boolean;
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
@@ -81,7 +81,7 @@ interface CreateWorkspacePageViewProps {
 	) => void;
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
-	startPollingExternalAuth: () => void;
+	startPollingExternalAuth: (authID: string) => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
 }
@@ -96,7 +96,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	disabledParams,
 	error,
 	externalAuth,
-	externalAuthPollingState,
+	externalAuthPollingStates,
 	hasAllRequiredExternalAuth,
 	mode,
 	parameters,
@@ -553,16 +553,21 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										all required external authentication providers listed below.
 									</Alert>
 								)}
-								{externalAuth.map((auth) => (
-									<ExternalAuthButton
-										key={auth.id}
-										error={error}
-										auth={auth}
-										isLoading={externalAuthPollingState === "polling"}
-										onStartPolling={startPollingExternalAuth}
-										displayRetry={externalAuthPollingState === "abandoned"}
-									/>
-								))}
+								{externalAuth.map((auth) => {
+									const pollingState =
+										externalAuthPollingStates[auth.id] ?? "idle";
+
+									return (
+										<ExternalAuthButton
+											key={auth.id}
+											error={error}
+											auth={auth}
+											isLoading={pollingState === "polling"}
+											onStartPolling={() => startPollingExternalAuth(auth.id)}
+											displayRetry={pollingState === "abandoned"}
+										/>
+									);
+								})}
 							</div>
 						</section>
 					)}

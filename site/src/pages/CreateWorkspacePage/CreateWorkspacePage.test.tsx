@@ -2,7 +2,10 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { API } from "#/api/api";
-import type { DynamicParametersResponse } from "#/api/typesGenerated";
+import type {
+	DynamicParametersResponse,
+	TemplateVersionExternalAuth,
+} from "#/api/typesGenerated";
 import {
 	MockDropdownParameter,
 	MockDynamicParametersResponse,
@@ -25,6 +28,15 @@ import { mockDynamicParameterWebSocket } from "#/testHelpers/websockets";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {
+	const MockTemplateVersionExternalAuthGitLab: TemplateVersionExternalAuth = {
+		id: "gitlab",
+		type: "gitlab",
+		authenticate_url: "https://example.com/external-auth/gitlab",
+		authenticated: false,
+		display_icon: "/icon/gitlab.svg",
+		display_name: "GitLab",
+	};
+
 	const renderCreateWorkspacePage = (
 		route = `/templates/${MockTemplate.name}/workspace`,
 	) => {
@@ -408,6 +420,79 @@ describe("CreateWorkspacePage", () => {
 				expect(screen.getByText("GitHub")).toBeInTheDocument();
 				expect(screen.getByText(/authenticated/i)).toBeInTheDocument();
 			});
+		});
+
+		it("only disables the external auth provider that started polling", async () => {
+			const open = vi.spyOn(window, "open").mockImplementation(() => null);
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithub,
+				MockTemplateVersionExternalAuthGitLab,
+			]);
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			const githubButton = await screen.findByRole("button", {
+				name: /login with github/i,
+			});
+			const gitlabButton = screen.getByRole("button", {
+				name: /login with gitlab/i,
+			});
+
+			await userEvent.click(githubButton);
+
+			await waitFor(() => {
+				expect(githubButton).toBeDisabled();
+			});
+			expect(gitlabButton).toBeEnabled();
+			expect(open).toHaveBeenCalledWith(
+				MockTemplateVersionExternalAuthGithub.authenticate_url,
+				"_blank",
+				"width=900,height=600",
+			);
+		});
+
+		it("only shows retry for the external auth provider whose polling timed out", async () => {
+			vi.spyOn(window, "open").mockImplementation(() => null);
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithub,
+				MockTemplateVersionExternalAuthGitLab,
+			]);
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+			const githubButton = await screen.findByRole("button", {
+				name: /login with github/i,
+			});
+			await user.click(githubButton);
+
+			await act(async () => {
+				vi.advanceTimersByTime(60_000);
+			});
+
+			const githubRow = screen.getByText("GitHub").closest("div");
+			const gitlabRow = screen.getByText("GitLab").closest("div");
+			expect(githubRow).not.toBeNull();
+			expect(gitlabRow).not.toBeNull();
+
+			expect(
+				within(githubRow!).getByRole("button", {
+					name: /refresh external auth/i,
+				}),
+			).toBeInTheDocument();
+			expect(
+				within(gitlabRow!).queryByRole("button", {
+					name: /refresh external auth/i,
+				}),
+			).not.toBeInTheDocument();
+			expect(
+				within(gitlabRow!).getByRole("button", {
+					name: /login with gitlab/i,
+				}),
+			).toBeEnabled();
 		});
 
 		it("prevents auto-creation when required external auth is missing", async () => {
