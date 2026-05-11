@@ -161,11 +161,14 @@ type RunOptions struct {
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
-	// PrepareMessages is called before each LLM step with the
-	// current message history. If it returns non-nil, the returned
-	// slice replaces messages for this and all subsequent steps.
+	// PrepareMessages is called at least once before each LLM step
+	// with the current message history. If it returns non-nil, the
+	// returned slice replaces messages for this and all subsequent
+	// steps.
 	// Used to inject system context that becomes available mid-loop
 	// (e.g. AGENTS.md after create_workspace).
+	// NOTE: It may be called more than once per step in case of a
+	// retry, so callbacks should avoid duplicating messages.
 	PrepareMessages func([]fantasy.Message) []fantasy.Message
 
 	// OnRetry is called before each retry attempt when the LLM
@@ -349,7 +352,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
-	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages
 	var lastUsage fantasy.Usage
@@ -390,30 +392,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 			modelName := opts.Model.Model()
 			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 			stepStart := time.Now()
-			// Copy messages so that provider-specific caching
-			// mutations don't leak back to the caller's slice.
-			// copy copies Message structs by value, so field
-			// reassignments in addAnthropicPromptCaching only
-			// affect the prepared slice.
-			if opts.PrepareMessages != nil {
-				if updated := opts.PrepareMessages(messages); updated != nil {
-					messages = updated
-				}
-			}
-			prepared := make([]fantasy.Message, len(messages))
-			copy(prepared, messages)
-			prepared, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prepared)
-			chatsanitize.LogAnthropicProviderToolSanitization(
-				ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
-				slog.F("step_index", step),
-				slog.F("total_steps", totalSteps),
+			var prepared []fantasy.Message
+			messages, prepared = prepareMessagesForRequest(
+				ctx, opts, messages, provider, modelName, step, totalSteps,
 			)
-			prepared = chatsanitize.ApplyAnthropicProviderToolGuard(
-				ctx, opts.Logger, provider, modelName, prepared,
-			)
-			if applyAnthropicCaching {
-				addAnthropicPromptCaching(prepared)
-			}
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
@@ -470,7 +452,31 @@ func Run(ctx context.Context, opts RunOptions) error {
 				classified = classified.WithProvider(provider)
 				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 				if classified.ChainBroken {
-					recoverFromChainBroken(ctx, opts, &call, &messages)
+					if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
+						opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
+					}
+					if chatopenai.HasPreviousResponseID(call.ProviderOptions) {
+						call.ProviderOptions = chatopenai.ClearPreviousResponseID(call.ProviderOptions)
+					}
+					if opts.DisableChainMode != nil {
+						opts.DisableChainMode()
+					}
+					if opts.ReloadMessages != nil {
+						reloaded, err := opts.ReloadMessages(ctx)
+						if err != nil {
+							opts.Logger.Warn(ctx,
+								"chain-broken recovery: reload messages failed",
+								slog.Error(err),
+							)
+						} else {
+							// Reloaded history replaces the prompt prepared before
+							// the failed attempt, so run the same preparation
+							// pipeline used by normal provider requests.
+							messages, call.Prompt = prepareMessagesForRequest(
+								ctx, opts, reloaded, provider, modelName, step, totalSteps,
+							)
+						}
+					}
 				}
 				if opts.OnRetry != nil {
 					opts.OnRetry(attempt, retryErr, classified, delay)
@@ -657,6 +663,43 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	return nil
+}
+
+// prepareMessagesForRequest applies the prompt preparation pipeline used
+// immediately before sending messages to a provider. It returns the
+// possibly updated canonical messages and an independent provider-ready
+// prompt.
+func prepareMessagesForRequest(
+	ctx context.Context,
+	opts RunOptions,
+	messages []fantasy.Message,
+	provider string,
+	modelName string,
+	step int,
+	totalSteps int,
+) (canonical []fantasy.Message, prompt []fantasy.Message) {
+	canonical = messages
+	if opts.PrepareMessages != nil {
+		if updated := opts.PrepareMessages(canonical); updated != nil {
+			canonical = updated
+		}
+	}
+	// Copy messages so provider-specific caching mutations don't leak
+	// back to the canonical message slice.
+	prompt = slices.Clone(canonical)
+	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prompt)
+	chatsanitize.LogAnthropicProviderToolSanitization(
+		ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
+		slog.F("step_index", step),
+		slog.F("total_steps", totalSteps),
+	)
+	prompt = chatsanitize.ApplyAnthropicProviderToolGuard(
+		ctx, opts.Logger, provider, modelName, prompt,
+	)
+	if shouldApplyAnthropicPromptCaching(opts.Model) {
+		addAnthropicPromptCaching(prompt)
+	}
+	return canonical, prompt
 }
 
 // guardedAttempt owns an attempt-scoped context and startup guard
@@ -1528,45 +1571,6 @@ func flushActiveState(
 		result.content = append(result.content, flushed)
 		result.toolCalls = append(result.toolCalls, flushed)
 	}
-}
-
-// recoverFromChainBroken clears the poisoned chain anchor (e.g. OpenAI
-// previous_response_id), exits chain mode via the caller's callback, and
-// reloads full history so the next chatretry attempt sends a normal
-// request. Best-effort: if ReloadMessages fails, the options are still
-// cleared and the retry runs against the chain-filtered prompt.
-//
-// Caveats:
-//   - Bypasses RunOptions.PrepareMessages. Safe today because
-//     PrepareMessages already ran at the start of this step and
-//     ReloadMessages refreshes the same state (instruction injection,
-//     advisor snapshot). Revisit if either callback diverges.
-//   - Bypasses the Anthropic prompt-cache and sanitize passes. Safe
-//     while chain mode is OpenAI-only; extend if chain mode does.
-func recoverFromChainBroken(
-	ctx context.Context,
-	opts RunOptions,
-	call *fantasy.Call,
-	messages *[]fantasy.Message,
-) {
-	if chatopenai.HasPreviousResponseID(call.ProviderOptions) {
-		call.ProviderOptions = chatopenai.ClearPreviousResponseID(call.ProviderOptions)
-	}
-	if opts.DisableChainMode != nil {
-		opts.DisableChainMode()
-	}
-	if opts.ReloadMessages == nil {
-		return
-	}
-	reloaded, err := opts.ReloadMessages(ctx)
-	if err != nil {
-		opts.Logger.Warn(ctx,
-			"chain-broken recovery: reload messages failed",
-			slog.Error(err))
-		return
-	}
-	*messages = reloaded
-	call.Prompt = slices.Clone(reloaded)
 }
 
 // persistInterruptedStep saves durable content from a partial stream.

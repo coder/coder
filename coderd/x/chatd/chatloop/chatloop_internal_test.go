@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -90,6 +91,183 @@ func TestRun_ChainBrokenRecovers(t *testing.T) {
 	)
 }
 
+func TestRun_ChainBrokenRecoveryPreparesReloadedMessages(t *testing.T) {
+	t.Parallel()
+
+	var (
+		streamCalls   int
+		prepareCalls  int
+		secondCallOpt fantasy.ProviderOptions
+		secondPrompt  []fantasy.Message
+	)
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			switch streamCalls {
+			case 1:
+				return nil, xerrors.New(chainBrokenErrorMessage)
+			default:
+				secondCallOpt = call.ProviderOptions
+				secondPrompt = call.Prompt
+				return finishingStream(), nil
+			}
+		},
+	}
+
+	reloadedHistory := []fantasy.Message{
+		textMessage(fantasy.MessageRoleUser, "full history"),
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "chain-filtered"),
+		},
+		ProviderOptions: chainModeProviderOptions("resp_poisoned"),
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		DisableChainMode: func() {},
+		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+			return reloadedHistory, nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			prepareCalls++
+			return append(msgs, textMessage(fantasy.MessageRoleSystem, "prepared"))
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.Equal(t, 2, prepareCalls,
+		"reloaded history must be prepared before the retry")
+	require.False(t, chatopenai.HasPreviousResponseID(secondCallOpt))
+	requireTextPrompt(t, secondPrompt, "full history")
+	requireTextPrompt(t, secondPrompt, "prepared")
+}
+
+func TestRun_ChainBrokenRecoveryAppliesProviderPromptPrep(t *testing.T) {
+	t.Parallel()
+
+	var (
+		streamCalls   int
+		secondCallOpt fantasy.ProviderOptions
+		secondPrompt  []fantasy.Message
+	)
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			switch streamCalls {
+			case 1:
+				return nil, xerrors.New(chainBrokenErrorMessage)
+			default:
+				secondCallOpt = call.ProviderOptions
+				secondPrompt = call.Prompt
+				return finishingStream(), nil
+			}
+		},
+	}
+
+	reloadedHistory := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "sys-1"),
+		textMessage(fantasy.MessageRoleSystem, "sys-2"),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+		textMessage(fantasy.MessageRoleAssistant, "hi"),
+		textMessage(fantasy.MessageRoleUser, "follow up"),
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleSystem, "sys-2"),
+			textMessage(fantasy.MessageRoleUser, "follow up"),
+		},
+		ProviderOptions: chainModeProviderOptions("resp_poisoned"),
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		DisableChainMode: func() {},
+		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+			return reloadedHistory, nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.False(t, chatopenai.HasPreviousResponseID(secondCallOpt))
+	require.Len(t, secondPrompt, 5)
+	require.False(t, hasAnthropicEphemeralCacheControl(secondPrompt[0]))
+	require.True(t, hasAnthropicEphemeralCacheControl(secondPrompt[1]))
+	require.False(t, hasAnthropicEphemeralCacheControl(secondPrompt[2]))
+	require.True(t, hasAnthropicEphemeralCacheControl(secondPrompt[3]))
+	require.True(t, hasAnthropicEphemeralCacheControl(secondPrompt[4]))
+}
+
+func TestRun_ChainBrokenReloadWithoutDisableChainModeIsExplicit(t *testing.T) {
+	t.Parallel()
+
+	var (
+		streamCalls   int
+		prepareCalls  int
+		reloadCalls   int
+		secondCallOpt fantasy.ProviderOptions
+		secondPrompt  []fantasy.Message
+	)
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			switch streamCalls {
+			case 1:
+				return nil, xerrors.New(chainBrokenErrorMessage)
+			default:
+				secondCallOpt = call.ProviderOptions
+				secondPrompt = call.Prompt
+				return finishingStream(), nil
+			}
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "chain-filtered"),
+		},
+		ProviderOptions: chainModeProviderOptions("resp_poisoned"),
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+			reloadCalls++
+			return []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "full history"),
+			}, nil
+		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			prepareCalls++
+			return append(msgs, textMessage(fantasy.MessageRoleSystem, "prepared"))
+		},
+		// DisableChainMode is intentionally nil. This covers callers
+		// whose ReloadMessages does not depend on chain-mode state.
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.Equal(t, 1, reloadCalls)
+	require.Equal(t, 2, prepareCalls)
+	require.False(t, chatopenai.HasPreviousResponseID(secondCallOpt))
+	requireTextPrompt(t, secondPrompt, "full history")
+	requireTextPrompt(t, secondPrompt, "prepared")
+}
+
 func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 	t.Parallel()
 
@@ -159,8 +337,8 @@ func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 	})
 
 	// Then it must not re-send the poisoned previous_response_id
-	// because the post-step chain-exit path in Run cleared it after
-	// the recovered step persisted.
+	// because chain-broken recovery cleared both the current call and
+	// subsequent step options.
 	require.NoError(t, err)
 	require.Equal(t, 3, streamCalls,
 		"expected three stream calls: chain-broken failure, recovered tool-call step, follow-up step")
@@ -179,7 +357,9 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 	// Given: a chain-mode run whose ReloadMessages callback errors
 	var (
 		streamCalls   int
+		prepareCalls  int
 		secondCallOpt fantasy.ProviderOptions
+		secondPrompt  []fantasy.Message
 	)
 	model := &chattest.FakeModel{
 		ProviderName: "openai",
@@ -190,6 +370,7 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 				return nil, xerrors.New(chainBrokenErrorMessage)
 			default:
 				secondCallOpt = call.ProviderOptions
+				secondPrompt = call.Prompt
 				return finishingStream(), nil
 			}
 		},
@@ -217,6 +398,10 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
 			return nil, xerrors.New("reload exploded")
 		},
+		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
+			prepareCalls++
+			return append(msgs, textMessage(fantasy.MessageRoleSystem, "prepared"))
+		},
 	})
 
 	// Then: the poisoned previous_response_id is still cleared and
@@ -224,10 +409,13 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 	// succeeding against the chain-filtered prompt.
 	require.NoError(t, err)
 	require.Equal(t, 1, disableCalls)
+	require.Equal(t, 1, prepareCalls)
 	require.False(t,
 		chatopenai.HasPreviousResponseID(secondCallOpt),
 		"chain options must still be cleared even when reload fails",
 	)
+	requireTextPrompt(t, secondPrompt, "follow up")
+	requireTextPrompt(t, secondPrompt, "prepared")
 }
 
 func TestRun_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
