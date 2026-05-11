@@ -1196,14 +1196,10 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 		return result, err
 	}
 
-	// All passes missed. Run cheap diagnostic scans on the failure
-	// path only: a single failed call eats their cost. The base
-	// error stays the leading sentence so existing log scrapers keep
-	// matching it.
 	msg := "search string not found in file. Verify the search " +
 		"string matches the file content exactly, including whitespace " +
 		"and indentation"
-	if hint := inversionHint(contentLines, replace, replaceLines, trimRight, trimAll); hint != "" {
+	if hint := inversionHint(content, contentLines, replace, replaceLines, trimRight, trimAll); hint != "" {
 		msg += ". " + hint
 	}
 	if hint := miscountHint(contentLines, searchLines); hint != "" {
@@ -1213,171 +1209,158 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 }
 
 // inversionHint detects the case where the caller swapped `search`
-// and `replace`: `search` did not match anywhere in the file, but
-// `replace` does. The hint suggests the swap so the agent can retry
-// without fabricating a tool quirk to explain the failure.
-//
-// Suppression rules:
-//   - replace shorter than minInversionBytes is too generic to
-//     be informative; common short strings like "return nil" would
-//     match incidentally. The threshold is small and meant to be
-//     easy to tune at code-review time.
-//   - replace matching at more than maxInversionAnchors locations
-//     is also too generic to point at "the" anchor.
-//
-// The cascade reuses the matcher's pass 1/2/3 equivalents to avoid
-// inventing a separate similarity heuristic. The first pass that
-// finds matches wins; we report at most maxInversionAnchors hits.
+// and `replace`: search did not match but replace appears in the file.
 func inversionHint(
+	content string,
 	contentLines []string,
 	replace string,
 	replaceLines []string,
 	trimRight, trimAll func(a, b string) bool,
 ) string {
-	const (
-		minInversionBytes   = 20
-		maxInversionAnchors = 5
+	const minInversionBytes = 20
+	if len(replace) < minInversionBytes || len(replaceLines) == 0 {
+		return ""
+	}
+
+	lines := substringMatchLines(content, replace)
+	if len(lines) == 0 {
+		lines = lineEquivalentMatchLines(contentLines, replaceLines, trimRight)
+	}
+	if len(lines) == 0 {
+		lines = lineEquivalentMatchLines(contentLines, replaceLines, trimAll)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"Did you swap %q and %q? Your replace string appears at line %s",
+		"search", "replace", formatLineList(lines),
 	)
-	if len(replace) < minInversionBytes {
-		return ""
-	}
-	if len(replaceLines) == 0 {
-		return ""
-	}
-
-	// Pass 1: exact substring. Resolve to a 1-based line number by
-	// counting newlines before the byte offset.
-	joined := stringsJoin(contentLines)
-	if idx := strings.Index(joined, replace); idx >= 0 {
-		count := strings.Count(joined, replace)
-		if count > maxInversionAnchors {
-			return ""
-		}
-		if count == 1 {
-			line := 1 + strings.Count(joined[:idx], "\n")
-			return fmt.Sprintf(
-				"your %q string was not found, but the %q string appears at line %d. Did you swap %q and %q?",
-				"search", "replace", line, "search", "replace",
-			)
-		}
-		// More than one but within the cap: don't pick an arbitrary
-		// anchor. Fall through to line-based scans, which often
-		// disambiguate via blank-line context.
-	}
-
-	// Passes 2 and 3: line-equivalent matching, mirroring the
-	// matcher's own cascade.
-	for _, eq := range []func(a, b string) bool{trimRight, trimAll} {
-		var starts []int
-		if len(replaceLines) > len(contentLines) {
-			continue
-		}
-	outer:
-		for i := 0; i <= len(contentLines)-len(replaceLines); i++ {
-			for j, rLine := range replaceLines {
-				if !eq(contentLines[i+j], rLine) {
-					continue outer
-				}
-			}
-			starts = append(starts, i)
-			if len(starts) > maxInversionAnchors {
-				// Too generic; bail.
-				return ""
-			}
-		}
-		if len(starts) == 1 {
-			return fmt.Sprintf(
-				"your %q string was not found, but the %q string appears at line %d. Did you swap %q and %q?",
-				"search", "replace", starts[0]+1, "search", "replace",
-			)
-		}
-	}
-	return ""
 }
 
-// stringsJoin concatenates lines back into the original buffer.
-// strings.SplitAfter preserves each line's terminator, so a plain
-// Join with "" reconstructs content verbatim.
-func stringsJoin(lines []string) string {
+// substringMatchLines returns the 1-based line numbers where needle
+// occurs in content as a byte-for-byte substring.
+func substringMatchLines(content, needle string) []int {
+	var lines []int
+	for offset := 0; ; {
+		rel := strings.Index(content[offset:], needle)
+		if rel < 0 {
+			break
+		}
+		idx := offset + rel
+		lines = append(lines, 1+strings.Count(content[:idx], "\n"))
+		offset = idx + len(needle)
+		if offset > len(content) {
+			break
+		}
+	}
+	return lines
+}
+
+// lineEquivalentMatchLines returns the 1-based start line of every
+// contiguous block of contentLines that matches needleLines under eq.
+func lineEquivalentMatchLines(contentLines, needleLines []string, eq func(a, b string) bool) []int {
+	if len(needleLines) == 0 || len(needleLines) > len(contentLines) {
+		return nil
+	}
+	var starts []int
+outer:
+	for i := 0; i <= len(contentLines)-len(needleLines); i++ {
+		for j, n := range needleLines {
+			if !eq(contentLines[i+j], n) {
+				continue outer
+			}
+		}
+		starts = append(starts, i+1)
+	}
+	return starts
+}
+
+// formatLineList renders a sorted line list as "12, 47, 89", truncated
+// to maxHintLines entries with " and N more" when more exist.
+func formatLineList(lines []int) string {
+	const maxHintLines = 5
 	var b strings.Builder
-	for _, l := range lines {
-		_, _ = b.WriteString(l)
+	shown := len(lines)
+	if shown > maxHintLines {
+		shown = maxHintLines
+	}
+	for i := 0; i < shown; i++ {
+		if i > 0 {
+			_, _ = b.WriteString(", ")
+		}
+		_, _ = fmt.Fprintf(&b, "%d", lines[i])
+	}
+	if rest := len(lines) - shown; rest > 0 {
+		_, _ = fmt.Fprintf(&b, " and %d more", rest)
 	}
 	return b.String()
 }
 
-// miscountHint detects the case where a search line and a content
-// line agree on every rune except for the count of one repeated
-// character. The shape comes from agents reconstructing decorative
-// runs (box-drawing dashes, ASCII separators) by eye and miscounting
-// the run length. Naming the codepoint and both counts lets the
-// agent fix the run instead of misattributing the failure to a
-// general "Unicode breaks edit_files" rule.
-//
-// Suppression rules:
-//   - At least one of the runs must be of length >= 2; a single
-//     extra character is more often a typo than a miscount.
-//   - Exactly one content line must qualify for a given search
-//     line; multiple candidates make the hint speculative.
-//
-// The diffCount==1 condition (every other rune class has identical
-// counts in both lines) already enforces the ticket's "shares >=80%
-// of search-line bytes (modulo the repeated character)" guidance
-// at 100%. A separate 80% overlap threshold would only matter if
-// we relaxed diffCount, which the observed failure data does not
-// require.
-//
-// Returns the hint for the first qualifying search line. Returns
-// "" when no search line produces a unique miscount candidate.
+// miscountHint detects search lines that match a file line except for
+// the count of one repeated rune. Emits one hint per such search line.
 func miscountHint(contentLines, searchLines []string) string {
+	var hints []string
 	for _, sLine := range searchLines {
 		sContent, _ := splitEnding(sLine)
 		if strings.TrimSpace(sContent) == "" {
 			continue
 		}
-		type hit struct {
-			line   int
-			rune   rune
-			sCount int
-			cCount int
-		}
-		var hits []hit
+		// One search line can disagree on different runes against
+		// different file lines; group by rune so each hint names a
+		// single codepoint.
+		groups := make(map[rune][]candidate)
+		counts := make(map[rune]int)
+		order := []rune{}
 		for i, cLine := range contentLines {
 			cContent, _ := splitEnding(cLine)
 			r, sc, cc, ok := singleRuneCountMismatch(sContent, cContent)
 			if !ok {
 				continue
 			}
-			hits = append(hits, hit{line: i + 1, rune: r, sCount: sc, cCount: cc})
-			if len(hits) > 1 {
-				break
+			if _, seen := groups[r]; !seen {
+				order = append(order, r)
+				counts[r] = sc
 			}
+			groups[r] = append(groups[r], candidate{line: i + 1, cCount: cc})
 		}
-		if len(hits) != 1 {
-			continue
+		for _, r := range order {
+			hints = append(hints, formatMiscount(counts[r], r, groups[r]))
 		}
-		h := hits[0]
-		return fmt.Sprintf(
-			"your search has %d %q (U+%04X); the closest match at line %d has %d. Adjust the run length",
-			h.sCount, string(h.rune), h.rune, h.line, h.cCount,
-		)
 	}
-	return ""
+	return strings.Join(hints, ". ")
 }
 
-// singleRuneCountMismatch reports whether two strings agree on every
-// rune except for the count of exactly one rune. Returns the
-// disagreeing rune, its counts in s and c, and whether the line
-// shape qualifies. Qualification requires:
-//
-//   - exactly one rune class has a nonzero count delta;
-//   - at least one of the two counts is >= 2 (a true repeat).
-//
-// The frequency-vector approach is sufficient for the observed
-// failure shapes: the search and the file line have the same
-// non-r rune multiset, with the disagreeing rune appearing at
-// different counts. A positional Levenshtein check could be added
-// if false positives prove a problem in practice.
+// formatMiscount renders one miscount candidate group.
+func formatMiscount(sCount int, r rune, cands []candidate) string {
+	const maxHintLines = 5
+	var b strings.Builder
+	_, _ = fmt.Fprintf(&b, "Your search has %d %q (U+%04X); the file has ", sCount, string(r), r)
+	shown := len(cands)
+	if shown > maxHintLines {
+		shown = maxHintLines
+	}
+	for i := 0; i < shown; i++ {
+		if i > 0 {
+			_, _ = b.WriteString(", ")
+		}
+		_, _ = fmt.Fprintf(&b, "%d at line %d", cands[i].cCount, cands[i].line)
+	}
+	if rest := len(cands) - shown; rest > 0 {
+		_, _ = fmt.Fprintf(&b, " and %d more", rest)
+	}
+	return b.String()
+}
+
+// candidate is the file-line count of the disagreeing rune.
+type candidate struct {
+	line   int
+	cCount int
+}
+
+// singleRuneCountMismatch reports whether s and c agree on every rune
+// class except one, where the disagreeing rune appears at least twice
+// on one side.
 func singleRuneCountMismatch(s, c string) (r rune, sCount, cCount int, ok bool) {
 	if s == "" || c == "" {
 		return 0, 0, 0, false
@@ -1390,21 +1373,21 @@ func singleRuneCountMismatch(s, c string) (r rune, sCount, cCount int, ok bool) 
 		sc        int
 		cc        int
 	)
-	for r, scv := range sFreq {
-		ccv := cFreq[r]
+	for rr, scv := range sFreq {
+		ccv := cFreq[rr]
 		if scv != ccv {
 			diffCount++
-			diffRune = r
+			diffRune = rr
 			sc = scv
 			cc = ccv
 		}
 	}
-	for r, ccv := range cFreq {
-		if _, ok := sFreq[r]; ok {
+	for rr, ccv := range cFreq {
+		if _, present := sFreq[rr]; present {
 			continue
 		}
 		diffCount++
-		diffRune = r
+		diffRune = rr
 		sc = 0
 		cc = ccv
 	}
@@ -1417,7 +1400,6 @@ func singleRuneCountMismatch(s, c string) (r rune, sCount, cCount int, ok bool) 
 	return diffRune, sc, cc, true
 }
 
-// runeFrequency returns a map from rune to occurrence count in s.
 func runeFrequency(s string) map[rune]int {
 	freq := make(map[rune]int)
 	for _, r := range s {
