@@ -1249,6 +1249,14 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCompactionModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatCompactionModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCompactionModelOverride").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatComputerUseProvider(ctx)
@@ -5654,6 +5662,14 @@ func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoAr
 	r0 := m.s.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
 	m.queryLatencies.WithLabelValues("UpsertChatAutoArchiveDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAutoArchiveDays").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatCompactionModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatCompactionModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatCompactionModelOverride").Inc()
 	return r0
 }
 

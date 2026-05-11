@@ -166,6 +166,22 @@ func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
 	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedRetry.Kind)
 }
 
+func TestChatModelOverrideContext(t *testing.T) {
+	t.Parallel()
+
+	contexts := codersdk.AllChatModelOverrideContexts()
+	require.Contains(t, contexts, codersdk.ChatModelOverrideContextGeneral)
+	require.Contains(t, contexts, codersdk.ChatModelOverrideContextExplore)
+	require.Contains(t, contexts, codersdk.ChatModelOverrideContextTitleGeneration)
+	require.Contains(t, contexts, codersdk.ChatModelOverrideContextCompaction)
+
+	for _, overrideContext := range contexts {
+		require.True(t, overrideContext.Valid(), "%q should be valid", overrideContext)
+	}
+	require.True(t, codersdk.ChatModelOverrideContextCompaction.Valid())
+	require.False(t, codersdk.ChatModelOverrideContext("unknown").Valid())
+}
+
 func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Parallel()
 

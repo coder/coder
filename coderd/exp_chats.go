@@ -592,6 +592,12 @@ func (api *API) chatModelOverrideSiteConfig(
 			getter: api.Database.GetChatTitleGenerationModelOverride,
 			upsert: api.Database.UpsertChatTitleGenerationModelOverride,
 		}, nil
+	case codersdk.ChatModelOverrideContextCompaction:
+		return chatModelOverrideSiteConfig{
+			label:  "compaction",
+			getter: api.Database.GetChatCompactionModelOverride,
+			upsert: api.Database.UpsertChatCompactionModelOverride,
+		}, nil
 	default:
 		return chatModelOverrideSiteConfig{}, xerrors.Errorf(
 			"unknown chat model override context %q",

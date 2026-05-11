@@ -110,10 +110,12 @@ type PersistedStep struct {
 
 // RunOptions configures a single streaming chat loop run.
 type RunOptions struct {
-	Model    fantasy.LanguageModel
-	Messages []fantasy.Message
-	Tools    []fantasy.AgentTool
-	MaxSteps int
+	Model fantasy.LanguageModel
+	// CompactionModel generates context summaries. Nil uses Model.
+	CompactionModel fantasy.LanguageModel
+	Messages        []fantasy.Message
+	Tools           []fantasy.AgentTool
+	MaxSteps        int
 	// StartupTimeout bounds how long each model attempt may
 	// spend opening the provider stream and waiting for its
 	// first stream part before the attempt is canceled and
@@ -373,6 +375,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.Metrics == nil {
 		opts.Metrics = NopMetrics()
 	}
+
+	compactionModel := opts.CompactionModel
+	if compactionModel == nil {
+		compactionModel = opts.Model
+	}
+	compactionProvider := compactionModel.Provider()
+	compactionModelName := compactionModel.Model()
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -649,14 +658,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 			if !needsFullHistoryReload && opts.Compaction != nil && opts.ReloadMessages != nil {
 				did, compactErr := tryCompact(
 					ctx,
-					opts.Model,
+					compactionModel,
 					opts.Compaction,
 					opts.ContextLimitFallback,
 					result.usage,
 					result.providerMetadata,
 					messages,
 				)
-				opts.Metrics.RecordCompaction(provider, modelName, did, compactErr)
+				opts.Metrics.RecordCompaction(compactionProvider, compactionModelName, did, compactErr)
 				if compactErr != nil && opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(compactErr)
 				}
@@ -691,14 +700,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 		if !needsFullHistoryReload && !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
 			did, err := tryCompact(
 				ctx,
-				opts.Model,
+				compactionModel,
 				opts.Compaction,
 				opts.ContextLimitFallback,
 				lastUsage,
 				lastProviderMetadata,
 				messages,
 			)
-			opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, err)
+			opts.Metrics.RecordCompaction(compactionProvider, compactionModelName, did, err)
 			if err != nil {
 				if opts.Compaction.OnError != nil {
 					opts.Compaction.OnError(err)

@@ -18,6 +18,8 @@ import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 
 const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
 const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
+const compactionOverrideContext: TypesGen.ChatModelOverrideContext =
+	"compaction";
 const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 	"title_generation";
 
@@ -62,6 +64,10 @@ const AgentSettingsAgentsPage: FC = () => {
 		...chatModelOverrideQuery(exploreOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
+	const compactionModelOverrideQuery = useQuery({
+		...chatModelOverrideQuery(compactionOverrideContext),
+		enabled: canEditDeploymentConfig,
+	});
 	const titleGenerationModelQuery = useQuery({
 		...chatModelOverrideQuery(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
@@ -72,6 +78,9 @@ const AgentSettingsAgentsPage: FC = () => {
 	);
 	const saveGeneralModelOverrideMutation = useMutation(
 		updateChatModelOverrideMutation(queryClient, generalOverrideContext),
+	);
+	const saveCompactionModelOverrideMutation = useMutation(
+		updateChatModelOverrideMutation(queryClient, compactionOverrideContext),
 	);
 	const saveTitleGenerationModelMutation = useMutation(
 		updateChatModelOverrideMutation(
@@ -104,6 +113,7 @@ const AgentSettingsAgentsPage: FC = () => {
 					savePersonalModelOverridesAdminSettingsMutation.isError
 				}
 				generalModelOverrideData={generalModelOverrideQuery.data}
+				compactionModelOverrideData={compactionModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
@@ -115,6 +125,15 @@ const AgentSettingsAgentsPage: FC = () => {
 				}
 				isSaveGeneralModelOverrideError={
 					saveGeneralModelOverrideMutation.isError
+				}
+				onSaveCompactionModelOverride={
+					saveCompactionModelOverrideMutation.mutate
+				}
+				isSavingCompactionModelOverride={
+					saveCompactionModelOverrideMutation.isPending
+				}
+				isSaveCompactionModelOverrideError={
+					saveCompactionModelOverrideMutation.isError
 				}
 				onSaveTitleGenerationModel={saveTitleGenerationModelMutation.mutate}
 				isSavingTitleGenerationModel={

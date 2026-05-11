@@ -58,6 +58,9 @@ type CompactionOptions struct {
 	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
+	ModelConfigID       uuid.UUID
+	Provider            string
+	Model               string
 	HistoryTipMessageID int64
 
 	// ToolCallID and ToolName identify the synthetic tool call
@@ -300,6 +303,19 @@ func startCompactionDebugRun(
 		historyTipMessageID = parentRun.HistoryTipMessageID
 	}
 
+	modelConfigID := options.ModelConfigID
+	if modelConfigID == uuid.Nil {
+		modelConfigID = parentRun.ModelConfigID
+	}
+	provider := strings.TrimSpace(options.Provider)
+	if provider == "" {
+		provider = parentRun.Provider
+	}
+	model := strings.TrimSpace(options.Model)
+	if model == "" {
+		model = parentRun.Model
+	}
+
 	// Use a separate short-lived context for the debug insert so a
 	// slow or locked DB cannot consume the compaction timeout budget
 	// and turn debug slowness into a compaction failure via
@@ -314,13 +330,13 @@ func startCompactionDebugRun(
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
-		ModelConfigID:       parentRun.ModelConfigID,
+		ModelConfigID:       modelConfigID,
 		TriggerMessageID:    parentRun.TriggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 		Kind:                chatdebug.KindCompaction,
 		Status:              chatdebug.StatusInProgress,
-		Provider:            parentRun.Provider,
-		Model:               parentRun.Model,
+		Provider:            provider,
+		Model:               model,
 	})
 	createRunCancel()
 	if err != nil {
@@ -333,12 +349,12 @@ func startCompactionDebugRun(
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
-		ModelConfigID:       parentRun.ModelConfigID,
+		ModelConfigID:       modelConfigID,
 		TriggerMessageID:    parentRun.TriggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 		Kind:                chatdebug.KindCompaction,
-		Provider:            parentRun.Provider,
-		Model:               parentRun.Model,
+		Provider:            provider,
+		Model:               model,
 	})
 
 	return compactionCtx, func(runErr error) {

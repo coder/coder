@@ -321,6 +321,74 @@ func TestRun_Compaction(t *testing.T) {
 		require.InDelta(t, 80.0, persistedCompaction.UsagePercent, 0.0001)
 	})
 
+	t.Run("UsesCompactionModelForSummary", func(t *testing.T) {
+		t.Parallel()
+
+		compactionGenerateCalls := 0
+		activeModel := &chattest.FakeModel{
+			ProviderName: "active-provider",
+			ModelName:    "active-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonStop,
+						Usage: fantasy.Usage{
+							InputTokens: 80,
+							TotalTokens: 85,
+						},
+					},
+				}), nil
+			},
+			GenerateFn: func(context.Context, fantasy.Call) (*fantasy.Response, error) {
+				t.Fatal("active model should not generate compaction summaries")
+				return nil, xerrors.New("active model generated compaction summary")
+			},
+		}
+		compactionModel := &chattest.FakeModel{
+			ProviderName: "compaction-provider",
+			ModelName:    "compaction-model",
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				compactionGenerateCalls++
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: "summary from compaction model"},
+					},
+				}, nil
+			},
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model:           activeModel,
+			CompactionModel: compactionModel,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			MaxSteps: 1,
+			PersistStep: func(context.Context, PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				SummaryPrompt:    "summarize now",
+				Persist: func(context.Context, CompactionResult) error {
+					return nil
+				},
+			},
+			ReloadMessages: func(context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 2, compactionGenerateCalls)
+	})
+
 	t.Run("PublishesPartsBeforeAndAfterPersist", func(t *testing.T) {
 		t.Parallel()
 

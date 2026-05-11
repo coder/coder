@@ -22295,6 +22295,18 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	return auto_archive_days, err
 }
 
+const getChatCompactionModelOverride = `-- name: GetChatCompactionModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_compaction_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatCompactionModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatComputerUseProvider = `-- name: GetChatComputerUseProvider :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider
@@ -22733,6 +22745,16 @@ WHERE site_configs.key = 'agents_chat_auto_archive_days'
 
 func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDays, autoArchiveDays)
+	return err
+}
+
+const upsertChatCompactionModelOverride = `-- name: UpsertChatCompactionModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_compaction_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_compaction_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatCompactionModelOverride, value)
 	return err
 }
 

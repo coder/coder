@@ -24,6 +24,7 @@ export interface AgentSettingsAgentsPageViewProps {
 	isSavingAdminOverrides: boolean;
 	isSaveAdminOverridesError: boolean;
 	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	compactionModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
@@ -32,6 +33,9 @@ export interface AgentSettingsAgentsPageViewProps {
 	onSaveGeneralModelOverride?: SaveModelOverride;
 	isSavingGeneralModelOverride?: boolean;
 	isSaveGeneralModelOverrideError?: boolean;
+	onSaveCompactionModelOverride: SaveModelOverride;
+	isSavingCompactionModelOverride: boolean;
+	isSaveCompactionModelOverrideError: boolean;
 	onSaveTitleGenerationModel: SaveModelOverride;
 	isSavingTitleGenerationModel: boolean;
 	isSaveTitleGenerationModelError: boolean;
@@ -51,6 +55,7 @@ export const AgentSettingsAgentsPageView: FC<
 	isSavingAdminOverrides,
 	isSaveAdminOverridesError,
 	generalModelOverrideData,
+	compactionModelOverrideData,
 	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
 	modelConfigsData,
@@ -59,6 +64,9 @@ export const AgentSettingsAgentsPageView: FC<
 	onSaveGeneralModelOverride,
 	isSavingGeneralModelOverride = false,
 	isSaveGeneralModelOverrideError = false,
+	onSaveCompactionModelOverride,
+	isSavingCompactionModelOverride,
+	isSaveCompactionModelOverrideError,
 	onSaveTitleGenerationModel,
 	isSavingTitleGenerationModel,
 	isSaveTitleGenerationModelError,
@@ -112,6 +120,27 @@ export const AgentSettingsAgentsPageView: FC<
 					/>
 				</section>
 			)}
+			<section aria-label="Compaction model" className="flex flex-col gap-3">
+				<SectionHeader
+					label="Compaction model"
+					description="Deployment-wide model override for chat context compaction. Leave unset to compact with the chat model being summarized."
+					level="section"
+				/>
+				<SubagentModelOverrideSettings
+					title="Compaction model"
+					description="Choose a model for chat context compaction."
+					modelOverrideData={compactionModelOverrideData}
+					enabledModelConfigs={enabledModelConfigs}
+					modelConfigsError={modelConfigsError}
+					isLoading={isLoadingModelConfigs}
+					onSaveModelOverride={onSaveCompactionModelOverride}
+					isSaving={isSavingCompactionModelOverride}
+					isSaveError={isSaveCompactionModelOverrideError}
+					saveErrorMessage="Failed to save compaction model override."
+					unsetPlaceholder="Use active chat model"
+					showHeader={false}
+				/>
+			</section>
 			<section
 				aria-label="Title generation model"
 				className="flex flex-col gap-3"

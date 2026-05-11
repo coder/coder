@@ -175,6 +175,11 @@ const AgentsRouteElement = () => (
 			model_config_id: "",
 			is_malformed: false,
 		}}
+		compactionModelOverrideData={{
+			context: "compaction",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		titleGenerationModelOverrideData={{
 			context: "title_generation",
 			model_config_id: "",
@@ -183,6 +188,9 @@ const AgentsRouteElement = () => (
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		onSaveCompactionModelOverride={fn()}
+		isSavingCompactionModelOverride={false}
+		isSaveCompactionModelOverrideError={false}
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}

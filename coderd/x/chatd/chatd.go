@@ -7512,6 +7512,18 @@ func (p *Server) runChat(
 		slog.F("model", model.Model()),
 	)
 
+	compactionResolution := p.resolveCompactionModelOverride(
+		ctx,
+		chat,
+		model,
+		modelConfig,
+		providerKeys,
+		logger,
+	)
+	compactionOptions.ModelConfigID = compactionResolution.modelConfigID
+	compactionOptions.Provider = compactionResolution.provider
+	compactionOptions.Model = compactionResolution.modelName
+
 	allowAskUserQuestion := isPlanModeTurn && isRootChat
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
@@ -7786,6 +7798,7 @@ func (p *Server) runChat(
 
 	loopErr = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:              model,
+		CompactionModel:    compactionResolution.model,
 		Messages:           prompt,
 		Tools:              tools,
 		ActiveTools:        activeToolNames,
@@ -8139,6 +8152,106 @@ func (p *Server) persistChatContextSummary(
 		p.publishMessage(chatID, msg)
 	}
 	return nil
+}
+
+type compactionModelResolution struct {
+	model         fantasy.LanguageModel
+	modelConfigID uuid.UUID
+	provider      string
+	modelName     string
+}
+
+func (p *Server) resolveCompactionModelOverride(
+	ctx context.Context,
+	chat database.Chat,
+	fallbackModel fantasy.LanguageModel,
+	fallbackConfig database.ChatModelConfig,
+	providerKeys chatprovider.ProviderAPIKeys,
+	logger slog.Logger,
+) compactionModelResolution {
+	fallback := compactionModelResolution{
+		model:         fallbackModel,
+		modelConfigID: fallbackConfig.ID,
+		provider:      fallbackModel.Provider(),
+		modelName:     fallbackModel.Model(),
+	}
+	logFallback := func(reason string, configuredModelConfigID string, err error) compactionModelResolution {
+		fields := []slog.Field{
+			slog.F("active_model_config_id", fallbackConfig.ID),
+			slog.F("configured_compaction_model_config_id", configuredModelConfigID),
+			slog.F("resolved_compaction_model_config_id", fallback.modelConfigID),
+			slog.F("fallback_reason", reason),
+		}
+		if err != nil {
+			fields = append(fields, slog.Error(err))
+		}
+		logger.Warn(ctx, "compaction model override unavailable, continuing with chat model", fields...)
+		return fallback
+	}
+
+	//nolint:gocritic // Chat workers read deployment-wide model overrides.
+	rawOverride, err := p.db.GetChatCompactionModelOverride(dbauthz.AsChatd(ctx))
+	if err != nil {
+		return logFallback("lookup_failed", "", err)
+	}
+	trimmedOverride := strings.TrimSpace(rawOverride)
+	if trimmedOverride == "" {
+		return fallback
+	}
+
+	overrideID, err := uuid.Parse(trimmedOverride)
+	if err != nil {
+		return logFallback("malformed", trimmedOverride, err)
+	}
+	if overrideID == uuid.Nil {
+		return logFallback("nil_model_config_id", trimmedOverride, nil)
+	}
+
+	//nolint:gocritic // Chat workers validate deployment-wide model overrides.
+	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(dbauthz.AsChatd(ctx), overrideID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return logFallback("disabled_or_unavailable", overrideID.String(), err)
+		}
+		return logFallback("config_lookup_failed", overrideID.String(), err)
+	}
+
+	if overrideConfig.ContextLimit > 0 && fallbackConfig.ContextLimit > 0 &&
+		overrideConfig.ContextLimit < fallbackConfig.ContextLimit {
+		logger.Warn(ctx, "compaction model context limit is smaller than chat model context limit",
+			slog.F("active_model_config_id", fallbackConfig.ID),
+			slog.F("configured_compaction_model_config_id", overrideID),
+			slog.F("active_context_limit", fallbackConfig.ContextLimit),
+			slog.F("compaction_context_limit", overrideConfig.ContextLimit),
+		)
+	}
+
+	overrideModel, _, err := p.newDebugAwareModelFromConfig(
+		ctx,
+		chat,
+		overrideConfig.Provider,
+		overrideConfig.Model,
+		providerKeys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+	)
+	if err != nil {
+		return logFallback("model_creation_failed", overrideID.String(), err)
+	}
+
+	logger.Debug(ctx, "using compaction model override",
+		slog.F("active_model_config_id", fallbackConfig.ID),
+		slog.F("configured_compaction_model_config_id", overrideID),
+		slog.F("resolved_compaction_model_config_id", overrideConfig.ID),
+		slog.F("compaction_provider", overrideModel.Provider()),
+		slog.F("compaction_model", overrideModel.Model()),
+	)
+	return compactionModelResolution{
+		model:         overrideModel,
+		modelConfigID: overrideConfig.ID,
+		provider:      overrideModel.Provider(),
+		modelName:     overrideModel.Model(),
+	}
 }
 
 func (p *Server) resolveChatModel(
