@@ -74,6 +74,7 @@ func ConnectAll(
 	tokens []database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
@@ -109,7 +110,7 @@ func ConnectAll(
 
 		eg.Go(func() error {
 			serverTools, mcpClient, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc,
+				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
 			)
 			if connectErr != nil {
 				logger.Warn(ctx,
@@ -175,8 +176,24 @@ func connectOne(
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, *client.Client, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+
+	// When opted-in, merge Coder identity headers in BEFORE the
+	// transport is created so any auth header (e.g. Authorization)
+	// already set above wins on a conflict. Coder headers carry
+	// chat/owner/workspace identity and let first-party MCP servers
+	// correlate a tool call back to the originating chat. Off by
+	// default to avoid leaking chat identity to third-party servers.
+	if cfg.ForwardCoderHeaders {
+		for k, v := range coderHeaders {
+			if _, exists := headers[k]; exists {
+				continue
+			}
+			headers[k] = v
+		}
+	}
 
 	tr, err := createTransport(cfg, headers)
 	if err != nil {

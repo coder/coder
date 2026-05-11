@@ -6740,6 +6740,7 @@ func (p *Server) runChat(
 			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx, logger, mcpConnectConfigs, mcpTokens, chat.OwnerID, p.oidcTokenSource,
+				chatprovider.CoderHeaders(chat),
 			)
 			return nil
 		})
