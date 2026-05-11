@@ -22,8 +22,17 @@ const getDisplayState = (message: ChatMessage) =>
 	});
 
 describe("deriveMessageDisplayState", () => {
-	it("marks text-only messages as copyable", () => {
+	it("marks text-only user messages as copyable", () => {
 		const message = buildMessage([{ type: "text", text: "Copy this" }]);
+
+		expect(getDisplayState(message).hasCopyableContent).toBe(true);
+	});
+
+	it("marks text-only assistant messages as copyable", () => {
+		const message = buildMessage(
+			[{ type: "text", text: "Here is my answer." }],
+			"assistant",
+		);
 
 		expect(getDisplayState(message).hasCopyableContent).toBe(true);
 	});
