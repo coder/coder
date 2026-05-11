@@ -3416,6 +3416,124 @@ func TestSelectSkillMetasForInstructionRefresh(t *testing.T) {
 	})
 }
 
+// TestShouldCancelChatFromControlNotification covers the worker-level
+// decision about whether a control pubsub notification should
+// interrupt the running chat. The pending branch re-reads the DB to
+// distinguish stale SendMessage publishes (chat is still running on
+// this worker) from real interrupts (status changed or ownership
+// reassigned).
+func TestShouldCancelChatFromControlNotification(t *testing.T) {
+	t.Parallel()
+
+	workerID := uuid.New()
+	chatID := uuid.New()
+	otherWorkerID := uuid.New()
+
+	type dbExpectation struct {
+		chat database.Chat
+		err  error
+	}
+
+	cases := []struct {
+		name       string
+		notify     coderdpubsub.ChatStreamNotifyMessage
+		dbExpect   *dbExpectation
+		wantCancel bool
+	}{
+		{
+			name:       "waiting always cancels",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting)},
+			wantCancel: true,
+		},
+		{
+			name:       "error always cancels",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusError)},
+			wantCancel: true,
+		},
+		{
+			name:   "running same worker is ignored",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: workerID.String()},
+		},
+		{
+			name:       "running different worker cancels",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: otherWorkerID.String()},
+			wantCancel: true,
+		},
+		{
+			name:   "running with no worker is ignored",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning)},
+		},
+		{
+			name:   "running with malformed worker is ignored",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: "not-a-uuid"},
+		},
+		{
+			name:   "unknown status is ignored",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: "who-knows"},
+		},
+		{
+			name:   "stale pending is ignored when we still own running chat",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)},
+			dbExpect: &dbExpectation{chat: database.Chat{
+				ID:       chatID,
+				Status:   database.ChatStatusRunning,
+				WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+			}},
+		},
+		{
+			name:   "real pending cancels when chat row shows pending",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)},
+			dbExpect: &dbExpectation{chat: database.Chat{
+				ID:     chatID,
+				Status: database.ChatStatusPending,
+			}},
+			wantCancel: true,
+		},
+		{
+			name:   "real pending cancels when chat row shows different worker",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)},
+			dbExpect: &dbExpectation{chat: database.Chat{
+				ID:       chatID,
+				Status:   database.ChatStatusRunning,
+				WorkerID: uuid.NullUUID{UUID: otherWorkerID, Valid: true},
+			}},
+			wantCancel: true,
+		},
+		{
+			name:       "real pending cancels when DB re-read fails (fail safe)",
+			notify:     coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)},
+			dbExpect:   &dbExpectation{err: xerrors.New("db unavailable")},
+			wantCancel: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+
+			if tc.dbExpect != nil {
+				db.EXPECT().
+					GetChatByID(gomock.Any(), chatID).
+					Return(tc.dbExpect.chat, tc.dbExpect.err)
+			}
+
+			server := &Server{
+				db:       db,
+				logger:   logger,
+				workerID: workerID,
+			}
+
+			got := server.shouldCancelChatFromControlNotification(ctx, chatID, tc.notify, logger)
+			require.Equal(t, tc.wantCancel, got)
+		})
+	}
+}
+
 // TestProcessChat_IgnoresStaleControlNotification verifies that
 // processChat is not interrupted by a "pending" notification
 // published before processing begins. This is the race that caused
@@ -3481,12 +3599,21 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 			}, nil
 		},
 	)
+	// processChat's cleanup path calls GetChatByID once during
+	// finishActiveChat. The pending-control-notification re-read may
+	// also call GetChatByID if the stale notification slips past the
+	// gate (it shouldn't, but AnyTimes keeps the test stable against
+	// in-memory pubsub timing).
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
-		database.Chat{ID: chatID, Status: database.ChatStatusError},
+		database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+		},
 		nil,
-	)
+	).AnyTimes()
 
-	db.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+	db.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
 
 	// resolveChatModel fails immediately — that's fine, we only
 	// need processChat to get past initialization without being
@@ -3516,11 +3643,175 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	WaitUntilIdleForTest(server)
 
 	// If the stale notification interrupted us, status would be
-	// "waiting" (the ErrInterrupted path). Since the gate blocked
-	// it, processChat reached runChat, which failed on model
-	// resolution → status is "error".
+	// "waiting" (the ErrInterrupted path). Since the gate (and the
+	// pending re-read) blocked it, processChat reached runChat,
+	// which failed on model resolution → status is "error".
 	require.Equal(t, database.ChatStatusError, finalStatus,
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
+}
+
+// TestProcessChat_IgnoresStaleControlNotificationAfterArming covers
+// the race that the controlArmed gate alone cannot prevent. The
+// PostgreSQL pubsub queue delivers notifications asynchronously on a
+// dedicated goroutine; a stale "pending" published before LISTEN
+// completes can land in the queue and be dispatched to our listener
+// after the gate is closed. We publish the stale notification AFTER
+// processChat has subscribed and armed the gate, so any cancel
+// decision is governed by shouldCancelChatFromControlNotification
+// alone.
+func TestProcessChat_IgnoresStaleControlNotificationAfterArming(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	base := dbpubsub.NewInMemory()
+	ps := newSubscribeNotifyingPubsub(base)
+	clock := quartz.NewMock(t)
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		pubsub:                ps,
+		clock:                 clock,
+		workerID:              workerID,
+		chatHeartbeatInterval: time.Minute,
+		metrics:               chatloop.NopMetrics(),
+		configCache:           newChatConfigCache(ctx, db, clock),
+		heartbeatRegistry:     make(map[uuid.UUID]*heartbeatEntry),
+	}
+
+	// The DB re-read in shouldCancelChatFromControlNotification must
+	// see us still owning the chat. That is what makes the stale
+	// pending notification safe to drop.
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
+		database.Chat{
+			ID:       chatID,
+			Status:   database.ChatStatusRunning,
+			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+		},
+		nil,
+	).AnyTimes()
+
+	var finalStatus database.ChatStatus
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	)
+	db.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(
+		database.Chat{ID: chatID, Status: database.ChatStatusRunning, WorkerID: uuid.NullUUID{UUID: workerID, Valid: true}}, nil,
+	)
+	db.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.UpdateChatStatusParams) (database.Chat, error) {
+			finalStatus = params.Status
+			return database.Chat{
+				ID:     chatID,
+				Status: params.Status,
+			}, nil
+		},
+	)
+	db.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
+
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
+		database.ChatModelConfig{}, xerrors.New("no model configured"),
+	).AnyTimes()
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(
+		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
+	).AnyTimes()
+	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+
+	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.processChat(ctx, chat)
+	}()
+
+	// Wait until processChat has subscribed to the control channel.
+	// At this point the gate may be open or closed depending on
+	// scheduling, but either way our publish exercises the
+	// downstream filter.
+	controlChannel := coderdpubsub.ChatStreamNotifyChannel(chatID)
+	ps.waitForSubscribe(ctx, t, controlChannel)
+
+	staleNotify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusPending),
+	})
+	require.NoError(t, err)
+	require.NoError(t, ps.Publish(controlChannel, staleNotify))
+
+	testutil.TryReceive(ctx, t, done)
+	WaitUntilIdleForTest(server)
+
+	require.Equal(t, database.ChatStatusError, finalStatus,
+		"stale pending notification dispatched after gate arming should be ignored")
+}
+
+// subscribeNotifyingPubsub wraps a pubsub and exposes a wait helper
+// for tests that need to publish a notification only after a
+// subscriber is registered.
+type subscribeNotifyingPubsub struct {
+	dbpubsub.Pubsub
+
+	mu          sync.Mutex
+	subscribers map[string]chan struct{}
+}
+
+func newSubscribeNotifyingPubsub(inner dbpubsub.Pubsub) *subscribeNotifyingPubsub {
+	return &subscribeNotifyingPubsub{
+		Pubsub:      inner,
+		subscribers: make(map[string]chan struct{}),
+	}
+}
+
+func (s *subscribeNotifyingPubsub) chanLocked(event string) chan struct{} {
+	ch, ok := s.subscribers[event]
+	if !ok {
+		ch = make(chan struct{}, 1)
+		s.subscribers[event] = ch
+	}
+	return ch
+}
+
+func (s *subscribeNotifyingPubsub) notify(event string) {
+	s.mu.Lock()
+	ch := s.chanLocked(event)
+	s.mu.Unlock()
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
+func (s *subscribeNotifyingPubsub) Subscribe(event string, listener dbpubsub.Listener) (func(), error) {
+	cancel, err := s.Pubsub.Subscribe(event, listener)
+	if err == nil {
+		s.notify(event)
+	}
+	return cancel, err
+}
+
+func (s *subscribeNotifyingPubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
+	cancel, err := s.Pubsub.SubscribeWithErr(event, listener)
+	if err == nil {
+		s.notify(event)
+	}
+	return cancel, err
+}
+
+func (s *subscribeNotifyingPubsub) waitForSubscribe(ctx context.Context, t *testing.T, event string) {
+	t.Helper()
+	s.mu.Lock()
+	ch := s.chanLocked(event)
+	s.mu.Unlock()
+	testutil.TryReceive(ctx, t, ch)
 }
 
 func TestShouldPublishFinishedChatState(t *testing.T) {

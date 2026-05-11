@@ -5266,14 +5266,27 @@ func (p *Server) publishMessagePart(chatID uuid.UUID, role codersdk.ChatMessageR
 	})
 }
 
-func shouldCancelChatFromControlNotification(
+// shouldCancelChatFromControlNotification decides whether a control
+// notification should interrupt the current chat run. Pending
+// notifications need a DB re-read because PostgreSQL LISTEN/NOTIFY can
+// deliver events committed before LISTEN took effect (see
+// https://www.postgresql.org/docs/current/sql-listen.html). The stale
+// notification we filter is the "pending" status SendMessage publishes
+// before this worker acquires and starts running the chat; without the
+// re-read it would cancel processChat immediately after the gate is
+// armed.
+func (p *Server) shouldCancelChatFromControlNotification(
+	ctx context.Context,
+	chatID uuid.UUID,
 	notify coderdpubsub.ChatStreamNotifyMessage,
-	workerID uuid.UUID,
+	logger slog.Logger,
 ) bool {
 	status := database.ChatStatus(strings.TrimSpace(notify.Status))
 	switch status {
-	case database.ChatStatusWaiting, database.ChatStatusPending, database.ChatStatusError:
+	case database.ChatStatusWaiting, database.ChatStatusError:
 		return true
+	case database.ChatStatusPending:
+		return p.pendingControlNotificationCancels(ctx, chatID, logger)
 	case database.ChatStatusRunning:
 		worker := strings.TrimSpace(notify.WorkerID)
 		if worker == "" {
@@ -5283,10 +5296,52 @@ func shouldCancelChatFromControlNotification(
 		if err != nil {
 			return false
 		}
-		return notifyWorkerID != workerID
+		return notifyWorkerID != p.workerID
 	default:
 		return false
 	}
+}
+
+// pendingControlNotificationCancels returns true when a pending
+// notification represents a real interrupt (e.g. EditMessage cleared
+// the worker_id or another replica claimed the chat) rather than a
+// stale SendMessage publish. The DB row is authoritative: if we still
+// own a running chat, the notification is stale and we keep working.
+// All other cases (DB error, status changed, worker_id reassigned)
+// fail safe by interrupting so we don't keep processing a chat we no
+// longer own.
+func (p *Server) pendingControlNotificationCancels(
+	ctx context.Context,
+	chatID uuid.UUID,
+	logger slog.Logger,
+) bool {
+	if p.db == nil {
+		return true
+	}
+	// The listener runs on a pubsub goroutine with a background
+	// context. Detach explicitly with a short timeout so a slow DB
+	// query cannot block notification dispatch indefinitely.
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	//nolint:gocritic // AsChatd provides narrowly-scoped daemon access
+	// for re-reading a chat row we already own.
+	readCtx = dbauthz.AsChatd(readCtx)
+	chat, err := p.db.GetChatByID(readCtx, chatID)
+	if err != nil {
+		logger.Warn(ctx, "re-read chat for pending control notification failed; treating as real interrupt",
+			slog.Error(err),
+		)
+		return true
+	}
+	if chat.Status == database.ChatStatusRunning &&
+		chat.WorkerID.Valid &&
+		chat.WorkerID.UUID == p.workerID {
+		logger.Debug(ctx, "ignoring stale pending control notification",
+			slog.F("chat_status", chat.Status),
+		)
+		return false
+	}
+	return true
 }
 
 func (p *Server) subscribeChatControl(
@@ -5311,7 +5366,7 @@ func (p *Server) subscribeChatControl(
 			return
 		}
 
-		if shouldCancelChatFromControlNotification(notify, p.workerID) {
+		if p.shouldCancelChatFromControlNotification(ctx, chatID, notify, logger) {
 			cancel(chatloop.ErrInterrupted)
 		}
 	}
