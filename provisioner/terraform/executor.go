@@ -31,6 +31,38 @@ var (
 	version190 = version.Must(version.NewVersion("1.9.0"))
 )
 
+// maxTerraformLogLineSize bounds how large a single newline-delimited
+// terraform log entry can be before the scanner gives up. The default
+// bufio.MaxScanTokenSize (64 KiB) used to deadlock the provisioner when
+// terraform emitted a single hclog DEBUG line larger than the buffer
+// (most reproducibly: `hashicorp/azurerm` with TF_LOG=DEBUG dumps full
+// HTTP response bodies, ~3 MB, as a single entry). After
+// bufio.ErrTooLong the reader exited, the pipe writer blocked, and
+// `cmd.Wait()` never returned. See coder/coder#24766.
+//
+// 16 MiB gives ~5x headroom for the worst observed case while keeping
+// memory cost negligible because the underlying buffer only grows when
+// a line actually approaches the limit.
+const maxTerraformLogLineSize = 16 * 1024 * 1024
+
+// newTerraformLogScanner returns a bufio.Scanner sized to handle the
+// large hclog-formatted log entries some providers emit under
+// TF_LOG=DEBUG.
+func newTerraformLogScanner(r io.Reader) *bufio.Scanner {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxTerraformLogLineSize)
+	return scanner
+}
+
+// drainAfterScan unblocks the producer side of the pipe when the
+// scanner exits early (e.g. a line still exceeds
+// maxTerraformLogLineSize after the buffer grew). Without this, the
+// terraform process would block on its next pipe write and `cmd.Wait`
+// would never return.
+func drainAfterScan(r io.Reader) {
+	_, _ = io.Copy(io.Discard, r)
+}
+
 type executor struct {
 	logger     slog.Logger
 	server     *server
@@ -437,7 +469,7 @@ func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser,
 	go func() {
 		defer close(done)
 
-		scanner := bufio.NewScanner(r)
+		scanner := newTerraformLogScanner(r)
 		for scanner.Scan() {
 			line := scanner.Bytes()
 			level := proto.LogLevel_INFO
@@ -450,7 +482,11 @@ func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser,
 			sink.ProvisionLog(level, string(line))
 		}
 		if err := scanner.Err(); err != nil {
-			logger.Error(context.Background(), "failed to read terraform log", slog.Error(err))
+			// WARN, not ERROR: the build still completes because
+			// drainAfterScan unblocks cmd.Wait. Only the over-limit
+			// log content is dropped.
+			logger.Warn(context.Background(), "terraform log scanner exited; remaining output will be discarded so cmd.Wait can return", slog.Error(err))
+			drainAfterScan(r)
 		}
 	}()
 	return w, done
@@ -607,7 +643,7 @@ func logWriter(sink logSink, level proto.LogLevel) (io.WriteCloser, <-chan any) 
 
 func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel) {
 	defer close(done)
-	scanner := bufio.NewScanner(r)
+	scanner := newTerraformLogScanner(r)
 	for scanner.Scan() {
 		var log terraformProvisionLog
 		err := json.Unmarshal(scanner.Bytes(), &log)
@@ -635,6 +671,10 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 		}
 		sink.ProvisionLog(logLevel, log.Message)
 	}
+	if err := scanner.Err(); err != nil {
+		sink.ProvisionLog(proto.LogLevel_WARN, fmt.Sprintf("terraform log scanner exited; remaining output discarded so cmd.Wait can return: %v", err))
+		drainAfterScan(r)
+	}
 }
 
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
@@ -653,7 +693,7 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 
 	errCount := 0
 
-	scanner := bufio.NewScanner(r)
+	scanner := newTerraformLogScanner(r)
 	for scanner.Scan() {
 		log := parseTerraformLogLine(scanner.Bytes())
 		if log == nil {
@@ -684,6 +724,15 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
 			sink.ProvisionLog(logLevel, diagLine)
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		// WARN, not ERROR: the build still completes because
+		// drainAfterScan unblocks cmd.Wait. Only the over-limit log
+		// content is dropped.
+		e.logger.Warn(context.Background(),
+			"terraform provision log scanner exited; remaining output will be discarded so cmd.Wait can return",
+			slog.Error(err))
+		drainAfterScan(r)
 	}
 }
 
