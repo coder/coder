@@ -53,22 +53,16 @@ else
 		echo "WARNING: no base ref found, scanning all tracked files."
 		scan_all_files
 	else
-		# Ensure the base ref is fetchable. CI shallow clones with
-		# persist-credentials: false may not be able to fetch the base
-		# branch after the checkout step removes credentials.
+		# Ensure the base ref is fetchable. CI shallow clones
+		# (fetch-depth: 1) may not have the base branch available.
 		if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
 			ref="${base#origin/}"
 			echo "Base ref $base not found locally, fetching $ref..."
 			git fetch origin "$ref" --depth=1 2>/dev/null || true
-		fi
-
-		if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
-			# Fetch also failed (e.g. credentials removed by checkout). Skip
-			# the diff-based check rather than blocking CI unconditionally.
-			# Run with --all to perform a full scan regardless of base ref.
-			echo "WARNING: could not resolve base ref $base."
-			echo "OK: skipping diff-based check. Run with --all to scan every file."
-			exit 0
+			if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
+				echo "ERROR: could not fetch base ref $base."
+				exit 1
+			fi
 		fi
 
 		found=0
