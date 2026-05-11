@@ -54,7 +54,9 @@ variables, not by the develop orchestrator itself:
 - `--trace-honeycomb-api-key` or `CODER_TRACE_HONEYCOMB_API_KEY` enables the
   Honeycomb exporter.
 - `--trace-datadog` or `CODER_TRACE_DATADOG` enables sending Go runtime
-  traces to the local DataDog agent.
+  traces plus CPU, heap, and goroutine profiles to the local DataDog
+  agent. The flag is hidden in `coder server --help` and is used
+  primarily for internal dogfood leak detection.
 
 To pass server flags through the develop script, put them after `--`. For
 example, use `./scripts/develop.sh -- --trace` when you already have an OTLP
