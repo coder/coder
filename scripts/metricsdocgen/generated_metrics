@@ -255,7 +255,7 @@ coderd_chatd_stream_buffer_events 0
 coderd_chatd_stream_buffer_size_max 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
-coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0
+coderd_chatd_stream_retries_total{provider="",model="",kind="",chain_broken=""} 0
 # HELP coderd_chatd_stream_subscribers Current number of chat stream subscribers across all chat streams.
 # TYPE coderd_chatd_stream_subscribers gauge
 coderd_chatd_stream_subscribers 0
