@@ -3503,6 +3503,9 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
 	).AnyTimes()
 	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
+		database.ChatMessage{}, sql.ErrNoRows,
+	).AnyTimes()
 
 	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
 	done := make(chan struct{})
@@ -5277,6 +5280,9 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
 	).AnyTimes()
 	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
+		database.ChatMessage{}, sql.ErrNoRows,
+	).AnyTimes()
 
 	// The deferred cleanup transaction: InsertChatMessages fails,
 	// so UpdateChatStatus must NOT be called.
@@ -5400,13 +5406,69 @@ func TestSnapshotBufferLocked_FiltersStaleParts(t *testing.T) {
 		makeBufferedPart(30, "fresh-1"),
 	}
 
-	snapshot := snapshotBufferLocked(buffer, 20)
+	// Cursor matches a real assistant checkpoint, so the effective
+	// cursor is the requested cursor unchanged.
+	snapshot := snapshotBufferLocked(buffer, 20, 30)
 
 	require.Len(t, snapshot, 3,
 		"only parts checkpointed at >= afterMessageID should be kept")
 	require.Equal(t, "boundary-1", partText(snapshot[0]))
 	require.Equal(t, "boundary-2", partText(snapshot[1]))
 	require.Equal(t, "fresh-1", partText(snapshot[2]))
+}
+
+// TestSnapshotBufferLocked_ClampsCursorToLastCommittedCheckpoint
+// guards against DEREM-1: a subscriber whose cursor points at a
+// tool or user message ID past the most recent committed assistant
+// turn must not over-drop parts from the in-progress assistant
+// turn. The filter clamps the cursor down to the latest assistant
+// checkpoint so those in-progress parts survive.
+func TestSnapshotBufferLocked_ClampsCursorToLastCommittedCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	// Turn A committed at assistant message 100, then tool
+	// messages 101..103 followed. Turn B is now streaming and its
+	// parts are tagged with checkpoint=100 (no new assistant turn
+	// has been committed yet on this replica).
+	buffer := []bufferedStreamPart{
+		makeBufferedPart(100, "turnB-part-1"),
+		makeBufferedPart(100, "turnB-part-2"),
+	}
+
+	// Client reloaded chat via REST and saw the latest message
+	// (a tool result at id=103), then reconnected with cursor=103.
+	// Without clamping, the filter would drop every turn B part
+	// because checkpoint (100) < afterMessageID (103).
+	snapshot := snapshotBufferLocked(buffer, 103, 100)
+
+	require.Len(t, snapshot, 2,
+		"cursor past the last assistant checkpoint must be clamped down so in-progress parts survive")
+	require.Equal(t, "turnB-part-1", partText(snapshot[0]))
+	require.Equal(t, "turnB-part-2", partText(snapshot[1]))
+}
+
+// TestSnapshotBufferLocked_ZeroCheckpointReturnsAll guards against
+// DEREM-2: a freshly created chatStreamState (after
+// cleanupStreamIfIdle reaped the previous state and seeding from DB
+// has not yet run) has lastCommittedAssistantMessageID = 0. With a
+// zero checkpoint, no buffered part can be proven redundant, so the
+// full buffer must be returned regardless of the requested cursor.
+func TestSnapshotBufferLocked_ZeroCheckpointReturnsAll(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeBufferedPart(0, "a"),
+		makeBufferedPart(0, "b"),
+		makeBufferedPart(0, "c"),
+	}
+
+	snapshot := snapshotBufferLocked(buffer, 999, 0)
+
+	require.Len(t, snapshot, 3,
+		"lastCommittedAssistantMessageID==0 must disable the filter to avoid losing the entire in-progress turn")
+	require.Equal(t, "a", partText(snapshot[0]))
+	require.Equal(t, "b", partText(snapshot[1]))
+	require.Equal(t, "c", partText(snapshot[2]))
 }
 
 // TestSnapshotBufferLocked_ZeroCursorReturnsAll covers the
@@ -5423,7 +5485,7 @@ func TestSnapshotBufferLocked_ZeroCursorReturnsAll(t *testing.T) {
 		makeBufferedPart(30, "c"),
 	}
 
-	snapshot := snapshotBufferLocked(buffer, 0)
+	snapshot := snapshotBufferLocked(buffer, 0, 30)
 
 	require.Len(t, snapshot, 3,
 		"afterMessageID == 0 means 'no cursor'; the full buffer must be returned")
@@ -5433,8 +5495,8 @@ func TestSnapshotBufferLocked_ZeroCursorReturnsAll(t *testing.T) {
 }
 
 // TestSnapshotBufferLocked_RelaySentinelReturnsAll: cross-replica
-// relay dials with after_id=math.MaxInt64 to skip the durable DB
-// snapshot. The buffer snapshot must NOT be filtered for that
+// relay dials with after_id=RelaySentinelAfterID to skip the durable
+// DB snapshot. The buffer snapshot must NOT be filtered for that
 // sentinel; otherwise the relay race PR #24031 fixed comes back.
 func TestSnapshotBufferLocked_RelaySentinelReturnsAll(t *testing.T) {
 	t.Parallel()
@@ -5445,11 +5507,13 @@ func TestSnapshotBufferLocked_RelaySentinelReturnsAll(t *testing.T) {
 		makeBufferedPart(30, "c"),
 	}
 
-	snapshot := snapshotBufferLocked(buffer, math.MaxInt64)
+	snapshot := snapshotBufferLocked(buffer, RelaySentinelAfterID, 30)
 
 	require.Len(t, snapshot, 3,
-		"the math.MaxInt64 relay sentinel must NOT filter the buffer")
+		"the relay sentinel must NOT filter the buffer")
 	require.Equal(t, "a", partText(snapshot[0]))
+	require.Equal(t, "b", partText(snapshot[1]))
+	require.Equal(t, "c", partText(snapshot[2]))
 }
 
 // TestSnapshotBufferLocked_EmptyBufferReturnsNil documents that
@@ -5458,9 +5522,9 @@ func TestSnapshotBufferLocked_RelaySentinelReturnsAll(t *testing.T) {
 func TestSnapshotBufferLocked_EmptyBufferReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	require.Nil(t, snapshotBufferLocked(nil, 0))
-	require.Nil(t, snapshotBufferLocked(nil, 42))
-	require.Nil(t, snapshotBufferLocked([]bufferedStreamPart{}, 42))
+	require.Nil(t, snapshotBufferLocked(nil, 0, 0))
+	require.Nil(t, snapshotBufferLocked(nil, 42, 30))
+	require.Nil(t, snapshotBufferLocked([]bufferedStreamPart{}, 42, 30))
 }
 
 // TestPublishToStream_TagsPartsWithCurrentCheckpoint verifies that
