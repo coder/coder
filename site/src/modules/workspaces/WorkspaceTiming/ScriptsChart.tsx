@@ -59,7 +59,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 	const theme = useTheme();
 	const legendsByStatus = getLegendsByStatus(theme);
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
-		(s) => legendsByStatus[s],
+		(s) => legendsByStatus[s] ?? { label: s },
 	);
 
 	return (
@@ -101,6 +101,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 					<XAxisSection>
 						{visibleTimings.map((t) => {
 							const duration = calcDuration(t.range);
+							const legend = legendsByStatus[t.status] ?? { label: t.status };
 
 							return (
 								<XAxisRow
@@ -113,7 +114,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legendsByStatus[t.status].colors}
+												colors={legend.colors}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
@@ -135,7 +136,9 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 	);
 };
 
-function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
+function getLegendsByStatus(
+	theme: Theme,
+): Record<string, ChartLegend | undefined> {
 	return {
 		ok: {
 			label: "success",
@@ -151,7 +154,7 @@ function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
 				stroke: theme.roles.error.outline,
 			},
 		},
-		timeout: {
+		timed_out: {
 			label: "timed out",
 			colors: {
 				fill: theme.roles.warning.background,
