@@ -601,6 +601,78 @@ export function useConversationEditingState(deps: {
 	};
 }
 
+/**
+ * @internal Exported for testing.
+ *
+ * `useEditingPickerSync` wraps `useConversationEditingState`'s edit and
+ * cancel handlers so the model picker tracks the edited message's
+ * original model.
+ *
+ * The submit branch in `AgentChatPage` reads the picker via
+ * `effectiveSelectedModel` when building the `EditChatMessageRequest`.
+ * Without this sync, editing an earlier message on a chat whose model
+ * has since changed would silently re-run that message against the
+ * chat's current picker. With this sync, a text-only edit preserves
+ * the original model; the user can still pick a different model
+ * before submitting and that selection overrides the original.
+ *
+ * On entry, the previous picker is captured to a ref the first time we
+ * transition from non-edit to edit so the cancel path can restore it.
+ * Switching directly from one edit target to another does not reset
+ * the captured value.
+ */
+export function useEditingPickerSync(deps: {
+	editing: ReturnType<typeof useConversationEditingState>;
+	chatMessagesList: readonly TypesGen.ChatMessage[] | undefined;
+	modelOptions: readonly { id: string }[];
+	selectedModel: string;
+	setSelectedModel: (id: string) => void;
+}): ReturnType<typeof useConversationEditingState> {
+	const {
+		editing,
+		chatMessagesList,
+		modelOptions,
+		selectedModel,
+		setSelectedModel,
+	} = deps;
+	const savedPickerRef = useRef<string | null>(null);
+
+	const handleEditUserMessage: typeof editing.handleEditUserMessage = (
+		messageId,
+		text,
+		fileBlocks,
+	) => {
+		if (editing.editingMessageId === null) {
+			savedPickerRef.current = selectedModel;
+		}
+		const editedMessage = chatMessagesList?.find(
+			(message) => message.id === messageId,
+		);
+		const originalModelConfigID = editedMessage?.model_config_id;
+		if (
+			originalModelConfigID &&
+			modelOptions.some((opt) => opt.id === originalModelConfigID)
+		) {
+			setSelectedModel(originalModelConfigID);
+		}
+		editing.handleEditUserMessage(messageId, text, fileBlocks);
+	};
+
+	const handleCancelHistoryEdit = () => {
+		if (savedPickerRef.current !== null) {
+			setSelectedModel(savedPickerRef.current);
+		}
+		savedPickerRef.current = null;
+		editing.handleCancelHistoryEdit();
+	};
+
+	return {
+		...editing,
+		handleEditUserMessage,
+		handleCancelHistoryEdit,
+	};
+}
+
 const getPersistedDetailError = ({
 	chatStatus,
 	chatRecord,
@@ -1219,33 +1291,13 @@ const AgentChatPage: FC = () => {
 		inputValueRef,
 	});
 
-	// Wrap handleEditUserMessage so entering edit mode initializes the
-	// model picker to the edited message's original model. The edit
-	// submit path uses effectiveSelectedModel, which falls back through
-	// the picker, then chatLastModelConfigID, then the first option.
-	// Without this sync, editing an earlier message on a chat whose
-	// model has since changed would silently re-run that message
-	// against the chat's current picker model. The user can still pick
-	// a different model before submitting; that change then overrides
-	// the original model.
-	const editingWithModelSync: typeof editing = {
-		...editing,
-		handleEditUserMessage: (messageId, text, fileBlocks) => {
-			if (editing.editingMessageId === null) {
-				const editedMessage = chatMessagesList?.find(
-					(message) => message.id === messageId,
-				);
-				const originalModelConfigID = editedMessage?.model_config_id;
-				if (
-					originalModelConfigID &&
-					modelOptions.some((opt) => opt.id === originalModelConfigID)
-				) {
-					setSelectedModel(originalModelConfigID);
-				}
-			}
-			editing.handleEditUserMessage(messageId, text, fileBlocks);
-		},
-	};
+	const editingWithModelSync = useEditingPickerSync({
+		editing,
+		chatMessagesList,
+		modelOptions,
+		selectedModel,
+		setSelectedModel,
+	});
 
 	const chatTitle = chatQuery.data?.title;
 
