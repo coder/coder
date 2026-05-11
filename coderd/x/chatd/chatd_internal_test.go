@@ -3481,15 +3481,15 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 			}, nil
 		},
 	)
-	// Cleanup re-reads the chat row via shouldPublishFinishedChatState
-	// and the cleanup-cycle publishStatus(waiting) drives the new
-	// controlNotifyIsStaleForThisWorker helper through the same mock.
-	// Returning a non-(running+ours) status keeps both reads on the
-	// "not stale" path so the test still exercises the pre-arm gate.
+	// Cleanup re-reads the chat row via shouldPublishFinishedChatState.
+	// The control listener is unsubscribed at the top of the cleanup defer
+	// (see processChat's stopControlListener) so the cleanup-cycle
+	// publishStatus(waiting) does not invoke the new
+	// controlNotifyIsStaleForThisWorker helper.
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
 		database.Chat{ID: chatID, Status: database.ChatStatusError},
 		nil,
-	).AnyTimes()
+	)
 
 	db.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 
@@ -3659,7 +3659,7 @@ func TestSubscribeChatControl_StalePendingDoesNotInterrupt(t *testing.T) {
 		ID:       chatID,
 		Status:   database.ChatStatusRunning,
 		WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
-	}, nil).AnyTimes()
+	}, nil).MinTimes(1)
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -3669,7 +3669,11 @@ func TestSubscribeChatControl_StalePendingDoesNotInterrupt(t *testing.T) {
 	defer unsub()
 
 	// Publish the stale notification SendMessage would emit before
-	// AcquireChats stamped this worker as owner.
+	// AcquireChats stamped this worker as owner. MemoryPubsub.Publish
+	// only returns after every listener callback has run, so the
+	// GetChatByID mock above (.MinTimes(1)) proves the verification
+	// helper executed; a future regression that drops the message
+	// before reaching it would fail mock verification.
 	notify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
 		Status: string(database.ChatStatusPending),
 	})

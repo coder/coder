@@ -5705,11 +5705,20 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	}
 
 	controlCancel := p.subscribeChatControl(chatCtx, chat.ID, gatedCancel, logger)
-	defer func() {
-		if controlCancel != nil {
-			controlCancel()
+	// stopControlListener unsubscribes the control listener once, so that
+	// the cleanup-cycle publishStatus(waiting) self-notification does not
+	// trigger an extra GetChatByID through controlNotifyIsStaleForThisWorker.
+	// The closure is invoked both at the top of the main cleanup defer and
+	// by the LIFO defer below; the second call is a no-op because
+	// controlCancel is cleared.
+	stopControlListener := func() {
+		if controlCancel == nil {
+			return
 		}
-	}()
+		controlCancel()
+		controlCancel = nil
+	}
+	defer stopControlListener()
 
 	// Register with the centralized heartbeat loop instead of
 	// running a per-chat goroutine. The loop issues a single batch
@@ -5778,6 +5787,14 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// reliably update the chat status in the database during
 		// graceful shutdown.
 		cleanupCtx := context.WithoutCancel(ctx)
+
+		// Stop the control listener before the cleanup-cycle status
+		// publish so its self-notification cannot drive a wasted
+		// GetChatByID through controlNotifyIsStaleForThisWorker. The
+		// cleanup defer is the last-registered defer in this function,
+		// so LIFO order would otherwise run cleanup while the listener
+		// is still subscribed.
+		stopControlListener()
 
 		// Handle panics gracefully.
 		if r := recover(); r != nil {
