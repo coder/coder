@@ -1791,16 +1791,20 @@ func tryCompactOnExit(
 	if err != nil {
 		return
 	}
+	compactionModel := opts.CompactionModel
+	if compactionModel == nil {
+		compactionModel = opts.Model
+	}
 	did, compactErr := tryCompact(
 		ctx,
-		opts.Model,
+		compactionModel,
 		opts.Compaction,
 		opts.ContextLimitFallback,
 		usage,
 		metadata,
 		reloaded,
 	)
-	opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, compactErr)
+	opts.Metrics.RecordCompaction(compactionModel.Provider(), compactionModel.Model(), did, compactErr)
 	if compactErr != nil && opts.Compaction.OnError != nil {
 		opts.Compaction.OnError(compactErr)
 	}

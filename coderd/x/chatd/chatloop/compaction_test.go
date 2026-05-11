@@ -71,6 +71,47 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("UsesCompactionModelIdentity", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+		chatID := uuid.New()
+		runID := uuid.New()
+		compactionModelID := uuid.New()
+
+		db.EXPECT().InsertChatDebugRun(
+			gomock.Any(),
+			gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
+		).DoAndReturn(func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.Equal(t, chatID, params.ChatID)
+			require.True(t, params.ModelConfigID.Valid)
+			require.Equal(t, compactionModelID, params.ModelConfigID.UUID)
+			require.True(t, params.Provider.Valid)
+			require.Equal(t, "compaction-provider", params.Provider.String)
+			require.True(t, params.Model.Valid)
+			require.Equal(t, "compaction-model", params.Model.String)
+			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
+		})
+
+		ctx := newParentContext(chatID)
+		compactionCtx, _ := startCompactionDebugRun(ctx, CompactionOptions{
+			DebugSvc:      svc,
+			ChatID:        chatID,
+			ModelConfigID: compactionModelID,
+			Provider:      "compaction-provider",
+			Model:         "compaction-model",
+		})
+		require.NotSame(t, ctx, compactionCtx)
+
+		run, ok := chatdebug.RunFromContext(compactionCtx)
+		require.True(t, ok)
+		require.Equal(t, compactionModelID, run.ModelConfigID)
+		require.Equal(t, "compaction-provider", run.Provider)
+		require.Equal(t, "compaction-model", run.Model)
+	})
+
 	t.Run("FinalizeRunAggregatesSummary", func(t *testing.T) {
 		t.Parallel()
 
@@ -1010,13 +1051,15 @@ func TestRun_Compaction(t *testing.T) {
 		t.Parallel()
 
 		var persistCompactionCalls int
+		var compactionGenerateCalls int
 		const summaryText = "compaction summary for dynamic tool exit"
 
 		// The LLM calls a dynamic tool. Usage is above the
 		// compaction threshold so compaction should fire even
 		// though the chatloop exits via ErrDynamicToolCall.
 		model := &chattest.FakeModel{
-			ProviderName: "fake",
+			ProviderName: "active-provider",
+			ModelName:    "active-model",
 			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "my_dynamic_tool"},
@@ -1038,7 +1081,16 @@ func TestRun_Compaction(t *testing.T) {
 					},
 				}), nil
 			},
+			GenerateFn: func(context.Context, fantasy.Call) (*fantasy.Response, error) {
+				t.Fatal("active model should not generate dynamic exit compaction summaries")
+				return nil, xerrors.New("active model generated dynamic exit compaction summary")
+			},
+		}
+		compactionModel := &chattest.FakeModel{
+			ProviderName: "compaction-provider",
+			ModelName:    "compaction-model",
 			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				compactionGenerateCalls++
 				return &fantasy.Response{
 					Content: []fantasy.Content{
 						fantasy.TextContent{Text: summaryText},
@@ -1048,7 +1100,8 @@ func TestRun_Compaction(t *testing.T) {
 		}
 
 		err := Run(context.Background(), RunOptions{
-			Model: model,
+			Model:           model,
+			CompactionModel: compactionModel,
 			Messages: []fantasy.Message{
 				textMessage(fantasy.MessageRoleUser, "hello"),
 			},
@@ -1076,5 +1129,6 @@ func TestRun_Compaction(t *testing.T) {
 		require.ErrorIs(t, err, ErrDynamicToolCall)
 		require.Equal(t, 1, persistCompactionCalls,
 			"compaction must fire before dynamic tool exit")
+		require.Equal(t, 1, compactionGenerateCalls)
 	})
 }

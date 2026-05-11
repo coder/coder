@@ -58,6 +58,9 @@ type CompactionOptions struct {
 	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
+	// ModelConfigID, Provider, and Model identify the compaction
+	// model for debug run instrumentation. When set, they override
+	// the parent run's model identity in debug records.
 	ModelConfigID       uuid.UUID
 	Provider            string
 	Model               string

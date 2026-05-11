@@ -138,6 +138,7 @@ export const AgentSettingsAgentsPageView: FC<
 					isSaveError={isSaveCompactionModelOverrideError}
 					saveErrorMessage="Failed to save compaction model override."
 					unsetPlaceholder="Use active chat model"
+					unavailableModelWarning="The saved model is no longer enabled. Compaction will use the active chat model until you choose a new override."
 					showHeader={false}
 				/>
 			</section>

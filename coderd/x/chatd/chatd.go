@@ -7449,6 +7449,10 @@ func (p *Server) runChat(
 			persistCtx context.Context,
 			result chatloop.CompactionResult,
 		) error {
+			// Attribute the durable summary message to the active chat model
+			// config because the summary becomes part of that model's future
+			// conversation. Debug runs separately record the model that
+			// generated the summary.
 			if err := p.persistChatContextSummary(
 				persistCtx,
 				chat.ID,

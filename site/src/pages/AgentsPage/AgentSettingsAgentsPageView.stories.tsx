@@ -10,6 +10,8 @@ const OVERRIDE_MALFORMED_WARNING =
 	"The saved override is malformed and is being treated as unset. Click Save to clear it.";
 const UNAVAILABLE_SAVED_MODEL_WARNING =
 	"The saved model is no longer enabled and will be ignored until you choose a new override.";
+const COMPACTION_UNAVAILABLE_SAVED_MODEL_WARNING =
+	"The saved model is no longer enabled. Compaction will use the active chat model until you choose a new override.";
 const TITLE_UNAVAILABLE_SAVED_MODEL_WARNING =
 	"The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting.";
 
@@ -539,12 +541,20 @@ export const UnavailableSavedModels: Story = {
 			"Explore subagent model",
 		);
 
-		for (const section of [generalSection, compactionSection, exploreSection]) {
+		for (const section of [generalSection, exploreSection]) {
 			await within(section).findByText(UNAVAILABLE_SAVED_MODEL_WARNING);
 			expect(
 				within(section).getByRole("combobox", { name: "Unavailable model" }),
 			).toBeInTheDocument();
 		}
+		await within(compactionSection).findByText(
+			COMPACTION_UNAVAILABLE_SAVED_MODEL_WARNING,
+		);
+		expect(
+			within(compactionSection).getByRole("combobox", {
+				name: "Unavailable model",
+			}),
+		).toBeInTheDocument();
 		await within(titleSection).findByText(
 			TITLE_UNAVAILABLE_SAVED_MODEL_WARNING,
 		);

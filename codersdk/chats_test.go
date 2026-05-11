@@ -178,7 +178,6 @@ func TestChatModelOverrideContext(t *testing.T) {
 	for _, overrideContext := range contexts {
 		require.True(t, overrideContext.Valid(), "%q should be valid", overrideContext)
 	}
-	require.True(t, codersdk.ChatModelOverrideContextCompaction.Valid())
 	require.False(t, codersdk.ChatModelOverrideContext("unknown").Valid())
 }
 
