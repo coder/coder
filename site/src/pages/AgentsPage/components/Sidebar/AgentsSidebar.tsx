@@ -505,8 +505,56 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	// instead so the sidebar does not look stuck on the old status.
 	const isStreaming = chat.status === "running" || chat.status === "pending";
 	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	// Server-side, status flips to "waiting" synchronously when streaming
+	// ends, but the new last_turn_summary is written by an async finalizer
+	// (it calls the model to generate a label). For a beat after the stream
+	// stops, the chat row still carries the previous turn's summary text.
+	// Suppress that briefly-stale text: remember the cached summary observed
+	// while streaming, then hide an exact match on the post-stream renders
+	// until the new summary lands. A timeout-based release covers the rare
+	// case where the regenerated summary equals the previous one byte-for-
+	// byte (so the equality-based release would never fire). State is
+	// captured during render using the React "adjust state during render"
+	// pattern so the first post-stream paint already suppresses the stale
+	// string instead of flashing it for a frame.
+	const staleTurnSummaryReleaseMs = 10_000;
+	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
+		isStreaming ? lastTurnSummary : undefined,
+	);
+	const [suppressionExpired, setSuppressionExpired] = useState(false);
+	if (isStreaming) {
+		if (streamingSummary !== lastTurnSummary) {
+			setStreamingSummary(lastTurnSummary);
+		}
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	} else if (
+		streamingSummary !== undefined &&
+		lastTurnSummary !== streamingSummary
+	) {
+		setStreamingSummary(undefined);
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	}
+	const isStaleTurnSummary =
+		!isStreaming &&
+		lastTurnSummary !== undefined &&
+		!suppressionExpired &&
+		streamingSummary === lastTurnSummary;
+	useEffect(() => {
+		if (!isStaleTurnSummary) {
+			return;
+		}
+		const timeoutId = window.setTimeout(() => {
+			setSuppressionExpired(true);
+		}, staleTurnSummaryReleaseMs);
+		return () => window.clearTimeout(timeoutId);
+	}, [isStaleTurnSummary]);
+	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const subtitle =
-		errorReason || streamingSubtitle || lastTurnSummary || modelName;
+		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -174,6 +175,90 @@ export const ChatStreamingOverridesTurnSummary: Story = {
 		expect(
 			canvas.queryByText("Added Docker and Terraform validation"),
 		).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * After streaming ends the server flips status to "waiting" synchronously,
+ * but the new last_turn_summary is generated asynchronously and arrives a
+ * split second later. The previous turn's text would otherwise flash for
+ * that beat. The row remembers the summary observed while streaming and
+ * suppresses it on the post-stream render until the new summary lands.
+ */
+export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
+	parameters: {
+		layout: "fullscreen",
+		user: MockUserOwner,
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+		chromatic: { disableSnapshot: true },
+	},
+	render: (args) => {
+		const initialSummary = "Added Docker and Terraform validation";
+		const freshSummary = "Validated provider configs and exited cleanly";
+		const [phase, setPhase] = useState<
+			"streaming" | "stale-after-stream" | "fresh"
+		>("streaming");
+		useEffect(() => {
+			if (phase !== "streaming") {
+				return;
+			}
+			const id = setTimeout(() => setPhase("stale-after-stream"), 50);
+			return () => clearTimeout(id);
+		}, [phase]);
+		const chats = [
+			buildChat({
+				id: "chat-stale-summary",
+				title: "Update workspace template",
+				status: phase === "streaming" ? "running" : "waiting",
+				last_turn_summary: phase === "fresh" ? freshSummary : initialSummary,
+			}),
+		];
+		return (
+			<div data-testid="flicker-harness" data-phase={phase}>
+				<button
+					data-testid="advance-to-fresh"
+					type="button"
+					onClick={() => setPhase("fresh")}
+				>
+					advance
+				</button>
+				<AgentsSidebar {...args} chats={chats} />
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Phase 1: chat is streaming, the cached summary is suppressed in
+		// favor of the live streaming label.
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
+
+		// Phase 2: status flips to waiting while the previous summary is
+		// still cached server-side. The stale text must not flash; the
+		// fallback (model name) shows instead.
+		await waitFor(() => {
+			expect(canvas.getByTestId("flicker-harness")).toHaveAttribute(
+				"data-phase",
+				"stale-after-stream",
+			);
+		});
+		await expect(
+			canvas.queryByText("GPT-4o streaming…"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Added Docker and Terraform validation"),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+
+		// Phase 3: the async finalizer updates the summary. The new text
+		// is displayed, and the stale-suppression guard is cleared.
+		await userEvent.click(canvas.getByTestId("advance-to-fresh"));
+		await expect(
+			canvas.getByText("Validated provider configs and exited cleanly"),
+		).toBeInTheDocument();
 	},
 };
 
