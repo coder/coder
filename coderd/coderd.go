@@ -831,6 +831,7 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
+		api.workspaceAgentRPCMetrics = NewWorkspaceAgentRPCMetrics(options.PrometheusRegistry, options.Logger)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
@@ -2181,9 +2182,10 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter    *workspacestats.Reporter
-	metadataBatcher  *metadatabatcher.Batcher
-	lifecycleMetrics *agentapi.LifecycleMetrics
+	statsReporter            *workspacestats.Reporter
+	metadataBatcher          *metadatabatcher.Batcher
+	lifecycleMetrics         *agentapi.LifecycleMetrics
+	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
