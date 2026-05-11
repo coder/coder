@@ -5,12 +5,12 @@ export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
 	| Extract<RenderBlock, { type: "file-reference" }>;
 
-type UserFileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
-	userFileBlocks: UserFileRenderBlock[];
+	userFileBlocks: FileRenderBlock[];
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
 	hasCopyableContent: boolean;
@@ -22,7 +22,7 @@ const isUserInlineRenderBlock = (
 ): block is UserInlineRenderBlock =>
 	block.type === "response" || block.type === "file-reference";
 
-const isFileRenderBlock = (block: RenderBlock): block is UserFileRenderBlock =>
+const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";
 
 const isProviderToolResultOnlyMessage = (

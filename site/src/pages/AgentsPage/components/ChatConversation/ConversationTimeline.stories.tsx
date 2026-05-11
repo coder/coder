@@ -652,6 +652,9 @@ export const UserMessageWithJSONAttachment: Story = {
 			name: "View report.json",
 		});
 		expect(textButton).toHaveTextContent("report.json");
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		await userEvent.click(textButton);
 		expect(await canvas.findByText(/"status":"ok"/i)).toBeInTheDocument();
 	},
@@ -687,6 +690,9 @@ export const UserMessageWithDownloadableFile: Story = {
 			"/api/experimental/chats/files/storybook-user-deployment-report",
 		);
 		expect(canvas.getByText("deployment-report.pdf")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -980,6 +986,9 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 		expect(downloadLink).toBeInTheDocument();
 		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
 		expect(canvas.getByText("Attached file")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 	},
 };
 
