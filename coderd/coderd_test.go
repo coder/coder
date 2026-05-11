@@ -319,6 +319,53 @@ func TestSwagger(t *testing.T) {
 		require.Contains(t, doc.Paths, "/.well-known/oauth-authorization-server")
 		require.Contains(t, doc.Paths, "/oauth2/tokens")
 		require.Contains(t, doc.Paths, "/scim/v2/Users")
+
+		// Regression for https://github.com/coder/coder/issues/24473.
+		// The {user} path parameter on /api/v2/users/{user}/quiet-hours
+		// used to be annotated with format(uuid), which made Swagger UI
+		// reject the "me" shortcut at submit time even though the
+		// handler (httpmw.UserParam) accepts it. We must not advertise a
+		// uuid format on these endpoints because users, names, and "me"
+		// are all valid inputs.
+		quietHoursPath, ok := doc.Paths["/api/v2/users/{user}/quiet-hours"]
+		require.True(t, ok,
+			"swagger doc should still expose /users/{user}/quiet-hours")
+		for method, raw := range quietHoursPath {
+			var op struct {
+				Parameters []struct {
+					Name        string `json:"name"`
+					In          string `json:"in"`
+					Type        string `json:"type"`
+					Format      string `json:"format"`
+					Description string `json:"description"`
+				} `json:"parameters"`
+			}
+			require.NoError(t, json.Unmarshal(raw, &op),
+				"unmarshal %s /quiet-hours operation", method)
+			var userParam *struct {
+				Name        string `json:"name"`
+				In          string `json:"in"`
+				Type        string `json:"type"`
+				Format      string `json:"format"`
+				Description string `json:"description"`
+			}
+			for i := range op.Parameters {
+				if op.Parameters[i].Name == "user" && op.Parameters[i].In == "path" {
+					userParam = &op.Parameters[i]
+					break
+				}
+			}
+			require.NotNil(t, userParam,
+				"%s /quiet-hours must declare a user path parameter", method)
+			require.Empty(t, userParam.Format,
+				"%s /quiet-hours user parameter must not advertise format=uuid; that blocks the 'me' shortcut in Swagger UI",
+				method)
+			// Use "or me" rather than just "me" so the assertion is not
+			// accidentally satisfied by the substring inside "name".
+			require.Contains(t, userParam.Description, "or me",
+				"%s /quiet-hours user parameter description must mention the 'me' shortcut so users know it is accepted",
+				method)
+		}
 	})
 	t.Run("endpoint disabled by default", func(t *testing.T) {
 		t.Parallel()
