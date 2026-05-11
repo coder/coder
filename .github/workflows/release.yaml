@@ -3,17 +3,24 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      release_channel:
+      release_type:
         type: choice
-        description: Release channel
+        description: "Type of release: rc (from main or release branch), release (from release branch), or create-release-branch (cut branch + tag RC)"
+        required: true
         options:
-          - mainline
-          - stable
           - rc
-      release_notes:
-        description: Release notes for the publishing the release. This is required to create a release.
+          - release
+          - create-release-branch
+      commit_sha:
+        description: "Commit SHA to tag (required for RC from main and create-release-branch, must be on main)"
+        type: string
+        default: ""
+      release_branch:
+        description: "Release branch name, e.g. release/2.32 (required for release, optional for RC from branch)"
+        type: string
+        default: ""
       dry_run:
-        description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
+        description: "Perform a dry-run release (build but don't publish)"
         type: boolean
         required: true
         default: false
@@ -22,15 +29,6 @@ permissions:
   contents: read
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
-
-env:
-  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
-  # booleans, not strings.
-  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
-  CODER_RELEASE: ${{ !inputs.dry_run }}
-  CODER_DRY_RUN: ${{ inputs.dry_run }}
-  CODER_RELEASE_CHANNEL: ${{ inputs.release_channel }}
-  CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
   # Only allow maintainers/admins to release.
@@ -59,9 +57,147 @@ jobs:
 
             if (!allowed) core.setFailed('Denied: requires maintain or admin');
 
+
+  prepare-release:
+    name: Prepare release
+    needs: [check-perms]
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.prepare.outputs.version }}
+      previous_version: ${{ steps.prepare.outputs.previous_version }}
+      channel: ${{ steps.prepare.outputs.channel }}
+      target_ref: ${{ steps.prepare.outputs.target_ref }}
+      create_branch: ${{ steps.prepare.outputs.create_branch }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+        with:
+          use-cache: false
+
+      - name: Calculate version and create tag
+        id: prepare
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          RELEASE_BRANCH: ${{ inputs.release_branch }}
+        run: |
+          set -euo pipefail
+
+          args=("$RELEASE_TYPE")
+          case "$RELEASE_TYPE" in
+            rc)
+              if [[ -n "$COMMIT_SHA" ]]; then
+                args+=(--commit "$COMMIT_SHA")
+              elif [[ -n "$RELEASE_BRANCH" ]]; then
+                args+=(--branch "$RELEASE_BRANCH")
+              fi
+              ;;
+            create-release-branch)
+              args+=(--commit "$COMMIT_SHA")
+              ;;
+            release)
+              args+=(--branch "$RELEASE_BRANCH")
+              ;;
+          esac
+
+          output=$(go run ./scripts/release-action calculate-version "${args[@]}")
+          echo "Raw output: $output"
+
+          version=$(echo "$output" | jq -r '.version')
+          previous_version=$(echo "$output" | jq -r '.previous_version')
+          channel=$(echo "$output" | jq -r '.channel')
+          target_ref=$(echo "$output" | jq -r '.target_ref')
+          create_branch=$(echo "$output" | jq -r '.create_branch // empty')
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "previous_version=$previous_version" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "target_ref=$target_ref" >> "$GITHUB_OUTPUT"
+          echo "create_branch=$create_branch" >> "$GITHUB_OUTPUT"
+
+          echo "Version: $version"
+          echo "Previous version: $previous_version"
+          echo "Channel: $channel"
+          echo "Target ref: $target_ref"
+          echo "Create branch: $create_branch"
+
+      - name: Create and push tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
+        run: |
+          set -euo pipefail
+          # Skip if tag already exists (idempotent)
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping."
+            exit 0
+          fi
+          git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF"
+          git push origin "$VERSION"
+
+      - name: Create lightweight tag for dry-run
+        if: ${{ inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
+        run: |
+          set -euo pipefail
+          git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF" 2>/dev/null || true
+
+      - name: Create release branch
+        if: ${{ steps.prepare.outputs.create_branch != '' && !inputs.dry_run }}
+        env:
+          CREATE_BRANCH: ${{ steps.prepare.outputs.create_branch }}
+          TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
+        run: |
+          set -euo pipefail
+          # Skip if branch already exists
+          if git ls-remote --exit-code origin "refs/heads/$CREATE_BRANCH" >/dev/null 2>&1; then
+            echo "Branch $CREATE_BRANCH already exists, skipping."
+            exit 0
+          fi
+          git branch "$CREATE_BRANCH" "$TARGET_REF"
+          git push origin "$CREATE_BRANCH"
+
+      - name: Generate release notes
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          PREV_VERSION: ${{ steps.prepare.outputs.previous_version }}
+          CHANNEL: ${{ steps.prepare.outputs.channel }}
+        run: |
+          set -euo pipefail
+          go run ./scripts/release-action generate-notes \
+            --version "$VERSION" \
+            --previous-version "$PREV_VERSION" \
+            --channel "$CHANNEL" > /tmp/release_notes.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-notes
+          path: /tmp/release_notes.md
+          retention-days: 30
+
   release:
     name: Build and publish
-    needs: [check-perms]
+    needs: [check-perms, prepare-release]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
       # Required to publish a release
@@ -75,6 +211,9 @@ jobs:
       # Required for GitHub Actions attestation
       attestations: write
     env:
+      CODER_RELEASE: ${{ !inputs.dry_run }}
+      CODER_DRY_RUN: ${{ inputs.dry_run }}
+      CODER_RELEASE_CHANNEL: ${{ needs.prepare-release.outputs.channel }}
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -99,66 +238,42 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Print version
-        id: version
+      - name: Checkout release commit
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          TARGET_REF: ${{ needs.prepare-release.outputs.target_ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          version="$(./scripts/version.sh)"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            # For dry-run, checkout the target ref and recreate local tag
+            git checkout "$TARGET_REF"
+            git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF" 2>/dev/null || true
+          else
+            git checkout "refs/tags/$VERSION"
+          fi
+
+      - name: Print version
+        id: version
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Strip the "v" prefix for use in build steps.
+          version="${VERSION#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           # Speed up future version.sh calls.
           echo "CODER_FORCE_VERSION=$version" >> "$GITHUB_ENV"
           echo "$version"
 
-      # Verify that all expectations for a release are met.
-      - name: Verify release input
-        if: ${{ !inputs.dry_run }}
-        run: |
-          set -euo pipefail
+      - name: Download release notes
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: release-notes
+          path: /tmp
 
-          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
-            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
-            exit 1
-          fi
-
-          # Derive the release branch from the version tag.
-          # Non-RC releases must be on a release/X.Y branch.
-          # RC tags are allowed on any branch (typically main).
-          version="$(./scripts/version.sh)"
-          # Strip any pre-release suffix first (e.g. 2.32.0-rc.0 -> 2.32.0)
-          base_version="${version%%-*}"
-          # Then strip patch to get major.minor (e.g. 2.32.0 -> 2.32)
-          release_branch="release/${base_version%.*}"
-
-          if [[ "$version" == *-rc.* ]]; then
-            echo "RC release detected — skipping release branch check (RC tags are cut from main)."
-          else
-            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
-            if [[ -z "${branch_contains_tag}" ]]; then
-              echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
-              exit 1
-            fi
-          fi
-
-          if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
-            echo "Release notes are required to create a release, did you use scripts/release.sh?"
-            exit 1
-          fi
-
-          echo "Release inputs verified:"
-          echo
-          echo "- Ref: ${GITHUB_REF}"
-          echo "- Version: ${version}"
-          echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
-          echo "- Release branch: ${release_branch}"
-          echo "- Release notes: true"
-
-      - name: Create release notes file
-        run: |
-          set -euo pipefail
-
-          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
-          echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
-          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> "$GITHUB_ENV"
+      - name: Set release notes env
+        run: echo CODER_RELEASE_NOTES_FILE=/tmp/release_notes.md >> "$GITHUB_ENV"
 
       - name: Show release notes
         run: |
@@ -676,19 +791,19 @@ jobs:
           retention-days: 7
 
       - name: Send repository-dispatch event
-        if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+        if: ${{ !inputs.dry_run && needs.prepare-release.outputs.channel != 'rc' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ needs.prepare-release.outputs.channel }}"}'
 
   publish-homebrew:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
-    needs: release
-    if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
+    needs: [release, prepare-release]
+    if: ${{ !inputs.dry_run && needs.prepare-release.outputs.channel == 'mainline' }}
 
     steps:
       - name: Harden Runner
@@ -760,11 +875,12 @@ jobs:
             -a "${GITHUB_ACTOR}" \
             -b "This automatic PR was triggered by the release of Coder v$coder_version"
 
+
   publish-winget:
     name: Publish to winget-pkgs
     runs-on: windows-latest
-    needs: release
-    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+    needs: [release, prepare-release]
+    if: ${{ !inputs.dry_run && needs.prepare-release.outputs.channel != 'rc' }}
 
     steps:
       - name: Harden Runner
@@ -852,3 +968,53 @@ jobs:
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
+
+
+  update-docs:
+    name: Update release docs
+    needs: [prepare-release, release]
+    if: ${{ !inputs.dry_run && needs.prepare-release.outputs.channel != 'rc' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+        with:
+          use-cache: false
+
+      - name: Update docs
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          CHANNEL: ${{ needs.prepare-release.outputs.channel }}
+        run: |
+          set -euo pipefail
+          go run ./scripts/release-action update-docs \
+            --version "$VERSION" \
+            --channel "$CHANNEL"
+
+      - name: Create docs update PR
+        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e7c3 # v7.0.5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: update release docs for ${{ needs.prepare-release.outputs.version }}"
+          title: "docs: update release docs for ${{ needs.prepare-release.outputs.version }}"
+          body: "Automated docs update for release ${{ needs.prepare-release.outputs.version }}."
+          branch: docs/release-${{ needs.prepare-release.outputs.version }}
+          base: main
