@@ -147,43 +147,41 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		return
 	}
 
-	selectedIndex := -1
+	selected := agents[0]
 	if agentName != "" {
-		for i, candidate := range agents {
+		found := false
+		for _, candidate := range agents {
 			if candidate.WorkspaceAgent.Name == agentName {
-				selectedIndex = i
+				selected = candidate
+				found = true
 				break
 			}
 		}
-		if selectedIndex == -1 {
+		if !found {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No agent found with instance ID %q and name %q.", instanceID, agentName),
 			})
 			return
 		}
-	} else {
-		if len(agents) != 1 {
-			// Include agent names in the error message to help operators
-			// configure CODER_AGENT_NAME. The caller has already proven
-			// cloud instance identity, so agent names are not sensitive
-			// here.
-			names := make([]string, len(agents))
-			for i, candidate := range agents {
-				names[i] = candidate.WorkspaceAgent.Name
-			}
-			sort.Strings(names)
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: fmt.Sprintf(
-					"Multiple agents found with instance ID %q. Set CODER_AGENT_NAME to one of: %s",
-					instanceID,
-					strings.Join(names, ", "),
-				),
-			})
-			return
+	} else if len(agents) != 1 {
+		// Include agent names in the error message to help operators
+		// configure CODER_AGENT_NAME. The caller has already proven
+		// cloud instance identity, so agent names are not sensitive
+		// here.
+		names := make([]string, len(agents))
+		for i, candidate := range agents {
+			names[i] = candidate.WorkspaceAgent.Name
 		}
-		selectedIndex = 0
+		sort.Strings(names)
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Multiple agents found with instance ID %q. Set CODER_AGENT_NAME to one of: %s",
+				instanceID,
+				strings.Join(names, ", "),
+			),
+		})
+		return
 	}
-	selected := agents[selectedIndex]
 	agent := selected.WorkspaceAgent
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
