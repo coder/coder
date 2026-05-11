@@ -12,6 +12,19 @@ import (
 // Must be a var for unit tests to conform behavior
 var hideForceUnixSlashes = false
 
+// defaultForceUnixSeparators is the default value of the
+// `--force-unix-filepaths` flag on Windows.
+//
+// Defaulting to true generates ProxyCommand paths with forward slashes,
+// which work in both cmd.exe / PowerShell (Windows accepts either
+// separator for filesystem paths in CreateProcess) and in Git Bash's
+// `/bin/sh`. With the previous default of false, a user whose PATH puts
+// Git Bash's OpenSSH before Windows OpenSSH would see `/bin/sh` strip
+// backslashes as escape characters from the ProxyCommand and fail with
+// "command not found", breaking `coder ssh` and Coder Desktop File Sync.
+// See coder/coder#24205.
+var defaultForceUnixSeparators = true
+
 // sshConfigMatchExecEscape prepares the path for use in `Match exec` statement.
 //
 // OpenSSH parses the Match line with a very simple tokenizer that accepts "-enclosed strings for the exec command, and

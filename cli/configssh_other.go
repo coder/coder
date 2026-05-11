@@ -10,6 +10,13 @@ import (
 
 var hideForceUnixSlashes = true
 
+// defaultForceUnixSeparators is the default value of the
+// `--force-unix-filepaths` flag on non-Windows platforms. The flag is a
+// noop here (paths are already POSIX), but keeping a platform-specific
+// constant mirrors the Windows file and avoids OS conditionals inside
+// the shared command setup.
+var defaultForceUnixSeparators = false
+
 // sshConfigMatchExecEscape prepares the path for use in `Match exec` statement.
 //
 // OpenSSH parses the Match line with a very simple tokenizer that accepts "-enclosed strings for the exec command, and

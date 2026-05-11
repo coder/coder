@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -305,6 +307,139 @@ func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression test for https://github.com/coder/coder/issues/24205.
+// Verifies that writeToBuffer threads the forceUnixSeparators flag into the
+// ProxyCommand and --global-config paths. The actual backslash-to-slash
+// conversion lives in sshConfigProxyCommandEscape (already covered by
+// Test_sshConfigExecEscapeSeparatorForce) and is OS-specific via
+// filepath.ToSlash, so the rendered substitution itself only happens on
+// Windows. The Linux assertion confirms the flag plumbing without
+// asserting the OS-specific conversion.
+func Test_sshConfigOptions_writeToBuffer_PathSeparators(t *testing.T) {
+	t.Parallel()
+
+	const (
+		winCoderBinary = `C:\Users\me\AppData\Local\Coder\coder.exe`
+		winGlobalCfg   = `C:\Users\me\AppData\Roaming\coderv2`
+	)
+
+	render := func(t *testing.T, forceUnix bool) string {
+		t.Helper()
+		opts := sshConfigOptions{
+			waitEnum:            "auto",
+			hostnameSuffix:      "coder",
+			userHostPrefix:      "coder.",
+			coderBinaryPath:     winCoderBinary,
+			globalConfigPath:    winGlobalCfg,
+			forceUnixSeparators: forceUnix,
+		}
+		buf := &bytes.Buffer{}
+		require.NoError(t, opts.writeToBuffer(buf))
+		return buf.String()
+	}
+
+	t.Run("ForceUnixForwardSlashesOnWindows", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "windows" {
+			t.Skip("backslash to forward-slash conversion only fires on Windows because filepath.ToSlash is OS-specific")
+		}
+		out := render(t, true)
+		require.Contains(t, out,
+			`C:/Users/me/AppData/Local/Coder/coder.exe`,
+			"ProxyCommand should use forward-slash coder.exe path when force-unix is enabled")
+		require.Contains(t, out,
+			`C:/Users/me/AppData/Roaming/coderv2`,
+			"global-config arg should use forward slashes when force-unix is enabled")
+		require.NotContains(t, out,
+			`C:\Users\me\AppData\Local\Coder\coder.exe`,
+			"no backslash binary path should leak through when force-unix is enabled")
+	})
+
+	t.Run("WithoutForceUnixBackslashesLeak", func(t *testing.T) {
+		t.Parallel()
+		// Cross-platform: the helper is a noop on the host OS path
+		// separator, so on every platform the raw Windows path is
+		// embedded verbatim when forceUnix is false. This is the failing
+		// pre-#24205 behavior on Git Bash.
+		out := render(t, false)
+		require.Contains(t, out, winCoderBinary)
+		require.Contains(t, out, winGlobalCfg)
+	})
+}
+
+// Regression test for https://github.com/coder/coder/issues/24205. The flag
+// must default to true on Windows so users who run `coder config-ssh` with
+// no extra arguments get a Git Bash-compatible config.
+func Test_defaultForceUnixSeparators(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		require.True(t, defaultForceUnixSeparators,
+			"on Windows the default must be true so ProxyCommand paths use forward slashes")
+	} else {
+		require.False(t, defaultForceUnixSeparators,
+			"on non-Windows the flag is a noop and must default to false")
+	}
+}
+
+// Regression test for https://github.com/coder/coder/issues/24205.
+// `--use-previous-options` copies the parsed config wholesale over the
+// current run's options. If forceUnixSeparators is not serialized in
+// asList() and not parsed back, a Windows user who relies on the new
+// default would silently regress to backslash paths on the second run.
+func Test_sshConfigOptions_ForceUnixSeparators_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DefaultValueNotSerialized", func(t *testing.T) {
+		t.Parallel()
+		o := sshConfigOptions{
+			forceUnixSeparators: defaultForceUnixSeparators,
+		}
+		list := o.asList()
+		for _, entry := range list {
+			require.NotContains(t, entry, "force-unix-filepaths",
+				"default value must not appear in the persisted section")
+		}
+	})
+
+	t.Run("NonDefaultValueSerialized", func(t *testing.T) {
+		t.Parallel()
+		o := sshConfigOptions{
+			forceUnixSeparators: !defaultForceUnixSeparators,
+		}
+		list := o.asList()
+		want := fmt.Sprintf("force-unix-filepaths: %v", !defaultForceUnixSeparators)
+		require.Contains(t, list, want,
+			"non-default value must be persisted so --use-previous-options keeps it")
+	})
+
+	t.Run("ParserDefaultsToPlatformValue", func(t *testing.T) {
+		t.Parallel()
+		// Empty section (e.g., one written before force-unix-filepaths
+		// was serialized). The parser must fall back to the platform
+		// default, not the zero value, so --use-previous-options on
+		// Windows preserves the new default.
+		section := "# :wait=auto\n"
+		parsed := sshConfigParseLastOptions(strings.NewReader(section))
+		require.Equal(t, defaultForceUnixSeparators, parsed.forceUnixSeparators)
+	})
+
+	t.Run("ParserRoundTripsExplicitValue", func(t *testing.T) {
+		t.Parallel()
+		section := fmt.Sprintf("# :force-unix-filepaths=%v\n", !defaultForceUnixSeparators)
+		parsed := sshConfigParseLastOptions(strings.NewReader(section))
+		require.Equal(t, !defaultForceUnixSeparators, parsed.forceUnixSeparators)
+	})
+
+	t.Run("EqualIncludesForceUnix", func(t *testing.T) {
+		t.Parallel()
+		a := sshConfigOptions{waitEnum: "auto", forceUnixSeparators: true}
+		b := sshConfigOptions{waitEnum: "auto", forceUnixSeparators: false}
+		require.False(t, a.equal(b),
+			"equal must compare forceUnixSeparators or the divergent-options prompt skips this difference")
+	})
 }
 
 func Test_sshConfigOptions_addOption(t *testing.T) {

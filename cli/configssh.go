@@ -107,7 +107,8 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 		o.userHostPrefix == other.userHostPrefix &&
 		o.disableAutostart == other.disableAutostart &&
 		o.headerCommand == other.headerCommand &&
-		o.hostnameSuffix == other.hostnameSuffix
+		o.hostnameSuffix == other.hostnameSuffix &&
+		o.forceUnixSeparators == other.forceUnixSeparators
 }
 
 func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
@@ -214,6 +215,16 @@ func (o sshConfigOptions) asList() (list []string) {
 	if o.disableAutostart {
 		list = append(list, fmt.Sprintf("disable-autostart: %v", o.disableAutostart))
 	}
+	// Serialize forceUnixSeparators whenever it diverges from the
+	// platform default, so `--use-previous-options` (or the
+	// "use previous" branch of the divergent-options prompt) preserves
+	// the user's explicit choice. Without this, every second run on
+	// Windows that used --use-previous-options would silently revert
+	// to backslash paths, undoing the default introduced in
+	// coder/coder#24205.
+	if o.forceUnixSeparators != defaultForceUnixSeparators {
+		list = append(list, fmt.Sprintf("force-unix-filepaths: %v", o.forceUnixSeparators))
+	}
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
 	}
@@ -229,8 +240,13 @@ func (o sshConfigOptions) asList() (list []string) {
 
 func (r *RootCmd) configSSH() *serpent.Command {
 	var (
-		sshConfigFile   string
-		sshConfigOpts   sshConfigOptions
+		sshConfigFile string
+		// On Windows the flag defaults to true so ProxyCommand paths use
+		// forward slashes, which work in both cmd.exe / PowerShell and in
+		// Git Bash's /bin/sh. See defaultForceUnixSeparators.
+		sshConfigOpts = sshConfigOptions{
+			forceUnixSeparators: defaultForceUnixSeparators,
+		}
 		usePreviousOpts bool
 		dryRun          bool
 		coderCliPath    string
@@ -562,9 +578,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		{
 			Flag: "force-unix-filepaths",
 			Env:  "CODER_CONFIGSSH_UNIX_FILEPATHS",
-			Description: "By default, 'config-ssh' uses the os path separator when writing the ssh config. " +
-				"This might be an issue in Windows machine that use a unix-like shell. " +
-				"This flag forces the use of unix file paths (the forward slash '/').",
+			Description: "Force the use of unix file paths (forward slash '/') for paths " +
+				"emitted in ProxyCommand. Defaults to true on Windows so the " +
+				"generated config works with both Windows OpenSSH (cmd.exe / " +
+				"PowerShell) and Git Bash's OpenSSH (which runs ProxyCommand " +
+				"through /bin/sh, where backslashes get interpreted as escape " +
+				"characters). Set to false to keep native Windows backslash " +
+				"paths. Noop on non-Windows platforms.",
 			Value: serpent.BoolOf(&sshConfigOpts.forceUnixSeparators),
 			// On non-windows showing this command is useless because it is a noop.
 			// Hide vs disable it though so if a command is copied from a Windows
@@ -682,6 +702,12 @@ func sshConfigWriteSectionEnd(w io.Writer) {
 func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 	// Default values.
 	o.waitEnum = "auto"
+	// Default to the platform-specific value so a previous config that
+	// predates the force-unix-filepaths serialization keeps the right
+	// behavior (true on Windows, false elsewhere). Without this,
+	// --use-previous-options on Windows would clobber the new default
+	// with a zero-value false. See coder/coder#24205.
+	o.forceUnixSeparators = defaultForceUnixSeparators
 
 	s := bufio.NewScanner(r)
 	for s.Scan() {
@@ -700,6 +726,8 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 				o.sshOptions = append(o.sshOptions, parts[1])
 			case "disable-autostart":
 				o.disableAutostart, _ = strconv.ParseBool(parts[1])
+			case "force-unix-filepaths":
+				o.forceUnixSeparators, _ = strconv.ParseBool(parts[1])
 			case "header":
 				o.header = append(o.header, parts[1])
 			case "header-command":

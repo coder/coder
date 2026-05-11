@@ -28,10 +28,12 @@ OPTIONS:
           Perform a trial run with no changes made, showing a diff at the end.
 
       --force-unix-filepaths bool, $CODER_CONFIGSSH_UNIX_FILEPATHS
-          By default, 'config-ssh' uses the os path separator when writing the
-          ssh config. This might be an issue in Windows machine that use a
-          unix-like shell. This flag forces the use of unix file paths (the
-          forward slash '/').
+          Force the use of unix file paths (forward slash '/') for paths emitted
+          in ProxyCommand. Defaults to true on Windows so the generated config
+          works with both Windows OpenSSH (cmd.exe / PowerShell) and Git Bash's
+          OpenSSH (which runs ProxyCommand through /bin/sh, where backslashes
+          get interpreted as escape characters). Set to false to keep native
+          Windows backslash paths. Noop on non-Windows platforms.
 
       --hostname-suffix string, $CODER_CONFIGSSH_HOSTNAME_SUFFIX
           Override the default hostname suffix.
