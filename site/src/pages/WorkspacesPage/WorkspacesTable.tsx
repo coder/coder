@@ -191,7 +191,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									 * the row's navigation handler. Negative margins
 									 * cancel the padding so row layout is unchanged. */}
 									<div
-										className="flex items-center cursor-default p-1.5 -m-1.5"
+										className="flex items-center cursor-default py-3 -my-3 pl-2 -ml-2 pr-5 -mr-5"
 										onClick={(e) => e.stopPropagation()}
 										onKeyDown={(e) => {
 											if (e.key === "Enter" || e.key === " ") {
