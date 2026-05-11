@@ -186,11 +186,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<TableCell>
 								<div className="flex items-center gap-5">
 									{/* Wrap the checkbox in a click-absorbing container
-									 * so that near-miss clicks do not bubble up to the
-									 * row's navigation handler. `self-stretch` fills the
-									 * existing cell height without adding any. */}
+									 * so that near-miss clicks within ~10px of the
+									 * checkbox edge toggle it instead of bubbling up to
+									 * the row's navigation handler. Negative margins
+									 * cancel the padding so row layout is unchanged. */}
 									<div
-										className="flex items-center cursor-default self-stretch pl-3 -ml-3 pr-4 -mr-4 pt-3 -mt-3 pb-3 -mb-3"
+										className="flex items-center cursor-default p-1.5 -m-1.5"
 										onClick={(e) => e.stopPropagation()}
 										onKeyDown={(e) => {
 											if (e.key === "Enter" || e.key === " ") {
