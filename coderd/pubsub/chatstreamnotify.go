@@ -53,4 +53,16 @@ type ChatStreamNotifyMessage struct {
 	// messages from the beginning (e.g. after an edit that
 	// truncates message history).
 	FullRefresh bool `json:"full_refresh,omitempty"`
+
+	// WakeOnly marks a status notification as a lifecycle wake
+	// (e.g. SendMessage transitioning a waiting chat to pending so
+	// the processor acquires it) rather than a request to interrupt
+	// any in-flight processing. Control subscribers must not cancel
+	// ongoing work when WakeOnly is true even if Status would
+	// otherwise be a cancel-trigger (pending, waiting, error).
+	//
+	// Defaulting to false preserves the historical interrupt-on-
+	// cancelable-status behavior for rolling deploys where older
+	// replicas publish without this field set.
+	WakeOnly bool `json:"wake_only,omitempty"`
 }

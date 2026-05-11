@@ -3416,6 +3416,153 @@ func TestSelectSkillMetasForInstructionRefresh(t *testing.T) {
 	})
 }
 
+// TestShouldCancelChatFromControlNotification pins the cancel-vs-wake
+// decision for control-channel status notifications. The WakeOnly tag
+// suppresses interrupts for status changes that only exist to wake the
+// run loop (SendMessage/PromoteQueued sync path/processChat lifecycle)
+// while legacy notifications without the tag continue to cancel, which
+// preserves correctness during rolling deploys from older replicas.
+func TestShouldCancelChatFromControlNotification(t *testing.T) {
+	t.Parallel()
+
+	selfID := uuid.New()
+	otherID := uuid.New()
+	require.NotEqual(t, selfID, otherID)
+
+	testCases := []struct {
+		name   string
+		notify coderdpubsub.ChatStreamNotifyMessage
+		expect bool
+		reason string
+	}{
+		{
+			name:   "PendingWakeOnly",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending), WakeOnly: true},
+			expect: false,
+			reason: "SendMessage and sync PromoteQueued publish pending only to wake the run loop",
+		},
+		{
+			name:   "PendingInterrupt",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending), WakeOnly: false},
+			expect: true,
+			reason: "EditMessage transitions the chat to pending and must interrupt the active worker",
+		},
+		{
+			name:   "PendingLegacyNoWakeOnly",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)},
+			expect: true,
+			reason: "older replicas during a rolling deploy must retain the legacy interrupt behavior",
+		},
+		{
+			name:   "WaitingWakeOnly",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting), WakeOnly: true},
+			expect: false,
+			reason: "processChat cleanup transitions to waiting only to wake watchers",
+		},
+		{
+			name:   "WaitingInterrupt",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting), WakeOnly: false},
+			expect: true,
+			reason: "setChatWaiting publishes from interrupt-intent code paths (SendMessage busy, InterruptChat, archive cleanup)",
+		},
+		{
+			name:   "WaitingLegacyNoWakeOnly",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting)},
+			expect: true,
+			reason: "legacy waiting publish from older replicas must cancel",
+		},
+		{
+			name:   "ErrorWakeOnly",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusError), WakeOnly: true},
+			expect: false,
+			reason: "processChat publishes terminal error only to wake watchers",
+		},
+		{
+			name:   "ErrorLegacyNoWakeOnly",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusError)},
+			expect: true,
+			reason: "legacy error publish from older replicas must cancel",
+		},
+		{
+			name:   "RunningSameWorker",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: selfID.String()},
+			expect: false,
+			reason: "the local worker is the one running the chat; do not cancel ourselves",
+		},
+		{
+			name:   "RunningOtherWorker",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: otherID.String()},
+			expect: true,
+			reason: "another replica claimed the chat; the local run must abort",
+		},
+		{
+			name:   "RunningEmptyWorker",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning)},
+			expect: false,
+			reason: "a running notification without a worker is ambiguous; prefer not to self-cancel",
+		},
+		{
+			name:   "RunningUnparseableWorker",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: "not-a-uuid"},
+			expect: false,
+			reason: "malformed worker IDs must not be allowed to interrupt the local run",
+		},
+		{
+			name:   "RunningWakeOnlyIgnored",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: otherID.String(), WakeOnly: true},
+			expect: true,
+			reason: "WakeOnly does not suppress cancellation for running status; foreign worker IDs always cancel",
+		},
+		{
+			name:   "UnknownStatus",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: "queued"},
+			expect: false,
+			reason: "unknown statuses must never interrupt the run loop",
+		},
+		{
+			name:   "EmptyStatus",
+			notify: coderdpubsub.ChatStreamNotifyMessage{},
+			expect: false,
+			reason: "an empty status carries no signal; do not interrupt",
+		},
+		{
+			name:   "WhitespacePaddedPending",
+			notify: coderdpubsub.ChatStreamNotifyMessage{Status: "  pending  "},
+			expect: true,
+			reason: "whitespace-padded statuses are still recognized; legacy interrupt semantics apply",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shouldCancelChatFromControlNotification(tc.notify, selfID)
+			require.Equal(t, tc.expect, got, tc.reason)
+		})
+	}
+}
+
+// TestShouldCancelChatFromControlNotification_LegacyJSONNoWakeOnly
+// exercises the wire-level rolling-deploy compatibility: an older
+// replica that does not know about the wake_only field publishes a JSON
+// document without it, and the decoded notify must still trigger a
+// cancel.
+func TestShouldCancelChatFromControlNotification_LegacyJSONNoWakeOnly(t *testing.T) {
+	t.Parallel()
+
+	selfID := uuid.New()
+
+	// Hand-crafted to mirror the on-the-wire payload produced by a
+	// pre-fix replica. The decoded WakeOnly field stays false, so the
+	// notification cancels just like before the fix.
+	payload := []byte(`{"status":"pending"}`)
+	var notify coderdpubsub.ChatStreamNotifyMessage
+	require.NoError(t, json.Unmarshal(payload, &notify))
+	require.False(t, notify.WakeOnly, "legacy payload must decode WakeOnly to false")
+
+	require.True(t, shouldCancelChatFromControlNotification(notify, selfID))
+}
+
 // TestProcessChat_IgnoresStaleControlNotification verifies that
 // processChat is not interrupted by a "pending" notification
 // published before processing begins. This is the race that caused

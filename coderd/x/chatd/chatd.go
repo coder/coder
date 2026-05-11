@@ -1913,7 +1913,9 @@ func (p *Server) EditMessage(
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
 	})
-	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
+	// EditMessage forces the chat to pending, which must interrupt any
+	// active worker so the edited turn replaces the in-flight run.
+	p.publishStatusInterrupt(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 
 	// Editing can race with an interrupted worker still flushing its
@@ -1993,7 +1995,9 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	}
 
 	for _, interruptedChat := range interruptedChats {
-		p.publishStatus(interruptedChat.ID, interruptedChat.Status, interruptedChat.WorkerID)
+		// Archiving transitions in-flight chats to waiting so the
+		// active worker must abandon its run.
+		p.publishStatusInterrupt(interruptedChat.ID, interruptedChat.Status, interruptedChat.WorkerID)
 		p.publishChatPubsubEvent(interruptedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
@@ -2330,7 +2334,10 @@ func (p *Server) PromoteQueued(
 		p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 			QueueUpdate: true,
 		})
-		p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
+		// Deferred promote relies on the active worker observing the
+		// waiting status and aborting its run so its persist+auto-
+		// promote cleanup picks up the reordered queued message.
+		p.publishStatusInterrupt(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 		return result, nil
 	}
@@ -3593,7 +3600,11 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 	if err != nil {
 		return database.Chat{}, err
 	}
-	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
+	// setChatWaiting is called by interrupt-intent code paths
+	// (SendMessage busy/interrupt, InterruptChat, post-archive
+	// cleanup). Publish with interrupt semantics so a running
+	// worker observes the cancel.
+	p.publishStatusInterrupt(chatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	return updatedChat, nil
 }
@@ -4998,13 +5009,33 @@ func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) 
 	p.publishToStream(chatID, event)
 }
 
+// publishStatus publishes a status update intended only to wake
+// subscribers and the run loop. Use publishStatusInterrupt when the
+// publish must also cancel in-flight processing for the chat (e.g.
+// EditMessage, setChatWaiting, archive, deferred PromoteQueued).
 func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus, workerID uuid.NullUUID) {
+	p.publishStatusNotify(chatID, status, workerID, true)
+}
+
+// publishStatusInterrupt publishes a status update that any control
+// subscriber for this chat must treat as an interrupt request.
+func (p *Server) publishStatusInterrupt(chatID uuid.UUID, status database.ChatStatus, workerID uuid.NullUUID) {
+	p.publishStatusNotify(chatID, status, workerID, false)
+}
+
+func (p *Server) publishStatusNotify(
+	chatID uuid.UUID,
+	status database.ChatStatus,
+	workerID uuid.NullUUID,
+	wakeOnly bool,
+) {
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:   codersdk.ChatStreamEventTypeStatus,
 		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
 	})
 	notify := coderdpubsub.ChatStreamNotifyMessage{
-		Status: string(status),
+		Status:   string(status),
+		WakeOnly: wakeOnly,
 	}
 	if workerID.Valid {
 		notify.WorkerID = workerID.UUID.String()
@@ -5266,6 +5297,23 @@ func (p *Server) publishMessagePart(chatID uuid.UUID, role codersdk.ChatMessageR
 	})
 }
 
+// shouldCancelChatFromControlNotification decides whether the control
+// subscriber for a chat should cancel its in-flight processing in
+// response to the given notification.
+//
+// Cancelable statuses (waiting, pending, error) reflect a transition
+// that the chat is no longer being run by the local worker. Historically
+// any such status canceled the local worker, but SendMessage and
+// PromoteQueued legitimately publish pending or waiting notifications
+// only to wake the run loop. Async PostgreSQL NOTIFY delivery can cause
+// those wake-intent notifications to arrive at the new control
+// subscriber after it has armed, spuriously interrupting the chat. We
+// avoid this by ignoring notifications explicitly tagged as WakeOnly.
+//
+// Notifications without WakeOnly continue to cancel so that genuine
+// interrupters (EditMessage, setChatWaiting, archive, deferred
+// PromoteQueued) and notifications from older replicas during a rolling
+// deploy retain the legacy interrupt behavior.
 func shouldCancelChatFromControlNotification(
 	notify coderdpubsub.ChatStreamNotifyMessage,
 	workerID uuid.UUID,
@@ -5273,7 +5321,7 @@ func shouldCancelChatFromControlNotification(
 	status := database.ChatStatus(strings.TrimSpace(notify.Status))
 	switch status {
 	case database.ChatStatusWaiting, database.ChatStatusPending, database.ChatStatusError:
-		return true
+		return !notify.WakeOnly
 	case database.ChatStatusRunning:
 		worker := strings.TrimSpace(notify.WorkerID)
 		if worker == "" {
