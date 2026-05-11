@@ -70,13 +70,30 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
-	const changeVersionMutation = useMutation(
-		changeVersion(
-			workspace,
-			queryClient,
-			!workspace.template_use_classic_parameter_flow,
-		),
+	const changeVersionOptions = changeVersion(
+		workspace,
+		queryClient,
+		!workspace.template_use_classic_parameter_flow,
 	);
+	const changeVersionMutation = useMutation({
+		...changeVersionOptions,
+		// MissingBuildParameters and ParameterValidationError are surfaced
+		// through the dedicated dialogs below via `changeVersionMutation.error`,
+		// so let those pass through to the dialog renderer. Every other
+		// failure (most importantly the canceled stop build introduced
+		// by coder/coder#24333, but also generic 5xx / network errors)
+		// would otherwise be silent because react-query does not surface
+		// mutation errors itself.
+		onError: (error: unknown) => {
+			if (
+				error instanceof MissingBuildParameters ||
+				error instanceof ParameterValidationError
+			) {
+				return;
+			}
+			handleError(error);
+		},
+	});
 
 	const handleError = (error: unknown) => {
 		if (isApiError(error) && error.code === "ERR_BAD_REQUEST") {

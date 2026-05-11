@@ -2451,6 +2451,15 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the new version
 	 *   - If there are missing parameters raise an error
+	 * - Stop the workspace with the current template version if it is already
+	 *   running, mirroring updateWorkspace, so resources with `ignore_changes`
+	 *   (prebuilds in particular) are recreated, agent tokens are refreshed
+	 *   in the new build, and startup scripts re-execute. See coder/coder#24333
+	 *   and the original stop-before-start rationale in #17840 / #20333.
+	 *   Note: this also applies when `templateVersionId` matches the current
+	 *   build's version (e.g. the user re-selects the same version to apply
+	 *   parameter changes). The workspace will be restarted in that case,
+	 *   matching `updateWorkspace`'s behavior.
 	 * - Create a build with the version and updated build parameters
 	 */
 	changeWorkspaceVersion = async (
@@ -2483,6 +2492,24 @@ class ApiMethods {
 
 		if (missingParameters.length > 0) {
 			throw new MissingBuildParameters(missingParameters, templateVersionId);
+		}
+
+		// Stop the workspace if it is already running. Without this, long-lived
+		// infrastructure (EC2 instances, bare VMs) keeps the existing agent
+		// process attached to invalidated tokens because the Terraform apply
+		// updates resources in-place rather than tearing them down.
+		if (workspace.latest_build.status === "running") {
+			const stopBuild = await this.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await this.waitForBuild(stopBuild);
+			// If the stop is canceled halfway through we bail, matching
+			// updateWorkspace's behavior.
+			if (awaitedStopBuild?.status === "canceled") {
+				return Promise.reject(
+					new Error(
+						"Workspace stop was canceled, not proceeding with version change.",
+					),
+				);
+			}
 		}
 
 		return this.postWorkspaceBuild(workspace.id, {

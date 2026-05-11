@@ -275,6 +275,102 @@ describe("api.ts", () => {
 		});
 	});
 
+	// Regression tests for https://github.com/coder/coder/issues/24333.
+	// changeWorkspaceVersion used to skip the stop-before-start step, so
+	// long-lived infrastructure (EC2, bare VMs) kept the previous agent
+	// process attached to an invalidated token across the version change.
+	describe("changeWorkspaceVersion", () => {
+		describe("given a running workspace", () => {
+			it("stops with current version before starting with the chosen version", async () => {
+				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
+				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
+				const stopBuild = {
+					...MockWorkspaceBuild,
+					transition: "stop" as const,
+					status: "stopped" as const,
+				};
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce(stopBuild);
+				vi.spyOn(API, "waitForBuild").mockResolvedValueOnce(stopBuild);
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+					...MockWorkspaceBuild,
+					template_version_id: MockTemplateVersion2.id,
+					transition: "start",
+				});
+
+				await API.changeWorkspaceVersion(
+					MockWorkspace,
+					MockTemplateVersion2.id,
+				);
+
+				expect(API.postWorkspaceBuild).toHaveBeenCalledTimes(2);
+				expect(API.postWorkspaceBuild).toHaveBeenNthCalledWith(
+					1,
+					MockWorkspace.id,
+					{
+						transition: "stop",
+						log_level: undefined,
+					},
+				);
+				expect(API.postWorkspaceBuild).toHaveBeenNthCalledWith(
+					2,
+					MockWorkspace.id,
+					{
+						transition: "start",
+						template_version_id: MockTemplateVersion2.id,
+						rich_parameter_values: [],
+					},
+				);
+			});
+
+			it("rejects when the intermediate stop build is canceled", async () => {
+				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
+				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
+				const stopBuild = {
+					...MockWorkspaceBuild,
+					transition: "stop" as const,
+				};
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce(stopBuild);
+				vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+					...stopBuild,
+					status: "canceled",
+				});
+
+				await expect(
+					API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id),
+				).rejects.toThrow(/canceled/i);
+				// The start build must not be issued after a canceled stop.
+				expect(API.postWorkspaceBuild).toHaveBeenCalledTimes(1);
+			});
+		});
+
+		describe("given a stopped workspace", () => {
+			it("skips the stop step and starts directly", async () => {
+				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
+				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([]);
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+					...MockWorkspaceBuild,
+					template_version_id: MockTemplateVersion2.id,
+					transition: "start",
+				});
+
+				await API.changeWorkspaceVersion(
+					MockStoppedWorkspace,
+					MockTemplateVersion2.id,
+				);
+
+				expect(API.postWorkspaceBuild).toHaveBeenCalledTimes(1);
+				expect(API.postWorkspaceBuild).toHaveBeenCalledWith(
+					MockStoppedWorkspace.id,
+					{
+						transition: "start",
+						template_version_id: MockTemplateVersion2.id,
+						rich_parameter_values: [],
+					},
+				);
+			});
+		});
+	});
+
 	describe("chat configuration endpoints", () => {
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
