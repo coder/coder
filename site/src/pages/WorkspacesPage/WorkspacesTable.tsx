@@ -183,7 +183,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							key={workspace.id}
 							checked={checked}
 						>
-							<TableCell className="cursor-default">
+							<TableCell>
 								<div className="flex items-center gap-5">
 									{/* Wrap the checkbox in a click-absorbing container
 									 * so that near-miss clicks do not bubble up to the
