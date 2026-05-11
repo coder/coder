@@ -5666,6 +5666,17 @@ func waitForChatProcessed(
 
 // newTestServer creates a passive server that never calls
 // processOnce on its own.
+//
+// Historical note: prior to dd49a818f ("fix: export chatd.Start to
+// separate server lifecycle") chatd.New() unconditionally started
+// the acquire/wake loop. That caused signalWake from CreateChat,
+// SendMessage, EditMessage and PromoteQueued to race with test
+// assertions about chat status. Tests that need the chat to stay in
+// pending or waiting (e.g. TestPromoteQueuedMessage* and the cases
+// tracked in coder/internal#1428) rely on the post-fix invariant
+// that a server without Start() called never acquires chats. See
+// TestPassiveServerDoesNotProcessAfterPromoteQueued and friends for
+// the regression guard.
 func newTestServer(
 	t *testing.T,
 	db database.Store,
@@ -5711,6 +5722,106 @@ func TestPassiveServerDoesNotProcess(t *testing.T) {
 	stored, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusPending, stored.Status)
+}
+
+// TestPassiveServerDoesNotProcessAfterPromoteQueued guards against the
+// flakes tracked in coder/internal#1428 (Linear CODAGT-81): a passive
+// chatd server must not transition a pending chat to running after
+// PromoteQueued, even though PromoteQueued calls signalWake. Without
+// the New/Start split landed in dd49a818f the wake channel had a
+// reader (the auto-started acquireLoop) and the chat would race to
+// running before tests like
+// TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending
+// could assert pending.
+func TestPassiveServerDoesNotProcessAfterPromoteQueued(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user, org, model := seedChatDependencies(t, db)
+
+	server := newTestServer(t, db, ps, uuid.New())
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusPending,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "should-stay-pending-after-promote",
+	})
+
+	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued message"),
+	})
+	require.NoError(t, err)
+	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:  chat.ID,
+		Content: queuedContent,
+		ModelConfigID: uuid.NullUUID{
+			UUID:  model.ID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedMessage.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+
+	chatd.WaitUntilIdleForTest(server)
+
+	stored, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, stored.Status,
+		"passive server must not acquire a chat after PromoteQueued signalWake; see coder/internal#1428")
+}
+
+// TestPassiveServerDoesNotProcessAfterSendMessage guards the same
+// New/Start invariant for SendMessage's signalWake path. See
+// TestPassiveServerDoesNotProcessAfterPromoteQueued for the
+// historical context.
+func TestPassiveServerDoesNotProcessAfterSendMessage(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user, org, model := seedChatDependencies(t, db)
+
+	server := newTestServer(t, db, ps, uuid.New())
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "should-stay-pending-after-send",
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		ModelConfigID:      model.ID,
+	})
+	require.NoError(t, err)
+
+	// Move out of pending so SendMessage goes through the normal
+	// insert+set-pending path rather than the queued path. This
+	// exercises a second signalWake call from SendMessage.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("follow up")},
+	})
+	require.NoError(t, err)
+
+	chatd.WaitUntilIdleForTest(server)
+
+	stored, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, stored.Status,
+		"passive server must not acquire a chat after SendMessage signalWake; see coder/internal#1428")
 }
 
 // newStartedTestServer creates a server with Start() called.
