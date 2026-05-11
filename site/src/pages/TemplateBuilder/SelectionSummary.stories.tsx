@@ -60,12 +60,12 @@ export const WithModules: Story = {
 		selectedModules: [
 			{
 				id: "jetbrains",
-				name: "Jetbrains",
+				name: "JetBrains",
 				iconUrl: "/icon/jetbrains.svg",
 			},
 			{
 				id: "jetbrains-toolbox",
-				name: "Jetbrains Toolbox",
+				name: "JetBrains Toolbox",
 				iconUrl: "/icon/jetbrains-toolbox.svg",
 			},
 			{
