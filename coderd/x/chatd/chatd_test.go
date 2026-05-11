@@ -4057,7 +4057,7 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include execute tool output")
 }
 
-func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
+func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -4108,7 +4108,7 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-		Title:          "requires-action-summary-clear",
+		Title:          "requires-action-status-label",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("Please call the dynamic tool."),
@@ -4131,15 +4131,16 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 			return true
 		}
 		return got.Status == database.ChatStatusRequiresAction &&
-			!got.LastTurnSummary.Valid
+			got.LastTurnSummary.Valid &&
+			got.LastTurnSummary.String == "Waiting for user input"
 	}, testutil.IntervalFast)
 	chatd.WaitUntilIdleForTest(server)
 
 	require.Equal(t, database.ChatStatusRequiresAction, fromDB.Status,
 		"expected requires_action, got %s (last_error=%q)",
 		fromDB.Status, string(fromDB.LastError.RawMessage))
-	require.False(t, fromDB.LastTurnSummary.Valid,
-		"requires action chats should clear cached turn summaries")
+	require.Equal(t, sql.NullString{String: "Waiting for user input", Valid: true}, fromDB.LastTurnSummary,
+		"requires action chats should persist a waiting status label")
 	require.Equal(t, int32(0), mockPush.dispatchCount.Load(),
 		"expected no web push dispatch for a requires_action chat")
 }
@@ -6525,13 +6526,16 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I have completed the task successfully and all tests are passing now."
-	const summaryText = "Completed task and verified all tests pass."
+	const summaryText = "Finished unit tests"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse(summaryText)
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(fmt.Sprintf(`{"label":%q}`, summaryText))
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks(assistantText)...,
@@ -6579,13 +6583,11 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 
 	msg := mockPush.getLastMessage()
 	require.Equal(t, summaryText, fromDB.LastTurnSummary.String,
-		"last turn summary should be the LLM-generated summary")
+		"last turn summary should be the LLM-generated status label")
 	require.Equal(t, fromDB.LastTurnSummary.String, msg.Body,
-		"push body should reuse the persisted generated summary")
-	require.NotEqual(t, "Agent has finished running.", msg.Body,
-		"push body should not use the default fallback text")
+		"push body should reuse the persisted generated status label")
 	require.Equal(t, int32(1), nonStreamingRequests.Load(),
-		"expected exactly one non-streaming request for push summary generation")
+		"expected exactly one non-streaming request for status label generation")
 }
 
 func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
@@ -6595,13 +6597,16 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I fixed the bug and added regression coverage."
-	const summaryText = "Fixed the bug and added regression coverage."
+	const summaryText = "Fixed regression bug"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse(summaryText)
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(fmt.Sprintf(`{"label":%q}`, summaryText))
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks(assistantText)...,
@@ -6630,9 +6635,9 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 	}, testutil.IntervalFast)
 
 	require.Equal(t, summaryText, fromDB.LastTurnSummary.String,
-		"summary should persist even when web push is unavailable")
+		"status label should persist even when web push is unavailable")
 	require.Equal(t, int32(1), nonStreamingRequests.Load(),
-		"expected exactly one non-streaming request for summary generation")
+		"expected exactly one non-streaming request for status label generation")
 }
 
 func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t *testing.T) {
@@ -6644,8 +6649,11 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse("unexpected summary request")
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(`{"label":"Unexpected label"}`)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Empty summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("   ")...,
@@ -6689,14 +6697,14 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.False(t, fromDB.LastTurnSummary.Valid,
-		"fallback push text should not be persisted")
+	require.Equal(t, sql.NullString{String: "Finished latest turn", Valid: true}, fromDB.LastTurnSummary,
+		"fallback status label should be persisted")
 
 	msg := mockPush.getLastMessage()
-	require.Equal(t, "Agent has finished running.", msg.Body,
+	require.Equal(t, "Finished latest turn", msg.Body,
 		"push body should fall back when the final assistant text is empty")
 	require.Equal(t, int32(0), nonStreamingRequests.Load(),
-		"push summary should not be requested when final assistant text has no usable text")
+		"status label model should not run when final assistant text has no usable text")
 }
 
 func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
@@ -6757,7 +6765,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 		"errored chats should clear cached turn summaries")
 
 	msg := mockPush.getLastMessage()
-	require.NotEqual(t, "Agent encountered an error.", msg.Body)
+	require.NotEqual(t, "Hit an error", msg.Body)
 	require.Contains(t, msg.Body, "OpenAI returned an unexpected error")
 }
 
