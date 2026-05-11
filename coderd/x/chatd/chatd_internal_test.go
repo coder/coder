@@ -3711,11 +3711,14 @@ func TestSubscribeChatControl_LegitimateWaitingInterrupts(t *testing.T) {
 
 	// InterruptChat writes the chat back to Waiting (clearing WorkerID)
 	// before publishing, so the DB read here observes the new state.
+	// MinTimes(1) proves the listener walked through
+	// controlNotifyIsStaleForThisWorker rather than bypassing the
+	// verification helper entirely.
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
 		ID:       chatID,
 		Status:   database.ChatStatusWaiting,
 		WorkerID: uuid.NullUUID{},
-	}, nil).AnyTimes()
+	}, nil).MinTimes(1)
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
