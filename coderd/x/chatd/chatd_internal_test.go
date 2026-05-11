@@ -3488,9 +3488,9 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 
 	db.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 
-	// resolveChatModel fails immediately. We only
-	// need processChat to get past initialization without being
-	// interrupted by the stale notification.
+	// resolveChatModel fails immediately so we only need processChat to get
+	// past initialization without being interrupted by the stale
+	// notification.
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
 		database.ChatModelConfig{}, xerrors.New("no model configured"),
 	).AnyTimes()
@@ -3523,230 +3523,140 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		"processChat should have reached runChat (error), not been interrupted (waiting)")
 }
 
-// TestSubscribeChatControl_IgnoresStaleNotificationWhenDBSaysRunning verifies
-// that the listener registered by subscribeChatControl re-reads the chat
-// from the database when a cancel-worthy notification arrives, and ignores
-// the notification when the database confirms the chat is still running
-// on this worker. This is the safeguard for the race documented in the
+// TestSubscribeChatControl_RereadsChatBeforeHonoringCancel verifies that
+// the listener registered by subscribeChatControl re-reads the chat from
+// the database when a cancel-worthy notification arrives. The fix
+// suppresses the cancel iff the database confirms the chat is still
+// running on this worker, guarding against the race documented in the
 // finishActiveChat cleanup path: the chat's own cleanup publishes
 // status=pending immediately before signalWake, and PostgreSQL NOTIFY
 // delivery is asynchronous so the stale "pending" can be delivered to
 // the next processChat's freshly registered subscriber.
-func TestSubscribeChatControl_IgnoresStaleNotificationWhenDBSaysRunning(t *testing.T) {
+func TestSubscribeChatControl_RereadsChatBeforeHonoringCancel(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	ps := dbpubsub.NewInMemory()
-
-	chatID := uuid.New()
-	workerID := uuid.New()
-
-	server := &Server{
-		db:       db,
-		logger:   logger,
-		pubsub:   ps,
-		workerID: workerID,
-	}
-
-	// The DB still says the chat is running on us, so the stale
-	// notification must be ignored.
-	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
-		ID:       chatID,
-		Status:   database.ChatStatusRunning,
-		WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
-	}, nil).AnyTimes()
-
-	cancelCalled := make(chan error, 1)
-	cancel := func(cause error) {
-		select {
-		case cancelCalled <- cause:
-		default:
-		}
-	}
-
-	unsubscribe := server.subscribeChatControl(ctx, chatID, cancel, logger)
-	require.NotNil(t, unsubscribe)
-	defer unsubscribe()
-
-	notify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
-		Status: string(database.ChatStatusPending),
-	})
-	require.NoError(t, err)
-	require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), notify))
-
-	select {
-	case cause := <-cancelCalled:
-		t.Fatalf("cancel was called for stale notification; cause=%v", cause)
-	case <-time.After(testutil.IntervalFast):
-	}
-}
-
-// TestSubscribeChatControl_CancelsWhenDBSaysWaiting verifies that the
-// listener honors a cancel-worthy notification when the database confirms
-// the chat is no longer running on this worker (i.e. an external
-// InterruptChat moved it to waiting and cleared the worker ID).
-func TestSubscribeChatControl_CancelsWhenDBSaysWaiting(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	ps := dbpubsub.NewInMemory()
-
-	chatID := uuid.New()
-	workerID := uuid.New()
-
-	server := &Server{
-		db:       db,
-		logger:   logger,
-		pubsub:   ps,
-		workerID: workerID,
-	}
-
-	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
-		ID:       chatID,
-		Status:   database.ChatStatusWaiting,
-		WorkerID: uuid.NullUUID{},
-	}, nil).AnyTimes()
-
-	cancelCalled := make(chan error, 1)
-	cancel := func(cause error) {
-		select {
-		case cancelCalled <- cause:
-		default:
-		}
-	}
-
-	unsubscribe := server.subscribeChatControl(ctx, chatID, cancel, logger)
-	require.NotNil(t, unsubscribe)
-	defer unsubscribe()
-
-	notify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
-		Status: string(database.ChatStatusWaiting),
-	})
-	require.NoError(t, err)
-	require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), notify))
-
-	select {
-	case cause := <-cancelCalled:
-		require.ErrorIs(t, cause, chatloop.ErrInterrupted)
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for cancel")
-	}
-}
-
-// TestSubscribeChatControl_CancelsWhenDBSaysRunningOnDifferentWorker
-// verifies that the listener honors a cancel when the database shows the
-// chat has been claimed by another worker (cross-replica steal recovery).
-func TestSubscribeChatControl_CancelsWhenDBSaysRunningOnDifferentWorker(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	ps := dbpubsub.NewInMemory()
-
-	chatID := uuid.New()
 	workerID := uuid.New()
 	otherWorkerID := uuid.New()
 
-	server := &Server{
-		db:       db,
-		logger:   logger,
-		pubsub:   ps,
-		workerID: workerID,
+	cases := []struct {
+		name string
+		// dbChat is the row that GetChatByID returns. Ignored when
+		// dbErr is non-nil.
+		dbChat database.Chat
+		dbErr  error
+		// notify is the payload delivered on the control channel.
+		// shouldCancelChatFromControlNotification must return true
+		// for it, otherwise the re-read branch is not exercised.
+		notify       coderdpubsub.ChatStreamNotifyMessage
+		expectCancel bool
+	}{
+		{
+			name: "IgnoresStaleNotificationWhenDBSaysRunningOnSelf",
+			dbChat: database.Chat{
+				Status:   database.ChatStatusRunning,
+				WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
+			},
+			notify: coderdpubsub.ChatStreamNotifyMessage{
+				Status: string(database.ChatStatusPending),
+			},
+			expectCancel: false,
+		},
+		{
+			// External InterruptChat moved the chat to waiting and
+			// cleared worker_id.
+			name: "CancelsWhenDBSaysWaiting",
+			dbChat: database.Chat{
+				Status:   database.ChatStatusWaiting,
+				WorkerID: uuid.NullUUID{},
+			},
+			notify: coderdpubsub.ChatStreamNotifyMessage{
+				Status: string(database.ChatStatusWaiting),
+			},
+			expectCancel: true,
+		},
+		{
+			// Cross-replica steal: another worker now owns the chat.
+			name: "CancelsWhenDBSaysRunningOnDifferentWorker",
+			dbChat: database.Chat{
+				Status:   database.ChatStatusRunning,
+				WorkerID: uuid.NullUUID{UUID: otherWorkerID, Valid: true},
+			},
+			notify: coderdpubsub.ChatStreamNotifyMessage{
+				Status:   string(database.ChatStatusRunning),
+				WorkerID: otherWorkerID.String(),
+			},
+			expectCancel: true,
+		},
+		{
+			// Fail-open: the re-read errors, the listener still
+			// honors the cancel.
+			name:  "CancelsWhenDBReadFails",
+			dbErr: xerrors.New("boom"),
+			notify: coderdpubsub.ChatStreamNotifyMessage{
+				Status: string(database.ChatStatusWaiting),
+			},
+			expectCancel: true,
+		},
 	}
 
-	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
-		ID:       chatID,
-		Status:   database.ChatStatusRunning,
-		WorkerID: uuid.NullUUID{UUID: otherWorkerID, Valid: true},
-	}, nil).AnyTimes()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	cancelCalled := make(chan error, 1)
-	cancel := func(cause error) {
-		select {
-		case cancelCalled <- cause:
-		default:
-		}
-	}
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			ps := dbpubsub.NewInMemory()
 
-	unsubscribe := server.subscribeChatControl(ctx, chatID, cancel, logger)
-	require.NotNil(t, unsubscribe)
-	defer unsubscribe()
+			chatID := uuid.New()
+			dbChat := tc.dbChat
+			dbChat.ID = chatID
 
-	// Publish a notification reporting that another worker now owns
-	// the chat. shouldCancelChatFromControlNotification returns true
-	// because the running worker no longer matches us.
-	notify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
-		Status:   string(database.ChatStatusRunning),
-		WorkerID: otherWorkerID.String(),
-	})
-	require.NoError(t, err)
-	require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), notify))
+			server := &Server{
+				db:       db,
+				logger:   logger,
+				pubsub:   ps,
+				workerID: workerID,
+			}
 
-	select {
-	case cause := <-cancelCalled:
-		require.ErrorIs(t, cause, chatloop.ErrInterrupted)
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for cancel")
-	}
-}
+			db.EXPECT().
+				GetChatByID(gomock.Any(), chatID).
+				Return(dbChat, tc.dbErr).
+				AnyTimes()
 
-// TestSubscribeChatControl_CancelsWhenDBReadFails verifies the fail-open
-// behavior: if the re-read query errors, the listener honors the cancel
-// signal rather than swallowing it.
-func TestSubscribeChatControl_CancelsWhenDBReadFails(t *testing.T) {
-	t.Parallel()
+			cancelCalled := make(chan error, 1)
+			cancel := func(cause error) {
+				select {
+				case cancelCalled <- cause:
+				default:
+				}
+			}
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	ps := dbpubsub.NewInMemory()
+			unsubscribe := server.subscribeChatControl(ctx, chatID, cancel, logger)
+			require.NotNil(t, unsubscribe)
+			defer unsubscribe()
 
-	chatID := uuid.New()
-	workerID := uuid.New()
+			payload, err := json.Marshal(tc.notify)
+			require.NoError(t, err)
+			require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), payload))
 
-	server := &Server{
-		db:       db,
-		logger:   logger,
-		pubsub:   ps,
-		workerID: workerID,
-	}
+			if tc.expectCancel {
+				select {
+				case cause := <-cancelCalled:
+					require.ErrorIs(t, cause, chatloop.ErrInterrupted)
+				case <-ctx.Done():
+					t.Fatal("timed out waiting for cancel")
+				}
+				return
+			}
 
-	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(
-		database.Chat{}, xerrors.New("boom"),
-	).AnyTimes()
-
-	cancelCalled := make(chan error, 1)
-	cancel := func(cause error) {
-		select {
-		case cancelCalled <- cause:
-		default:
-		}
-	}
-
-	unsubscribe := server.subscribeChatControl(ctx, chatID, cancel, logger)
-	require.NotNil(t, unsubscribe)
-	defer unsubscribe()
-
-	notify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
-		Status: string(database.ChatStatusWaiting),
-	})
-	require.NoError(t, err)
-	require.NoError(t, ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), notify))
-
-	select {
-	case cause := <-cancelCalled:
-		require.ErrorIs(t, cause, chatloop.ErrInterrupted)
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for cancel")
+			select {
+			case cause := <-cancelCalled:
+				t.Fatalf("cancel was called for stale notification; cause=%v", cause)
+			case <-time.After(testutil.IntervalFast):
+			}
+		})
 	}
 }
 

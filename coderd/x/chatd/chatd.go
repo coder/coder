@@ -65,8 +65,12 @@ const (
 
 	homeInstructionLookupTimeout = 5 * time.Second
 	planPathLookupTimeout        = 5 * time.Second
-	instructionCacheTTL          = 5 * time.Minute
-	workspaceDialValidationDelay = 5 * time.Second
+	// chatControlNotifyDBReadTimeout caps the chat re-read performed
+	// inside subscribeChatControl's pubsub listener. It must be short
+	// because the read runs on the pubsub dispatch goroutine.
+	chatControlNotifyDBReadTimeout = 5 * time.Second
+	instructionCacheTTL            = 5 * time.Minute
+	workspaceDialValidationDelay   = 5 * time.Second
 	// Must exceed agent/x/agentmcp.connectTimeout (30s) so a
 	// cold-start agent's first MCP reload can settle before
 	// chatd gives up.
@@ -5329,7 +5333,10 @@ func (p *Server) subscribeChatControl(
 		// database does not block the pubsub dispatch goroutine, and
 		// so listener context cancellation from server shutdown does
 		// not skip the final cancel.
-		dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		dbCtx, dbCancel := context.WithTimeout(
+			context.Background(),
+			chatControlNotifyDBReadTimeout,
+		)
 		defer dbCancel()
 		//nolint:gocritic // AsChatd authorizes the daemon's own
 		// internal lookup against a chat it is actively processing.
