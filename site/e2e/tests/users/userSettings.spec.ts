@@ -33,7 +33,7 @@ test("adjust user theme preference", async ({ page }) => {
 
 	const singleThemeGroup = page.getByRole("radiogroup", { name: "Theme" });
 	await expect(singleThemeGroup).toBeVisible();
-	await singleThemeGroup.getByRole("radio", { name: /light default/i }).click();
+	await singleThemeGroup.getByText("Light default", { exact: true }).click();
 
 	expectLightThemeClasses(await rootClassNames(page));
 
