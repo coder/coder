@@ -430,8 +430,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// so it only handles requests that weren't matched by the allowlist.
 	proxy.OnRequest().HandleConnectFunc(srv.tunneledMiddleware)
 
-	// Handle decrypted requests: route to aibridged for known AI
-	// providers, or tunnel to original destination.
+	// Handle decrypted requests: route to aibridged for known AI providers, or tunnel to original destination.
 	proxy.OnRequest().DoFunc(srv.handleRequest)
 	// Handle responses from aibridged.
 	proxy.OnResponse().DoFunc(srv.handleResponse)

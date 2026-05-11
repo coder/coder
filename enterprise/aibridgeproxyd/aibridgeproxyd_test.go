@@ -2491,4 +2491,4 @@ type failingDumper struct{}
 
 func (*failingDumper) DumpRequest(*http.Request) error   { return xerrors.New("dump request failed") }
 func (*failingDumper) DumpResponse(*http.Response) error { return xerrors.New("dump response failed") }
-func (*failingDumper) DumpError(error) error              { return xerrors.New("dump error failed") }
+func (*failingDumper) DumpError(error) error             { return xerrors.New("dump error failed") }
