@@ -190,7 +190,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									 * row's navigation handler. `self-stretch` fills the
 									 * existing cell height without adding any. */}
 									<div
-										className="flex items-center cursor-default self-stretch pl-3 -ml-3 pr-4 -mr-4"
+										className="flex items-center cursor-default self-stretch pl-3 -ml-3 pr-4 -mr-4 pt-3 -mt-3 pb-3 -mb-3"
 										onClick={(e) => e.stopPropagation()}
 										onKeyDown={(e) => {
 											if (e.key === "Enter" || e.key === " ") {
