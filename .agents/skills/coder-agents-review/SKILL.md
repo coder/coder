@@ -52,22 +52,6 @@ If you stop early, say exactly why.
   with a short fix summary and report the blocker.
 - Never create or merge a PR unless the user explicitly asks.
 
-## Disclosure rule
-
-The trigger comment should stay exactly `/coder-agents-review` so the app
-can process it reliably.
-
-If you need to disclose that Mux is acting on Mike's behalf, use a short
-separate comment only when that disclosure is not already present on the
-PR and only if adding extra text to the slash-command comment could break
-the trigger.
-
-Use this exact disclosure text:
-
-```text
-> Mux is acting on Mike's behalf.
-```
-
 ## Defaults and config
 
 Use repository conventions first. Otherwise use these defaults.
@@ -241,8 +225,6 @@ exact trigger comment:
 ```bash
 gh pr comment "$PR_NUMBER" --body "/coder-agents-review"
 ```
-
-If needed, add the disclosure comment right after it.
 
 ### Existing activity already present
 
