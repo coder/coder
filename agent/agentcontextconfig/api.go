@@ -2,18 +2,25 @@ package agentcontextconfig
 
 import (
 	"cmp"
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 // Env var names for context configuration. Prefixed with EXP_
@@ -123,32 +130,89 @@ func ClearEnvVars() {
 type API struct {
 	workingDir func() string
 	cfg        Config
+	logger     slog.Logger
+
+	// clock is injectable so tests can drive the startup-gate
+	// timer without sleeping.
+	clock quartz.Clock
+
+	// startupSettled is closed once startup scripts reach a
+	// terminal state. Before that, handleGet may return a result
+	// based on a still-empty filesystem because startup scripts
+	// have not yet written AGENTS.md or .agents/skills/.
+	//
+	// The shape mirrors agent/x/agentmcp.Manager. If a third
+	// caller appears, factor the gate into a shared helper.
+	startupSettled chan struct{}
+	startupOnce    sync.Once
+
+	// startupTimeout caps how long handleGet waits before
+	// falling back to reading whatever is on disk. Better a real
+	// answer than an indefinite hang.
+	startupTimeout time.Duration
+}
+
+// Option configures a new API.
+type Option func(*API)
+
+// WithClock overrides the API's clock. Tests pass a mock to
+// drive startupTimeout deterministically.
+func WithClock(c quartz.Clock) Option {
+	return func(a *API) { a.clock = c }
 }
 
 // NewAPI creates a context configuration API. The working
 // directory closure is evaluated lazily per request.
-//
-// The logger parameter and variadic Option are reserved for the
-// startup-gate work in CODAGT-377; this red-phase signature only
-// makes the new symbols compile.
-func NewAPI(_ any, workingDir func() string, cfg Config, _ ...Option) *API {
+func NewAPI(logger slog.Logger, workingDir func() string, cfg Config, opts ...Option) *API {
 	if workingDir == nil {
 		workingDir = func() string { return "" }
 	}
-	return &API{workingDir: workingDir, cfg: cfg.applyDefaults()}
+	a := &API{
+		workingDir:     workingDir,
+		cfg:            cfg.applyDefaults(),
+		logger:         logger,
+		clock:          quartz.NewReal(),
+		startupSettled: make(chan struct{}),
+		startupTimeout: 35 * time.Second,
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
 }
 
-// Option is reserved for future configuration of API. Real
-// implementation lands in the green phase of CODAGT-377.
-type Option func(*API)
+// MarkStartupSettled marks startup scripts as terminal for
+// context-config purposes. The first GET after this point
+// proceeds without waiting. Concurrent and repeat calls are
+// safe.
+func (api *API) MarkStartupSettled() {
+	api.startupOnce.Do(func() { close(api.startupSettled) })
+}
 
-// WithClock is a stub. Real implementation lands in the green
-// phase of CODAGT-377.
-func WithClock(_ any) Option { return func(*API) {} }
+// errStartupTimeout signals that the startup gate timed out
+// before settle. handleGet treats this as a fallback path, not
+// an error to the caller.
+var errStartupTimeout = xerrors.New("startup gate timed out")
 
-// MarkStartupSettled is a stub. Real implementation lands in the
-// green phase of CODAGT-377.
-func (*API) MarkStartupSettled() {}
+// waitForStartupSettled blocks until startup is marked settled,
+// the request context is canceled, or startupTimeout elapses.
+func (api *API) waitForStartupSettled(ctx context.Context) error {
+	select {
+	case <-api.startupSettled:
+		return nil
+	default:
+	}
+	timer := api.clock.NewTimer(api.startupTimeout, "agentcontextconfig", "startup_gate")
+	defer timer.Stop()
+	select {
+	case <-api.startupSettled:
+		return nil
+	case <-timer.C:
+		return errStartupTimeout
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 // Resolve reads instruction files, discovers skills, and
 // resolves MCP config file paths for the given config and
@@ -231,6 +295,21 @@ func (api *API) Routes() http.Handler {
 }
 
 func (api *API) handleGet(rw http.ResponseWriter, r *http.Request) {
+	if err := api.waitForStartupSettled(r.Context()); err != nil {
+		if !errors.Is(err, errStartupTimeout) {
+			httpapi.Write(r.Context(), rw, http.StatusServiceUnavailable, codersdk.Response{
+				Message: "Agent startup has not settled.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// On timeout we fall back to whatever is on disk so a slow
+		// or stuck startup script does not freeze chatd.
+		api.logger.Warn(r.Context(),
+			"context-config startup gate timed out, returning disk state",
+			slog.F("timeout", api.startupTimeout),
+		)
+	}
 	response, _ := Resolve(api.workingDir(), api.cfg)
 	httpapi.Write(r.Context(), rw, http.StatusOK, response)
 }
