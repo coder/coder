@@ -736,6 +736,56 @@
 				]
 			}
 		},
+		"/api/experimental/chats/{chat}/turns": {
+			"get": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "List chat turns",
+				"operationId": "list-chat-turns",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "Return turns whose user_message_id \u003c before_id",
+						"name": "before_id",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Return turns whose user_message_id \u003e after_id",
+						"name": "after_id",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page size, 1 to 200. Defaults to 50.",
+						"name": "limit",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatTurnsResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/experimental/watch-all-workspacebuilds": {
 			"get": {
 				"produces": ["application/json"],
@@ -14766,6 +14816,63 @@
 				},
 				"tool_name": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.ChatTurn": {
+			"type": "object",
+			"properties": {
+				"assistant_message_count": {
+					"description": "AssistantMessageCount is the number of assistant messages in this turn.",
+					"type": "integer"
+				},
+				"duration_ms": {
+					"description": "DurationMS is LastMessageAt minus StartedAt expressed in milliseconds,\nthe total wall time the agent spent producing this turn's output.\nProvided in the response so clients do not need to re-compute it for\nevery render.",
+					"type": "integer"
+				},
+				"is_open": {
+					"description": "IsOpen is true when this turn has no following user message yet,\nmeaning the agent may still be working or awaiting input.",
+					"type": "boolean"
+				},
+				"last_message_at": {
+					"description": "LastMessageAt is the timestamp of the most recent message in this turn,\nequal to StartedAt for a turn with only the user message so far.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"next_user_message_id": {
+					"description": "NextUserMessageID is the id of the next user message in the chat, or\nnil when this is the most recent turn (no following user message yet).\nTogether with UserMessageID it forms the half-open range\n[UserMessageID, NextUserMessageID) covering all of this turn's messages.\nFrontends can use this range with /messages?before_id=\u0026after_id= to\nlazy-load the full content when the turn is expanded.",
+					"type": "integer"
+				},
+				"started_at": {
+					"description": "StartedAt is the timestamp of the user message that began this turn.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"tool_call_count": {
+					"description": "ToolCallCount sums the precomputed tool_call_count across assistant\nmessages in this turn.",
+					"type": "integer"
+				},
+				"total_cost_micros": {
+					"description": "TotalCostMicros sums total_cost_micros across all messages in this\nturn. Always present, but 0 when no priced messages exist.",
+					"type": "integer"
+				},
+				"user_message_id": {
+					"description": "UserMessageID is the id of the user message that anchors this turn.",
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatTurnsResponse": {
+			"type": "object",
+			"properties": {
+				"has_more": {
+					"type": "boolean"
+				},
+				"turns": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatTurn"
+					}
 				}
 			}
 		},

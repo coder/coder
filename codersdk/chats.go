@@ -548,6 +548,49 @@ type ChatMessagesResponse struct {
 	HasMore        bool                `json:"has_more"`
 }
 
+// ChatTurn is a lightweight summary of one user-message-to-next-user-message
+// range inside a chat. Used by the /turns endpoint to render a collapsible
+// timeline without loading the full message contents for every turn.
+type ChatTurn struct {
+	// UserMessageID is the id of the user message that anchors this turn.
+	UserMessageID int64 `json:"user_message_id"`
+	// NextUserMessageID is the id of the next user message in the chat, or
+	// nil when this is the most recent turn (no following user message yet).
+	// Together with UserMessageID it forms the half-open range
+	// [UserMessageID, NextUserMessageID) covering all of this turn's messages.
+	// Frontends can use this range with /messages?before_id=&after_id= to
+	// lazy-load the full content when the turn is expanded.
+	NextUserMessageID *int64 `json:"next_user_message_id,omitempty"`
+	// StartedAt is the timestamp of the user message that began this turn.
+	StartedAt time.Time `json:"started_at" format:"date-time"`
+	// LastMessageAt is the timestamp of the most recent message in this turn,
+	// equal to StartedAt for a turn with only the user message so far.
+	LastMessageAt time.Time `json:"last_message_at" format:"date-time"`
+	// DurationMS is LastMessageAt minus StartedAt expressed in milliseconds,
+	// the total wall time the agent spent producing this turn's output.
+	// Provided in the response so clients do not need to re-compute it for
+	// every render.
+	DurationMS int64 `json:"duration_ms"`
+	// ToolCallCount sums the precomputed tool_call_count across assistant
+	// messages in this turn.
+	ToolCallCount int64 `json:"tool_call_count"`
+	// AssistantMessageCount is the number of assistant messages in this turn.
+	AssistantMessageCount int64 `json:"assistant_message_count"`
+	// TotalCostMicros sums total_cost_micros across all messages in this
+	// turn. Always present, but 0 when no priced messages exist.
+	TotalCostMicros int64 `json:"total_cost_micros"`
+	// IsOpen is true when this turn has no following user message yet,
+	// meaning the agent may still be working or awaiting input.
+	IsOpen bool `json:"is_open"`
+}
+
+// ChatTurnsResponse is the paginated turn list returned by the /turns
+// endpoint.
+type ChatTurnsResponse struct {
+	Turns   []ChatTurn `json:"turns"`
+	HasMore bool       `json:"has_more"`
+}
+
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
 type ChatModelProviderUnavailableReason string
 
@@ -2950,6 +2993,40 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 		return ChatMessagesResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatTurns returns a paginated list of agent turns for a chat. Each
+// turn is a lightweight summary of a user-message-to-next-user-message
+// range, including tool call counts, total cost, and duration. Use
+// /messages with the turn's UserMessageID / NextUserMessageID range to
+// fetch the full content when the user expands a turn.
+func (c *ExperimentalClient) GetChatTurns(ctx context.Context, chatID uuid.UUID, opts *ChatMessagesPaginationOptions) (ChatTurnsResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			if opts.BeforeID > 0 {
+				q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			}
+			if opts.AfterID > 0 {
+				q.Set("after_id", strconv.FormatInt(opts.AfterID, 10))
+			}
+			if opts.Limit > 0 {
+				q.Set("limit", strconv.Itoa(opts.Limit))
+			}
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/turns", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatTurnsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatTurnsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatTurnsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

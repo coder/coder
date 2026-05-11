@@ -2090,6 +2090,82 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List chat turns
+// @ID list-chat-turns
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param before_id query int false "Return turns whose user_message_id < before_id"
+// @Param after_id query int false "Return turns whose user_message_id > after_id"
+// @Param limit query int false "Page size, 1 to 200. Defaults to 50."
+// @Success 200 {object} codersdk.ChatTurnsResponse
+// @Router /api/experimental/chats/{chat}/turns [get]
+// @Description Experimental: this endpoint is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatTurns(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+
+	// Parse cursor pagination parameters. Cursors are user-message IDs:
+	// they identify the turn boundaries, not arbitrary chat_messages rows.
+	queryParams := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	beforeID := parser.PositiveInt64(queryParams, 0, "before_id")
+	afterID := parser.PositiveInt64(queryParams, 0, "after_id")
+	limit := parser.PositiveInt32(queryParams, 50, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if limit < 1 || limit > 200 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid limit parameter (1-200).",
+		})
+		return
+	}
+	// Mirror the /messages endpoint's loud-empty-range guard.
+	if beforeID > 0 && afterID > 0 && afterID >= beforeID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "after_id must be less than before_id.",
+		})
+		return
+	}
+
+	// Fetch limit+1 to detect whether more turns exist before the
+	// requested window, matching the /messages pagination contract.
+	rows, err := api.Database.GetChatTurnsByChatID(ctx, database.GetChatTurnsByChatIDParams{
+		ChatID:   chatID,
+		BeforeID: beforeID,
+		AfterID:  afterID,
+		LimitVal: limit + 1,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat turns.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	hasMore := len(rows) > int(limit)
+	if hasMore {
+		rows = rows[:limit]
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatTurnsResponse{
+		Turns:   convertChatTurns(rows),
+		HasMore: hasMore,
+	})
+}
+
 // authorizeChatWorkspaceExec enforces the workspace-level permissions
 // shared by the chat stream endpoints that proxy a live websocket into
 // the workspace agent (currently /stream/git and /stream/desktop).
@@ -6283,6 +6359,43 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 	result := make([]codersdk.ChatMessage, 0, len(messages))
 	for _, m := range messages {
 		result = append(result, convertChatMessage(m))
+	}
+	return result
+}
+
+// convertChatTurn projects a database turn row into the API wire type.
+// The 0-sentinel for next_user_message_id is translated to a nil pointer
+// so the JSON encodes it as null (or omitted), matching the SDK type.
+func convertChatTurn(row database.GetChatTurnsByChatIDRow) codersdk.ChatTurn {
+	var nextID *int64
+	if row.NextUserMessageID != 0 {
+		id := row.NextUserMessageID
+		nextID = &id
+	}
+	// Clamp negative durations to 0 so clock-skew-induced negatives never
+	// leak into the API. In practice this only matters if a workspace's
+	// system clock jumps backward between message inserts.
+	durationMS := row.LastMessageAt.Sub(row.StartedAt).Milliseconds()
+	if durationMS < 0 {
+		durationMS = 0
+	}
+	return codersdk.ChatTurn{
+		UserMessageID:         row.UserMessageID,
+		NextUserMessageID:     nextID,
+		StartedAt:             row.StartedAt,
+		LastMessageAt:         row.LastMessageAt,
+		DurationMS:            durationMS,
+		ToolCallCount:         row.ToolCallCount,
+		AssistantMessageCount: row.AssistantMessageCount,
+		TotalCostMicros:       row.TotalCostMicros,
+		IsOpen:                row.NextUserMessageID == 0,
+	}
+}
+
+func convertChatTurns(rows []database.GetChatTurnsByChatIDRow) []codersdk.ChatTurn {
+	result := make([]codersdk.ChatTurn, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, convertChatTurn(row))
 	}
 	return result
 }

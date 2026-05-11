@@ -1505,6 +1505,14 @@ func (m queryMetricsStore) GetChatTitleGenerationModelOverride(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatTurnsByChatID(ctx context.Context, arg database.GetChatTurnsByChatIDParams) ([]database.GetChatTurnsByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTurnsByChatID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatTurnsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTurnsByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatUsageLimitConfig(ctx)

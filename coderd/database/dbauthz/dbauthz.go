@@ -3044,6 +3044,15 @@ func (q *querier) GetChatTitleGenerationModelOverride(ctx context.Context) (stri
 	return q.db.GetChatTitleGenerationModelOverride(ctx)
 }
 
+func (q *querier) GetChatTurnsByChatID(ctx context.Context, arg database.GetChatTurnsByChatIDParams) ([]database.GetChatTurnsByChatIDRow, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatTurnsByChatID(ctx, arg)
+}
+
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatUsageLimitConfig{}, err

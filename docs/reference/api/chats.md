@@ -2743,3 +2743,58 @@ Experimental: this endpoint is subject to change.
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List chat turns
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/turns \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/turns`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name        | In    | Type         | Required | Description                                    |
+|-------------|-------|--------------|----------|------------------------------------------------|
+| `chat`      | path  | string(uuid) | true     | Chat ID                                        |
+| `before_id` | query | integer      | false    | Return turns whose user_message_id < before_id |
+| `after_id`  | query | integer      | false    | Return turns whose user_message_id > after_id  |
+| `limit`     | query | integer      | false    | Page size, 1 to 200. Defaults to 50.           |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "has_more": true,
+  "turns": [
+    {
+      "assistant_message_count": 0,
+      "duration_ms": 0,
+      "is_open": true,
+      "last_message_at": "2019-08-24T14:15:22Z",
+      "next_user_message_id": 0,
+      "started_at": "2019-08-24T14:15:22Z",
+      "tool_call_count": 0,
+      "total_cost_micros": 0,
+      "user_message_id": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatTurnsResponse](schemas.md#codersdkchatturnsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

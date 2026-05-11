@@ -2637,6 +2637,73 @@ export interface ChatToolResultPart {
 
 // From codersdk/chats.go
 /**
+ * ChatTurn is a lightweight summary of one user-message-to-next-user-message
+ * range inside a chat. Used by the /turns endpoint to render a collapsible
+ * timeline without loading the full message contents for every turn.
+ */
+export interface ChatTurn {
+	/**
+	 * UserMessageID is the id of the user message that anchors this turn.
+	 */
+	readonly user_message_id: number;
+	/**
+	 * NextUserMessageID is the id of the next user message in the chat, or
+	 * nil when this is the most recent turn (no following user message yet).
+	 * Together with UserMessageID it forms the half-open range
+	 * [UserMessageID, NextUserMessageID) covering all of this turn's messages.
+	 * Frontends can use this range with /messages?before_id=&after_id= to
+	 * lazy-load the full content when the turn is expanded.
+	 */
+	readonly next_user_message_id?: number;
+	/**
+	 * StartedAt is the timestamp of the user message that began this turn.
+	 */
+	readonly started_at: string;
+	/**
+	 * LastMessageAt is the timestamp of the most recent message in this turn,
+	 * equal to StartedAt for a turn with only the user message so far.
+	 */
+	readonly last_message_at: string;
+	/**
+	 * DurationMS is LastMessageAt minus StartedAt expressed in milliseconds,
+	 * the total wall time the agent spent producing this turn's output.
+	 * Provided in the response so clients do not need to re-compute it for
+	 * every render.
+	 */
+	readonly duration_ms: number;
+	/**
+	 * ToolCallCount sums the precomputed tool_call_count across assistant
+	 * messages in this turn.
+	 */
+	readonly tool_call_count: number;
+	/**
+	 * AssistantMessageCount is the number of assistant messages in this turn.
+	 */
+	readonly assistant_message_count: number;
+	/**
+	 * TotalCostMicros sums total_cost_micros across all messages in this
+	 * turn. Always present, but 0 when no priced messages exist.
+	 */
+	readonly total_cost_micros: number;
+	/**
+	 * IsOpen is true when this turn has no following user message yet,
+	 * meaning the agent may still be working or awaiting input.
+	 */
+	readonly is_open: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatTurnsResponse is the paginated turn list returned by the /turns
+ * endpoint.
+ */
+export interface ChatTurnsResponse {
+	readonly turns: readonly ChatTurn[];
+	readonly has_more: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatUsageLimitConfig is the deployment-wide default usage limit config.
  */
 export interface ChatUsageLimitConfig {

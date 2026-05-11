@@ -10078,6 +10078,66 @@ func TestInsertChatMessages(t *testing.T) {
 		require.Equal(t, int64(500), msgs[1].RuntimeMs.Int64)
 		require.False(t, msgs[0].RuntimeMs.Valid)
 	})
+
+	t.Run("ToolCallCountIsDenormalized", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		// Assistant content with 3 tool-call parts. User content has
+		// none. Tool-role content carries a tool-result, not a tool-call.
+		assistantContent := `[
+			{"type":"reasoning","text":"thinking"},
+			{"type":"tool-call","tool_call_id":"a","tool_name":"bash"},
+			{"type":"text","text":"working"},
+			{"type":"tool-call","tool_call_id":"b","tool_name":"bash"},
+			{"type":"tool-call","tool_call_id":"c","tool_name":"edit"}
+		]`
+		toolContent := `[{"type":"tool-result","tool_call_id":"a","result":{}}]`
+
+		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfigA.ID, modelConfigA.ID, modelConfigA.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+			Content:             []string{`"hi"`, assistantContent, toolContent},
+			InputTokens:         []int64{0, 0, 0},
+			OutputTokens:        []int64{0, 0, 0},
+			TotalTokens:         []int64{0, 0, 0},
+			ReasoningTokens:     []int64{0, 0, 0},
+			CacheCreationTokens: []int64{0, 0, 0},
+			CacheReadTokens:     []int64{0, 0, 0},
+			ContextLimit:        []int64{0, 0, 0},
+			Compressed:          []bool{false, false, false},
+			TotalCostMicros:     []int64{0, 0, 0},
+			RuntimeMs:           []int64{0, 0, 0},
+		})
+		require.NoError(t, err)
+		require.Len(t, msgs, 3)
+
+		// Tool-call parts only count on assistant rows.
+		require.EqualValues(t, 0, msgs[0].ToolCallCount, "user row")
+		require.EqualValues(t, 3, msgs[1].ToolCallCount, "assistant row")
+		require.EqualValues(t, 0, msgs[2].ToolCallCount, "tool-role row carries results, not calls")
+
+		// Updating assistant content recomputes tool_call_count.
+		updatedContent := `[
+			{"type":"tool-call","tool_call_id":"only","tool_name":"bash"},
+			{"type":"text","text":"new"}
+		]`
+		updated, err := store.UpdateChatMessageByID(ctx, database.UpdateChatMessageByIDParams{
+			ID: msgs[1].ID,
+			Content: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(updatedContent),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, updated.ToolCallCount,
+			"updating content should recompute tool_call_count")
+	})
 }
 
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {

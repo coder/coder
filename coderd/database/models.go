@@ -4505,6 +4505,7 @@ type ChatMessage struct {
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
+	ToolCallCount       int16                 `db:"tool_call_count" json:"tool_call_count"`
 }
 
 type ChatModelConfig struct {

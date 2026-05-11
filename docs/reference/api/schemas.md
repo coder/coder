@@ -3635,6 +3635,64 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
 
+## codersdk.ChatTurn
+
+```json
+{
+  "assistant_message_count": 0,
+  "duration_ms": 0,
+  "is_open": true,
+  "last_message_at": "2019-08-24T14:15:22Z",
+  "next_user_message_id": 0,
+  "started_at": "2019-08-24T14:15:22Z",
+  "tool_call_count": 0,
+  "total_cost_micros": 0,
+  "user_message_id": 0
+}
+```
+
+### Properties
+
+| Name                      | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
+|---------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `assistant_message_count` | integer | false    |              | Assistant message count is the number of assistant messages in this turn.                                                                                                                                                                                                                                                                                                                                  |
+| `duration_ms`             | integer | false    |              | Duration ms is LastMessageAt minus StartedAt expressed in milliseconds, the total wall time the agent spent producing this turn's output. Provided in the response so clients do not need to re-compute it for every render.                                                                                                                                                                               |
+| `is_open`                 | boolean | false    |              | Is open is true when this turn has no following user message yet, meaning the agent may still be working or awaiting input.                                                                                                                                                                                                                                                                                |
+| `last_message_at`         | string  | false    |              | Last message at is the timestamp of the most recent message in this turn, equal to StartedAt for a turn with only the user message so far.                                                                                                                                                                                                                                                                 |
+| `next_user_message_id`    | integer | false    |              | Next user message ID is the ID of the next user message in the chat, or nil when this is the most recent turn (no following user message yet). Together with UserMessageID it forms the half-open range [UserMessageID, NextUserMessageID) covering all of this turn's messages. Frontends can use this range with /messages?before_id=&after_id= to lazy-load the full content when the turn is expanded. |
+| `started_at`              | string  | false    |              | Started at is the timestamp of the user message that began this turn.                                                                                                                                                                                                                                                                                                                                      |
+| `tool_call_count`         | integer | false    |              | Tool call count sums the precomputed tool_call_count across assistant messages in this turn.                                                                                                                                                                                                                                                                                                               |
+| `total_cost_micros`       | integer | false    |              | Total cost micros sums total_cost_micros across all messages in this turn. Always present, but 0 when no priced messages exist.                                                                                                                                                                                                                                                                            |
+| `user_message_id`         | integer | false    |              | User message ID is the ID of the user message that anchors this turn.                                                                                                                                                                                                                                                                                                                                      |
+
+## codersdk.ChatTurnsResponse
+
+```json
+{
+  "has_more": true,
+  "turns": [
+    {
+      "assistant_message_count": 0,
+      "duration_ms": 0,
+      "is_open": true,
+      "last_message_at": "2019-08-24T14:15:22Z",
+      "next_user_message_id": 0,
+      "started_at": "2019-08-24T14:15:22Z",
+      "tool_call_count": 0,
+      "total_cost_micros": 0,
+      "user_message_id": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                            | Required | Restrictions | Description |
+|------------|-------------------------------------------------|----------|--------------|-------------|
+| `has_more` | boolean                                         | false    |              |             |
+| `turns`    | array of [codersdk.ChatTurn](#codersdkchatturn) | false    |              |             |
+
 ## codersdk.ChatWatchEvent
 
 ```json

@@ -2778,6 +2778,21 @@ func (mr *MockStoreMockRecorder) GetChatTitleGenerationModelOverride(ctx any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTitleGenerationModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatTitleGenerationModelOverride), ctx)
 }
 
+// GetChatTurnsByChatID mocks base method.
+func (m *MockStore) GetChatTurnsByChatID(ctx context.Context, arg database.GetChatTurnsByChatIDParams) ([]database.GetChatTurnsByChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatTurnsByChatID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatTurnsByChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatTurnsByChatID indicates an expected call of GetChatTurnsByChatID.
+func (mr *MockStoreMockRecorder) GetChatTurnsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTurnsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatTurnsByChatID), ctx, arg)
+}
+
 // GetChatUsageLimitConfig mocks base method.
 func (m *MockStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	m.ctrl.T.Helper()

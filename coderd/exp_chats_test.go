@@ -13912,3 +13912,332 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		}
 	})
 }
+
+// TestGetChatTurns verifies the /turns endpoint groups messages by
+// turn boundaries (user messages), aggregates cost / tool-call counts,
+// reports open turns correctly, and paginates by user-message-id
+// cursor.
+func TestGetChatTurns(t *testing.T) {
+	t.Parallel()
+
+	// seedChatWithTurns inserts `numTurns` user messages, each followed
+	// by `assistantPerTurn` assistant messages. Each assistant message
+	// carries `toolCallsPerAssistant` tool-call parts and a fixed cost.
+	// Returns the chat and the list of user-message IDs in insert order.
+	seedChatWithTurns := func(
+		t *testing.T,
+		db database.Store,
+		ownerID uuid.UUID,
+		organizationID uuid.UUID,
+		modelConfigID uuid.UUID,
+		numTurns int,
+		assistantPerTurn int,
+		toolCallsPerAssistant int,
+		assistantCostMicros int64,
+	) (database.Chat, []int64) {
+		t.Helper()
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    organizationID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "turns-test",
+		})
+
+		assistantParts := make([]codersdk.ChatMessagePart, 0, toolCallsPerAssistant+1)
+		assistantParts = append(assistantParts, codersdk.ChatMessageText("ok"))
+		for i := range toolCallsPerAssistant {
+			assistantParts = append(assistantParts, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: fmt.Sprintf("call-%d", i),
+				ToolName:   "bash",
+			})
+		}
+		assistantContent, err := chatprompt.MarshalParts(assistantParts)
+		require.NoError(t, err)
+
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		})
+		require.NoError(t, err)
+
+		userIDs := make([]int64, numTurns)
+		for turn := range numTurns {
+			userMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:        chat.ID,
+				CreatedBy:     uuid.NullUUID{UUID: ownerID, Valid: true},
+				ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+				Role:          database.ChatMessageRoleUser,
+				Content:       userContent,
+			})
+			userIDs[turn] = userMsg.ID
+
+			for range assistantPerTurn {
+				dbgen.ChatMessage(t, db, database.ChatMessage{
+					ChatID:          chat.ID,
+					ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: true},
+					Role:            database.ChatMessageRoleAssistant,
+					Content:         assistantContent,
+					TotalCostMicros: sql.NullInt64{Int64: assistantCostMicros, Valid: true},
+				})
+			}
+		}
+		return chat, userIDs
+	}
+
+	t.Run("EmptyChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "empty",
+		})
+
+		resp, err := client.GetChatTurns(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Empty(t, resp.Turns)
+		require.False(t, resp.HasMore)
+	})
+
+	t.Run("SingleOpenTurnReportsIsOpen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, userIDs := seedChatWithTurns(
+			t, db,
+			user.UserID, user.OrganizationID, modelConfig.ID,
+			1, // numTurns
+			2, // assistantPerTurn
+			3, // toolCallsPerAssistant
+			100,
+		)
+
+		resp, err := client.GetChatTurns(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, resp.Turns, 1)
+		require.False(t, resp.HasMore)
+
+		turn := resp.Turns[0]
+		require.Equal(t, userIDs[0], turn.UserMessageID)
+		require.True(t, turn.IsOpen, "single trailing turn should be open")
+		require.Nil(t, turn.NextUserMessageID, "open turn has no next user message")
+		require.EqualValues(t, 2*3, turn.ToolCallCount,
+			"tool calls should sum across assistant messages in the turn")
+		require.EqualValues(t, 2, turn.AssistantMessageCount)
+		// Cost includes both assistant messages. The user message has
+		// no cost so it does not contribute.
+		require.EqualValues(t, 200, turn.TotalCostMicros)
+	})
+
+	t.Run("MultiTurnAggregation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, userIDs := seedChatWithTurns(
+			t, db,
+			user.UserID, user.OrganizationID, modelConfig.ID,
+			3, // numTurns
+			1, // assistantPerTurn
+			2, // toolCallsPerAssistant
+			100,
+		)
+
+		resp, err := client.GetChatTurns(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, resp.Turns, 3)
+		require.False(t, resp.HasMore)
+
+		// Response is DESC by user_message_id (newest first).
+		require.Equal(t, userIDs[2], resp.Turns[0].UserMessageID,
+			"newest turn comes first")
+		require.Equal(t, userIDs[0], resp.Turns[2].UserMessageID,
+			"oldest turn comes last")
+
+		// Newest turn is open; older ones are closed.
+		require.True(t, resp.Turns[0].IsOpen)
+		require.False(t, resp.Turns[1].IsOpen)
+		require.False(t, resp.Turns[2].IsOpen)
+
+		require.NotNil(t, resp.Turns[1].NextUserMessageID)
+		require.Equal(t, userIDs[2], *resp.Turns[1].NextUserMessageID,
+			"closed turn points at the following user message")
+		require.NotNil(t, resp.Turns[2].NextUserMessageID)
+		require.Equal(t, userIDs[1], *resp.Turns[2].NextUserMessageID)
+
+		// Each turn has 1 assistant message with 2 tool calls.
+		for _, turn := range resp.Turns {
+			require.EqualValues(t, 2, turn.ToolCallCount)
+			require.EqualValues(t, 1, turn.AssistantMessageCount)
+			require.EqualValues(t, 100, turn.TotalCostMicros)
+		}
+	})
+
+	t.Run("PaginationLimitsAndCursors", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, userIDs := seedChatWithTurns(
+			t, db,
+			user.UserID, user.OrganizationID, modelConfig.ID,
+			5,
+			1,
+			1,
+			50,
+		)
+
+		// limit=2 returns the two newest turns and has_more=true.
+		resp, err := client.GetChatTurns(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			Limit: 2,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.HasMore)
+		require.Len(t, resp.Turns, 2)
+		require.Equal(t, userIDs[4], resp.Turns[0].UserMessageID)
+		require.Equal(t, userIDs[3], resp.Turns[1].UserMessageID)
+
+		// before_id walks backward through the history. Use the oldest
+		// id in the previous page as the cursor.
+		resp, err = client.GetChatTurns(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			BeforeID: userIDs[3],
+			Limit:    2,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.HasMore)
+		require.Len(t, resp.Turns, 2)
+		require.Equal(t, userIDs[2], resp.Turns[0].UserMessageID)
+		require.Equal(t, userIDs[1], resp.Turns[1].UserMessageID)
+
+		// Last page (oldest turn). has_more=false.
+		resp, err = client.GetChatTurns(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			BeforeID: userIDs[1],
+			Limit:    2,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.HasMore)
+		require.Len(t, resp.Turns, 1)
+		require.Equal(t, userIDs[0], resp.Turns[0].UserMessageID)
+	})
+
+	t.Run("AfterIDFiltersOlderTurns", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, userIDs := seedChatWithTurns(
+			t, db,
+			user.UserID, user.OrganizationID, modelConfig.ID,
+			4, 1, 0, 0,
+		)
+
+		resp, err := client.GetChatTurns(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			AfterID: userIDs[1],
+		})
+		require.NoError(t, err)
+		require.False(t, resp.HasMore)
+		require.Len(t, resp.Turns, 2)
+		require.Equal(t, userIDs[3], resp.Turns[0].UserMessageID)
+		require.Equal(t, userIDs[2], resp.Turns[1].UserMessageID)
+	})
+
+	t.Run("DeletedMessagesAreExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, userIDs := seedChatWithTurns(
+			t, db,
+			user.UserID, user.OrganizationID, modelConfig.ID,
+			2, 1, 2, 25,
+		)
+
+		// Soft-delete every message at or after the second user message,
+		// so only the first turn remains visible.
+		err := db.SoftDeleteChatMessagesAfterID(
+			dbauthz.AsSystemRestricted(ctx),
+			database.SoftDeleteChatMessagesAfterIDParams{
+				ChatID:  chat.ID,
+				AfterID: userIDs[1] - 1, // delete strictly after this id
+			},
+		)
+		require.NoError(t, err)
+
+		resp, err := client.GetChatTurns(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, resp.Turns, 1, "soft-deleted turn must not appear")
+		require.Equal(t, userIDs[0], resp.Turns[0].UserMessageID)
+		require.True(t, resp.Turns[0].IsOpen,
+			"the surviving turn becomes the most recent open turn")
+	})
+
+	t.Run("BadLimitReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+		})
+
+		_, err := client.GetChatTurns(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			Limit: 999,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.True(t, xerrors.As(err, &sdkErr))
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("TransposedCursorsReturn400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+		})
+
+		_, err := client.GetChatTurns(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			BeforeID: 5,
+			AfterID:  10,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.True(t, xerrors.As(err, &sdkErr))
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+}

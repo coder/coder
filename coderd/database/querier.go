@@ -376,6 +376,27 @@ type sqlcQuerier interface {
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
+	// Returns one row per agent turn, where a turn is the half-open
+	// range [user_message.id, next_user_message.id) within a chat. Used
+	// by the /api/experimental/chats/{chat}/turns endpoint to render a
+	// lightweight collapsible timeline without loading every message.
+	//
+	// Performance approach:
+	//   1. Seek to limit+1 user-message anchors using the partial index
+	//      idx_chat_messages_chat_user_anchor (chat_id, id) WHERE role
+	//      = 'user'. This is O(log N + limit), not O(N).
+	//   2. Pull the boundary anchor (limit+1th, or the one immediately
+	//      newer than the requested window) so we can compute each
+	//      turn's end without window functions. In DESC pagination the
+	//      next_user_message_id of turn T is just T's newer neighbour
+	//      in the same query.
+	//   3. Aggregate per turn against the visible (chat_id, id) range.
+	//      tool_call_count and total_cost_micros are precomputed
+	//      columns so this never touches the JSONB content.
+	//
+	// Pagination matches /messages: before_id and after_id are cursors
+	// on user_message_id; results come back DESC (newest turn first).
+	GetChatTurnsByChatID(ctx context.Context, arg GetChatTurnsByChatIDParams) ([]GetChatTurnsByChatIDRow, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
@@ -872,6 +893,12 @@ type sqlcQuerier interface {
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
+	// Materialize parallel arrays via separate UNNEST calls in a CTE so
+	// the tool_call_count computation can reference both role and the
+	// parsed jsonb content. PostgreSQL aligns multiple UNNEST calls in
+	// the same SELECT list positionally; deviating from that requires
+	// WITH ORDINALITY to JOIN by ordinal, which sqlc does not handle
+	// cleanly. Each UNNEST appears once here.
 	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error)
