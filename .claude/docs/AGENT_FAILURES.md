@@ -63,6 +63,22 @@ shown below when adding new failures.
   video, browser console output, and command output before retrying or cleaning
   the workspace.
 
+## Symptom: Go test failure without preserved diagnostics
+
+- Likely cause: The failing CI job summary or compact failures artifact was
+  discarded before reporting or retrying the failure.
+- How to reproduce: Let a Go test job fail in CI, then report the failure using
+  only the final job status instead of the job summary and artifacts.
+- How to diagnose: Open the failed Go test job summary for the inline failure
+  table and per-test details. Download `go-test-failures-*.ndjson` for deeper
+  inspection of the compact failures-only records.
+- Existing docs or tools: `.github/workflows/ci.yaml` Go test jobs and
+  `scripts/gotestsummary`.
+- Missing harness piece: Agents need a central reminder to preserve the small
+  Go test diagnostics artifact instead of the old raw test log.
+- Proposed prevention: Attach or summarize the inline job summary and preserve
+  `go-test-failures-*.ndjson` when reporting CI Go test failures.
+
 ## Symptom: Port collision across worktrees
 
 - Likely cause: Multiple worktrees use the same default develop ports.
