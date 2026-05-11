@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import {
@@ -34,8 +34,12 @@ const TemplateFilesPage: FC = () => {
 
 	// Clear the alert when the route target changes (e.g. navigating
 	// to a different template's files page without unmounting).
+	const prevTemplateParam = useRef(templateParam);
 	useEffect(() => {
-		setShowCreatedAlert(locationState?.justCreated === true);
+		if (prevTemplateParam.current !== templateParam) {
+			setShowCreatedAlert(false);
+			prevTemplateParam.current = templateParam;
+		}
 	}, [templateParam]);
 
 	// Clean the router state so a page refresh will not re-show the
