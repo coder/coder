@@ -616,6 +616,9 @@ export const UserMessageWithTextAttachment: Story = {
 		});
 		expect(textButton).toBeInTheDocument();
 		expect(textButton).toHaveTextContent(/Pasted text/i);
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Quarterly revenue increased 18%/i),
@@ -933,6 +936,9 @@ export const AssistantMessageWithImage: Story = {
 		);
 		expect(
 			canvas.queryByRole("link", { name: "Download generated-image.png" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
 		const viewButton = canvas.getByRole("button", {
 			name: "View generated-image.png",

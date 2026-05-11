@@ -22,9 +22,8 @@ const isUserInlineRenderBlock = (
 ): block is UserInlineRenderBlock =>
 	block.type === "response" || block.type === "file-reference";
 
-const isUserFileRenderBlock = (
-	block: RenderBlock,
-): block is UserFileRenderBlock => block.type === "file";
+const isFileRenderBlock = (block: RenderBlock): block is UserFileRenderBlock =>
+	block.type === "file";
 
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
@@ -51,13 +50,13 @@ export const deriveMessageDisplayState = ({
 	const userInlineContent = isUser
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
-	const userFileBlocks = isUser
-		? parsed.blocks.filter(isUserFileRenderBlock)
-		: [];
+	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
+	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
-	const hasCopyableContent = Boolean(parsed.markdown.trim());
+	const hasCopyableContent =
+		Boolean(parsed.markdown.trim()) && !hasFileAttachments;
 	const hasRenderableContent =
 		parsed.blocks.length > 0 ||
 		parsed.tools.length > 0 ||
