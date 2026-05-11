@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -1092,9 +1093,24 @@ type SubscribeFnParams struct {
 	Logger              slog.Logger
 }
 
+// bufferedStreamPart is a buffered message_part event tagged with the
+// most recently committed assistant message ID at the moment it was
+// appended. Subscribers can use the checkpoint to skip parts that
+// belong to turns they have already received via durable
+// `message` events.
+type bufferedStreamPart struct {
+	event codersdk.ChatStreamEvent
+	// checkpoint is the chatStreamState.lastCommittedAssistantMessageID
+	// value at the time this part was buffered. A subscriber whose
+	// cursor is greater than checkpoint already has the durable
+	// message for the turn this part belongs to, so the part is
+	// redundant.
+	checkpoint int64
+}
+
 type chatStreamState struct {
 	mu                   sync.Mutex
-	buffer               []codersdk.ChatStreamEvent
+	buffer               []bufferedStreamPart
 	buffering            bool
 	durableMessages      []codersdk.ChatStreamEvent
 	durableEvictedBefore int64 // highest message ID evicted from durable cache
@@ -1114,6 +1130,12 @@ type chatStreamState struct {
 	// period expires so cross-replica relays can still
 	// snapshot the buffer.
 	bufferRetainedAt time.Time
+	// lastCommittedAssistantMessageID tracks the highest assistant
+	// durable message ID published for this chat on this replica.
+	// publishToStream tags each buffered message_part with this
+	// value so subscribeToStream can filter out parts belonging to
+	// already-committed turns.
+	lastCommittedAssistantMessageID int64
 }
 
 // heartbeatEntry tracks a single chat's cancel function and workspace
@@ -4144,10 +4166,13 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			// Zero the dropped slot so its *ChatStreamMessagePart is
 			// GC-eligible; the later append reuses this slot in place
 			// whenever cap > len.
-			state.buffer[0] = codersdk.ChatStreamEvent{}
+			state.buffer[0] = bufferedStreamPart{}
 			state.buffer = state.buffer[1:]
 		}
-		state.buffer = append(state.buffer, event)
+		state.buffer = append(state.buffer, bufferedStreamPart{
+			event:      event,
+			checkpoint: state.lastCommittedAssistantMessageID,
+		})
 	}
 	subscribers := make([]chan codersdk.ChatStreamEvent, 0, len(state.subscribers))
 	for _, ch := range state.subscribers {
@@ -4230,7 +4255,53 @@ func (p *Server) getCachedDurableMessages(
 	return result
 }
 
-func (p *Server) subscribeToStream(chatID uuid.UUID) (
+// snapshotBufferLocked returns the buffered message_part events that
+// the caller should receive in their initial snapshot, filtered by
+// the requested cursor.
+//
+// The caller must hold the per-chat stream state lock. See
+// subscribeToStream for the documented afterMessageID semantics.
+func snapshotBufferLocked(
+	buffer []bufferedStreamPart,
+	afterMessageID int64,
+) []codersdk.ChatStreamEvent {
+	if len(buffer) == 0 {
+		return nil
+	}
+	// afterMessageID <= 0 means "no cursor; deliver everything".
+	// math.MaxInt64 is the relay sentinel meaning "skip durable DB
+	// snapshot but deliver all in-flight parts". Both paths return
+	// the unfiltered buffer.
+	unfiltered := afterMessageID <= 0 || afterMessageID == math.MaxInt64
+	snapshot := make([]codersdk.ChatStreamEvent, 0, len(buffer))
+	for _, part := range buffer {
+		if !unfiltered && part.checkpoint < afterMessageID {
+			continue
+		}
+		snapshot = append(snapshot, part.event)
+	}
+	return snapshot
+}
+
+// subscribeToStream registers a subscriber to the per-chat in-memory
+// stream and returns a filtered snapshot of currently-buffered
+// message_part events plus the current retry phase, the live
+// subscriber channel, and a cancel func.
+//
+// afterMessageID semantics:
+//   - 0: no filter; the full buffer snapshot is returned.
+//     New browser sessions use this and only see parts for the
+//     currently-streaming turn (the buffer is cleared at the
+//     start of each processChat run).
+//   - math.MaxInt64: no filter; matches the enterprise cross-replica
+//     relay convention (relays pass MaxInt64 to skip the durable
+//     DB snapshot while still receiving all in-flight buffered
+//     parts).
+//   - 0 < afterMessageID < math.MaxInt64: parts whose checkpoint is
+//     less than afterMessageID are dropped from the snapshot. These
+//     belong to assistant turns the subscriber already has via
+//     durable `message` events, so the buffered parts are redundant.
+func (p *Server) subscribeToStream(chatID uuid.UUID, afterMessageID int64) (
 	[]codersdk.ChatStreamEvent,
 	*codersdk.ChatStreamRetry,
 	<-chan codersdk.ChatStreamEvent,
@@ -4238,7 +4309,7 @@ func (p *Server) subscribeToStream(chatID uuid.UUID) (
 ) {
 	state := p.getOrCreateStreamState(chatID)
 	state.mu.Lock()
-	snapshot := append([]codersdk.ChatStreamEvent(nil), state.buffer...)
+	snapshot := snapshotBufferLocked(state.buffer, afterMessageID)
 	var currentRetry *codersdk.ChatStreamRetry
 	if state.currentRetry != nil {
 		retryCopy := *state.currentRetry
@@ -4541,7 +4612,7 @@ func (p *Server) SubscribeAuthorized(
 	// persisted messages. Capture the current retry phase under the same
 	// lock so the transient snapshot and subscriber registration reflect
 	// a single moment in time.
-	localSnapshot, localRetry, localParts, localCancel := p.subscribeToStream(chatID)
+	localSnapshot, localRetry, localParts, localCancel := p.subscribeToStream(chatID, afterMessageID)
 
 	// Merge all event sources.
 	mergedCtx, mergedCancel := context.WithCancel(ctx)
@@ -5222,10 +5293,31 @@ func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) 
 		Message: &sdkMessage,
 	}
 	p.cacheDurableMessage(chatID, event)
+	p.advanceAssistantCheckpoint(chatID, message)
 	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: message.ID - 1,
 	})
+}
+
+// advanceAssistantCheckpoint bumps the per-chat checkpoint when an
+// assistant durable message is published. Subsequent buffered
+// message_part events are tagged with the new checkpoint so
+// subscribeToStream can filter parts belonging to already-committed
+// turns when the subscriber's cursor is past the checkpoint.
+//
+// Tool and user messages do not end an assistant streaming turn, so
+// the checkpoint is only advanced for assistant-role messages.
+func (p *Server) advanceAssistantCheckpoint(chatID uuid.UUID, message database.ChatMessage) {
+	if message.Role != database.ChatMessageRoleAssistant {
+		return
+	}
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if message.ID > state.lastCommittedAssistantMessageID {
+		state.lastCommittedAssistantMessageID = message.ID
+	}
 }
 
 // publishEditedMessage is like publishMessage but uses FullRefresh
