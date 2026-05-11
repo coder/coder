@@ -1541,6 +1541,16 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		if !api.DeploymentValues.TemplateBuilder.Disabled.Value() {
+			r.Route("/templatebuilder", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				// Endpoints added by DEVEX-275 (bases), DEVEX-276
+				// (modules), DEVEX-277/279 (compose).
+			})
+		}
+
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
