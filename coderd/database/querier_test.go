@@ -7630,6 +7630,76 @@ func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
 	require.Contains(t, err.Error(), "Cannot create user_secret for deleted user")
 }
 
+// TestOrgMembersSoftDeleteTrigger verifies that a user's organization
+// memberships (and transitively their group memberships) are deleted
+// when the user is soft-deleted.
+func TestOrgMembersSoftDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	// userA will be soft-deleted.
+	userA := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         userA.ID,
+	})
+
+	// Add userA to a group in the org (should be cleaned up transitively).
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{
+		UserID:  userA.ID,
+		GroupID: group.ID,
+	})
+
+	// userB is a control; their membership must not be touched.
+	userB := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         userB.ID,
+	})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{
+		UserID:  userB.ID,
+		GroupID: group.ID,
+	})
+
+	// Soft-delete userA.
+	require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+	// userA should no longer appear in the organization.
+	orgMembers, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: org.ID,
+	})
+	require.NoError(t, err)
+	var memberIDs []uuid.UUID
+	for _, m := range orgMembers {
+		memberIDs = append(memberIDs, m.OrganizationMember.UserID)
+	}
+	require.NotContains(t, memberIDs, userA.ID)
+	require.Contains(t, memberIDs, userB.ID)
+
+	// The raw org membership rows should also be gone (not just hidden).
+	rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
+	require.NoError(t, err)
+	require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
+
+	// userA's group membership should also be removed by the cascading trigger.
+	groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: true,
+	})
+	require.NoError(t, err)
+	var groupMemberIDs []uuid.UUID
+	for _, gm := range groupMembers {
+		groupMemberIDs = append(groupMemberIDs, gm.UserID)
+	}
+	require.NotContains(t, groupMemberIDs, userA.ID)
+	require.Contains(t, groupMemberIDs, userB.ID)
+}
+
 func TestUserSecretsAuthorization(t *testing.T) {
 	t.Parallel()
 
