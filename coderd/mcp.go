@@ -962,28 +962,25 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
-// @Summary Handle MCP server OAuth2 callback (legacy per-ID)
+// @Summary Redirect legacy per-ID MCP OAuth2 callback to the global one
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-// Exchanges the authorization code for tokens and stores them. New
-// flows use the deployment-wide global callback instead; this handler
-// is retained so any client previously registered with an upstream
-// provider against `${access_url}/api/experimental/mcp/servers/{id}
-// /oauth2/callback` keeps working.
+// 307-redirects to the deployment-wide callback, preserving the
+// query string. This handler exists only so any client previously
+// registered with an upstream provider against
+// `${access_url}/api/experimental/mcp/servers/{id}/oauth2/callback`
+// keeps working. New flows hit the global callback directly. The
+// `mcpServer` path parameter is intentionally ignored; the MCP server
+// ID is decoded from the signed `state` parameter on the global
+// handler.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
-		return
+	target := mcpOAuth2GlobalCallbackPath
+	if raw := r.URL.RawQuery; raw != "" {
+		target += "?" + raw
 	}
-
-	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", mcpServerID)
-	redirectURL := fmt.Sprintf("%s%s", api.AccessURL.String(), callbackPath)
-
-	api.completeMCPServerOAuth2(ctx, rw, r, mcpServerID, callbackPath, redirectURL)
+	http.Redirect(rw, r, target, http.StatusTemporaryRedirect)
 }
 
 // @Summary Handle MCP server OAuth2 callback (deployment-wide)
@@ -998,6 +995,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2GlobalCallback(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 
 	// The OAuth2 provider may redirect with an error parameter and no
 	// state (some providers do, e.g., when the user denies consent
@@ -1023,7 +1021,7 @@ func (api *API) mcpServerOAuth2GlobalCallback(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	serverID, _, err := api.verifyMCPOAuth2State(rawState)
+	serverID, nonce, err := api.verifyMCPOAuth2State(rawState)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid OAuth2 state parameter.",
@@ -1032,32 +1030,16 @@ func (api *API) mcpServerOAuth2GlobalCallback(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	callbackPath := mcpOAuth2GlobalCallbackPath
-	redirectURL := api.mcpOAuth2CallbackURL()
-
-	api.completeMCPServerOAuth2(ctx, rw, r, serverID, callbackPath, redirectURL)
-}
-
-// completeMCPServerOAuth2 contains the OAuth2 token exchange logic
-// shared by the per-ID (legacy) and deployment-wide (current)
-// callback handlers. callbackPath is the path the cookies are scoped
-// to (so they get cleared with a matching path); redirectURL is the
-// absolute URL we send to the upstream provider during the exchange,
-// which must match the URL the user was redirected back to.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) completeMCPServerOAuth2(
-	ctx context.Context,
-	rw http.ResponseWriter,
-	r *http.Request,
-	mcpServerID uuid.UUID,
-	callbackPath string,
-	redirectURL string,
-) {
-	apiKey := httpmw.APIKey(r)
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing authorization code.",
+		})
+		return
+	}
 
 	//nolint:gocritic // Any authenticated user can complete OAuth2 for an enabled MCP server.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), serverID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -1084,48 +1066,21 @@ func (api *API) completeMCPServerOAuth2(
 		return
 	}
 
-	// Check if the OAuth2 provider returned an error (e.g., user
-	// denied consent).
-	if oauthError := r.URL.Query().Get("error"); oauthError != "" {
-		desc := r.URL.Query().Get("error_description")
-		if desc == "" {
-			desc = oauthError
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "OAuth2 provider returned an error.",
-			Detail:  desc,
-		})
-		return
-	}
-
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing authorization code.",
-		})
-		return
-	}
-
-	// Validate the state cookie for CSRF protection. The cookie was
-	// set during connect with one of two value semantics:
-	//   - legacy per-ID flow: cookie value equals the raw state
-	//     parameter sent on the auth URL.
-	//   - global flow: cookie value equals the nonce embedded in the
-	//     signed state parameter; the server ID is decoded from the
-	//     state itself.
-	// In either case, presence of the per-server cookie proves the
-	// callback was initiated from the same browser session.
+	// CSRF: the per-server cookie set during /connect must equal the
+	// nonce embedded in the signed state. The cookie pins the
+	// authorization to the browser session that initiated it; the HMAC
+	// on state pins the server ID so an attacker cannot swap it.
 	cookieValue := ""
 	if cookie, err := r.Cookie("mcp_oauth2_state_" + config.ID.String()); err == nil {
 		cookieValue = cookie.Value
 	}
-	rawState := r.URL.Query().Get("state")
-	if cookieValue == "" || !mcpOAuth2StateMatchesCookie(rawState, cookieValue) {
+	if cookieValue == "" || cookieValue != nonce {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid or missing OAuth2 state parameter.",
 		})
 		return
 	}
+	callbackPath := mcpOAuth2GlobalCallbackPath
 	// Clear the state cookie.
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
@@ -1159,7 +1114,7 @@ func (api *API) completeMCPServerOAuth2(
 			AuthURL:  config.OAuth2AuthURL,
 			TokenURL: config.OAuth2TokenURL,
 		},
-		RedirectURL: redirectURL,
+		RedirectURL: api.mcpOAuth2CallbackURL(),
 	}
 	var scopes []string
 	if config.OAuth2Scopes != "" {
@@ -1197,7 +1152,7 @@ func (api *API) completeMCPServerOAuth2(
 
 	//nolint:gocritic // Users store their own tokens.
 	_, err = api.Database.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
-		MCPServerConfigID: mcpServerID,
+		MCPServerConfigID: config.ID,
 		UserID:            apiKey.UserID,
 		AccessToken:       token.AccessToken,
 		AccessTokenKeyID:  sql.NullString{},
@@ -1226,26 +1181,6 @@ func (api *API) completeMCPServerOAuth2(
 				document.body.innerText = "Authentication successful. You may close this window.";
 			}
 		</script></body></html>`))
-}
-
-// mcpOAuth2StateMatchesCookie returns true when the state parameter
-// is consistent with the per-server cookie. For the legacy per-ID
-// flow, the cookie holds the raw state directly; for the global
-// flow, the cookie holds only the nonce portion of the signed state.
-func mcpOAuth2StateMatchesCookie(state, cookieValue string) bool {
-	if state == cookieValue {
-		return true
-	}
-	encoded, _, ok := strings.Cut(state, ".")
-	if !ok {
-		return false
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil || len(payload) <= len(uuid.Nil)+1 || payload[len(uuid.Nil)] != ':' {
-		return false
-	}
-	nonce := string(payload[len(uuid.Nil)+1:])
-	return nonce == cookieValue
 }
 
 // @Summary Disconnect MCP server OAuth2 token

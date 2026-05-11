@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -57,6 +58,62 @@ func createMCPServerConfig(t testing.TB, client *codersdk.Client, slug string, e
 	})
 	require.NoError(t, err)
 	return config
+}
+
+// mcpOAuth2Connect performs the /connect step of the MCP OAuth2 flow
+// against the given server config, captures the temporary redirect
+// to the upstream authorization URL, and returns the signed state
+// parameter along with the state and verifier cookies the upstream
+// will need to echo back on the redirect to /callback. Test helpers
+// that simulate an upstream OAuth2 provider use these values to
+// recreate exactly what the browser would send back to Coder.
+func mcpOAuth2Connect(
+	ctx context.Context,
+	t testing.TB,
+	client *codersdk.Client,
+	serverID uuid.UUID,
+) (signedState string, stateCookie *http.Cookie, verifierCookie *http.Cookie) {
+	t.Helper()
+
+	oldCheckRedirect := client.HTTPClient.CheckRedirect
+	client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	t.Cleanup(func() {
+		client.HTTPClient.CheckRedirect = oldCheckRedirect
+	})
+
+	connectURL, err := client.URL.Parse(
+		"/api/experimental/mcp/servers/" + serverID.String() + "/oauth2/connect",
+	)
+	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, connectURL.String(), nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.SessionTokenCookie,
+		Value: client.SessionToken(),
+	})
+	res, err := client.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+
+	location, err := res.Location()
+	require.NoError(t, err)
+	signedState = location.Query().Get("state")
+	require.NotEmpty(t, signedState)
+
+	for _, c := range res.Cookies() {
+		switch c.Name {
+		case "mcp_oauth2_state_" + serverID.String():
+			stateCookie = c
+		case "mcp_oauth2_verifier_" + serverID.String():
+			verifierCookie = c
+		}
+	}
+	require.NotNil(t, stateCookie, "connect must set the state cookie")
+	require.NotNil(t, verifierCookie, "connect must set the verifier cookie")
+	return signedState, stateCookie, verifierCookie
 }
 
 func TestMCPServerConfigsCRUD(t *testing.T) {
@@ -1225,17 +1282,16 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			return http.ErrUseLastResponse
 		}
 
-		// Simulate the callback with a known state and verifier.
-		state := "test-state-value"
-		verifier := "test-verifier-value-that-is-at-least-43-chars-long-for-pkce-spec"
+		// Drive the full /connect -> /callback round trip so the cookies
+		// and signed state match what the upstream provider would echo
+		// back. Faking state with arbitrary strings no longer works.
+		signedState, stateCookie, verifierCookie := mcpOAuth2Connect(ctx, t, memberClient, created.ID)
 
-		callbackURL, err := memberClient.URL.Parse(
-			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
-		)
+		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
 		require.NoError(t, err)
 		q := callbackURL.Query()
 		q.Set("code", "test-auth-code")
-		q.Set("state", state)
+		q.Set("state", signedState)
 		callbackURL.RawQuery = q.Encode()
 
 		req, err := http.NewRequestWithContext(ctx, "GET", callbackURL.String(), nil)
@@ -1244,14 +1300,8 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			Name:  codersdk.SessionTokenCookie,
 			Value: memberClient.SessionToken(),
 		})
-		req.AddCookie(&http.Cookie{
-			Name:  "mcp_oauth2_state_" + created.ID.String(),
-			Value: state,
-		})
-		req.AddCookie(&http.Cookie{
-			Name:  "mcp_oauth2_verifier_" + created.ID.String(),
-			Value: verifier,
-		})
+		req.AddCookie(stateCookie)
+		req.AddCookie(verifierCookie)
 
 		res, err := memberClient.HTTPClient.Do(req)
 		require.NoError(t, err)
@@ -1267,7 +1317,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal("timed out waiting for token exchange")
 		}
-		require.Equal(t, verifier, gotVerifier,
+		require.Equal(t, verifierCookie.Value, gotVerifier,
 			"token exchange must send the PKCE code_verifier")
 
 		// Verify the verifier cookie is cleared in the response.
@@ -1322,16 +1372,16 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			return http.ErrUseLastResponse
 		}
 
-		// Call the callback without a verifier cookie to verify
-		// backwards compatibility with providers that don't use PKCE.
-		state := "test-state-no-pkce"
-		callbackURL, err := memberClient.URL.Parse(
-			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
-		)
+		// Drive /connect to get a valid signed state and state cookie,
+		// then call the callback without the verifier cookie to verify
+		// backwards compatibility with providers that do not use PKCE.
+		signedState, stateCookie, _ := mcpOAuth2Connect(ctx, t, memberClient, created.ID)
+
+		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
 		require.NoError(t, err)
 		q := callbackURL.Query()
 		q.Set("code", "test-auth-code")
-		q.Set("state", state)
+		q.Set("state", signedState)
 		callbackURL.RawQuery = q.Encode()
 
 		req, err := http.NewRequestWithContext(ctx, "GET", callbackURL.String(), nil)
@@ -1340,10 +1390,7 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			Name:  codersdk.SessionTokenCookie,
 			Value: memberClient.SessionToken(),
 		})
-		req.AddCookie(&http.Cookie{
-			Name:  "mcp_oauth2_state_" + created.ID.String(),
-			Value: state,
-		})
+		req.AddCookie(stateCookie)
 		// Deliberately omit the verifier cookie.
 
 		res, err := memberClient.HTTPClient.Do(req)
@@ -2053,46 +2100,12 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		memberClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
+		// Drive the full /connect -> /callback round trip, then verify
+		// the user token was stored.
+		signedState, stateCookie, verifierCookie := mcpOAuth2Connect(ctx, t, memberClient, created.ID)
 
-		// First, hit /connect to get a real signed state and the
-		// matching cookies. Reuse them on the global callback.
-		connectURL, err := memberClient.URL.Parse(
-			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/connect",
-		)
-		require.NoError(t, err)
-		connectReq, err := http.NewRequestWithContext(ctx, "GET", connectURL.String(), nil)
-		require.NoError(t, err)
-		connectReq.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenCookie,
-			Value: memberClient.SessionToken(),
-		})
-		connectRes, err := memberClient.HTTPClient.Do(connectReq)
-		require.NoError(t, err)
-		defer connectRes.Body.Close()
-		require.Equal(t, http.StatusTemporaryRedirect, connectRes.StatusCode)
-
-		location, err := connectRes.Location()
-		require.NoError(t, err)
-		signedState := location.Query().Get("state")
-		require.NotEmpty(t, signedState)
-
-		var stateCookie, verifierCookie *http.Cookie
-		for _, c := range connectRes.Cookies() {
-			if c.Name == "mcp_oauth2_state_"+created.ID.String() {
-				stateCookie = c
-			}
-			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
-				verifierCookie = c
-			}
-		}
-		require.NotNil(t, stateCookie)
-		require.NotNil(t, verifierCookie)
-
-		// Now invoke the global callback with the same state and
-		// cookies; the upstream provider would do this redirect.
+		// Simulate the upstream provider redirecting back to the global
+		// callback with the issued code and the same signed state.
 		callbackURL, err := memberClient.URL.Parse(coderd.MCPOAuth2GlobalCallbackPath())
 		require.NoError(t, err)
 		q := callbackURL.Query()
@@ -2212,5 +2225,49 @@ func TestMCPServerOAuth2GlobalCallback(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("LegacyCallbackRedirectsToGlobal", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		// The legacy per-ID callback URL only exists so any client
+		// previously registered with an upstream provider against that
+		// URL keeps working. It must 307 to the deployment-wide
+		// callback with the query string preserved verbatim, so the
+		// browser follows it and the global handler decodes the
+		// signed state to identify the MCP server.
+		legacyURL, err := client.URL.Parse(
+			"/api/experimental/mcp/servers/" + uuid.NewString() + "/oauth2/callback",
+		)
+		require.NoError(t, err)
+		q := legacyURL.Query()
+		q.Set("code", "upstream-code")
+		q.Set("state", "upstream-state")
+		legacyURL.RawQuery = q.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, legacyURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.SessionTokenCookie,
+			Value: client.SessionToken(),
+		})
+
+		res, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		location, err := res.Location()
+		require.NoError(t, err)
+		require.Equal(t, coderd.MCPOAuth2GlobalCallbackPath(), location.Path)
+		require.Equal(t, "upstream-code", location.Query().Get("code"))
+		require.Equal(t, "upstream-state", location.Query().Get("state"))
 	})
 }
