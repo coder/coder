@@ -98,7 +98,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		// override is applied to baselineResolved to produce the expected
 		// templateMetaUpdate. Allows each case to express only its delta.
 		override func(*templateMetaUpdate)
-		base     func(template database.Template)
+		base     func(template *database.Template)
 		// validErrFields, if non-empty, asserts the resolver produced a
 		// validation error for each named field.
 		validErrFields []string
@@ -184,7 +184,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			}},
 		},
 		{
-			name: "AllowUserAutostop/true",
+			name: "AllowUserAutostop",
 			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: ptr.Ref(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowUserAutostop = true
@@ -194,7 +194,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			name: "AllowUserAutostop/true",
 			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: ptr.Ref(false)},
 			expected: expected{
-				base: func(update database.Template) {
+				base: func(update *database.Template) {
 					update.AllowUserAutostop = true
 				},
 				override: func(r *templateMetaUpdate) {
@@ -415,7 +415,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 
 			tpl := baselineTemplate()
 			if tc.expected.base != nil {
-				tc.expected.base(tpl)
+				tc.expected.base(&tpl)
 			}
 			schedOpts := baselineScheduleOpts()
 			got, validErrs := resolveTemplateMetaUpdate(tpl, schedOpts, tc.req)

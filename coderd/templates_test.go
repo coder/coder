@@ -1290,11 +1290,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 			defer cancel()
 
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:        &template.Name,
-				DisplayName: &template.DisplayName,
-				Description: &template.Description,
-				Icon:        &template.Icon,
-				// Increase the default TTL to avoid error "not modified".
+				Name:                         &template.Name,
+				DisplayName:                  &template.DisplayName,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				DefaultTTLMillis:             ptr.Ref(template.DefaultTTLMillis + 1),
 				AutostopRequirement:          &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs: &template.AllowUserCancelWorkspaceJobs,
@@ -1694,7 +1693,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 			description      string
 			icon             string
 			defaultTTLMillis int64
-			notModified      bool
 		}
 
 		type testCase struct {
@@ -1730,17 +1728,17 @@ func TestPatchTemplateMeta(t *testing.T) {
 			{
 				name:     "Nil display name is a no-op",
 				req:      codersdk.UpdateTemplateMeta{DisplayName: nil},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis, notModified: true},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Nil description is a no-op",
 				req:      codersdk.UpdateTemplateMeta{Description: nil},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis, notModified: true},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Nil icon is a no-op",
 				req:      codersdk.UpdateTemplateMeta{Icon: nil},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis, notModified: true},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 		}
 
@@ -1786,9 +1784,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// An empty PATCH body must be a no-op: every field is nil, so nothing
-		// should change. The handler returns 304 Not Modified in this case,
-		// which the SDK surfaces as an error containing "not modified".
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{})
 		require.NoError(t, err)
 

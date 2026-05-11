@@ -38,7 +38,6 @@ type templateMetaUpdate struct {
 	autostopRequirementWeeks             int64
 	groupACL                             database.TemplateACL
 
-	// Intents are side effects that cannot be returned by the
 	// updateWorkspaceLastUsedAtIntent and updateWorkspaceDormantAtIntent are one-shot
 	// intents that trigger side effects only when the request explicitly
 	// sets the field to true. nil and false are no-ops.
