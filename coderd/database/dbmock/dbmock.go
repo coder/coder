@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -1680,6 +1681,21 @@ func (m *MockStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, 
 func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeUserPromptsByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeUserPromptsByInterceptionID), ctx, interceptionID)
+}
+
+// GetAIModelPriceByProviderModel mocks base method.
+func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIModelPriceByProviderModel", ctx, arg)
+	ret0, _ := ret[0].(database.AiModelPrice)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIModelPriceByProviderModel indicates an expected call of GetAIModelPriceByProviderModel.
+func (mr *MockStoreMockRecorder) GetAIModelPriceByProviderModel(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceByProviderModel", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceByProviderModel), ctx, arg)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -10088,6 +10104,20 @@ func (m *MockStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesTTLByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesTTLByTemplateID), ctx, arg)
+}
+
+// UpsertAIModelPrices mocks base method.
+func (m *MockStore) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAIModelPrices", ctx, seed)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAIModelPrices indicates an expected call of UpsertAIModelPrices.
+func (mr *MockStoreMockRecorder) UpsertAIModelPrices(ctx, seed any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrices), ctx, seed)
 }
 
 // UpsertAISeatState mocks base method.

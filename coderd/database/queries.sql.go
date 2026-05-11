@@ -1787,6 +1787,61 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 	return i, err
 }
 
+const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
+SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+FROM ai_model_prices
+WHERE provider = $1 AND model = $2
+`
+
+type GetAIModelPriceByProviderModelParams struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error) {
+	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model)
+	var i AiModelPrice
+	err := row.Scan(
+		&i.Provider,
+		&i.Model,
+		&i.InputPrice,
+		&i.OutputPrice,
+		&i.CacheReadPrice,
+		&i.CacheWritePrice,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
+INSERT INTO ai_model_prices (
+	provider, model, input_price, output_price, cache_read_price, cache_write_price
+)
+SELECT
+	elem->>'provider',
+	elem->>'model',
+	(elem->>'input_price')::bigint,
+	(elem->>'output_price')::bigint,
+	(elem->>'cache_read_price')::bigint,
+	(elem->>'cache_write_price')::bigint
+FROM jsonb_array_elements($1::jsonb) AS elem
+ON CONFLICT (provider, model) DO UPDATE SET
+	input_price       = EXCLUDED.input_price,
+	output_price      = EXCLUDED.output_price,
+	cache_read_price  = EXCLUDED.cache_read_price,
+	cache_write_price = EXCLUDED.cache_write_price,
+	updated_at        = NOW()
+`
+
+// Upsert a batch of (provider, model) rows from a JSON array. Each element
+// must have provider, model, and the four price fields; null prices are
+// written as SQL NULL.
+func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
+	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, seed)
+	return err
+}
+
 const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
 SELECT
 	COUNT(*)

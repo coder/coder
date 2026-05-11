@@ -344,7 +344,10 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	require.GreaterOrEqual(t, len(recorded), 2,
 		"expected at least 2 streamed LLM calls (root + subagent)")
 
-	workspaceTools := []string{"list_templates", "read_template", "create_workspace"}
+	workspaceTools := []string{
+		"list_templates", "read_template", "create_workspace",
+		"start_workspace", "stop_workspace",
+	}
 	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
 
 	// Identify root and subagent calls. Root chat calls include
@@ -375,7 +378,10 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 			"root chat should have subagent tool %q", tool)
 	}
 
-	// Standard turns (no turn mode) should hide propose_plan.
+	// Standard turns (no turn mode) hide plan-only tools until
+	// plan mode.
+	require.NotContains(t, rootCalls[0], "ask_user_question",
+		"standard-turn root chat should NOT have ask_user_question")
 	require.NotContains(t, rootCalls[0], "propose_plan",
 		"standard-turn root chat should NOT have propose_plan")
 
@@ -388,6 +394,8 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		require.NotContains(t, childCalls[0], tool,
 			"subagent chat should NOT have subagent tool %q", tool)
 	}
+	require.NotContains(t, childCalls[0], "ask_user_question",
+		"subagent chat should NOT have ask_user_question")
 }
 
 func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
@@ -7030,7 +7038,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	// 4. Verify workspace provisioning tools are NOT present.
 	workspaceProvisioningTools := []string{
 		"list_templates", "read_template",
-		"create_workspace", "start_workspace",
+		"create_workspace", "start_workspace", "stop_workspace",
 	}
 	for _, tool := range workspaceProvisioningTools {
 		require.NotContains(t, childTools, tool,
@@ -9122,8 +9130,10 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 		select {
 		case ev := <-events:
 			if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
+				t.Logf("subscriber consumed non-message event type=%s", ev.Type)
 				return false
 			}
+			t.Logf("subscriber consumed message id=%d role=%s match_promoted=%t", ev.Message.ID, ev.Message.Role, ev.Message.ID == promoteResult.PromotedMessage.ID)
 			switch ev.Message.Role {
 			case codersdk.ChatMessageRoleTool:
 				syntheticPublishCount++

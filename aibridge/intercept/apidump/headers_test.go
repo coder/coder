@@ -46,7 +46,7 @@ func TestSensitiveHeaderLists(t *testing.T) {
 func TestWriteRedactedHeaders(t *testing.T) {
 	t.Parallel()
 
-	d := &dumper{
+	d := &Dumper{
 		dumpPath: interceptDumpPath("/tmp", "test", "test", uuid.New(), quartz.NewMock(t)),
 		logger:   slog.Make(),
 	}

@@ -168,6 +168,10 @@ _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FIL
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
 
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/aibridgepricesgen
+
 _gen/bin/metricsdocgen: $(wildcard scripts/metricsdocgen/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/metricsdocgen
@@ -745,7 +749,7 @@ lint/go:
 	./scripts/check_codersdk_imports.sh
 	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
@@ -988,6 +992,16 @@ gen: gen/db gen/golden-files $(GEN_FILES)
 
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
+
+# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
+# `make gen`. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+	@mkdir -p $(dir $@)
+	$(call atomic_write,_gen/bin/aibridgepricesgen)
+.PHONY: coderd/aibridge/prices/data/prices.json
+
+gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+.PHONY: gen/aibridge-prices
 
 gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
