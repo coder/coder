@@ -2092,20 +2092,19 @@ export const ThinkingBlockPreviewMode: Story = {
 };
 
 /**
- * Regression guard: during an active agent turn the last completed
- * assistant message must NOT create extra vertical space between its
- * tool calls and the streaming tool call below.
- *
- * Root cause: when the last completed message contains reasoning but no
- * copyable text, `needsAssistantBottomSpacer` inserts a 24 px invisible
- * div below the message. When isTurnActive=true, hideActions is set on
- * that message which suppresses the spacer, collapsing the gap to the
- * standard gap-2 (8 px) between sibling containers.
+ * Regression guard: during an active agent turn the last visible
+ * assistant message can be a tool-heavy turn with reasoning and tool
+ * cards, but no markdown response text. That leaves
+ * `hasCopyableContent=false` while `parseMessageContent` still sets
+ * `parsed.reasoning`, which is the branch that would otherwise render
+ * `assistant-bottom-spacer`. A plain tool-call-only message would not
+ * hit this path because it still has renderable content.
  */
 export const StreamingToolCallGapRegression: Story = {
 	render: () => {
-		// The assistant message contains a reasoning block but no text, so
-		// needsAssistantBottomSpacer would fire without the fix.
+		// This mirrors the completed assistant message shape from a prior
+		// tool-heavy turn. The visible assistant message keeps its reasoning
+		// and tool calls, while the separate tool-result messages stay hidden.
 		const parsedMessages = buildMessages([
 			{
 				...baseMessage,
@@ -2185,5 +2184,10 @@ export const StreamingToolCallGapRegression: Story = {
 				/>
 			</div>
 		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// With isTurnActive=true, the spacer must stay out of the layout.
+		expect(canvas.queryByTestId("assistant-bottom-spacer")).toBeNull();
 	},
 };
