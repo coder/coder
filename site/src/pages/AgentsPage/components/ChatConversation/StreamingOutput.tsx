@@ -59,13 +59,8 @@ const PINNED_FADE_MASK = {
  * Pinned thinking indicator shown at the bottom of the streaming
  * output. Stays fixed while activity streams above it.
  */
-const PinnedThinkingIndicator: FC<{ fading?: boolean }> = ({
-	fading = false,
-}) => (
-	<div
-		className="flex w-full items-center gap-2 border-t border-border/50 pt-2 text-content-secondary transition-opacity duration-300"
-		style={{ opacity: fading ? 0 : 1 }}
-	>
+export const PinnedThinkingIndicator: FC = () => (
+	<div className="flex w-full items-center gap-2 border-t border-border/50 pt-2 text-content-secondary">
 		<Shimmer as="span" className="text-[13px] leading-relaxed">
 			Thinking...
 		</Shimmer>
@@ -127,34 +122,27 @@ const PinnedStreamingContent: FC<{
 
 	return (
 		<div className="space-y-3">
-			{/* Fixed-height box: all content scrolls inside, indicator
-			    anchored at bottom. Height never changes so
-			    "Thinking..." never moves. */}
-			{isAgentWorking && (
-				<div className="flex h-48 flex-col">
-					<div
-						ref={scrollRef}
-						className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-						style={PINNED_FADE_MASK}
-					>
-						{visibleBlocks.length > 0 && (
-							<div className="space-y-3">
-								<BlockList
-									blocks={visibleBlocks}
-									tools={streamTools}
-									keyPrefix="stream"
-									isStreaming={isStreaming}
-									subagentTitles={subagentTitles}
-									subagentVariants={subagentVariants}
-									subagentStatusOverrides={subagentStatusOverrides}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-								/>
-							</div>
-						)}
-					</div>
-					<div className="shrink-0">
-						<PinnedThinkingIndicator />
+			{/* Capped scroll area: streaming content scrolls here.
+			    The pinned indicator lives in LiveStreamTailContent
+			    so it persists across message commits. */}
+			{isAgentWorking && visibleBlocks.length > 0 && (
+				<div
+					ref={scrollRef}
+					className="max-h-48 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+					style={PINNED_FADE_MASK}
+				>
+					<div className="space-y-3">
+						<BlockList
+							blocks={visibleBlocks}
+							tools={streamTools}
+							keyPrefix="stream"
+							isStreaming={isStreaming}
+							subagentTitles={subagentTitles}
+							subagentVariants={subagentVariants}
+							subagentStatusOverrides={subagentStatusOverrides}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+						/>
 					</div>
 				</div>
 			)}

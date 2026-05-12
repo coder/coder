@@ -1,5 +1,7 @@
+import { useQuery } from "react-query";
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -17,7 +19,7 @@ import {
 	type useChatStore,
 } from "./chatStore";
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
-import { StreamingOutput } from "./StreamingOutput";
+import { PinnedThinkingIndicator, StreamingOutput } from "./StreamingOutput";
 import { buildStreamTools } from "./streamState";
 import type { MergedTool, StreamState } from "./types";
 
@@ -55,6 +57,8 @@ export const LiveStreamTailContent = ({
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailContentProps) => {
+	const prefQuery = useQuery(preferenceSettings());
+	const thinkingDisplayMode = prefQuery.data?.thinking_display_mode || "auto";
 	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
 	const terminalStatus = liveStatus.phase === "failed" ? liveStatus : null;
 	const usageLimitStatus =
@@ -62,10 +66,19 @@ export const LiveStreamTailContent = ({
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
 
+	// In pinned mode, the indicator shows for the entire active
+	// turn at this level so it persists even when streaming
+	// content gets committed to the conversation timeline.
+	const isPinnedActive =
+		thinkingDisplayMode === "pinned" &&
+		liveStatus.phase !== "idle" &&
+		liveStatus.phase !== "failed";
+
 	if (
 		!shouldRenderEmptyState &&
 		!shouldRenderStreamSection &&
-		!terminalStatus
+		!terminalStatus &&
+		!isPinnedActive
 	) {
 		return null;
 	}
@@ -104,6 +117,7 @@ export const LiveStreamTailContent = ({
 			) : terminalStatus ? (
 				<ChatStatusCallout status={terminalStatus} />
 			) : null}
+			{isPinnedActive && <PinnedThinkingIndicator />}
 		</div>
 	);
 };
