@@ -76,11 +76,10 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					<Link to="/deployment">Deployment</Link>
 				</DropdownMenuItem>
 			)}
-			{canViewOrganizations && (
 				<DropdownMenuItem asChild>
 					<Link to="/organizations">Organizations</Link>
 				</DropdownMenuItem>
-			)}
+
 			{canViewAuditLog && (
 				<DropdownMenuItem asChild>
 					<Link to={linkToAuditing}>Audit Logs</Link>
