@@ -44,6 +44,27 @@ import (
 // delivery throughput / completeness separately, so the inevitable
 // gap between them is visible as data rather than hidden behind
 // synthetic backpressure.
+//
+// Metrics reported per leaf:
+//
+//	MB/s          - publisher ingress (Go built-in via b.SetBytes);
+//	                bytes Publish() accepted per second.
+//	deliveryMB/s  - aggregate fan-out delivery bandwidth
+//	                (deliveries * payload / totalElapsed). Higher than
+//	                MB/s because each publish fans out to totalSubs
+//	                subscribers.
+//	pubs/s        - rate at which Publish() returned successfully
+//	                during the publish loop.
+//	deliveries/s  - rate at which subscriber callbacks ran (publish +
+//	                drain time).
+//	delivery_pct  - 100 * delivered / (b.N * totalSubs); <100 means
+//	                drain timed out before all deliveries arrived.
+//	                The harness fails the leaf in that case rather
+//	                than carrying state forward into the next pass.
+//	drop_events   - number of ErrDroppedMessages callbacks observed.
+//	                NATS coalesces multiple actual drops into a single
+//	                callback per slow-consumer event, so this is a
+//	                lower bound on lost messages, not an exact count.
 
 const (
 	// drainTimeout bounds how long we wait for in-flight deliveries
@@ -162,33 +183,76 @@ func (c *deliveryCounter) add() {
 	}
 }
 
-// fanoutHarness subscribes `subsPerNode` listeners on each Pubsub in
-// `nodes` against `subject` and a separate priming subject. Every
-// delivery on `subject` bumps the active counter (installed via
-// installCounter). Drops are counted separately.
+// fanoutHarness owns the long-lived state for a benchmark leaf: the
+// nodes, the per-subscriber pending counters, and a passID used to
+// generate a fresh subject for each testing.B calibration pass.
+//
+// testing.B re-enters the leaf function multiple times with growing
+// b.N. If we reused the same subject across passes, an earlier pass
+// whose drain timed out could leak in-flight deliveries into the next
+// pass's counter, producing delivery_pct > 100 or inflated
+// deliveries/s. To prevent that, every pass gets a unique subject and
+// freshly registered subscriptions; old subscriptions from prior
+// passes are torn down before the new ones come up.
+//
+// drop_events counts the number of ErrDroppedMessages callbacks
+// observed across the subscriptions active during the current pass.
+// NATS coalesces multiple actual drops into a single callback per
+// slow-consumer event, so this is a lower bound on lost messages, not
+// an exact count.
 type fanoutHarness struct {
+	nodes       []*Pubsub
+	subsPerNode int
+	passID      atomic.Uint64
+
+	// subject, primeSubj, counter, primeCount, drops, primeDrops, and
+	// cancels are all per-pass state. They are reset by setupPass at
+	// the start of every calibration pass.
 	subject    string
 	primeSubj  string
 	counter    atomic.Pointer[deliveryCounter]
 	primeCount atomic.Pointer[deliveryCounter]
-	drops      atomic.Int64
+	dropEvents atomic.Int64
 	primeDrops atomic.Int64
 	cancels    []func()
 }
 
-func newFanoutHarness(b testing.TB, nodes []*Pubsub, subsPerNode int, subject string) *fanoutHarness {
-	b.Helper()
-	h := &fanoutHarness{
-		subject:   subject,
-		primeSubj: subject + "_prime",
-		cancels:   make([]func(), 0, 2*len(nodes)*subsPerNode),
+func newFanoutHarness(nodes []*Pubsub, subsPerNode int) *fanoutHarness {
+	return &fanoutHarness{
+		nodes:       nodes,
+		subsPerNode: subsPerNode,
 	}
-	for _, n := range nodes {
-		for range subsPerNode {
-			cancel, err := n.SubscribeWithErr(subject, func(_ context.Context, _ []byte, err error) {
+}
+
+// setupPass tears down any prior pass's subscriptions, picks a fresh
+// per-pass subject, and registers a new set of subscribers on every
+// node. The caller is expected to follow this with waitInterest and
+// then the timed publish/drain loop.
+func (h *fanoutHarness) setupPass(b testing.TB, leafTag string) {
+	b.Helper()
+	// Tear down prior pass's subscriptions if any.
+	for _, c := range h.cancels {
+		c()
+	}
+	h.cancels = h.cancels[:0]
+	h.counter.Store(nil)
+	h.primeCount.Store(nil)
+	h.dropEvents.Store(0)
+	h.primeDrops.Store(0)
+
+	id := h.passID.Add(1)
+	h.subject = fmt.Sprintf("%s_p%d", leafTag, id)
+	h.primeSubj = h.subject + "_prime"
+
+	if cap(h.cancels) < 2*len(h.nodes)*h.subsPerNode {
+		h.cancels = make([]func(), 0, 2*len(h.nodes)*h.subsPerNode)
+	}
+	for _, n := range h.nodes {
+		for range h.subsPerNode {
+			cancel, err := n.SubscribeWithErr(h.subject, func(_ context.Context, _ []byte, err error) {
 				if err != nil {
 					if errors.Is(err, pubsub.ErrDroppedMessages) {
-						h.drops.Add(1)
+						h.dropEvents.Add(1)
 					}
 					return
 				}
@@ -218,19 +282,6 @@ func newFanoutHarness(b testing.TB, nodes []*Pubsub, subsPerNode int, subject st
 			h.cancels = append(h.cancels, primeCancel)
 		}
 	}
-	b.Cleanup(func() {
-		for _, c := range h.cancels {
-			c()
-		}
-	})
-	return h
-}
-
-// installCounter swaps in the supplied counter for the runtime
-// subject. The counter must be created by the caller with the
-// appropriate target.
-func (h *fanoutHarness) installCounter(c *deliveryCounter) {
-	h.counter.Store(c)
 }
 
 // waitInterest publishes priming messages on a separate subject and
@@ -262,18 +313,32 @@ func (h *fanoutHarness) waitInterest(b testing.TB, publisher *Pubsub, total int,
 
 // runFanoutBench publishes b.N messages in a tight loop, then drains
 // asynchronous deliveries up to drainTimeout. Reports MB/s (via
-// b.SetBytes), pubs/s, deliveries/s, delivery_pct, and drops.
-func runFanoutBench(b *testing.B, h *fanoutHarness, publisher *Pubsub, totalSubs int, payload []byte) {
+// b.SetBytes), deliveryMB/s, pubs/s, deliveries/s, delivery_pct, and
+// drop_events. See the file header for metric definitions.
+//
+// runFanoutBench is invoked once per testing.B calibration pass. It
+// owns the per-pass setup (subscribe + prime) so that pass N's
+// in-flight deliveries cannot leak into pass N+1's counter. Server
+// bring-up and payload allocation are done by the caller and reused
+// across passes.
+func runFanoutBench(b *testing.B, h *fanoutHarness, leafTag string, publisher *Pubsub, totalSubs int, payload []byte) {
 	b.Helper()
+
+	// Per-pass setup: new subject, new subscriptions, prime interest.
+	// Done OUTSIDE the timed region so the publish loop measures only
+	// publisher throughput.
+	b.StopTimer()
+	h.setupPass(b, leafTag)
+	h.waitInterest(b, publisher, totalSubs, payload)
+
 	b.SetBytes(int64(len(payload)))
 
 	target := int64(b.N) * int64(totalSubs)
 	counter := &deliveryCounter{target: target, done: make(chan struct{})}
-	h.installCounter(counter)
-	// Reset drops so the metric reflects only this run.
-	h.drops.Store(0)
+	h.counter.Store(counter)
 
 	b.ResetTimer()
+	b.StartTimer()
 	start := time.Now()
 	for range b.N {
 		if err := publisher.Publish(h.subject, payload); err != nil {
@@ -283,18 +348,21 @@ func runFanoutBench(b *testing.B, h *fanoutHarness, publisher *Pubsub, totalSubs
 	pubElapsed := time.Since(start)
 	b.StopTimer()
 
+	drained := false
 	select {
 	case <-counter.done:
+		drained = true
 	case <-time.After(drainTimeout):
 	}
 	totalElapsed := time.Since(start)
 
 	// Detach the counter so any final stragglers don't race with the
-	// next sub-benchmark's setup.
-	h.installCounter(nil)
+	// next pass's setup (setupPass also clears it, but detaching here
+	// closes the window between drain return and teardown).
+	h.counter.Store(nil)
 
 	finalDelivered := counter.count.Load()
-	drops := h.drops.Load()
+	dropEvents := h.dropEvents.Load()
 
 	pubsPerSec := float64(b.N) / pubElapsed.Seconds()
 	delPerSec := float64(finalDelivered) / totalElapsed.Seconds()
@@ -302,11 +370,30 @@ func runFanoutBench(b *testing.B, h *fanoutHarness, publisher *Pubsub, totalSubs
 	if target > 0 {
 		deliveryPct = 100.0 * float64(finalDelivered) / float64(target)
 	}
+	// b.SetBytes reports publisher ingress MB/s (built-in). The
+	// deliveryMB/s metric reports aggregate fan-out bandwidth:
+	// payload bytes actually delivered to subscriber callbacks per
+	// second of wall time (publish + drain). For totalSubs > 1 this
+	// is strictly higher than MB/s.
+	deliveryMBPerSec := float64(finalDelivered*int64(len(payload))) / totalElapsed.Seconds() / (1 << 20)
 
 	b.ReportMetric(pubsPerSec, "pubs/s")
 	b.ReportMetric(delPerSec, "deliveries/s")
 	b.ReportMetric(deliveryPct, "delivery_pct")
-	b.ReportMetric(float64(drops), "drops")
+	b.ReportMetric(deliveryMBPerSec, "deliveryMB/s")
+	// drop_events counts ErrDroppedMessages callbacks, not lost
+	// messages. NATS coalesces multiple drops into a single callback
+	// per slow-consumer event, so this is a lower bound.
+	b.ReportMetric(float64(dropEvents), "drop_events")
+
+	// Honest failure: an incomplete drain means deliveries from this
+	// pass are still in flight and would otherwise leak into the next
+	// calibration pass's counter. Fail loudly rather than report a
+	// bogus throughput data point.
+	if !drained || finalDelivered < target {
+		b.Fatalf("drain incomplete: delivered=%d target=%d delivery_pct=%.2f drop_events=%d (drainTimeout=%s)",
+			finalDelivered, target, deliveryPct, dropEvents, drainTimeout)
+	}
 }
 
 var benchPayloads = []struct {
@@ -324,21 +411,18 @@ func BenchmarkPubsubFanout_SingleNode(b *testing.B) {
 	for _, payload := range benchPayloads {
 		for _, n := range []int{1, 4, 16, 64} {
 			b.Run(fmt.Sprintf("payload=%s/subs=%d", payload.name, n), func(b *testing.B) {
-				// Build the Pubsub and subscriber harness ONCE per
-				// leaf, outside of testing.B's N-calibration loop.
-				// testing.B calls the inner func repeatedly with
-				// growing N values; setup inside would spin up a
-				// new NATS server on every calibration pass.
+				// Build the Pubsub and the (subjectless) harness ONCE
+				// per leaf, outside of testing.B's N-calibration
+				// loop. Subscribe + prime happen per pass inside
+				// runFanoutBench so each pass gets a fresh subject
+				// and cannot inherit in-flight deliveries from a
+				// prior pass.
 				b.StopTimer()
 				ps := newBenchSingleNode(b)
-				subject := fmt.Sprintf("bench_single_%s_%d_%d", payload.name, n, time.Now().UnixNano())
-				h := newFanoutHarness(b, []*Pubsub{ps}, n, subject)
+				h := newFanoutHarness([]*Pubsub{ps}, n)
 				body := makePayload(payload.size)
-				h.waitInterest(b, ps, n, body)
-
-				b.Run("run", func(b *testing.B) {
-					runFanoutBench(b, h, ps, n, body)
-				})
+				leafTag := fmt.Sprintf("bench_single_%s_%d_%d", payload.name, n, time.Now().UnixNano())
+				runFanoutBench(b, h, leafTag, ps, n, body)
 			})
 		}
 	}
@@ -354,15 +438,11 @@ func BenchmarkPubsubFanout_Cluster(b *testing.B) {
 				b.Run(fmt.Sprintf("payload=%s/replicas=%d/subs_per_node=%d", payload.name, replicas, subsPerNode), func(b *testing.B) {
 					b.StopTimer()
 					nodes := newBenchCluster(b, replicas)
-					subject := fmt.Sprintf("bench_cluster_%s_r%d_s%d_%d", payload.name, replicas, subsPerNode, time.Now().UnixNano())
-					h := newFanoutHarness(b, nodes, subsPerNode, subject)
+					h := newFanoutHarness(nodes, subsPerNode)
 					total := replicas * subsPerNode
 					body := makePayload(payload.size)
-					h.waitInterest(b, nodes[0], total, body)
-
-					b.Run("run", func(b *testing.B) {
-						runFanoutBench(b, h, nodes[0], total, body)
-					})
+					leafTag := fmt.Sprintf("bench_cluster_%s_r%d_s%d_%d", payload.name, replicas, subsPerNode, time.Now().UnixNano())
+					runFanoutBench(b, h, leafTag, nodes[0], total, body)
 				})
 			}
 		}
