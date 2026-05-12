@@ -334,6 +334,19 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
    ![Install GitHub App](../../images/admin/github-app-install.png)
 
+1. If users other than yourself will link this provider, make the app
+   public. In the app's **Advanced** tab, click **Make this GitHub App
+   public**. Without this, users hitting the OAuth URL receive a GitHub
+   "Page not found" 404. Each user must then install the app on their
+   own account before linking; you can streamline that by also setting:
+
+   ```env
+   CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL=https://github.com/apps/<your-app-slug>/installations/new
+   ```
+
+   With `APP_INSTALL_URL` set, Coder surfaces an "Install GitHub App"
+   link to users who need it.
+
 ## Multiple External Providers (Premium)
 
 Below is an example configuration with multiple providers:
