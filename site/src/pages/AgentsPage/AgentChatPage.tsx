@@ -601,135 +601,6 @@ export function useConversationEditingState(deps: {
 	};
 }
 
-export type EditingPickerSync = ReturnType<
-	typeof useConversationEditingState
-> & {
-	/**
-	 * Wrapped `setSelectedModel` that flags the picker change as
-	 * user-initiated when an edit is active. AgentChatPage passes this
-	 * wrapped setter to user-facing model selectors so the submit branch
-	 * can tell an explicit choice apart from the programmatic sync that
-	 * happens on edit entry.
-	 */
-	setSelectedModelFromUser: (id: string) => void;
-	/**
-	 * `editedMessageOriginalModelConfigID` is the `model_config_id` of
-	 * the message currently being edited, regardless of whether that
-	 * model is selectable in the current `modelOptions`. Undefined when
-	 * no edit is active or the edited message has no recorded model.
-	 */
-	editedMessageOriginalModelConfigID: string | undefined;
-	/**
-	 * `userChangedModelDuringEdit` is true when the user explicitly
-	 * changed the picker during the active edit session via
-	 * `setSelectedModelFromUser`. Resets on edit entry and on cancel.
-	 */
-	userChangedModelDuringEdit: boolean;
-};
-
-/**
- * @internal Exported for testing.
- *
- * `useEditingPickerSync` wraps `useConversationEditingState`'s edit and
- * cancel handlers so the model picker tracks the edited message's
- * original model.
- *
- * The submit branch in `AgentChatPage` reads the picker via
- * `effectiveSelectedModel` when building the `EditChatMessageRequest`.
- * Without this sync, editing an earlier message on a chat whose model
- * has since changed would silently re-run that message against the
- * chat's current picker. With this sync, a text-only edit preserves
- * the original model; the user can still pick a different model
- * before submitting and that selection overrides the original.
- *
- * On entry, the previous picker is captured to a ref the first time we
- * transition from non-edit to edit so the cancel path can restore it.
- * Switching directly from one edit target to another does not reset
- * the captured value.
- *
- * The hook also tracks whether the user explicitly changed the picker
- * during the active edit session via the wrapped
- * `setSelectedModelFromUser` setter. The submit branch uses
- * `userChangedModelDuringEdit` to decide whether to include
- * `model_config_id` in the edit request. When the user did not change
- * models, the request omits `model_config_id` so the backend's
- * preserve-original behavior applies. This matters when the edited
- * message's original model is no longer selectable in the picker, in
- * which case the picker shows a fallback model and a naive submit
- * would silently re-run the message against that fallback.
- */
-export function useEditingPickerSync(deps: {
-	editing: ReturnType<typeof useConversationEditingState>;
-	chatMessagesList: readonly TypesGen.ChatMessage[] | undefined;
-	modelOptions: readonly { id: string }[];
-	selectedModel: string;
-	setSelectedModel: (id: string) => void;
-}): EditingPickerSync {
-	const {
-		editing,
-		chatMessagesList,
-		modelOptions,
-		selectedModel,
-		setSelectedModel,
-	} = deps;
-	const savedPickerRef = useRef<string | null>(null);
-	const [
-		editedMessageOriginalModelConfigID,
-		setEditedMessageOriginalModelConfigID,
-	] = useState<string | undefined>(undefined);
-	const [userChangedModelDuringEdit, setUserChangedModelDuringEdit] =
-		useState(false);
-
-	const handleEditUserMessage: typeof editing.handleEditUserMessage = (
-		messageId,
-		text,
-		fileBlocks,
-	) => {
-		if (editing.editingMessageId === null) {
-			savedPickerRef.current = selectedModel;
-		}
-		const editedMessage = chatMessagesList?.find(
-			(message) => message.id === messageId,
-		);
-		const originalModelConfigID = editedMessage?.model_config_id;
-		setEditedMessageOriginalModelConfigID(originalModelConfigID);
-		setUserChangedModelDuringEdit(false);
-		if (
-			originalModelConfigID &&
-			modelOptions.some((opt) => opt.id === originalModelConfigID)
-		) {
-			setSelectedModel(originalModelConfigID);
-		}
-		editing.handleEditUserMessage(messageId, text, fileBlocks);
-	};
-
-	const handleCancelHistoryEdit = () => {
-		if (savedPickerRef.current !== null) {
-			setSelectedModel(savedPickerRef.current);
-		}
-		savedPickerRef.current = null;
-		setEditedMessageOriginalModelConfigID(undefined);
-		setUserChangedModelDuringEdit(false);
-		editing.handleCancelHistoryEdit();
-	};
-
-	const setSelectedModelFromUser = (id: string) => {
-		if (editing.editingMessageId !== null) {
-			setUserChangedModelDuringEdit(true);
-		}
-		setSelectedModel(id);
-	};
-
-	return {
-		...editing,
-		handleEditUserMessage,
-		handleCancelHistoryEdit,
-		setSelectedModelFromUser,
-		editedMessageOriginalModelConfigID,
-		userChangedModelDuringEdit,
-	};
-}
-
 const getPersistedDetailError = ({
 	chatStatus,
 	chatRecord,
@@ -1348,14 +1219,6 @@ const AgentChatPage: FC = () => {
 		inputValueRef,
 	});
 
-	const editingWithModelSync = useEditingPickerSync({
-		editing,
-		chatMessagesList,
-		modelOptions,
-		selectedModel,
-		setSelectedModel,
-	});
-
 	const chatTitle = chatQuery.data?.title;
 
 	const titleElement = (
@@ -1509,25 +1372,28 @@ const AgentChatPage: FC = () => {
 		]);
 
 		if (editedMessageID !== undefined) {
-			// Only send model_config_id when the user explicitly changed the
-			// picker during this edit session. If they did not, omit the
-			// field so the backend preserves the edited message's original
-			// model. This matters when the original model is no longer
-			// selectable (provider/config disabled): the picker is showing a
-			// fallback, and a naive submit would silently switch the
-			// message to that fallback. See `useEditingPickerSync` for the
-			// source of the flag.
+			const originalEditedMessage = chatMessagesList?.find(
+				(existingMessage) => existingMessage.id === editedMessageID,
+			);
+			const originalModelConfigID = originalEditedMessage?.model_config_id;
+			const pickerModelConfigID = effectiveSelectedModel || undefined;
+			const originalIsSelectable =
+				originalModelConfigID !== undefined &&
+				modelOptions.some((opt) => opt.id === originalModelConfigID);
+			// Only override the original model when the user has switched to
+			// a different selectable option. If the original is no longer
+			// selectable, the picker is showing a fallback we should not
+			// silently use; let the backend preserve the original.
 			const editSelectedModelConfigID =
-				editingWithModelSync.userChangedModelDuringEdit
-					? effectiveSelectedModel || undefined
+				pickerModelConfigID &&
+				originalIsSelectable &&
+				pickerModelConfigID !== originalModelConfigID
+					? pickerModelConfigID
 					: undefined;
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
 			};
-			const originalEditedMessage = chatMessagesList?.find(
-				(existingMessage) => existingMessage.id === editedMessageID,
-			);
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
 						requestContent: request.content,
@@ -1556,11 +1422,6 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
-			// Persist the user's choice so the next chat created from this
-			// browser keeps the same default model. Only persist when the
-			// user explicitly switched models during the edit so a text-only
-			// edit that keeps the original model does not clobber the
-			// new-chat default the user previously set elsewhere.
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
@@ -1673,7 +1534,7 @@ const AgentChatPage: FC = () => {
 				titleElement={titleElement}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
-				setSelectedModel={editingWithModelSync.setSelectedModelFromUser}
+				setSelectedModel={setSelectedModel}
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
@@ -1710,9 +1571,9 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
-			editing={editingWithModelSync}
+			editing={editing}
 			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={editingWithModelSync.setSelectedModelFromUser}
+			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
