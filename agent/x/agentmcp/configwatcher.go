@@ -256,7 +256,7 @@ func (cw *configWatcher) handleEvent(ctx context.Context, evt fsnotify.Event) {
 			// If this event is a directory inside our currently
 			// watched ancestor that lies on the way to rp,
 			// re-arm.
-			if cw.isAncestorPathSegment(evtAbs, rp) {
+			if isAncestorPathSegment(evtAbs, rp) {
 				cw.releaseDirLocked(dir)
 				newDir, armErr := cw.armAncestorLocked(rp)
 				if armErr != nil {
@@ -286,7 +286,7 @@ func (cw *configWatcher) handleEvent(ctx context.Context, evt fsnotify.Event) {
 
 // isAncestorPathSegment reports whether candidate is on the path
 // from the currently watched ancestor toward target.
-func (cw *configWatcher) isAncestorPathSegment(candidate, target string) bool {
+func isAncestorPathSegment(candidate, target string) bool {
 	// candidate must be a prefix of target's directory chain.
 	tdir := filepath.Dir(target)
 	for {
