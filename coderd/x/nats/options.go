@@ -5,17 +5,6 @@ import (
 	"time"
 )
 
-// PublishMode controls when Publish returns.
-type PublishMode int
-
-const (
-	// PublishModeFlush publishes and then FlushTimeouts the connection.
-	PublishModeFlush PublishMode = iota
-
-	// PublishModeBuffered publishes to the NATS client buffer and returns.
-	PublishModeBuffered
-)
-
 // PendingLimits configures per-subscription NATS pending limits.
 type PendingLimits struct {
 	// Msgs is the per-subscription pending message limit.
@@ -75,13 +64,6 @@ type Options struct {
 	// MaxPayload is the NATS max payload. Zero means server default.
 	MaxPayload int32
 
-	// PublishMode defaults to PublishModeFlush.
-	PublishMode PublishMode
-
-	// PublishFlushTimeout bounds PublishModeFlush. Zero means
-	// DefaultPublishFlushLimit.
-	PublishFlushTimeout time.Duration
-
 	// DrainTimeout bounds subscription and connection drains in Close.
 	// Zero means 30 seconds, matching the NATS Go client default.
 	DrainTimeout time.Duration
@@ -116,9 +98,8 @@ type Options struct {
 
 // Default values for Options.
 const (
-	DefaultClusterName       = "coder"
-	DefaultSubjectPrefix     = "coder.v1"
-	DefaultRoutePoolSize     = 3
-	DefaultReadyTimeout      = 10 * time.Second
-	DefaultPublishFlushLimit = 2 * time.Second
+	DefaultClusterName   = "coder"
+	DefaultSubjectPrefix = "coder.v1"
+	DefaultRoutePoolSize = 3
+	DefaultReadyTimeout  = 10 * time.Second
 )

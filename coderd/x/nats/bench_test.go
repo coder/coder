@@ -66,16 +66,12 @@ import (
 //	                callback per slow-consumer event, so this is a
 //	                lower bound on lost messages, not an exact count.
 //
-// PublishMode sweep:
-//
-//	mode=flush     - Publish() calls FlushTimeout per message (PING/PONG
-//	                 round-trip to server). Stronger "server received"
-//	                 guarantee, RTT-bound. This is the current Pubsub
-//	                 default.
-//	mode=buffered  - Publish() returns after writing to the client
-//	                 buffer. No server confirmation; higher throughput.
-//	                 Lower durability: a crash between Publish returning
-//	                 and buffer flushing loses the message.
+// Publish() is a passthrough to nats.go's nc.Publish (no per-message
+// flush). To match the upstream `nats bench` methodology and have
+// pubs/s reflect "rate at which messages are accepted by the server"
+// rather than "rate at which Publish enqueues into the client write
+// buffer," runFanoutBench performs a single end-of-loop nc.Flush
+// inside the timed region.
 
 const (
 	// drainTimeout bounds how long we wait for in-flight deliveries
@@ -106,32 +102,11 @@ func benchPendingLimits() PendingLimits {
 	return PendingLimits{Msgs: -1, Bytes: benchPendingBytes}
 }
 
-// newBenchSingleNode returns a single-node (cluster-of-1) Pubsub with
-// bench-specific MaxPayload and per-subscription PendingLimits.
-func newBenchSingleNode(b testing.TB, mode PublishMode) *Pubsub {
-	b.Helper()
-	logger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}).
-		Leveled(slog.LevelError)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-	p, err := New(ctx, logger, Options{
-		MaxPayload:    benchMaxPayload,
-		PendingLimits: benchPendingLimits(),
-		ReadyTimeout:  testutil.WaitMedium,
-		PublishMode:   mode,
-	})
-	if err != nil {
-		b.Fatalf("new single-node pubsub: %v", err)
-	}
-	b.Cleanup(func() { _ = p.Close() })
-	return p
-}
-
 // newBenchCluster brings up an N-node full-mesh cluster on loopback
 // and waits for routes to converge. The shared buildClusterPubsub
 // helper does not let us configure MaxPayload / PendingLimits, so we
 // call New directly here instead of modifying the shared helper.
-func newBenchCluster(b testing.TB, replicas int, mode PublishMode) []*Pubsub {
+func newBenchCluster(b testing.TB, replicas int) []*Pubsub {
 	b.Helper()
 	if replicas < 2 {
 		b.Fatalf("newBenchCluster requires >= 2 replicas, got %d", replicas)
@@ -166,7 +141,6 @@ func newBenchCluster(b testing.TB, replicas int, mode PublishMode) []*Pubsub {
 			MaxPayload:       benchMaxPayload,
 			PendingLimits:    benchPendingLimits(),
 			ReadyTimeout:     testutil.WaitMedium,
-			PublishMode:      mode,
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		p, err := New(ctx, logger, opts)
@@ -305,14 +279,19 @@ func (h *fanoutHarness) setupPass(b testing.TB, leafTag string) {
 // waits for every subscriber across all nodes to acknowledge one. Any
 // route-propagation churn that emits extra priming deliveries goes to
 // the priming counter, not the runtime counter, so it can't pollute
-// the timed run's tally.
-func (h *fanoutHarness) waitInterest(b testing.TB, publisher *Pubsub, total int, payload []byte) {
+// the timed run's tally. Priming is purely a subject-interest check;
+// its payload is intentionally a single byte so that very large
+// benchmark payloads (e.g. 512 KiB) do not load the publisher's
+// outbound buffer during setup. The timed loop publishes the real
+// payload.
+func (h *fanoutHarness) waitInterest(b testing.TB, publisher *Pubsub, total int) {
 	b.Helper()
+	primePayload := []byte{0}
 	deadline := time.Now().Add(testutil.WaitLong)
 	for time.Now().Before(deadline) {
 		c := &deliveryCounter{target: int64(total), done: make(chan struct{})}
 		h.primeCount.Store(c)
-		if err := publisher.Publish(h.primeSubj, payload); err != nil {
+		if err := publisher.Publish(h.primeSubj, primePayload); err != nil {
 			b.Fatalf("priming publish: %v", err)
 		}
 		select {
@@ -346,7 +325,7 @@ func runFanoutBench(b *testing.B, h *fanoutHarness, leafTag string, publisher *P
 	// publisher throughput.
 	b.StopTimer()
 	h.setupPass(b, leafTag)
-	h.waitInterest(b, publisher, totalSubs, payload)
+	h.waitInterest(b, publisher, totalSubs)
 
 	b.SetBytes(int64(len(payload)))
 
@@ -361,6 +340,14 @@ func runFanoutBench(b *testing.B, h *fanoutHarness, leafTag string, publisher *P
 		if err := publisher.Publish(h.subject, payload); err != nil {
 			b.Fatalf("publish: %v", err)
 		}
+	}
+	// End-of-loop flush mirrors `nats bench` upstream methodology so
+	// pubs/s reflects the rate at which the server accepted publishes,
+	// not the rate at which Publish enqueued into the client write
+	// buffer. The bench is in package nats so we can reach into the
+	// publisher's internal nc directly.
+	if err := publisher.nc.Flush(); err != nil {
+		b.Fatalf("flush: %v", err)
 	}
 	pubElapsed := time.Since(start)
 	b.StopTimer()
@@ -408,74 +395,52 @@ func runFanoutBench(b *testing.B, h *fanoutHarness, leafTag string, publisher *P
 	// calibration pass's counter. Fail loudly rather than report a
 	// bogus throughput data point.
 	if !drained || finalDelivered < target {
-		b.Fatalf("drain incomplete: delivered=%d target=%d delivery_pct=%.2f drop_events=%d (drainTimeout=%s)",
-			finalDelivered, target, deliveryPct, dropEvents, drainTimeout)
+		b.Fatalf("drain incomplete: delivered=%d target=%d delivery_pct=%.2f drop_events=%d pubs/s=%.0f deliveries/s=%.0f deliveryMB/s=%.2f (drainTimeout=%s)",
+			finalDelivered, target, deliveryPct, dropEvents, pubsPerSec, delPerSec, deliveryMBPerSec, drainTimeout)
 	}
 }
 
+// benchPayloads sweeps payload sizes that bracket realistic Coder
+// pubsub traffic: 8 KiB for common control-plane messages and 512 KiB
+// for the upper end of legitimate payloads.
 var benchPayloads = []struct {
 	name string
 	size int
 }{
-	{"4KiB", 4 * 1024},
+	{"8KiB", 8 * 1024},
 	{"512KiB", 512 * 1024},
 }
 
-type modeOption struct {
-	name string
-	mode PublishMode
-}
-
-var benchModes = []modeOption{
-	{"flush", PublishModeFlush},
-	{"buffered", PublishModeBuffered},
-}
-
+// BenchmarkPubsubFanout_SingleNode is intentionally a no-op: the
+// realistic Coder topology is a 10-replica cluster, so single-node
+// numbers don't reflect production load. Kept as a placeholder so
+// future single-node investigations have an obvious home.
 func BenchmarkPubsubFanout_SingleNode(b *testing.B) {
-	if testing.Short() {
-		b.Skip("skipping NATS pubsub bench in -short mode")
-	}
-	for _, m := range benchModes {
-		for _, payload := range benchPayloads {
-			for _, n := range []int{1, 4, 16, 64} {
-				b.Run(fmt.Sprintf("mode=%s/payload=%s/subs=%d", m.name, payload.name, n), func(b *testing.B) {
-					// Build the Pubsub and the (subjectless) harness ONCE
-					// per leaf, outside of testing.B's N-calibration
-					// loop. Subscribe + prime happen per pass inside
-					// runFanoutBench so each pass gets a fresh subject
-					// and cannot inherit in-flight deliveries from a
-					// prior pass.
-					b.StopTimer()
-					ps := newBenchSingleNode(b, m.mode)
-					h := newFanoutHarness([]*Pubsub{ps}, n)
-					body := makePayload(payload.size)
-					leafTag := fmt.Sprintf("bench_single_%s_%s_%d_%d", m.name, payload.name, n, time.Now().UnixNano())
-					runFanoutBench(b, h, leafTag, ps, n, body)
-				})
-			}
-		}
-	}
+	b.Skip("single-node bench skipped; realistic Coder topology is the 10-replica cluster (see BenchmarkPubsubFanout_Cluster)")
 }
 
+// BenchmarkPubsubFanout_Cluster runs the realistic Coder bench
+// matrix: a 10-replica cluster with 100 subscribers per node, swept
+// across two payload sizes. The mode axis was removed: Publish is now
+// a passthrough to nc.Publish and there is no per-message flush
+// option to sweep.
 func BenchmarkPubsubFanout_Cluster(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping NATS pubsub bench in -short mode")
 	}
-	for _, m := range benchModes {
-		for _, payload := range benchPayloads {
-			for _, replicas := range []int{3, 10} {
-				for _, subsPerNode := range []int{1, 4, 16} {
-					b.Run(fmt.Sprintf("mode=%s/payload=%s/replicas=%d/subs_per_node=%d", m.name, payload.name, replicas, subsPerNode), func(b *testing.B) {
-						b.StopTimer()
-						nodes := newBenchCluster(b, replicas, m.mode)
-						h := newFanoutHarness(nodes, subsPerNode)
-						total := replicas * subsPerNode
-						body := makePayload(payload.size)
-						leafTag := fmt.Sprintf("bench_cluster_%s_%s_r%d_s%d_%d", m.name, payload.name, replicas, subsPerNode, time.Now().UnixNano())
-						runFanoutBench(b, h, leafTag, nodes[0], total, body)
-					})
-				}
-			}
-		}
+	const (
+		replicas    = 10
+		subsPerNode = 100
+	)
+	for _, payload := range benchPayloads {
+		b.Run(fmt.Sprintf("payload=%s/replicas=%d/subs_per_node=%d", payload.name, replicas, subsPerNode), func(b *testing.B) {
+			b.StopTimer()
+			nodes := newBenchCluster(b, replicas)
+			h := newFanoutHarness(nodes, subsPerNode)
+			total := replicas * subsPerNode
+			body := makePayload(payload.size)
+			leafTag := fmt.Sprintf("bench_cluster_%s_r%d_s%d_%d", payload.name, replicas, subsPerNode, time.Now().UnixNano())
+			runFanoutBench(b, h, leafTag, nodes[0], total, body)
+		})
 	}
 }
