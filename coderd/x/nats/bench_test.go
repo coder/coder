@@ -7,9 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	natsserver "github.com/nats-io/nats-server/v2/server"
+	natsgo "github.com/nats-io/nats.go"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -442,5 +446,184 @@ func BenchmarkPubsubFanout_Cluster(b *testing.B) {
 			leafTag := fmt.Sprintf("bench_cluster_%s_r%d_s%d_%d", payload.name, replicas, subsPerNode, time.Now().UnixNano())
 			runFanoutBench(b, h, leafTag, nodes[0], total, body)
 		})
+	}
+}
+
+// coreTCPPassID is shared across BenchmarkNATSCoreFanout_TCP leaves to
+// produce a unique subject for every testing.B calibration pass. Same
+// motivation as fanoutHarness.passID: prevent stragglers from a prior
+// pass leaking into the next pass's counter.
+var coreTCPPassID atomic.Uint64
+
+// BenchmarkNATSCoreFanout_TCP measures fan-out throughput against a
+// raw embedded NATS server over a real TCP loopback listener using
+// only github.com/nats-io/nats.go primitives (no Coder Pubsub wrapper,
+// no InProcessConn). Each subscriber gets its own *nats.Conn with
+// async Subscribe + SetPendingLimits(-1, -1); the publisher reuses a
+// single prebuilt *nats.Msg and emits a single Flush at the end of
+// the loop. The subscriber window is measured first-receive to
+// last-receive (NOT including drain), matching upstream `nats bench`.
+//
+// This exists for apples-to-apples comparison with upstream reference
+// numbers. BenchmarkPubsubFanout_Cluster remains the canonical
+// measurement of the Coder wrapper in its production topology.
+func BenchmarkNATSCoreFanout_TCP(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping NATS core TCP bench in -short mode")
+	}
+	subsCases := []int{100, 1000}
+	for _, payload := range benchPayloads {
+		for _, subs := range subsCases {
+			b.Run(fmt.Sprintf("payload=%s/subs=%d/pubs=1", payload.name, subs), func(b *testing.B) {
+				benchNATSCoreFanoutTCP(b, payload.size, subs)
+			})
+		}
+	}
+}
+
+func benchNATSCoreFanoutTCP(b *testing.B, payloadSize, subscribers int) {
+	b.StopTimer()
+
+	// Start a standalone embedded server bound to a real TCP loopback
+	// port. We intentionally bypass the coderd/x/nats wrapper here so
+	// we can sweep raw *nats.Conn behavior without the wrapper's
+	// subject mapping, lock, and InProcessConn plumbing in the way.
+	sopts := &natsserver.Options{
+		ServerName: fmt.Sprintf("bench-core-tcp-%d", time.Now().UnixNano()),
+		Host:       "127.0.0.1",
+		Port:       natsserver.RANDOM_PORT,
+		MaxPayload: benchMaxPayload,
+		NoLog:      true,
+		NoSigs:     true,
+	}
+	ns, err := natsserver.NewServer(sopts)
+	if err != nil {
+		b.Fatalf("new embedded nats server: %v", err)
+	}
+	go ns.Start()
+	if !ns.ReadyForConnections(testutil.WaitMedium) {
+		ns.Shutdown()
+		ns.WaitForShutdown()
+		b.Fatalf("embedded nats server not ready within %s", testutil.WaitMedium)
+	}
+	b.Cleanup(func() {
+		ns.Shutdown()
+		ns.WaitForShutdown()
+	})
+	url := ns.ClientURL()
+
+	payload := makePayload(payloadSize)
+
+	// Per-pass: fresh subject + freshly connected subscribers so
+	// stragglers from a prior pass can't leak into this pass's
+	// counters. Same reasoning as fanoutHarness.setupPass.
+	subject := fmt.Sprintf("bench.core.tcp.%d", coreTCPPassID.Add(1))
+
+	subConns := make([]*natsgo.Conn, subscribers)
+	for i := range subscribers {
+		nc, err := natsgo.Connect(url, natsgo.Name(fmt.Sprintf("sub-%d", i)))
+		if err != nil {
+			b.Fatalf("subscriber connect: %v", err)
+		}
+		subConns[i] = nc
+	}
+	b.Cleanup(func() {
+		for _, nc := range subConns {
+			if nc != nil {
+				nc.Close()
+			}
+		}
+	})
+
+	var (
+		delivered   atomic.Uint64
+		firstOnce   sync.Once
+		firstRecvNs atomic.Int64
+		lastRecvNs  atomic.Int64
+	)
+	handler := func(_ *natsgo.Msg) {
+		now := time.Now().UnixNano()
+		firstOnce.Do(func() { firstRecvNs.Store(now) })
+		lastRecvNs.Store(now)
+		delivered.Add(1)
+	}
+	for _, nc := range subConns {
+		sub, err := nc.Subscribe(subject, handler)
+		if err != nil {
+			b.Fatalf("subscribe: %v", err)
+		}
+		if err := sub.SetPendingLimits(-1, -1); err != nil {
+			b.Fatalf("set pending limits: %v", err)
+		}
+		if err := nc.Flush(); err != nil {
+			b.Fatalf("subscriber flush: %v", err)
+		}
+	}
+
+	pubConn, err := natsgo.Connect(url, natsgo.Name("pub-0"))
+	if err != nil {
+		b.Fatalf("publisher connect: %v", err)
+	}
+	b.Cleanup(func() { pubConn.Close() })
+
+	msg := &natsgo.Msg{Subject: subject, Data: payload}
+
+	expected := uint64(b.N) * uint64(subscribers)
+
+	b.SetBytes(int64(payloadSize))
+	b.ResetTimer()
+	b.StartTimer()
+	pubStart := time.Now()
+	for range b.N {
+		if err := pubConn.PublishMsg(msg); err != nil {
+			b.Fatalf("publish: %v", err)
+		}
+	}
+	if err := pubConn.Flush(); err != nil {
+		b.Fatalf("publisher flush: %v", err)
+	}
+	pubElapsed := time.Since(pubStart)
+	b.StopTimer()
+
+	// Wait for delivery completion up to drainTimeout. We poll
+	// because the upstream `nats bench` shape uses a plain async
+	// callback (no done-channel signaling baked in). The polling
+	// interval is small enough not to materially affect the reported
+	// first->last subscriber window, which is captured inside the
+	// callback itself.
+	deadline := time.Now().Add(drainTimeout)
+	for delivered.Load() < expected && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	finalDelivered := delivered.Load()
+
+	pubsPerSec := float64(b.N) / pubElapsed.Seconds()
+	pubMBPerSec := float64(b.N) * float64(payloadSize) / pubElapsed.Seconds() / 1e6
+	var deliveryPct float64
+	if expected > 0 {
+		deliveryPct = 100.0 * float64(finalDelivered) / float64(expected)
+	}
+
+	// Subscriber window: first receive -> last receive, matching
+	// upstream `nats bench`. This excludes drain wait time and the
+	// initial publish ramp.
+	first := firstRecvNs.Load()
+	last := lastRecvNs.Load()
+	var subDelPerSec, subMBPerSec float64
+	if first > 0 && last > first {
+		subWindow := time.Duration(last - first)
+		subDelPerSec = float64(finalDelivered) / subWindow.Seconds()
+		subMBPerSec = float64(finalDelivered) * float64(payloadSize) / subWindow.Seconds() / 1e6
+	}
+
+	b.ReportMetric(pubsPerSec, "pubs/s")
+	b.ReportMetric(pubMBPerSec, "pubMB/s")
+	b.ReportMetric(subDelPerSec, "sub_window_deliveries/s")
+	b.ReportMetric(subMBPerSec, "sub_window_MB/s")
+	b.ReportMetric(deliveryPct, "delivery_pct")
+
+	if finalDelivered < expected {
+		b.Fatalf("drain incomplete: delivered=%d expected=%d delivery_pct=%.2f pubs/s=%.0f pubMB/s=%.2f (drainTimeout=%s)",
+			finalDelivered, expected, deliveryPct, pubsPerSec, pubMBPerSec, drainTimeout)
 	}
 }
