@@ -7817,109 +7817,169 @@ func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
 func TestOrgMembersSoftDeleteTrigger(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
+	// SingleOrg verifies the basic case: one org, one group, and a
+	// control user whose membership must survive.
+	t.Run("SingleOrg", func(t *testing.T) {
+		t.Parallel()
 
-	org1 := dbgen.Organization(t, db, database.Organization{})
-	org2 := dbgen.Organization(t, db, database.Organization{})
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
-	// userA will be soft-deleted. They belong to both orgs.
-	userA := dbgen.User(t, db, database.User{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         userA.ID,
-	})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org2.ID,
-		UserID:         userA.ID,
-	})
+		org := dbgen.Organization(t, db, database.Organization{})
 
-	// Add userA to a group in each org (should be cleaned up transitively).
-	group1 := dbgen.Group(t, db, database.Group{OrganizationID: org1.ID})
-	dbgen.GroupMember(t, db, database.GroupMemberTable{
-		UserID:  userA.ID,
-		GroupID: group1.ID,
-	})
-	group2 := dbgen.Group(t, db, database.Group{OrganizationID: org2.ID})
-	dbgen.GroupMember(t, db, database.GroupMemberTable{
-		UserID:  userA.ID,
-		GroupID: group2.ID,
-	})
+		// userA will be soft-deleted.
+		userA := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         userA.ID,
+		})
 
-	// userB is a control; their membership must not be touched.
-	userB := dbgen.User(t, db, database.User{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         userB.ID,
-	})
-	dbgen.GroupMember(t, db, database.GroupMemberTable{
-		UserID:  userB.ID,
-		GroupID: group1.ID,
-	})
+		// Add userA to a group in the org (should be cleaned up transitively).
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group.ID,
+		})
 
-	// Soft-delete userA.
-	require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+		// userB is a control; their membership must not be touched.
+		userB := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         userB.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userB.ID,
+			GroupID: group.ID,
+		})
 
-	// userA should no longer appear in org1.
-	org1Members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		OrganizationID: org1.ID,
-	})
-	require.NoError(t, err)
-	var org1MemberIDs []uuid.UUID
-	for _, m := range org1Members {
-		org1MemberIDs = append(org1MemberIDs, m.OrganizationMember.UserID)
-	}
-	require.NotContains(t, org1MemberIDs, userA.ID)
-	require.Contains(t, org1MemberIDs, userB.ID)
+		// Soft-delete userA.
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
 
-	// userA should no longer appear in org2 either.
-	org2Members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		OrganizationID: org2.ID,
-	})
-	require.NoError(t, err)
-	var org2MemberIDs []uuid.UUID
-	for _, m := range org2Members {
-		org2MemberIDs = append(org2MemberIDs, m.OrganizationMember.UserID)
-	}
-	require.NotContains(t, org2MemberIDs, userA.ID)
+		// userA should no longer appear in the organization.
+		orgMembers, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		var memberIDs []uuid.UUID
+		for _, m := range orgMembers {
+			memberIDs = append(memberIDs, m.OrganizationMember.UserID)
+		}
+		require.NotContains(t, memberIDs, userA.ID)
+		require.Contains(t, memberIDs, userB.ID)
 
-	// The raw org membership rows should also be gone (not just hidden).
-	rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
-	require.NoError(t, err)
-	require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
+		// The raw org membership rows should also be gone (not just hidden).
+		rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
+		require.NoError(t, err)
+		require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
 
-	// userA's group memberships in both orgs should be removed by the
-	// cascading trigger.
-	for _, g := range []struct {
-		name    string
-		groupID uuid.UUID
-	}{
-		{"org1-group", group1.ID},
-		{"org2-group", group2.ID},
-	} {
+		// userA's group membership should also be removed by the cascading trigger.
 		groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-			GroupID:       g.groupID,
+			GroupID:       group.ID,
 			IncludeSystem: true,
 		})
-		require.NoError(t, err, g.name)
+		require.NoError(t, err)
 		var groupMemberIDs []uuid.UUID
 		for _, gm := range groupMembers {
 			groupMemberIDs = append(groupMemberIDs, gm.UserID)
 		}
-		require.NotContains(t, groupMemberIDs, userA.ID, g.name)
-	}
-
-	// userB's memberships are unaffected.
-	group1Members, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-		GroupID:       group1.ID,
-		IncludeSystem: true,
+		require.NotContains(t, groupMemberIDs, userA.ID)
+		require.Contains(t, groupMemberIDs, userB.ID)
 	})
-	require.NoError(t, err)
-	var group1MemberIDs []uuid.UUID
-	for _, gm := range group1Members {
-		group1MemberIDs = append(group1MemberIDs, gm.UserID)
-	}
-	require.Contains(t, group1MemberIDs, userB.ID)
+
+	// MultipleOrgs verifies that memberships are cleaned up across
+	// every organization the deleted user belonged to.
+	t.Run("MultipleOrgs", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		org1 := dbgen.Organization(t, db, database.Organization{})
+		org2 := dbgen.Organization(t, db, database.Organization{})
+
+		// userA will be soft-deleted. They belong to both orgs.
+		userA := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         userA.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org2.ID,
+			UserID:         userA.ID,
+		})
+
+		// Add userA to a group in each org.
+		group1 := dbgen.Group(t, db, database.Group{OrganizationID: org1.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group1.ID,
+		})
+		group2 := dbgen.Group(t, db, database.Group{OrganizationID: org2.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group2.ID,
+		})
+
+		// userB stays in org1 as a control.
+		userB := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         userB.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userB.ID,
+			GroupID: group1.ID,
+		})
+
+		// Soft-delete userA.
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+		// userA should be gone from both orgs.
+		for _, org := range []database.Organization{org1, org2} {
+			members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+				OrganizationID: org.ID,
+			})
+			require.NoError(t, err)
+			for _, m := range members {
+				require.NotEqual(t, userA.ID, m.OrganizationMember.UserID,
+					"userA should not appear in org %s", org.ID)
+			}
+		}
+
+		// No raw org membership rows should remain.
+		rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
+		require.NoError(t, err)
+		require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
+
+		// Group memberships in both orgs should be cleaned up.
+		for _, g := range []struct {
+			name    string
+			groupID uuid.UUID
+		}{
+			{"org1-group", group1.ID},
+			{"org2-group", group2.ID},
+		} {
+			groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+				GroupID:       g.groupID,
+				IncludeSystem: true,
+			})
+			require.NoError(t, err, g.name)
+			for _, gm := range groupMembers {
+				require.NotEqual(t, userA.ID, gm.UserID, g.name)
+			}
+		}
+
+		// userB's memberships are unaffected.
+		org1Members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: org1.ID,
+		})
+		require.NoError(t, err)
+		var org1MemberIDs []uuid.UUID
+		for _, m := range org1Members {
+			org1MemberIDs = append(org1MemberIDs, m.OrganizationMember.UserID)
+		}
+		require.Contains(t, org1MemberIDs, userB.ID)
+	})
 }
 
 func TestUserSecretsAuthorization(t *testing.T) {
