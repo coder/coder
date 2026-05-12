@@ -74,6 +74,7 @@ func ConnectAll(
 	tokens []database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
@@ -109,7 +110,7 @@ func ConnectAll(
 
 		eg.Go(func() error {
 			serverTools, mcpClient, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc,
+				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
 			)
 			if connectErr != nil {
 				logger.Warn(ctx,
@@ -175,8 +176,30 @@ func connectOne(
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, *client.Client, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+
+	// When opted-in, merge Coder identity headers BEFORE the
+	// transport is created so any auth header already set above
+	// wins on a conflict. Conflict detection uses
+	// http.CanonicalHeaderKey because the upstream transport applies
+	// http.Header.Set, which canonicalizes keys; without that, an
+	// admin-configured header that differs only in case from a Coder
+	// identity header would land in the request map twice and the
+	// surviving value would be non-deterministic.
+	if cfg.ForwardCoderHeaders {
+		canonicalAuth := make(map[string]struct{}, len(headers))
+		for k := range headers {
+			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
+		}
+		for k, v := range coderHeaders {
+			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
+				continue
+			}
+			headers[k] = v
+		}
+	}
 
 	tr, err := createTransport(cfg, headers)
 	if err != nil {

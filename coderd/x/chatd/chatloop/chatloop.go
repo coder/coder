@@ -171,6 +171,20 @@ type RunOptions struct {
 	// retry, so callbacks should avoid duplicating messages.
 	PrepareMessages func([]fantasy.Message) []fantasy.Message
 
+	// PrepareTools is called once before each LLM step with the
+	// current tool list. If it returns non-nil, the returned slice
+	// replaces opts.Tools for this and all subsequent steps, and any
+	// new tool names are appended to opts.ActiveTools so they become
+	// callable immediately. Used to inject tools that become available
+	// mid-turn (e.g. workspace MCP tools discovered after
+	// create_workspace).
+	//
+	// The chatloop tracks whether tools have already been replaced so
+	// PrepareTools is not retried on subsequent steps once it has
+	// returned a non-nil slice. Callbacks may still be invoked on later
+	// steps when they previously returned nil.
+	PrepareTools func([]fantasy.AgentTool) []fantasy.AgentTool
+
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
 	// number, raw error, normalized classification, and backoff
@@ -392,6 +406,17 @@ func Run(ctx context.Context, opts RunOptions) error {
 			modelName := opts.Model.Model()
 			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 			stepStart := time.Now()
+			if opts.PrepareTools != nil {
+				if updated := opts.PrepareTools(opts.Tools); updated != nil {
+					opts.ActiveTools = mergeNewToolNames(
+						opts.ActiveTools, opts.Tools, updated,
+					)
+					opts.Tools = updated
+					tools = buildToolDefinitions(
+						opts.Tools, opts.ActiveTools, opts.ProviderTools,
+					)
+				}
+			}
 			var prepared []fantasy.Message
 			messages, prepared = prepareMessagesForRequest(
 				ctx, opts, messages, provider, modelName, step, totalSteps,
@@ -1702,6 +1727,39 @@ func tryCompactOnExit(
 
 func isToolActive(name string, activeTools []string) bool {
 	return len(activeTools) == 0 || slices.Contains(activeTools, name)
+}
+
+// mergeNewToolNames returns activeTools augmented with any tool names
+// from newTools that are not present in oldTools and not already in
+// activeTools. This keeps newly injected tools (e.g. via PrepareTools)
+// callable even when activeTools is non-empty.
+//
+// When activeTools is empty, all tools are already active and the slice
+// is returned unchanged.
+func mergeNewToolNames(activeTools []string, oldTools, newTools []fantasy.AgentTool) []string {
+	if len(activeTools) == 0 {
+		return activeTools
+	}
+	old := make(map[string]struct{}, len(oldTools))
+	for _, t := range oldTools {
+		old[t.Info().Name] = struct{}{}
+	}
+	active := make(map[string]struct{}, len(activeTools))
+	for _, name := range activeTools {
+		active[name] = struct{}{}
+	}
+	for _, t := range newTools {
+		name := t.Info().Name
+		if _, alreadyActive := active[name]; alreadyActive {
+			continue
+		}
+		if _, existedBefore := old[name]; existedBefore {
+			continue
+		}
+		activeTools = append(activeTools, name)
+		active[name] = struct{}{}
+	}
+	return activeTools
 }
 
 // buildToolDefinitions converts AgentTool definitions into the
