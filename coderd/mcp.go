@@ -283,6 +283,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				Enabled:                 req.Enabled,
 				ModelIntent:             req.ModelIntent,
 				AllowInPlanMode:         req.AllowInPlanMode,
+				ForwardCoderHeaders:     req.ForwardCoderHeaders,
 				CreatedBy:               apiKey.UserID,
 				UpdatedBy:               apiKey.UserID,
 			})
@@ -371,6 +372,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				Enabled:                 inserted.Enabled,
 				ModelIntent:             inserted.ModelIntent,
 				AllowInPlanMode:         inserted.AllowInPlanMode,
+				ForwardCoderHeaders:     inserted.ForwardCoderHeaders,
 				UpdatedBy:               apiKey.UserID,
 			})
 			if err != nil {
@@ -440,6 +442,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		Enabled:                 req.Enabled,
 		ModelIntent:             req.ModelIntent,
 		AllowInPlanMode:         req.AllowInPlanMode,
+		ForwardCoderHeaders:     req.ForwardCoderHeaders,
 		CreatedBy:               apiKey.UserID,
 		UpdatedBy:               apiKey.UserID,
 	})
@@ -699,6 +702,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			allowInPlanMode = *req.AllowInPlanMode
 		}
 
+		forwardCoderHeaders := existing.ForwardCoderHeaders
+		if req.ForwardCoderHeaders != nil {
+			forwardCoderHeaders = *req.ForwardCoderHeaders
+		}
+
 		// When auth_type changes, clear fields belonging to the
 		// previous auth type so stale secrets don't persist.
 		if authType != existing.AuthType {
@@ -783,6 +791,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			Enabled:                 enabled,
 			ModelIntent:             modelIntent,
 			AllowInPlanMode:         allowInPlanMode,
+			ForwardCoderHeaders:     forwardCoderHeaders,
 			UpdatedBy:               apiKey.UserID,
 			ID:                      existing.ID,
 		})
@@ -1264,11 +1273,12 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 
 		Availability: config.Availability,
 
-		Enabled:         config.Enabled,
-		ModelIntent:     config.ModelIntent,
-		AllowInPlanMode: config.AllowInPlanMode,
-		CreatedAt:       config.CreatedAt,
-		UpdatedAt:       config.UpdatedAt,
+		Enabled:             config.Enabled,
+		ModelIntent:         config.ModelIntent,
+		AllowInPlanMode:     config.AllowInPlanMode,
+		ForwardCoderHeaders: config.ForwardCoderHeaders,
+		CreatedAt:           config.CreatedAt,
+		UpdatedAt:           config.UpdatedAt,
 	}
 }
 
