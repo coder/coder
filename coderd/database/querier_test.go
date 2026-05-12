@@ -11900,6 +11900,8 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "new-title", updated.Title)
 		require.Equal(t, database.StringMap{"pr": "1234"}, updated.Labels)
+		require.Equal(t, owner.Username, updated.OwnerUsername)
+		require.Equal(t, owner.Name, updated.OwnerName)
 	})
 
 	t.Run("FilterByLabels", func(t *testing.T) {
