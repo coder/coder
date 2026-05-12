@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 780" role="img" aria-labelledby="diagram-title diagram-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 820" width="1320" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="diagram-title diagram-desc">
   <title id="diagram-title">Claude Code self-hosted runners on Coder, architecture overview</title>
-  <desc id="diagram-desc">A Coder workspace runs Anthropic's Claude Code self-hosted runner binary as a long-lived process. The runner dials out to api.anthropic.com to register and poll for sessions. When Anthropic assigns a session, the runner spawns a child Claude Code process inside the same workspace. The child process makes its own outbound calls to the Claude model API for inference and to your internal Git, package registries, and services for repository access. No inbound connectivity from Anthropic is required.</desc>
+  <desc id="diagram-desc">A Coder workspace, owned by a Coder developer, runs Anthropic's Claude Code self-hosted runner as a long-lived process. The runner dials out to api.anthropic.com to register and poll for sessions. Each runner locks to the first Anthropic user whose session lands on it; in the basic flow that is the same human who owns the Coder workspace. The runner spawns one child Claude Code process per assigned session. The child carries a per-session JWT that names the session creator, which may differ from the locked user. Child sessions reach the Claude model API and your internal Git, package registries, and services. No inbound connectivity from Anthropic is required.</desc>
 
   <defs>
     <style>
@@ -20,15 +20,24 @@
       .session-card     { fill: #ffffff; stroke: #a78bfa; stroke-width: 1; stroke-dasharray: 4 3; }
       .coderd-card      { fill: #ffffff; stroke: #c4b5fd; stroke-width: 1; stroke-dasharray: 3 3; }
 
+      .owner-badge      { fill: #ede9fe; stroke: #7c3aed; stroke-width: 1; }
+      .lock-badge       { fill: #fef3c7; stroke: #b45309; stroke-width: 1; }
+      .creator-badge    { fill: #ffffff; stroke: #b45309; stroke-width: 1; stroke-dasharray: 3 2; }
+
       .zone-label       { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
       .zone-anthropic-l { fill: #b45309; }
       .zone-coder-l     { fill: #6d28d9; }
       .zone-internal-l  { fill: #0e7490; }
 
       .title            { font-size: 14px; font-weight: 600; fill: #111827; }
+      .title-sm         { font-size: 12px; font-weight: 600; fill: #111827; }
       .subtitle         { font-size: 12px; fill: #4b5563; }
       .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
+      .mono-sm          { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 10px; fill: #1f2937; }
       .small            { font-size: 11px; fill: #4b5563; }
+      .badge-label      { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      .badge-coder-l    { fill: #6d28d9; }
+      .badge-anthropic-l{ fill: #b45309; }
 
       .arrow-anthropic  { fill: none; stroke: #b45309; stroke-width: 1.6; }
       .arrow-egress     { fill: none; stroke: #0e7490; stroke-width: 1.6; }
@@ -55,174 +64,206 @@
     </marker>
   </defs>
 
-  <rect class="bg" width="1280" height="780"/>
+  <rect class="bg" width="1320" height="820"/>
 
   <!-- ====================================================== -->
   <!-- Zone 1: Anthropic                                       -->
   <!-- ====================================================== -->
-  <rect class="zone-anthropic" x="32" y="64" width="288" height="640" rx="14"/>
+  <rect class="zone-anthropic" x="32" y="64" width="288" height="680" rx="14"/>
   <text class="zone-label zone-anthropic-l" x="48" y="92">Anthropic</text>
 
   <!-- Developer surfaces card -->
-  <rect class="card-anthropic" x="56" y="116" width="240" height="120" rx="10"/>
+  <rect class="card-anthropic" x="56" y="116" width="240" height="140" rx="10"/>
   <text class="title" x="72" y="140">Developer surfaces</text>
   <text class="small" x="72" y="158">Where sessions are started</text>
   <text class="mono" x="72" y="184">claude.ai/code</text>
   <text class="mono" x="72" y="202">mobile apps</text>
   <text class="mono" x="72" y="220">routines, agents, API</text>
+  <text class="small" x="72" y="244">Each session carries a JWT</text>
 
   <!-- Control plane card -->
-  <rect class="card-anthropic" x="56" y="260" width="240" height="180" rx="10"/>
-  <text class="title" x="72" y="284">Control plane</text>
-  <text class="small" x="72" y="302">api.anthropic.com</text>
-  <text class="mono" x="72" y="328">Per-pool session queue</text>
-  <text class="mono" x="72" y="346">Runner registration</text>
-  <text class="mono" x="72" y="364">Issues runner tokens</text>
-  <text class="mono" x="72" y="382">Assigns sessions</text>
-  <text class="mono" x="72" y="400">Forwards events to user</text>
+  <rect class="card-anthropic" x="56" y="280" width="240" height="180" rx="10"/>
+  <text class="title" x="72" y="304">Control plane</text>
+  <text class="small" x="72" y="322">api.anthropic.com</text>
+  <text class="mono" x="72" y="348">Per-pool session queue</text>
+  <text class="mono" x="72" y="366">Runner registration</text>
+  <text class="mono" x="72" y="384">Issues runner tokens</text>
+  <text class="mono" x="72" y="402">Assigns sessions</text>
+  <text class="mono" x="72" y="420">Forwards events to user</text>
 
   <!-- Claude model API card -->
-  <rect class="card-anthropic" x="56" y="464" width="240" height="120" rx="10"/>
-  <text class="title" x="72" y="488">Claude model API</text>
-  <text class="small" x="72" y="506">Inference for each session</text>
-  <text class="mono" x="72" y="532">Each child process</text>
-  <text class="mono" x="72" y="550">calls the model API</text>
-  <text class="mono" x="72" y="568">on its own.</text>
+  <rect class="card-anthropic" x="56" y="484" width="240" height="120" rx="10"/>
+  <text class="title" x="72" y="508">Claude model API</text>
+  <text class="small" x="72" y="526">Inference for each session</text>
+  <text class="mono" x="72" y="552">Each child process</text>
+  <text class="mono" x="72" y="570">calls the model API</text>
+  <text class="mono" x="72" y="588">on its own.</text>
 
   <!-- ====================================================== -->
   <!-- Zone 2: Coder deployment                                -->
   <!-- ====================================================== -->
-  <rect class="zone-coder" x="352" y="64" width="600" height="640" rx="14"/>
+  <rect class="zone-coder" x="352" y="64" width="640" height="680" rx="14"/>
   <text class="zone-label zone-coder-l" x="368" y="92">Coder deployment</text>
 
   <!-- Coderd badge -->
-  <rect class="coderd-card" x="376" y="116" width="552" height="56" rx="8"/>
+  <rect class="coderd-card" x="376" y="116" width="592" height="56" rx="8"/>
   <text class="title" x="392" y="140">Coder control plane (coderd)</text>
   <text class="small" x="392" y="158">Builds the workspace from a template. Not in the runner traffic path.</text>
 
   <!-- Workspace -->
-  <rect class="workspace" x="376" y="196" width="552" height="488" rx="12"/>
-  <text class="title" x="392" y="220">Coder workspace (one per developer)</text>
-  <text class="small" x="392" y="238">Coder template provides image, parameters, env, secrets, networking.</text>
+  <rect class="workspace" x="376" y="196" width="592" height="528" rx="12"/>
+  <text class="title" x="392" y="220">Coder workspace</text>
+
+  <!-- Owner badge top-right of workspace header -->
+  <rect class="owner-badge" x="752" y="206" width="200" height="34" rx="6"/>
+  <text class="badge-label badge-coder-l" x="764" y="221">Coder workspace owner</text>
+  <text class="mono" x="764" y="234">@alice</text>
+
+  <text class="small" x="392" y="240">One workspace per Coder developer. Template defines image,</text>
+  <text class="small" x="392" y="256">parameters, env, secrets, networking. Pool secret is a Terraform</text>
+  <text class="small" x="392" y="272">variable: every workspace inherits the same value.</text>
 
   <!-- coder_script card -->
-  <rect class="runner-card" x="400" y="258" width="504" height="74" rx="8"/>
-  <text class="title" x="416" y="282">coder_script  ·  starts the runner</text>
-  <text class="mono" x="416" y="304">claude self-hosted-runner --pool-secret-file ... --capacity N</text>
-  <text class="small" x="416" y="322">Long-lived process. Locks to first user, drains, exits cleanly.</text>
+  <rect class="runner-card" x="400" y="290" width="544" height="74" rx="8"/>
+  <text class="title-sm" x="416" y="312">coder_script  ·  starts the runner</text>
+  <text class="mono-sm" x="416" y="332">claude self-hosted-runner --pool-secret-file ... --capacity N</text>
+  <text class="small" x="416" y="350">Long-lived process. Logs to ~/.claude/runner.log.</text>
 
-  <!-- Runner process card -->
-  <rect class="runner-card" x="400" y="352" width="504" height="96" rx="8"/>
-  <text class="title" x="416" y="376">Runner process</text>
-  <text class="mono" x="416" y="396">register, poll, refresh lease</text>
-  <text class="mono" x="416" y="414">spawn child claude per assigned session</text>
-  <text class="mono" x="416" y="432">stream events back to Anthropic</text>
+  <!-- Runner process card with lock badge -->
+  <rect class="runner-card" x="400" y="384" width="544" height="110" rx="8"/>
+  <text class="title-sm" x="416" y="406">Runner process</text>
+
+  <rect class="lock-badge" x="700" y="394" width="232" height="34" rx="6"/>
+  <text class="badge-label badge-anthropic-l" x="712" y="409">Locked to Anthropic user</text>
+  <text class="mono" x="712" y="422">@alice  (first session wins)</text>
+
+  <text class="mono-sm" x="416" y="430">register, poll, refresh lease</text>
+  <text class="mono-sm" x="416" y="448">spawn child claude per assigned session</text>
+  <text class="mono-sm" x="416" y="466">stream events back to Anthropic</text>
+  <text class="small" x="416" y="484">In the basic flow, locked user = workspace owner.</text>
 
   <!-- Child sessions row label -->
-  <text class="small" x="416" y="470">Child claude session processes (up to --capacity)</text>
+  <text class="small" x="416" y="516">Child claude session processes (up to --capacity)</text>
 
-  <rect class="session-card" x="400" y="482" width="160" height="96" rx="8"/>
-  <text class="title" x="412" y="506">session 1</text>
-  <text class="mono" x="412" y="528">working tree</text>
-  <text class="mono" x="412" y="546">child stdio</text>
-  <text class="mono" x="412" y="564">model + git calls</text>
+  <rect class="session-card" x="400" y="528" width="172" height="120" rx="8"/>
+  <text class="title-sm" x="412" y="550">session 1</text>
+  <rect class="creator-badge" x="412" y="558" width="148" height="28" rx="5"/>
+  <text class="badge-label badge-anthropic-l" x="420" y="571">Session creator</text>
+  <text class="mono-sm" x="420" y="582">@alice (from JWT)</text>
+  <text class="mono-sm" x="412" y="606">working tree</text>
+  <text class="mono-sm" x="412" y="622">model + git calls</text>
+  <text class="mono-sm" x="412" y="638">stdio to runner</text>
 
-  <rect class="session-card" x="572" y="482" width="160" height="96" rx="8"/>
-  <text class="title" x="584" y="506">session 2</text>
-  <text class="mono" x="584" y="528">working tree</text>
-  <text class="mono" x="584" y="546">child stdio</text>
-  <text class="mono" x="584" y="564">model + git calls</text>
+  <rect class="session-card" x="586" y="528" width="172" height="120" rx="8"/>
+  <text class="title-sm" x="598" y="550">session 2</text>
+  <rect class="creator-badge" x="598" y="558" width="148" height="28" rx="5"/>
+  <text class="badge-label badge-anthropic-l" x="606" y="571">Session creator</text>
+  <text class="mono-sm" x="606" y="582">@bob (from JWT)</text>
+  <text class="mono-sm" x="598" y="606">working tree</text>
+  <text class="mono-sm" x="598" y="622">model + git calls</text>
+  <text class="mono-sm" x="598" y="638">stdio to runner</text>
 
-  <rect class="session-card" x="744" y="482" width="160" height="96" rx="8"/>
-  <text class="title" x="756" y="506">session N</text>
-  <text class="mono" x="756" y="528">working tree</text>
-  <text class="mono" x="756" y="546">child stdio</text>
-  <text class="mono" x="756" y="564">model + git calls</text>
+  <rect class="session-card" x="772" y="528" width="172" height="120" rx="8"/>
+  <text class="title-sm" x="784" y="550">session N</text>
+  <rect class="creator-badge" x="784" y="558" width="148" height="28" rx="5"/>
+  <text class="badge-label badge-anthropic-l" x="792" y="571">Session creator</text>
+  <text class="mono-sm" x="792" y="582">@alice (from JWT)</text>
+  <text class="mono-sm" x="784" y="606">working tree</text>
+  <text class="mono-sm" x="784" y="622">model + git calls</text>
+  <text class="mono-sm" x="784" y="638">stdio to runner</text>
 
-  <!-- Workspace footer -->
-  <text class="small" x="400" y="612">The runner and all sessions run in the same workspace and share</text>
-  <text class="small" x="400" y="630">image, environment, filesystem, and network egress rules.</text>
-  <text class="small" x="400" y="660">Git push uses Coder external auth via GIT_ASKPASS;</text>
-  <text class="small" x="400" y="678">no credentials baked into the image.</text>
+  <!-- Workspace footer: three identities cheat sheet -->
+  <text class="small" x="400" y="676">Three identities at play:</text>
+  <text class="mono-sm" x="400" y="694">Coder workspace owner = workspace identity (Coder external auth, GIT_ASKPASS, audit).</text>
+  <text class="mono-sm" x="400" y="708">Anthropic-locked user = first session's creator. Lock persists until the runner drains and restarts.</text>
+  <text class="mono-sm" x="400" y="722">Session creator = per-session JWT (act.email). Wrapper scripts can decode for per-creator credentials.</text>
 
   <!-- ====================================================== -->
   <!-- Zone 3: Your network                                    -->
   <!-- ====================================================== -->
-  <rect class="zone-internal" x="984" y="64" width="264" height="640" rx="14"/>
-  <text class="zone-label zone-internal-l" x="1000" y="92">Your network</text>
+  <rect class="zone-internal" x="1024" y="64" width="264" height="680" rx="14"/>
+  <text class="zone-label zone-internal-l" x="1040" y="92">Your network</text>
 
-  <rect class="card-internal" x="1008" y="116" width="216" height="110" rx="10"/>
-  <text class="title" x="1024" y="140">Internal Git</text>
-  <text class="small" x="1024" y="158">SSH or HTTPS to your host</text>
-  <text class="mono" x="1024" y="184">github.example.com</text>
-  <text class="mono" x="1024" y="202">gitlab.example.com</text>
+  <rect class="card-internal" x="1048" y="116" width="216" height="110" rx="10"/>
+  <text class="title" x="1064" y="140">Internal Git</text>
+  <text class="small" x="1064" y="158">SSH or HTTPS to your host</text>
+  <text class="mono" x="1064" y="184">github.example.com</text>
+  <text class="mono" x="1064" y="202">gitlab.example.com</text>
 
-  <rect class="card-internal" x="1008" y="246" width="216" height="110" rx="10"/>
-  <text class="title" x="1024" y="270">Package registries</text>
-  <text class="small" x="1024" y="288">Where dependencies live</text>
-  <text class="mono" x="1024" y="314">Artifactory, Nexus,</text>
-  <text class="mono" x="1024" y="332">npm, PyPI, GoProxy</text>
+  <rect class="card-internal" x="1048" y="246" width="216" height="110" rx="10"/>
+  <text class="title" x="1064" y="270">Package registries</text>
+  <text class="small" x="1064" y="288">Where dependencies live</text>
+  <text class="mono" x="1064" y="314">Artifactory, Nexus,</text>
+  <text class="mono" x="1064" y="332">npm, PyPI, GoProxy</text>
 
-  <rect class="card-internal" x="1008" y="376" width="216" height="110" rx="10"/>
-  <text class="title" x="1024" y="400">Internal services</text>
-  <text class="small" x="1024" y="418">Databases, staging APIs</text>
-  <text class="mono" x="1024" y="444">reachable from this</text>
-  <text class="mono" x="1024" y="462">workspace's network</text>
+  <rect class="card-internal" x="1048" y="376" width="216" height="110" rx="10"/>
+  <text class="title" x="1064" y="400">Internal services</text>
+  <text class="small" x="1064" y="418">Databases, staging APIs</text>
+  <text class="mono" x="1064" y="444">reachable from this</text>
+  <text class="mono" x="1064" y="462">workspace's network</text>
 
-  <rect class="card-internal" x="1008" y="506" width="216" height="110" rx="10"/>
-  <text class="title" x="1024" y="530">Secret broker</text>
-  <text class="small" x="1024" y="548">Optional (stage 2)</text>
-  <text class="mono" x="1024" y="574">Vault, AWS STS, IdP</text>
-  <text class="mono" x="1024" y="592">per-creator credentials</text>
+  <rect class="card-internal" x="1048" y="506" width="216" height="110" rx="10"/>
+  <text class="title" x="1064" y="530">Secret broker</text>
+  <text class="small" x="1064" y="548">Optional (stage 2)</text>
+  <text class="mono" x="1064" y="574">Vault, AWS STS, IdP</text>
+  <text class="mono" x="1064" y="592">per-creator credentials</text>
 
   <!-- ====================================================== -->
   <!-- Arrows                                                  -->
   <!-- ====================================================== -->
 
-  <!-- A. Developer surface to Anthropic control plane (internal) -->
-  <line class="arrow-internal" x1="176" y1="240" x2="176" y2="258" marker-end="url(#ah-internal)"/>
+  <!-- A. Developer surface to Anthropic control plane (internal to Anthropic) -->
+  <line class="arrow-internal" x1="176" y1="260" x2="176" y2="278" marker-end="url(#ah-internal)"/>
 
-  <!-- B. coderd (dashed) builds workspace. Two short pillars on either side, label centered between. -->
+  <!-- B. coderd (dashed) builds workspace: two short pillars with label between them. -->
   <line class="arrow-build" x1="500" y1="172" x2="500" y2="194" marker-end="url(#ah-build)"/>
-  <line class="arrow-build" x1="804" y1="172" x2="804" y2="194" marker-end="url(#ah-build)"/>
-  <text class="arrow-label" x="612" y="188">workspace builds</text>
+  <line class="arrow-build" x1="844" y1="172" x2="844" y2="194" marker-end="url(#ah-build)"/>
+  <text class="arrow-label" x="620" y="188">workspace builds, owner = @alice</text>
 
-  <!-- C. Runner <-> Anthropic control plane: two clearly separated parallel arrows. -->
-  <!-- Outbound (runner -> Anthropic): upper band. Includes register, poll, stream events. -->
-  <path class="arrow-anthropic" d="M 400 374 C 360 374, 340 366, 296 366" marker-end="url(#ah-anthropic)"/>
-  <text class="arrow-label" x="312" y="346">register, poll,</text>
-  <text class="arrow-label" x="312" y="360">stream events</text>
+  <!-- C. Runner <-> Anthropic control plane: two visibly separated parallel arrows. -->
+  <!-- Outbound (runner -> Anthropic): upper band. -->
+  <path class="arrow-anthropic" d="M 400 410 C 360 410, 340 402, 296 402" marker-end="url(#ah-anthropic)"/>
+  <text class="arrow-label" x="312" y="384">register, poll,</text>
+  <text class="arrow-label" x="312" y="398">stream events</text>
 
-  <!-- Inbound (Anthropic -> runner): lower band. Includes session assignments. -->
-  <path class="arrow-anthropic" d="M 296 410 C 340 410, 360 418, 400 418" marker-end="url(#ah-anthropic)"/>
-  <text class="arrow-label" x="312" y="434">session assignments</text>
-  <text class="small" x="312" y="448">(over the runner's outbound HTTPS)</text>
+  <!-- Inbound (Anthropic -> runner): lower band. -->
+  <path class="arrow-anthropic" d="M 296 446 C 340 446, 360 454, 400 454" marker-end="url(#ah-anthropic)"/>
+  <text class="arrow-label" x="312" y="470">session assignments</text>
+  <text class="small" x="312" y="484">(over the runner's outbound HTTPS)</text>
 
-  <!-- E. Child sessions -> Claude model API. Anchored to the Sessions card row. -->
-  <path class="arrow-anthropic" d="M 400 540 C 360 540, 340 532, 296 532" marker-end="url(#ah-anthropic)"/>
-  <text class="arrow-label" x="312" y="526">model inference</text>
+  <!-- E. Child sessions -> Claude model API. -->
+  <path class="arrow-anthropic" d="M 400 588 C 360 588, 340 580, 296 580" marker-end="url(#ah-anthropic)"/>
+  <text class="arrow-label" x="312" y="568">model inference</text>
 
   <!-- F. Sessions -> Internal network. Fan out from the right edge of the workspace card. -->
-  <path class="arrow-egress" d="M 928 506 C 962 506, 985 171, 1008 171" marker-end="url(#ah-egress)"/>
-  <path class="arrow-egress" d="M 928 522 C 962 522, 985 301, 1008 301" marker-end="url(#ah-egress)"/>
-  <path class="arrow-egress" d="M 928 538 C 962 538, 985 431, 1008 431" marker-end="url(#ah-egress)"/>
-  <path class="arrow-egress" d="M 928 554 C 962 554, 985 561, 1008 561" marker-end="url(#ah-egress)"/>
-  <text class="arrow-label" x="940" y="628">git, registries, services</text>
+  <path class="arrow-egress" d="M 944 580 C 980 580, 1015 171, 1048 171" marker-end="url(#ah-egress)"/>
+  <path class="arrow-egress" d="M 944 596 C 982 596, 1015 301, 1048 301" marker-end="url(#ah-egress)"/>
+  <path class="arrow-egress" d="M 944 612 C 982 612, 1015 431, 1048 431" marker-end="url(#ah-egress)"/>
+  <path class="arrow-egress" d="M 944 628 C 982 628, 1015 561, 1048 561" marker-end="url(#ah-egress)"/>
 
   <!-- ====================================================== -->
   <!-- Legend                                                  -->
   <!-- ====================================================== -->
-  <rect class="legend-box" x="32" y="720" width="1216" height="40" rx="8"/>
+  <rect class="legend-box" x="32" y="760" width="1256" height="44" rx="8"/>
 
-  <line class="arrow-anthropic" x1="48" y1="740" x2="80" y2="740" marker-end="url(#ah-anthropic)"/>
-  <text class="small" x="92" y="744">Outbound HTTPS to api.anthropic.com (initiated by workspace)</text>
+  <line class="arrow-anthropic" x1="48" y1="780" x2="80" y2="780" marker-end="url(#ah-anthropic)"/>
+  <text class="small" x="92" y="784">Outbound HTTPS to api.anthropic.com</text>
 
-  <line class="arrow-egress" x1="500" y1="740" x2="532" y2="740" marker-end="url(#ah-egress)"/>
-  <text class="small" x="544" y="744">Egress to your internal network (initiated by child session)</text>
+  <line class="arrow-egress" x1="384" y1="780" x2="416" y2="780" marker-end="url(#ah-egress)"/>
+  <text class="small" x="428" y="784">Egress to your internal network</text>
 
-  <line class="arrow-build" x1="892" y1="740" x2="924" y2="740" marker-end="url(#ah-build)"/>
-  <text class="small" x="936" y="744">Coder control plane builds the workspace from a template</text>
+  <line class="arrow-build" x1="672" y1="780" x2="704" y2="780" marker-end="url(#ah-build)"/>
+  <text class="small" x="716" y="784">Coder builds the workspace from a template</text>
+
+  <rect class="owner-badge" x="1006" y="770" width="14" height="14" rx="3"/>
+  <text class="small" x="1026" y="784">Coder owner</text>
+
+  <rect class="lock-badge" x="1108" y="770" width="14" height="14" rx="3"/>
+  <text class="small" x="1128" y="784">Anthropic lock</text>
+
+  <rect class="creator-badge" x="1216" y="770" width="14" height="14" rx="3"/>
+  <text class="small" x="1236" y="784">Creator</text>
 
   <!-- Footnote -->
-  <text class="footnote" x="32" y="708">No inbound connectivity required from Anthropic. The workspace dials out and the runner streams events over the same connection.</text>
+  <text class="footnote" x="32" y="752">No inbound connectivity from Anthropic. The workspace dials out and the runner streams events over the same connection.</text>
 </svg>
