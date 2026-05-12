@@ -2833,8 +2833,13 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 	defer cancel()
 
 	var err error
+	// setupAgent only waits for tailnet reachability, not for the HTTP API
+	// listener to serve the expected sub-agent rejection response.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		_, err = conn.ListContainers(ctx)
+		if err != nil {
+			t.Logf("Error listing containers: %v", err)
+		}
 		return err != nil && strings.Contains(err.Error(), "Dev Container feature not supported.")
 	}, testutil.IntervalFast, "containers endpoint should reject devcontainers inside sub agents")
 	require.Error(t, err)
