@@ -13802,6 +13802,13 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "budget_period": {
+                    "type": "string"
+                },
+                "budget_policy": {
+                    "description": "Budget settings for AI Governance cost controls.",
+                    "type": "string"
+                },
                 "circuit_breaker_enabled": {
                     "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
                     "type": "boolean"
