@@ -306,16 +306,6 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 		p.metrics.publishesTotal.WithLabelValues("false").Inc()
 		return xerrors.Errorf("publish: %w", err)
 	}
-	if p.opts.PublishMode == PublishModeFlush {
-		timeout := p.opts.PublishFlushTimeout
-		if timeout == 0 {
-			timeout = DefaultPublishFlushLimit
-		}
-		if err := p.nc.FlushTimeout(timeout); err != nil {
-			p.metrics.publishesTotal.WithLabelValues("false").Inc()
-			return xerrors.Errorf("flush: %w", err)
-		}
-	}
 
 	p.metrics.publishesTotal.WithLabelValues("true").Inc()
 	p.metrics.publishedBytesTotal.Add(float64(len(message)))

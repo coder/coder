@@ -26,9 +26,6 @@ func newSlowConsumerPubsub(t *testing.T) *Pubsub {
 		// Tiny pending limit on subscriber forces NATS to drop messages
 		// when the listener blocks.
 		PendingLimits: PendingLimits{Msgs: 1, Bytes: 1024 * 1024},
-		// Use buffered publish so Publish does not block on per-message
-		// flush behavior while we are queuing many messages.
-		PublishMode: PublishModeBuffered,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ps.Close() })

@@ -143,27 +143,6 @@ func TestStandalone_Ordering(t *testing.T) {
 	}
 }
 
-func TestStandalone_PublishModeBuffered(t *testing.T) {
-	t.Parallel()
-	ps := newTestPubsub(t, xnats.Options{PublishMode: xnats.PublishModeBuffered})
-
-	got := make(chan []byte, 1)
-	cancel, err := ps.Subscribe("buf_evt", func(_ context.Context, msg []byte) {
-		got <- msg
-	})
-	require.NoError(t, err)
-	defer cancel()
-
-	require.NoError(t, ps.Publish("buf_evt", []byte("buffered")))
-
-	select {
-	case msg := <-got:
-		assert.Equal(t, "buffered", string(msg))
-	case <-time.After(testutil.WaitShort):
-		t.Fatal("timed out waiting for buffered message")
-	}
-}
-
 func TestNewFromConn(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)

@@ -56,7 +56,6 @@ func TestStress_ConcurrentSubscribePublishCancel(t *testing.T) {
 
 	drainTimeout := 5 * time.Second
 	ps, err := xnats.New(ctx, logger, xnats.Options{
-		PublishMode:  xnats.PublishModeBuffered,
 		DrainTimeout: drainTimeout,
 	})
 	require.NoError(t, err)

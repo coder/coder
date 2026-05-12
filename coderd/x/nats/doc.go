@@ -64,13 +64,14 @@
 // the legacy Postgres-backed pubsub. Set Options.NoEcho to true to
 // drop self-published messages on the local connection.
 //
-// # Publish modes
+// # Publish semantics
 //
-// PublishModeFlush (the default) flushes the client buffer up to
-// Options.PublishFlushTimeout before returning, giving callers
-// strong "the server has it" semantics. PublishModeBuffered returns
-// once the message is enqueued in the client's outbound buffer,
-// trading durability guarantees for throughput.
+// Publish is a thin passthrough to nats.go's nc.Publish: the message
+// is enqueued into the connection's outbound buffer and the call
+// returns. nats.go auto-flushes when the buffer fills (default
+// WriteBufferSize 32 KiB) and on a short interval; callers that need
+// stronger "server has acknowledged" semantics should drive flushing
+// at a higher layer.
 //
 // # Cluster auth and TLS
 //
