@@ -117,12 +117,19 @@ const PinnedStreamingContent: FC<{
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const hasResponse = hasResponseBlock(blocks);
 
-	// Split blocks: everything before the first response block goes
-	// into the pinned container; response blocks render outside it.
+	// Split blocks: thinking blocks are stripped entirely (the
+	// pinned indicator replaces them); response blocks render
+	// outside the constrained container; everything else is
+	// activity.
 	const activityBlocks: RenderBlock[] = [];
 	const responseBlocks: RenderBlock[] = [];
 	let foundResponse = false;
 	for (const block of blocks) {
+		// Suppress thinking blocks; the pinned indicator is the
+		// only "thinking" signal in this mode.
+		if (block.type === "thinking") {
+			continue;
+		}
 		if (block.type === "response") {
 			foundResponse = true;
 		}
