@@ -1,54 +1,83 @@
-import { css, Global, useTheme } from "@emotion/react";
-import InputAdornment from "@mui/material/InputAdornment";
-import TextField, { type TextFieldProps } from "@mui/material/TextField";
+import type { ChangeEventHandler, FocusEventHandler, ReactNode } from "react";
 import { type FC, lazy, Suspense, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { cn } from "#/utils/cn";
 
-type IconFieldProps = TextFieldProps & {
+type IconFieldProps = {
 	onPickEmoji: (value: string) => void;
+	label?: string;
+	name?: string;
+	value?: string | number;
+	onChange?: ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+	onBlur?: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+	error?: boolean;
+	helperText?: ReactNode;
+	id?: string;
+	disabled?: boolean;
+	/** @deprecated Accepted for backward compatibility but ignored. */
+	fullWidth?: boolean;
 };
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
 export const IconField: FC<IconFieldProps> = ({
 	onPickEmoji,
-	...textFieldProps
+	label = "Icon",
+	name,
+	value,
+	onChange,
+	onBlur,
+	error,
+	helperText,
+	id,
+	disabled,
 }) => {
 	if (
-		typeof textFieldProps.value !== "string" &&
-		typeof textFieldProps.value !== "undefined"
+		typeof value !== "string" &&
+		typeof value !== "undefined" &&
+		typeof value !== "number"
 	) {
-		throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`);
+		throw new Error(`Invalid icon value "${typeof value}"`);
 	}
 
-	const theme = useTheme();
-	const hasIcon = textFieldProps.value && textFieldProps.value !== "";
+	const stringValue = typeof value === "number" ? String(value) : value;
+	const hasIcon = stringValue && stringValue !== "";
 	const [open, setOpen] = useState(false);
 
 	return (
-		<div className="flex items-center gap-2">
-			<TextField
-				fullWidth
-				label="Icon"
-				{...textFieldProps}
-				InputProps={{
-					endAdornment: hasIcon ? (
-						<InputAdornment
-							position="end"
-							className="w-6 h-6 flex items-center justify-center [&_img]:max-w-full [&_img]:object-contain"
-						>
+		<div className="flex flex-col gap-2">
+			{label && <Label htmlFor={id}>{label}</Label>}
+			<div className="flex items-center gap-2">
+				<div className="relative flex-1">
+					<Input
+						id={id}
+						name={name}
+						value={stringValue}
+						onChange={onChange}
+						onBlur={onBlur}
+						disabled={disabled}
+						aria-invalid={error}
+						className={cn(
+							error && "border-border-destructive",
+							hasIcon && "pr-10",
+						)}
+					/>
+					{hasIcon && (
+						<div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center [&_img]:max-w-full [&_img]:object-contain">
 							<ExternalImage
 								alt=""
-								src={textFieldProps.value}
-								// This prevent browser to display the ugly error icon if the
+								src={stringValue}
+								// Prevent browser from displaying the ugly error icon if the
 								// image path is wrong or user didn't finish typing the url
 								onError={(e) => {
 									e.currentTarget.style.display = "none";
@@ -57,54 +86,52 @@ export const IconField: FC<IconFieldProps> = ({
 									e.currentTarget.style.display = "inline";
 								}}
 							/>
-						</InputAdornment>
-					) : undefined,
-				}}
-			/>
-
-			<Global
-				styles={css`
-					em-emoji-picker {
-						--rgb-background: ${theme.palette.background.paper};
-						--rgb-input: ${theme.palette.primary.main};
-						--rgb-color: ${theme.palette.text.primary};
-					}
-				`}
-			/>
-			<Popover open={open} onOpenChange={setOpen}>
-				<PopoverTrigger asChild>
-					<Button variant="outline" size="lg" className="group flex-shrink-0">
-						Emoji
-						<ChevronDownIcon />
-					</Button>
-				</PopoverTrigger>
-				<PopoverContent id="emoji" side="bottom" align="end" className="w-min">
-					<Suspense fallback={<Loader />}>
-						<EmojiPicker
-							onEmojiSelect={(emoji) => {
-								const value = emoji.src ?? `/emojis/${emoji.unified}.png`;
-								onPickEmoji(value);
-								setOpen(false);
-							}}
-						/>
-					</Suspense>
-				</PopoverContent>
-			</Popover>
-
-			{/*
-      - This component takes a long time to load (easily several seconds), so we
-      don't want to wait until the user actually clicks the button to start loading.
-      Unfortunately, React doesn't provide an API to start warming a lazy component,
-      so we just have to sneak it into the DOM, which is kind of annoying, but means
-      that users shouldn't ever spend time waiting for it to load.
-      - Except we don't do it when running tests, because it would make them
-      slower anyway. */}
-			{process.env.NODE_ENV !== "test" && (
-				<div className="sr-only" aria-hidden="true">
-					<Suspense>
-						<EmojiPicker onEmojiSelect={() => {}} />
-					</Suspense>
+						</div>
+					)}
 				</div>
+
+				<Popover open={open} onOpenChange={setOpen}>
+					<PopoverTrigger asChild>
+						<Button variant="outline" size="lg" className="group flex-shrink-0">
+							Emoji
+							<ChevronDownIcon />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent
+						id="emoji"
+						side="bottom"
+						align="end"
+						className="w-min"
+					>
+						<Suspense fallback={<Loader />}>
+							<EmojiPicker
+								onEmojiSelect={(emoji) => {
+									const emojiValue =
+										emoji.src ?? `/emojis/${emoji.unified}.png`;
+									onPickEmoji(emojiValue);
+									setOpen(false);
+								}}
+							/>
+						</Suspense>
+					</PopoverContent>
+				</Popover>
+
+				{/* Pre-warm the emoji picker so users don't wait for it to load.
+				Except in tests, where it would slow things down. */}
+				{process.env.NODE_ENV !== "test" && (
+					<div className="sr-only" aria-hidden="true">
+						<Suspense>
+							<EmojiPicker onEmojiSelect={() => {}} />
+						</Suspense>
+					</div>
+				)}
+			</div>
+			{error && helperText ? (
+				<span className="text-xs text-content-destructive">{helperText}</span>
+			) : (
+				helperText && (
+					<span className="text-xs text-content-secondary">{helperText}</span>
+				)
 			)}
 		</div>
 	);

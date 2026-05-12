@@ -7,6 +7,9 @@ const meta: Meta<typeof IconField> = {
 	component: IconField,
 	args: {
 		onPickEmoji: action("onPickEmoji"),
+		label: "Icon",
+		id: "icon",
+		name: "icon",
 	},
 };
 
@@ -24,5 +27,12 @@ export const EmojiSelected: Story = {
 export const IconSelected: Story = {
 	args: {
 		value: "/icon/fedora.svg",
+	},
+};
+
+export const WithError: Story = {
+	args: {
+		error: true,
+		helperText: "Please enter a valid icon URL.",
 	},
 };

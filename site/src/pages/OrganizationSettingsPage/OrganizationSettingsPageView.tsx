@@ -1,4 +1,3 @@
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
@@ -13,19 +12,18 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "#/components/Form/Form";
+import { FormFooter } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
+import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Textarea } from "#/components/Textarea/Textarea";
+import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -82,6 +80,7 @@ export const OrganizationSettingsPageView: FC<
 		enableReinitialize: true,
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
+	const descriptionField = getFieldHelpers("description");
 
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [pendingSharingChange, setPendingSharingChange] =
@@ -99,55 +98,97 @@ export const OrganizationSettingsPageView: FC<
 				</div>
 			)}
 
-			<HorizontalForm
+			<form
 				onSubmit={form.handleSubmit}
 				aria-label="Organization settings form"
+				className="border border-border border-solid rounded-md p-4"
 			>
-				<FormSection
-					title="Info"
-					description="The name and description of the organization."
+				<fieldset
+					disabled={form.isSubmitting}
+					className="border-0 p-0 m-0 w-full"
 				>
-					<fieldset
-						disabled={form.isSubmitting}
-						className="border-0 p-0 m-0 w-full"
-					>
-						<FormFields>
-							<TextField
-								{...getFieldHelpers("name")}
-								onChange={onChangeTrimmed(form)}
-								autoFocus
-								fullWidth
-								label="Slug"
-							/>
-							<TextField
-								{...getFieldHelpers("display_name")}
-								fullWidth
-								label="Display name"
-							/>
-							<TextField
-								{...getFieldHelpers("description")}
-								multiline
-								fullWidth
-								label="Description"
+					<div className="flex flex-col gap-6">
+						<FormField
+							field={getFieldHelpers("name")}
+							label="Slug"
+							id="name"
+							name="name"
+							value={form.values.name}
+							onChange={onChangeTrimmed(form)}
+							onBlur={form.handleBlur}
+							autoFocus
+							className="max-w-sm"
+						/>
+
+						<FormField
+							field={getFieldHelpers("display_name")}
+							label="Display name"
+							id="display_name"
+							name="display_name"
+							value={form.values.display_name}
+							onChange={form.handleChange}
+							onBlur={form.handleBlur}
+							className="max-w-sm"
+						/>
+
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="description">Description</Label>
+							<Textarea
+								id="description"
+								name="description"
+								value={form.values.description}
+								onChange={form.handleChange}
+								onBlur={form.handleBlur}
 								rows={2}
+								aria-invalid={descriptionField.error}
+								aria-describedby={
+									descriptionField.error
+										? "description-error"
+										: descriptionField.helperText
+											? "description-helper"
+											: undefined
+								}
+								className={cn(
+									descriptionField.error && "border-border-destructive",
+									"max-w-sm",
+								)}
 							/>
+							{descriptionField.error ? (
+								<span
+									id="description-error"
+									className="text-xs text-content-destructive"
+								>
+									{descriptionField.helperText}
+								</span>
+							) : (
+								descriptionField.helperText && (
+									<span
+										id="description-helper"
+										className="text-xs text-content-secondary"
+									>
+										{descriptionField.helperText}
+									</span>
+								)
+							)}
+						</div>
+
+						<div className="max-w-sm">
 							<IconField
 								{...getFieldHelpers("icon")}
 								onChange={onChangeTrimmed(form)}
-								fullWidth
 								onPickEmoji={(value) => form.setFieldValue("icon", value)}
 							/>
-						</FormFields>
-					</fieldset>
-				</FormSection>
+						</div>
+					</div>
+				</fieldset>
 
-				<FormFooter>
+				<FormFooter className="mt-8">
 					<Button type="submit" disabled={form.isSubmitting}>
 						<Spinner loading={form.isSubmitting} />
 						Save
 					</Button>
 				</FormFooter>
-			</HorizontalForm>
+			</form>
 
 			{onChangeShareableOwners && (
 				<HorizontalContainer className="mt-12">
