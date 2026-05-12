@@ -170,6 +170,8 @@ jobs:
 
           ${CONTEXT}
 
+          If this chat has no workspace attached yet, use \`list_templates\` and \`create_workspace\` to provision one from the \`coder-workflow-bot\` template. Its startup script bootstraps the GitHub App credentials \`gh\` needs to read and post on coder/coder. Reuse an existing workspace from that same template if one is already attached.
+
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
           **Do not comment if no documentation changes are needed.**
