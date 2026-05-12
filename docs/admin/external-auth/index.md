@@ -337,10 +337,11 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 1. Make the app installable by other users. In the app's **Advanced**
    tab, click **Make this GitHub App public**.
 
-   Without this, every user other than the app owner sees a GitHub 404
-   when they click **Link GitHub** in Coder. Each user must also install
-   the app on their own account before linking. To surface an
-   **Install GitHub App** link in the Coder UI, set:
+   Without this, anyone outside the app's owning account or owning
+   organization sees a GitHub 404 when they click **Link GitHub** in
+   Coder. Each user must also install the app on their own account
+   before linking. To surface an **Install GitHub App** link in the
+   Coder UI, set:
 
    ```env
    CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL=https://github.com/apps/<your-app-slug>/installations/new
