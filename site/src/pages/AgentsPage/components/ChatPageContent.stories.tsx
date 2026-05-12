@@ -99,6 +99,26 @@ export const StreamingToolCallGapRegression: Story = {
 	},
 };
 
+export const StartingPhaseToolCallGapRegression: Story = {
+	render: () => {
+		const store = buildRegressionStore();
+		store.setChatStatus("running");
+
+		return (
+			<ChatPageTimeline
+				chatID={CHAT_ID}
+				store={store}
+				persistedError={undefined}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getAllByText("Thinking...").length).toBeGreaterThan(0);
+		expect(canvas.queryByTestId("assistant-bottom-spacer")).toBeNull();
+	},
+};
+
 export const SpacerVisibleWhenNotStreaming: Story = {
 	render: () => {
 		const store = buildRegressionStore();
