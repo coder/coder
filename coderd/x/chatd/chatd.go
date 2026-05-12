@@ -4379,8 +4379,8 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) b
 		return false
 	}
 	// Keep stream state alive during the grace period so
-	// late-connecting relay subscribers can snapshot the
-	// buffer after the worker finishes processing.
+	// late-connecting cross-replica relay subscribers can
+	// register against this chat before GC.
 	if !state.bufferRetainedAt.IsZero() &&
 		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
 		return false
@@ -7199,9 +7199,10 @@ func (p *Server) runChat(
 			}
 		}
 
-		// Do NOT clear the stream buffer here. Cross-replica
-		// relay subscribers may still need to snapshot buffered
-		// message_parts after processing completes. The buffer
+		// Do NOT clear the stream buffer here. The per-chat
+		// stream state must remain alive for the post-completion
+		// grace window so cross-replica relay subscribers can
+		// register without racing cleanupStreamIfIdle. The buffer
 		// is bounded by maxStreamBufferSize and is cleared when
 		// the next processChat starts or when the stream state
 		// is garbage-collected after the retention grace period.
