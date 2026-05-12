@@ -1093,7 +1093,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							</NavLink>
 							<FeatureStageBadge contentType="beta" size="xs" />
 						</div>
-						<div className="mr-5 flex items-center gap-0.5">
+						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
 								asChild
 								variant="subtle"
