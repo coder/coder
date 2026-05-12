@@ -196,7 +196,7 @@ require (
 	go.uber.org/mock v0.6.0
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
 	golang.org/x/crypto v0.50.0
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
+	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
 	golang.org/x/mod v0.35.0
 	golang.org/x/net v0.53.0
 	golang.org/x/oauth2 v0.36.0
@@ -204,7 +204,7 @@ require (
 	golang.org/x/sys v0.43.0
 	golang.org/x/term v0.42.0
 	golang.org/x/text v0.36.0
-	golang.org/x/tools v0.43.0
+	golang.org/x/tools v0.44.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/api v0.271.0
 	google.golang.org/grpc v1.79.3
@@ -479,7 +479,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-git/go-git/v5 v5.18.0
+	github.com/go-git/go-git/v5 v5.19.0
 	github.com/icholy/replace v0.6.0
 	github.com/mark3labs/mcp-go v0.38.0
 	gonum.org/v1/gonum v0.17.0
@@ -533,7 +533,7 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.8.0 // indirect
+	github.com/go-git/go-billy/v5 v5.9.0 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/go-containerregistry v0.20.6 // indirect
@@ -545,7 +545,7 @@ require (
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/moby/moby/api v1.54.0 // indirect
@@ -581,7 +581,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
-	golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c // indirect
+	golang.org/x/telemetry v0.0.0-20260409153401-be6f6cb8b1fa // indirect
 	google.golang.org/genai v1.12.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
