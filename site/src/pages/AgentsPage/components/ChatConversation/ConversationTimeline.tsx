@@ -174,11 +174,11 @@ const ReasoningDisclosure = memo<{
 						)}
 					>
 						{isStreaming ? (
-							<Shimmer as="span" className="text-[13px]">
-								Thinking
+							<Shimmer as="span" className="text-[13px] leading-relaxed">
+								Thinking...
 							</Shimmer>
 						) : (
-							<span className="text-[13px]">Thinking</span>
+							<span className="text-[13px] leading-relaxed">Thinking</span>
 						)}
 						<ChevronDownIcon
 							className={cn(
