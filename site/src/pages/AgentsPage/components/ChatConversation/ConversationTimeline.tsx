@@ -479,6 +479,7 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
+	hasActiveStream?: boolean;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -503,6 +504,7 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
+		hasActiveStream = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -525,6 +527,7 @@ const ChatMessageItem = memo<{
 			message,
 			parsed,
 			hideActions,
+			hasActiveStream,
 		});
 		if (displayState.shouldHide) {
 			return null;
@@ -961,6 +964,7 @@ function computeLastInChainFlags(
 			message: entry.message,
 			parsed: entry.parsed,
 			hideActions: false,
+			hasActiveStream: false,
 		});
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
@@ -988,7 +992,7 @@ interface ConversationTimelineProps {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
-	isTurnActive?: boolean;
+	hasActiveStream?: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -1004,7 +1008,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		urlTransform,
 		mcpServers,
 		showDesktopPreviews,
-		isTurnActive,
+		hasActiveStream,
 	}) => {
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
@@ -1104,7 +1108,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								}
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								hideActions={!isLastInChain || Boolean(isTurnActive)}
+								hideActions={!isLastInChain}
+								hasActiveStream={Boolean(hasActiveStream)}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
