@@ -472,6 +472,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
 		defer func() {
+			logger.Info(ctx, "ssh session closed",
+				slog.F("disconnect_reason", reason),
+				slog.F("exit_code", scr.exitCode()),
+			)
 			disconnected(scr.exitCode(), reason)
 		}()
 	}
@@ -567,6 +571,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
+	closeCause("normal exit")
 	logger.Info(ctx, "normal ssh session exit")
 	_ = session.Exit(0)
 }
