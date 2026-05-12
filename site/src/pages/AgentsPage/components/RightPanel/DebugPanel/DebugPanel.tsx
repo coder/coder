@@ -1,7 +1,12 @@
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
-import { type QueryClient, useQuery, useQueryClient } from "react-query";
+import { type FC, type ReactNode, useEffect, useRef } from "react";
+import {
+	type QueryClient,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -205,8 +210,62 @@ const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
 	download,
 }) => {
 	const queryClient = useQueryClient();
-	const [isExporting, setIsExporting] = useState(false);
 	const activeExportControllerRef = useRef<AbortController | null>(null);
+	const exportDebugRunsMutation = useMutation({
+		mutationFn: async (controller: AbortController) => {
+			const { signal } = controller;
+			try {
+				const { runDetails, failedRuns } = await fetchDebugRunDetailsForExport(
+					queryClient,
+					chatId,
+					runs,
+					signal,
+				);
+				if (signal.aborted) {
+					return;
+				}
+				if (runDetails.length === 0) {
+					toast.error("Failed to export debug logs.", {
+						description: "No debug run details could be fetched.",
+					});
+					return;
+				}
+
+				const exportedAt = new Date();
+				const payload = buildChatDebugExport(chatId, runDetails, exportedAt, {
+					failedRuns,
+					requestedRunCount: runs.length,
+				});
+				if (signal.aborted) {
+					return;
+				}
+				await download(
+					buildDebugExportBlob(payload),
+					debugExportFilename({ chatId, exportedAt }),
+				);
+				if (signal.aborted) {
+					return;
+				}
+
+				if (failedRuns.length > 0) {
+					toast.warning("Exported debug logs with missing runs.", {
+						description: getMissingRunsDescription(failedRuns.length),
+					});
+				}
+			} catch (error) {
+				console.error(error);
+				toast.error("Failed to export debug logs.", {
+					description: getErrorDetail(error),
+				});
+			}
+		},
+		onSettled: (_data, _error, controller) => {
+			if (activeExportControllerRef.current !== controller) {
+				return;
+			}
+			activeExportControllerRef.current = null;
+		},
+	});
 
 	useEffect(() => {
 		return () => {
@@ -215,74 +274,20 @@ const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
 		};
 	}, []);
 
-	const exportDebugRuns = async (signal: AbortSignal) => {
-		try {
-			const { runDetails, failedRuns } = await fetchDebugRunDetailsForExport(
-				queryClient,
-				chatId,
-				runs,
-				signal,
-			);
-			if (signal.aborted) {
-				return;
-			}
-			if (runDetails.length === 0) {
-				toast.error("Failed to export debug logs.", {
-					description: "No debug run details could be fetched.",
-				});
-				return;
-			}
-
-			const exportedAt = new Date();
-			const payload = buildChatDebugExport(chatId, runDetails, exportedAt, {
-				failedRuns,
-				requestedRunCount: runs.length,
-			});
-			if (signal.aborted) {
-				return;
-			}
-			await download(
-				buildDebugExportBlob(payload),
-				debugExportFilename({ chatId, exportedAt }),
-			);
-			if (signal.aborted) {
-				return;
-			}
-
-			if (failedRuns.length > 0) {
-				toast.warning("Exported debug logs with missing runs.", {
-					description: getMissingRunsDescription(failedRuns.length),
-				});
-			}
-		} catch (error) {
-			console.error(error);
-			toast.error("Failed to export debug logs.", {
-				description: getErrorDetail(error),
-			});
-		}
-	};
-
 	return (
 		<div className="flex justify-end px-4 pt-4">
 			<Button
 				variant="outline"
 				size="sm"
-				disabled={isExporting}
+				disabled={exportDebugRunsMutation.isPending}
 				onClick={() => {
 					const controller = new AbortController();
 					activeExportControllerRef.current?.abort();
 					activeExportControllerRef.current = controller;
-					setIsExporting(true);
-					void exportDebugRuns(controller.signal).finally(() => {
-						if (activeExportControllerRef.current !== controller) {
-							return;
-						}
-						activeExportControllerRef.current = null;
-						setIsExporting(false);
-					});
+					exportDebugRunsMutation.mutate(controller);
 				}}
 			>
-				{isExporting ? (
+				{exportDebugRunsMutation.isPending ? (
 					<Spinner size="sm" loading />
 				) : (
 					<DownloadIcon className="size-4" />
