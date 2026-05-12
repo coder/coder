@@ -58,6 +58,126 @@ func TestAdvisorToolSuccess(t *testing.T) {
 	require.Equal(t, 1, result.RemainingUses)
 }
 
+func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
+	t.Parallel()
+
+	type publishedDelta struct {
+		toolCallID string
+		delta      string
+	}
+	var published []publishedDelta
+
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Prefer "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the small diff."},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime:                 runtime,
+		GetConversationSnapshot: func() []fantasy.Message { return nil },
+		PublishAdviceDelta: func(toolCallID string, delta string) {
+			published = append(published, publishedDelta{toolCallID: toolCallID, delta: delta})
+		},
+	})
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "What's safest?"})
+	require.False(t, resp.IsError)
+	require.Equal(t, []publishedDelta{
+		{toolCallID: "call-1", delta: "Prefer "},
+		{toolCallID: "call-1", delta: "the small diff."},
+	}, published)
+
+	var result chatadvisor.AdvisorResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "Prefer the small diff.", result.Advice)
+}
+
+func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
+	t.Parallel()
+
+	type publishedEvent struct {
+		kind       string
+		toolCallID string
+		delta      string
+	}
+	var (
+		calls     int
+		published []publishedEvent
+	)
+
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				calls++
+				if calls == 1 {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "stale "},
+						{Type: fantasy.StreamPartTypeError, Error: xerrors.New("received status 429 from upstream")},
+					}), nil
+				}
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "fresh advice"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime:                 runtime,
+		GetConversationSnapshot: func() []fantasy.Message { return nil },
+		PublishAdviceDelta: func(toolCallID string, delta string) {
+			published = append(published, publishedEvent{
+				kind:       "delta",
+				toolCallID: toolCallID,
+				delta:      delta,
+			})
+		},
+		PublishAdviceReset: func(toolCallID string) {
+			published = append(published, publishedEvent{
+				kind:       "reset",
+				toolCallID: toolCallID,
+			})
+		},
+	})
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "What's safest?"})
+	require.False(t, resp.IsError)
+	require.Equal(t, []publishedEvent{
+		{kind: "delta", toolCallID: "call-1", delta: "stale "},
+		{kind: "reset", toolCallID: "call-1"},
+		{kind: "delta", toolCallID: "call-1", delta: "fresh advice"},
+	}, published)
+
+	var result chatadvisor.AdvisorResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "fresh advice", result.Advice)
+}
+
 func TestAdvisorToolRejectsEmptyQuestion(t *testing.T) {
 	t.Parallel()
 

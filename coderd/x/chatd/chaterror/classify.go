@@ -22,6 +22,15 @@ type ClassifiedError struct {
 	// RetryAfter is a normalized minimum retry delay derived from
 	// provider response metadata when available.
 	RetryAfter time.Duration
+
+	// ChainBroken is true when the provider reported that the
+	// previous_response_id (or analogous chain anchor) is no longer
+	// retrievable. The chatloop retry path uses this signal to exit
+	// chain mode and replay full history before the next attempt.
+	// This is an internal signal; it is not surfaced as a separate
+	// codersdk.ChatErrorKind so the user-visible kind set stays
+	// stable.
+	ChainBroken bool
 }
 
 const responsesAPIDiagnosticMessage = "The chat continuation failed due to an " +
@@ -165,6 +174,20 @@ func Classify(err error) ClassifiedError {
 		return classified
 	}
 
+	// Chain-broken detection runs before the generic rule table so a
+	// 404 carrying a chain anchor failure is not classified as a
+	// generic non-retryable error. The chatloop retry callback uses
+	// the ChainBroken flag to exit chain mode and replay full
+	// history.
+	if classified, ok := chainBrokenClassification(
+		lower,
+		provider,
+		statusCode,
+		structured,
+	); ok {
+		return classified
+	}
+
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
@@ -274,6 +297,35 @@ func streamIncompleteClassification(
 
 func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
+}
+
+// chainBrokenClassification recognizes the OpenAI error
+// "Previous response with id ... not found" returned when a
+// chained turn references a previous_response_id the provider no
+// longer recognizes.
+func chainBrokenClassification(
+	lowerMessage string,
+	provider string,
+	statusCode int,
+	structured providerErrorDetails,
+) (ClassifiedError, bool) {
+	if !(strings.Contains(lowerMessage, "previous response with id") &&
+		strings.Contains(lowerMessage, "not found")) {
+		return ClassifiedError{}, false
+	}
+	// This class of error has so far only been observed with OpenAI.
+	if provider == "" {
+		provider = "openai"
+	}
+	return normalizeClassification(ClassifiedError{
+		Detail:      structured.detail,
+		Kind:        codersdk.ChatErrorKindGeneric,
+		Provider:    provider,
+		Retryable:   true,
+		StatusCode:  statusCode,
+		RetryAfter:  structured.retryAfter,
+		ChainBroken: true,
+	}), true
 }
 
 func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {

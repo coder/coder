@@ -234,7 +234,7 @@ func genData(t *testing.T, db database.Store) []database.User {
 					OAuthAccessToken:  "access-" + usr.ID.String(),
 					OAuthRefreshToken: "refresh-" + usr.ID.String(),
 				})
-				// Deleted users cannot have user_links
+				// Deleted users cannot have user_links or user_secrets.
 				if !deleted {
 					// Fun fact: our schema allows _all_ login types to have
 					// a user_link. Even though I'm not sure how it could occur
@@ -245,15 +245,15 @@ func genData(t *testing.T, db database.Store) []database.User {
 						OAuthAccessToken:  "access-" + usr.ID.String(),
 						OAuthRefreshToken: "refresh-" + usr.ID.String(),
 					})
-				}
 
-				_ = dbgen.UserSecret(t, db, database.UserSecret{
-					UserID:   usr.ID,
-					Name:     "secret-" + usr.ID.String(),
-					Value:    "value-" + usr.ID.String(),
-					EnvName:  "",
-					FilePath: "",
-				})
+					_ = dbgen.UserSecret(t, db, database.UserSecret{
+						UserID:   usr.ID,
+						Name:     "secret-" + usr.ID.String(),
+						Value:    "value-" + usr.ID.String(),
+						EnvName:  "",
+						FilePath: "",
+					})
+				}
 				users = append(users, usr)
 			}
 		}

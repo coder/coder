@@ -42,15 +42,15 @@ export interface AIBridgeBedrockConfig {
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
-	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly openai: AIBridgeOpenAIConfig;
 	/**
-	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
 	/**
-	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
@@ -59,7 +59,7 @@ export interface AIBridgeConfig {
 	 */
 	readonly providers?: readonly AIBridgeProviderConfig[];
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
@@ -852,6 +852,14 @@ export interface AdvisorConfig {
 	readonly model_config_id: string;
 }
 
+// From codersdk/users.go
+export type AgentChatSendShortcut = "enter" | "modifier_enter";
+
+export const AgentChatSendShortcuts: AgentChatSendShortcut[] = [
+	"enter",
+	"modifier_enter",
+];
+
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
 	readonly started_at: string;
@@ -930,7 +938,7 @@ export interface AppearanceConfig {
 	readonly logo_url: string;
 	readonly docs_url: string;
 	/**
-	 * Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
+	 * @deprecated ServiceBanner has been replaced by AnnouncementBanners.
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
@@ -1027,7 +1035,7 @@ export interface AuditLog {
 	readonly resource_link: string;
 	readonly is_deleted: boolean;
 	/**
-	 * Deprecated: Use 'organization.id' instead.
+	 * @deprecated Use 'organization.id' instead.
 	 */
 	readonly organization_id: string;
 	readonly organization?: MinimalOrganization;
@@ -2635,6 +2643,8 @@ export interface ChatToolResultPart {
 	readonly tool_name?: string;
 	readonly mcp_server_config_id?: string;
 	readonly result?: Record<string, string>;
+	readonly result_delta?: string;
+	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
 	readonly is_media?: boolean;
 	/**
@@ -3076,6 +3086,11 @@ export interface CreateMCPServerConfigRequest {
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
+	/**
+	 * ForwardCoderHeaders, when true, forwards Coder identity
+	 * headers on every outgoing MCP request. See MCPServerConfig.
+	 */
+	readonly forward_coder_headers: boolean;
 }
 
 // From codersdk/organizations.go
@@ -3776,10 +3791,11 @@ export interface DeploymentValues {
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
+	readonly template_builder?: TemplateBuilderConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**
-	 * Deprecated: Use HTTPAddress or TLS.Address instead.
+	 * @deprecated Use HTTPAddress or TLS.Address instead.
 	 */
 	readonly address?: string;
 }
@@ -3883,6 +3899,12 @@ export interface DynamicToolResponse {
  */
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
+	/**
+	 * ModelConfigID, when set, overrides the model used for the
+	 * replacement user message and the assistant turn that follows.
+	 * When nil the original message's model is preserved.
+	 */
+	readonly model_config_id?: string;
 }
 
 // From codersdk/chats.go
@@ -4028,15 +4050,15 @@ export interface ExternalAuthConfig {
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_url: string;
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_tool_allow_regex: string;
 	/**
-	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_tool_deny_regex: string;
 	/**
@@ -4246,7 +4268,7 @@ export interface GetInboxNotificationResponse {
 export interface GetUserStatusCountsRequest {
 	readonly timezone: string;
 	/**
-	 * Deprecated: Use Timezone instead. Offset is ignored when Timezone is provided.
+	 * @deprecated Use Timezone instead. Offset is ignored when Timezone is provided.
 	 */
 	readonly offset?: number;
 }
@@ -4361,7 +4383,7 @@ export interface GroupSyncSettings {
 	 * a Coder group name. Since configuration is now done at runtime,
 	 * group IDs are used to account for group renames.
 	 * For legacy configurations, this config option has to remain.
-	 * Deprecated: Use Mapping instead.
+	 * @deprecated Use Mapping instead.
 	 */
 	readonly legacy_group_name_mapping?: Record<string, string>;
 }
@@ -4458,10 +4480,10 @@ export interface HealthSettings {
 	readonly dismissed_healthchecks: readonly HealthSection[];
 }
 
+export const HealthSeverities: HealthSeverity[] = ["error", "ok", "warning"];
+
 // From health/model.go
 export type HealthSeverity = "error" | "ok" | "warning";
-
-export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
 
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
@@ -4499,7 +4521,7 @@ export interface HealthcheckReport {
 	readonly time: string;
 	/**
 	 * Healthy is true if the report returns no errors.
-	 * Deprecated: use `Severity` instead
+	 * @deprecated use `Severity` instead
 	 */
 	readonly healthy: boolean;
 	/**
@@ -4773,6 +4795,14 @@ export interface MCPServerConfig {
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
+	/**
+	 * ForwardCoderHeaders forwards the same Coder identity headers we
+	 * send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
+	 * optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
+	 * MCP server on every request. Off by default to avoid leaking
+	 * chat identity to third-party servers.
+	 */
+	readonly forward_coder_headers: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -6484,7 +6514,7 @@ export interface ReducedUser extends MinimalUser {
 	readonly login_type: LoginType;
 	readonly is_service_account?: boolean;
 	/**
-	 * Deprecated: this value should be retrieved from
+	 * @deprecated this value should be retrieved from
 	 * `codersdk.UserPreferenceSettings` instead.
 	 */
 	readonly theme_preference?: string;
@@ -6826,7 +6856,7 @@ export interface SSHConfig {
 export interface SSHConfigResponse {
 	/**
 	 * HostnamePrefix is the prefix we append to workspace names for SSH hostnames.
-	 * Deprecated: use HostnameSuffix instead.
+	 * @deprecated use HostnameSuffix instead.
 	 */
 	readonly hostname_prefix: string;
 	/**
@@ -6989,7 +7019,7 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 
 // From codersdk/deployment.go
 /**
- * Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
+ * @deprecated ServiceBannerConfig has been renamed to BannerConfig.
  */
 export interface ServiceBannerConfig {
 	readonly enabled: boolean;
@@ -7608,6 +7638,12 @@ export type TemplateBuildTimeStats = Record<
 	TransitionStats
 >;
 
+// From codersdk/deployment.go
+export interface TemplateBuilderConfig {
+	readonly disabled?: boolean;
+	readonly registry_url?: string;
+}
+
 // From codersdk/insights.go
 /**
  * Enums define the display name of the builtin app reported.
@@ -7979,7 +8015,7 @@ export interface UpdateAppearanceConfig {
 	readonly application_name: string;
 	readonly logo_url: string;
 	/**
-	 * Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
+	 * @deprecated ServiceBanner has been replaced by AnnouncementBanners.
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
@@ -8222,6 +8258,11 @@ export interface UpdateMCPServerConfigRequest {
 	readonly enabled?: boolean;
 	readonly model_intent?: boolean;
 	readonly allow_in_plan_mode?: boolean;
+	/**
+	 * ForwardCoderHeaders, when set, updates whether Coder identity
+	 * headers are forwarded on every outgoing MCP request.
+	 */
+	readonly forward_coder_headers?: boolean;
 }
 
 // From codersdk/notifications.go
@@ -8267,6 +8308,10 @@ export interface UpdateTemplateACL {
 }
 
 // From codersdk/templates.go
+/**
+ * UpdateTemplateMeta is the request body for the PATCH /templates/{template}
+ * endpoint. All fields are optional. Fields that are nil are not modified.
+ */
 export interface UpdateTemplateMeta {
 	readonly name?: string;
 	readonly display_name?: string;
@@ -8298,13 +8343,14 @@ export interface UpdateTemplateMeta {
 	 * immediately locked when updating the inactivity_ttl field to a new, shorter
 	 * value.
 	 */
-	readonly update_workspace_last_used_at: boolean;
+	readonly update_workspace_last_used_at?: boolean;
 	/**
-	 * UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned
-	 * from the template. This is useful for preventing dormant workspaces being immediately
-	 * deleted when updating the dormant_ttl field to a new, shorter value.
+	 * UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
+	 * from the template. This is useful for preventing dormant workspaces being
+	 * immediately deleted when updating the dormant_ttl field to a new, shorter
+	 * value.
 	 */
-	readonly update_workspace_dormant_at: boolean;
+	readonly update_workspace_dormant_at?: boolean;
 	/**
 	 * RequireActiveVersion mandates workspaces built using this template
 	 * use the active version of the template. This option has no
@@ -8325,7 +8371,7 @@ export interface UpdateTemplateMeta {
 	 * and must be explicitly granted to users or groups in the permissions settings
 	 * of the template.
 	 */
-	readonly disable_everyone_group_access: boolean;
+	readonly disable_everyone_group_access?: boolean;
 	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior?: CORSBehavior;
 	/**
@@ -8393,6 +8439,7 @@ export interface UpdateUserPreferenceSettingsRequest {
 	readonly task_notification_alert_dismissed?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
+	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
 }
 
 // From codersdk/users.go
@@ -8508,7 +8555,7 @@ export interface UpdateWorkspaceSharingSettingsRequest {
 	/**
 	 * SharingDisabled is deprecated and left for backward compatibility
 	 * purposes.
-	 * Deprecated: use `ShareableWorkspaceOwners` instead
+	 * @deprecated use `ShareableWorkspaceOwners` instead
 	 */
 	readonly sharing_disabled?: boolean;
 	/**
@@ -8771,6 +8818,7 @@ export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
+	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
 }
 
 // From codersdk/deployment.go
@@ -9027,7 +9075,7 @@ export interface WorkspaceAgent {
 	/**
 	 * StartupScriptBehavior is a legacy field that is deprecated in favor
 	 * of the `coder_script` resource. It's only referenced by old clients.
-	 * Deprecated: Remove in the future!
+	 * @deprecated Remove in the future!
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 }
@@ -9507,12 +9555,12 @@ export interface WorkspaceAppStatus {
 	 */
 	readonly uri: string;
 	/**
-	 * Deprecated: This field is unused and will be removed in a future version.
+	 * @deprecated This field is unused and will be removed in a future version.
 	 * Icon is an external URL to an icon that will be rendered in the UI.
 	 */
 	readonly icon: string;
 	/**
-	 * Deprecated: This field is unused and will be removed in a future version.
+	 * @deprecated This field is unused and will be removed in a future version.
 	 * NeedsUserAttention specifies whether the status needs user attention.
 	 */
 	readonly needs_user_attention: boolean;
@@ -9565,7 +9613,7 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	/**
-	 * Deprecated: This field has been deprecated in favor of Task WorkspaceID.
+	 * @deprecated This field has been deprecated in favor of Task WorkspaceID.
 	 */
 	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
@@ -9764,7 +9812,7 @@ export interface WorkspaceSharingSettings {
 	/**
 	 * SharingDisabled is deprecated and left for backward compatibility
 	 * purposes.
-	 * Deprecated: use `ShareableWorkspaceOwners` instead
+	 * @deprecated use `ShareableWorkspaceOwners` instead
 	 */
 	readonly sharing_disabled: boolean;
 	/**

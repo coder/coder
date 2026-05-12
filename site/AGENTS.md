@@ -26,6 +26,19 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
 - `pnpm format` - Format frontend code. Always run before creating a PR
 
+## Failure artifacts
+
+Playwright writes per-test failure artifacts to `site/test-results/` when
+running `pnpm playwright:test` from `site/`. Failed tests keep screenshots,
+videos, and traces through the Playwright config. The HTML report is written
+to `site/playwright-report/`, and the coderd debug log is written to
+`site/e2e/test-results/debug.log`.
+
+In CI, the `test-e2e` job uploads failure artifacts to the workflow run's
+Artifacts section. Look for artifact names prefixed with
+`playwright-artifacts-`, followed by the matrix job name and commit SHA.
+Debug logs and pprof dumps use the same job name and commit SHA convention.
+
 ## Components
 
 - MUI components are deprecated - migrate away from these when encountered

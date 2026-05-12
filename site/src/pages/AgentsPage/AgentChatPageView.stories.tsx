@@ -132,6 +132,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 
 	const props = {
 		agentId: AGENT_ID,
+		sendShortcut: "enter" as const,
 		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",
 		persistedError: undefined as ChatDetailError | undefined,
@@ -620,6 +621,7 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
@@ -638,6 +640,7 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
@@ -655,6 +658,7 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
@@ -673,6 +677,7 @@ export const LoadingWithRightPanel: Story = {
 export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}

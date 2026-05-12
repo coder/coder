@@ -91,6 +91,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -151,6 +152,7 @@ type Options struct {
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon      bool
 	ChatdInstructionLookupTimeout time.Duration
+	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
 	ProvisionerDaemonVersion      string
 	ProvisionerDaemonTags         map[string]string
 	MetricsCacheRefreshInterval   time.Duration
@@ -584,6 +586,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
+			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,

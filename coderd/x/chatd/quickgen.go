@@ -103,6 +103,10 @@ type generatedTitle struct {
 	Title string `json:"title" description:"Short descriptive chat title"`
 }
 
+type generatedTurnStatusLabel struct {
+	Label string `json:"label" description:"Compact 2-5 word current chat status label"`
+}
+
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
 // current title is either empty or still the fallback truncation).
@@ -802,19 +806,24 @@ func generateManualTitle(
 	return title, usage, nil
 }
 
-const pushSummaryPrompt = "You are a notification assistant. Given a chat title " +
-	"and the agent's last message, write a single short sentence (under 100 characters) " +
-	"summarizing what the agent did. This will be shown as a push notification body. " +
-	"Return plain text only — no quotes, no emoji, no markdown."
+const turnStatusLabelPrompt = "You write compact chat status labels for a sidebar or push notification. " +
+	"Given a chat title, current chat state, and the agent's latest message, populate the label field with a 2-5 word status label. " +
+	"Describe the chat's current state, not the agent. " +
+	"Good examples: Finished unit tests, Submitted PR, Still working on API, Waiting for user input. " +
+	"Do not start with Agent, I, We, It, The agent, or The chat. " +
+	"Avoid phrases like Agent asked, Agent identified, Agent found, or Agent explained. " +
+	"Prefer short action or state phrases such as Finished, Submitted, Fixed, Testing, Still working, or Waiting for. " +
+	"No quotes, emoji, markdown, or trailing punctuation."
 
-// generatePushSummary calls a cheap model to produce a short push
-// notification body from the chat title and the last assistant
+// generateTurnStatusLabel calls a cheap model to produce a short status
+// label from the chat title, current state, and last assistant
 // message text. It follows the same candidate-selection strategy
 // as title generation: try preferred lightweight models first, then
 // fall back to the provided model. Returns "" on any failure.
-func generatePushSummary(
+func generateTurnStatusLabel(
 	ctx context.Context,
 	chat database.Chat,
+	status database.ChatStatus,
 	assistantText string,
 	fallbackProvider string,
 	fallbackModelName string,
@@ -827,11 +836,13 @@ func generatePushSummary(
 ) string {
 	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 
-	summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	labelCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	assistantText = truncateRunes(assistantText, maxConversationContextRunes)
-	input := "Chat title: " + chat.Title + "\n\nAgent's last message:\n" + assistantText
+	input := "Current chat state: " + turnStatusLabelStateContext(status) +
+		"\nChat title: " + chat.Title +
+		"\n\nAgent's latest message:\n" + assistantText
 
 	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
@@ -854,15 +865,15 @@ func generatePushSummary(
 		lm:       fallbackModel,
 	})
 
-	pushSeedSummary := chatdebug.SeedSummary("Push summary")
+	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
 
 	for _, candidate := range candidates {
-		candidateCtx := summaryCtx
+		candidateCtx := labelCtx
 		candidateModel := candidate.lm
 		finishDebugRun := func(error) {}
 		if debugEnabled {
 			candidateCtx, candidateModel, finishDebugRun = prepareQuickgenDebugCandidate(
-				summaryCtx,
+				labelCtx,
 				chat,
 				keys,
 				debugSvc,
@@ -870,42 +881,41 @@ func generatePushSummary(
 				chatdebug.KindQuickgen,
 				triggerMessageID,
 				historyTipMessageID,
-				pushSeedSummary,
+				statusSeedSummary,
 				logger,
 			)
 		}
 
-		summary, err := generateShortText(
+		generatedLabel, err := generateStructuredTurnStatusLabel(
 			candidateCtx,
 			candidateModel,
-			pushSummaryPrompt,
+			turnStatusLabelPrompt,
 			input,
 		)
 		finishDebugRun(err)
 		if err != nil {
-			logger.Debug(ctx, "push summary model candidate failed",
+			logger.Debug(ctx, "turn status label model candidate failed",
 				slog.Error(err),
 			)
 			continue
 		}
-		if summary != "" {
-			return summary
-		}
+		return generatedLabel
 	}
 	return ""
 }
 
-// generateShortText calls a model with a system prompt and user
-// input, returning a cleaned-up short text response. It reuses the
-// same retry logic as title generation. Retries can therefore
-// produce multiple debug steps for a single quickgen run.
-func generateShortText(
+func generateStructuredTurnStatusLabel(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
-	prompt := []fantasy.Message{
+	userInput = strings.TrimSpace(userInput)
+	if userInput == "" {
+		return "", xerrors.New("turn status label input was empty")
+	}
+
+	prompt := fantasy.Prompt{
 		{
 			Role: fantasy.MessageRoleSystem,
 			Content: []fantasy.MessagePart{
@@ -920,27 +930,128 @@ func generateShortText(
 		},
 	}
 
-	var maxOutputTokens int64 = 256
-
-	var response *fantasy.Response
+	var maxOutputTokens int64 = 64
+	var result *fantasy.ObjectResult[generatedTurnStatusLabel]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
-		response, genErr = model.Generate(retryCtx, fantasy.Call{
-			Prompt:          prompt,
-			MaxOutputTokens: &maxOutputTokens,
+		result, genErr = object.Generate[generatedTurnStatusLabel](retryCtx, model, fantasy.ObjectCall{
+			Prompt:            prompt,
+			SchemaName:        "propose_turn_status_label",
+			SchemaDescription: "Propose a compact chat status label.",
+			MaxOutputTokens:   &maxOutputTokens,
 		})
 		return genErr
 	}, nil)
 	if err != nil {
-		return "", xerrors.Errorf("generate short text: %w", err)
+		return "", xerrors.Errorf("generate structured turn status label: %w", err)
 	}
 
-	responseParts := make([]codersdk.ChatMessagePart, 0, len(response.Content))
-	for _, block := range response.Content {
-		if p := chatprompt.PartFromContent(block); p.Type != "" {
-			responseParts = append(responseParts, p)
+	label, ok := normalizeTurnStatusLabel(result.Object.Label)
+	if !ok {
+		return "", xerrors.New("generated turn status label was invalid")
+	}
+	return label, nil
+}
+
+func turnStatusLabelStateContext(status database.ChatStatus) string {
+	switch status {
+	case database.ChatStatusWaiting:
+		return "The turn finished and the chat is idle."
+	case database.ChatStatusPending:
+		return "Another user message is queued and the chat will continue."
+	case database.ChatStatusRequiresAction:
+		return "The chat is waiting for user input or action."
+	case database.ChatStatusError:
+		return "The chat ended with an error."
+	default:
+		return "The chat state is unknown."
+	}
+}
+
+func fallbackTurnStatusLabel(status database.ChatStatus) string {
+	switch status {
+	case database.ChatStatusWaiting:
+		return "Finished latest turn"
+	case database.ChatStatusPending:
+		return "Still working on request"
+	case database.ChatStatusRequiresAction:
+		return "Waiting for user input"
+	case database.ChatStatusError:
+		return "Hit an error"
+	default:
+		return "Updated chat status"
+	}
+}
+
+func normalizeTurnStatusLabel(text string) (string, bool) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", false
+	}
+
+	text = strings.Trim(text, "\"'`")
+	text = strings.TrimSpace(text)
+	if text == "" || strings.ContainsAny(text, "\r\n") {
+		return "", false
+	}
+	text = strings.TrimRight(text, ".!?")
+	text = strings.Join(strings.Fields(text), " ")
+	if text == "" || hasSentenceBoundary(text) {
+		return "", false
+	}
+
+	words := strings.Fields(text)
+	if len(words) < 2 || len(words) > 5 {
+		return "", false
+	}
+
+	lower := strings.ToLower(text)
+	if hasDisallowedTurnStatusLabelSubject(lower) {
+		return "", false
+	}
+
+	disallowedPhrases := []string{
+		"agent asked",
+		"agent identified",
+		"agent found",
+		"agent explained",
+	}
+	for _, phrase := range disallowedPhrases {
+		if strings.Contains(lower, phrase) {
+			return "", false
 		}
 	}
-	text := normalizeShortTextOutput(contentBlocksToText(responseParts))
-	return text, nil
+
+	return text, true
+}
+
+func hasDisallowedTurnStatusLabelSubject(text string) bool {
+	subject := leadingLetters(text)
+	switch subject {
+	case "agent", "i", "it", "the", "we":
+		return true
+	default:
+		return false
+	}
+}
+
+func leadingLetters(text string) string {
+	for i, r := range text {
+		if r < 'a' || r > 'z' {
+			return text[:i]
+		}
+	}
+	return text
+}
+
+func hasSentenceBoundary(text string) bool {
+	for i, r := range text {
+		switch r {
+		case '.', '!', '?':
+			if i+1 < len(text) && text[i+1] == ' ' {
+				return true
+			}
+		}
+	}
+	return false
 }

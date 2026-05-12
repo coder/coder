@@ -34,6 +34,13 @@
 - **MUST DO**: Queries are grouped in files relating to context - e.g. `prebuilds.sql`, `users.sql`, `oauth2.sql`
 - After making changes to any `coderd/database/queries/*.sql` files you must run `make gen` to generate respective ORM changes
 
+### Query Naming
+
+- Use `ByX` when `X` is the lookup or filter column.
+- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
+  dimension.
+- Avoid `ByX` names for grouped queries.
+
 ## Handling Nullable Fields
 
 Use `sql.NullString`, `sql.NullBool`, etc. for optional database fields:
@@ -46,6 +53,13 @@ CodeChallenge: sql.NullString{
 ```
 
 Set `.Valid = true` when providing values.
+
+## Database-to-SDK Conversions
+
+- Extract explicit db-to-SDK conversion helpers instead of inlining large
+  conversion blocks inside handlers.
+- Keep nullable-field handling, type coercion, and response shaping in the
+  converter so handlers stay focused on request flow and authorization.
 
 ## Audit Table Updates
 
@@ -128,6 +142,19 @@ func TestDatabaseFunction(t *testing.T) {
 2. **Handle errors appropriately**: Check for specific error types
 3. **Use transactions**: For related operations that must succeed together
 4. **Optimize queries**: Use EXPLAIN to understand query performance
+
+### Transaction Safety with `InTx`
+
+- Inside `db.InTx(...)` closures, do not use the outer store
+  (`api.Database`, `p.db`, etc.) directly or indirectly. Use the `tx`
+  handle for DB work inside the closure, or fetch read-only inputs before
+  opening the transaction.
+- Watch for helper methods on a receiver that hide outer-store access. A
+  call like `p.someHelper(ctx)` is still unsafe inside `InTx` if that
+  helper uses `p.db` internally.
+- Using the outer store while a transaction is open can hold one
+  connection and then block on another pool checkout, which can cause
+  pool starvation and `idle in transaction` incidents under load.
 
 ### Migration Writing
 

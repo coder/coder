@@ -653,7 +653,16 @@ func TestClassify_PrefersRetryAfterMsOverRetryAfter(t *testing.T) {
 func TestClassify_ParsesRetryAfterHTTPDate(t *testing.T) {
 	t.Parallel()
 
-	retryAt := time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)
+	// http.TimeFormat has second precision, so formatting truncates the
+	// sub-second component (up to ~1s of loss). Round the target up to the
+	// next whole second before formatting so the parsed deadline is never
+	// earlier than now+offset, regardless of where now's fractional second
+	// lands. Without this, a now with frac near 1s plus any scheduling
+	// jitter can drive the computed RetryAfter just under offset-1s and
+	// flake the lower bound.
+	offset := 3 * time.Second
+	target := time.Now().Add(offset).Truncate(time.Second).Add(time.Second)
+	retryAt := target.UTC().Format(http.TimeFormat)
 	classified := chaterror.Classify(testProviderError(
 		"upstream failed",
 		429,
@@ -661,8 +670,8 @@ func TestClassify_ParsesRetryAfterHTTPDate(t *testing.T) {
 	))
 
 	require.Equal(t, 429, classified.StatusCode)
-	require.GreaterOrEqual(t, classified.RetryAfter, 2*time.Second)
-	require.LessOrEqual(t, classified.RetryAfter, 4*time.Second)
+	require.GreaterOrEqual(t, classified.RetryAfter, offset-time.Second)
+	require.LessOrEqual(t, classified.RetryAfter, offset+time.Second)
 }
 
 func TestClassify_IgnoresInvalidRetryAfter(t *testing.T) {
@@ -744,6 +753,123 @@ func TestClassify_TruncatesProviderDetail(t *testing.T) {
 
 	require.Len(t, []rune(classified.Detail), 500)
 	require.True(t, strings.HasSuffix(classified.Detail, "…"))
+}
+
+func TestClassify_ChainBroken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		err             error
+		wantChainBroken bool
+		wantRetryable   bool
+		wantProvider    string
+		wantStatusCode  int
+	}{
+		{
+			name: "OpenAIPreviousResponseNotFoundBareString",
+			err: xerrors.New(
+				"Previous response with id 'resp_abc' not found.",
+			),
+			wantChainBroken: true,
+			wantRetryable:   true,
+			wantProvider:    "openai",
+			wantStatusCode:  0,
+		},
+		{
+			name: "OpenAIPreviousResponseNotFoundProviderError",
+			err: testProviderError(
+				"Previous response with id 'resp_096c70c5bb8d52bc0069fa11e0630c81a3ba210cddfa75bae9' not found.",
+				404,
+				nil,
+			),
+			wantChainBroken: true,
+			wantRetryable:   true,
+			wantProvider:    "openai",
+			wantStatusCode:  404,
+		},
+		{
+			name: "OpenAIPreviousResponseCaseInsensitive",
+			err: testProviderError(
+				"PREVIOUS RESPONSE WITH ID 'resp_abc' NOT FOUND.",
+				404,
+				nil,
+			),
+			wantChainBroken: true,
+			wantRetryable:   true,
+			wantProvider:    "openai",
+			wantStatusCode:  404,
+		},
+		{
+			name: "PreviousResponseWithoutNotFoundIsNotChainBroken",
+			err: testProviderError(
+				"Previous response with id 'resp_abc' is invalid.",
+				400,
+				nil,
+			),
+			wantChainBroken: false,
+		},
+		{
+			name: "UnrelatedNotFoundIsNotChainBroken",
+			err: testProviderError(
+				"resource not found",
+				404,
+				nil,
+			),
+			wantChainBroken: false,
+		},
+		{
+			name: "UnrelatedInvalidRequestIsNotChainBroken",
+			err: testProviderError(
+				"",
+				400,
+				nil,
+				testProviderResponseDump(`{"error":{"type":"invalid_request_error","message":"Image exceeds 5 MB maximum."}}`),
+			),
+			wantChainBroken: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(tt.err)
+			require.Equal(t, tt.wantChainBroken, classified.ChainBroken,
+				"chain broken flag mismatch")
+			if !tt.wantChainBroken {
+				return
+			}
+			require.Equal(t, tt.wantRetryable, classified.Retryable,
+				"chain-broken errors must be retryable so the loop"+
+					" can self-heal")
+			require.Equal(t, tt.wantProvider, classified.Provider)
+			require.Equal(t, tt.wantStatusCode, classified.StatusCode)
+			require.Equal(t, codersdk.ChatErrorKindGeneric, classified.Kind,
+				"chain-broken keeps the user-visible kind unchanged"+
+					" so we don't add a new codersdk surface")
+		})
+	}
+}
+
+func TestClassify_ChainBrokenSurvivesWithClassification(t *testing.T) {
+	t.Parallel()
+
+	original := chaterror.Classify(testProviderError(
+		"Previous response with id 'resp_abc' not found.",
+		404,
+		nil,
+	))
+	require.True(t, original.ChainBroken)
+
+	wrapped := chaterror.WithClassification(
+		xerrors.New("transport blew up"),
+		original,
+	)
+	round := chaterror.Classify(wrapped)
+	require.True(t, round.ChainBroken,
+		"WithClassification round-trips ChainBroken so the retry path"+
+			" can detect it after re-classification")
 }
 
 func testProviderError(

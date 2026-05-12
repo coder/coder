@@ -48,7 +48,7 @@ func TestAdvisorRunAdvice(t *testing.T) {
 	result, err := runtime.RunAdvisor(t.Context(), question, []fantasy.Message{
 		textMessage(fantasy.MessageRoleSystem, "existing system"),
 		textMessage(fantasy.MessageRoleUser, "hello"),
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 	require.Equal(t, "Take the smallest safe change.", result.Advice)
@@ -61,6 +61,122 @@ func TestAdvisorRunAdvice(t *testing.T) {
 	require.NotEmpty(t, capturedCall.Prompt)
 	require.Equal(t, fantasy.MessageRoleUser, capturedCall.Prompt[len(capturedCall.Prompt)-1].Role)
 	require.Equal(t, question, singleText(t, capturedCall.Prompt[len(capturedCall.Prompt)-1]))
+}
+
+func TestAdvisorRunStreamsAdviceDeltas(t *testing.T) {
+	t.Parallel()
+
+	var deltas []string
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Use "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the smaller "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "diff."},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	result, err := runtime.RunAdvisor(t.Context(), "what should I do?", nil, &chatadvisor.RunAdvisorOptions{
+		OnAdviceDelta: func(delta string) {
+			deltas = append(deltas, delta)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"Use ", "the smaller ", "diff."}, deltas)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "Use the smaller diff.", result.Advice)
+	require.Equal(t, 1, result.RemainingUses)
+}
+
+func TestAdvisorRunResetsAdviceDeltasOnRetry(t *testing.T) {
+	t.Parallel()
+
+	var (
+		calls  int
+		events []string
+	)
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				calls++
+				if calls == 1 {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "stale "},
+						{Type: fantasy.StreamPartTypeError, Error: xerrors.New("received status 429 from upstream")},
+					}), nil
+				}
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "fresh advice"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	result, err := runtime.RunAdvisor(t.Context(), "what should I do?", nil, &chatadvisor.RunAdvisorOptions{
+		OnAdviceDelta: func(delta string) {
+			events = append(events, "delta:"+delta)
+		},
+		OnAdviceReset: func() {
+			events = append(events, "reset")
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"delta:stale ", "reset", "delta:fresh advice"}, events)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "fresh advice", result.Advice)
+}
+
+func TestAdvisorRunErrorAfterPartialDelta(t *testing.T) {
+	t.Parallel()
+
+	var deltas []string
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "partial advice"},
+					{Type: fantasy.StreamPartTypeError, Error: xerrors.New("boom after partial")},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	result, err := runtime.RunAdvisor(t.Context(), "what should I do?", nil, &chatadvisor.RunAdvisorOptions{
+		OnAdviceDelta: func(delta string) {
+			deltas = append(deltas, delta)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"partial advice"}, deltas)
+	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
+	require.Contains(t, result.Error, "boom after partial")
+	require.Equal(t, 1, result.RemainingUses)
 }
 
 func TestAdvisorRunLimitReached(t *testing.T) {
@@ -86,12 +202,12 @@ func TestAdvisorRunLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	first, err := runtime.RunAdvisor(t.Context(), "first?", nil)
+	first, err := runtime.RunAdvisor(t.Context(), "first?", nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, first.Type)
 	require.Equal(t, 0, first.RemainingUses)
 
-	second, err := runtime.RunAdvisor(t.Context(), "second?", nil)
+	second, err := runtime.RunAdvisor(t.Context(), "second?", nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeLimitReached, second.Type)
 	require.Equal(t, 0, second.RemainingUses)
@@ -114,7 +230,7 @@ func TestAdvisorRunError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := runtime.RunAdvisor(t.Context(), "what failed?", nil)
+	result, err := runtime.RunAdvisor(t.Context(), "what failed?", nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
 	require.Contains(t, result.Error, "boom")
@@ -149,12 +265,12 @@ func TestAdvisorRunError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	failed, err := runtime2.RunAdvisor(t.Context(), "first?", nil)
+	failed, err := runtime2.RunAdvisor(t.Context(), "first?", nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeError, failed.Type)
 	require.Equal(t, 1, failed.RemainingUses)
 
-	retried, err := runtime2.RunAdvisor(t.Context(), "retry?", nil)
+	retried, err := runtime2.RunAdvisor(t.Context(), "retry?", nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, retried.Type)
 	require.Equal(t, "recovered", retried.Advice)
@@ -251,7 +367,7 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := runtime.RunAdvisor(t.Context(), "anything?", nil)
+	result, err := runtime.RunAdvisor(t.Context(), "anything?", nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 
@@ -316,7 +432,7 @@ func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := range 2 {
-		result, err := runtime.RunAdvisor(t.Context(), fmt.Sprintf("q%d", i), nil)
+		result, err := runtime.RunAdvisor(t.Context(), fmt.Sprintf("q%d", i), nil, nil)
 		require.NoError(t, err)
 		require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 	}

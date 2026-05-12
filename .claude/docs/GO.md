@@ -1,9 +1,58 @@
-# Modern Go (1.18–1.26)
+# Modern Go (1.18-1.26)
 
 Reference for writing idiomatic Go. Covers what changed, what it
 replaced, and what to reach for. Respect the project's `go.mod` `go`
 line: don't emit features from a version newer than what the module
 declares. Check `go.mod` before writing code.
+
+## Go LSP Navigation
+
+Use Go LSP tools first for backend code navigation:
+
+- **Find definitions**: `mcp__go-language-server__definition symbolName`
+- **Find references**: `mcp__go-language-server__references symbolName`
+- **Get type info**: `mcp__go-language-server__hover filePath line column`
+- **Rename symbol**: `mcp__go-language-server__rename_symbol filePath line column newName`
+
+## Code Comments
+
+Code comments should be clear, well-formatted, and add meaningful context.
+
+- Comments are sentences and should end with periods or other appropriate
+  punctuation.
+- Explain why, not what. The code itself should be self-documenting
+  through clear naming and structure. Focus comments on non-obvious
+  decisions, edge cases, or business logic.
+- Keep comment lines to 80 characters wide, including the comment prefix
+  like `//` or `#`. When a comment spans multiple lines, wrap it
+  naturally at word boundaries.
+
+```go
+// Good: Explains the rationale with proper sentence structure.
+// We need a custom timeout here because workspace builds can take several
+// minutes on slow networks, and the default 30s timeout causes false
+// failures during initial template imports.
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+
+// Bad: Describes what the code does without punctuation or wrapping.
+// Set a custom timeout
+// Workspace builds can take a long time
+// Default timeout is too short
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+```
+
+## Avoid Unnecessary Changes
+
+When fixing a bug or adding a feature, don't modify code unrelated to your
+task. Unnecessary changes make PRs harder to review and can introduce
+regressions.
+
+- Don't reword existing comments or code unless the change is directly
+  motivated by your task.
+- Don't delete existing comments that explain non-obvious behavior.
+- When adding tests for new behavior, read existing tests first to
+  understand what's covered. Add new cases for uncovered behavior. Edit
+  existing tests as needed, but don't change what they verify.
 
 ## How modern Go thinks differently
 
@@ -24,7 +73,7 @@ etc., they replace ad-hoc "loop and append" code with composable,
 lazy pipelines. When a sequence is consumed only once, prefer an
 iterator over materializing a slice.
 
-**Error trees** (1.20–1.26): Errors compose as trees, not chains.
+**Error trees** (1.20-1.26): Errors compose as trees, not chains.
 `errors.Join` aggregates multiple errors. `fmt.Errorf` accepts multiple
 `%w` verbs. `errors.Is`/`As` traverse the full tree. Custom error
 types that wrap multiple causes must implement `Unwrap() []error` (the
@@ -68,7 +117,7 @@ directive version required in `go.mod`.
 | `fmt.Sprintf` + append to `[]byte` | `fmt.Appendf(buf, …)` (also `Append`, `Appendln`) | 1.18 |
 | `reflect.TypeOf((*T)(nil)).Elem()` | `reflect.TypeFor[T]()` | 1.22 |
 | `*(*[4]byte)(slice)` unsafe cast | `[4]byte(slice)` direct conversion | 1.20 |
-| `atomic.LoadInt64` / `StoreInt64` | `atomic.Int64` (also `Bool`, `Uint64`, `Pointer[T]`) | 1.19 |
+| `atomic.LoadInt64` / `AddInt64` / `StoreInt64` etc. | `atomic.Int64` (also `Int32`, `Uint32`, `Uint64`, `Bool`, `Pointer[T]`) | 1.19 |
 | `crypto/rand.Read(buf)` + hex/base64 encode | `crypto/rand.Text()` (one call) | 1.24 |
 | Checking `crypto/rand.Read` error | don't: return is always nil | 1.24 |
 | `time.Sleep` in tests | `testing/synctest` (deterministic fake clock) | 1.24/1.25 |

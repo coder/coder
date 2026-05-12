@@ -55,11 +55,11 @@ Template admins can pre-configure Claude Code for a seamless experience. Admins 
 
 ```hcl
 module "claude-code" {
-  source          = "registry.coder.com/coder/claude-code/coder"
-  version         = "4.7.3"
-  agent_id        = coder_agent.main.id
-  workdir         = "/path/to/project"  # Set to your project directory
-  enable_aibridge = true
+  source            = "registry.coder.com/coder/claude-code/coder"
+  version           = "4.7.3"
+  agent_id          = coder_agent.main.id
+  workdir           = "/path/to/project"  # Set to your project directory
+  enable_ai_gateway = true
 }
 ```
 
@@ -76,14 +76,14 @@ resource "coder_ai_task" "task" {
 data "coder_task" "me" {}
 
 module "claude-code" {
-  source         = "registry.coder.com/coder/claude-code/coder"
-  version        = "4.7.3"
-  agent_id       = coder_agent.main.id
-  workdir        = "/path/to/project"  # Set to your project directory
-  ai_prompt      = data.coder_task.me.prompt
+  source            = "registry.coder.com/coder/claude-code/coder"
+  version           = "4.7.3"
+  agent_id          = coder_agent.main.id
+  workdir           = "/path/to/project"  # Set to your project directory
+  ai_prompt         = data.coder_task.me.prompt
 
   # Route through AI Gateway (AI Governance Add-On)
-  enable_aibridge = true
+  enable_ai_gateway = true
 }
 ```
 

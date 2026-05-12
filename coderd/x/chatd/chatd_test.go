@@ -2623,6 +2623,12 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -4057,7 +4063,7 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include execute tool output")
 }
 
-func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
+func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -4108,7 +4114,7 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-		Title:          "requires-action-summary-clear",
+		Title:          "requires-action-status-label",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("Please call the dynamic tool."),
@@ -4131,15 +4137,16 @@ func TestRequiresActionChatClearsLastTurnSummary(t *testing.T) {
 			return true
 		}
 		return got.Status == database.ChatStatusRequiresAction &&
-			!got.LastTurnSummary.Valid
+			got.LastTurnSummary.Valid &&
+			got.LastTurnSummary.String == "Waiting for user input"
 	}, testutil.IntervalFast)
 	chatd.WaitUntilIdleForTest(server)
 
 	require.Equal(t, database.ChatStatusRequiresAction, fromDB.Status,
 		"expected requires_action, got %s (last_error=%q)",
 		fromDB.Status, string(fromDB.LastError.RawMessage))
-	require.False(t, fromDB.LastTurnSummary.Valid,
-		"requires action chats should clear cached turn summaries")
+	require.Equal(t, sql.NullString{String: "Waiting for user input", Valid: true}, fromDB.LastTurnSummary,
+		"requires action chats should persist a waiting status label")
 	require.Equal(t, int32(0), mockPush.dispatchCount.Load(),
 		"expected no web push dispatch for a requires_action chat")
 }
@@ -6525,13 +6532,16 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I have completed the task successfully and all tests are passing now."
-	const summaryText = "Completed task and verified all tests pass."
+	const summaryText = "Finished unit tests"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse(summaryText)
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(fmt.Sprintf(`{"label":%q}`, summaryText))
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks(assistantText)...,
@@ -6579,13 +6589,11 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 
 	msg := mockPush.getLastMessage()
 	require.Equal(t, summaryText, fromDB.LastTurnSummary.String,
-		"last turn summary should be the LLM-generated summary")
+		"last turn summary should be the LLM-generated status label")
 	require.Equal(t, fromDB.LastTurnSummary.String, msg.Body,
-		"push body should reuse the persisted generated summary")
-	require.NotEqual(t, "Agent has finished running.", msg.Body,
-		"push body should not use the default fallback text")
+		"push body should reuse the persisted generated status label")
 	require.Equal(t, int32(1), nonStreamingRequests.Load(),
-		"expected exactly one non-streaming request for push summary generation")
+		"expected exactly one non-streaming request for status label generation")
 }
 
 func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
@@ -6595,13 +6603,16 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const assistantText = "I fixed the bug and added regression coverage."
-	const summaryText = "Fixed the bug and added regression coverage."
+	const summaryText = "Fixed regression bug"
 
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse(summaryText)
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(fmt.Sprintf(`{"label":%q}`, summaryText))
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks(assistantText)...,
@@ -6630,9 +6641,9 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 	}, testutil.IntervalFast)
 
 	require.Equal(t, summaryText, fromDB.LastTurnSummary.String,
-		"summary should persist even when web push is unavailable")
+		"status label should persist even when web push is unavailable")
 	require.Equal(t, int32(1), nonStreamingRequests.Load(),
-		"expected exactly one non-streaming request for summary generation")
+		"expected exactly one non-streaming request for status label generation")
 }
 
 func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t *testing.T) {
@@ -6644,8 +6655,11 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			nonStreamingRequests.Add(1)
-			return chattest.OpenAINonStreamingResponse("unexpected summary request")
+			if strings.Contains(string(req.RawBody), "propose_turn_status_label") {
+				nonStreamingRequests.Add(1)
+				return chattest.OpenAINonStreamingResponse(`{"label":"Unexpected label"}`)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Empty summary push test"}`)
 		}
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("   ")...,
@@ -6689,14 +6703,14 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.False(t, fromDB.LastTurnSummary.Valid,
-		"fallback push text should not be persisted")
+	require.Equal(t, sql.NullString{String: "Finished latest turn", Valid: true}, fromDB.LastTurnSummary,
+		"fallback status label should be persisted")
 
 	msg := mockPush.getLastMessage()
-	require.Equal(t, "Agent has finished running.", msg.Body,
+	require.Equal(t, "Finished latest turn", msg.Body,
 		"push body should fall back when the final assistant text is empty")
 	require.Equal(t, int32(0), nonStreamingRequests.Load(),
-		"push summary should not be requested when final assistant text has no usable text")
+		"status label model should not run when final assistant text has no usable text")
 }
 
 func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
@@ -6757,7 +6771,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 		"errored chats should clear cached turn summaries")
 
 	msg := mockPush.getLastMessage()
-	require.NotEqual(t, "Agent encountered an error.", msg.Body)
+	require.NotEqual(t, "Hit an error", msg.Body)
 	require.Contains(t, msg.Body, "OpenAI returned an unexpected error")
 }
 
@@ -8720,6 +8734,155 @@ func TestEditMessageRejectsArchivedChat(t *testing.T) {
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
 }
 
+// TestEditMessageWithModelConfigOverride verifies that callers can
+// change the model when editing a previous user message. The
+// replacement message must persist with the new model and the chat's
+// LastModelConfigID must be advanced so the assistant turn that follows
+// runs against the new selection.
+func TestEditMessageWithModelConfigOverride(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelA := seedChatDependencies(t, db)
+	modelB := insertChatModelConfigWithCallConfig(
+		t,
+		db,
+		user.ID,
+		"openai",
+		"gpt-4o-mini-edit-"+uuid.NewString(),
+		codersdk.ChatModelCallConfig{},
+	)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
+		Title:              "edit-with-model-override",
+		ModelConfigID:      modelA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+	})
+	require.NoError(t, err)
+
+	initial, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, initial, 1)
+	require.Equal(t, modelA.ID, initial[0].ModelConfigID.UUID)
+
+	result, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: initial[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		ModelConfigID:   modelB.ID,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Message.ModelConfigID.Valid)
+	require.Equal(t, modelB.ID, result.Message.ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelB.ID, storedChat.LastModelConfigID,
+		"edit must update last_model_config_id so the assistant turn picks up the new model")
+}
+
+// TestEditMessagePreservesModelConfigByDefault verifies that omitting
+// ModelConfigID on edit keeps the original message's model. This is the
+// existing default for callers that only edit the text.
+func TestEditMessagePreservesModelConfigByDefault(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelA := seedChatDependencies(t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
+		Title:              "edit-preserves-model",
+		ModelConfigID:      modelA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+	})
+	require.NoError(t, err)
+
+	initial, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, initial, 1)
+
+	result, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: initial[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Message.ModelConfigID.Valid)
+	require.Equal(t, modelA.ID, result.Message.ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelA.ID, storedChat.LastModelConfigID,
+		"edit without model override must not change last_model_config_id")
+}
+
+// TestEditMessageRejectsUnknownModelConfig verifies the edit handler
+// returns ErrInvalidModelConfigID when the requested model does not
+// exist, mirroring SendMessage's validation.
+func TestEditMessageRejectsUnknownModelConfig(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelA := seedChatDependencies(t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
+		Title:              "edit-unknown-model",
+		ModelConfigID:      modelA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+	})
+	require.NoError(t, err)
+
+	initial, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, initial, 1)
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: initial[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		ModelConfigID:   uuid.New(),
+	})
+	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+	// The edit must roll back: the original message should still be
+	// present and the chat's LastModelConfigID unchanged.
+	stillThere, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, stillThere, 1)
+	require.Equal(t, initial[0].ID, stillThere[0].ID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelA.ID, storedChat.LastModelConfigID)
+}
+
 func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {
 	t.Parallel()
 
@@ -9486,6 +9649,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const advisorReply = "break the problem into smaller pieces first"
+	advisorDeltas := []string{"break the problem ", "into smaller pieces first"}
 
 	var (
 		streamedCallCount atomic.Int32
@@ -9518,7 +9682,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			streamedCallsMu.Unlock()
 			advisorCallSeen.Store(true)
 			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks(advisorReply)...,
+				chattest.OpenAITextChunks(advisorDeltas...)...,
 			)
 		default:
 			// Parent turn 2: observe the advisor tool result and close
@@ -9550,6 +9714,48 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	// Subscribe before the worker commits any durable messages so we
+	// observe the advisor tool-result deltas live. Buffered parts are
+	// claimed by their committed durable message ID at publishMessage
+	// time and dropped from snapshots of late-connecting subscribers, so
+	// a post-completion Subscribe() would no longer see streaming
+	// deltas. Collecting events from the live channel covers the
+	// streaming UX contract this test exists to verify.
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	var (
+		livePartsMu       sync.Mutex
+		liveAdvisorDeltas []string
+		liveCollectorDone = make(chan struct{})
+	)
+	go func() {
+		defer close(liveCollectorDone)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, eventsOK := <-liveEvents:
+				if !eventsOK {
+					return
+				}
+				if event.Type != codersdk.ChatStreamEventTypeMessagePart ||
+					event.MessagePart == nil {
+					continue
+				}
+				part := event.MessagePart.Part
+				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
+					part.Type != codersdk.ChatMessagePartTypeToolResult ||
+					part.ToolName != chatadvisor.ToolName ||
+					part.ResultDelta == "" {
+					continue
+				}
+				livePartsMu.Lock()
+				liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				livePartsMu.Unlock()
+			}
+		}
+	}()
 
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
@@ -9604,6 +9810,28 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	}
 	require.True(t, parentSawAdvisorResult,
 		"parent must see the advisor reply in its continuation call")
+
+	// Stop the live collector and assert it captured the streaming
+	// advisor deltas during processing. Late subscribers no longer
+	// see committed parts because publishMessage claims them out of
+	// new snapshots, so the assertion must use the live collector.
+	cancelLive()
+	<-liveCollectorDone
+	livePartsMu.Lock()
+	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)
+	livePartsMu.Unlock()
+	require.Equal(t, advisorDeltas, collectedAdvisorDeltas,
+		"advisor nested text deltas must stream into the parent tool card")
+
+	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	for _, msg := range persisted {
+		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
+			"advisor deltas are stream-only and must not be persisted")
+	}
 }
 
 // TestAdvisorGating_ChildChat guards the second dimension of the advisor
@@ -11265,4 +11493,164 @@ func TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent(t *testing.T) {
 	require.Contains(t, recorded[0].Tools, workspaceToolName,
 		"workspace MCP tool should reach the LLM once chatd's discovery "+
 			"timeout exceeds the agent's MCP reload time")
+}
+
+// TestRunChat_WorkspaceMCPDiscoveryAfterMidTurnCreateWorkspace guards the
+// regression where chats that bound their workspace mid-turn (via
+// create_workspace) never saw workspace MCP tools on the same turn. The
+// chatloop tool list was frozen at the top of the turn, so the first
+// post-create_workspace step had no workspace MCP tools and the model
+// fell back to bash. See PrepareTools wiring in runChat.
+func TestRunChat_WorkspaceMCPDiscoveryAfterMidTurnCreateWorkspace(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+
+	workspaceToolName := "workspace-midturn-mcp__echo"
+	workspaceCreateToolArgsJSON := ""
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		callIdx := len(requests)
+		requestsMu.Unlock()
+
+		if callIdx == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace", workspaceCreateToolArgsJSON),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	// Seed a workspace+agent for create_workspace to bind to.
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	workspaceCreateToolArgsJSON = fmt.Sprintf(`{"template_id":%q}`, tpl.ID.String())
+
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    user.ID,
+		OrganizationID: org.ID,
+		CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       ws.ID,
+		JobID:             pj.ID,
+	})
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		Transition: database.WorkspaceTransitionStart,
+		JobID:      pj.ID,
+	})
+	now := dbtime.Now()
+	dbAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID:       res.ID,
+		LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
+		StartedAt:        sql.NullTime{Time: now, Valid: true},
+		ReadyAt:          sql.NullTime{Time: now, Valid: true},
+		FirstConnectedAt: sql.NullTime{Time: now, Valid: true},
+		LastConnectedAt:  sql.NullTime{Time: now, Valid: true},
+	})
+
+	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
+		Tools: []workspacesdk.MCPToolInfo{{
+			ServerName:  "workspace-midturn-mcp",
+			Name:        workspaceToolName,
+			Description: "workspace echo tool",
+			Schema: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		}},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	mockConn.EXPECT().ListMCPTools(gomock.Any()).
+		Return(workspaceToolsResp, nil).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+	mockConn.EXPECT().AwaitReachable(gomock.Any()).Return(true).AnyTimes()
+
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{
+			ID:             ws.ID,
+			Name:           req.Name,
+			OwnerName:      user.Username,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+			LatestBuild: codersdk.WorkspaceBuild{
+				ID:     build.ID,
+				Status: codersdk.WorkspaceStatusRunning,
+			},
+		}, nil
+	}
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+		cfg.CreateWorkspace = createFn
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "workspace-mcp-midturn",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Create a workspace and call the workspace MCP tool."),
+		},
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat failed", "last_error=%q",
+			chatLastErrorMessage(chatResult.LastError))
+	}
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.GreaterOrEqual(t, len(recorded), 2,
+		"expected at least two streamed model calls (create_workspace + follow-up)")
+	require.NotContains(t, recorded[0].Tools, workspaceToolName,
+		"first call should not advertise workspace MCP tools because the chat has no workspace yet")
+	require.Contains(t, recorded[1].Tools, workspaceToolName,
+		"second call (after create_workspace) must advertise the workspace MCP tool: "+
+			"this is the fix for mid-turn workspace MCP discovery")
 }

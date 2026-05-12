@@ -22,6 +22,38 @@ WHERE
 ORDER BY
 	created_at DESC;
 
+-- name: GetWorkspaceBuildAgentsByInstanceID :many
+SELECT
+	sqlc.embed(workspace_agents),
+	workspace_builds.id AS workspace_build_id,
+	sqlc.embed(workspaces)
+FROM
+	workspace_agents
+JOIN
+	workspace_resources
+ON
+	workspace_resources.id = workspace_agents.resource_id
+JOIN
+	workspace_builds
+ON
+	workspace_builds.job_id = workspace_resources.job_id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = workspace_builds.job_id
+JOIN
+	workspaces
+ON
+	workspaces.id = workspace_builds.workspace_id
+WHERE
+	workspace_agents.auth_instance_id = @auth_instance_id :: TEXT
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.parent_id IS NULL
+	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
+	AND workspaces.deleted = FALSE
+ORDER BY
+	workspace_agents.created_at DESC;
+
 -- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	*

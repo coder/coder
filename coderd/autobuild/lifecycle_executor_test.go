@@ -550,8 +550,8 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 
 	// Given: template has activity bump enabled.
 	_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
-		DefaultTTLMillis:   (2 * time.Hour).Milliseconds(),
-		ActivityBumpMillis: time.Hour.Milliseconds(),
+		DefaultTTLMillis:   ptr.Ref((2 * time.Hour).Milliseconds()),
+		ActivityBumpMillis: ptr.Ref(time.Hour.Milliseconds()),
 	})
 	require.NoError(t, err)
 
@@ -1905,7 +1905,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 
 		if defaultTTL > 0 {
 			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				DefaultTTLMillis: defaultTTL.Milliseconds(),
+				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
 			})
 			require.NoError(t, err)
 		}

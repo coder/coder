@@ -667,7 +667,7 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 
 			// Configure template with activity_bump to enable deadline bumping.
 			_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
-				ActivityBumpMillis: time.Hour.Milliseconds(),
+				ActivityBumpMillis: ptr.Ref(time.Hour.Milliseconds()),
 			})
 			require.NoError(t, err)
 
