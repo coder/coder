@@ -154,6 +154,14 @@ type BasicCoordinationController struct {
 	Logger      slog.Logger
 	Coordinatee Coordinatee
 	SendAcks    bool
+	// Initiator labels which side of the coordination this controller
+	// represents (e.g. "agent", "client", "server"). It is attached as
+	// a slog field to disconnect-related logs emitted by this
+	// coordination so operators can attribute connection-close events
+	// without inspecting call sites. Leave unset on synthetic
+	// controllers (tests, in-memory fakes) and the field will be
+	// omitted from log output.
+	Initiator codersdk.DisconnectInitiator
 }
 
 // New satisfies the method on the CoordinationController interface
@@ -170,6 +178,7 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 		client:       client,
 		respLoopDone: make(chan struct{}),
 		sendAcks:     c.SendAcks,
+		initiator:    c.Initiator,
 	}
 
 	c.Coordinatee.SetNodeCallback(func(node *Node) {
@@ -211,6 +220,7 @@ type BasicCoordination struct {
 	client       CoordinatorClient
 	respLoopDone chan struct{}
 	sendAcks     bool
+	initiator    codersdk.DisconnectInitiator
 }
 
 // CloseClient forcibly closes the underlying coordinator client connection
@@ -244,10 +254,19 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	c.Unlock()
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		// Log but don't return early; we must still clean up below.
-		c.logger.Warn(context.Background(), "failed to send disconnect", slog.Error(err))
+		c.logger.Warn(context.Background(), "failed to send disconnect",
+			slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
+			slog.F("disconnect_initiator", c.initiator),
+			slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
+			slog.Error(err),
+		)
 		retErr = xerrors.Errorf("send disconnect: %w", err)
 	} else {
-		c.logger.Debug(context.Background(), "sent disconnect")
+		c.logger.Debug(context.Background(), "sent disconnect",
+			slog.F("disconnect_reason", codersdk.DisconnectReasonGraceful),
+			slog.F("disconnect_initiator", c.initiator),
+			slog.F("disconnect_expected", codersdk.DisconnectReasonGraceful.Expected()),
+		)
 	}
 
 	// We shouldn't just close the protocol right away, because the way dRPC streams work is
@@ -256,10 +275,19 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	// Disconnect message, so we should wait around for that until the context expires.
 	select {
 	case <-c.respLoopDone:
-		c.logger.Debug(ctx, "responses closed after disconnect")
+		c.logger.Debug(ctx, "responses closed after disconnect",
+			slog.F("disconnect_reason", codersdk.DisconnectReasonGraceful),
+			slog.F("disconnect_initiator", c.initiator),
+			slog.F("disconnect_expected", codersdk.DisconnectReasonGraceful.Expected()),
+		)
 		return retErr
 	case <-ctx.Done():
-		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
+		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close",
+			slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
+			slog.F("disconnect_initiator", c.initiator),
+			slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
+			slog.F("disconnect_detail", "context expired before coordinator hung up"),
+		)
 	}
 	// forcefully close the stream
 	protoErr := c.client.Close()
@@ -369,6 +397,7 @@ func NewTunnelSrcCoordController(
 			Logger:      logger,
 			Coordinatee: coordinatee,
 			SendAcks:    false,
+			Initiator:   codersdk.DisconnectInitiatorClient,
 		},
 		dests: make(map[uuid.UUID]struct{}),
 	}
@@ -508,6 +537,7 @@ func NewAgentCoordinationController(
 		Logger:      logger,
 		Coordinatee: coordinatee,
 		SendAcks:    true,
+		Initiator:   codersdk.DisconnectInitiatorAgent,
 	}
 }
 
@@ -1505,7 +1535,12 @@ func (c *Controller) Run(ctx context.Context) {
 				}
 
 				if errors.Is(err, net.ErrClosed) {
-					c.logger.Warn(c.ctx, "control plane connection closed, retrying", slog.Error(err))
+					c.logger.Warn(c.ctx, "control plane connection closed, retrying",
+						slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
+						slog.F("disconnect_initiator", codersdk.DisconnectInitiatorNetwork),
+						slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
+						slog.Error(err),
+					)
 					continue
 				}
 
