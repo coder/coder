@@ -6,7 +6,6 @@ import { templateByName } from "#/api/queries/templates";
 import type { AuthorizationResponse, Template } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
-import { Margins } from "#/components/Margins/Margins";
 import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 
@@ -52,8 +51,8 @@ export const TemplateSettingsLayout: FC = () => {
 		<>
 			<title>{pageTitle(templateName, "Settings")}</title>
 
-			<Margins>
-				<div className="flex flex-row gap-20 py-12">
+			<section className="px-10 max-w-screen-2xl mx-auto">
+				<div className="flex flex-row gap-28 py-10">
 					{templateQuery.isError || permissionsQuery.isError ? (
 						<ErrorAlert error={templateQuery.error} />
 					) : (
@@ -64,15 +63,15 @@ export const TemplateSettingsLayout: FC = () => {
 							}}
 						>
 							<Sidebar template={templateQuery.data} />
-							<Suspense fallback={<Loader />}>
-								<div className="w-full">
+							<div className="grow">
+								<Suspense fallback={<Loader />}>
 									<Outlet />
-								</div>
-							</Suspense>
+								</Suspense>
+							</div>
 						</TemplateSettings.Provider>
 					)}
 				</div>
-			</Margins>
+			</section>
 		</>
 	);
 };

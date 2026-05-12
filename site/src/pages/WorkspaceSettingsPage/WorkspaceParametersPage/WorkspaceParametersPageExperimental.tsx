@@ -16,6 +16,10 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
@@ -244,13 +248,12 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 max-w-screen-md">
+		<div className="flex flex-col gap-12">
 			<title>{pageTitle(workspace.name, "Parameters")}</title>
 
-			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row items-center gap-2 justify-between w-full">
-					<span className="flex flex-row items-center gap-2">
-						<h1 className="text-3xl m-0">Workspace parameters</h1>
+			<SettingsHeader>
+				<SettingsHeaderTitle
+					tooltip={
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -271,9 +274,11 @@ const WorkspaceParametersPageExperimental: FC = () => {
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
-					</span>
-				</span>
-			</header>
+					}
+				>
+					Parameters
+				</SettingsHeaderTitle>
+			</SettingsHeader>
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 

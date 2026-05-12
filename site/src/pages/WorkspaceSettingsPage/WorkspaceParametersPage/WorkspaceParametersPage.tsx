@@ -16,6 +16,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import {
@@ -143,15 +147,13 @@ export const WorkspaceParametersPageView: FC<
 	onCancel,
 }) => {
 	return (
-		<div className="flex flex-col gap-10">
-			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row justify-between w-full items-center gap-2">
-					<h1 className="text-3xl m-0">Workspace parameters</h1>
-				</span>
-			</header>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Parameters</SettingsHeaderTitle>
+			</SettingsHeader>
 
 			{submitError && !isApiValidationError(submitError) ? (
-				<ErrorAlert error={submitError} className="mb-12" />
+				<ErrorAlert error={submitError} />
 			) : null}
 
 			{templateVersionParameters && buildParameters ? (

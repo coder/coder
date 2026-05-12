@@ -7,7 +7,6 @@ import {
 } from "#/api/queries/workspaces";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
-import { Margins } from "#/components/Margins/Margins";
 import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 import { WorkspaceSettings } from "./useWorkspaceSettings";
@@ -35,8 +34,8 @@ export const WorkspaceSettingsLayout: FC = () => {
 		<>
 			<title>{pageTitle(workspaceName, "Settings")}</title>
 
-			<Margins>
-				<div className="flex flex-row gap-20 py-12">
+			<section className="px-10 max-w-screen-2xl mx-auto">
+				<div className="flex flex-row gap-28 py-10">
 					{error ? (
 						<ErrorAlert error={error} />
 					) : (
@@ -49,16 +48,16 @@ export const WorkspaceSettingsLayout: FC = () => {
 								}}
 							>
 								<Sidebar />
-								<Suspense fallback={<Loader />}>
-									<div className="w-full">
+								<div className="grow">
+									<Suspense fallback={<Loader />}>
 										<Outlet />
-									</div>
-								</Suspense>
+									</Suspense>
+								</div>
 							</WorkspaceSettings.Provider>
 						)
 					)}
 				</div>
-			</Margins>
+			</section>
 		</>
 	);
 };

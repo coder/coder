@@ -1,9 +1,9 @@
 import type { ComponentProps, FC } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
 interface TemplateSettingsPageViewProps {
@@ -32,10 +32,10 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 	sharedPortControlsEnabled,
 }) => {
 	return (
-		<>
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>General Settings</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>General</SettingsHeaderTitle>
+			</SettingsHeader>
 
 			<TemplateSettingsForm
 				initialTouched={initialTouched}
@@ -48,6 +48,6 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				portSharingControlsEnabled={sharedPortControlsEnabled}
 			/>
-		</>
+		</div>
 	);
 };

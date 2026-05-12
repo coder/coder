@@ -1,16 +1,10 @@
-import {
-	LockIcon,
-	TimerIcon as ScheduleIcon,
-	SettingsIcon,
-	CodeIcon as VariablesIcon,
-} from "lucide-react";
 import type { FC } from "react";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Sidebar as BaseSidebar,
+	SettingsSidebarNavItem,
 	SidebarHeader,
-	SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 
@@ -33,19 +27,20 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
 				)}
 				subtitle={template.name}
 			/>
-
-			<SidebarNavItem href="" icon={SettingsIcon}>
-				General
-			</SidebarNavItem>
-			<SidebarNavItem href="permissions" icon={LockIcon}>
-				Permissions
-			</SidebarNavItem>
-			<SidebarNavItem href="variables" icon={VariablesIcon}>
-				Variables
-			</SidebarNavItem>
-			<SidebarNavItem href="schedule" icon={ScheduleIcon}>
-				Schedule
-			</SidebarNavItem>
+			<div className="flex flex-col gap-1">
+				<SettingsSidebarNavItem end href="">
+					General
+				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="permissions">
+					Permissions
+				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="variables">
+					Variables
+				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="schedule">
+					Schedule
+				</SettingsSidebarNavItem>
+			</div>
 		</BaseSidebar>
 	);
 };

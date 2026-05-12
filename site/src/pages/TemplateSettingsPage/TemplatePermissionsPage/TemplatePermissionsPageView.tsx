@@ -19,16 +19,16 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
-import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -225,10 +225,10 @@ export const TemplatePermissionsPageView: FC<
 	onRemoveGroup,
 }) => {
 	return (
-		<>
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Permissions</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Permissions</SettingsHeaderTitle>
+			</SettingsHeader>
 
 			<div className="flex flex-col gap-2.5">
 				{canUpdatePermissions && (
@@ -265,7 +265,7 @@ export const TemplatePermissionsPageView: FC<
 					</TableBody>
 				</Table>
 			</div>
-		</>
+		</div>
 	);
 };
 
