@@ -83,14 +83,6 @@ const noWorkspaceQuota = {
 	credits_consumed: 0,
 	budget: 0,
 } satisfies WorkspaceQuota;
-const unusedWorkspaceQuota = {
-	credits_consumed: 0,
-	budget: 100,
-} satisfies WorkspaceQuota;
-const consumedWorkspaceQuotaWithoutBudget = {
-	credits_consumed: 20,
-	budget: 0,
-} satisfies WorkspaceQuota;
 const defaultWorkspaceQuota = {
 	credits_consumed: 30,
 	budget: 100,
@@ -215,7 +207,10 @@ export const WorkspaceQuotaUnused: Story = {
 			is_limited: false,
 			current_spend: 0,
 		}),
-		withWorkspaceQuota(unusedWorkspaceQuota),
+		withWorkspaceQuota({
+			credits_consumed: 0,
+			budget: 100,
+		}),
 	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -230,7 +225,10 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 			is_limited: false,
 			current_spend: 0,
 		}),
-		withWorkspaceQuota(consumedWorkspaceQuotaWithoutBudget),
+		withWorkspaceQuota({
+			credits_consumed: 20,
+			budget: 0,
+		}),
 		withWorkspaceCount(1),
 	],
 	play: async ({ canvasElement }) => {

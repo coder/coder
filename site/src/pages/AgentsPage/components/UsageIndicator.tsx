@@ -38,11 +38,6 @@ type UsageSectionData = {
 	severity?: UsageSeverity;
 };
 
-const usageTriggerMeterWidthClassName = "w-24";
-
-const workspaceQuotaTooltip =
-	"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.";
-
 const numberFormatter = new Intl.NumberFormat("en-US");
 
 export const UsageIndicator: FC = () => {
@@ -105,24 +100,17 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 		enabled: organizationName !== "" && username !== "",
 	});
 	const quota = quotaQuery.data;
-	const shouldFetchWorkspaceCount =
+	const shouldShowWorkspaceQuota =
 		quota !== undefined && quota.budget >= 0 && quota.credits_consumed > 0;
-	const userWorkspacesRequest = {
-		q: `owner:me organization:${organizationName}`,
-		limit: 0,
-	};
 	const workspacesQuery = useQuery({
-		...workspaces(userWorkspacesRequest),
-		enabled: shouldFetchWorkspaceCount && organizationName !== "",
+		...workspaces({
+			q: `owner:me organization:${organizationName}`,
+			limit: 0,
+		}),
+		enabled: shouldShowWorkspaceQuota && organizationName !== "",
 	});
 
-	if (
-		quotaQuery.isLoading ||
-		quotaQuery.isError ||
-		!quota ||
-		quota.budget < 0 ||
-		quota.credits_consumed <= 0
-	) {
+	if (quotaQuery.isLoading || quotaQuery.isError || !shouldShowWorkspaceQuota) {
 		return undefined;
 	}
 
@@ -134,7 +122,7 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 	const quotaDetail =
 		workspaceCount === undefined
 			? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`
-			: `${formatNumber(workspaceCount)} ${pluralize("workspace", workspaceCount)} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
+			: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
 
 	return {
 		id: "workspace-quota",
@@ -143,7 +131,8 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 		percent,
 		severity: getSeverity(creditsConsumed, quota.budget),
 		detail: quotaDetail,
-		tooltip: workspaceQuotaTooltip,
+		tooltip:
+			"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
 	};
 };
 
@@ -190,12 +179,7 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	const size = sections.length > 1 ? "compact" : "default";
 
 	return (
-		<div
-			className={cn(
-				"flex shrink-0 flex-col gap-0.5",
-				usageTriggerMeterWidthClassName,
-			)}
-		>
+		<div className="flex w-24 shrink-0 flex-col gap-0.5">
 			{sections.map((section) => (
 				<UsageProgress
 					key={section.id}
@@ -379,10 +363,6 @@ function getWorkspaceCount(count: number | undefined): number | undefined {
 		return undefined;
 	}
 	return count;
-}
-
-function pluralize(noun: string, count: number): string {
-	return count === 1 ? noun : `${noun}s`;
 }
 
 function formatNumber(value: number): string {
