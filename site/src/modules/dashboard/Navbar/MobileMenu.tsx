@@ -236,10 +236,10 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 				)}
 				<DropdownMenuItem
 					asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
+					className={cn(itemStyles.default, itemStyles.sub)}
+				>
 					<Link to="/organizations">Organizations</Link>
-					</DropdownMenuItem>
+				</DropdownMenuItem>
 				{canViewAuditLog && (
 					<DropdownMenuItem
 						asChild
