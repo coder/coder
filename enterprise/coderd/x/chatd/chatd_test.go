@@ -1274,7 +1274,7 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 // Streaming parts for committed turns are intentionally NOT replayed
 // via the relay: they would duplicate the durable message on the
 // user's screen. The buffer retains in-progress parts only; once an
-// assistant turn commits, the parts that built it are stamped with
+// assistant turn commits, the parts that built it are claimed by
 // the durable message ID and dropped from new buffer snapshots.
 func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 	t.Parallel()

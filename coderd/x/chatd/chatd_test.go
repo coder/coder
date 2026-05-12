@@ -9562,7 +9562,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 
 	// Subscribe before the worker commits any durable messages so we
 	// observe the advisor tool-result deltas live. Buffered parts are
-	// stamped with their committed durable message ID at publishMessage
+	// claimed by their committed durable message ID at publishMessage
 	// time and dropped from snapshots of late-connecting subscribers, so
 	// a post-completion Subscribe() would no longer see streaming
 	// deltas. Collecting events from the live channel covers the
@@ -9658,7 +9658,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 
 	// Stop the live collector and assert it captured the streaming
 	// advisor deltas during processing. Late subscribers no longer
-	// see committed parts because publishMessage stamps them out of
+	// see committed parts because publishMessage claims them out of
 	// new snapshots, so the assertion must use the live collector.
 	cancelLive()
 	<-liveCollectorDone

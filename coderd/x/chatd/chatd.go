@@ -5813,10 +5813,13 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// against this chat after processing completes,
 		// without racing cleanupStreamIfIdle. The buffer is
 		// cleared when the next processChat starts or when
-		// cleanupStreamIfIdle runs after the grace period; its
-		// contents are not used to backfill subscribers because
-		// every part has already been claimed by its durable
-		// assistant message.
+		// cleanupStreamIfIdle runs after the grace period; on
+		// the normal-completion path every part has been
+		// claimed by its durable assistant message, so the
+		// snapshot is empty. On error or panic exit some parts
+		// may still be in-progress; those are likewise
+		// discarded when the buffer is cleared, and the
+		// frontend recovers via the next REST snapshot.
 		streamState.bufferRetainedAt = p.clock.Now()
 		streamState.mu.Unlock()
 	}()
