@@ -34,6 +34,9 @@ explained through a cooking analogy:
 - Familiarity with running commands in the terminal
 - 10 minutes of your time
 
+> [!TIP]
+> If you use an AI coding assistant, the [coder/skills](https://github.com/coder/skills) `setup` skill can walk your agent through the steps below (install Docker, install Coder, create your first template, and launch a workspace).
+
 ## Step 1: Install Docker and set up permissions
 
 <div class="tabs">
