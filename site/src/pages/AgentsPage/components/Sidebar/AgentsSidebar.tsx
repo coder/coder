@@ -56,6 +56,7 @@ import {
 import {
 	createContext,
 	type FC,
+	type ReactNode,
 	useContext,
 	useEffect,
 	useEffectEvent,
@@ -809,6 +810,57 @@ const SortableChatTreeNode: FC<{
 	);
 };
 
+const PINNED_SECTION_KEY = "Pinned";
+
+const getSectionToggleTestId = (sectionKey: string) =>
+	`agents-section-toggle-${sectionKey.replaceAll(" ", "-")}`;
+
+interface ChatSectionHeaderProps {
+	readonly label: string;
+	readonly count: number;
+	readonly expanded: boolean;
+	readonly onToggle: () => void;
+	readonly action?: ReactNode;
+	readonly testId: string;
+}
+
+const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
+	label,
+	count,
+	expanded,
+	onToggle,
+	action,
+	testId,
+}) => {
+	const actionLabel = expanded ? "Collapse" : "Expand";
+	return (
+		<div className="group/header mb-1 ml-2.5 -mr-0.5 flex h-7 items-center text-xs font-medium text-content-secondary">
+			<button
+				type="button"
+				className="flex h-7 min-w-0 flex-1 cursor-pointer appearance-none items-center rounded-md border-0 bg-transparent p-0 text-left font-sans text-xs font-medium text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link [@media(hover:hover)]:group-hover/header:text-content-primary"
+				aria-expanded={expanded}
+				aria-label={`${actionLabel} ${label} section`}
+				data-testid={testId}
+				onClick={onToggle}
+			>
+				<span className="min-w-0 flex-1 truncate">
+					{label} ({count})
+				</span>
+				<span className="flex h-6 w-7 shrink-0 items-center justify-end">
+					<ChevronDownIcon
+						aria-hidden="true"
+						className={cn(
+							"h-3.5 w-3.5 text-current transition-transform",
+							expanded && "rotate-180",
+						)}
+					/>
+				</span>
+			</button>
+			{action && <div className="shrink-0">{action}</div>}
+		</div>
+	);
+};
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -867,6 +919,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [collapsedSections, setCollapsedSections] = useState<
+		Record<string, boolean>
+	>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 
 	const chatTree = buildChatTree(chats);
@@ -980,7 +1035,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					size="icon"
 					aria-label="Filter agents"
 					className={cn(
-						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover/header:text-content-primary",
 						archivedFilter === "archived" && "text-content-primary",
 					)}
 				>
@@ -1042,6 +1097,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	}, [activeChatId]);
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
+	};
+	const toggleSection = (sectionKey: string) => {
+		setCollapsedSections((prev) => ({
+			...prev,
+			[sectionKey]: !prev[sectionKey],
+		}));
 	};
 
 	const chatTreeCtx: ChatTreeContextValue = {
@@ -1202,32 +1263,48 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
 														<div className="[&:not(:first-child)]:mt-3">
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<span>Pinned</span>
-																{showFilterOnPinned && filterDropdown}
-															</div>
-															<DndContext
-																sensors={sensors}
-																collisionDetection={closestCenter}
-																onDragEnd={handleDragEnd}
-															>
-																<SortableContext
-																	items={pinnedChatIds}
-																	strategy={verticalListSortingStrategy}
+															<ChatSectionHeader
+																label={PINNED_SECTION_KEY}
+																count={pinnedChats.length}
+																expanded={
+																	!collapsedSections[PINNED_SECTION_KEY]
+																}
+																onToggle={() =>
+																	toggleSection(PINNED_SECTION_KEY)
+																}
+																action={
+																	showFilterOnPinned
+																		? filterDropdown
+																		: undefined
+																}
+																testId={getSectionToggleTestId(
+																	PINNED_SECTION_KEY,
+																)}
+															/>
+															{!collapsedSections[PINNED_SECTION_KEY] && (
+																<DndContext
+																	sensors={sensors}
+																	collisionDetection={closestCenter}
+																	onDragEnd={handleDragEnd}
 																>
-																	<div
-																		ref={pinnedContainerRef}
-																		className="flex flex-col gap-0.5"
+																	<SortableContext
+																		items={pinnedChatIds}
+																		strategy={verticalListSortingStrategy}
 																	>
-																		{sortedPinnedChats.map((chat) => (
-																			<SortableChatTreeNode
-																				key={chat.id}
-																				chat={chat}
-																			/>
-																		))}
-																	</div>
-																</SortableContext>
-															</DndContext>
+																		<div
+																			ref={pinnedContainerRef}
+																			className="flex flex-col gap-0.5"
+																		>
+																			{sortedPinnedChats.map((chat) => (
+																				<SortableChatTreeNode
+																					key={chat.id}
+																					chat={chat}
+																				/>
+																			))}
+																		</div>
+																	</SortableContext>
+																</DndContext>
+															)}
 														</div>
 													)}
 													{/* ── Time-grouped sections ── */}
@@ -1241,25 +1318,35 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	chat.pin_order === 0,
 															);
 														if (groupChats.length === 0) return null;
+														const isGroupExpanded = !collapsedSections[group];
 														return (
 															<div
 																key={group}
 																className="[&:not(:first-child)]:mt-3"
 															>
-																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																	<span>{group}</span>
-																	{group === firstNonEmptyGroup &&
-																		filterDropdown}
-																</div>
-																<div className="flex flex-col gap-0.5">
-																	{groupChats.map((chat) => (
-																		<ChatTreeNode
-																			key={chat.id}
-																			chat={chat}
-																			isChildNode={false}
-																		/>
-																	))}
-																</div>
+																<ChatSectionHeader
+																	label={group}
+																	count={groupChats.length}
+																	expanded={isGroupExpanded}
+																	onToggle={() => toggleSection(group)}
+																	action={
+																		group === firstNonEmptyGroup
+																			? filterDropdown
+																			: undefined
+																	}
+																	testId={getSectionToggleTestId(group)}
+																/>
+																{isGroupExpanded && (
+																	<div className="flex flex-col gap-0.5">
+																		{groupChats.map((chat) => (
+																			<ChatTreeNode
+																				key={chat.id}
+																				chat={chat}
+																				isChildNode={false}
+																			/>
+																		))}
+																	</div>
+																)}
 															</div>
 														);
 													})}
