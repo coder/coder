@@ -68,6 +68,9 @@ sql:
           - column: "chats.labels"
             go_type:
               type: "StringMap"
+          - column: "chats_expanded.labels"
+            go_type:
+              type: "StringMap"
           - column: "users.rbac_roles"
             go_type: "github.com/lib/pq.StringArray"
           - column: "templates.user_acl"
@@ -163,6 +166,8 @@ sql:
               type: "NullDecimal"
               package: "decimal"
         rename:
+          chat: ChatTable
+          chats_expanded: Chat
           group_member: GroupMemberTable
           group_members_expanded: GroupMember
           template: TemplateTable

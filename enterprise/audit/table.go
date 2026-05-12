@@ -406,6 +406,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.Chat{}: {
 		"id":                    ActionTrack,
 		"owner_id":              ActionTrack,
+		"owner_username":        ActionIgnore,
+		"owner_name":            ActionIgnore,
 		"organization_id":       ActionIgnore, // Never changes after creation.
 		"workspace_id":          ActionTrack,
 		"build_id":              ActionIgnore, // Internal lifecycle.
