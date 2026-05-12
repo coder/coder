@@ -38,7 +38,7 @@ type UsageSectionData = {
 	severity?: UsageSeverity;
 };
 
-const USER_WORKSPACES_REQUEST = { q: "owner:me", limit: 0 };
+const usageTriggerMeterWidthClassName = "w-16";
 
 const workspaceQuotaTooltip =
 	"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.";
@@ -106,9 +106,13 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 	});
 	const quota = quotaQuery.data;
 	const shouldFetchWorkspaceCount = quota !== undefined && quota.budget > 0;
+	const userWorkspacesRequest = {
+		q: `owner:me organization:${organizationName}`,
+		limit: 0,
+	};
 	const workspacesQuery = useQuery({
-		...workspaces(USER_WORKSPACES_REQUEST),
-		enabled: shouldFetchWorkspaceCount,
+		...workspaces(userWorkspacesRequest),
+		enabled: shouldFetchWorkspaceCount && organizationName !== "",
 	});
 
 	if (
@@ -151,9 +155,11 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="ml-auto flex self-stretch flex-col justify-center items-start gap-1 border-none bg-transparent px-3 cursor-pointer select-none transition-colors text-content-secondary hover:bg-surface-tertiary/50 outline-none text-[13px]"
+					className="ml-auto flex self-stretch flex-col items-center justify-center gap-1 border-none bg-transparent px-3 cursor-pointer select-none transition-colors text-content-secondary hover:bg-surface-tertiary/50 outline-none text-[13px]"
 				>
-					<span className="shrink-0 whitespace-nowrap">{triggerLabel}</span>
+					<span className="shrink-0 whitespace-nowrap text-center">
+						{triggerLabel}
+					</span>
 					<UsageTriggerProgress sections={sections} />
 				</button>
 			</DropdownMenuTrigger>
@@ -179,31 +185,23 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
-	if (sections.length === 1) {
-		const section = sections[0];
-		if (section === undefined) {
-			return null;
-		}
-
-		return (
-			<UsageProgress
-				ariaLabel={section.progressLabel}
-				percent={section.percent}
-				severity={section.severity}
-				className="w-full shrink-0"
-			/>
-		);
-	}
+	const size = sections.length > 1 ? "compact" : "default";
 
 	return (
-		<div className="flex w-16 shrink-0 flex-col gap-0.5">
+		<div
+			className={cn(
+				"flex shrink-0 flex-col gap-0.5",
+				usageTriggerMeterWidthClassName,
+			)}
+		>
 			{sections.map((section) => (
 				<UsageProgress
 					key={section.id}
 					ariaLabel={section.progressLabel}
 					percent={section.percent}
 					severity={section.severity}
-					size="compact"
+					size={size}
+					className="w-full"
 				/>
 			))}
 		</div>

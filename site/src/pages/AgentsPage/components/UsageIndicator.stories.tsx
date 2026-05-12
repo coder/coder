@@ -75,7 +75,10 @@ const openUsageMenu = async (canvasElement: HTMLElement) => {
 
 const periodStart = new Date().toISOString();
 const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-const userWorkspacesRequest = { q: "owner:me", limit: 0 };
+const userWorkspacesRequest = {
+	q: `owner:me organization:${MockDefaultOrganization.name}`,
+	limit: 0,
+};
 const noWorkspaceQuota = {
 	credits_consumed: 0,
 	budget: 0,
