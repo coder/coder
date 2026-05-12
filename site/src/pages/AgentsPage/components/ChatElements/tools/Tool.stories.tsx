@@ -6,6 +6,20 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const longUnbrokenSegment = "0123456789abcdef".repeat(24);
+
+const getRenderedCode = (root: HTMLElement) => {
+	const container = root.querySelector("diffs-container");
+	if (!(container instanceof HTMLElement)) {
+		throw new Error("Diff container was not rendered");
+	}
+	const code = container.shadowRoot?.querySelector("[data-code]");
+	if (!(code instanceof HTMLElement)) {
+		throw new Error("Diff code was not rendered");
+	}
+	return code;
+};
+
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
@@ -1079,6 +1093,40 @@ export const EditFilesSingleSuccess: Story = {
 	},
 };
 
+export const EditFilesLongLineHorizontalScroll: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "auto",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: `export const token = "${longUnbrokenSegment}";`,
+							replace: `export const token = "${longUnbrokenSegment}changed";`,
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const diff = canvas.getByTestId("edit-file-diff");
+
+		await waitFor(() => {
+			const code = getRenderedCode(diff);
+			expect(code.scrollWidth).toBeGreaterThan(code.clientWidth);
+
+			const originalScrollLeft = code.scrollLeft;
+			code.scrollLeft = 32;
+			expect(code.scrollLeft).toBeGreaterThan(originalScrollLeft);
+		});
+	},
+};
+
 export const EditFilesAlwaysCollapsed: Story = {
 	args: {
 		name: "edit_files",
@@ -1772,7 +1820,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected, so we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),

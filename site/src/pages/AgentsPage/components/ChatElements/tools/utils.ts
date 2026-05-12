@@ -339,11 +339,6 @@ export const diffViewerCSS = [
 	// tint and word-level emphasis highlights remain visible.
 	"pre, [data-line]:not([data-selected-line]):not([data-line-type='change-addition']):not([data-line-type='change-deletion']), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
-	// The library reserves a 6 px horizontal scrollbar track on
-	// [data-code] via overflow: scroll clip. In wrap mode lines
-	// never overflow, so hide the track to remove the phantom gap.
-	"[data-code] { scrollbar-width: none !important; }",
-	"[data-code]::-webkit-scrollbar { height: 0 !important; }",
 	DIFF_HEADER_CSS,
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,
@@ -354,7 +349,7 @@ export function getDiffViewerOptions(isDark: boolean) {
 	return {
 		diffStyle: "unified" as const,
 		diffIndicators: "bars" as const,
-		overflow: "wrap" as const,
+		overflow: "scroll" as const,
 		themeType: (isDark ? "dark" : "light") as "dark" | "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		unsafeCSS: diffViewerCSS,

@@ -542,7 +542,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 
 	const fileOptions = {
 		...diffOptions,
-		overflow: "wrap" as const,
+		overflow: "scroll" as const,
 		enableLineSelection: true,
 		enableHoverUtility: true,
 		onLineSelected() {
@@ -558,7 +558,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 
 	const getOptionsForFile = (fileName: string) => ({
 		...diffOptions,
-		overflow: "wrap" as const,
+		overflow: "scroll" as const,
 		enableLineSelection: true,
 		enableHoverUtility: true,
 		...(onLineNumberClick && {
