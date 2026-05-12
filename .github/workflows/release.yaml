@@ -982,20 +982,11 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-        with:
-          use-cache: false
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
-      - name: Update docs
-        env:
-          VERSION: ${{ needs.prepare-release.outputs.version }}
-          CHANNEL: ${{ needs.prepare-release.outputs.channel }}
-        run: |
-          set -euo pipefail
-          go run ./scripts/release-action update-docs \
-            --version "$VERSION" \
-            --channel "$CHANNEL"
+      - name: Update release calendar
+        run: ./scripts/update-release-calendar.sh
 
       - name: Create docs update PR
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8

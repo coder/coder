@@ -106,40 +106,6 @@ func main() {
 					return nil
 				},
 			},
-			{
-				Use:   "update-docs",
-				Short: "Update release calendar and version pragmas in docs.",
-				Options: serpent.OptionSet{
-					{
-						Name:        "version",
-						Flag:        "version",
-						Description: "Release version (e.g. v2.21.0).",
-						Value:       serpent.StringOf(&versionStr),
-						Required:    true,
-					},
-					{
-						Name:        "channel",
-						Flag:        "channel",
-						Description: "Release channel (stable or rc).",
-						Value:       serpent.StringOf(&channel),
-						Required:    true,
-					},
-				},
-				Handler: func(inv *serpent.Invocation) error {
-					ver, err := parseVersion(versionStr)
-					if err != nil {
-						return xerrors.Errorf("parse --version: %w", err)
-					}
-					changed, err := updateReleaseDocs(ver, channel)
-					if err != nil {
-						return err
-					}
-					for _, f := range changed {
-						_, _ = fmt.Fprintln(inv.Stdout, f)
-					}
-					return nil
-				},
-			},
 		},
 	}
 
