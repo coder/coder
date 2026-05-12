@@ -235,3 +235,7 @@ jobs:
           github-token: ${{ github.token }}
           wait: complete
           wait-timeout-seconds: "600"
+          # The doc-check agent posts its own sticky review comment when
+          # there are findings; failures surface in the workflow run log.
+          # The action's own lifecycle comment is not needed.
+          comment-on-issue: "false"
