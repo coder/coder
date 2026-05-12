@@ -153,12 +153,48 @@ jobs:
           # so paths containing whitespace or quotes survive intact.
           DIFF_FILE=$(mktemp)
           git diff --name-status -z "$BEFORE_SHA" "$AFTER_SHA" -- 'docs/**/*.md' > "$DIFF_FILE"
-          # Count surgical-mode-eligible entries. `--name-status -z`
-          # uses NUL between fields and between records, with a
-          # special twist for renames: `R<n>\0<old>\0<new>\0`, which
-          # is three NUL-delimited fields per record instead of two.
-          # We re-parse below to handle both cases.
-          CHANGED=$(awk -v RS='\0' 'BEGIN{ n=0 } { if ($0 ~ /^R/) { getline; getline; n++ } else if ($0 != "") { getline; n++ } } END{ print n }' "$DIFF_FILE")
+          # Parse the NUL-delimited diff into <path>\t<status> lines.
+          # `--name-status -z` uses NUL between fields and between
+          # records, with a special twist for renames: the record is
+          # `R<n>\0<old>\0<new>\0`, three NUL-delimited fields instead
+          # of two. Status codes: A=added, M=modified, T=type-changed
+          # (treated as modified), D=deleted, R<n>=renamed (we index
+          # the new path since that is the live route). Unknown codes
+          # log a warning and are skipped; a single awk handles both
+          # the parsing and the count so the two cannot disagree.
+          #
+          # Tested in test-deploy-docs-diff.sh. Keep that script in
+          # sync with any changes to this block.
+          PARSED=$(mktemp)
+          awk -v RS='\0' '
+            function emit(path, status) {
+              printf "%s\t%s\n", path, status
+            }
+            {
+              code = substr($0, 1, 1)
+              if (code == "A") { getline; emit($0, "added"); next }
+              if (code == "M") { getline; emit($0, "modified"); next }
+              if (code == "T") { getline; emit($0, "modified"); next }
+              if (code == "D") { getline; emit($0, "deleted"); next }
+              if (code == "R") {
+                # R<similarity>\0<old>\0<new>\0
+                getline old_path
+                getline new_path
+                emit(new_path, "renamed")
+                next
+              }
+              if ($0 != "") {
+                # Unknown status code. Consume the path field so the
+                # record alignment stays correct, then warn.
+                unknown_code = $0
+                getline unknown_path
+                printf "::warning::Unknown git diff status %s for %s; skipping.\n", unknown_code, unknown_path > "/dev/stderr"
+              }
+            }
+          ' "$DIFF_FILE" > "$PARSED"
+          # Count is derived from the emitter output, so the count and
+          # the JSON payload cannot diverge by construction (DEREM-21).
+          CHANGED=$(wc -l < "$PARSED" | tr -d ' ')
           if [ "$CHANGED" -eq 0 ]; then
             # Markdown-only path filter on the trigger means we should
             # only get here on edits to non-markdown files under docs/
@@ -179,40 +215,15 @@ jobs:
             emit_whole_branch_fallback
             exit 0
           fi
-          # Build the JSON array via jq using NUL-delimited input from
-          # `git diff --name-status -z`. Status codes: A=added,
-          # M=modified, T=type-changed (treated as modified), D=deleted,
-          # R<n>=renamed (followed by old path then new path; we index
-          # the new path since that is the live route). All other
-          # codes are ignored. Paths are emitted as <path>\t<status>
-          # lines that jq -Rcn slurps with `inputs | split`, which
-          # handles JSON escaping for quotes, backslashes, and any
-          # other special characters in the path.
-          PATHS_JSON=$(awk -v RS='\0' '
-            function emit(path, status) {
-              printf "%s\t%s\n", path, status
-            }
-            {
-              code = substr($0, 1, 1)
-              if (code == "A") { getline; emit($0, "added"); next }
-              if (code == "M") { getline; emit($0, "modified"); next }
-              if (code == "T") { getline; emit($0, "modified"); next }
-              if (code == "D") { getline; emit($0, "deleted"); next }
-              if (code == "R") {
-                # R<similarity>\0<old>\0<new>\0
-                getline old_path
-                getline new_path
-                emit(new_path, "renamed")
-                next
-              }
-            }
-          ' "$DIFF_FILE" \
-            | jq -Rcn '
-                [ inputs
-                  | split("\t")
-                  | { path: .[0], status: .[1] }
-                ]
-              ')
+          # jq -Rcn slurps the <path>\t<status> lines and handles JSON
+          # escaping for quotes, backslashes, and any other special
+          # characters in the path.
+          PATHS_JSON=$(jq -Rcn '
+              [ inputs
+                | split("\t")
+                | { path: .[0], status: .[1] }
+              ]
+            ' < "$PARSED")
           # Defense in depth: fail loudly if jq could not parse what
           # we built. jq -c already validates structure; this catches
           # the empty-stdin edge case.
@@ -238,6 +249,27 @@ jobs:
           set -euo pipefail
           ACTION="${INPUT_ACTION:-index}"
           REF="${INPUT_REF:-$GITHUB_REF_NAME}"
+          # Reject newlines/carriage returns in either input. GitHub
+          # Actions parses GITHUB_OUTPUT line-by-line with last-writer-
+          # wins, so a newline in $REF would let an operator dispatch
+          # `release/x\naction=delete\nref=main` past the validation
+          # below (the case `*` glob matches the multi-line string),
+          # then have `echo "ref=$REF" >> $GITHUB_OUTPUT` write three
+          # lines whose effective outputs are `action=delete ref=main`.
+          # `inputs.ref` is a single-line UI field; the REST API will
+          # accept anything. Reject embedded newlines explicitly.
+          case "$ACTION" in
+            *[$'\n\r']*)
+              echo "::error::action must not contain newlines."
+              exit 1
+              ;;
+          esac
+          case "$REF" in
+            *[$'\n\r']*)
+              echo "::error::ref must not contain newlines."
+              exit 1
+              ;;
+          esac
           # The workflow_dispatch `type: choice` is enforced only by
           # the GitHub UI. The REST API will accept any string. We
           # validate explicitly so a malformed action never reaches
