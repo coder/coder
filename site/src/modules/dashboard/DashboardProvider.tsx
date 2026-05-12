@@ -79,8 +79,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 				buildInfo: buildInfoQuery.data,
 				organizations: organizationsQuery.data,
 				showOrganizations,
-				canViewOrganizationSettings:
-					showOrganizations && canViewAnyOrganization(permissions),
+				canViewOrganizationSettings: canViewAnyOrganization(permissions),
 			}}
 		>
 			{children}
