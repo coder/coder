@@ -751,6 +751,9 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 	if arg.OwnedOnly && arg.SharedOnly {
 		return nil, xerrors.New("owned_only and shared_only cannot both be true")
 	}
+	if (arg.OwnedOnly || arg.SharedOnly) && arg.ViewerID == uuid.Nil {
+		return nil, xerrors.New("viewer_id required when owned_only or shared_only is true")
+	}
 
 	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChats())
 	if err != nil {

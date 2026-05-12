@@ -3566,7 +3566,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -3619,7 +3619,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+		httpapi.Forbidden(rw)
 		return
 	}
 
