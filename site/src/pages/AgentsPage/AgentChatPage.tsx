@@ -37,7 +37,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { user as userQuery } from "#/api/queries/users";
+import { preferenceSettings, user as userQuery } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -80,6 +80,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -768,6 +769,7 @@ const AgentChatPage: FC = () => {
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
+	const preferencesQuery = useQuery(preferenceSettings());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
@@ -1507,6 +1509,10 @@ const AgentChatPage: FC = () => {
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentChatPageLoadingView
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
 				titleElement={titleElement}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
@@ -1537,6 +1543,10 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			sendShortcut={getAgentChatSendShortcut(
+				preferencesQuery.data?.agent_chat_send_shortcut,
+				preferencesQuery.isLoading,
+			)}
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}

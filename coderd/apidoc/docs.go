@@ -14909,6 +14909,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentChatSendShortcut": {
+            "type": "string",
+            "enum": [
+                "enter",
+                "modifier_enter"
+            ],
+            "x-enum-varnames": [
+                "AgentChatSendShortcutEnter",
+                "AgentChatSendShortcutModifierEnter"
+            ]
+        },
         "codersdk.AgentConnectionTiming": {
             "type": "object",
             "properties": {
@@ -23426,6 +23437,9 @@ const docTemplate = `{
         "codersdk.UpdateUserPreferenceSettingsRequest": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
@@ -23899,6 +23913,9 @@ const docTemplate = `{
         "codersdk.UserPreferenceSettings": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },

@@ -2,6 +2,7 @@ import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
+import { ChatSendShortcutSettings } from "./components/ChatSendShortcutSettings";
 import {
 	CodeDiffDisplaySettings,
 	ThinkingDisplaySettings,
@@ -57,6 +58,7 @@ export const AgentSettingsGeneralPageView: FC<
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
+			<ChatSendShortcutSettings />
 			<ThinkingDisplaySettings />
 			<CodeDiffDisplaySettings />
 			<UserChatDebugLoggingSettings

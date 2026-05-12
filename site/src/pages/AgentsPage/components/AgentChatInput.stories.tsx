@@ -29,6 +29,7 @@ const meta: Meta<typeof AgentChatInput> = {
 	decorators: [withProxyProvider()],
 	args: {
 		onSend: fn(),
+		sendShortcut: "enter",
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -204,6 +205,54 @@ export const SendsAndClearsInput: Story = {
 
 		await userEvent.click(sendButton);
 
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
+export const EnterSendsByDefault: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
+export const ModifierEnterSendsWhenRequired: Story = {
+	args: {
+		onSend: fn(),
+		sendShortcut: "modifier_enter",
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onSend).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(editor.querySelectorAll("br").length).toBeGreaterThan(0);
+		});
+
+		await userEvent.keyboard("{Control>}{Enter}{/Control}");
 		await waitFor(() => {
 			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
 		});
