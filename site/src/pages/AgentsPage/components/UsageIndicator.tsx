@@ -41,11 +41,79 @@ type UsageSectionData = {
 const numberFormatter = new Intl.NumberFormat("en-US");
 
 export const UsageIndicator: FC = () => {
-	const aiSection = useAIUsage();
-	const quotaSection = useWorkspaceQuotaUsage();
-	const sections = [aiSection, quotaSection].filter(
-		(section): section is UsageSectionData => section !== undefined,
+	const { data: chatUsage, isError: isChatUsageError } = useQuery(
+		chatUsageLimitStatus(),
 	);
+	const { user } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName =
+		organizations.find((org) => org.is_default)?.name ?? "";
+	const username = user.username;
+	const { data: quota, isError: isQuotaError } = useQuery({
+		...workspaceQuota(organizationName, username),
+		enabled: organizationName !== "" && username !== "",
+	});
+	const hasWorkspaceQuotaUsage =
+		quota !== undefined && quota.budget >= 0 && quota.credits_consumed > 0;
+	const workspacesQuery = useQuery({
+		...workspaces({
+			q: `owner:me organization:${organizationName}`,
+			limit: 0,
+		}),
+		enabled: hasWorkspaceQuotaUsage && organizationName !== "",
+	});
+	const sections: UsageSectionData[] = [];
+
+	if (!isChatUsageError && chatUsage?.is_limited) {
+		const spendLimit = chatUsage.spend_limit_micros ?? 0;
+		const currentSpend = chatUsage.current_spend;
+		const periodLabel = getUsageLimitPeriodLabel(chatUsage.period);
+		const exceeded = spendLimit > 0 && currentSpend >= spendLimit;
+
+		sections.push({
+			id: "ai-usage",
+			title: `${periodLabel} Usage`,
+			progressLabel: `${periodLabel} spend usage`,
+			percent: getPercent(currentSpend, spendLimit),
+			severity: getSeverity(currentSpend, spendLimit),
+			detail: (
+				<>
+					{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)}{" "}
+					used
+					{exceeded && (
+						<span className="ml-1 text-content-destructive">
+							(limit exceeded)
+						</span>
+					)}
+				</>
+			),
+			secondaryDetail: chatUsage.period_end
+				? `Resets ${dayjs(chatUsage.period_end).format("MMM D, YYYY")}`
+				: undefined,
+		});
+	}
+
+	if (!isQuotaError && hasWorkspaceQuotaUsage) {
+		const creditsConsumed = quota.credits_consumed;
+		const workspaceCount = workspacesQuery.isError
+			? undefined
+			: getWorkspaceCount(workspacesQuery.data?.count);
+		const quotaDetail =
+			workspaceCount === undefined
+				? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`
+				: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
+
+		sections.push({
+			id: "workspace-quota",
+			title: "Workspace quota",
+			progressLabel: "Workspace quota usage",
+			percent: getPercent(creditsConsumed, quota.budget),
+			severity: getSeverity(creditsConsumed, quota.budget),
+			detail: quotaDetail,
+			tooltip:
+				"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
+		});
+	}
 
 	if (sections.length === 0) {
 		return null;
@@ -54,92 +122,11 @@ export const UsageIndicator: FC = () => {
 	return <UsageMenu sections={sections} />;
 };
 
-const useAIUsage = (): UsageSectionData | undefined => {
-	const { data, isLoading, isError } = useQuery(chatUsageLimitStatus());
-
-	if (isLoading || isError || !data?.is_limited) {
-		return undefined;
-	}
-
-	const spendLimit = data.spend_limit_micros ?? 0;
-	const currentSpend = data.current_spend;
-	const percent = getPercent(currentSpend, spendLimit);
-	const periodLabel = getUsageLimitPeriodLabel(data.period);
-	const exceeded = spendLimit > 0 && currentSpend >= spendLimit;
-
-	return {
-		id: "ai-usage",
-		title: `${periodLabel} Usage`,
-		progressLabel: `${periodLabel} spend usage`,
-		percent,
-		severity: getSeverity(currentSpend, spendLimit),
-		detail: (
-			<>
-				{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)} used
-				{exceeded && (
-					<span className="ml-1 text-content-destructive">
-						(limit exceeded)
-					</span>
-				)}
-			</>
-		),
-		secondaryDetail: data.period_end
-			? `Resets ${dayjs(data.period_end).format("MMM D, YYYY")}`
-			: undefined,
-	};
-};
-
-const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
-	const { user } = useAuthenticated();
-	const { organizations } = useDashboard();
-	const defaultOrg = organizations.find((org) => org.is_default);
-	const organizationName = defaultOrg?.name ?? "";
-	const username = user.username;
-	const quotaQuery = useQuery({
-		...workspaceQuota(organizationName, username),
-		enabled: organizationName !== "" && username !== "",
-	});
-	const quota = quotaQuery.data;
-	const shouldShowWorkspaceQuota =
-		quota !== undefined && quota.budget >= 0 && quota.credits_consumed > 0;
-	const workspacesQuery = useQuery({
-		...workspaces({
-			q: `owner:me organization:${organizationName}`,
-			limit: 0,
-		}),
-		enabled: shouldShowWorkspaceQuota && organizationName !== "",
-	});
-
-	if (quotaQuery.isLoading || quotaQuery.isError || !shouldShowWorkspaceQuota) {
-		return undefined;
-	}
-
-	const creditsConsumed = quota.credits_consumed;
-	const percent = getPercent(creditsConsumed, quota.budget);
-	const workspaceCount = workspacesQuery.isError
-		? undefined
-		: getWorkspaceCount(workspacesQuery.data?.count);
-	const quotaDetail =
-		workspaceCount === undefined
-			? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`
-			: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
-
-	return {
-		id: "workspace-quota",
-		title: "Workspace quota",
-		progressLabel: "Workspace quota usage",
-		percent,
-		severity: getSeverity(creditsConsumed, quota.budget),
-		detail: quotaDetail,
-		tooltip:
-			"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
-	};
-};
-
 const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
-	const triggerLabel = getTriggerLabel(sections);
+	const triggerLabel =
+		sections.length > 1 ? "Usage" : (sections[0]?.title ?? "Usage");
 
 	return (
 		<DropdownMenu>
@@ -349,13 +336,6 @@ function getTextClassName(severity: UsageSeverity = "normal"): string {
 		case "normal":
 			return "text-content-secondary";
 	}
-}
-
-function getTriggerLabel(sections: readonly UsageSectionData[]): string {
-	if (sections.length > 1) {
-		return "Usage";
-	}
-	return sections[0]?.title ?? "Usage";
 }
 
 function getWorkspaceCount(count: number | undefined): number | undefined {
