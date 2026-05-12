@@ -167,9 +167,9 @@ type mcpLoggerAdapter struct {
 }
 
 func (l *mcpLoggerAdapter) Infof(format string, v ...any) {
-	l.logger.Info(context.Background(), fmt.Sprintf(format, v...))
+	l.logger.Info(context.Background(), "mcp server info", slog.F("message", fmt.Sprintf(format, v...)))
 }
 
 func (l *mcpLoggerAdapter) Errorf(format string, v ...any) {
-	l.logger.Error(context.Background(), fmt.Sprintf(format, v...))
+	l.logger.Error(context.Background(), "mcp server error", slog.F("message", fmt.Sprintf(format, v...)))
 }

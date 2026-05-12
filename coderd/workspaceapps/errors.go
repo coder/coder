@@ -19,7 +19,8 @@ func WriteWorkspaceApp404(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 	if appReq != nil {
 		slog.Helper()
 		log.Debug(r.Context(),
-			"workspace app 404: "+details,
+			"workspace app 404",
+			slog.F("details", details),
 			slog.F("username_or_id", appReq.UsernameOrID),
 			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
 			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
@@ -60,7 +61,8 @@ func WriteWorkspaceApp500(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 		)
 	}
 	log.Warn(ctx,
-		"workspace app auth server error: "+msg,
+		"workspace app auth server error",
+		slog.F("details", msg),
 		slog.Error(err),
 	)
 
@@ -83,7 +85,8 @@ func WriteWorkspaceAppOffline(log slog.Logger, accessURL *url.URL, rw http.Respo
 	if appReq != nil {
 		slog.Helper()
 		log.Debug(r.Context(),
-			"workspace app unavailable: "+msg,
+			"workspace app unavailable",
+			slog.F("details", msg),
 			slog.F("username_or_id", appReq.UsernameOrID),
 			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
 			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),

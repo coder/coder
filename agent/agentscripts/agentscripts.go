@@ -290,7 +290,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	defer func() {
 		err := fileWriter.Close()
 		if err != nil {
-			logger.Warn(ctx, fmt.Sprintf("close %s script log file", logPath), slog.Error(err))
+			logger.Warn(ctx, "close script log file failed", slog.Error(err))
 		}
 	}()
 
@@ -346,9 +346,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			if xerrors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			}
-			logger.Warn(ctx, fmt.Sprintf("%s script failed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
+			logger.Warn(ctx, "agent script failed", slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
 		} else {
-			logger.Info(ctx, fmt.Sprintf("%s script completed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
+			logger.Info(ctx, "agent script completed", slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 
 		if r.scriptCompleted == nil {
