@@ -84,6 +84,21 @@ export const ForOrgAdmin: Story = {
 	},
 };
 
+export const ForSingleOrgOSSAdmin: Story = {
+	args: {
+		canViewAuditLog: false,
+		canViewOrganizations: false,
+		canViewConnectionLog: false,
+		canViewAIBridge: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+	},
+};
+
 export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
