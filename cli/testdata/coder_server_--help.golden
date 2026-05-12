@@ -173,6 +173,15 @@ AI BRIDGE OPTIONS:
           Emit structured logs for AI Bridge interception records. Use this for
           exporting these records to external SIEM or observability systems.
 
+      --ai-budget-period month, $CODER_AI_BUDGET_PERIOD (default: month)
+          Determines when accumulated AI spend resets to zero, aligned to UTC
+          calendar boundaries. Only "month" is currently supported.
+
+      --ai-budget-policy highest, $CODER_AI_BUDGET_POLICY (default: highest)
+          Determines the effective group when a user belongs to multiple groups
+          with AI budgets. "highest" selects the group with the largest spend
+          limit, and is currently the only supported value.
+
 AI BRIDGE PROXY OPTIONS: 
       --aibridge-proxy-dump-dir string, $CODER_AIBRIDGE_PROXY_DUMP_DIR
           Directory for dumping MITM request/response pairs to disk for
